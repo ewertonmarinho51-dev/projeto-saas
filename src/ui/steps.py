@@ -81,7 +81,9 @@ def render_formulario() -> None:
             # Dados mudaram: documentos já gerados ficam obsoletos
             state.invalidar_a_partir_de("formulario")
         st.session_state.dados = respostas
-        state.ir_para(1)
+        st.session_state.etapa = 1
+        state.autosalvar()  # cria/atualiza o processo no Supabase
+        st.rerun()
 
 
 # ---------------------------------------------------------------------------

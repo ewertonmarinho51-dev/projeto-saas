@@ -30,6 +30,11 @@ avança sem aprovação humana (tela de *preview* editável em cada etapa).
   excedida e bloqueio de conteúdo geram mensagens claras, com
   retentativas automáticas (backoff exponencial) — os dados nunca se perdem.
 - **Modo Demonstração** (offline, sem chave de API) para conhecer o fluxo.
+- **Banco de dados Supabase (PostgreSQL)**: cada processo é salvo
+  automaticamente a cada etapa aprovada; o painel lateral "Processos
+  Salvos" permite retomar ou excluir trabalhos anteriores de qualquer
+  máquina. Sem credenciais configuradas, o app funciona normalmente
+  (apenas sem persistência).
 
 ## 📁 Estrutura de pastas
 
@@ -47,7 +52,8 @@ projeto-saas/
     ├── config.py                 # Etapas, documentos e campos do formulário (c/ tooltips)
     ├── prompts.py                # System prompts rigorosos por documento
     ├── llm.py                    # Cliente Gemini: retry, timeout, erros amigáveis, modo demo
-    ├── state.py                  # Estado do wizard (st.session_state)
+    ├── db.py                     # Persistência no Supabase (salvar/retomar processos)
+    ├── state.py                  # Estado do wizard (st.session_state) + autosave
     ├── export.py                 # Conversão Markdown ➜ .docx / .pdf / .zip
     └── ui/
         ├── __init__.py
@@ -74,9 +80,57 @@ cp .streamlit/secrets.toml.example .streamlit/secrets.toml
 #    ➜ edite o arquivo e cole sua chave em GOOGLE_API_KEY
 #    (alternativas: export GOOGLE_API_KEY="sua-chave" ou colar na barra lateral)
 
-# 5. Executar
+# 5. Banco de dados (Supabase) — opcional, para salvar/retomar processos
+#    No mesmo .streamlit/secrets.toml, preencha:
+#      SUPABASE_URL = "https://SEU-PROJETO.supabase.co"   (Settings ➜ API)
+#      SUPABASE_KEY = "sb_publishable_..."                 (chave publishable/anon)
+
+# 6. Executar
 streamlit run app.py             # abre em http://localhost:8501
 ```
+
+## 🗄️ Banco de dados (Supabase)
+
+A tabela `public.processos` guarda o Formulário Matriz (`dados`), os
+quatro documentos (`documentos`), as aprovações (`aprovados`) e a etapa
+atual — um registro por processo, atualizado automaticamente a cada
+avanço no wizard. Migração para criar a estrutura em um projeto novo:
+
+```sql
+create table public.processos (
+  id uuid primary key default gen_random_uuid(),
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+  orgao text not null default '',
+  objeto text not null default '',
+  etapa int not null default 0,
+  dados jsonb not null default '{}'::jsonb,
+  documentos jsonb not null default '{}'::jsonb,
+  aprovados text[] not null default '{}'
+);
+create index processos_atualizado_em_idx on public.processos (atualizado_em desc);
+
+create or replace function public.set_atualizado_em()
+returns trigger language plpgsql security invoker set search_path = ''
+as $$ begin new.atualizado_em = now(); return new; end; $$;
+
+revoke execute on function public.set_atualizado_em() from public, anon, authenticated;
+
+create trigger trg_processos_atualizado
+before update on public.processos
+for each row execute function public.set_atualizado_em();
+
+alter table public.processos enable row level security;
+create policy "anon_select" on public.processos for select to anon using (true);
+create policy "anon_insert" on public.processos for insert to anon with check (true);
+create policy "anon_update" on public.processos for update to anon using (true) with check (true);
+create policy "anon_delete" on public.processos for delete to anon using (true);
+```
+
+> ⚠️ As políticas acima liberam o papel `anon` (ferramenta interna de
+> tenant único, chave publishable). Para uso multiusuário em produção,
+> adicione **Supabase Auth** e restrinja as políticas por usuário
+> (`auth.uid()`).
 
 > 💡 **Sem chave de API?** Ative o *Modo Demonstração* na barra lateral
 > para percorrer o fluxo completo com minutas-esqueleto geradas offline.

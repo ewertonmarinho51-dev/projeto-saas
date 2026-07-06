@@ -5,6 +5,7 @@ indicador de passos (stepper) e barra lateral.
 
 import streamlit as st
 
+from .. import db, state
 from ..config import APP_SUBTITULO, APP_TITULO, ETAPAS
 from ..llm import obter_api_key
 
@@ -72,6 +73,57 @@ def render_base_legal(texto: str) -> None:
     st.markdown(f'<div class="gd-base-legal">⚖️ {texto}</div>', unsafe_allow_html=True)
 
 
+def _render_processos_salvos() -> None:
+    """Painel de processos persistidos no Supabase (retomar / excluir)."""
+    st.markdown("### 💾 Processos Salvos")
+    if not db.disponivel():
+        st.caption(
+            "Configure SUPABASE_URL e SUPABASE_KEY em .streamlit/secrets.toml "
+            "para salvar o andamento e retomá-lo depois (banco Supabase)."
+        )
+        return
+
+    if st.session_state.processo_id:
+        st.caption(f"Processo atual salvo (id: {st.session_state.processo_id[:8]}…)")
+
+    try:
+        processos = db.listar_processos()
+    except db.ErroBanco as erro:
+        st.warning(str(erro), icon="💾")
+        return
+
+    if not processos:
+        st.caption("Nenhum processo salvo ainda — o andamento é salvo automaticamente.")
+        return
+
+    rotulos = {db.rotulo_processo(p): p for p in processos}
+    escolha = st.selectbox(
+        "Retomar processo",
+        list(rotulos),
+        index=None,
+        placeholder="Selecione um processo…",
+        help="O andamento é salvo automaticamente a cada etapa aprovada.",
+    )
+    col_abrir, col_excluir = st.columns(2)
+    if col_abrir.button("📂 Abrir", use_container_width=True, disabled=not escolha):
+        try:
+            proc = db.carregar_processo(rotulos[escolha]["id"])
+            if proc:
+                state.carregar_processo_salvo(proc)
+            else:
+                st.warning("Processo não encontrado — pode ter sido excluído.")
+        except db.ErroBanco as erro:
+            st.warning(str(erro), icon="💾")
+    if col_excluir.button("🗑️ Excluir", use_container_width=True, disabled=not escolha):
+        try:
+            db.excluir_processo(rotulos[escolha]["id"])
+            if st.session_state.processo_id == rotulos[escolha]["id"]:
+                st.session_state.processo_id = None
+            st.rerun()
+        except db.ErroBanco as erro:
+            st.warning(str(erro), icon="💾")
+
+
 def render_sidebar() -> None:
     with st.sidebar:
         st.markdown("### ⚙️ Configuração da IA")
@@ -98,6 +150,9 @@ def render_sidebar() -> None:
                 "para conhecer o fluxo completo antes de configurar a chave."
             ),
         )
+
+        st.divider()
+        _render_processos_salvos()
 
         st.divider()
         st.markdown("### 📄 Sobre")

@@ -8,6 +8,7 @@ aprovações) vive em st.session_state, inicializado aqui.
 
 import streamlit as st
 
+from . import db
 from .config import SEQUENCIA_DOCUMENTOS
 
 
@@ -18,12 +19,41 @@ def inicializar() -> None:
         "dados": {},           # respostas do Formulário Matriz
         "documentos": {},      # doc_key -> texto gerado/editado
         "aprovados": set(),    # doc_keys aprovados pelo usuário
+        "processo_id": None,   # uuid do processo no Supabase (None = não salvo)
         "modo_demo": False,
         "api_key_manual": "",
     }
     for chave, valor in padroes.items():
         if chave not in st.session_state:
             st.session_state[chave] = valor
+
+
+def autosalvar() -> None:
+    """
+    Salva o processo no Supabase (se configurado). Falhas de banco nunca
+    interrompem o fluxo do wizard — viram apenas um aviso na tela.
+    """
+    if not db.disponivel() or not st.session_state.dados:
+        return
+    try:
+        st.session_state.processo_id = db.salvar_processo(
+            st.session_state.processo_id,
+            st.session_state.dados,
+            st.session_state.documentos,
+            st.session_state.aprovados,
+            st.session_state.etapa,
+        )
+    except db.ErroBanco as erro:
+        st.warning(f"Progresso não salvo no banco: {erro}", icon="💾")
+
+
+def carregar_processo_salvo(proc: dict) -> None:
+    """Restaura um processo salvo no Supabase para a sessão atual."""
+    st.session_state.processo_id = proc["id"]
+    st.session_state.dados = proc.get("dados") or {}
+    st.session_state.documentos = proc.get("documentos") or {}
+    st.session_state.aprovados = set(proc.get("aprovados") or [])
+    ir_para(int(proc.get("etapa") or 0))
 
 
 def ir_para(etapa: int) -> None:
@@ -40,7 +70,9 @@ def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
     """Salva a versão editada pelo usuário, marca como aprovado e avança."""
     st.session_state.documentos[doc_key] = texto_editado
     st.session_state.aprovados.add(doc_key)
-    ir_para(st.session_state.etapa + 1)
+    st.session_state.etapa += 1
+    autosalvar()  # persiste cada avanço no Supabase (quando configurado)
+    st.rerun()
 
 
 def descartar_documento(doc_key: str) -> None:
@@ -64,8 +96,9 @@ def invalidar_a_partir_de(doc_key: str) -> None:
 
 
 def reiniciar_processo() -> None:
-    """Limpa tudo e volta ao Formulário Matriz."""
+    """Limpa tudo e volta ao Formulário Matriz (novo processo no banco)."""
     for chave in ("dados", "documentos"):
         st.session_state[chave] = {}
     st.session_state.aprovados = set()
+    st.session_state.processo_id = None
     ir_para(0)
