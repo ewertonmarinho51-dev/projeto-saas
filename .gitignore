@@ -1,0 +1,12 @@
+# Segredos — NUNCA commitar chaves de API
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Sistema
+.DS_Store
