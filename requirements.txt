@@ -9,7 +9,10 @@
 # Interface web (frontend + backend integrados)
 streamlit>=1.35.0
 
-# Integração com a IA (Google Gemini — SDK oficial atual)
+# Integração com a IA — motor principal: OpenAI
+openai>=1.40.0
+
+# Integração com a IA — fallback: Google Gemini (SDK oficial atual)
 # Obs.: o pacote antigo "google-generativeai" foi descontinuado pelo Google.
 google-genai>=1.0.0
 

@@ -7,7 +7,7 @@ import streamlit as st
 
 from .. import db, state
 from ..config import APP_SUBTITULO, APP_TITULO, ETAPAS
-from ..llm import obter_api_key
+from ..llm import motor_ativo, obter_api_key
 
 _CSS = """
 <style>
@@ -135,17 +135,31 @@ def render_sidebar() -> None:
         st.divider()
         st.markdown("### ⚙️ Configuração da IA")
         st.text_input(
-            "Chave da API (Google AI Studio)",
+            "Chave OpenAI — motor principal",
+            type="password",
+            key="openai_key_manual",
+            help=(
+                "Chave sk-... da OpenAI (https://platform.openai.com/api-keys). "
+                "Alternativas: OPENAI_API_KEY em .streamlit/secrets.toml ou no "
+                "ambiente. Modelo padrão: gpt-5-mini (ajuste em OPENAI_MODEL)."
+            ),
+        )
+        st.text_input(
+            "Chave Google Gemini — fallback",
             type="password",
             key="api_key_manual",
             help=(
-                "Obtenha gratuitamente em https://aistudio.google.com/apikey. "
-                "Alternativas: arquivo .streamlit/secrets.toml ou variável de "
-                "ambiente GOOGLE_API_KEY."
+                "Opcional: usada se a OpenAI falhar e nos embeddings quando "
+                "não houver chave OpenAI. GOOGLE_API_KEY em secrets/ambiente."
             ),
         )
-        if obter_api_key():
-            st.success("Chave de API detectada.", icon="🔑")
+        motor = motor_ativo()
+        if motor == "openai":
+            st.success("Motor ativo: OpenAI (principal)", icon="🔑")
+            if obter_api_key():
+                st.caption("Fallback Gemini configurado. ✔")
+        elif motor == "gemini":
+            st.info("Motor ativo: Gemini (fallback) — sem chave OpenAI.", icon="🔑")
         else:
             st.warning("Sem chave de API configurada.", icon="⚠️")
 
