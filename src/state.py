@@ -22,6 +22,7 @@ def inicializar() -> None:
         "processo_id": None,   # uuid do processo no Supabase (None = não salvo)
         "modo_demo": False,
         "api_key_manual": "",
+        "openai_key_manual": "",
     }
     for chave, valor in padroes.items():
         if chave not in st.session_state:

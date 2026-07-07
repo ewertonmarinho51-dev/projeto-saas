@@ -116,26 +116,46 @@ def dividir_em_chunks(
 # Embeddings (Gemini) — opcionais; sem eles a busca textual assume
 # ---------------------------------------------------------------------------
 def _gerar_embeddings(textos: list[str], para_consulta: bool) -> list[list[float]] | None:
-    """Retorna embeddings (768 dims) ou None se não houver chave de API."""
-    from .llm import obter_api_key
+    """
+    Retorna embeddings (768 dims) ou None se não houver chave de API.
 
-    api_key = obter_api_key()
-    if not api_key:
-        return None
+    Provedor segue o motor principal: OpenAI (text-embedding-3-small com
+    dimensions=768) quando há chave; senão Gemini. IMPORTANTE: indexação e
+    consulta precisam do MESMO provedor — se você trocar de provedor com a
+    base já populada, reindexe os arquivos (os espaços vetoriais são
+    incompatíveis entre si).
+    """
+    from .config import OPENAI_EMBEDDING_MODEL
+    from .llm import obter_api_key, obter_openai_key
+
+    chave_openai = obter_openai_key()
+    chave_gemini = obter_api_key()
     try:
-        from google import genai
-        from google.genai import types
+        if chave_openai:
+            from openai import OpenAI
 
-        cliente = genai.Client(api_key=api_key)
-        resposta = cliente.models.embed_content(
-            model=EMBEDDING_MODEL,
-            contents=textos,
-            config=types.EmbedContentConfig(
-                task_type="RETRIEVAL_QUERY" if para_consulta else "RETRIEVAL_DOCUMENT",
-                output_dimensionality=EMBEDDING_DIMENSOES,
-            ),
-        )
-        return [list(e.values) for e in resposta.embeddings]
+            cliente = OpenAI(api_key=chave_openai, timeout=60, max_retries=1)
+            resposta = cliente.embeddings.create(
+                model=OPENAI_EMBEDDING_MODEL,
+                input=textos,
+                dimensions=EMBEDDING_DIMENSOES,
+            )
+            return [item.embedding for item in resposta.data]
+        if chave_gemini:
+            from google import genai
+            from google.genai import types
+
+            cliente = genai.Client(api_key=chave_gemini)
+            resposta = cliente.models.embed_content(
+                model=EMBEDDING_MODEL,
+                contents=textos,
+                config=types.EmbedContentConfig(
+                    task_type="RETRIEVAL_QUERY" if para_consulta else "RETRIEVAL_DOCUMENT",
+                    output_dimensionality=EMBEDDING_DIMENSOES,
+                ),
+            )
+            return [list(e.values) for e in resposta.embeddings]
+        return None
     except Exception as exc:  # noqa: BLE001
         # Falha de embedding não deve impedir a indexação: busca textual assume
         st.warning(f"Embeddings indisponíveis ({exc}); usando busca textual.", icon="🧭")

@@ -1,12 +1,15 @@
 """
-Camada de integração com a IA (Google Gemini).
+Camada de integração com a IA.
 
-- Lê a chave da API de st.secrets["GOOGLE_API_KEY"], da variável de
-  ambiente GOOGLE_API_KEY ou do campo digitado na barra lateral.
-- Trata erros de API (timeout, chave inválida, cota, bloqueio de conteúdo)
-  com retentativas exponenciais e mensagens amigáveis.
-- Oferece um MODO DEMONSTRAÇÃO (sem chave de API) que gera minutas-esqueleto
-  a partir do formulário, permitindo testar todo o fluxo offline.
+Motores, em ordem de prioridade:
+  1. OpenAI (PRINCIPAL) — chave em OPENAI_API_KEY (secrets/env/sidebar);
+  2. Google Gemini (fallback) — chave em GOOGLE_API_KEY;
+  3. Modo Demonstração — minutas-esqueleto offline, sem chave alguma.
+
+Se o motor principal falhar após as retentativas e houver chave do
+Gemini, a geração cai automaticamente para o fallback (com aviso na
+interface). Todos os erros de API (timeout, chave inválida, cota,
+bloqueio de conteúdo) viram mensagens amigáveis.
 """
 
 import os
@@ -20,6 +23,7 @@ from .config import (
     API_TIMEOUT_SEGUNDOS,
     DOCUMENTOS,
     GEMINI_MODEL_PADRAO,
+    OPENAI_MODEL_PADRAO,
 )
 from .prompts import formatar_dados_formulario, montar_prompt
 
@@ -28,17 +32,36 @@ class ErroGeracaoIA(Exception):
     """Erro de geração já traduzido em mensagem amigável para a interface."""
 
 
-def obter_api_key() -> str:
-    """Busca a chave da API na ordem: barra lateral > secrets.toml > ambiente."""
-    chave_sidebar = st.session_state.get("api_key_manual", "").strip()
-    if chave_sidebar:
-        return chave_sidebar
+def _ler_chave(nome_secret: str, chave_sidebar: str) -> str:
+    """Busca uma chave na ordem: barra lateral > secrets.toml > ambiente."""
+    valor = st.session_state.get(chave_sidebar, "").strip()
+    if valor:
+        return valor
     try:
-        if "GOOGLE_API_KEY" in st.secrets:
-            return str(st.secrets["GOOGLE_API_KEY"]).strip()
+        if nome_secret in st.secrets:
+            return str(st.secrets[nome_secret]).strip()
     except Exception:
         pass  # sem arquivo secrets.toml — segue para a variável de ambiente
-    return os.getenv("GOOGLE_API_KEY", "").strip()
+    return os.getenv(nome_secret, "").strip()
+
+
+def obter_openai_key() -> str:
+    """Chave do motor principal (OpenAI)."""
+    return _ler_chave("OPENAI_API_KEY", "openai_key_manual")
+
+
+def obter_api_key() -> str:
+    """Chave do fallback (Google Gemini) — também usada nos embeddings."""
+    return _ler_chave("GOOGLE_API_KEY", "api_key_manual")
+
+
+def motor_ativo() -> str:
+    """'openai' | 'gemini' | '' — qual motor será usado na próxima geração."""
+    if obter_openai_key():
+        return "openai"
+    if obter_api_key():
+        return "gemini"
+    return ""
 
 
 def _obter_modelo() -> str:
@@ -48,6 +71,15 @@ def _obter_modelo() -> str:
     except Exception:
         pass
     return os.getenv("GEMINI_MODEL", GEMINI_MODEL_PADRAO)
+
+
+def _obter_modelo_openai() -> str:
+    try:
+        if "OPENAI_MODEL" in st.secrets:
+            return str(st.secrets["OPENAI_MODEL"])
+    except Exception:
+        pass
+    return os.getenv("OPENAI_MODEL", OPENAI_MODEL_PADRAO)
 
 
 def _traduzir_erro(exc: Exception) -> str:
@@ -79,6 +111,35 @@ def _traduzir_erro(exc: Exception) -> str:
             ".streamlit/secrets.toml para um modelo disponível na sua conta."
         )
     return f"Falha na comunicação com a IA: {exc}"
+
+
+def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str) -> str:
+    """Motor principal: OpenAI, com retentativas e backoff exponencial."""
+    # Import tardio: a interface abre mesmo sem a biblioteca instalada
+    from openai import OpenAI
+
+    cliente = OpenAI(api_key=api_key, timeout=API_TIMEOUT_SEGUNDOS, max_retries=0)
+
+    ultima_excecao: Exception | None = None
+    for tentativa in range(1, API_TENTATIVAS + 1):
+        try:
+            resposta = cliente.chat.completions.create(
+                model=_obter_modelo_openai(),
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_completion_tokens=8192,
+            )
+            texto = (resposta.choices[0].message.content or "").strip()
+            if not texto:
+                raise RuntimeError("resposta vazia do modelo")
+            return texto
+        except Exception as exc:  # noqa: BLE001 — traduzimos qualquer falha
+            ultima_excecao = exc
+            if tentativa < API_TENTATIVAS:
+                time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
+    raise ErroGeracaoIA(_traduzir_erro(ultima_excecao))
 
 
 def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str) -> str:
@@ -126,12 +187,13 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
     if st.session_state.get("modo_demo", False):
         return _gerar_demo(doc_key, dados)
 
-    api_key = obter_api_key()
-    if not api_key:
+    chave_openai = obter_openai_key()
+    chave_gemini = obter_api_key()
+    if not chave_openai and not chave_gemini:
         raise ErroGeracaoIA(
-            "Nenhuma chave de API configurada. Informe sua chave do Google AI "
-            "Studio na barra lateral (ou em .streamlit/secrets.toml) — ou ative "
-            "o Modo Demonstração para testar sem IA."
+            "Nenhuma chave de API configurada. Informe a chave da OpenAI "
+            "(motor principal) ou do Google AI Studio na barra lateral / "
+            ".streamlit/secrets.toml — ou ative o Modo Demonstração."
         )
     system_prompt, user_prompt = montar_prompt(doc_key, dados, contexto_anterior)
 
@@ -142,7 +204,18 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
 
     user_prompt += rag.montar_bloco_referencias(dados, doc_key)
 
-    return _chamar_gemini(system_prompt, user_prompt, api_key)
+    # Motor principal: OpenAI; fallback automático: Gemini
+    if chave_openai:
+        try:
+            return _chamar_openai(system_prompt, user_prompt, chave_openai)
+        except ErroGeracaoIA as erro:
+            if not chave_gemini:
+                raise
+            st.warning(
+                f"Motor principal (OpenAI) indisponível — usando Gemini. Detalhe: {erro}",
+                icon="🔁",
+            )
+    return _chamar_gemini(system_prompt, user_prompt, chave_gemini)
 
 
 # ---------------------------------------------------------------------------

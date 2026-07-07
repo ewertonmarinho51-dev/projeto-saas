@@ -9,10 +9,18 @@ essenciais da fase preparatória das licitações públicas:
 3. **TR** — Termo de Referência (art. 6º, XXIII, e art. 40)
 4. **Minuta de Edital / Ata de Registro de Preços** (art. 25)
 
-A redação é feita pela IA (**Google Gemini**) com *system prompts*
-rigorosos e **encadeamento sequencial de contexto**: cada documento usa o
-anterior — já revisado e aprovado pelo usuário — como fundamento. Nada
-avança sem aprovação humana (tela de *preview* editável em cada etapa).
+A redação é feita por IA com *system prompts* rigorosos e
+**encadeamento sequencial de contexto**: cada documento usa o anterior —
+já revisado e aprovado pelo usuário — como fundamento. Nada avança sem
+aprovação humana (tela de *preview* editável em cada etapa).
+
+**Motores de IA:** OpenAI (**principal** — padrão `gpt-5-mini`, chave em
+`OPENAI_API_KEY`) com fallback automático para Google Gemini
+(`GOOGLE_API_KEY`), inclusive nos embeddings do RAG
+(`text-embedding-3-small` em 768 dims ou `gemini-embedding-001`).
+Atenção: indexação e busca do RAG devem usar o mesmo provedor de
+embeddings — se trocar de provedor com a base populada, reindexe os
+arquivos (a busca textual em português continua funcionando sempre).
 
 ## ✨ Funcionalidades
 
