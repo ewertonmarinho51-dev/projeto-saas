@@ -9,7 +9,11 @@ que explicam o que a Lei nº 14.133/2021 espera de cada informação.
 APP_TITULO = "GovDocs Wizard"
 APP_SUBTITULO = "Gerador de Documentos da Fase Preparatória — Lei nº 14.133/2021"
 
-# Modelo Gemini padrão (pode ser sobrescrito em secrets.toml ou env GEMINI_MODEL)
+# Motor principal: OpenAI (pode ser sobrescrito em secrets.toml ou env OPENAI_MODEL)
+OPENAI_MODEL_PADRAO = "gpt-5-mini"
+OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"  # com dimensions=768
+
+# Motor de fallback: Gemini (sobrescreva com GEMINI_MODEL)
 GEMINI_MODEL_PADRAO = "gemini-2.5-flash"
 
 # Parâmetros de robustez das chamadas à API
