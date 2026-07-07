@@ -12,7 +12,7 @@ from .. import db, rag
 
 
 def render_biblioteca() -> None:
-    st.subheader("📚 Base de Conhecimento (RAG)")
+    st.subheader("Base de Conhecimento (RAG)")
     st.caption(
         "Envie leis, acórdãos, entendimentos dos Tribunais de Contas, "
         "processos anteriores e modelos. A IA recupera os trechos mais "
@@ -23,13 +23,12 @@ def render_biblioteca() -> None:
         st.warning(
             "Configure SUPABASE_URL e SUPABASE_KEY em .streamlit/secrets.toml "
             "para habilitar a Base de Conhecimento.",
-            icon="🗄️",
         )
         return
 
     # ---------------- Envio e indexação ----------------
     with st.form("form_indexar", clear_on_submit=True):
-        st.markdown("##### ➕ Adicionar referências")
+        st.markdown("##### Adicionar referências")
         arquivos = st.file_uploader(
             "Arquivos (PDF, DOCX, TXT, MD)",
             type=["pdf", "docx", "txt", "md"],
@@ -53,7 +52,7 @@ def render_biblioteca() -> None:
             help="Se vazio, usa o nome de cada arquivo.",
         )
         enviar = st.form_submit_button(
-            "📥 Indexar na Base de Conhecimento", type="primary",
+            "Indexar na Base de Conhecimento", type="primary",
             use_container_width=True,
         )
 
@@ -70,25 +69,24 @@ def render_biblioteca() -> None:
                             categoria,
                             arquivo.getvalue(),
                         )
-                    st.success(f"✅ {arquivo.name}: {n} trechos indexados.")
+                    st.success(f"{arquivo.name}: {n} trechos indexados.")
                 except rag.ErroRAG as erro:
-                    st.error(f"{arquivo.name}: {erro}", icon="🚫")
+                    st.error(f"{arquivo.name}: {erro}")
 
     st.divider()
 
     # ---------------- Referências indexadas ----------------
-    st.markdown("##### 🗃️ Referências indexadas")
+    st.markdown("##### Referências indexadas")
     try:
         referencias = rag.listar_referencias()
     except rag.ErroRAG as erro:
-        st.error(str(erro), icon="🚫")
+        st.error(str(erro))
         if "does not exist" in str(erro) or "42P01" in str(erro):
             st.info(
                 "Parece que as tabelas da Base de Conhecimento ainda não "
                 "existem — aplique a migração "
                 "`supabase/migrations/0003_base_conhecimento_rag.sql` no "
                 "SQL Editor do painel Supabase.",
-                icon="🛠️",
             )
         return
 
@@ -101,16 +99,16 @@ def render_biblioteca() -> None:
         col_meta.caption(
             f"{ref['total_chunks']} trechos\n\n{(ref['criado_em'] or '')[:10]}"
         )
-        if col_acao.button("🗑️", key=f"del_ref_{ref['id']}", help="Excluir referência"):
+        if col_acao.button("Excluir", key=f"del_ref_{ref['id']}"):
             try:
                 rag.excluir_referencia(ref["id"])
                 st.rerun()
             except rag.ErroRAG as erro:
-                st.error(str(erro), icon="🚫")
+                st.error(str(erro))
 
     # ---------------- Teste de busca ----------------
     st.divider()
-    with st.expander("🔎 Testar a recuperação (o que a IA veria)"):
+    with st.expander("Testar a recuperação (o que a IA veria)"):
         consulta = st.text_input(
             "Consulta de teste",
             placeholder="Ex.: registro de preços para aquisição de equipamentos de TI",
@@ -128,4 +126,4 @@ def render_biblioteca() -> None:
                     )
                     st.caption((t.get("conteudo") or "")[:400] + "…")
             except rag.ErroRAG as erro:
-                st.error(str(erro), icon="🚫")
+                st.error(str(erro))

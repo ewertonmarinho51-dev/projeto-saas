@@ -1,9 +1,10 @@
-# Tema visual corporativo/governamental (azul institucional, fundo claro)
+# Tema institucional — minimalismo utilitário (setor público)
+# Monocromático quente + acento único azul #1B4F8A
 [theme]
 primaryColor = "#1B4F8A"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F0F4F8"
-textColor = "#1A2733"
+backgroundColor = "#FBFBFA"
+secondaryBackgroundColor = "#F4F3F0"
+textColor = "#2F3437"
 font = "sans serif"
 
 [server]

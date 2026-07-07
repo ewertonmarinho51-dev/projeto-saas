@@ -45,7 +45,7 @@ def autosalvar() -> None:
             st.session_state.etapa,
         )
     except db.ErroBanco as erro:
-        st.warning(f"Progresso não salvo no banco: {erro}", icon="💾")
+        st.warning(f"Progresso não salvo no banco: {erro}")
 
 
 def carregar_processo_salvo(proc: dict) -> None:

@@ -127,7 +127,7 @@ def test_pagina_biblioteca_renderiza_sem_supabase():
     at.secrets["SUPABASE_KEY"] = ""
     at.run()
     radio = [r for r in at.radio if r.key == "pagina"][0]
-    radio.set_value("📚 Base de Conhecimento")
+    radio.set_value("Base de Conhecimento")
     at.run()
     assert not at.exception
     titulos = " ".join(s.value for s in at.subheader)
