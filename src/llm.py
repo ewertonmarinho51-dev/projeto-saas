@@ -213,7 +213,6 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
                 raise
             st.warning(
                 f"Motor principal (OpenAI) indisponível — usando Gemini. Detalhe: {erro}",
-                icon="🔁",
             )
     return _chamar_gemini(system_prompt, user_prompt, chave_gemini)
 

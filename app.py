@@ -50,7 +50,7 @@ components.render_cabecalho()
 # ---------------------------------------------------------------------------
 # Navegação: Assistente (wizard) | Base de Conhecimento (RAG)
 # ---------------------------------------------------------------------------
-if st.session_state.get("pagina", "").startswith("📚"):
+if st.session_state.get("pagina") == "Base de Conhecimento":
     biblioteca.render_biblioteca()
     st.stop()
 

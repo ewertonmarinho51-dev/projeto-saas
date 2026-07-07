@@ -7,7 +7,7 @@ que explicam o que a Lei nº 14.133/2021 espera de cada informação.
 """
 
 APP_TITULO = "GovDocs Wizard"
-APP_SUBTITULO = "Gerador de Documentos da Fase Preparatória — Lei nº 14.133/2021"
+APP_SUBTITULO = "Documentos da fase preparatória de licitações · Lei nº 14.133/2021"
 
 # Motor principal: OpenAI (pode ser sobrescrito em secrets.toml ou env OPENAI_MODEL)
 OPENAI_MODEL_PADRAO = "gpt-5-mini"
@@ -106,7 +106,7 @@ CAMPOS_FORMULARIO = {
         "rotulo": "Órgão / Entidade Requisitante",
         "tipo": "texto",
         "obrigatorio": True,
-        "placeholder": "Ex.: Prefeitura Municipal de Exemplo — Secretaria de Saúde",
+        "placeholder": "Ex.: Prefeitura Municipal de Exemplo, Secretaria de Saúde",
         "help": (
             "Identifique o órgão e a unidade requisitante. O DFD deve "
             "indicar claramente quem demanda a contratação (art. 12, VII)."
@@ -116,7 +116,7 @@ CAMPOS_FORMULARIO = {
         "rotulo": "Responsável pela Demanda (nome e cargo)",
         "tipo": "texto",
         "obrigatorio": False,
-        "placeholder": "Ex.: Maria Silva — Diretora de Compras",
+        "placeholder": "Ex.: Maria Silva, Diretora de Compras",
         "help": (
             "Agente público que formaliza a demanda e responde pelas "
             "informações prestadas no DFD."

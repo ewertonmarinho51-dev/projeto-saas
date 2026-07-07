@@ -2,7 +2,7 @@
 Telas de cada etapa do wizard:
   0 — Formulário Matriz
   1..4 — Geração + preview editável de DFD, ETP, TR e Edital
-  5 — Sucesso e exportação (.docx / .pdf / .zip)
+  5 — Conclusão e exportação (.docx / .pdf / .zip)
 """
 
 import streamlit as st
@@ -17,11 +17,11 @@ from .components import render_base_legal
 # Etapa 0 — Formulário Matriz
 # ---------------------------------------------------------------------------
 def render_formulario() -> None:
-    st.subheader("📋 Formulário Matriz — Dados da Demanda")
+    st.subheader("Formulário Matriz: dados da demanda")
     st.caption(
         "Preencha as informações essenciais da contratação. Elas alimentarão "
-        "a redação sequencial dos quatro documentos. Passe o mouse no ícone "
-        "❓ de cada campo para ver o que a Lei nº 14.133/2021 espera."
+        "a redação sequencial dos quatro documentos. O ícone de ajuda de "
+        "cada campo explica o que a Lei nº 14.133/2021 espera."
     )
 
     dados = st.session_state.dados
@@ -62,7 +62,7 @@ def render_formulario() -> None:
                 )
 
         enviado = st.form_submit_button(
-            "Iniciar Elaboração dos Documentos ➜", type="primary",
+            "Iniciar elaboração dos documentos", type="primary",
             use_container_width=True,
         )
 
@@ -91,8 +91,8 @@ def render_formulario() -> None:
 # ---------------------------------------------------------------------------
 def render_etapa_documento(doc_key: str) -> None:
     meta = DOCUMENTOS[doc_key]
-    st.subheader(f"📝 {meta['titulo']} ({meta['sigla']})")
-    render_base_legal(f"Base legal: {meta['base_legal']} — {meta['descricao']}")
+    st.subheader(f"{meta['titulo']} ({meta['sigla']})")
+    render_base_legal(f"Base legal: {meta['base_legal']}. {meta['descricao']}")
 
     contexto_key = meta["usa_contexto_de"]
     contexto = st.session_state.documentos.get(contexto_key) if contexto_key else None
@@ -102,11 +102,10 @@ def render_etapa_documento(doc_key: str) -> None:
         if contexto_key:
             st.info(
                 f"Este documento será redigido pela IA usando o formulário e o "
-                f"**{DOCUMENTOS[contexto_key]['sigla']} aprovado** como contexto.",
-                icon="🔗",
+                f"**{DOCUMENTOS[contexto_key]['sigla']} aprovado** como contexto."
             )
         if st.button(
-            f"✨ Gerar {meta['sigla']} com IA", type="primary",
+            f"Gerar {meta['sigla']} com IA", type="primary",
             use_container_width=True,
         ):
             with st.spinner(
@@ -117,17 +116,16 @@ def render_etapa_documento(doc_key: str) -> None:
                     st.session_state.documentos[doc_key] = texto
                     st.rerun()
                 except ErroGeracaoIA as erro:
-                    st.error(str(erro), icon="🚫")
+                    st.error(str(erro))
         _botao_voltar(meta)
         return
 
     # ---------- Preview editável (controle humano obrigatório) ----------
     st.success(
-        "Rascunho gerado. **Revise e edite livremente o texto abaixo** — nada "
-        "avança sem a sua aprovação.",
-        icon="👁️",
+        "Rascunho gerado. **Revise e edite livremente o texto abaixo.** Nada "
+        "avança sem a sua aprovação."
     )
-    aba_editar, aba_visualizar = st.tabs(["✏️ Editar", "👁️ Visualizar formatado"])
+    aba_editar, aba_visualizar = st.tabs(["Editar", "Visualizar formatado"])
     with aba_editar:
         texto_editado = st.text_area(
             "Conteúdo do documento (editável)",
@@ -140,17 +138,17 @@ def render_etapa_documento(doc_key: str) -> None:
         st.markdown(texto_editado)
 
     col_voltar, col_regerar, col_aprovar = st.columns([1, 1, 2])
-    if col_voltar.button("⬅ Voltar", use_container_width=True, key=f"volta_{doc_key}"):
+    if col_voltar.button("Voltar", use_container_width=True, key=f"volta_{doc_key}"):
         st.session_state.documentos[doc_key] = texto_editado  # preserva edições
         state.ir_para(meta["etapa"] - 1)
     if col_regerar.button(
-        "🔄 Gerar novamente", use_container_width=True, key=f"regera_{doc_key}",
+        "Gerar novamente", use_container_width=True, key=f"regera_{doc_key}",
         help="Descarta este rascunho e solicita nova redação à IA.",
     ):
         state.descartar_documento(doc_key)
         st.rerun()
     if col_aprovar.button(
-        f"✅ Aprovar {meta['sigla']} e Avançar ➜", type="primary",
+        f"Aprovar {meta['sigla']} e avançar", type="primary",
         use_container_width=True, key=f"aprova_{doc_key}",
     ):
         # Se o texto mudou em relação ao aprovado antes, invalida os seguintes
@@ -160,16 +158,15 @@ def render_etapa_documento(doc_key: str) -> None:
 
 
 def _botao_voltar(meta: dict) -> None:
-    if st.button("⬅ Voltar", key=f"volta_vazio_{meta['sigla']}"):
+    if st.button("Voltar", key=f"volta_vazio_{meta['sigla']}"):
         state.ir_para(meta["etapa"] - 1)
 
 
 # ---------------------------------------------------------------------------
-# Etapa 5 — Sucesso e exportação
+# Etapa 5 — Conclusão e exportação
 # ---------------------------------------------------------------------------
 def render_sucesso() -> None:
-    st.balloons()
-    st.subheader("🎉 Processo concluído com sucesso!")
+    st.subheader("Processo concluído")
     st.markdown(
         "Os **quatro documentos da fase preparatória** foram elaborados e "
         "aprovados. Baixe o dossiê completo ou os arquivos individuais."
@@ -179,39 +176,39 @@ def render_sucesso() -> None:
     orgao = (st.session_state.dados.get("orgao") or "orgao").strip()
     prefixo = "".join(c if c.isalnum() else "-" for c in orgao)[:40].strip("-") or "dossie"
 
-    st.markdown("#### 📦 Dossiê completo (arquivo único)")
+    st.markdown("#### Dossiê completo (arquivo único)")
     col_pdf, col_docx = st.columns(2)
     col_pdf.download_button(
-        "⬇️ Baixar todos em PDF",
+        "Baixar todos em PDF",
         data=export.gerar_pdf_consolidado(docs),
         file_name=f"{prefixo}-fase-preparatoria.pdf",
         mime="application/pdf",
         type="primary", use_container_width=True,
     )
     col_docx.download_button(
-        "⬇️ Baixar todos em DOCX",
+        "Baixar todos em DOCX",
         data=export.gerar_docx_consolidado(docs),
         file_name=f"{prefixo}-fase-preparatoria.docx",
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         type="primary", use_container_width=True,
     )
 
-    st.markdown("#### 🗂️ Arquivos individuais (pacote .zip)")
+    st.markdown("#### Arquivos individuais (pacote .zip)")
     col_zip_pdf, col_zip_docx = st.columns(2)
     col_zip_pdf.download_button(
-        "⬇️ ZIP com os 4 PDFs",
+        "ZIP com os 4 PDFs",
         data=export.gerar_zip(docs, "pdf"),
         file_name=f"{prefixo}-documentos-pdf.zip",
         mime="application/zip", use_container_width=True,
     )
     col_zip_docx.download_button(
-        "⬇️ ZIP com os 4 DOCX",
+        "ZIP com os 4 DOCX",
         data=export.gerar_zip(docs, "docx"),
         file_name=f"{prefixo}-documentos-docx.zip",
         mime="application/zip", use_container_width=True,
     )
 
-    with st.expander("👁️ Conferir documentos aprovados"):
+    with st.expander("Conferir documentos aprovados"):
         abas = st.tabs([DOCUMENTOS[k]["sigla"] for k in SEQUENCIA_DOCUMENTOS if k in docs])
         for aba, doc_key in zip(abas, [k for k in SEQUENCIA_DOCUMENTOS if k in docs]):
             with aba:
@@ -219,7 +216,7 @@ def render_sucesso() -> None:
 
     st.divider()
     col_rev, col_novo = st.columns(2)
-    if col_rev.button("⬅ Voltar para revisar a minuta", use_container_width=True):
+    if col_rev.button("Voltar para revisar a minuta", use_container_width=True):
         state.ir_para(4)
-    if col_novo.button("🆕 Iniciar novo processo", use_container_width=True):
+    if col_novo.button("Iniciar novo processo", use_container_width=True):
         state.reiniciar_processo()

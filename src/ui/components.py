@@ -1,6 +1,10 @@
 """
-Componentes visuais reutilizáveis: CSS corporativo, cabeçalho,
-indicador de passos (stepper) e barra lateral.
+Componentes visuais: CSS institucional, cabeçalho, stepper e barra lateral.
+
+Linguagem visual (skills design-taste + design-minimalist, preset
+setor público): monocromático quente, um único acento (#1B4F8A),
+flat (sem gradientes/sombras), sem emojis, raios 8px (containers) e
+6px (interativos), motion mínimo.
 """
 
 import streamlit as st
@@ -11,32 +15,107 @@ from ..llm import motor_ativo, obter_api_key
 
 _CSS = """
 <style>
-/* Aparência corporativa/governamental */
-.block-container { padding-top: 1.5rem; max-width: 1100px; }
+:root {
+    --azul: #1B4F8A;          /* acento único */
+    --azul-escuro: #163F73;
+    --azul-pale: #E8F0F9;     /* fundo de callout */
+    --tinta: #2F3437;         /* texto principal (off-black) */
+    --cinza: #787774;         /* texto secundário */
+    --linha: #E7E6E3;         /* bordas 1px */
+    --superficie: #FFFFFF;
+    --canvas: #FBFBFA;
+}
 
+html, body, [class*="css"] {
+    font-family: "SF Pro Display", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: var(--tinta);
+}
+
+.block-container { padding-top: 1.6rem; max-width: 1040px; }
+
+h1, h2, h3 { letter-spacing: -0.02em; color: var(--tinta); }
+
+/* ---------- Cabeçalho institucional (flat, sem gradiente) ---------- */
 .gd-header {
-    background: linear-gradient(90deg, #12365f 0%, #1b4f8a 100%);
-    color: #ffffff; padding: 1.1rem 1.4rem; border-radius: 10px;
-    margin-bottom: 1.2rem;
+    background: var(--superficie);
+    border: 1px solid var(--linha);
+    border-radius: 8px;
+    padding: 1.05rem 1.3rem;
+    margin-bottom: 1.25rem;
+    display: flex; align-items: center; gap: .85rem;
 }
-.gd-header h1 { margin: 0; font-size: 1.45rem; color: #ffffff; }
-.gd-header p  { margin: .25rem 0 0; font-size: .9rem; color: #cfe0f3; }
+.gd-header-marca {
+    width: 12px; height: 40px; border-radius: 3px;
+    background: var(--azul); flex: none;
+}
+.gd-header h1 {
+    margin: 0; font-size: 1.28rem; font-weight: 700; line-height: 1.2;
+}
+.gd-header p {
+    margin: .15rem 0 0; font-size: .84rem; color: var(--cinza);
+}
 
-/* Stepper */
-.gd-stepper { display: flex; gap: .4rem; margin-bottom: 1.4rem; flex-wrap: wrap; }
+/* ---------- Stepper (flat, número + rótulo, conector fino) ---------- */
+.gd-stepper {
+    display: flex; gap: 0; margin-bottom: 1.4rem;
+    border: 1px solid var(--linha); border-radius: 8px;
+    background: var(--superficie); overflow: hidden;
+}
 .gd-step {
-    flex: 1 1 130px; text-align: center; font-size: .78rem; font-weight: 600;
-    padding: .55rem .3rem; border-radius: 8px; border: 1px solid #d5dfe9;
-    background: #f0f4f8; color: #6b7c8f; white-space: nowrap;
+    flex: 1 1 0; display: flex; align-items: center; justify-content: center;
+    gap: .45rem; padding: .62rem .4rem;
+    font-size: .78rem; font-weight: 600; color: var(--cinza);
+    border-right: 1px solid var(--linha); white-space: nowrap;
 }
-.gd-step.ativo     { background: #1b4f8a; border-color: #1b4f8a; color: #fff; }
-.gd-step.concluido { background: #e6f2ea; border-color: #bcd9c6; color: #1e6b3a; }
+.gd-step:last-child { border-right: none; }
+.gd-step-num {
+    width: 1.35rem; height: 1.35rem; border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: .72rem; font-weight: 700;
+    border: 1px solid var(--linha); background: var(--canvas);
+    color: var(--cinza); flex: none;
+}
+.gd-step.ativo { color: var(--tinta); background: var(--azul-pale); }
+.gd-step.ativo .gd-step-num {
+    background: var(--azul); border-color: var(--azul); color: #fff;
+}
+.gd-step.concluido { color: var(--azul); }
+.gd-step.concluido .gd-step-num {
+    background: var(--superficie); border-color: var(--azul); color: var(--azul);
+}
 
+/* ---------- Callout de base legal ---------- */
 .gd-base-legal {
-    background: #eef4fb; border-left: 4px solid #1b4f8a;
-    padding: .7rem 1rem; border-radius: 6px; font-size: .88rem;
-    margin-bottom: 1rem; color: #24425f;
+    background: var(--azul-pale);
+    border: 1px solid #D2E2F2; border-left: 3px solid var(--azul);
+    padding: .68rem 1rem; border-radius: 8px;
+    font-size: .86rem; color: #24425F; margin-bottom: 1rem;
 }
+
+/* ---------- Interativos: raio 6px, feedback tátil sutil ---------- */
+.stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    transition: background .15s ease, transform .1s ease;
+}
+.stButton > button:active, .stDownloadButton > button:active,
+.stFormSubmitButton > button:active { transform: scale(0.98); }
+
+.stTextInput input, .stNumberInput input, .stTextArea textarea,
+.stSelectbox [data-baseweb="select"] > div {
+    border-radius: 6px !important;
+}
+
+/* ---------- Superfícies ---------- */
+[data-testid="stSidebar"] {
+    background: var(--superficie);
+    border-right: 1px solid var(--linha);
+}
+[data-testid="stExpander"] details {
+    border: 1px solid var(--linha); border-radius: 8px;
+}
+hr { border-color: var(--linha); }
 </style>
 """
 
@@ -48,34 +127,38 @@ def aplicar_estilo() -> None:
 def render_cabecalho() -> None:
     st.markdown(
         f"""<div class="gd-header">
-            <h1>🏛️ {APP_TITULO}</h1>
-            <p>{APP_SUBTITULO}</p>
+            <div class="gd-header-marca"></div>
+            <div>
+                <h1>{APP_TITULO}</h1>
+                <p>{APP_SUBTITULO}</p>
+            </div>
         </div>""",
         unsafe_allow_html=True,
     )
 
 
 def render_stepper(etapa_atual: int) -> None:
-    """Barra horizontal com o progresso do wizard."""
+    """Barra de progresso do wizard: número + rótulo por etapa."""
     blocos = []
     for i, nome in enumerate(ETAPAS):
-        classe = (
-            "ativo" if i == etapa_atual else "concluido" if i < etapa_atual else ""
+        classe = "ativo" if i == etapa_atual else "concluido" if i < etapa_atual else ""
+        rotulo = nome.split(". ", 1)[-1]
+        blocos.append(
+            f'<div class="gd-step {classe}">'
+            f'<span class="gd-step-num">{i + 1}</span>{rotulo}</div>'
         )
-        icone = "✓ " if i < etapa_atual else ""
-        blocos.append(f'<div class="gd-step {classe}">{icone}{nome}</div>')
     st.markdown(
         f'<div class="gd-stepper">{"".join(blocos)}</div>', unsafe_allow_html=True
     )
 
 
 def render_base_legal(texto: str) -> None:
-    st.markdown(f'<div class="gd-base-legal">⚖️ {texto}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="gd-base-legal">{texto}</div>', unsafe_allow_html=True)
 
 
 def _render_processos_salvos() -> None:
     """Painel de processos persistidos no Supabase (retomar / excluir)."""
-    st.markdown("### 💾 Processos Salvos")
+    st.markdown("### Processos salvos")
     if not db.disponivel():
         st.caption(
             "Configure SUPABASE_URL e SUPABASE_KEY em .streamlit/secrets.toml "
@@ -89,11 +172,11 @@ def _render_processos_salvos() -> None:
     try:
         processos = db.listar_processos()
     except db.ErroBanco as erro:
-        st.warning(str(erro), icon="💾")
+        st.warning(str(erro))
         return
 
     if not processos:
-        st.caption("Nenhum processo salvo ainda — o andamento é salvo automaticamente.")
+        st.caption("Nenhum processo salvo ainda. O andamento é salvo automaticamente.")
         return
 
     rotulos = {db.rotulo_processo(p): p for p in processos}
@@ -105,37 +188,37 @@ def _render_processos_salvos() -> None:
         help="O andamento é salvo automaticamente a cada etapa aprovada.",
     )
     col_abrir, col_excluir = st.columns(2)
-    if col_abrir.button("📂 Abrir", use_container_width=True, disabled=not escolha):
+    if col_abrir.button("Abrir", use_container_width=True, disabled=not escolha):
         try:
             proc = db.carregar_processo(rotulos[escolha]["id"])
             if proc:
                 state.carregar_processo_salvo(proc)
             else:
-                st.warning("Processo não encontrado — pode ter sido excluído.")
+                st.warning("Processo não encontrado. Pode ter sido excluído.")
         except db.ErroBanco as erro:
-            st.warning(str(erro), icon="💾")
-    if col_excluir.button("🗑️ Excluir", use_container_width=True, disabled=not escolha):
+            st.warning(str(erro))
+    if col_excluir.button("Excluir", use_container_width=True, disabled=not escolha):
         try:
             db.excluir_processo(rotulos[escolha]["id"])
             if st.session_state.processo_id == rotulos[escolha]["id"]:
                 st.session_state.processo_id = None
             st.rerun()
         except db.ErroBanco as erro:
-            st.warning(str(erro), icon="💾")
+            st.warning(str(erro))
 
 
 def render_sidebar() -> None:
     with st.sidebar:
         st.radio(
             "Navegação",
-            options=["🧭 Assistente de Documentos", "📚 Base de Conhecimento"],
+            options=["Assistente de Documentos", "Base de Conhecimento"],
             key="pagina",
             label_visibility="collapsed",
         )
         st.divider()
-        st.markdown("### ⚙️ Configuração da IA")
+        st.markdown("### Configuração da IA")
         st.text_input(
-            "Chave OpenAI — motor principal",
+            "Chave OpenAI (motor principal)",
             type="password",
             key="openai_key_manual",
             help=(
@@ -145,7 +228,7 @@ def render_sidebar() -> None:
             ),
         )
         st.text_input(
-            "Chave Google Gemini — fallback",
+            "Chave Google Gemini (fallback)",
             type="password",
             key="api_key_manual",
             help=(
@@ -155,19 +238,19 @@ def render_sidebar() -> None:
         )
         motor = motor_ativo()
         if motor == "openai":
-            st.success("Motor ativo: OpenAI (principal)", icon="🔑")
+            st.success("Motor ativo: OpenAI (principal)")
             if obter_api_key():
-                st.caption("Fallback Gemini configurado. ✔")
+                st.caption("Fallback Gemini configurado.")
         elif motor == "gemini":
-            st.info("Motor ativo: Gemini (fallback) — sem chave OpenAI.", icon="🔑")
+            st.info("Motor ativo: Gemini (fallback). Sem chave OpenAI.")
         else:
-            st.warning("Sem chave de API configurada.", icon="⚠️")
+            st.warning("Sem chave de API configurada.")
 
         st.toggle(
             "Modo Demonstração (sem IA)",
             key="modo_demo",
             help=(
-                "Gera minutas-esqueleto offline, sem consumir a API — útil "
+                "Gera minutas-esqueleto offline, sem consumir a API. Útil "
                 "para conhecer o fluxo completo antes de configurar a chave."
             ),
         )
@@ -176,10 +259,10 @@ def render_sidebar() -> None:
         _render_processos_salvos()
 
         st.divider()
-        st.markdown("### 📄 Sobre")
+        st.markdown("### Sobre")
         st.caption(
             "Assistente passo a passo para elaboração do DFD, ETP, TR e "
-            "Minuta de Edital/Ata (fase preparatória — art. 12 e seguintes "
+            "Minuta de Edital/Ata (fase preparatória, art. 12 e seguintes "
             "da Lei nº 14.133/2021). Todo texto gerado pela IA é um rascunho "
             "que exige revisão e aprovação humana antes do uso oficial."
         )

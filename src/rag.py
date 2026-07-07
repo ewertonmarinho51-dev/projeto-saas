@@ -28,12 +28,12 @@ from .config import (
 )
 
 CATEGORIAS = {
-    "lei": "⚖️ Lei / Norma",
-    "acordao": "🏛️ Acórdão (TCU/TCE)",
-    "entendimento": "📜 Entendimento / Orientação de TC",
-    "processo_anterior": "🗂️ Processo anterior realizado",
-    "modelo": "📐 Modelo / Minuta padrão (AGU etc.)",
-    "outro": "📄 Outro",
+    "lei": "Lei / Norma",
+    "acordao": "Acórdão (TCU/TCE)",
+    "entendimento": "Entendimento / Orientação de TC",
+    "processo_anterior": "Processo anterior realizado",
+    "modelo": "Modelo / Minuta padrão (AGU etc.)",
+    "outro": "Outro",
 }
 
 
@@ -158,7 +158,7 @@ def _gerar_embeddings(textos: list[str], para_consulta: bool) -> list[list[float
         return None
     except Exception as exc:  # noqa: BLE001
         # Falha de embedding não deve impedir a indexação: busca textual assume
-        st.warning(f"Embeddings indisponíveis ({exc}); usando busca textual.", icon="🧭")
+        st.warning(f"Embeddings indisponíveis ({exc}); usando busca textual.")
         return None
 
 
@@ -286,7 +286,7 @@ def montar_bloco_referencias(dados: dict, doc_key: str) -> str:
     try:
         trechos = buscar_referencias(montar_consulta(dados, doc_key))
     except ErroRAG as erro:
-        st.warning(str(erro), icon="📚")
+        st.warning(str(erro))
         return ""
     if not trechos:
         return ""
@@ -302,7 +302,6 @@ def montar_bloco_referencias(dados: dict, doc_key: str) -> str:
     ]
     for i, t in enumerate(trechos, start=1):
         rotulo = CATEGORIAS.get(t.get("categoria", ""), t.get("categoria", ""))
-        rotulo = re.sub(r"^\W+\s*", "", rotulo)  # remove o emoji do rótulo
         linhas.append(f"\n--- Referência {i} [{rotulo}] {t.get('titulo', '')} ---")
         linhas.append((t.get("conteudo") or "").strip())
     return "\n".join(linhas)
