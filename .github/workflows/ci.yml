@@ -1,0 +1,28 @@
+# CI do GovDocs Wizard — roda a suíte de testes end-to-end (AppTest) a cada
+# push/PR. Os testes usam o Modo Demonstração: não precisam de chave de API
+# nem de acesso ao Supabase.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependências
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Rodar testes
+        run: python -m pytest -q
