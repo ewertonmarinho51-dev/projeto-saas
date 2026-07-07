@@ -117,8 +117,6 @@ def documentos_exemplo() -> dict:
 
 
 def test_exportacao_docx_pdf_zip(documentos_exemplo):
-    import sys
-    sys.path.insert(0, str(Path(APP).parent))
     from src import export
 
     pdf = export.gerar_pdf_consolidado(documentos_exemplo)

@@ -25,4 +25,4 @@ jobs:
           pip install pytest
 
       - name: Rodar testes
-        run: pytest -q
+        run: python -m pytest -q
