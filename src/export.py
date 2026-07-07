@@ -116,8 +116,32 @@ def _docx_inserir_markdown(doc, texto_md: str) -> None:
     descarregar_tabela()
 
 
-def gerar_docx(titulo: str, texto_md: str) -> bytes:
+def _docx_aplicar_branding(doc, branding: dict | None) -> None:
+    """Cabeçalho e rodapé institucionais no DOCX (marca d'água só no PDF)."""
+    if not branding:
+        return
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Pt
+
+    secao = doc.sections[0]
+    if branding.get("cabecalho"):
+        par = secao.header.paragraphs[0]
+        par.text = branding["cabecalho"]
+        par.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for run in par.runs:
+            run.font.size = Pt(9)
+            run.font.bold = True
+    if branding.get("rodape"):
+        par = secao.footer.paragraphs[0]
+        par.text = branding["rodape"]
+        par.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for run in par.runs:
+            run.font.size = Pt(8)
+
+
+def gerar_docx(titulo: str, texto_md: str, branding: dict | None = None) -> bytes:
     doc = _docx_novo()
+    _docx_aplicar_branding(doc, branding)
     doc.add_heading(titulo, level=0)
     _docx_inserir_markdown(doc, texto_md)
     buffer = io.BytesIO()
@@ -125,8 +149,9 @@ def gerar_docx(titulo: str, texto_md: str) -> bytes:
     return buffer.getvalue()
 
 
-def gerar_docx_consolidado(documentos: dict[str, str]) -> bytes:
+def gerar_docx_consolidado(documentos: dict[str, str], branding: dict | None = None) -> bytes:
     doc = _docx_novo()
+    _docx_aplicar_branding(doc, branding)
     doc.add_heading("Documentos da Fase Preparatória — Lei nº 14.133/2021", level=0)
     doc.add_paragraph(f"Dossiê gerado em {date.today().strftime('%d/%m/%Y')}.")
     for doc_key in SEQUENCIA_DOCUMENTOS:
@@ -158,11 +183,55 @@ def _latin1_seguro(texto: str) -> str:
     return texto.encode("latin-1", errors="replace").decode("latin-1")
 
 
-def _pdf_novo():
+def _pdf_novo(branding: dict | None = None):
+    """
+    PDF A4 com identidade visual opcional do órgão:
+    cabeçalho e rodapé em todas as páginas e marca d'água diagonal.
+    branding = {"cabecalho": str, "rodape": str, "marca_dagua": str}
+    """
     from fpdf import FPDF
 
-    pdf = FPDF(format="A4")
-    pdf.set_auto_page_break(auto=True, margin=20)
+    marca = _latin1_seguro((branding or {}).get("marca_dagua") or "")
+    cabecalho = _latin1_seguro((branding or {}).get("cabecalho") or "")
+    rodape = _latin1_seguro((branding or {}).get("rodape") or "")
+
+    class PDFInstitucional(FPDF):
+        def header(self):
+            if marca:
+                # Marca d'água diagonal, cinza-claro, atrás do conteúdo
+                self.set_font("Helvetica", "B", 46)
+                self.set_text_color(228, 228, 228)
+                with self.rotation(45, self.w / 2, self.h / 2):
+                    self.text(
+                        self.w / 2 - self.get_string_width(marca) / 2,
+                        self.h / 2,
+                        marca,
+                    )
+                self.set_text_color(0, 0, 0)
+            if cabecalho:
+                self.set_font("Helvetica", "B", 9)
+                self.set_text_color(90, 90, 90)
+                self.cell(0, 5, cabecalho, align="C",
+                          new_x="LMARGIN", new_y="NEXT")
+                self.set_draw_color(200, 200, 200)
+                self.line(self.l_margin, self.get_y() + 1,
+                          self.w - self.r_margin, self.get_y() + 1)
+                self.ln(4)
+                self.set_text_color(0, 0, 0)
+
+        def footer(self):
+            self.set_y(-14)
+            self.set_font("Helvetica", "", 8)
+            self.set_text_color(120, 120, 120)
+            if rodape:
+                self.cell(0, 4, rodape, align="C",
+                          new_x="LMARGIN", new_y="NEXT")
+            self.cell(0, 4, f"Página {self.page_no()}/{{nb}}", align="C")
+            self.set_text_color(0, 0, 0)
+
+    pdf = PDFInstitucional(format="A4")
+    pdf.alias_nb_pages()
+    pdf.set_auto_page_break(auto=True, margin=22)
     pdf.set_margins(left=20, top=20, right=20)
     return pdf
 
@@ -201,8 +270,8 @@ def _pdf_bytes(pdf) -> bytes:
     return bytes(saida)
 
 
-def gerar_pdf(titulo: str, texto_md: str) -> bytes:
-    pdf = _pdf_novo()
+def gerar_pdf(titulo: str, texto_md: str, branding: dict | None = None) -> bytes:
+    pdf = _pdf_novo(branding)
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 16)
     pdf.multi_cell(pdf.w - 40, 8, _latin1_seguro(titulo))
@@ -211,8 +280,8 @@ def gerar_pdf(titulo: str, texto_md: str) -> bytes:
     return _pdf_bytes(pdf)
 
 
-def gerar_pdf_consolidado(documentos: dict[str, str]) -> bytes:
-    pdf = _pdf_novo()
+def gerar_pdf_consolidado(documentos: dict[str, str], branding: dict | None = None) -> bytes:
+    pdf = _pdf_novo(branding)
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 16)
     pdf.multi_cell(
@@ -235,9 +304,11 @@ def gerar_pdf_consolidado(documentos: dict[str, str]) -> bytes:
 # ---------------------------------------------------------------------------
 # Pacote ZIP com todos os arquivos individuais
 # ---------------------------------------------------------------------------
-def gerar_zip(documentos: dict[str, str], formato: str) -> bytes:
+def gerar_zip(documentos: dict[str, str], formato: str, branding: dict | None = None) -> bytes:
     """`formato`: 'docx' ou 'pdf'. Zipa um arquivo por documento aprovado."""
-    gerador = gerar_docx if formato == "docx" else gerar_pdf
+    def gerador(titulo, texto):
+        fn = gerar_docx if formato == "docx" else gerar_pdf
+        return fn(titulo, texto, branding)
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for i, doc_key in enumerate(SEQUENCIA_DOCUMENTOS, start=1):

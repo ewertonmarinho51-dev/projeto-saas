@@ -76,6 +76,20 @@ projeto-saas/
         └── steps.py              # Telas: formulário, preview/edição, sucesso
 ```
 
+## 🔐 Controle de acesso
+
+Com Supabase configurado, o app exige login:
+
+| Papel | Pode |
+|---|---|
+| **Administrador** | Tudo: wizard, criar/gerenciar usuários, definir chaves de IA, enviar arquivos à Base de Conhecimento (RAG) e configurar cabeçalho/rodapé/marca d'água por órgão |
+| **Usuário** | Apenas elaborar os documentos no wizard (vê somente os próprios processos) |
+
+No primeiro acesso o app pede a criação do administrador inicial.
+Senhas: PBKDF2-SHA256 com 200k iterações e salt por usuário. Sem
+Supabase, o app roda em **modo aberto** (sem login) para dev/CI.
+Requer a migração `supabase/migrations/0004_usuarios_e_configuracoes.sql`.
+
 ## 🚀 Como rodar localmente
 
 ```bash

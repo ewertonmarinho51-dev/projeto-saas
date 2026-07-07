@@ -20,6 +20,7 @@ def inicializar() -> None:
         "documentos": {},      # doc_key -> texto gerado/editado
         "aprovados": set(),    # doc_keys aprovados pelo usuário
         "processo_id": None,   # uuid do processo no Supabase (None = não salvo)
+        "usuario": None,       # {id, nome, login, papel} após o login
         "modo_demo": False,
         "api_key_manual": "",
         "openai_key_manual": "",
@@ -37,12 +38,14 @@ def autosalvar() -> None:
     if not db.disponivel() or not st.session_state.dados:
         return
     try:
+        usuario = st.session_state.get("usuario") or {}
         st.session_state.processo_id = db.salvar_processo(
             st.session_state.processo_id,
             st.session_state.dados,
             st.session_state.documentos,
             st.session_state.aprovados,
             st.session_state.etapa,
+            usuario_id=usuario.get("id"),
         )
     except db.ErroBanco as erro:
         st.warning(f"Progresso não salvo no banco: {erro}")

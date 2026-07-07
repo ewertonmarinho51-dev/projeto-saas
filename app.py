@@ -2,35 +2,29 @@
 GovDocs Wizard — Gerador de Documentos da Fase Preparatória
 Lei nº 14.133/2021 (Nova Lei de Licitações e Contratos Administrativos)
 
-Ponto de entrada da aplicação Streamlit. Roteia o usuário pelo fluxo:
+Ponto de entrada da aplicação Streamlit.
 
-    Formulário Matriz ➜ DFD ➜ ETP ➜ TR ➜ Minuta de Edital/Ata ➜ Download
+Controle de acesso:
+  - Administrador: wizard + Base de Conhecimento + Administração
+    (usuários, chaves de IA, identidade visual dos documentos)
+  - Usuário: apenas o wizard de elaboração dos documentos
+  - Sem Supabase configurado: MODO ABERTO local, sem login (dev/CI)
 
 COMO RODAR LOCALMENTE
 ---------------------
-1. Crie e ative um ambiente virtual (recomendado):
-       python -m venv .venv && source .venv/bin/activate    # Linux/macOS
-       python -m venv .venv && .venv\\Scripts\\activate       # Windows
-
-2. Instale as dependências:
-       pip install -r requirements.txt
-
-3. Configure a CHAVE DA API (uma das opções):
-       a) Copie .streamlit/secrets.toml.example para .streamlit/secrets.toml
-          e cole sua chave do Google AI Studio (https://aistudio.google.com/apikey);
-       b) OU exporte a variável de ambiente:  export GOOGLE_API_KEY="sua-chave"
-       c) OU cole a chave direto na barra lateral da aplicação.
-       (Sem chave, ative o "Modo Demonstração" na barra lateral para testar.)
-
-4. Execute:
-       streamlit run app.py
-   A aplicação abrirá em http://localhost:8501
+1. python -m venv .venv && source .venv/bin/activate
+2. pip install -r requirements.txt
+3. Configure .streamlit/secrets.toml (copie de secrets.toml.example):
+   SUPABASE_URL/SUPABASE_KEY habilitam login, persistência e RAG;
+   as chaves de IA podem ser definidas pelo administrador no app.
+4. streamlit run app.py       (abre em http://localhost:8501)
+   No primeiro acesso com banco, o app pede a criação do administrador.
 """
 
 import streamlit as st
 
-from src import state
-from src.ui import biblioteca, components, steps
+from src import auth, state
+from src.ui import admin, biblioteca, components, login, steps
 
 # Configuração da página — deve ser a 1ª chamada Streamlit do script
 st.set_page_config(
@@ -42,16 +36,41 @@ st.set_page_config(
 
 # Estado persistente entre os passos (dados, documentos, aprovações)
 state.inicializar()
-
 components.aplicar_estilo()
+
+# ---------------------------------------------------------------------------
+# Autenticação (exceto em modo aberto, quando não há banco configurado)
+# ---------------------------------------------------------------------------
+if not auth.modo_aberto() and not auth.usuario_logado():
+    components.render_cabecalho()
+    try:
+        existe_admin = auth.tem_admin()
+    except auth.ErroAuth as erro:
+        st.error(str(erro))
+        st.info(
+            "Se as tabelas ainda não existem, aplique a migração "
+            "`supabase/migrations/0004_usuarios_e_configuracoes.sql` "
+            "no SQL Editor do painel Supabase."
+        )
+        st.stop()
+    if existe_admin:
+        login.render_login()
+    else:
+        login.render_bootstrap_admin()
+    st.stop()
+
 components.render_sidebar()
 components.render_cabecalho()
 
 # ---------------------------------------------------------------------------
-# Navegação: Assistente (wizard) | Base de Conhecimento (RAG)
+# Navegação por papel: admin vê Base de Conhecimento e Administração
 # ---------------------------------------------------------------------------
-if st.session_state.get("pagina") == "Base de Conhecimento":
+pagina = st.session_state.get("pagina", "")
+if auth.eh_admin() and pagina == "Base de Conhecimento":
     biblioteca.render_biblioteca()
+    st.stop()
+if auth.eh_admin() and pagina == "Administração":
+    admin.render_admin()
     st.stop()
 
 components.render_stepper(st.session_state.etapa)
@@ -78,7 +97,7 @@ elif 1 <= etapa <= 4:
     else:
         steps.render_etapa_documento(doc_key)
 else:
-    # Só chega à tela de sucesso com os 4 documentos aprovados
+    # Só chega à tela de conclusão com os 4 documentos aprovados
     if len(st.session_state.aprovados) < 4:
         state.ir_para(0 if not st.session_state.dados else len(st.session_state.aprovados) + 1)
     else:

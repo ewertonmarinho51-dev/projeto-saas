@@ -28,9 +28,17 @@ def _botao(at: AppTest, trecho: str):
     return achados[0]
 
 
+def _app_modo_aberto() -> AppTest:
+    """AppTest hermético: sem Supabase, o app roda em modo aberto (sem login)."""
+    at = AppTest.from_file(APP, default_timeout=60)
+    at.secrets["SUPABASE_URL"] = ""
+    at.secrets["SUPABASE_KEY"] = ""
+    return at
+
+
 def _iniciar_com_formulario() -> AppTest:
     """Sobe o app em modo demo e submete o Formulário Matriz válido."""
-    at = AppTest.from_file(APP, default_timeout=60)
+    at = _app_modo_aberto()
     at.run()
     assert not at.exception
     [t for t in at.toggle if t.key == "modo_demo"][0].set_value(True)
@@ -55,7 +63,7 @@ def _aprovar_documento(at: AppTest) -> None:
 
 
 def test_formulario_valida_campos_obrigatorios():
-    at = AppTest.from_file(APP, default_timeout=60)
+    at = _app_modo_aberto()
     at.run()
     _botao(at, "Iniciar").click()
     at.run()

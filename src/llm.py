@@ -33,7 +33,15 @@ class ErroGeracaoIA(Exception):
 
 
 def _ler_chave(nome_secret: str, chave_sidebar: str) -> str:
-    """Busca uma chave na ordem: barra lateral > secrets.toml > ambiente."""
+    """
+    Busca uma chave na ordem:
+    painel do administrador (banco) > sessão > secrets.toml > ambiente.
+    """
+    from . import db
+
+    valor = db.obter_config(nome_secret)
+    if valor:
+        return valor
     valor = st.session_state.get(chave_sidebar, "").strip()
     if valor:
         return valor
@@ -65,21 +73,11 @@ def motor_ativo() -> str:
 
 
 def _obter_modelo() -> str:
-    try:
-        if "GEMINI_MODEL" in st.secrets:
-            return str(st.secrets["GEMINI_MODEL"])
-    except Exception:
-        pass
-    return os.getenv("GEMINI_MODEL", GEMINI_MODEL_PADRAO)
+    return _ler_chave("GEMINI_MODEL", "") or GEMINI_MODEL_PADRAO
 
 
 def _obter_modelo_openai() -> str:
-    try:
-        if "OPENAI_MODEL" in st.secrets:
-            return str(st.secrets["OPENAI_MODEL"])
-    except Exception:
-        pass
-    return os.getenv("OPENAI_MODEL", OPENAI_MODEL_PADRAO)
+    return _ler_chave("OPENAI_MODEL", "") or OPENAI_MODEL_PADRAO
 
 
 def _traduzir_erro(exc: Exception) -> str:
