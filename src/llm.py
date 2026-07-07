@@ -134,6 +134,14 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
             "o Modo Demonstração para testar sem IA."
         )
     system_prompt, user_prompt = montar_prompt(doc_key, dados, contexto_anterior)
+
+    # RAG: anexa trechos relevantes da Base de Conhecimento (leis, acórdãos,
+    # entendimentos de TCs, processos anteriores). Falha de RAG nunca
+    # bloqueia a geração — o bloco simplesmente fica vazio.
+    from . import rag
+
+    user_prompt += rag.montar_bloco_referencias(dados, doc_key)
+
     return _chamar_gemini(system_prompt, user_prompt, api_key)
 
 

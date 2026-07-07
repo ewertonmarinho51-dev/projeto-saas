@@ -17,6 +17,13 @@ API_TIMEOUT_SEGUNDOS = 120
 API_TENTATIVAS = 3          # nº de tentativas antes de desistir
 API_BACKOFF_BASE = 2        # espera 2s, 4s, 8s... entre tentativas
 
+# Base de Conhecimento (RAG)
+EMBEDDING_MODEL = "gemini-embedding-001"
+EMBEDDING_DIMENSOES = 768   # deve casar com vector(768) no banco
+RAG_CHUNK_TAMANHO = 1500    # ~caracteres por trecho indexado
+RAG_CHUNK_SOBREPOSICAO = 200
+RAG_TOP_K = 6               # trechos recuperados por geração
+
 # ---------------------------------------------------------------------------
 # Etapas do wizard
 # ---------------------------------------------------------------------------

@@ -126,6 +126,13 @@ def _render_processos_salvos() -> None:
 
 def render_sidebar() -> None:
     with st.sidebar:
+        st.radio(
+            "Navegação",
+            options=["🧭 Assistente de Documentos", "📚 Base de Conhecimento"],
+            key="pagina",
+            label_visibility="collapsed",
+        )
+        st.divider()
         st.markdown("### ⚙️ Configuração da IA")
         st.text_input(
             "Chave da API (Google AI Studio)",
