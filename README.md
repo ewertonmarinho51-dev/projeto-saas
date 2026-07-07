@@ -35,6 +35,12 @@ avança sem aprovação humana (tela de *preview* editável em cada etapa).
   Salvos" permite retomar ou excluir trabalhos anteriores de qualquer
   máquina. Sem credenciais configuradas, o app funciona normalmente
   (apenas sem persistência).
+- **📚 Base de Conhecimento (RAG)**: envie leis, acórdãos, entendimentos
+  dos Tribunais de Contas, processos anteriores e modelos (PDF/DOCX/
+  TXT/MD). Os arquivos são divididos em trechos, indexados no Supabase
+  com embeddings do Gemini (pgvector) e recuperados automaticamente na
+  geração de cada documento para fundamentar a redação — com busca
+  textual em português como fallback quando não há chave de API.
 
 ## 📁 Estrutura de pastas
 
@@ -53,6 +59,7 @@ projeto-saas/
     ├── prompts.py                # System prompts rigorosos por documento
     ├── llm.py                    # Cliente Gemini: retry, timeout, erros amigáveis, modo demo
     ├── db.py                     # Persistência no Supabase (salvar/retomar processos)
+    ├── rag.py                    # Base de Conhecimento: extração, chunks, embeddings, busca
     ├── state.py                  # Estado do wizard (st.session_state) + autosave
     ├── export.py                 # Conversão Markdown ➜ .docx / .pdf / .zip
     └── ui/
@@ -131,6 +138,31 @@ create policy "anon_delete" on public.processos for delete to anon using (true);
 > tenant único, chave publishable). Para uso multiusuário em produção,
 > adicione **Supabase Auth** e restrinja as políticas por usuário
 > (`auth.uid()`).
+
+As migrações completas estão versionadas em `supabase/migrations/` —
+incluindo `0003_base_conhecimento_rag.sql`, que cria as tabelas
+`documentos_referencia` e `chunks_referencia` (pgvector + busca textual
+em português) da Base de Conhecimento. Para aplicar manualmente, cole o
+conteúdo no **SQL Editor** do painel Supabase.
+
+## 📚 Base de Conhecimento (RAG)
+
+Na página "Base de Conhecimento" (menu lateral), envie os materiais que
+devem fundamentar a redação:
+
+| Categoria | Exemplos | Como a IA usa |
+|---|---|---|
+| Lei / Norma | Lei 14.133/2021, IN SEGES, decretos locais | Citação expressa de dispositivos |
+| Acórdão | Acórdãos TCU/TCE | Citação de precedentes pertinentes |
+| Entendimento | Orientações e súmulas dos TCs | Fundamentação das escolhas |
+| Processo anterior | DFDs, ETPs, TRs já realizados | Padrão de redação e estrutura |
+| Modelo | Minutas-padrão (AGU etc.) | Estrutura de cláusulas |
+
+Em cada geração, a aplicação monta uma consulta com o objeto/justificativa
+do processo, recupera os trechos mais relevantes (busca vetorial
+`gemini-embedding-001` + pgvector; fallback: full-text search em
+português) e os injeta no prompt com a instrução de **não copiar dados
+específicos de outros processos** — o formulário atual sempre prevalece.
 
 > 💡 **Sem chave de API?** Ative o *Modo Demonstração* na barra lateral
 > para percorrer o fluxo completo com minutas-esqueleto geradas offline.

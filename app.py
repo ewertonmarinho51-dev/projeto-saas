@@ -30,7 +30,7 @@ COMO RODAR LOCALMENTE
 import streamlit as st
 
 from src import state
-from src.ui import components, steps
+from src.ui import biblioteca, components, steps
 
 # Configuração da página — deve ser a 1ª chamada Streamlit do script
 st.set_page_config(
@@ -46,6 +46,14 @@ state.inicializar()
 components.aplicar_estilo()
 components.render_sidebar()
 components.render_cabecalho()
+
+# ---------------------------------------------------------------------------
+# Navegação: Assistente (wizard) | Base de Conhecimento (RAG)
+# ---------------------------------------------------------------------------
+if st.session_state.get("pagina", "").startswith("📚"):
+    biblioteca.render_biblioteca()
+    st.stop()
+
 components.render_stepper(st.session_state.etapa)
 
 # ---------------------------------------------------------------------------

@@ -21,3 +21,6 @@ fpdf2>=2.7.8
 
 # Banco de dados (Supabase/PostgreSQL) — persistência dos processos
 supabase>=2.4.0
+
+# Leitura de PDFs da Base de Conhecimento (RAG)
+pypdf>=4.0.0
