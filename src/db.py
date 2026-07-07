@@ -69,6 +69,7 @@ def salvar_processo(
     documentos: dict,
     aprovados: set,
     etapa: int,
+    usuario_id: str | None = None,
 ) -> str:
     """Cria ou atualiza o processo e retorna seu id (uuid)."""
     registro = {
@@ -79,6 +80,8 @@ def salvar_processo(
         "documentos": documentos,
         "aprovados": sorted(aprovados),
     }
+    if usuario_id:
+        registro["usuario_id"] = usuario_id
     try:
         tabela = _cliente().table("processos")
         if processo_id:
@@ -92,18 +95,84 @@ def salvar_processo(
         raise _traduzir_erro(exc) from exc
 
 
-def listar_processos(limite: int = 20) -> list[dict]:
-    """Processos mais recentes (resumo para o painel lateral)."""
+def listar_processos(limite: int = 20, usuario_id: str | None = None) -> list[dict]:
+    """Processos mais recentes; com usuario_id, apenas os daquele usuário."""
     try:
-        resposta = (
+        consulta = (
             _cliente()
             .table("processos")
             .select("id, orgao, objeto, etapa, atualizado_em")
-            .order("atualizado_em", desc=True)
-            .limit(limite)
-            .execute()
+        )
+        if usuario_id:
+            consulta = consulta.eq("usuario_id", usuario_id)
+        resposta = (
+            consulta.order("atualizado_em", desc=True).limit(limite).execute()
         )
         return resposta.data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# Configurações do aplicativo (chaves de IA definidas pelo administrador)
+# ---------------------------------------------------------------------------
+@st.cache_data(ttl=60, show_spinner=False)
+def obter_config(chave: str) -> str:
+    """Valor de config_app (cache 60s). Vazio se ausente/indisponível."""
+    if not disponivel():
+        return ""
+    try:
+        resposta = (
+            _cliente().table("config_app").select("valor")
+            .eq("chave", chave).limit(1).execute()
+        )
+        return (resposta.data[0]["valor"] if resposta.data else "").strip()
+    except Exception:  # noqa: BLE001 — tabela ausente/erro: segue sem config
+        return ""
+
+
+def salvar_config(chave: str, valor: str) -> None:
+    try:
+        _cliente().table("config_app").upsert(
+            {"chave": chave, "valor": valor.strip()}
+        ).execute()
+        obter_config.clear()
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# Identidade visual por órgão (cabeçalho, rodapé, marca d'água)
+# ---------------------------------------------------------------------------
+def listar_orgaos() -> list[dict]:
+    try:
+        return (
+            _cliente().table("config_orgaos").select("*")
+            .order("padrao", desc=True).order("orgao").execute()
+        ).data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def salvar_orgao(registro: dict, orgao_id: str | None = None) -> None:
+    """Cria/atualiza identidade visual; se padrao=True, desmarca as demais."""
+    try:
+        tabela = _cliente().table("config_orgaos")
+        if registro.get("padrao"):
+            tabela.update({"padrao": False}).neq(
+                "id", orgao_id or "00000000-0000-0000-0000-000000000000"
+            ).execute()
+        if orgao_id:
+            tabela.update(registro).eq("id", orgao_id).execute()
+        else:
+            tabela.insert(registro).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def excluir_orgao(orgao_id: str) -> None:
+    try:
+        _cliente().table("config_orgaos").delete().eq("id", orgao_id).execute()
     except Exception as exc:  # noqa: BLE001
         raise _traduzir_erro(exc) from exc
 

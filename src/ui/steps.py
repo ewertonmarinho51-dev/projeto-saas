@@ -7,7 +7,7 @@ Telas de cada etapa do wizard:
 
 import streamlit as st
 
-from .. import export, state
+from .. import db, export, state
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
@@ -176,18 +176,36 @@ def render_sucesso() -> None:
     orgao = (st.session_state.dados.get("orgao") or "orgao").strip()
     prefixo = "".join(c if c.isalnum() else "-" for c in orgao)[:40].strip("-") or "dossie"
 
+    # Identidade visual (cabeçalho/rodapé/marca d'água) definida pelo admin
+    branding = None
+    if db.disponivel():
+        try:
+            orgaos = db.listar_orgaos()
+        except db.ErroBanco:
+            orgaos = []
+        if orgaos:
+            rotulos = {o["orgao"]: o for o in orgaos}
+            escolha = st.selectbox(
+                "Identidade visual dos arquivos",
+                ["Sem identidade visual", *rotulos],
+                index=1,  # a padrão vem primeiro na listagem
+                help="Cabeçalho e rodapé em todas as páginas; marca d'água no PDF.",
+            )
+            if escolha != "Sem identidade visual":
+                branding = rotulos[escolha]
+
     st.markdown("#### Dossiê completo (arquivo único)")
     col_pdf, col_docx = st.columns(2)
     col_pdf.download_button(
         "Baixar todos em PDF",
-        data=export.gerar_pdf_consolidado(docs),
+        data=export.gerar_pdf_consolidado(docs, branding),
         file_name=f"{prefixo}-fase-preparatoria.pdf",
         mime="application/pdf",
         type="primary", use_container_width=True,
     )
     col_docx.download_button(
         "Baixar todos em DOCX",
-        data=export.gerar_docx_consolidado(docs),
+        data=export.gerar_docx_consolidado(docs, branding),
         file_name=f"{prefixo}-fase-preparatoria.docx",
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         type="primary", use_container_width=True,
@@ -197,13 +215,13 @@ def render_sucesso() -> None:
     col_zip_pdf, col_zip_docx = st.columns(2)
     col_zip_pdf.download_button(
         "ZIP com os 4 PDFs",
-        data=export.gerar_zip(docs, "pdf"),
+        data=export.gerar_zip(docs, "pdf", branding),
         file_name=f"{prefixo}-documentos-pdf.zip",
         mime="application/zip", use_container_width=True,
     )
     col_zip_docx.download_button(
         "ZIP com os 4 DOCX",
-        data=export.gerar_zip(docs, "docx"),
+        data=export.gerar_zip(docs, "docx", branding),
         file_name=f"{prefixo}-documentos-docx.zip",
         mime="application/zip", use_container_width=True,
     )

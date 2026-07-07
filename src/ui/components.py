@@ -9,9 +9,9 @@ flat (sem gradientes/sombras), sem emojis, raios 8px (containers) e
 
 import streamlit as st
 
-from .. import db, state
+from .. import auth, db, state
 from ..config import APP_SUBTITULO, APP_TITULO, ETAPAS
-from ..llm import motor_ativo, obter_api_key
+from ..llm import motor_ativo
 
 _CSS = """
 <style>
@@ -169,8 +169,10 @@ def _render_processos_salvos() -> None:
     if st.session_state.processo_id:
         st.caption(f"Processo atual salvo (id: {st.session_state.processo_id[:8]}…)")
 
+    usuario = auth.usuario_logado()
+    filtro = None if auth.eh_admin() else (usuario or {}).get("id")
     try:
-        processos = db.listar_processos()
+        processos = db.listar_processos(usuario_id=filtro)
     except db.ErroBanco as erro:
         st.warning(str(erro))
         return
@@ -209,51 +211,45 @@ def _render_processos_salvos() -> None:
 
 def render_sidebar() -> None:
     with st.sidebar:
-        st.radio(
-            "Navegação",
-            options=["Assistente de Documentos", "Base de Conhecimento"],
-            key="pagina",
-            label_visibility="collapsed",
-        )
-        st.divider()
-        st.markdown("### Configuração da IA")
-        st.text_input(
-            "Chave OpenAI (motor principal)",
-            type="password",
-            key="openai_key_manual",
-            help=(
-                "Chave sk-... da OpenAI (https://platform.openai.com/api-keys). "
-                "Alternativas: OPENAI_API_KEY em .streamlit/secrets.toml ou no "
-                "ambiente. Modelo padrão: gpt-5-mini (ajuste em OPENAI_MODEL)."
-            ),
-        )
-        st.text_input(
-            "Chave Google Gemini (fallback)",
-            type="password",
-            key="api_key_manual",
-            help=(
-                "Opcional: usada se a OpenAI falhar e nos embeddings quando "
-                "não houver chave OpenAI. GOOGLE_API_KEY em secrets/ambiente."
-            ),
-        )
+        usuario = auth.usuario_logado()
+        if auth.eh_admin():
+            st.radio(
+                "Navegação",
+                options=[
+                    "Assistente de Documentos",
+                    "Base de Conhecimento",
+                    "Administração",
+                ],
+                key="pagina",
+                label_visibility="collapsed",
+            )
+            st.divider()
+
+        if usuario:
+            papel = "Administrador" if usuario["papel"] == "admin" else "Usuário"
+            st.markdown(f"**{usuario['nome']}**  \n{papel} · `{usuario['login']}`")
+            if st.button("Sair", use_container_width=True):
+                auth.sair()
+                st.rerun()
+            st.divider()
+
         motor = motor_ativo()
         if motor == "openai":
-            st.success("Motor ativo: OpenAI (principal)")
-            if obter_api_key():
-                st.caption("Fallback Gemini configurado.")
+            st.caption("Motor de IA: OpenAI (principal)")
         elif motor == "gemini":
-            st.info("Motor ativo: Gemini (fallback). Sem chave OpenAI.")
+            st.caption("Motor de IA: Gemini (fallback)")
         else:
-            st.warning("Sem chave de API configurada.")
+            st.caption("Motor de IA: não configurado (Modo Demonstração)")
 
-        st.toggle(
-            "Modo Demonstração (sem IA)",
-            key="modo_demo",
-            help=(
-                "Gera minutas-esqueleto offline, sem consumir a API. Útil "
-                "para conhecer o fluxo completo antes de configurar a chave."
-            ),
-        )
+        if auth.eh_admin():
+            st.toggle(
+                "Modo Demonstração (sem IA)",
+                key="modo_demo",
+                help=(
+                    "Gera minutas-esqueleto offline, sem consumir a API. Útil "
+                    "para conhecer o fluxo completo antes de configurar a chave."
+                ),
+            )
 
         st.divider()
         _render_processos_salvos()
