@@ -164,6 +164,13 @@ def _traduzir_erro(exc: Exception, motor: str = "") -> str:
             f"{rotulo}: limite de uso/cota atingido ou sem crédito de "
             f"faturamento. Verifique {painel}."
         )
+    if "vazi" in texto or "finish_reason=length" in texto:
+        return (
+            f"{rotulo}: o modelo devolveu resposta vazia (provável limite de "
+            "tokens ou raciocínio consumindo o orçamento). Tente um modelo "
+            f"não-raciocínio em {var_modelo} (ex.: gpt-4o-mini) ou reduza o "
+            "tamanho da planilha/prompt."
+        )
     if "safety" in texto or "blocked" in texto:
         return (
             f"{rotulo}: a resposta foi bloqueada pelos filtros de segurança "
@@ -179,17 +186,31 @@ def _traduzir_erro(exc: Exception, motor: str = "") -> str:
     return f"{rotulo}: falha na comunicação — {type(exc).__name__}: {exc}"
 
 
+class _RespostaVazia(Exception):
+    """O modelo respondeu sem conteúdo (ex.: raciocínio consumiu os tokens).
+    Sinaliza que vale a pena tentar o próximo modelo da lista."""
+
+
 def _params_modelo_openai(modelo: str) -> dict:
     """
-    Parâmetros extras por família de modelo. Modelos de raciocínio (gpt-5,
-    série o) consomem tokens 'pensando' antes de responder: com esforço alto e
-    um prompt grande, estouram o tempo e podem devolver resposta vazia. Usamos
-    esforço baixo para responder rápido nos documentos.
+    Parâmetros extras por família de modelo. Modelos de raciocínio consomem
+    tokens 'pensando' antes de escrever — com prompt grande podem gastar todo
+    o orçamento no raciocínio e devolver conteúdo VAZIO. Usamos o menor esforço
+    disponível para sobrar tokens para o texto: gpt-5 aceita 'minimal';
+    a série o aceita 'low'.
     """
     ml = modelo.lower()
-    if ml.startswith(("gpt-5", "o1", "o3", "o4")):
+    if ml.startswith("gpt-5"):
+        return {"reasoning_effort": "minimal"}
+    if ml.startswith(("o1", "o3", "o4")):
         return {"reasoning_effort": "low"}
     return {}
+
+
+def _trocar_de_modelo(exc: Exception) -> bool:
+    """Erros em que vale tentar o próximo modelo: inexistente/sem acesso, ou
+    resposta vazia (típico de modelo de raciocínio sem tokens p/ o texto)."""
+    return isinstance(exc, _RespostaVazia) or _e_erro_de_modelo(exc)
 
 
 def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
@@ -208,14 +229,17 @@ def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
                 max_completion_tokens=16384,
                 **extra,
             )
-            texto = (resposta.choices[0].message.content or "").strip()
+            escolha = resposta.choices[0]
+            texto = (escolha.message.content or "").strip()
             if not texto:
-                raise RuntimeError("resposta vazia do modelo")
+                motivo = getattr(escolha, "finish_reason", "?")
+                raise _RespostaVazia(f"conteúdo vazio (finish_reason={motivo})")
             return texto
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
-            # Erro de modelo não melhora com retry — sobe já para trocar de modelo
-            if _e_erro_de_modelo(exc):
+            # Erro de modelo / resposta vazia não melhoram com retry no mesmo
+            # modelo — sobe já para trocar de modelo.
+            if _trocar_de_modelo(exc):
                 raise
             if tentativa < API_TENTATIVAS:
                 time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
@@ -224,9 +248,10 @@ def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
 
 def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str) -> str:
     """
-    Motor principal: OpenAI. Tenta o modelo configurado e, se ele não
-    existir/sem acesso na conta, cai automaticamente para modelos
-    alternativos amplamente disponíveis (gpt-4o-mini etc.).
+    Motor principal: OpenAI. Tenta o modelo configurado e, se ele não existir,
+    não tiver acesso, ou devolver resposta vazia (comum em modelos de
+    raciocínio), cai automaticamente para modelos alternativos amplamente
+    disponíveis (gpt-4o-mini etc.).
     """
     # Import tardio: a interface abre mesmo sem a biblioteca instalada
     from openai import OpenAI
@@ -234,19 +259,21 @@ def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str) -> str:
     cliente = OpenAI(api_key=api_key, timeout=API_TIMEOUT_SEGUNDOS, max_retries=0)
     modelos = _modelos_openai()
     ultima_excecao: Exception | None = None
+    tentados: list[str] = []
     for i, modelo in enumerate(modelos):
+        tentados.append(modelo)
         try:
             return _openai_uma_chamada(cliente, modelo, system_prompt, user_prompt)
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
-            # Só faz sentido tentar outro modelo se o erro for de modelo.
-            # Chave inválida/cota falha igual em qualquer modelo → aborta.
-            if _e_erro_de_modelo(exc) and i < len(modelos) - 1:
+            # Troca de modelo em erro de modelo OU resposta vazia. Chave
+            # inválida/cota falha igual em qualquer modelo → aborta.
+            if _trocar_de_modelo(exc) and i < len(modelos) - 1:
                 continue
             break
     raise ErroGeracaoIA(
         _traduzir_erro(ultima_excecao, "openai"),
-        detalhe=f"[OpenAI · tentados: {', '.join(modelos)}] "
+        detalhe=f"[OpenAI · tentados: {', '.join(tentados)}] "
                 f"{type(ultima_excecao).__name__}: {ultima_excecao}",
     )
 
@@ -268,11 +295,11 @@ def _gemini_uma_chamada(cliente, types, modelo: str, system_prompt: str,
             )
             texto = (resposta.text or "").strip()
             if not texto:
-                raise RuntimeError("resposta vazia do modelo")
+                raise _RespostaVazia("conteúdo vazio")
             return texto
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
-            if _e_erro_de_modelo(exc):
+            if _trocar_de_modelo(exc):
                 raise
             if tentativa < API_TENTATIVAS:
                 time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
@@ -294,18 +321,20 @@ def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str) -> str:
     )
     modelos = _modelos_gemini()
     ultima_excecao: Exception | None = None
+    tentados: list[str] = []
     for i, modelo in enumerate(modelos):
+        tentados.append(modelo)
         try:
             return _gemini_uma_chamada(cliente, types, modelo, system_prompt,
                                        user_prompt)
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
-            if _e_erro_de_modelo(exc) and i < len(modelos) - 1:
+            if _trocar_de_modelo(exc) and i < len(modelos) - 1:
                 continue
             break
     raise ErroGeracaoIA(
         _traduzir_erro(ultima_excecao, "gemini"),
-        detalhe=f"[Gemini · tentados: {', '.join(modelos)}] "
+        detalhe=f"[Gemini · tentados: {', '.join(tentados)}] "
                 f"{type(ultima_excecao).__name__}: {ultima_excecao}",
     )
 

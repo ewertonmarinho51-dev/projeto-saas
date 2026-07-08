@@ -164,10 +164,43 @@ def test_testar_conexao_ok(monkeypatch):
     assert ok and "OpenAI" in msg
 
 
-def test_params_modelo_gpt5_usa_reasoning_baixo():
-    assert llm._params_modelo_openai("gpt-5-mini") == {"reasoning_effort": "low"}
+def test_params_modelo_reasoning():
+    assert llm._params_modelo_openai("gpt-5-mini") == {"reasoning_effort": "minimal"}
     assert llm._params_modelo_openai("o3-mini") == {"reasoning_effort": "low"}
     assert llm._params_modelo_openai("gpt-4o-mini") == {}
+
+
+def test_openai_resposta_vazia_troca_de_modelo(monkeypatch):
+    """gpt-5-mini devolve vazio → cai para o próximo modelo, que responde."""
+    monkeypatch.setattr(llm, "_obter_modelo_openai", lambda: "gpt-5-mini")
+    monkeypatch.setattr(llm, "API_TENTATIVAS", 1)
+    monkeypatch.setattr("openai.OpenAI", lambda **kw: object())
+
+    chamados = []
+
+    def fake_uma_chamada(cliente, modelo, s, u):
+        chamados.append(modelo)
+        if modelo == "gpt-5-mini":
+            raise llm._RespostaVazia("conteúdo vazio (finish_reason=length)")
+        return "DOC OK"
+
+    monkeypatch.setattr(llm, "_openai_uma_chamada", fake_uma_chamada)
+    assert llm._chamar_openai("s", "u", "sk-x") == "DOC OK"
+    assert chamados[0] == "gpt-5-mini" and chamados[1] == "gpt-4o-mini"
+
+
+def test_openai_todos_vazios_mensagem_amigavel(monkeypatch):
+    monkeypatch.setattr(llm, "_obter_modelo_openai", lambda: "gpt-5-mini")
+    monkeypatch.setattr("openai.OpenAI", lambda **kw: object())
+    monkeypatch.setattr(
+        llm, "_openai_uma_chamada",
+        lambda c, m, s, u: (_ for _ in ()).throw(llm._RespostaVazia("vazio")),
+    )
+    with pytest.raises(llm.ErroGeracaoIA) as exc:
+        llm._chamar_openai("s", "u", "sk-x")
+    assert "vazia" in str(exc.value).lower()
+    # detalhe lista todos os modelos realmente tentados
+    assert "gpt-4o-mini" in exc.value.detalhe and "gpt-4.1-mini" in exc.value.detalhe
 
 
 def test_gerar_injeta_tabela_grande(monkeypatch):
