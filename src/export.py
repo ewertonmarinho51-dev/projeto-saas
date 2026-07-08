@@ -58,17 +58,68 @@ def _docx_novo():
     return doc
 
 
-def _docx_paragrafo_com_negrito(doc, texto: str, estilo: str | None = None):
-    """Adiciona parágrafo respeitando trechos em **negrito**."""
-    par = doc.add_paragraph(style=estilo)
-    pos = 0
+# Links Markdown: [texto](url) — usados para compactar URLs (fonte de preço)
+_RE_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)")
+
+
+def _segmentos_bold(texto: str) -> list[dict]:
+    segs, pos = [], 0
     for m in _RE_NEGRITO.finditer(texto):
         if m.start() > pos:
-            par.add_run(texto[pos : m.start()])
-        par.add_run(m.group(1)).bold = True
+            segs.append({"text": texto[pos : m.start()], "bold": False, "url": None})
+        segs.append({"text": m.group(1), "bold": True, "url": None})
         pos = m.end()
     if pos < len(texto):
-        par.add_run(texto[pos:])
+        segs.append({"text": texto[pos:], "bold": False, "url": None})
+    return segs
+
+
+def _segmentos_ricos(texto: str) -> list[dict]:
+    """Divide o texto em trechos: negrito (**), links [t](url) e texto simples."""
+    segs, pos = [], 0
+    for m in _RE_LINK.finditer(texto):
+        if m.start() > pos:
+            segs.extend(_segmentos_bold(texto[pos : m.start()]))
+        segs.append({"text": m.group(1), "bold": False, "url": m.group(2)})
+        pos = m.end()
+    if pos < len(texto):
+        segs.extend(_segmentos_bold(texto[pos:]))
+    return segs or [{"text": texto, "bold": False, "url": None}]
+
+
+def _docx_hyperlink(par, url: str, texto: str) -> None:
+    """Insere um hyperlink clicável (azul, sublinhado) no parágrafo."""
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    r_id = par.part.relate_to(url, RT.HYPERLINK, is_external=True)
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("r:id"), r_id)
+    run = OxmlElement("w:r")
+    rpr = OxmlElement("w:rPr")
+    cor = OxmlElement("w:color"); cor.set(qn("w:val"), "1B4F8A")
+    sub = OxmlElement("w:u"); sub.set(qn("w:val"), "single")
+    rpr.append(cor); rpr.append(sub); run.append(rpr)
+    t = OxmlElement("w:t"); t.text = texto; run.append(t)
+    link.append(run)
+    par._p.append(link)
+
+
+def _docx_runs_ricos(par, texto: str) -> None:
+    """Preenche o parágrafo com runs de negrito e hyperlinks compactos."""
+    for seg in _segmentos_ricos(texto):
+        if seg["url"]:
+            _docx_hyperlink(par, seg["url"], seg["text"])
+        elif seg["text"]:
+            run = par.add_run(seg["text"])
+            run.bold = seg["bold"]
+
+
+def _docx_paragrafo_com_negrito(doc, texto: str, estilo: str | None = None):
+    """Adiciona parágrafo com negrito (**) e links clicáveis [t](url)."""
+    par = doc.add_paragraph(style=estilo)
+    _docx_runs_ricos(par, texto)
     return par
 
 
@@ -89,12 +140,11 @@ def _docx_inserir_markdown(doc, texto_md: str) -> None:
             tabela.style = "Table Grid"
             for i, linha in enumerate(linhas_tab):
                 for j, celula in enumerate(linha[: len(tabela.columns)]):
-                    tabela.cell(i, j).text = _limpar_inline(celula)
-                    if i == 0:
-                        for run in tabela.cell(i, j).paragraphs[0].runs or [
-                            tabela.cell(i, j).paragraphs[0].add_run("")
-                        ]:
-                            run.bold = True
+                    par = tabela.cell(i, j).paragraphs[0]
+                    if i == 0:  # cabeçalho: negrito, sem links
+                        par.add_run(_limpar_inline(celula)).bold = True
+                    else:
+                        _docx_runs_ricos(par, celula)
         tabela_buffer.clear()
 
     for linha in linhas:
@@ -282,33 +332,66 @@ def _pdf_novo(branding: dict | None = None):
     return pdf
 
 
+def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
+    """Renderiza uma tabela Markdown como tabela real do fpdf2 (com links)."""
+    linhas = [
+        [_latin1_seguro(c.strip()) for c in ln.strip("|").split("|")]
+        for ln in linhas_tab
+        if not re.match(r"^\|?[\s:|-]+\|?$", ln)  # descarta a linha ---|---
+    ]
+    if not linhas:
+        return
+    n = max(len(l) for l in linhas)
+    linhas = [l + [""] * (n - len(l)) for l in linhas]
+    pdf.set_font("Helvetica", "", 8)
+    with pdf.table(markdown=True, first_row_as_headings=True,
+                   line_height=5, width=pdf.w - pdf.l_margin - pdf.r_margin) as tabela:
+        for linha in linhas:
+            fpdf_linha = tabela.row()
+            for celula in linha:
+                fpdf_linha.cell(celula)
+    pdf.ln(2)
+
+
 def _pdf_inserir_markdown(pdf, texto_md: str) -> None:
     largura = pdf.w - pdf.l_margin - pdf.r_margin
+    buffer_tab: list[str] = []
+
+    def flush_tabela():
+        if buffer_tab:
+            _pdf_render_tabela(pdf, buffer_tab)
+            buffer_tab.clear()
+
     for linha in texto_md.splitlines():
         tipo, conteudo = _classificar_linha(linha)
-        conteudo = _latin1_seguro(_limpar_inline(conteudo))
+        if tipo == "tabela":
+            buffer_tab.append(conteudo)
+            continue
+        flush_tabela()
+        # títulos: sem marcação inline; corpo/itens: markdown (negrito e
+        # links [texto](url) clicáveis e compactos)
+        limpo = _latin1_seguro(_limpar_inline(conteudo))
+        rico = _latin1_seguro(conteudo)
         if tipo == "vazio":
             pdf.ln(3)
         elif tipo == "h1":
             pdf.set_font("Helvetica", "B", 14)
-            pdf.multi_cell(largura, 7, conteudo)
+            pdf.multi_cell(largura, 7, limpo)
             pdf.ln(1)
         elif tipo == "h2":
             pdf.set_font("Helvetica", "B", 12)
-            pdf.multi_cell(largura, 6, conteudo)
+            pdf.multi_cell(largura, 6, limpo)
             pdf.ln(1)
         elif tipo == "h3":
             pdf.set_font("Helvetica", "B", 11)
-            pdf.multi_cell(largura, 6, conteudo)
+            pdf.multi_cell(largura, 6, limpo)
         elif tipo == "item":
             pdf.set_font("Helvetica", "", 11)
-            pdf.multi_cell(largura, 5.5, "  -  " + conteudo)
-        elif tipo == "tabela":
-            pdf.set_font("Courier", "", 8)
-            pdf.multi_cell(largura, 4.5, conteudo)
+            pdf.multi_cell(largura, 5.5, "  -  " + rico, markdown=True)
         else:
             pdf.set_font("Helvetica", "", 11)
-            pdf.multi_cell(largura, 5.5, conteudo)
+            pdf.multi_cell(largura, 5.5, rico, markdown=True)
+    flush_tabela()
 
 
 def _pdf_bytes(pdf) -> bytes:

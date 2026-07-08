@@ -103,8 +103,10 @@ def formatar_dados_formulario(dados: dict) -> str:
             itens, valor_global = planilha.calcular(dados.get("itens") or [])
             linhas.append(
                 f"- {meta['rotulo']} (o VALOR GLOBAL é a estimativa da "
-                "contratação; reproduza a planilha na estimativa de valor "
-                "do documento):\n"
+                "contratação; reproduza a planilha COMPLETA, com todas as "
+                "colunas, na estimativa de valor do documento. Mantenha os "
+                "links no formato Markdown exatamente como estão, ex.: "
+                "[link](https://...), sem expandir a URL):\n"
                 + planilha.para_markdown(itens, valor_global)
             )
             continue
