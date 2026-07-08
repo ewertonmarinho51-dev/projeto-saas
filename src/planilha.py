@@ -67,6 +67,76 @@ def para_link_markdown(valor) -> str:
     return str(valor or "")
 
 
+# ---------------------------------------------------------------------------
+# Limpeza de texto (descrições vindas de PDF costumam ter espaços espúrios
+# no meio de palavras: "plás tica", "docu mentos", "d?água")
+# ---------------------------------------------------------------------------
+# Fragmentos que NÃO são palavras isoladas em português: quando aparecem
+# soltos, quase sempre são o final de uma palavra quebrada por um espaço.
+# Comparados SEM acento (via _core). Propositalmente omitidos os que colidem
+# com palavras reais: "do/da/ha/ao/as" (palavras), "sao"→são, "ida", "cidade",
+# "idade", "grafica"→gráfica, "menta" etc. — juntá-los corromperia texto.
+_FRAGMENTOS = {
+    "tica", "tico", "ticas", "ticos", "oplastica",
+    "mento", "mentos",
+    "ado", "ada", "ados", "adas",
+    "avel", "aveis",
+    "cao", "coes",          # capta ção/ções (risco de "cão" é desprezível aqui)
+    "enio",
+    "dade", "dades",
+    "encia", "encias", "ancia", "ancias",
+    "essidade", "bilidade", "tividade",
+}
+
+_RE_APOSTROFO = re.compile(r"(?<=[A-Za-zÀ-ÿ])\?(?=[A-Za-zÀ-ÿ])")
+_RE_ESPACO_PONT = re.compile(r"\s+([,.;:!?)])")
+_RE_ESPACOS = re.compile(r"\s{2,}")
+
+
+def _core(token: str) -> str:
+    """Token sem acentos, minúsculo e sem pontuação de borda (p/ comparar)."""
+    t = token.strip(".,;:!?)(-–—\"'")
+    t = unicodedata.normalize("NFKD", t)
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    return t.lower()
+
+
+def limpar_texto(valor) -> str:
+    """
+    Corrige artefatos comuns de texto copiado de PDF:
+      - '?' entre letras vira apóstrofo (d?água -> d'água);
+      - espaço antes de pontuação e espaços duplicados;
+      - junta uma palavra quebrada quando o pedaço seguinte é claramente um
+        fragmento de sufixo (plás tica -> plástica, docu mentos -> documentos).
+    Conservador: só junta quando o 2º pedaço não é uma palavra real, para não
+    colar texto legítimo (ex.: "de expediente" permanece intacto).
+    """
+    s = str(valor or "")
+    if not s.strip():
+        return s
+    s = s.replace("\xa0", " ").replace("​", "")
+    s = _RE_APOSTROFO.sub("'", s)
+    s = _RE_ESPACO_PONT.sub(r"\1", s)
+    s = _RE_ESPACOS.sub(" ", s).strip()
+
+    tokens = s.split(" ")
+    saida: list[str] = []
+    i = 0
+    while i < len(tokens):
+        atual = tokens[i]
+        proximo = tokens[i + 1] if i + 1 < len(tokens) else ""
+        if (
+            atual and atual.isalpha() and 2 <= len(atual) <= 12
+            and proximo and _core(proximo) in _FRAGMENTOS
+        ):
+            saida.append(atual + proximo)  # mantém a pontuação do fragmento
+            i += 2
+            continue
+        saida.append(atual)
+        i += 1
+    return " ".join(saida)
+
+
 def linha_vazia() -> dict:
     return {"codigo": "", "descricao": "", "unidade": "", "quantidade": 0.0,
             "valor_unitario": 0.0}
@@ -272,7 +342,7 @@ def _acrescentar(itens: list[dict], item: dict) -> None:
         return
     registro = {
         "codigo": str(item.get("codigo") or "").strip(),
-        "descricao": descricao,
+        "descricao": limpar_texto(descricao),
         "unidade": str(item.get("unidade") or "").strip(),
         "quantidade": _num(item.get("quantidade")),
         "valor_unitario": _num(item.get("valor_unitario")),
@@ -282,7 +352,9 @@ def _acrescentar(itens: list[dict], item: dict) -> None:
         if chave in registro or chave in CAMPOS_DERIVADOS:
             continue
         if valor not in (None, ""):
-            registro[chave] = str(valor).strip()
+            texto = str(valor).strip()
+            # não mexe em URLs (fonte/link); limpa demais textos
+            registro[chave] = texto if eh_url(texto) else limpar_texto(texto)
     itens.append(registro)
 
 
@@ -327,19 +399,19 @@ def calcular(itens: list[dict]) -> tuple[list[dict], float]:
         global_ += total
         registro = {
             "codigo": str(item.get("codigo") or "").strip(),
-            "descricao": str(item.get("descricao") or "").strip(),
+            "descricao": limpar_texto(str(item.get("descricao") or "").strip()),
             "unidade": str(item.get("unidade") or "").strip(),
             "quantidade": qtd,
             "valor_unitario": unit,
             "valor_total": total,
         }
-        # preserva fonte e colunas extras (texto), inalteradas
+        # preserva fonte e colunas extras (texto); limpa texto, mas não URLs
         for chave, valor in item.items():
             if chave in registro or chave in CAMPOS_DERIVADOS:
                 continue
             texto = "" if valor is None else str(valor).strip()
             if texto:
-                registro[chave] = texto
+                registro[chave] = texto if eh_url(texto) else limpar_texto(texto)
         resultado.append(registro)
     return resultado, round(global_, 2)
 
