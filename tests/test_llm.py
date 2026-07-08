@@ -65,3 +65,34 @@ def test_sem_nenhuma_chave(monkeypatch):
     _configurar(monkeypatch, "", "")
     with pytest.raises(llm.ErroGeracaoIA, match="Nenhuma chave"):
         llm.gerar_documento("dfd", DADOS, None)
+
+
+# ---------------------------------------------------------------------------
+# Tradução de erro por motor + detalhe técnico bruto
+# ---------------------------------------------------------------------------
+def test_traduzir_erro_openai_aponta_openai_e_modelo():
+    msg = llm._traduzir_erro(Exception("Error code: 404 - model_not_found"), "openai")
+    assert "OpenAI" in msg and "OPENAI_MODEL" in msg
+
+
+def test_traduzir_erro_gemini_aponta_gemini_e_chave():
+    msg = llm._traduzir_erro(Exception("401 API key not valid"), "gemini")
+    assert "Gemini" in msg and "GOOGLE_API_KEY" in msg
+
+
+def test_traduzir_erro_quota_billing():
+    msg = llm._traduzir_erro(Exception("insufficient_quota / billing"), "openai")
+    assert "cota" in msg.lower() or "faturamento" in msg.lower()
+
+
+def test_erro_carrega_detalhe_tecnico(monkeypatch):
+    _configurar(monkeypatch, "sk-x", "")
+    monkeypatch.setattr(llm, "_obter_modelo_openai", lambda: "gpt-5-mini")
+
+    def openai_quebrada(s, u, k):
+        raise llm.ErroGeracaoIA("falhou", detalhe="[OpenAI · gpt-5-mini] AuthError: 401")
+
+    monkeypatch.setattr(llm, "_chamar_openai", openai_quebrada)
+    with pytest.raises(llm.ErroGeracaoIA) as exc:
+        llm.gerar_documento("dfd", DADOS, None)
+    assert "gpt-5-mini" in exc.value.detalhe

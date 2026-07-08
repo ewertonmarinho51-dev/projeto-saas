@@ -29,7 +29,16 @@ from .prompts import formatar_dados_formulario, montar_prompt
 
 
 class ErroGeracaoIA(Exception):
-    """Erro de geração já traduzido em mensagem amigável para a interface."""
+    """Erro de geração já traduzido em mensagem amigável para a interface.
+
+    `detalhe` guarda o erro técnico bruto da API (motor + tipo + mensagem)
+    para exibição opcional na interface — é o que permite diagnosticar a
+    causa real (401, 404, 429, região bloqueada etc.).
+    """
+
+    def __init__(self, mensagem: str, detalhe: str = ""):
+        super().__init__(mensagem)
+        self.detalhe = detalhe
 
 
 def _ler_chave(nome_secret: str, chave_sidebar: str) -> str:
@@ -80,35 +89,60 @@ def _obter_modelo_openai() -> str:
     return _ler_chave("OPENAI_MODEL", "") or OPENAI_MODEL_PADRAO
 
 
-def _traduzir_erro(exc: Exception) -> str:
-    """Converte exceções técnicas da API em mensagens amigáveis."""
+def _traduzir_erro(exc: Exception, motor: str = "") -> str:
+    """
+    Converte exceções técnicas da API em mensagens amigáveis.
+
+    `motor` ('openai' | 'gemini') deixa a mensagem apontar a variável e o
+    modelo corretos de cada engine.
+    """
     texto = f"{type(exc).__name__}: {exc}".lower()
+    if motor == "openai":
+        rotulo, var_chave, var_modelo, painel = (
+            "OpenAI", "OPENAI_API_KEY", "OPENAI_MODEL",
+            "platform.openai.com (chave, faturamento/billing e modelo)")
+    elif motor == "gemini":
+        rotulo, var_chave, var_modelo, painel = (
+            "Google Gemini", "GOOGLE_API_KEY", "GEMINI_MODEL",
+            "aistudio.google.com (chave e cota)")
+    else:
+        rotulo, var_chave, var_modelo, painel = (
+            "IA", "OPENAI_API_KEY/GOOGLE_API_KEY", "OPENAI_MODEL/GEMINI_MODEL",
+            "o painel do provedor")
+
     if "deadline" in texto or "timeout" in texto or "timed out" in texto:
         return (
-            "A IA demorou demais para responder (timeout). "
+            f"{rotulo}: demorou demais para responder (timeout). "
             "Tente novamente em instantes — seus dados não foram perdidos."
         )
-    if "api key" in texto or "api_key" in texto or "permission" in texto or "401" in texto or "403" in texto:
+    if ("api key" in texto or "api_key" in texto or "invalid_api_key" in texto
+            or "incorrect api key" in texto or "unauthorized" in texto
+            or "permission" in texto or "401" in texto or "403" in texto):
         return (
-            "Chave de API inválida ou sem permissão. Verifique a chave em "
-            ".streamlit/secrets.toml, na variável GOOGLE_API_KEY ou na barra lateral."
+            f"{rotulo}: chave de API inválida, expirada ou sem permissão "
+            f"(verifique {var_chave} no painel do administrador, em "
+            f".streamlit/secrets.toml ou na barra lateral)."
         )
-    if "quota" in texto or "resource" in texto and "exhausted" in texto or "429" in texto:
+    if ("quota" in texto or "insufficient_quota" in texto or "billing" in texto
+            or ("resource" in texto and "exhausted" in texto) or "429" in texto
+            or "rate limit" in texto):
         return (
-            "Limite de uso da API atingido (cota/quota). "
-            "Aguarde alguns minutos ou verifique seu plano no Google AI Studio."
+            f"{rotulo}: limite de uso/cota atingido ou sem crédito de "
+            f"faturamento. Verifique {painel}."
         )
     if "safety" in texto or "blocked" in texto:
         return (
-            "A resposta foi bloqueada pelos filtros de segurança do modelo. "
-            "Revise o texto informado no formulário e tente novamente."
+            f"{rotulo}: a resposta foi bloqueada pelos filtros de segurança "
+            "do modelo. Revise o texto do formulário e tente novamente."
         )
-    if "not found" in texto or "404" in texto:
+    if ("not found" in texto or "does not exist" in texto or "model_not_found" in texto
+            or "unsupported" in texto or "404" in texto):
         return (
-            "Modelo de IA não encontrado. Ajuste GEMINI_MODEL em "
-            ".streamlit/secrets.toml para um modelo disponível na sua conta."
+            f"{rotulo}: modelo não encontrado ou sem acesso na sua conta. "
+            f"Ajuste {var_modelo} para um modelo disponível "
+            "(ex.: gpt-4o-mini / gemini-1.5-flash)."
         )
-    return f"Falha na comunicação com a IA: {exc}"
+    return f"{rotulo}: falha na comunicação — {type(exc).__name__}: {exc}"
 
 
 def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str) -> str:
@@ -137,7 +171,11 @@ def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str) -> str:
             ultima_excecao = exc
             if tentativa < API_TENTATIVAS:
                 time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
-    raise ErroGeracaoIA(_traduzir_erro(ultima_excecao))
+    raise ErroGeracaoIA(
+        _traduzir_erro(ultima_excecao, "openai"),
+        detalhe=f"[OpenAI · {_obter_modelo_openai()}] "
+                f"{type(ultima_excecao).__name__}: {ultima_excecao}",
+    )
 
 
 def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str) -> str:
@@ -171,7 +209,11 @@ def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str) -> str:
             ultima_excecao = exc
             if tentativa < API_TENTATIVAS:
                 time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
-    raise ErroGeracaoIA(_traduzir_erro(ultima_excecao))
+    raise ErroGeracaoIA(
+        _traduzir_erro(ultima_excecao, "gemini"),
+        detalhe=f"[Gemini · {_obter_modelo()}] "
+                f"{type(ultima_excecao).__name__}: {ultima_excecao}",
+    )
 
 
 def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) -> str:
@@ -210,7 +252,8 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
             if not chave_gemini:
                 raise
             st.warning(
-                f"Motor principal (OpenAI) indisponível — usando Gemini. Detalhe: {erro}",
+                f"Motor principal (OpenAI) indisponível — tentando Gemini. "
+                f"{erro}\n\n`{getattr(erro, 'detalhe', '')}`",
             )
     return _chamar_gemini(system_prompt, user_prompt, chave_gemini)
 

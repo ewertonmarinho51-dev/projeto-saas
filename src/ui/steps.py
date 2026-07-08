@@ -203,6 +203,10 @@ def render_etapa_documento(doc_key: str) -> None:
                     st.rerun()
                 except ErroGeracaoIA as erro:
                     st.error(str(erro))
+                    detalhe = getattr(erro, "detalhe", "")
+                    if detalhe:
+                        with st.expander("Detalhes técnicos (erro bruto da API)"):
+                            st.code(detalhe)
         _botao_voltar(meta)
         return
 
