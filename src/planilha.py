@@ -355,11 +355,13 @@ def _rotulo_coluna(chave: str) -> str:
     return ROTULOS.get(chave, chave)
 
 
-def para_markdown(itens: list[dict], valor_global: float) -> str:
+def para_markdown(itens: list[dict], valor_global: float,
+                  incluir_global: bool = True) -> str:
     """
     Tabela Markdown da planilha, com colunas extras (ex.: Fonte/Link) e o
     valor global na última linha. Links são compactados para '[link](url)'
-    — clicáveis e enxutos nos documentos exportados.
+    — clicáveis e enxutos nos documentos exportados. Com incluir_global=False
+    omite a linha do VALOR GLOBAL (usado em amostras de contexto).
     """
     if not itens:
         return "(planilha não informada)"
@@ -381,7 +383,52 @@ def para_markdown(itens: list[dict], valor_global: float) -> str:
         for e in extras:
             celulas.append(para_link_markdown(it.get(e, "")) or "-")
         linhas.append("| " + " | ".join(str(c) for c in celulas) + " |")
-    fim = ["", "", "", "", "**VALOR GLOBAL**",
-           f"**{formatar_moeda(valor_global)}**"] + [""] * len(extras)
-    linhas.append("| " + " | ".join(fim) + " |")
+    if incluir_global:
+        fim = ["", "", "", "", "**VALOR GLOBAL**",
+               f"**{formatar_moeda(valor_global)}**"] + [""] * len(extras)
+        linhas.append("| " + " | ".join(fim) + " |")
     return "\n".join(linhas)
+
+
+# Acima deste nº de itens, não pedimos à IA para redigitar a planilha: enviamos
+# um resumo no prompt e injetamos a tabela real (exata) no documento gerado.
+LIMITE_ITENS_INLINE = 12
+MARCADOR_TABELA = "[[TABELA_ITENS]]"
+
+
+def resumo_para_prompt(itens: list[dict], valor_global: float) -> str:
+    """
+    Resumo compacto da planilha para tabelas grandes: contagem, valor global
+    e uma amostra dos primeiros itens. Instrui a IA a NÃO redigitar a lista
+    (a tabela completa é injetada depois, sem erros e sem gastar tokens).
+    """
+    n = len(itens)
+    amostra = para_markdown(itens[:6], valor_global, incluir_global=False)
+    return (
+        f"A planilha orçamentária possui {n} itens. VALOR GLOBAL (estimativa "
+        f"total da contratação) = {formatar_moeda(valor_global)}.\n"
+        f"IMPORTANTE: NÃO redija a lista de itens um a um. A TABELA COMPLETA já "
+        f"formatada (com todas as colunas e o valor global) será inserida "
+        f"AUTOMATICAMENTE no documento no lugar da marca {MARCADOR_TABELA}. "
+        f"Escreva o texto da seção de estimativa de valor e coloque a marca "
+        f"{MARCADOR_TABELA} sozinha, em uma linha, onde a tabela deve aparecer.\n"
+        f"Amostra apenas ilustrativa dos primeiros itens (não a reproduza):\n"
+        + amostra
+    )
+
+
+def injetar_tabela(texto: str, itens_brutos: list[dict] | None) -> str:
+    """
+    Substitui a marca [[TABELA_ITENS]] pela tabela real; se a planilha for
+    grande e a marca não vier (a IA esqueceu), acrescenta a tabela ao final.
+    Em tabelas pequenas (fluxo inline) não há marca e nada muda.
+    """
+    itens, glob = calcular(itens_brutos or [])
+    if not itens:
+        return texto.replace(MARCADOR_TABELA, "").strip()
+    tabela = para_markdown(itens, glob)
+    if MARCADOR_TABELA in texto:
+        return texto.replace(MARCADOR_TABELA, tabela)
+    if len(itens) > LIMITE_ITENS_INLINE:
+        return texto.rstrip() + "\n\n" + tabela
+    return texto

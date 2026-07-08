@@ -22,7 +22,7 @@ GEMINI_MODEL_PADRAO = "gemini-2.5-flash"
 GEMINI_MODELOS_FALLBACK = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
 
 # Parâmetros de robustez das chamadas à API
-API_TIMEOUT_SEGUNDOS = 120
+API_TIMEOUT_SEGUNDOS = 180  # documentos longos + planilhas grandes
 API_TENTATIVAS = 3          # nº de tentativas antes de desistir
 API_BACKOFF_BASE = 2        # espera 2s, 4s, 8s... entre tentativas
 

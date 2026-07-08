@@ -164,6 +164,29 @@ def test_testar_conexao_ok(monkeypatch):
     assert ok and "OpenAI" in msg
 
 
+def test_params_modelo_gpt5_usa_reasoning_baixo():
+    assert llm._params_modelo_openai("gpt-5-mini") == {"reasoning_effort": "low"}
+    assert llm._params_modelo_openai("o3-mini") == {"reasoning_effort": "low"}
+    assert llm._params_modelo_openai("gpt-4o-mini") == {}
+
+
+def test_gerar_injeta_tabela_grande(monkeypatch):
+    _configurar(monkeypatch, "sk-x", "")
+    from src import planilha
+
+    itens = [{"descricao": f"Item {i}", "unidade": "un",
+              "quantidade": 2, "valor_unitario": 10.0} for i in range(30)]
+    dados = {"orgao": "X", "objeto": "Y", "itens": itens}
+    # IA devolve texto com a marca; a tabela real deve substituí-la
+    monkeypatch.setattr(
+        llm, "_chamar_openai",
+        lambda s, u, k: "## Estimativa\n\n" + planilha.MARCADOR_TABELA,
+    )
+    saida = llm.gerar_documento("dfd", dados, None)
+    assert planilha.MARCADOR_TABELA not in saida
+    assert "VALOR GLOBAL" in saida and "Item 29" in saida
+
+
 def test_ler_chave_sidebar_vazio_nao_estoura():
     """Regressão: sidebar vazio (modelos) causava StreamlitAPIException,
     derrubando AS DUAS engines ao resolver o modelo."""

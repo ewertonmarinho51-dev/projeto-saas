@@ -101,14 +101,21 @@ def formatar_dados_formulario(dados: dict) -> str:
     for chave, meta in CAMPOS_FORMULARIO.items():
         if chave == "itens":
             itens, valor_global = planilha.calcular(dados.get("itens") or [])
-            linhas.append(
-                f"- {meta['rotulo']} (o VALOR GLOBAL é a estimativa da "
-                "contratação; reproduza a planilha COMPLETA, com todas as "
-                "colunas, na estimativa de valor do documento. Mantenha os "
-                "links no formato Markdown exatamente como estão, ex.: "
-                "[link](https://...), sem expandir a URL):\n"
-                + planilha.para_markdown(itens, valor_global)
-            )
+            if len(itens) > planilha.LIMITE_ITENS_INLINE:
+                # Tabela grande: resumo no prompt + injeção da tabela real depois.
+                linhas.append(
+                    f"- {meta['rotulo']}:\n"
+                    + planilha.resumo_para_prompt(itens, valor_global)
+                )
+            else:
+                linhas.append(
+                    f"- {meta['rotulo']} (o VALOR GLOBAL é a estimativa da "
+                    "contratação; reproduza a planilha COMPLETA, com todas as "
+                    "colunas, na estimativa de valor do documento. Mantenha os "
+                    "links no formato Markdown exatamente como estão, ex.: "
+                    "[link](https://...), sem expandir a URL):\n"
+                    + planilha.para_markdown(itens, valor_global)
+                )
             continue
         valor = dados.get(chave)
         if valor in (None, "", 0):
