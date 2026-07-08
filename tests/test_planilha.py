@@ -112,6 +112,59 @@ def test_importa_xlsx_invalido_da_erro():
         planilha.importar_de_xlsx(b"isto nao e um xlsx")
 
 
+def test_importa_xlsx_cabecalho_por_extenso():
+    """Nomes reais de planilha de órgão, escritos por extenso."""
+    dados = _xlsx([
+        ["Item", "Especificação do Objeto", "Unid. de Medida",
+         "Quantidade Estimada", "Preço Unitário (R$)", "Preço Total (R$)"],
+        ["1", "Cadeira giratória ergonômica", "un", 50, "R$ 850,00", "R$ 42.500,00"],
+    ])
+    itens = planilha.importar_de_xlsx(dados)
+    assert len(itens) == 1
+    assert itens[0]["descricao"] == "Cadeira giratória ergonômica"
+    assert itens[0]["quantidade"] == 50.0
+    assert itens[0]["valor_unitario"] == 850.0
+    # "Preço Total" não vira coluna extra (é recalculado)
+    assert planilha.colunas_extra(itens) == []
+
+
+def test_importa_xlsx_ignora_linhas_titulo_antes_do_cabecalho():
+    dados = _xlsx([
+        ["PLANILHA ORÇAMENTÁRIA ESTIMATIVA", None, None],
+        ["Órgão: Prefeitura de Exemplo", None, None],
+        [None, None, None],
+        ["Descrição", "Qtd", "Valor Unitário"],
+        ["Resma de papel A4", 200, 25.90],
+    ])
+    itens = planilha.importar_de_xlsx(dados)
+    assert len(itens) == 1
+    assert itens[0]["descricao"] == "Resma de papel A4"
+    assert itens[0]["quantidade"] == 200.0
+
+
+def test_importa_xlsx_procura_aba_com_dados():
+    import io as _io
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    wb.active.title = "Instruções"
+    wb.active["A1"] = "Preencha a aba Itens"
+    ws = wb.create_sheet("Itens")
+    ws.append(["Descrição", "Quantidade", "Valor Unitário"])
+    ws.append(["Toner impressora", 30, 180.0])
+    buf = _io.BytesIO()
+    wb.save(buf)
+    itens = planilha.importar_de_xlsx(buf.getvalue())
+    assert itens[0]["descricao"] == "Toner impressora"
+
+
+def test_erro_import_sem_dados_uteis():
+    dados = _xlsx([["Observações"], ["nota qualquer"]])
+    with pytest.raises(planilha.ErroPlanilha) as exc:
+        planilha.importar_de_xlsx(dados)
+    assert "descrição" in str(exc.value).lower()
+
+
 # ---------------------------------------------------------------------------
 # Colunas extras (fonte/link) e compactação de links
 # ---------------------------------------------------------------------------
