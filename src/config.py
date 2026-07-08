@@ -13,8 +13,13 @@ APP_SUBTITULO = "Documentos da fase preparatória de licitações · Lei nº 14.
 OPENAI_MODEL_PADRAO = "gpt-5-mini"
 OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"  # com dimensions=768
 
+# Modelos alternativos tentados automaticamente se o configurado não existir
+# na conta (erro "model_not_found"/404). Amplamente disponíveis.
+OPENAI_MODELOS_FALLBACK = ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"]
+
 # Motor de fallback: Gemini (sobrescreva com GEMINI_MODEL)
 GEMINI_MODEL_PADRAO = "gemini-2.5-flash"
+GEMINI_MODELOS_FALLBACK = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
 
 # Parâmetros de robustez das chamadas à API
 API_TIMEOUT_SEGUNDOS = 120

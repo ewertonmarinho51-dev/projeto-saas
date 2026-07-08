@@ -7,7 +7,7 @@ Página "Administração" (exclusiva do papel admin):
 
 import streamlit as st
 
-from .. import auth, branding, db
+from .. import auth, branding, db, llm
 from ..llm import motor_ativo
 
 
@@ -117,7 +117,7 @@ def _render_chaves() -> None:
         )
         openai_model = st.text_input(
             "OPENAI_MODEL (opcional)", value=db.obter_config("OPENAI_MODEL"),
-            placeholder="padrão: gpt-5-mini",
+            placeholder="padrão: gpt-5-mini (cai p/ gpt-4o-mini se indisponível)",
         )
         gemini_key = st.text_input(
             "GOOGLE_API_KEY (fallback, opcional)", type="password",
@@ -126,7 +126,7 @@ def _render_chaves() -> None:
         )
         gemini_model = st.text_input(
             "GEMINI_MODEL (opcional)", value=db.obter_config("GEMINI_MODEL"),
-            placeholder="padrão: gemini-2.5-flash",
+            placeholder="padrão: gemini-2.5-flash (cai p/ gemini-1.5-flash se indisponível)",
         )
         if st.form_submit_button("Salvar chaves", type="primary",
                                  use_container_width=True):
@@ -143,6 +143,23 @@ def _render_chaves() -> None:
                 st.rerun()
             except db.ErroBanco as erro:
                 st.error(str(erro))
+
+    st.divider()
+    st.markdown("##### Testar conexão")
+    st.caption(
+        "Faz uma chamada mínima a cada motor e mostra o erro técnico exato "
+        "(chave, modelo ou cota). Se o modelo configurado não existir na sua "
+        "conta, o sistema tenta modelos alternativos automaticamente."
+    )
+    col_o, col_g = st.columns(2)
+    if col_o.button("Testar OpenAI", use_container_width=True):
+        with st.spinner("Chamando a OpenAI…"):
+            ok, msg = llm.testar_conexao("openai")
+        (st.success if ok else st.error)(msg)
+    if col_g.button("Testar Gemini", use_container_width=True):
+        with st.spinner("Chamando o Gemini…"):
+            ok, msg = llm.testar_conexao("gemini")
+        (st.success if ok else st.error)(msg)
 
 
 # ---------------------------------------------------------------------------
