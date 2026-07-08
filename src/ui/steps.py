@@ -7,7 +7,7 @@ Telas de cada etapa do wizard:
 
 import streamlit as st
 
-from .. import db, export, planilha, state
+from .. import db, export, planilha, rag, state
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
@@ -77,6 +77,35 @@ def render_formulario() -> None:
 
     dados = st.session_state.dados
 
+    # Documento inicial da demanda (memorando/ofício) — upload opcional que
+    # extrai o texto para o campo. Fica fora do form para semear na hora.
+    with st.expander("Documento inicial da demanda (memorando / ofício)"):
+        st.caption(
+            "Opcional, mas recomendado. Envie o memorando, ofício ou "
+            "solicitação que originou a demanda (PDF, DOCX, TXT ou MD) — o "
+            "texto é extraído e usado como contexto do processo atual (origem "
+            "da demanda, unidade solicitante, justificativa e finalidade). "
+            "Você também pode colar o texto direto no campo do formulário."
+        )
+        doc_inicial = st.file_uploader(
+            "Arquivo do memorando/ofício", type=["pdf", "docx", "txt", "md"],
+            key="upload_memorando",
+        )
+        if doc_inicial is not None and \
+                st.session_state.get("_memorando_lido") != doc_inicial.file_id:
+            try:
+                texto = rag.extrair_texto(doc_inicial.name, doc_inicial.getvalue())
+                dados["memorando"] = texto
+                st.session_state.dados = dados
+                st.session_state["_memorando_lido"] = doc_inicial.file_id
+                st.success(
+                    f"Memorando/ofício importado ({len(texto)} caracteres). "
+                    "Revise o texto no campo abaixo."
+                )
+                st.rerun()
+            except rag.ErroRAG as erro:
+                st.error(str(erro))
+
     # Importação opcional da planilha via XLSX (fora do form, para
     # re-semear a tabela imediatamente após o upload)
     with st.expander("Importar planilha de um arquivo Excel (.xlsx)"):
@@ -117,14 +146,17 @@ def render_formulario() -> None:
         for chave, meta in CAMPOS_FORMULARIO.items():
             destino = colunas.get(chave, st)
             rotulo = meta["rotulo"] + (" *" if meta["obrigatorio"] else "")
+            # Sem key: o valor vem sempre de `dados` (value=), para refletir o
+            # memorando importado por upload e o retomar de um processo salvo.
             if meta["tipo"] == "texto":
                 respostas[chave] = destino.text_input(
                     rotulo, value=dados.get(chave, ""),
                     placeholder=meta["placeholder"], help=meta["help"],
                 )
             elif meta["tipo"] == "area":
+                altura = 150 if chave == "memorando" else 110
                 respostas[chave] = st.text_area(
-                    rotulo, value=dados.get(chave, ""), height=110,
+                    rotulo, value=dados.get(chave, ""), height=altura,
                     placeholder=meta["placeholder"], help=meta["help"],
                 )
             elif meta["tipo"] == "planilha":

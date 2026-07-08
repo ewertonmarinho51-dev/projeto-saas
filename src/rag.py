@@ -293,12 +293,20 @@ def montar_bloco_referencias(dados: dict, doc_key: str) -> str:
 
     linhas = [
         "\n=== REFERÊNCIAS DA BASE DE CONHECIMENTO (trechos recuperados) ===",
-        "Utilize as referências abaixo para fundamentar o documento: normas e "
-        "acórdãos podem ser citados expressamente (com número/órgão quando "
-        "constar do trecho); processos anteriores e modelos servem de padrão "
-        "de redação e estrutura. NÃO copie dados específicos de outros "
-        "processos (valores, órgãos, datas, quantidades) para o documento "
-        "atual; em caso de conflito, os dados do formulário prevalecem.",
+        "COMO USAR: normas, leis, decretos, acórdãos e manuais devem ser "
+        "OBSERVADOS e podem ser citados expressamente (com número/órgão quando "
+        "constar do trecho) — eles têm PRIORIDADE. Processos anteriores e "
+        "modelos servem como MOLDE: 'pegue como modelo e adapte ao novo "
+        "objeto' — reaproveite a estrutura, a ordem dos tópicos, a linguagem, "
+        "os textos padrão e as cláusulas administrativas padrão/imutáveis. "
+        "PROIBIDO transportar do processo anterior qualquer dado concreto "
+        "(objeto, justificativa, quantitativos, valores, fornecedores, "
+        "fiscais/gestores, dotações, secretarias/unidades, prazos, datas, "
+        "números). Em caso de divergência: 1º a legislação/manuais; 2º os "
+        "dados do processo atual (memorando, formulário, planilha); 3º o "
+        "padrão dos anteriores (só estrutura/linguagem). Onde faltar dado do "
+        "processo atual, use [PREENCHER] — nunca preencha com dado de outro "
+        "processo.",
     ]
     for i, t in enumerate(trechos, start=1):
         rotulo = CATEGORIAS.get(t.get("categoria", ""), t.get("categoria", ""))

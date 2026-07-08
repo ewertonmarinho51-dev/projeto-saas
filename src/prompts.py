@@ -15,14 +15,22 @@ from .config import CAMPOS_FORMULARIO
 # ---------------------------------------------------------------------------
 SYSTEM_PROMPT_BASE = """Você é um Analista Sênior de Licitações e Contratos da Administração Pública brasileira, com domínio integral da Lei nº 14.133/2021 (Nova Lei de Licitações e Contratos Administrativos) e das melhores práticas dos órgãos de controle (TCU e CGU).
 
+COMO TRABALHAR (importante): quando forem fornecidos processos anteriores ou modelos na base de conhecimento, trate-os como se a orientação fosse: "pegue este documento como modelo e adapte/aprimore para este novo objeto". Ou seja, reaproveite APENAS o PADRÃO: a estrutura, a ordem dos tópicos, a forma de redação, as cláusulas administrativas padrão e os textos imutáveis. NUNCA transporte para o documento atual dados concretos de outro processo (objeto, justificativa, quantitativos, valores, fornecedores, fiscais/gestores, dotações orçamentárias, secretarias/unidades, prazos, datas ou números). Esses dados vêm EXCLUSIVAMENTE do processo atual (memorando/ofício inicial, formulário, planilha e anexos).
+
+HIERARQUIA DE FONTES — em caso de divergência, priorize NESTA ordem:
+1º) a legislação, os regulamentos, decretos e manuais fornecidos (especialmente a Lei nº 14.133/2021 e regulamentos municipais);
+2º) as informações específicas do processo atual (memorando/ofício, formulário, planilha, anexos);
+3º) o padrão dos documentos anteriores — somente como referência de estrutura, linguagem e cláusulas.
+
 REGRAS OBRIGATÓRIAS — cumpra TODAS, sem exceção:
 1. Redija em português formal, na linguagem técnico-administrativa própria de documentos oficiais.
-2. Utilize EXCLUSIVAMENTE as informações fornecidas. É PROIBIDO inventar números, valores, prazos, marcas, normas técnicas ou fatos não informados.
-3. Quando uma informação necessária ao documento não tiver sido fornecida, insira o marcador [PREENCHER: descrição da informação faltante] no local adequado — nunca preencha com dados fictícios.
+2. Utilize EXCLUSIVAMENTE as informações do processo atual. É PROIBIDO inventar, presumir ou copiar de outro processo números, valores, prazos, marcas, normas técnicas, nomes ou fatos não informados.
+3. Quando uma informação necessária não constar do memorando, do formulário, da planilha ou dos anexos, insira o marcador [PREENCHER: descrição da informação faltante] no local adequado — nunca preencha com dados fictícios nem reaproveitados de outro processo.
 4. Estruture o documento em Markdown, com títulos numerados (use #, ## e ###) e listas quando apropriado.
-5. Fundamente cada seção citando os dispositivos pertinentes da Lei nº 14.133/2021.
+5. Fundamente cada seção citando os dispositivos pertinentes da Lei nº 14.133/2021 (e das normas/manuais fornecidos, quando houver).
 6. Produza APENAS o texto do documento solicitado — sem comentários, sem explicações introdutórias e sem observações finais fora do documento.
-7. O documento deve estar pronto para revisão humana e assinatura pela autoridade competente."""
+7. Prefira redação OBJETIVA e ENXUTA: o documento pode ser mais compacto e simples, desde que preserve a segurança jurídica, a coerência técnica e o atendimento às exigências legais. Evite repetição e texto de enchimento.
+8. O documento deve estar pronto para revisão humana e assinatura pela autoridade competente."""
 
 # ---------------------------------------------------------------------------
 # Instruções específicas por documento
@@ -99,6 +107,8 @@ def formatar_dados_formulario(dados: dict) -> str:
     """Converte o Formulário Matriz em um bloco de texto legível para a IA."""
     linhas = []
     for chave, meta in CAMPOS_FORMULARIO.items():
+        if chave == "memorando":
+            continue  # entra em bloco próprio, mais destacado, em montar_prompt
         if chave == "itens":
             itens, valor_global = planilha.calcular(dados.get("itens") or [])
             if len(itens) > planilha.LIMITE_ITENS_INLINE:
@@ -131,11 +141,22 @@ def montar_prompt(doc_key: str, dados: dict, contexto_anterior: str | None) -> t
     `contexto_anterior` é o texto do documento anterior aprovado pelo
     usuário (None apenas para o DFD, que parte só do formulário).
     """
-    partes = [
-        INSTRUCOES[doc_key],
-        "\n=== DADOS DO FORMULÁRIO MATRIZ (fonte primária) ===\n"
-        + formatar_dados_formulario(dados),
-    ]
+    partes = [INSTRUCOES[doc_key]]
+    memorando = (dados.get("memorando") or "").strip()
+    if memorando:
+        partes.append(
+            "\n=== DOCUMENTO INICIAL DA DEMANDA — MEMORANDO/OFÍCIO DO PROCESSO "
+            "ATUAL (contexto da origem da demanda) ===\n"
+            "Use este documento para compreender a origem da demanda, a unidade "
+            "solicitante, a justificativa, a necessidade e a finalidade pública. "
+            "É informação DO PROCESSO ATUAL; extraia dele apenas o que estiver "
+            "escrito, sem inventar. Onde faltar dado, use [PREENCHER].\n"
+            + memorando
+        )
+    partes.append(
+        "\n=== DADOS DO FORMULÁRIO MATRIZ (fonte primária do processo atual) ===\n"
+        + formatar_dados_formulario(dados)
+    )
     if contexto_anterior:
         nomes = {"dfd": "DFD APROVADO", "etp": "ETP APROVADO", "tr": "TR APROVADO"}
         origem = {"etp": "dfd", "tr": "etp", "edital": "tr"}[doc_key]
