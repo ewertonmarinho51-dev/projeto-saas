@@ -95,24 +95,41 @@ def test_fluxo_completo_ate_sucesso():
     assert "concluído" in corpo.lower()
 
 
+def _dados_validos() -> dict:
+    """Formulário matriz mínimo válido (com planilha) para semear o estado."""
+    return {
+        "orgao": "Prefeitura de Teste", "objeto": "Aquisição de notebooks",
+        "justificativa": "Parque obsoleto",
+        "modelo_execucao": "Entrega única (fornecimento integral)",
+        "itens": [{"codigo": "001", "descricao": "Notebook", "unidade": "un",
+                   "quantidade": 100, "valor_unitario": 4500.0}],
+        "valor_estimado": 450000.0,
+    }
+
+
 def test_sequencia_nao_pode_ser_pulada():
-    at = _iniciar_com_formulario()
+    # Estado semeado antes do 1º run: o formulário (com data_editor) não é
+    # renderizado, evitando a limitação do AppTest ao inspecionar data_editor.
+    at = _app_modo_aberto()
+    at.session_state["dados"] = _dados_validos()
     at.session_state["etapa"] = 3  # tenta pular direto para o TR
     at.run()
+    assert not at.exception
     assert at.session_state["etapa"] < 3, "deve voltar para a etapa pendente"
 
 
 def test_edicao_invalida_documentos_seguintes():
-    at = _iniciar_com_formulario()
-    _aprovar_documento(at)  # DFD aprovado -> etapa 2 (ETP)
-    _aprovar_documento(at)  # ETP aprovado -> etapa 3 (TR)
+    # Processo já em andamento (DFD/ETP/TR aprovados) semeado diretamente
+    at = _app_modo_aberto()
+    at.session_state["dados"] = _dados_validos()
+    at.session_state["documentos"] = {
+        "dfd": "# DFD original", "etp": "# ETP", "tr": "# TR",
+    }
+    at.session_state["aprovados"] = {"dfd", "etp", "tr"}
+    at.session_state["etapa"] = 1  # tela do DFD (preview editável)
+    at.run()
+    assert not at.exception
 
-    # Volta duas telas até o DFD e aprova com texto alterado
-    _botao(at, "Voltar").click()
-    at.run()
-    _botao(at, "Voltar").click()
-    at.run()
-    assert at.session_state["etapa"] == 1
     at.text_area(key="editor_dfd").set_value("# DFD editado manualmente")
     _botao(at, "Aprovar").click()
     at.run()

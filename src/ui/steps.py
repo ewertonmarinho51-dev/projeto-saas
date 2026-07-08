@@ -17,27 +17,43 @@ def _render_planilha(dados: dict, meta: dict) -> list[dict]:
     """Editor da planilha orçamentária dentro do formulário matriz."""
     st.markdown(f"**{meta['rotulo']} \\***")
     st.caption(meta["help"])
-    base = dados.get("itens") or planilha.linhas_iniciais()
-    # mantém apenas as colunas editáveis (valor total e global são derivados)
-    base = [{k: it.get(k, "") for k in planilha.CAMPOS_ITEM} for it in base]
+    st.caption(
+        "A coluna **Fonte / Link** já está disponível: cole o link de onde o "
+        "preço foi obtido — no documento ele aparece compacto como 'link', "
+        "mas continua clicável. Colunas adicionais (ex.: Marca) são "
+        "preservadas quando você importa a planilha de um arquivo Excel."
+    )
 
-    # a key muda quando uma nova planilha é importada, forçando o editor a
-    # recarregar os itens (data_editor preserva o estado por key)
-    versao = st.session_state.get("_xlsx_lido") or "manual"
+    # Colunas fixas editáveis + Fonte/Link + colunas extras vindas do XLSX.
+    # O valor total e o valor global são derivados automaticamente.
+    base_itens = dados.get("itens") or planilha.linhas_iniciais()
+    extras = [e for e in planilha.colunas_extra(base_itens)
+              if e != planilha.CAMPO_FONTE]
+    colunas = planilha.CAMPOS_ITEM + [planilha.CAMPO_FONTE] + extras
+
+    base = [{c: it.get(c, "") for c in colunas} for it in base_itens]
+
+    config = {
+        "codigo": st.column_config.TextColumn(planilha.ROTULOS["codigo"], width="small"),
+        "descricao": st.column_config.TextColumn(planilha.ROTULOS["descricao"], width="large"),
+        "unidade": st.column_config.TextColumn(planilha.ROTULOS["unidade"], width="small"),
+        "quantidade": st.column_config.NumberColumn(
+            planilha.ROTULOS["quantidade"], min_value=0.0, step=1.0, format="%.2f"),
+        "valor_unitario": st.column_config.NumberColumn(
+            planilha.ROTULOS["valor_unitario"], min_value=0.0, step=100.0, format="%.2f"),
+        planilha.CAMPO_FONTE: st.column_config.LinkColumn(
+            planilha.ROTULOS["fonte"], display_text="link",
+            help="Cole o link de onde o preço foi obtido. No documento aparece "
+            "compacto como 'link', mas continua clicável."),
+    }
+    for c in extras:
+        config[c] = st.column_config.TextColumn(c)
+
+    # a key muda ao importar XLSX ou ao adicionar coluna, forçando recarga
+    versao = f"{st.session_state.get('_xlsx_lido') or 'manual'}_{len(colunas)}"
     editado = st.data_editor(
-        base,
-        key=f"editor_itens_{versao}",
-        num_rows="dynamic",
-        use_container_width=True,
-        column_config={
-            "codigo": st.column_config.TextColumn(planilha.ROTULOS["codigo"], width="small"),
-            "descricao": st.column_config.TextColumn(planilha.ROTULOS["descricao"], width="large"),
-            "unidade": st.column_config.TextColumn(planilha.ROTULOS["unidade"], width="small"),
-            "quantidade": st.column_config.NumberColumn(
-                planilha.ROTULOS["quantidade"], min_value=0.0, step=1.0, format="%.2f"),
-            "valor_unitario": st.column_config.NumberColumn(
-                planilha.ROTULOS["valor_unitario"], min_value=0.0, step=100.0, format="%.2f"),
-        },
+        base, key=f"editor_itens_{versao}", num_rows="dynamic",
+        use_container_width=True, column_config=config,
     )
     itens = editado.to_dict("records") if hasattr(editado, "to_dict") else list(editado)
     _, valor_global = planilha.calcular(itens)
@@ -75,6 +91,7 @@ def render_formulario() -> None:
             data=planilha.modelo_xlsx(),
             file_name="modelo-planilha-orcamentaria.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="btn_modelo_xlsx",
         )
         arquivo = st.file_uploader("Arquivo .xlsx", type=["xlsx"], key="upload_itens")
         if arquivo is not None and st.session_state.get("_xlsx_lido") != arquivo.file_id:

@@ -30,7 +30,10 @@ arquivos (a busca textual em português continua funcionando sempre).
   os itens (código, descrição, unidade, quantidade, valor unitário); o
   valor total de cada item e o **valor global** (soma = estimativa da
   contratação) são calculados automaticamente e reproduzidos na
-  estimativa de valor dos documentos gerados.
+  estimativa de valor dos documentos gerados. Inclui a coluna **Fonte /
+  Link** (o link da pesquisa de preço aparece compacto como "link" e
+  **clicável** no PDF e no DOCX). A planilha pode ser importada de um
+  arquivo **Excel (.xlsx)**, preservando também colunas adicionais.
 - **Wizard de 6 passos** com indicador visual de progresso — o usuário
   nunca é sobrecarregado com mais de uma decisão por tela.
 - **Preview editável** de cada documento antes da aprovação (controle

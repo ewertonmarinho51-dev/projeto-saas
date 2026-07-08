@@ -9,10 +9,17 @@ importados de um arquivo XLSX.
 """
 
 import io
+import re
 import unicodedata
 
-# Chaves internas de cada item (estáveis para banco/prompt/exportação)
+# Chaves numéricas/estruturais usadas no cálculo (código, descrição etc.)
 CAMPOS_ITEM = ["codigo", "descricao", "unidade", "quantidade", "valor_unitario"]
+
+# Coluna opcional fixa para a fonte do preço (geralmente um link/URL)
+CAMPO_FONTE = "fonte"
+
+# Colunas derivadas (não editáveis) — não entram no editor
+CAMPOS_DERIVADOS = {"valor_total"}
 
 # Sinônimos de cabeçalho aceitos na importação de XLSX (sem acento, minúsculo)
 SINONIMOS = {
@@ -23,6 +30,8 @@ SINONIMOS = {
     "quantidade": ["quantidade", "qtd", "qtde", "quant", "qte", "qtd."],
     "valor_unitario": ["valor unitario", "vlr unitario", "vlr unit", "preco unitario",
                        "valor unit", "unitario", "vl unitario", "preco unit", "p unit"],
+    "fonte": ["fonte", "link", "url", "referencia", "origem", "endereco",
+              "fonte do preco", "fonte do valor", "site", "pesquisa"],
 }
 
 # Rótulos amigáveis para as colunas do editor
@@ -33,7 +42,29 @@ ROTULOS = {
     "quantidade": "Quantidade",
     "valor_unitario": "Valor Unitário (R$)",
     "valor_total": "Valor Total (R$)",
+    "fonte": "Fonte / Link",
 }
+
+_RE_URL = re.compile(r"^\s*(https?://|www\.)\S+\s*$", re.IGNORECASE)
+
+
+def eh_url(valor) -> bool:
+    return bool(_RE_URL.match(str(valor or "")))
+
+
+def normalizar_url(valor) -> str:
+    """Garante esquema http(s) para o link ficar clicável."""
+    url = str(valor or "").strip()
+    if url.lower().startswith("www."):
+        return "https://" + url
+    return url
+
+
+def para_link_markdown(valor) -> str:
+    """URL -> '[link](url)' (compacto e clicável); demais valores inalterados."""
+    if eh_url(valor):
+        return f"[link]({normalizar_url(valor)})"
+    return str(valor or "")
 
 
 def linha_vazia() -> dict:
@@ -113,11 +144,21 @@ def importar_de_xlsx(dados: bytes) -> list[dict]:
 
     itens: list[dict] = []
     if idx_cabecalho is not None:
+        # colunas não reconhecidas são preservadas com o rótulo original
+        cabecalho = linhas[idx_cabecalho]
+        extras = {
+            col: str(cabecalho[col]).strip()
+            for col in range(len(cabecalho))
+            if col not in mapa and cabecalho[col] not in (None, "")
+        }
         for linha in linhas[idx_cabecalho + 1:]:
             item = {c: "" for c in CAMPOS_ITEM}
             for col, campo in mapa.items():
                 if col < len(linha):
                     item[campo] = linha[col]
+            for col, rotulo in extras.items():
+                if col < len(linha) and linha[col] not in (None, ""):
+                    item[rotulo] = linha[col]
             _acrescentar(itens, item)
     else:
         # sem cabeçalho: assume ordem posicional das colunas
@@ -142,10 +183,13 @@ def modelo_xlsx() -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = "Planilha Orçamentária"
-    ws.append(["Código", "Descrição", "Unidade", "Quantidade", "Valor Unitário"])
-    ws.append(["001", "Notebook corporativo i5 16GB", "un", 100, 4500.00])
-    ws.append(["002", "Monitor 24 polegadas", "un", 100, 900.00])
-    for col, larg in zip("ABCDE", (10, 42, 12, 14, 16)):
+    ws.append(["Código", "Descrição", "Unidade", "Quantidade",
+               "Valor Unitário", "Fonte / Link"])
+    ws.append(["001", "Notebook corporativo i5 16GB", "un", 100, 4500.00,
+               "https://www.exemplo.com/notebook-i5"])
+    ws.append(["002", "Monitor 24 polegadas", "un", 100, 900.00,
+               "https://www.exemplo.com/monitor-24"])
+    for col, larg in zip("ABCDEF", (10, 42, 12, 14, 16, 34)):
         ws.column_dimensions[col].width = larg
     buffer = io.BytesIO()
     wb.save(buffer)
@@ -157,13 +201,38 @@ def _acrescentar(itens: list[dict], item: dict) -> None:
     descricao = str(item.get("descricao") or "").strip()
     if not descricao:
         return
-    itens.append({
+    registro = {
         "codigo": str(item.get("codigo") or "").strip(),
         "descricao": descricao,
         "unidade": str(item.get("unidade") or "").strip(),
         "quantidade": _num(item.get("quantidade")),
         "valor_unitario": _num(item.get("valor_unitario")),
-    })
+    }
+    # preserva a fonte e quaisquer colunas extras (texto)
+    for chave, valor in item.items():
+        if chave in registro or chave in CAMPOS_DERIVADOS:
+            continue
+        if valor not in (None, ""):
+            registro[chave] = str(valor).strip()
+    itens.append(registro)
+
+
+def colunas_extra(itens: list[dict]) -> list[str]:
+    """
+    Colunas além das fixas (código..valor total) presentes em algum item,
+    em ordem estável: 'fonte' primeiro, depois as demais na ordem de
+    aparição. Usadas no editor, no prompt e na exportação.
+    """
+    fixas = set(CAMPOS_ITEM) | CAMPOS_DERIVADOS
+    extras: list[str] = []
+    for item in itens or []:
+        for chave in item:
+            if chave not in fixas and chave not in extras:
+                extras.append(chave)
+    if CAMPO_FONTE in extras:
+        extras.remove(CAMPO_FONTE)
+        extras.insert(0, CAMPO_FONTE)
+    return extras
 
 
 def item_valido(item: dict) -> bool:
@@ -187,14 +256,22 @@ def calcular(itens: list[dict]) -> tuple[list[dict], float]:
         unit = _num(item.get("valor_unitario"))
         total = round(qtd * unit, 2)
         global_ += total
-        resultado.append({
-            "codigo": (item.get("codigo") or "").strip(),
-            "descricao": (item.get("descricao") or "").strip(),
-            "unidade": (item.get("unidade") or "").strip(),
+        registro = {
+            "codigo": str(item.get("codigo") or "").strip(),
+            "descricao": str(item.get("descricao") or "").strip(),
+            "unidade": str(item.get("unidade") or "").strip(),
             "quantidade": qtd,
             "valor_unitario": unit,
             "valor_total": total,
-        })
+        }
+        # preserva fonte e colunas extras (texto), inalteradas
+        for chave, valor in item.items():
+            if chave in registro or chave in CAMPOS_DERIVADOS:
+                continue
+            texto = "" if valor is None else str(valor).strip()
+            if texto:
+                registro[chave] = texto
+        resultado.append(registro)
     return resultado, round(global_, 2)
 
 
@@ -204,23 +281,38 @@ def formatar_moeda(valor) -> str:
     return "R$ " + f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _rotulo_coluna(chave: str) -> str:
+    """Rótulo de exibição de uma coluna extra (usa ROTULOS ou o próprio nome)."""
+    return ROTULOS.get(chave, chave)
+
+
 def para_markdown(itens: list[dict], valor_global: float) -> str:
-    """Tabela Markdown da planilha, com o valor global na última linha."""
+    """
+    Tabela Markdown da planilha, com colunas extras (ex.: Fonte/Link) e o
+    valor global na última linha. Links são compactados para '[link](url)'
+    — clicáveis e enxutos nos documentos exportados.
+    """
     if not itens:
         return "(planilha não informada)"
+    extras = colunas_extra(itens)
+    cabecalho = ["Código", "Descrição", "Unidade", "Quantidade",
+                 "Valor Unitário", "Valor Total"] + [_rotulo_coluna(e) for e in extras]
     linhas = [
-        "| Código | Descrição | Unidade | Quantidade | Valor Unitário | Valor Total |",
-        "|---|---|---|---|---|---|",
+        "| " + " | ".join(cabecalho) + " |",
+        "|" + "---|" * len(cabecalho),
     ]
     for it in itens:
         qtd = f"{it['quantidade']:g}"
-        linhas.append(
-            f"| {it['codigo'] or '-'} | {it['descricao']} | "
-            f"{it['unidade'] or '-'} | {qtd} | "
-            f"{formatar_moeda(it['valor_unitario'])} | "
-            f"{formatar_moeda(it['valor_total'])} |"
-        )
-    linhas.append(
-        f"| | | | | **VALOR GLOBAL** | **{formatar_moeda(valor_global)}** |"
-    )
+        celulas = [
+            it.get("codigo") or "-", it.get("descricao") or "",
+            it.get("unidade") or "-", qtd,
+            formatar_moeda(it.get("valor_unitario")),
+            formatar_moeda(it.get("valor_total")),
+        ]
+        for e in extras:
+            celulas.append(para_link_markdown(it.get(e, "")) or "-")
+        linhas.append("| " + " | ".join(str(c) for c in celulas) + " |")
+    fim = ["", "", "", "", "**VALOR GLOBAL**",
+           f"**{formatar_moeda(valor_global)}**"] + [""] * len(extras)
+    linhas.append("| " + " | ".join(fim) + " |")
     return "\n".join(linhas)

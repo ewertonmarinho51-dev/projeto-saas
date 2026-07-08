@@ -110,3 +110,76 @@ def test_importa_xlsx_ordem_de_colunas_diferente():
 def test_importa_xlsx_invalido_da_erro():
     with pytest.raises(planilha.ErroPlanilha):
         planilha.importar_de_xlsx(b"isto nao e um xlsx")
+
+
+# ---------------------------------------------------------------------------
+# Colunas extras (fonte/link) e compactação de links
+# ---------------------------------------------------------------------------
+def test_eh_url_e_link_markdown():
+    assert planilha.eh_url("https://x.com/a")
+    assert planilha.eh_url("www.x.com")
+    assert not planilha.eh_url("Dell")
+    assert planilha.para_link_markdown("www.x.com") == "[link](https://www.x.com)"
+    assert planilha.para_link_markdown("Dell") == "Dell"
+
+
+def test_calcular_preserva_fonte_e_extras():
+    itens = [{"descricao": "Notebook", "quantidade": 2, "valor_unitario": 5000,
+              "fonte": "https://x.com/nb", "Marca": "Dell"}]
+    calc, _ = planilha.calcular(itens)
+    assert calc[0]["fonte"] == "https://x.com/nb"
+    assert calc[0]["Marca"] == "Dell"
+    assert planilha.colunas_extra(calc) == ["fonte", "Marca"]
+
+
+def test_markdown_inclui_link_compacto_e_coluna_extra():
+    itens = [{"descricao": "Notebook", "quantidade": 1, "valor_unitario": 5000,
+              "fonte": "https://loja.com/nb", "Marca": "Dell"}]
+    calc, glob = planilha.calcular(itens)
+    md = planilha.para_markdown(calc, glob)
+    assert "Fonte / Link" in md and "Marca" in md
+    assert "[link](https://loja.com/nb)" in md
+    assert "Dell" in md
+
+
+def test_importa_xlsx_preserva_coluna_extra():
+    dados = _xlsx([
+        ["Descrição", "Quantidade", "Valor unitário", "Fonte", "Marca"],
+        ["Notebook", 2, 4500, "https://loja.com/nb", "Dell"],
+    ])
+    itens = planilha.importar_de_xlsx(dados)
+    assert itens[0]["fonte"] == "https://loja.com/nb"
+    assert itens[0]["Marca"] == "Dell"
+
+
+def test_export_docx_link_compacto_clicavel():
+    import io
+    import zipfile
+
+    from src import export
+
+    itens = [{"descricao": "Notebook", "quantidade": 1, "valor_unitario": 5000,
+              "fonte": "https://loja.com/nb"}]
+    calc, glob = planilha.calcular(itens)
+    md = "## Estimativa\n\n" + planilha.para_markdown(calc, glob)
+    docx_bytes = export.gerar_docx_consolidado({"etp": md})
+    with zipfile.ZipFile(io.BytesIO(docx_bytes)) as zf:
+        doc = zf.read("word/document.xml").decode()
+        rels = "".join(zf.read(n).decode() for n in zf.namelist()
+                       if "document.xml.rels" in n)
+    assert "w:hyperlink" in doc          # hyperlink real
+    assert ">link<" in doc               # texto compacto
+    assert "loja.com/nb" in rels         # URL só no destino
+    assert "loja.com/nb" not in doc      # não expande a URL no texto
+
+
+def test_export_pdf_link_clicavel():
+    from src import export
+
+    itens = [{"descricao": "Notebook", "quantidade": 1, "valor_unitario": 5000,
+              "fonte": "https://loja.com/nb"}]
+    calc, glob = planilha.calcular(itens)
+    md = "## Estimativa\n\n" + planilha.para_markdown(calc, glob)
+    pdf = export.gerar_pdf_consolidado({"etp": md})
+    assert pdf.startswith(b"%PDF")
+    assert b"URI" in pdf and (b"/Link" in pdf or b"/Annot" in pdf)
