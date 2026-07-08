@@ -21,9 +21,12 @@ def _render_planilha(dados: dict, meta: dict) -> list[dict]:
     # mantém apenas as colunas editáveis (valor total e global são derivados)
     base = [{k: it.get(k, "") for k in planilha.CAMPOS_ITEM} for it in base]
 
+    # a key muda quando uma nova planilha é importada, forçando o editor a
+    # recarregar os itens (data_editor preserva o estado por key)
+    versao = st.session_state.get("_xlsx_lido") or "manual"
     editado = st.data_editor(
         base,
-        key="editor_itens",
+        key=f"editor_itens_{versao}",
         num_rows="dynamic",
         use_container_width=True,
         column_config={
@@ -57,6 +60,34 @@ def render_formulario() -> None:
     )
 
     dados = st.session_state.dados
+
+    # Importação opcional da planilha via XLSX (fora do form, para
+    # re-semear a tabela imediatamente após o upload)
+    with st.expander("Importar planilha de um arquivo Excel (.xlsx)"):
+        st.caption(
+            "Opcional. Envie a planilha ANTES de preencher os demais campos. "
+            "Colunas reconhecidas: código, descrição, unidade, quantidade e "
+            "valor unitário (aceita variações de nome). O valor total e o "
+            "valor global são recalculados."
+        )
+        st.download_button(
+            "Baixar modelo de planilha (.xlsx)",
+            data=planilha.modelo_xlsx(),
+            file_name="modelo-planilha-orcamentaria.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        arquivo = st.file_uploader("Arquivo .xlsx", type=["xlsx"], key="upload_itens")
+        if arquivo is not None and st.session_state.get("_xlsx_lido") != arquivo.file_id:
+            try:
+                importados = planilha.importar_de_xlsx(arquivo.getvalue())
+                dados["itens"] = importados
+                st.session_state.dados = dados
+                st.session_state["_xlsx_lido"] = arquivo.file_id
+                st.success(f"{len(importados)} itens importados da planilha.")
+                st.rerun()
+            except planilha.ErroPlanilha as erro:
+                st.error(str(erro))
+
     with st.form("formulario_matriz"):
         col1, col2 = st.columns(2)
         respostas: dict = {}
