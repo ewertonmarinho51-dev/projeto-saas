@@ -96,3 +96,78 @@ def test_erro_carrega_detalhe_tecnico(monkeypatch):
     with pytest.raises(llm.ErroGeracaoIA) as exc:
         llm.gerar_documento("dfd", DADOS, None)
     assert "gpt-5-mini" in exc.value.detalhe
+
+
+# ---------------------------------------------------------------------------
+# Fallback automático de modelo (model_not_found → tenta o próximo)
+# ---------------------------------------------------------------------------
+def test_e_erro_de_modelo_reconhece_404():
+    assert llm._e_erro_de_modelo(Exception("Error code: 404 - model_not_found"))
+    assert llm._e_erro_de_modelo(Exception("The model does not exist"))
+    assert not llm._e_erro_de_modelo(Exception("401 invalid api key"))
+
+
+def test_modelos_openai_inclui_fallback(monkeypatch):
+    monkeypatch.setattr(llm, "_obter_modelo_openai", lambda: "gpt-5-mini")
+    modelos = llm._modelos_openai()
+    assert modelos[0] == "gpt-5-mini"
+    assert "gpt-4o-mini" in modelos
+    assert len(modelos) == len(set(modelos))  # sem duplicatas
+
+
+def test_openai_troca_de_modelo_quando_nao_encontrado(monkeypatch):
+    monkeypatch.setattr(llm, "_obter_modelo_openai", lambda: "modelo-inexistente")
+    monkeypatch.setattr(llm, "API_TENTATIVAS", 1)
+
+    chamados = []
+
+    def fake_uma_chamada(cliente, modelo, s, u):
+        chamados.append(modelo)
+        if modelo == "modelo-inexistente":
+            raise Exception("Error code: 404 - model_not_found")
+        return "DOC OK"
+
+    monkeypatch.setattr(llm, "_openai_uma_chamada", fake_uma_chamada)
+    # OpenAI() é instanciado mas não usado pelo fake
+    monkeypatch.setattr("openai.OpenAI", lambda **kw: object())
+    assert llm._chamar_openai("s", "u", "sk-x") == "DOC OK"
+    assert chamados[0] == "modelo-inexistente" and chamados[1] == "gpt-4o-mini"
+
+
+def test_openai_nao_troca_modelo_em_erro_de_chave(monkeypatch):
+    monkeypatch.setattr(llm, "_obter_modelo_openai", lambda: "gpt-5-mini")
+
+    chamados = []
+
+    def fake_uma_chamada(cliente, modelo, s, u):
+        chamados.append(modelo)
+        raise Exception("401 invalid_api_key")
+
+    monkeypatch.setattr(llm, "_openai_uma_chamada", fake_uma_chamada)
+    monkeypatch.setattr("openai.OpenAI", lambda **kw: object())
+    with pytest.raises(llm.ErroGeracaoIA) as exc:
+        llm._chamar_openai("s", "u", "sk-x")
+    assert len(chamados) == 1  # não tentou outros modelos
+    assert "chave" in str(exc.value).lower()
+
+
+def test_testar_conexao_sem_chave(monkeypatch):
+    _configurar(monkeypatch, "", "")
+    ok, msg = llm.testar_conexao("openai")
+    assert not ok and "OPENAI_API_KEY" in msg
+
+
+def test_testar_conexao_ok(monkeypatch):
+    _configurar(monkeypatch, "sk-x", "")
+    monkeypatch.setattr(llm, "_chamar_openai", lambda s, u, k: "OK")
+    ok, msg = llm.testar_conexao("openai")
+    assert ok and "OpenAI" in msg
+
+
+def test_ler_chave_sidebar_vazio_nao_estoura():
+    """Regressão: sidebar vazio (modelos) causava StreamlitAPIException,
+    derrubando AS DUAS engines ao resolver o modelo."""
+    # não deve lançar e deve cair no padrão configurado
+    assert llm._obter_modelo_openai()  # gpt-5-mini (padrão)
+    assert llm._obter_modelo()          # gemini-... (padrão)
+    assert llm._ler_chave("QUALQUER_COISA", "") == ""

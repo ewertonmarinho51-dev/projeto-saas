@@ -23,7 +23,9 @@ from .config import (
     API_TIMEOUT_SEGUNDOS,
     DOCUMENTOS,
     GEMINI_MODEL_PADRAO,
+    GEMINI_MODELOS_FALLBACK,
     OPENAI_MODEL_PADRAO,
+    OPENAI_MODELOS_FALLBACK,
 )
 from .prompts import formatar_dados_formulario, montar_prompt
 
@@ -51,7 +53,10 @@ def _ler_chave(nome_secret: str, chave_sidebar: str) -> str:
     valor = db.obter_config(nome_secret)
     if valor:
         return valor
-    valor = st.session_state.get(chave_sidebar, "").strip()
+    # chave_sidebar vazio (ex.: OPENAI_MODEL/GEMINI_MODEL não têm campo na
+    # barra lateral) — pular a sessão. st.session_state.get("") lança
+    # StreamlitAPIException, o que fazia AS DUAS engines falharem ao ler o modelo.
+    valor = st.session_state.get(chave_sidebar, "").strip() if chave_sidebar else ""
     if valor:
         return valor
     try:
@@ -87,6 +92,35 @@ def _obter_modelo() -> str:
 
 def _obter_modelo_openai() -> str:
     return _ler_chave("OPENAI_MODEL", "") or OPENAI_MODEL_PADRAO
+
+
+def _dedup(modelos: list[str]) -> list[str]:
+    vistos, saida = set(), []
+    for m in modelos:
+        m = (m or "").strip()
+        if m and m not in vistos:
+            vistos.add(m)
+            saida.append(m)
+    return saida
+
+
+def _modelos_openai() -> list[str]:
+    """Modelo configurado + alternativas amplamente disponíveis."""
+    return _dedup([_obter_modelo_openai(), *OPENAI_MODELOS_FALLBACK])
+
+
+def _modelos_gemini() -> list[str]:
+    return _dedup([_obter_modelo(), *GEMINI_MODELOS_FALLBACK])
+
+
+def _e_erro_de_modelo(exc: Exception) -> bool:
+    """True quando o modelo não existe/sem acesso — vale tentar outro modelo."""
+    t = f"{type(exc).__name__}: {exc}".lower()
+    return (
+        "model_not_found" in t or "does not exist" in t or "not found" in t
+        or "unsupported" in t or "unknown model" in t
+        or ("model" in t and "404" in t)
+    )
 
 
 def _traduzir_erro(exc: Exception, motor: str = "") -> str:
@@ -145,18 +179,14 @@ def _traduzir_erro(exc: Exception, motor: str = "") -> str:
     return f"{rotulo}: falha na comunicação — {type(exc).__name__}: {exc}"
 
 
-def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str) -> str:
-    """Motor principal: OpenAI, com retentativas e backoff exponencial."""
-    # Import tardio: a interface abre mesmo sem a biblioteca instalada
-    from openai import OpenAI
-
-    cliente = OpenAI(api_key=api_key, timeout=API_TIMEOUT_SEGUNDOS, max_retries=0)
-
+def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
+                        user_prompt: str) -> str:
+    """Uma chamada ao modelo indicado, com retentativas/backoff em falhas."""
     ultima_excecao: Exception | None = None
     for tentativa in range(1, API_TENTATIVAS + 1):
         try:
             resposta = cliente.chat.completions.create(
-                model=_obter_modelo_openai(),
+                model=modelo,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -167,33 +197,53 @@ def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str) -> str:
             if not texto:
                 raise RuntimeError("resposta vazia do modelo")
             return texto
-        except Exception as exc:  # noqa: BLE001 — traduzimos qualquer falha
+        except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
+            # Erro de modelo não melhora com retry — sobe já para trocar de modelo
+            if _e_erro_de_modelo(exc):
+                raise
             if tentativa < API_TENTATIVAS:
                 time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
+    raise ultima_excecao  # type: ignore[misc]
+
+
+def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str) -> str:
+    """
+    Motor principal: OpenAI. Tenta o modelo configurado e, se ele não
+    existir/sem acesso na conta, cai automaticamente para modelos
+    alternativos amplamente disponíveis (gpt-4o-mini etc.).
+    """
+    # Import tardio: a interface abre mesmo sem a biblioteca instalada
+    from openai import OpenAI
+
+    cliente = OpenAI(api_key=api_key, timeout=API_TIMEOUT_SEGUNDOS, max_retries=0)
+    modelos = _modelos_openai()
+    ultima_excecao: Exception | None = None
+    for i, modelo in enumerate(modelos):
+        try:
+            return _openai_uma_chamada(cliente, modelo, system_prompt, user_prompt)
+        except Exception as exc:  # noqa: BLE001
+            ultima_excecao = exc
+            # Só faz sentido tentar outro modelo se o erro for de modelo.
+            # Chave inválida/cota falha igual em qualquer modelo → aborta.
+            if _e_erro_de_modelo(exc) and i < len(modelos) - 1:
+                continue
+            break
     raise ErroGeracaoIA(
         _traduzir_erro(ultima_excecao, "openai"),
-        detalhe=f"[OpenAI · {_obter_modelo_openai()}] "
+        detalhe=f"[OpenAI · tentados: {', '.join(modelos)}] "
                 f"{type(ultima_excecao).__name__}: {ultima_excecao}",
     )
 
 
-def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str) -> str:
-    """Chamada ao Gemini com retentativas e backoff exponencial (2s, 4s, 8s)."""
-    # Import tardio: a interface abre mesmo sem a biblioteca instalada
-    from google import genai
-    from google.genai import types
-
-    cliente = genai.Client(
-        api_key=api_key,
-        http_options=types.HttpOptions(timeout=API_TIMEOUT_SEGUNDOS * 1000),  # ms
-    )
-
+def _gemini_uma_chamada(cliente, types, modelo: str, system_prompt: str,
+                        user_prompt: str) -> str:
+    """Uma chamada ao modelo indicado, com retentativas/backoff em falhas."""
     ultima_excecao: Exception | None = None
     for tentativa in range(1, API_TENTATIVAS + 1):
         try:
             resposta = cliente.models.generate_content(
-                model=_obter_modelo(),
+                model=modelo,
                 contents=user_prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
@@ -205,13 +255,42 @@ def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str) -> str:
             if not texto:
                 raise RuntimeError("resposta vazia do modelo")
             return texto
-        except Exception as exc:  # noqa: BLE001 — traduzimos qualquer falha
+        except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
+            if _e_erro_de_modelo(exc):
+                raise
             if tentativa < API_TENTATIVAS:
                 time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
+    raise ultima_excecao  # type: ignore[misc]
+
+
+def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str) -> str:
+    """
+    Fallback: Gemini. Tenta o modelo configurado e, se não existir/sem
+    acesso, cai para modelos alternativos (gemini-1.5-flash etc.).
+    """
+    # Import tardio: a interface abre mesmo sem a biblioteca instalada
+    from google import genai
+    from google.genai import types
+
+    cliente = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=API_TIMEOUT_SEGUNDOS * 1000),  # ms
+    )
+    modelos = _modelos_gemini()
+    ultima_excecao: Exception | None = None
+    for i, modelo in enumerate(modelos):
+        try:
+            return _gemini_uma_chamada(cliente, types, modelo, system_prompt,
+                                       user_prompt)
+        except Exception as exc:  # noqa: BLE001
+            ultima_excecao = exc
+            if _e_erro_de_modelo(exc) and i < len(modelos) - 1:
+                continue
+            break
     raise ErroGeracaoIA(
         _traduzir_erro(ultima_excecao, "gemini"),
-        detalhe=f"[Gemini · {_obter_modelo()}] "
+        detalhe=f"[Gemini · tentados: {', '.join(modelos)}] "
                 f"{type(ultima_excecao).__name__}: {ultima_excecao}",
     )
 
@@ -256,6 +335,33 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
                 f"{erro}\n\n`{getattr(erro, 'detalhe', '')}`",
             )
     return _chamar_gemini(system_prompt, user_prompt, chave_gemini)
+
+
+def testar_conexao(motor: str) -> tuple[bool, str]:
+    """
+    Faz uma chamada mínima ao motor ('openai' | 'gemini') e devolve
+    (ok, mensagem). Usado pelo botão "Testar conexão" do painel admin para
+    diagnosticar chave/modelo com o erro técnico exato.
+    """
+    system = "Responda apenas com a palavra OK."
+    user = "Responda: OK"
+    try:
+        if motor == "openai":
+            chave = obter_openai_key()
+            if not chave:
+                return False, "OPENAI_API_KEY não configurada."
+            _chamar_openai(system, user, chave)
+            return True, f"OpenAI respondeu. Modelos tentados: {', '.join(_modelos_openai())}."
+        chave = obter_api_key()
+        if not chave:
+            return False, "GOOGLE_API_KEY não configurada."
+        _chamar_gemini(system, user, chave)
+        return True, f"Gemini respondeu. Modelos tentados: {', '.join(_modelos_gemini())}."
+    except ErroGeracaoIA as erro:
+        detalhe = getattr(erro, "detalhe", "")
+        return False, f"{erro}\n\n{detalhe}"
+    except Exception as exc:  # noqa: BLE001
+        return False, f"{type(exc).__name__}: {exc}"
 
 
 # ---------------------------------------------------------------------------
