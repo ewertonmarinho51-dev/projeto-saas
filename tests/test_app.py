@@ -45,10 +45,15 @@ def _iniciar_com_formulario() -> AppTest:
     assert not at.exception
     [t for t in at.toggle if t.key == "modo_demo"][0].set_value(True)
     at.run()
+    # o AppTest não interage com data_editor: semeia a planilha via estado
+    at.session_state["dados"] = {"itens": [
+        {"codigo": "001", "descricao": "Notebook i5", "unidade": "un",
+         "quantidade": 100, "valor_unitario": 4500.0},
+    ]}
+    at.run()
     _por_rotulo(at.text_input, "Órgão").set_value("Prefeitura de Teste — Secretaria de Educação")
     _por_rotulo(at.text_area, "Objeto").set_value("Aquisição de 100 notebooks para laboratórios")
     _por_rotulo(at.text_area, "Justificativa").set_value("Parque tecnológico obsoleto")
-    _por_rotulo(at.number_input, "Estimativa de Valor").set_value(450000.0)
     _botao(at, "Iniciar").click()
     at.run()
     assert not at.exception
@@ -84,6 +89,8 @@ def test_fluxo_completo_ate_sucesso():
     docs = at.session_state["documentos"]
     assert set(docs) == {"dfd", "etp", "tr", "edital"}
     assert at.session_state["aprovados"] == {"dfd", "etp", "tr", "edital"}
+    # planilha consolidada: valor global = 100 × 4500 = 450000
+    assert at.session_state["dados"]["valor_estimado"] == 450000.0
     corpo = " ".join(m.value for m in at.markdown)
     assert "concluído" in corpo.lower()
 

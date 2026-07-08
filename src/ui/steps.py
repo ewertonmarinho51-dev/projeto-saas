@@ -7,10 +7,42 @@ Telas de cada etapa do wizard:
 
 import streamlit as st
 
-from .. import db, export, state
+from .. import db, export, planilha, state
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
+
+
+def _render_planilha(dados: dict, meta: dict) -> list[dict]:
+    """Editor da planilha orçamentária dentro do formulário matriz."""
+    st.markdown(f"**{meta['rotulo']} \\***")
+    st.caption(meta["help"])
+    base = dados.get("itens") or planilha.linhas_iniciais()
+    # mantém apenas as colunas editáveis (valor total e global são derivados)
+    base = [{k: it.get(k, "") for k in planilha.CAMPOS_ITEM} for it in base]
+
+    editado = st.data_editor(
+        base,
+        key="editor_itens",
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "codigo": st.column_config.TextColumn(planilha.ROTULOS["codigo"], width="small"),
+            "descricao": st.column_config.TextColumn(planilha.ROTULOS["descricao"], width="large"),
+            "unidade": st.column_config.TextColumn(planilha.ROTULOS["unidade"], width="small"),
+            "quantidade": st.column_config.NumberColumn(
+                planilha.ROTULOS["quantidade"], min_value=0.0, step=1.0, format="%.2f"),
+            "valor_unitario": st.column_config.NumberColumn(
+                planilha.ROTULOS["valor_unitario"], min_value=0.0, step=100.0, format="%.2f"),
+        },
+    )
+    itens = editado.to_dict("records") if hasattr(editado, "to_dict") else list(editado)
+    _, valor_global = planilha.calcular(itens)
+    st.caption(
+        f"Valor global (estimativa): **{planilha.formatar_moeda(valor_global)}** "
+        "— recalculado ao avançar."
+    )
+    return itens
 
 
 # ---------------------------------------------------------------------------
@@ -29,10 +61,10 @@ def render_formulario() -> None:
         col1, col2 = st.columns(2)
         respostas: dict = {}
 
-        # Distribui os campos em duas colunas para uma tela mais limpa
+        # Distribui os campos simples em duas colunas para uma tela mais limpa
         colunas = {
             "orgao": col1, "responsavel": col2,
-            "valor_estimado": col1, "modelo_execucao": col2, "prazo": col1,
+            "modelo_execucao": col2, "prazo": col1,
         }
         for chave, meta in CAMPOS_FORMULARIO.items():
             destino = colunas.get(chave, st)
@@ -47,11 +79,8 @@ def render_formulario() -> None:
                     rotulo, value=dados.get(chave, ""), height=110,
                     placeholder=meta["placeholder"], help=meta["help"],
                 )
-            elif meta["tipo"] == "moeda":
-                respostas[chave] = destino.number_input(
-                    rotulo, min_value=0.0, step=1000.0, format="%.2f",
-                    value=float(dados.get(chave, 0.0)), help=meta["help"],
-                )
+            elif meta["tipo"] == "planilha":
+                respostas["itens"] = _render_planilha(dados, meta)
             elif meta["tipo"] == "selecao":
                 opcoes = meta["opcoes"]
                 atual = dados.get(chave, opcoes[0])
@@ -67,11 +96,20 @@ def render_formulario() -> None:
         )
 
     if enviado:
-        faltantes = [
-            meta["rotulo"]
-            for chave, meta in CAMPOS_FORMULARIO.items()
-            if meta["obrigatorio"] and not respostas.get(chave)
-        ]
+        # Consolida a planilha: calcula totais e o valor global (estimativa)
+        itens, valor_global = planilha.calcular(respostas.get("itens") or [])
+        respostas["itens"] = itens
+        respostas["valor_estimado"] = valor_global
+
+        faltantes = []
+        for chave, meta in CAMPOS_FORMULARIO.items():
+            if not meta["obrigatorio"]:
+                continue
+            if chave == "itens":
+                if not itens:
+                    faltantes.append(meta["rotulo"])
+            elif not respostas.get(chave):
+                faltantes.append(meta["rotulo"])
         if faltantes:
             st.error(
                 "Preencha os campos obrigatórios: **" + ", ".join(faltantes) + "**"

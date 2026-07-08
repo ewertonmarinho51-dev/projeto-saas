@@ -26,6 +26,11 @@ arquivos (a busca textual em português continua funcionando sempre).
 
 - **Formulário Matriz** com tooltips (❓) explicando o que a Lei
   14.133/2021 espera de cada informação.
+- **Planilha orçamentária**: em vez de um valor único, o usuário informa
+  os itens (código, descrição, unidade, quantidade, valor unitário); o
+  valor total de cada item e o **valor global** (soma = estimativa da
+  contratação) são calculados automaticamente e reproduzidos na
+  estimativa de valor dos documentos gerados.
 - **Wizard de 6 passos** com indicador visual de progresso — o usuário
   nunca é sobrecarregado com mais de uma decisão por tela.
 - **Preview editável** de cada documento antes da aprovação (controle

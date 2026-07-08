@@ -7,6 +7,7 @@ Cada documento recebe como contexto o documento anterior JÁ APROVADO pelo
 usuário, garantindo coerência e controle humano em toda a cadeia.
 """
 
+from . import planilha
 from .config import CAMPOS_FORMULARIO
 
 # ---------------------------------------------------------------------------
@@ -98,11 +99,18 @@ def formatar_dados_formulario(dados: dict) -> str:
     """Converte o Formulário Matriz em um bloco de texto legível para a IA."""
     linhas = []
     for chave, meta in CAMPOS_FORMULARIO.items():
+        if chave == "itens":
+            itens, valor_global = planilha.calcular(dados.get("itens") or [])
+            linhas.append(
+                f"- {meta['rotulo']} (o VALOR GLOBAL é a estimativa da "
+                "contratação; reproduza a planilha na estimativa de valor "
+                "do documento):\n"
+                + planilha.para_markdown(itens, valor_global)
+            )
+            continue
         valor = dados.get(chave)
         if valor in (None, "", 0):
             valor = "(não informado)"
-        elif chave == "valor_estimado":
-            valor = f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         linhas.append(f"- {meta['rotulo']}: {valor}")
     return "\n".join(linhas)
 
