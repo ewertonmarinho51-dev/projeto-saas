@@ -85,10 +85,25 @@ Com Supabase configurado, o app exige login:
 | **Administrador** | Tudo: wizard, criar/gerenciar usuários, definir chaves de IA, enviar arquivos à Base de Conhecimento (RAG) e configurar cabeçalho/rodapé/marca d'água por órgão |
 | **Usuário** | Apenas elaborar os documentos no wizard (vê somente os próprios processos) |
 
-No primeiro acesso o app pede a criação do administrador inicial.
-Senhas: PBKDF2-SHA256 com 200k iterações e salt por usuário. Sem
-Supabase, o app roda em **modo aberto** (sem login) para dev/CI.
-Requer a migração `supabase/migrations/0004_usuarios_e_configuracoes.sql`.
+No primeiro acesso (banco vazio) o app pede a criação do administrador
+inicial. Senhas: PBKDF2-SHA256 com 200k iterações e salt por usuário.
+
+**Sem Supabase conectado**, o app mostra a tela **"Configuração
+necessária"** com instruções (não entra silenciosamente). Apenas para
+desenvolvimento/CI, defina a variável `GOVDOCS_MODO_ABERTO=1` para rodar
+sem login. Requer as migrações `0004` e `0005` em `supabase/migrations/`.
+
+### Identidade visual por imagem (cabeçalho, rodapé, marca d'água)
+
+O administrador envia um **documento-modelo do órgão (PDF ou DOCX)** e o
+sistema renderiza a 1ª página e recorta as faixas de **cabeçalho**
+(topo), **rodapé** (base) e **marca d'água** (miolo translúcido) como
+imagens. Essas imagens são carimbadas nos documentos gerados **na mesma
+posição relativa** (proporção A4) — cabeçalho no topo e rodapé na base de
+todas as páginas do PDF e do DOCX; a marca d'água translúcida é aplicada
+no PDF. Sliders permitem ajustar a altura das faixas com prévia. Também
+há a opção de definir a identidade por texto. DOCX-modelo é convertido
+para PDF via LibreOffice (`packages.txt`).
 
 ## 🚀 Como rodar localmente
 

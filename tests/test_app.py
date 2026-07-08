@@ -29,7 +29,9 @@ def _botao(at: AppTest, trecho: str):
 
 
 def _app_modo_aberto() -> AppTest:
-    """AppTest hermético: sem Supabase, o app roda em modo aberto (sem login)."""
+    """AppTest hermético: sem Supabase + flag de modo aberto (dev/CI)."""
+    import os
+    os.environ["GOVDOCS_MODO_ABERTO"] = "1"
     at = AppTest.from_file(APP, default_timeout=60)
     at.secrets["SUPABASE_URL"] = ""
     at.secrets["SUPABASE_KEY"] = ""

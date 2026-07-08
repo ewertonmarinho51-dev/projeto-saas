@@ -122,6 +122,8 @@ def test_bloco_referencias_formata_trechos(monkeypatch):
 # Navegação: página Base de Conhecimento renderiza sem banco
 # ---------------------------------------------------------------------------
 def test_pagina_biblioteca_renderiza_sem_supabase():
+    import os
+    os.environ["GOVDOCS_MODO_ABERTO"] = "1"
     at = AppTest.from_file(APP, default_timeout=60)
     at.secrets["SUPABASE_URL"] = ""
     at.secrets["SUPABASE_KEY"] = ""

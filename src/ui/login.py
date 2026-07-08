@@ -1,10 +1,39 @@
 """
-Tela de login e criação do administrador inicial (primeiro acesso).
+Tela de login, criação do administrador inicial e configuração necessária.
 """
 
 import streamlit as st
 
-from .. import auth
+from .. import auth, db
+
+
+def render_configuracao_necessaria() -> None:
+    """Sem Supabase: bloqueia o app e ensina a configurar (produção)."""
+    st.subheader("Configuração necessária")
+    st.warning(
+        "O banco de dados não está conectado. Login, cadastro de usuários, "
+        "Base de Conhecimento e identidade visual dependem do Supabase."
+    )
+    st.markdown(
+        "**Como configurar o Supabase:**\n\n"
+        "1. No painel do projeto Supabase, em **Settings → API**, copie a "
+        "**Project URL** e a chave **publishable/anon**.\n"
+        "2. Informe as duas no ambiente onde o app roda:\n"
+        "   - Local: arquivo `.streamlit/secrets.toml`\n"
+        "   - Streamlit Community Cloud: **Manage app → Settings → Secrets**\n\n"
+        "```toml\n"
+        'SUPABASE_URL = "https://SEU-PROJETO.supabase.co"\n'
+        'SUPABASE_KEY = "sb_publishable_..."\n'
+        "```\n\n"
+        "3. Aplique as migrações em `supabase/migrations/` no **SQL Editor**.\n"
+        "4. Recarregue esta página."
+    )
+    st.caption(
+        "Apenas para desenvolvimento/CI sem banco: defina a variável de "
+        "ambiente GOVDOCS_MODO_ABERTO=1 para liberar o app sem login."
+    )
+    url, _ = db._config()  # noqa: SLF001 — diagnóstico de conexão
+    st.caption(f"Diagnóstico: SUPABASE_URL {'detectada' if url else 'ausente'}.")
 
 
 def render_bootstrap_admin() -> None:

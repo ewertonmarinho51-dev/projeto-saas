@@ -7,7 +7,7 @@ Página "Administração" (exclusiva do papel admin):
 
 import streamlit as st
 
-from .. import auth, db
+from .. import auth, branding, db
 from ..llm import motor_ativo
 
 
@@ -150,12 +150,90 @@ def _render_chaves() -> None:
 # ---------------------------------------------------------------------------
 def _render_identidade() -> None:
     st.caption(
-        "Cabeçalho e rodapé aparecem em todas as páginas dos documentos "
-        "exportados (PDF e DOCX); a marca d'água diagonal é aplicada no PDF. "
-        "A identidade padrão vem pré-selecionada na tela de download."
+        "Cadastre a identidade por captura de imagem (recomendado) ou por "
+        "texto. As imagens de cabeçalho e rodapé são carimbadas na mesma "
+        "posição relativa dos documentos gerados (PDF e DOCX); a marca "
+        "d'água é aplicada translúcida no PDF."
     )
-    with st.form("form_orgao", clear_on_submit=True):
-        st.markdown("##### Nova identidade")
+    aba_imagem, aba_texto = st.tabs(
+        ["Capturar de um modelo (PDF/DOCX)", "Definir por texto"]
+    )
+    with aba_imagem:
+        _render_identidade_imagem()
+    with aba_texto:
+        _render_identidade_texto()
+
+    _render_identidades_cadastradas()
+
+
+def _render_identidade_imagem() -> None:
+    modelo = st.file_uploader(
+        "Documento-modelo do órgão (PDF ou DOCX)",
+        type=["pdf", "docx"],
+        help="A 1ª página é usada para capturar cabeçalho, rodapé e marca d'água.",
+    )
+    if not modelo:
+        st.caption("Envie um documento oficial para capturar a identidade visual.")
+        return
+
+    # Renderiza uma vez por arquivo (cacheado por conteúdo) para as prévias
+    dados = modelo.getvalue()
+    chave = f"modelo_{hash(dados)}"
+    if st.session_state.get("_modelo_chave") != chave:
+        try:
+            img = branding.renderizar_modelo(modelo.name, dados)
+        except branding.ErroBranding as erro:
+            st.error(str(erro))
+            return
+        st.session_state["_modelo_chave"] = chave
+        st.session_state["_modelo_img"] = img
+    img = st.session_state.get("_modelo_img")
+    if img is None:
+        return
+
+    col_ctrl, col_prev = st.columns([1, 1])
+    with col_ctrl:
+        cab_pct = st.slider("Altura do cabeçalho (% da página)", 3, 40, 14)
+        rod_pct = st.slider("Altura do rodapé (% da página)", 3, 40, 10)
+        usar_marca = st.checkbox("Capturar marca d'água (miolo translúcido)", value=False)
+    with col_prev:
+        st.image(img, caption="Modelo (1ª página)", use_container_width=True)
+
+    png_cab = branding.recortar_cabecalho(img, cab_pct)
+    png_rod = branding.recortar_rodape(img, rod_pct)
+    png_marca = branding.recortar_marca_dagua(img) if usar_marca else b""
+
+    st.markdown("**Prévia do que será carimbado:**")
+    st.image(png_cab, caption="Cabeçalho", use_container_width=True)
+    st.image(png_rod, caption="Rodapé", use_container_width=True)
+
+    with st.form("form_orgao_img", clear_on_submit=False):
+        orgao = st.text_input("Órgão", placeholder="Ex.: Prefeitura Municipal de Exemplo")
+        padrao = st.checkbox("Definir como identidade padrão")
+        if st.form_submit_button("Salvar identidade (imagem)", type="primary",
+                                 use_container_width=True):
+            if not orgao.strip():
+                st.error("Informe o nome do órgão.")
+            else:
+                try:
+                    db.salvar_orgao({
+                        "orgao": orgao.strip(),
+                        "cabecalho_img": branding.para_base64(png_cab),
+                        "rodape_img": branding.para_base64(png_rod),
+                        "marca_img": branding.para_base64(png_marca) if png_marca else "",
+                        "cabecalho_pct": float(cab_pct),
+                        "rodape_pct": float(rod_pct),
+                        "padrao": padrao,
+                    })
+                    st.success("Identidade (imagem) salva.")
+                    st.session_state.pop("_modelo_chave", None)
+                    st.rerun()
+                except db.ErroBanco as erro:
+                    st.error(str(erro))
+
+
+def _render_identidade_texto() -> None:
+    with st.form("form_orgao_txt", clear_on_submit=True):
         orgao = st.text_input("Órgão", placeholder="Ex.: Prefeitura Municipal de Exemplo")
         cabecalho = st.text_input(
             "Cabeçalho", placeholder="Ex.: PREFEITURA MUNICIPAL DE EXEMPLO · SECRETARIA DE ADMINISTRAÇÃO"
@@ -166,8 +244,8 @@ def _render_identidade() -> None:
         marca = st.text_input(
             "Marca d'água (PDF)", placeholder="Ex.: MINUTA ou nome do órgão"
         )
-        padrao = st.checkbox("Definir como identidade padrão")
-        if st.form_submit_button("Salvar identidade", type="primary",
+        padrao = st.checkbox("Definir como identidade padrão", key="padrao_txt")
+        if st.form_submit_button("Salvar identidade (texto)", type="primary",
                                  use_container_width=True):
             if not orgao.strip():
                 st.error("Informe o nome do órgão.")
@@ -183,8 +261,8 @@ def _render_identidade() -> None:
                 except db.ErroBanco as erro:
                     st.error(str(erro))
 
-    st.divider()
-    st.markdown("##### Identidades cadastradas")
+
+def _render_identidades_cadastradas() -> None:
     try:
         orgaos = db.listar_orgaos()
     except db.ErroBanco as erro:
@@ -195,11 +273,16 @@ def _render_identidade() -> None:
     for o in orgaos:
         col_info, col_padrao, col_acao = st.columns([4, 1.4, 1.2])
         etiqueta = " (padrão)" if o["padrao"] else ""
-        col_info.markdown(
-            f"**{o['orgao']}{etiqueta}**  \n"
-            f"{o['cabecalho'] or 'sem cabeçalho'}  \n"
-            f"{o['rodape'] or 'sem rodapé'} · marca: {o['marca_dagua'] or 'nenhuma'}"
-        )
+        tem_img = bool(o.get("cabecalho_img") or o.get("rodape_img"))
+        if tem_img:
+            descricao = "Identidade por imagem (capturada de modelo)"
+        else:
+            descricao = (
+                f"{o.get('cabecalho') or 'sem cabeçalho'}  \n"
+                f"{o.get('rodape') or 'sem rodapé'} · "
+                f"marca: {o.get('marca_dagua') or 'nenhuma'}"
+            )
+        col_info.markdown(f"**{o['orgao']}{etiqueta}**  \n{descricao}")
         if not o["padrao"] and col_padrao.button(
             "Tornar padrão", key=f"padrao_{o['id']}", use_container_width=True
         ):
