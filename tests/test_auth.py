@@ -33,10 +33,24 @@ def test_senha_fraca_rejeitada():
 # ---------------------------------------------------------------------------
 # Papéis / modo aberto
 # ---------------------------------------------------------------------------
-def test_modo_aberto_sem_banco_da_permissao_de_admin(monkeypatch):
+def test_modo_aberto_exige_flag_explicita(monkeypatch):
     monkeypatch.setattr(auth.db, "disponivel", lambda: False)
+    monkeypatch.delenv("GOVDOCS_MODO_ABERTO", raising=False)
+    # sem flag: não é modo aberto, exige configuração
+    assert not auth.modo_aberto()
+    assert auth.precisa_configurar()
+    # com flag: modo aberto (dev/CI), admin liberado
+    monkeypatch.setenv("GOVDOCS_MODO_ABERTO", "1")
     assert auth.modo_aberto()
     assert auth.eh_admin()
+    assert not auth.precisa_configurar()
+
+
+def test_criar_usuario_sem_banco_da_mensagem_clara(monkeypatch):
+    monkeypatch.setattr(auth.db, "disponivel", lambda: False)
+    import pytest as _pytest
+    with _pytest.raises(auth.ErroAuth, match="Banco de dados não configurado"):
+        auth.criar_usuario("Fulano", "fulano", "senha1234", "admin")
 
 
 def test_papel_usuario_nao_eh_admin(monkeypatch):
@@ -54,6 +68,22 @@ def test_papel_usuario_nao_eh_admin(monkeypatch):
 # ---------------------------------------------------------------------------
 # Gate de login na aplicação
 # ---------------------------------------------------------------------------
+def test_sem_banco_e_sem_flag_mostra_configuracao_necessaria(monkeypatch):
+    import os
+    from src import db
+    monkeypatch.setattr(db, "disponivel", lambda: False)
+    monkeypatch.delenv("GOVDOCS_MODO_ABERTO", raising=False)
+    at = AppTest.from_file(APP, default_timeout=60)
+    at.secrets["SUPABASE_URL"] = ""
+    at.secrets["SUPABASE_KEY"] = ""
+    at.run()
+    assert not at.exception
+    titulos = " ".join(s.value for s in at.subheader)
+    assert "Configuração necessária" in titulos
+    # o wizard NÃO aparece sem banco configurado
+    assert "Formulário Matriz" not in titulos
+
+
 def test_com_banco_e_sem_login_mostra_tela_de_acesso(monkeypatch):
     from src import db
 

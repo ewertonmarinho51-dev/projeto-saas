@@ -27,3 +27,7 @@ supabase>=2.4.0
 
 # Leitura de PDFs da Base de Conhecimento (RAG)
 pypdf>=4.0.0
+
+# Captura visual de identidade (render do PDF-modelo + recorte de imagens)
+pymupdf>=1.24.0
+pillow>=10.0.0

@@ -11,6 +11,7 @@ Autenticação e papéis de usuário.
 
 import hashlib
 import hmac
+import os
 import secrets
 
 import streamlit as st
@@ -59,6 +60,13 @@ def validar_senha_forte(senha: str) -> str | None:
 # Operações no banco
 # ---------------------------------------------------------------------------
 def _tabela():
+    if not db.disponivel():
+        raise ErroAuth(
+            "Banco de dados não configurado. Defina SUPABASE_URL e "
+            "SUPABASE_KEY (em .streamlit/secrets.toml, nas variáveis de "
+            "ambiente ou nos Secrets do deploy) para habilitar login e "
+            "cadastro de usuários."
+        )
     return db._cliente().table("usuarios")  # noqa: SLF001
 
 
@@ -154,8 +162,20 @@ def usuario_logado() -> dict | None:
 
 
 def modo_aberto() -> bool:
-    """Sem Supabase não há login: app roda aberto (dev local / CI)."""
-    return not db.disponivel()
+    """
+    Modo aberto = sem login, tudo liberado. Só vale para desenvolvimento
+    e CI: exige a ausência de Supabase E a variável GOVDOCS_MODO_ABERTO=1.
+    Em produção (deploy real), NUNCA cair em modo aberto silenciosamente —
+    sem banco o app mostra a tela de configuração necessária.
+    """
+    if db.disponivel():
+        return False
+    return os.getenv("GOVDOCS_MODO_ABERTO", "").strip() in ("1", "true", "True")
+
+
+def precisa_configurar() -> bool:
+    """Sem banco e sem modo aberto explícito: exige configuração do Supabase."""
+    return not db.disponivel() and not modo_aberto()
 
 
 def eh_admin() -> bool:

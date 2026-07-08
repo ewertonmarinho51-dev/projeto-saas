@@ -39,8 +39,13 @@ state.inicializar()
 components.aplicar_estilo()
 
 # ---------------------------------------------------------------------------
-# Autenticação (exceto em modo aberto, quando não há banco configurado)
+# Porta de entrada: configuração necessária → login → app
 # ---------------------------------------------------------------------------
+if auth.precisa_configurar():
+    components.render_cabecalho()
+    login.render_configuracao_necessaria()
+    st.stop()
+
 if not auth.modo_aberto() and not auth.usuario_logado():
     components.render_cabecalho()
     try:
@@ -48,9 +53,8 @@ if not auth.modo_aberto() and not auth.usuario_logado():
     except auth.ErroAuth as erro:
         st.error(str(erro))
         st.info(
-            "Se as tabelas ainda não existem, aplique a migração "
-            "`supabase/migrations/0004_usuarios_e_configuracoes.sql` "
-            "no SQL Editor do painel Supabase."
+            "Se as tabelas ainda não existem, aplique as migrações em "
+            "`supabase/migrations/` no SQL Editor do painel Supabase."
         )
         st.stop()
     if existe_admin:
