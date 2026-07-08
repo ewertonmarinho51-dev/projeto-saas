@@ -39,22 +39,20 @@ def _app_modo_aberto() -> AppTest:
 
 
 def _iniciar_com_formulario() -> AppTest:
-    """Sobe o app em modo demo e submete o Formulário Matriz válido."""
+    """
+    Sobe o app em modo demo com um Formulário Matriz válido já no estado.
+
+    O formulário real tem DOIS file_uploaders (memorando e XLSX) antes do
+    st.form; o AppTest não serializa file_uploader na transição do form
+    (KeyError na snapshot). Por isso semeamos o estado em vez de dirigir o
+    envio — este teste cobre o fluxo de geração/aprovação/exportação. A
+    validação do envio do formulário é coberta em
+    test_formulario_valida_campos_obrigatorios.
+    """
     at = _app_modo_aberto()
-    at.run()
-    assert not at.exception
-    [t for t in at.toggle if t.key == "modo_demo"][0].set_value(True)
-    at.run()
-    # o AppTest não interage com data_editor: semeia a planilha via estado
-    at.session_state["dados"] = {"itens": [
-        {"codigo": "001", "descricao": "Notebook i5", "unidade": "un",
-         "quantidade": 100, "valor_unitario": 4500.0},
-    ]}
-    at.run()
-    _por_rotulo(at.text_input, "Órgão").set_value("Prefeitura de Teste — Secretaria de Educação")
-    _por_rotulo(at.text_area, "Objeto").set_value("Aquisição de 100 notebooks para laboratórios")
-    _por_rotulo(at.text_area, "Justificativa").set_value("Parque tecnológico obsoleto")
-    _botao(at, "Iniciar").click()
+    at.session_state["modo_demo"] = True
+    at.session_state["dados"] = _dados_validos()
+    at.session_state["etapa"] = 1
     at.run()
     assert not at.exception
     return at

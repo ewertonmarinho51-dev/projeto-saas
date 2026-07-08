@@ -115,7 +115,7 @@ def test_bloco_referencias_formata_trechos(monkeypatch):
     bloco = rag.montar_bloco_referencias({"objeto": "x"}, "etp")
     assert "REFERÊNCIAS DA BASE DE CONHECIMENTO" in bloco
     assert "Acórdão 1234" in bloco and "Súmula 247" in bloco
-    assert "NÃO copie dados específicos" in bloco
+    assert "PROIBIDO transportar" in bloco and "[PREENCHER]" in bloco
 
 
 # ---------------------------------------------------------------------------

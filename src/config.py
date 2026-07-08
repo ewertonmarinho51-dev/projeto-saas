@@ -107,6 +107,23 @@ DOCUMENTOS = {
 # Cada campo tem um "help" curto explicando o que a Lei 14.133/2021 espera.
 # O Streamlit exibe esse texto como tooltip (ícone ? ao lado do rótulo).
 CAMPOS_FORMULARIO = {
+    "memorando": {
+        "rotulo": "Documento inicial da demanda (memorando / ofício)",
+        "tipo": "area",
+        "obrigatorio": False,
+        "placeholder": (
+            "Cole aqui o texto do memorando, ofício ou solicitação que "
+            "originou a demanda (ou envie um arquivo PDF/DOCX no campo acima)."
+        ),
+        "help": (
+            "Documento que deflagra o processo (memorando, ofício, "
+            "solicitação formal). Contextualiza a ORIGEM da demanda: unidade "
+            "solicitante, justificativa, necessidade administrativa e "
+            "finalidade pública. É usado como base de contextualização do DFD, "
+            "ETP, TR e demais peças — sempre junto do formulário. Não substitui "
+            "os campos: dados concretos vêm do formulário/planilha."
+        ),
+    },
     "orgao": {
         "rotulo": "Órgão / Entidade Requisitante",
         "tipo": "texto",
