@@ -107,12 +107,65 @@ class ErroPlanilha(Exception):
     """Erro amigável ao importar a planilha de um arquivo."""
 
 
+# Raízes (substring, sem acento) para casar cabeçalhos escritos por extenso,
+# ex.: "Descrição dos Serviços", "Especificação do Objeto", "Preço Unitário".
+# 'valor_unitario' antes de qualquer coisa que contenha só 'valor'/'preco'
+# para não confundir com "Valor Total".
+_RAIZES = [
+    ("valor_unitario", ("unitar", "vlr unit", "vl unit", "p unit", "preco unit",
+                         "valor unit", "custo unit")),
+    ("quantidade", ("quant", "qtd", "qtde", "qte")),
+    ("descricao", ("descric", "especific", "discrimin", "objeto", "produto",
+                   "servico", "item ", "material", "insumo")),
+    ("codigo", ("codig", "cod ", "cod.", "sku", "referencia interna")),
+    ("unidade", ("unidade", "und", "unid", "medida")),
+    ("fonte", ("fonte", "link", "url", "origem", "endereco", "site",
+               "pesquisa", "cotacao")),
+]
+
+
+def _campo_do_cabecalho(celula) -> str | None:
+    """
+    Mapeia um texto de cabeçalho para um campo do item. Tenta, nesta ordem:
+    igualdade com um sinônimo, palavra inteira igual a um sinônimo e, por
+    fim, raiz por substring — assim 'Descrição dos Serviços' vira 'descricao'.
+    """
+    norm = _normalizar(celula)
+    if not norm:
+        return None
+    # 1) igualdade exata com um sinônimo
+    for campo, syns in SINONIMOS.items():
+        if norm in syns:
+            return campo
+    # 2) alguma palavra do cabeçalho é exatamente um sinônimo (>= 3 letras)
+    palavras = norm.split()
+    for campo, syns in SINONIMOS.items():
+        for s in syns:
+            if len(s) >= 3 and s in palavras:
+                return campo
+    # 3) raiz por substring (nomes escritos por extenso)
+    for campo, raizes in _RAIZES:
+        if any(r in norm for r in raizes):
+            return campo
+    return None
+
+
+def _mapear_linha(linha) -> dict:
+    """Devolve {coluna: campo} reconhecidos numa possível linha de cabeçalho."""
+    mapa: dict[int, str] = {}
+    for col, celula in enumerate(linha):
+        campo = _campo_do_cabecalho(celula)
+        if campo and campo not in mapa.values():
+            mapa[col] = campo
+    return mapa
+
+
 def importar_de_xlsx(dados: bytes) -> list[dict]:
     """
     Lê um arquivo XLSX e devolve a lista de itens. Detecta a linha de
-    cabeçalho pelos nomes das colunas (aceita acentos e variações); se não
-    houver cabeçalho reconhecível, assume a ordem código, descrição,
-    unidade, quantidade, valor unitário. Ignora linhas sem descrição.
+    cabeçalho pelos nomes das colunas (aceita acentos, nomes por extenso e
+    variações); se não houver cabeçalho reconhecível, assume a ordem código,
+    descrição, unidade, quantidade, valor unitário. Ignora linhas sem descrição.
     """
     try:
         from openpyxl import load_workbook
@@ -124,32 +177,37 @@ def importar_de_xlsx(dados: bytes) -> list[dict]:
             "Envie um arquivo Excel (.xlsx) válido."
         ) from exc
 
-    ws = wb.active
-    linhas = [list(r) for r in ws.iter_rows(values_only=True)]
-    if not linhas:
-        raise ErroPlanilha("A planilha está vazia.")
-
-    # localiza a linha de cabeçalho (a que mais casa com os sinônimos)
-    lookup = {syn: campo for campo, syns in SINONIMOS.items() for syn in syns}
-    idx_cabecalho, mapa = None, {}
-    for i, linha in enumerate(linhas[:15]):
-        atual = {}
-        for col, celula in enumerate(linha):
-            campo = lookup.get(_normalizar(celula))
-            if campo and campo not in atual.values():
-                atual[col] = campo
-        if len(set(atual.values())) >= 2:  # ao menos 2 colunas reconhecidas
-            idx_cabecalho, mapa = i, atual
-            break
+    # varre TODAS as abas com dados (a 1ª aba pode ser capa/instruções)
+    melhor = None  # (nº de campos, aba, idx_cabecalho, mapa, linhas)
+    for ws in wb.worksheets:
+        linhas = [list(r) for r in ws.iter_rows(values_only=True)]
+        if not any(any(c not in (None, "") for c in ln) for ln in linhas):
+            continue
+        for i, linha in enumerate(linhas[:25]):
+            mapa = _mapear_linha(linha)
+            # cabeçalho válido: reconhece a DESCRIÇÃO (coluna essencial) e
+            # pelo menos mais uma coluna (quantidade, valor, código...).
+            if "descricao" in mapa.values() and len(set(mapa.values())) >= 2:
+                pontos = len(set(mapa.values()))
+                if melhor is None or pontos > melhor[0]:
+                    melhor = (pontos, i, mapa, linhas)
+                break
 
     itens: list[dict] = []
-    if idx_cabecalho is not None:
-        # colunas não reconhecidas são preservadas com o rótulo original
+    cabecalho_visto = ""
+    if melhor is not None:
+        _, idx_cabecalho, mapa, linhas = melhor
         cabecalho = linhas[idx_cabecalho]
+        cabecalho_visto = " | ".join(
+            str(c).strip() for c in cabecalho if c not in (None, "")
+        )
+        # colunas não reconhecidas são preservadas com o rótulo original
+        # (mas ignoramos "Valor Total"/"Total": esse valor é recalculado)
         extras = {
             col: str(cabecalho[col]).strip()
             for col in range(len(cabecalho))
             if col not in mapa and cabecalho[col] not in (None, "")
+            and "total" not in _normalizar(cabecalho[col])
         }
         for linha in linhas[idx_cabecalho + 1:]:
             item = {c: "" for c in CAMPOS_ITEM}
@@ -161,17 +219,28 @@ def importar_de_xlsx(dados: bytes) -> list[dict]:
                     item[rotulo] = linha[col]
             _acrescentar(itens, item)
     else:
-        # sem cabeçalho: assume ordem posicional das colunas
-        for linha in linhas:
-            if not any(linha):
+        # sem cabeçalho reconhecível: assume ordem posicional na 1ª aba com dados
+        for ws in wb.worksheets:
+            linhas = [list(r) for r in ws.iter_rows(values_only=True)]
+            if not any(any(c not in (None, "") for c in ln) for ln in linhas):
                 continue
-            item = dict(zip(CAMPOS_ITEM, list(linha) + [""] * len(CAMPOS_ITEM)))
-            _acrescentar(itens, item)
+            for linha in linhas:
+                if not any(c not in (None, "") for c in linha):
+                    continue
+                item = dict(zip(CAMPOS_ITEM, list(linha) + [""] * len(CAMPOS_ITEM)))
+                _acrescentar(itens, item)
+            break
 
     if not itens:
+        dica = (
+            f' O cabeçalho lido foi: "{cabecalho_visto}".' if cabecalho_visto
+            else " Não foi encontrada uma linha de cabeçalho."
+        )
         raise ErroPlanilha(
-            "Nenhum item reconhecido. A planilha deve ter colunas de "
-            "descrição, quantidade e valor unitário (com ou sem código e unidade)."
+            "Nenhum item reconhecido. A planilha precisa de uma coluna de "
+            "descrição (ou especificação/objeto) e, de preferência, quantidade "
+            "e valor unitário." + dica +
+            " Dica: baixe o modelo abaixo e cole os seus dados nele."
         )
     return itens
 
