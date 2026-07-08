@@ -166,6 +166,64 @@ def test_erro_import_sem_dados_uteis():
 
 
 # ---------------------------------------------------------------------------
+# Tabela grande: resumo no prompt + injeção da tabela real no documento
+# ---------------------------------------------------------------------------
+def _itens_grandes(n: int) -> list[dict]:
+    return [{"descricao": f"Item {i}", "unidade": "un",
+             "quantidade": 2, "valor_unitario": 10.0} for i in range(n)]
+
+
+def test_para_markdown_sem_linha_global():
+    itens, glob = planilha.calcular(_itens_grandes(3))
+    md = planilha.para_markdown(itens, glob, incluir_global=False)
+    assert "VALOR GLOBAL" not in md
+    assert "Item 0" in md
+
+
+def test_resumo_para_prompt_e_compacto():
+    itens, glob = planilha.calcular(_itens_grandes(200))
+    resumo = planilha.resumo_para_prompt(itens, glob)
+    assert "200 itens" in resumo
+    assert planilha.MARCADOR_TABELA in resumo
+    assert "NÃO redija" in resumo
+    # não traz as 200 linhas (só amostra de 6)
+    assert resumo.count("| Item ") <= 6
+
+
+def test_prompt_usa_resumo_para_tabela_grande():
+    dados = {"orgao": "X", "objeto": "Y", "itens": _itens_grandes(50)}
+    bloco = prompts.formatar_dados_formulario(dados)
+    assert planilha.MARCADOR_TABELA in bloco
+    assert "Item 49" not in bloco  # não despeja a lista toda no prompt
+
+
+def test_prompt_reproduz_tabela_pequena_inline():
+    dados = {"orgao": "X", "objeto": "Y", "itens": _itens_grandes(3)}
+    bloco = prompts.formatar_dados_formulario(dados)
+    assert planilha.MARCADOR_TABELA not in bloco
+    assert "Item 2" in bloco and "VALOR GLOBAL" in bloco
+
+
+def test_injetar_tabela_substitui_marca():
+    itens = _itens_grandes(50)
+    texto = "## Estimativa\n\nSegue a planilha:\n\n[[TABELA_ITENS]]\n\nFim."
+    saida = planilha.injetar_tabela(texto, itens)
+    assert planilha.MARCADOR_TABELA not in saida
+    assert "VALOR GLOBAL" in saida and "Item 49" in saida
+
+
+def test_injetar_tabela_anexa_se_ia_esquecer_a_marca():
+    itens = _itens_grandes(50)  # grande, sem marca no texto
+    saida = planilha.injetar_tabela("## Estimativa\n\nTexto sem marca.", itens)
+    assert "VALOR GLOBAL" in saida and "Item 0" in saida
+
+
+def test_injetar_tabela_pequena_nao_altera():
+    texto = "## Doc\n\nSem marca e tabela pequena."
+    assert planilha.injetar_tabela(texto, _itens_grandes(3)) == texto
+
+
+# ---------------------------------------------------------------------------
 # Colunas extras (fonte/link) e compactação de links
 # ---------------------------------------------------------------------------
 def test_eh_url_e_link_markdown():

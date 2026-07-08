@@ -179,10 +179,24 @@ def _traduzir_erro(exc: Exception, motor: str = "") -> str:
     return f"{rotulo}: falha na comunicação — {type(exc).__name__}: {exc}"
 
 
+def _params_modelo_openai(modelo: str) -> dict:
+    """
+    Parâmetros extras por família de modelo. Modelos de raciocínio (gpt-5,
+    série o) consomem tokens 'pensando' antes de responder: com esforço alto e
+    um prompt grande, estouram o tempo e podem devolver resposta vazia. Usamos
+    esforço baixo para responder rápido nos documentos.
+    """
+    ml = modelo.lower()
+    if ml.startswith(("gpt-5", "o1", "o3", "o4")):
+        return {"reasoning_effort": "low"}
+    return {}
+
+
 def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
                         user_prompt: str) -> str:
     """Uma chamada ao modelo indicado, com retentativas/backoff em falhas."""
     ultima_excecao: Exception | None = None
+    extra = _params_modelo_openai(modelo)
     for tentativa in range(1, API_TENTATIVAS + 1):
         try:
             resposta = cliente.chat.completions.create(
@@ -191,7 +205,8 @@ def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_completion_tokens=8192,
+                max_completion_tokens=16384,
+                **extra,
             )
             texto = (resposta.choices[0].message.content or "").strip()
             if not texto:
@@ -303,8 +318,11 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
     demonstração ativado), devolve uma minuta-esqueleto offline.
     Levanta ErroGeracaoIA com mensagem amigável em caso de falha.
     """
+    from . import planilha
+
     if st.session_state.get("modo_demo", False):
-        return _gerar_demo(doc_key, dados)
+        return planilha.injetar_tabela(_gerar_demo(doc_key, dados),
+                                       dados.get("itens"))
 
     chave_openai = obter_openai_key()
     chave_gemini = obter_api_key()
@@ -324,9 +342,10 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
     user_prompt += rag.montar_bloco_referencias(dados, doc_key)
 
     # Motor principal: OpenAI; fallback automático: Gemini
+    texto = ""
     if chave_openai:
         try:
-            return _chamar_openai(system_prompt, user_prompt, chave_openai)
+            texto = _chamar_openai(system_prompt, user_prompt, chave_openai)
         except ErroGeracaoIA as erro:
             if not chave_gemini:
                 raise
@@ -334,7 +353,10 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
                 f"Motor principal (OpenAI) indisponível — tentando Gemini. "
                 f"{erro}\n\n`{getattr(erro, 'detalhe', '')}`",
             )
-    return _chamar_gemini(system_prompt, user_prompt, chave_gemini)
+    if not texto:
+        texto = _chamar_gemini(system_prompt, user_prompt, chave_gemini)
+    # Injeta a tabela real da planilha (grande) no lugar da marca [[TABELA_ITENS]].
+    return planilha.injetar_tabela(texto, dados.get("itens"))
 
 
 def testar_conexao(motor: str) -> tuple[bool, str]:
