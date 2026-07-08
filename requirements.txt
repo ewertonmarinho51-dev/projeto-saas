@@ -31,3 +31,6 @@ pypdf>=4.0.0
 # Captura visual de identidade (render do PDF-modelo + recorte de imagens)
 pymupdf>=1.24.0
 pillow>=10.0.0
+
+# Importação da planilha orçamentária de arquivos Excel (.xlsx)
+openpyxl>=3.1.0

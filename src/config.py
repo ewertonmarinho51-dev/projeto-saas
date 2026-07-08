@@ -178,15 +178,18 @@ CAMPOS_FORMULARIO = {
             "e art. 40, §1º, I)."
         ),
     },
-    "valor_estimado": {
-        "rotulo": "Estimativa de Valor (R$)",
-        "tipo": "moeda",
+    "itens": {
+        "rotulo": "Planilha Orçamentária (itens da contratação)",
+        "tipo": "planilha",
         "obrigatorio": True,
         "placeholder": "",
         "help": (
-            "Valor total estimado da contratação. Na fase interna ele "
-            "orienta a escolha da modalidade e a reserva orçamentária "
-            "(art. 23). A estimativa definitiva exigirá pesquisa de preços."
+            "Relacione os itens: código, descrição, unidade, quantidade e "
+            "valor unitário. O valor total de cada item e o VALOR GLOBAL "
+            "(soma = estimativa da contratação) são calculados "
+            "automaticamente. Na fase interna a estimativa orienta a "
+            "modalidade e a reserva orçamentária (art. 23); a definitiva "
+            "exigirá pesquisa de preços."
         ),
     },
     "modelo_execucao": {
