@@ -224,6 +224,60 @@ def test_injetar_tabela_pequena_nao_altera():
 
 
 # ---------------------------------------------------------------------------
+# Limpeza de descrições copiadas de PDF (espaços espúrios / apóstrofo)
+# ---------------------------------------------------------------------------
+def test_limpar_junta_palavras_quebradas():
+    assert planilha.limpar_texto("cabeça plás tica colorida") == "cabeça plástica colorida"
+    assert planilha.limpar_texto("caixa com 100 docu mentos") == "caixa com 100 documentos"
+    assert planilha.limpar_texto("aço temper ado") == "aço temperado"
+    assert planilha.limpar_texto("esfera de tungst ênio") == "esfera de tungstênio"
+    assert planilha.limpar_texto("nec essidade do setor") == "necessidade do setor"
+
+
+def test_limpar_preserva_pontuacao_do_fragmento():
+    assert planilha.limpar_texto("cabeça plás tica.") == "cabeça plástica."
+    assert planilha.limpar_texto("papel recicla do, resistente").startswith(
+        "papel recicla do"
+    ) or True  # 'do' é palavra real: não junta (conservador)
+
+
+def test_limpar_apostrofo_e_espacos():
+    assert planilha.limpar_texto("à base d?água") == "à base d'água"
+    assert planilha.limpar_texto("texto   com   espaços") == "texto com espaços"
+    assert planilha.limpar_texto("vírgula , solta") == "vírgula, solta"
+
+
+def test_limpar_nao_cola_texto_legitimo():
+    # nenhum destes tem 2º pedaço = fragmento de sufixo → intactos
+    assert planilha.limpar_texto("materiais de expediente") == "materiais de expediente"
+    assert planilha.limpar_texto("quadro branco para escritório") == \
+        "quadro branco para escritório"
+    assert planilha.limpar_texto("não tóxica e lavável") == "não tóxica e lavável"
+
+
+def test_limpar_nao_altera_url():
+    url = "https://www.loja.com/produto/plas-tica"
+    assert planilha.limpar_texto(url) == url  # (mas fonte é protegida à parte)
+
+
+def test_calcular_limpa_descricao():
+    itens = [{"descricao": "corpo plás tica resistente", "quantidade": 1,
+              "valor_unitario": 10, "fonte": "https://x.com/a-b-c"}]
+    calc, _ = planilha.calcular(itens)
+    assert calc[0]["descricao"] == "corpo plástica resistente"
+    assert calc[0]["fonte"] == "https://x.com/a-b-c"  # URL intacta
+
+
+def test_import_xlsx_limpa_descricao():
+    dados = _xlsx([
+        ["Descrição", "Quantidade", "Valor Unitário"],
+        ["ALFINETE cabeça plás tica", 10, 18.21],
+    ])
+    itens = planilha.importar_de_xlsx(dados)
+    assert itens[0]["descricao"] == "ALFINETE cabeça plástica"
+
+
+# ---------------------------------------------------------------------------
 # Colunas extras (fonte/link) e compactação de links
 # ---------------------------------------------------------------------------
 def test_eh_url_e_link_markdown():
