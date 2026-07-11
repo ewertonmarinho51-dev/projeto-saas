@@ -109,6 +109,17 @@ def _render_chaves() -> None:
     else:
         st.warning("Nenhuma chave configurada. A geração usará o Modo Demonstração.")
 
+    # De onde vem cada chave ativa — o painel tem prioridade sobre o resto,
+    # então uma chave antiga salva aqui sobrepõe a nova do secrets.toml.
+    origem_openai = llm.origem_chave("OPENAI_API_KEY", "openai_key_manual")
+    origem_gemini = llm.origem_chave("GOOGLE_API_KEY", "api_key_manual")
+    st.caption(
+        f"Chave OpenAI em uso: **{origem_openai or 'não configurada'}** · "
+        f"Chave Gemini em uso: **{origem_gemini or 'não configurada'}**. "
+        "Prioridade: painel do administrador > barra lateral > secrets.toml > "
+        "variável de ambiente."
+    )
+
     with st.form("form_chaves"):
         openai_key = st.text_input(
             "OPENAI_API_KEY (motor principal)", type="password",

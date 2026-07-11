@@ -67,6 +67,29 @@ def _ler_chave(nome_secret: str, chave_sidebar: str) -> str:
     return os.getenv(nome_secret, "").strip()
 
 
+def origem_chave(nome_secret: str, chave_sidebar: str) -> str:
+    """
+    De ONDE vem a chave ativa (mesma ordem de prioridade de _ler_chave):
+    'painel do administrador' | 'barra lateral' | 'secrets.toml' |
+    'variável de ambiente' | '' (não configurada). Usado no diagnóstico do
+    painel admin — uma chave antiga salva no painel sobrepõe o secrets.toml.
+    """
+    from . import db
+
+    if db.obter_config(nome_secret):
+        return "painel do administrador"
+    if chave_sidebar and st.session_state.get(chave_sidebar, "").strip():
+        return "barra lateral"
+    try:
+        if nome_secret in st.secrets and str(st.secrets[nome_secret]).strip():
+            return "secrets.toml"
+    except Exception:
+        pass
+    if os.getenv(nome_secret, "").strip():
+        return "variável de ambiente"
+    return ""
+
+
 def obter_openai_key() -> str:
     """Chave do motor principal (OpenAI)."""
     return _ler_chave("OPENAI_API_KEY", "openai_key_manual")

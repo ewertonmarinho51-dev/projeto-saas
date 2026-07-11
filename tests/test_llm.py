@@ -220,6 +220,25 @@ def test_gerar_injeta_tabela_grande(monkeypatch):
     assert "VALOR GLOBAL" in saida and "Item 29" in saida
 
 
+def test_origem_chave_prioriza_painel(monkeypatch):
+    from src import db
+
+    monkeypatch.setattr(db, "obter_config", lambda nome: "chave-do-painel")
+    monkeypatch.setenv("OPENAI_API_KEY", "chave-do-env")
+    assert llm.origem_chave("OPENAI_API_KEY", "openai_key_manual") == \
+        "painel do administrador"
+
+
+def test_origem_chave_env_e_vazia(monkeypatch):
+    from src import db
+
+    monkeypatch.setattr(db, "obter_config", lambda nome: "")
+    monkeypatch.setenv("CHAVE_TESTE_X", "valor")
+    assert llm.origem_chave("CHAVE_TESTE_X", "") == "variável de ambiente"
+    monkeypatch.delenv("CHAVE_TESTE_X")
+    assert llm.origem_chave("CHAVE_TESTE_X", "") == ""
+
+
 def test_ler_chave_sidebar_vazio_nao_estoura():
     """Regressão: sidebar vazio (modelos) causava StreamlitAPIException,
     derrubando AS DUAS engines ao resolver o modelo."""
