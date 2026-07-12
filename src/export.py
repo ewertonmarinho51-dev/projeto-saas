@@ -2,17 +2,33 @@
 Exportação dos documentos aprovados para .docx e .pdf.
 
 Os textos gerados pela IA vêm em Markdown simples (títulos #/##/###,
-listas e negrito **texto**). Este módulo converte esse Markdown em
-documentos Word (python-docx) e PDF (fpdf2), individualmente, em arquivo
-único consolidado e em pacote .zip.
+listas e negrito **texto**). Este módulo converte esse Markdown em um
+DOCX ESTRUTURADO com os estilos institucionais dos documentos aprovados
+(Times New Roman 12, espaçamento 1,5, 6 pt após parágrafo, texto
+justificado, cláusulas numeradas em negrito, controle de linhas órfãs e
+título preso ao conteúdo). O PDF é obtido preferencialmente CONVERTENDO
+esse DOCX via LibreOffice — garantindo que DOCX e PDF tenham o mesmo
+conteúdo e a mesma formatação; sem LibreOffice no ambiente, cai para o
+renderizador fpdf2 (fonte Times), com aviso via motor_pdf().
 """
 
 import io
 import re
+import shutil
 import zipfile
 from datetime import date
 
 from .config import DOCUMENTOS, SEQUENCIA_DOCUMENTOS
+
+# Padrão institucional (medido nos documentos manuais aprovados)
+FONTE_CORPO = "Times New Roman"
+TAMANHO_CORPO = 12          # pt
+ESPACO_LINHAS = 1.5
+ESPACO_DEPOIS = 6           # pt após parágrafos
+MARGEM_SUP_CM = 2.5
+MARGEM_INF_CM = 2.5
+MARGEM_ESQ_CM = 2.0
+MARGEM_DIR_CM = 2.0
 
 # ---------------------------------------------------------------------------
 # Utilitários de parsing do Markdown simplificado
@@ -47,14 +63,98 @@ def _limpar_inline(texto: str) -> str:
 # ---------------------------------------------------------------------------
 # DOCX
 # ---------------------------------------------------------------------------
-def _docx_novo():
-    from docx import Document
+def _definir_fonte(estilo, nome: str, tamanho_pt: float, negrito: bool = False):
+    """Aplica a fonte também em rFonts hAnsi/cs (Word ignora só o ascii)."""
+    from docx.oxml.ns import qn
     from docx.shared import Pt
 
+    estilo.font.name = nome
+    estilo.font.size = Pt(tamanho_pt)
+    estilo.font.bold = negrito
+    rpr = estilo.element.get_or_add_rPr()
+    rfonts = rpr.find(qn("w:rFonts"))
+    if rfonts is None:
+        rfonts = rpr.makeelement(qn("w:rFonts"), {})
+        rpr.append(rfonts)
+    for attr in ("w:ascii", "w:hAnsi", "w:cs"):
+        rfonts.set(qn(attr), nome)
+
+
+def _novo_estilo(doc, nome: str, base: str = "Normal"):
+    from docx.enum.style import WD_STYLE_TYPE
+
+    try:
+        estilo = doc.styles[nome]
+    except KeyError:
+        estilo = doc.styles.add_style(nome, WD_STYLE_TYPE.PARAGRAPH)
+        if base:
+            estilo.base_style = doc.styles[base]
+    return estilo
+
+
+def _docx_novo():
+    """
+    Documento A4 com os ESTILOS INSTITUCIONAIS centralizados (nada de
+    formatação manual parágrafo a parágrafo):
+      GovDocs Corpo / Titulo / Clausula / Item 1..3 / Tabela / Nota / Assinatura.
+    """
+    from docx import Document
+    from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+    from docx.shared import Cm, Pt
+
     doc = Document()
-    estilo = doc.styles["Normal"]
-    estilo.font.name = "Calibri"
-    estilo.font.size = Pt(11)
+    secao = doc.sections[0]
+    secao.page_width, secao.page_height = Cm(21.0), Cm(29.7)  # A4
+    secao.top_margin, secao.bottom_margin = Cm(MARGEM_SUP_CM), Cm(MARGEM_INF_CM)
+    secao.left_margin, secao.right_margin = Cm(MARGEM_ESQ_CM), Cm(MARGEM_DIR_CM)
+
+    def _paragrafo(estilo, *, alinhamento=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                   depois=ESPACO_DEPOIS, linhas=ESPACO_LINHAS, recuo_cm=0.0,
+                   manter_com_proximo=False):
+        pf = estilo.paragraph_format
+        pf.alignment = alinhamento
+        pf.space_after = Pt(depois)
+        pf.space_before = Pt(0)
+        pf.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
+        pf.line_spacing = linhas
+        pf.widow_control = True            # sem linhas órfãs/viúvas
+        pf.keep_with_next = manter_com_proximo
+        if recuo_cm:
+            pf.left_indent = Cm(recuo_cm)
+
+    # Normal = corpo (herdado por tudo)
+    normal = doc.styles["Normal"]
+    _definir_fonte(normal, FONTE_CORPO, TAMANHO_CORPO)
+    _paragrafo(normal)
+
+    corpo = _novo_estilo(doc, "GovDocs Corpo")
+    _definir_fonte(corpo, FONTE_CORPO, TAMANHO_CORPO)
+    _paragrafo(corpo)
+
+    titulo = _novo_estilo(doc, "GovDocs Titulo")
+    _definir_fonte(titulo, FONTE_CORPO, 14, negrito=True)
+    _paragrafo(titulo, alinhamento=WD_ALIGN_PARAGRAPH.CENTER, depois=12,
+               manter_com_proximo=True)
+
+    clausula = _novo_estilo(doc, "GovDocs Clausula")
+    _definir_fonte(clausula, FONTE_CORPO, TAMANHO_CORPO, negrito=True)
+    _paragrafo(clausula, alinhamento=WD_ALIGN_PARAGRAPH.LEFT, depois=6,
+               manter_com_proximo=True)  # título nunca separa do 1º parágrafo
+
+    for nome, recuo in (("GovDocs Item 1", 0.75), ("GovDocs Item 2", 1.5),
+                        ("GovDocs Item 3", 2.25)):
+        item = _novo_estilo(doc, nome)
+        _definir_fonte(item, FONTE_CORPO, TAMANHO_CORPO)
+        _paragrafo(item, recuo_cm=recuo)
+
+    nota = _novo_estilo(doc, "GovDocs Nota")
+    _definir_fonte(nota, FONTE_CORPO, 10)
+    _paragrafo(nota, depois=4, linhas=1.0)
+
+    assin = _novo_estilo(doc, "GovDocs Assinatura")
+    _definir_fonte(assin, FONTE_CORPO, TAMANHO_CORPO)
+    _paragrafo(assin, alinhamento=WD_ALIGN_PARAGRAPH.CENTER, depois=0,
+               manter_com_proximo=True)  # bloco de assinatura não divide
     return doc
 
 
@@ -113,7 +213,10 @@ def _docx_runs_ricos(par, texto: str) -> None:
             _docx_hyperlink(par, seg["url"], seg["text"])
         elif seg["text"]:
             run = par.add_run(seg["text"])
-            run.bold = seg["bold"]
+            if seg["bold"]:
+                # só marca quando positivo: run.bold=False anularia o negrito
+                # herdado do estilo (ex.: títulos de cláusula)
+                run.bold = True
 
 
 def _docx_paragrafo_com_negrito(doc, texto: str, estilo: str | None = None):
@@ -121,6 +224,48 @@ def _docx_paragrafo_com_negrito(doc, texto: str, estilo: str | None = None):
     par = doc.add_paragraph(style=estilo)
     _docx_runs_ricos(par, texto)
     return par
+
+
+# parágrafos que começam com numeração hierárquica: 1.1. / 1.1.1. / 1.1.1.1.
+_RE_NIVEL = re.compile(r"^\s*\d{1,2}(\.\d{1,2}){1,3}\.?\s")
+
+
+def _estilo_do_paragrafo(texto: str) -> str:
+    """Estilo institucional conforme a profundidade da numeração do texto."""
+    if "____" in texto:
+        return "GovDocs Assinatura"
+    m = _RE_NIVEL.match(texto)
+    if not m:
+        return "GovDocs Corpo"
+    profundidade = m.group(0).count(".")  # 1.1.=2  1.1.1.=3  1.1.1.1.=4
+    return {2: "GovDocs Item 1", 3: "GovDocs Item 2"}.get(profundidade,
+                                                          "GovDocs Item 3")
+
+
+def _docx_formatar_tabela(tabela) -> None:
+    """Cabeçalho repetido por página, linha sem quebra e fonte do padrão."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt
+
+    for i, linha in enumerate(tabela.rows):
+        tr_pr = linha._tr.get_or_add_trPr()
+        if i == 0:  # repete o cabeçalho nas páginas seguintes
+            cab = OxmlElement("w:tblHeader")
+            cab.set(qn("w:val"), "true")
+            tr_pr.append(cab)
+        sem_quebra = OxmlElement("w:cantSplit")  # linha não divide entre páginas
+        tr_pr.append(sem_quebra)
+        for cel in linha.cells:
+            for par in cel.paragraphs:
+                pf = par.paragraph_format
+                pf.space_after = Pt(2)
+                pf.line_spacing = 1.0
+                for run in par.runs:
+                    run.font.name = FONTE_CORPO
+                    run.font.size = Pt(10)
+                    if i == 0:
+                        run.font.bold = True
 
 
 def _docx_inserir_markdown(doc, texto_md: str) -> None:
@@ -136,7 +281,9 @@ def _docx_inserir_markdown(doc, texto_md: str) -> None:
             if not re.match(r"^\|?[\s:|-]+\|?$", ln)  # descarta linha ---|---
         ]
         if linhas_tab:
-            tabela = doc.add_table(rows=len(linhas_tab), cols=len(linhas_tab[0]))
+            n_cols = max(len(l) for l in linhas_tab)
+            linhas_tab = [l + [""] * (n_cols - len(l)) for l in linhas_tab]
+            tabela = doc.add_table(rows=len(linhas_tab), cols=n_cols)
             tabela.style = "Table Grid"
             for i, linha in enumerate(linhas_tab):
                 for j, celula in enumerate(linha[: len(tabela.columns)]):
@@ -145,6 +292,7 @@ def _docx_inserir_markdown(doc, texto_md: str) -> None:
                         par.add_run(_limpar_inline(celula)).bold = True
                     else:
                         _docx_runs_ricos(par, celula)
+            _docx_formatar_tabela(tabela)
         tabela_buffer.clear()
 
     for linha in linhas:
@@ -153,16 +301,16 @@ def _docx_inserir_markdown(doc, texto_md: str) -> None:
             tabela_buffer.append(conteudo)
             continue
         descarregar_tabela()
-        if tipo == "h1":
-            doc.add_heading(_limpar_inline(conteudo), level=1)
-        elif tipo == "h2":
-            doc.add_heading(_limpar_inline(conteudo), level=2)
-        elif tipo == "h3":
-            doc.add_heading(_limpar_inline(conteudo), level=3)
+        if tipo in ("h1", "h2", "h3"):
+            # cláusulas numeradas em negrito, presas ao 1º parágrafo
+            _docx_paragrafo_com_negrito(
+                doc, _limpar_inline(conteudo), estilo="GovDocs Clausula")
         elif tipo == "item":
-            _docx_paragrafo_com_negrito(doc, conteudo, estilo="List Bullet")
+            _docx_paragrafo_com_negrito(doc, "•  " + conteudo,
+                                        estilo="GovDocs Item 1")
         elif tipo == "par":
-            _docx_paragrafo_com_negrito(doc, conteudo)
+            _docx_paragrafo_com_negrito(doc, conteudo,
+                                        estilo=_estilo_do_paragrafo(conteudo))
     descarregar_tabela()
 
 
@@ -210,7 +358,7 @@ def _docx_aplicar_branding(doc, branding: dict | None) -> None:
 def gerar_docx(titulo: str, texto_md: str, branding: dict | None = None) -> bytes:
     doc = _docx_novo()
     _docx_aplicar_branding(doc, branding)
-    doc.add_heading(titulo, level=0)
+    doc.add_paragraph(titulo.upper(), style="GovDocs Titulo")
     _docx_inserir_markdown(doc, texto_md)
     buffer = io.BytesIO()
     doc.save(buffer)
@@ -220,13 +368,16 @@ def gerar_docx(titulo: str, texto_md: str, branding: dict | None = None) -> byte
 def gerar_docx_consolidado(documentos: dict[str, str], branding: dict | None = None) -> bytes:
     doc = _docx_novo()
     _docx_aplicar_branding(doc, branding)
-    doc.add_heading("Documentos da Fase Preparatória — Lei nº 14.133/2021", level=0)
-    doc.add_paragraph(f"Dossiê gerado em {date.today().strftime('%d/%m/%Y')}.")
+    doc.add_paragraph("DOCUMENTOS DA FASE PREPARATÓRIA — LEI Nº 14.133/2021",
+                      style="GovDocs Titulo")
+    doc.add_paragraph(f"Dossiê gerado em {date.today().strftime('%d/%m/%Y')}.",
+                      style="GovDocs Nota")
     for doc_key in SEQUENCIA_DOCUMENTOS:
         if doc_key not in documentos:
             continue
         doc.add_page_break()
-        doc.add_heading(DOCUMENTOS[doc_key]["titulo"], level=1)
+        doc.add_paragraph(DOCUMENTOS[doc_key]["titulo"].upper(),
+                          style="GovDocs Titulo")
         _docx_inserir_markdown(doc, documentos[doc_key])
     buffer = io.BytesIO()
     doc.save(buffer)
@@ -234,7 +385,74 @@ def gerar_docx_consolidado(documentos: dict[str, str], branding: dict | None = N
 
 
 # ---------------------------------------------------------------------------
-# PDF
+# PDF — caminho principal: DOCX estilizado -> LibreOffice -> PDF
+# ---------------------------------------------------------------------------
+def motor_pdf() -> str:
+    """'libreoffice' (DOCX convertido — padrão institucional fiel) ou
+    'fpdf2' (fallback quando o LibreOffice não está no ambiente)."""
+    return "libreoffice" if (shutil.which("soffice") or
+                             shutil.which("libreoffice")) else "fpdf2"
+
+
+def _docx_em_pdf(docx_bytes: bytes) -> bytes | None:
+    """Converte DOCX em PDF com o LibreOffice; None se indisponível/falhar."""
+    import os
+    import subprocess
+    import tempfile
+
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice:
+        return None
+    with tempfile.TemporaryDirectory() as tmp:
+        entrada = os.path.join(tmp, "documento.docx")
+        with open(entrada, "wb") as fh:
+            fh.write(docx_bytes)
+        try:
+            subprocess.run(
+                [soffice, "--headless", "--convert-to", "pdf",
+                 "--outdir", tmp, entrada],
+                check=True, capture_output=True, timeout=120,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            return None
+        saida = os.path.join(tmp, "documento.pdf")
+        if not os.path.exists(saida):
+            return None
+        with open(saida, "rb") as fh:
+            return fh.read()
+
+
+def _pdf_aplicar_marca(pdf_bytes: bytes, branding: dict | None) -> bytes:
+    """Marca d'água (imagem translúcida ou texto) SOB o texto, via PyMuPDF."""
+    b = branding or {}
+    img_marca = _img_bytes(b, "marca_img")
+    texto_marca = (b.get("marca_dagua") or "").strip()
+    if not img_marca and not texto_marca:
+        return pdf_bytes
+    try:
+        import fitz  # PyMuPDF
+
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        for pagina in doc:
+            w, h = pagina.rect.width, pagina.rect.height
+            if img_marca:
+                lado = w * 0.70
+                rect = fitz.Rect((w - lado) / 2, h * 0.30,
+                                 (w + lado) / 2, h * 0.30 + lado * 0.6)
+                pagina.insert_image(rect, stream=img_marca, overlay=False)
+            else:
+                pagina.insert_text(
+                    fitz.Point(w * 0.18, h * 0.60), texto_marca,
+                    fontsize=48, rotate=90, color=(0.90, 0.90, 0.90),
+                    overlay=False,
+                )
+        return doc.tobytes()
+    except Exception:  # noqa: BLE001 — marca é acessório; nunca quebra o PDF
+        return pdf_bytes
+
+
+# ---------------------------------------------------------------------------
+# PDF — fallback fpdf2 (sem LibreOffice no ambiente)
 # ---------------------------------------------------------------------------
 # As fontes nativas do fpdf2 usam Latin-1; substituímos os caracteres
 # tipográficos comuns fora dessa tabela para não quebrar a exportação.
@@ -343,7 +561,7 @@ def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
         return
     n = max(len(l) for l in linhas)
     linhas = [l + [""] * (n - len(l)) for l in linhas]
-    pdf.set_font("Helvetica", "", 8)
+    pdf.set_font("Times", "", 9)
     with pdf.table(markdown=True, first_row_as_headings=True,
                    line_height=5, width=pdf.w - pdf.l_margin - pdf.r_margin) as tabela:
         for linha in linhas:
@@ -375,22 +593,22 @@ def _pdf_inserir_markdown(pdf, texto_md: str) -> None:
         if tipo == "vazio":
             pdf.ln(3)
         elif tipo == "h1":
-            pdf.set_font("Helvetica", "B", 14)
+            pdf.set_font("Times", "B", 13)
             pdf.multi_cell(largura, 7, limpo)
             pdf.ln(1)
         elif tipo == "h2":
-            pdf.set_font("Helvetica", "B", 12)
+            pdf.set_font("Times", "B", 12)
             pdf.multi_cell(largura, 6, limpo)
             pdf.ln(1)
         elif tipo == "h3":
-            pdf.set_font("Helvetica", "B", 11)
+            pdf.set_font("Times", "B", 12)
             pdf.multi_cell(largura, 6, limpo)
         elif tipo == "item":
-            pdf.set_font("Helvetica", "", 11)
-            pdf.multi_cell(largura, 5.5, "  -  " + rico, markdown=True)
+            pdf.set_font("Times", "", 12)
+            pdf.multi_cell(largura, 6.5, "  -  " + rico, markdown=True)
         else:
-            pdf.set_font("Helvetica", "", 11)
-            pdf.multi_cell(largura, 5.5, rico, markdown=True)
+            pdf.set_font("Times", "", 12)
+            pdf.multi_cell(largura, 6.5, rico, markdown=True)
     flush_tabela()
 
 
@@ -400,35 +618,50 @@ def _pdf_bytes(pdf) -> bytes:
 
 
 def gerar_pdf(titulo: str, texto_md: str, branding: dict | None = None) -> bytes:
+    """
+    PDF do documento. Caminho principal: DOCX estilizado -> LibreOffice
+    (mesmo conteúdo/formatação do DOCX, Times 12/1,5/6pt/justificado).
+    Fallback: renderizador fpdf2 (fonte Times nativa).
+    """
+    convertido = _docx_em_pdf(gerar_docx(titulo, texto_md, branding))
+    if convertido:
+        return _pdf_aplicar_marca(convertido, branding)
+
     pdf = _pdf_novo(branding)
     pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.multi_cell(pdf.w - 40, 8, _latin1_seguro(titulo),
-                  new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Times", "B", 14)
+    pdf.multi_cell(pdf.w - pdf.l_margin - pdf.r_margin, 8,
+                   _latin1_seguro(titulo.upper()), align="C",
+                   new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
     _pdf_inserir_markdown(pdf, texto_md)
     return _pdf_bytes(pdf)
 
 
 def gerar_pdf_consolidado(documentos: dict[str, str], branding: dict | None = None) -> bytes:
+    convertido = _docx_em_pdf(gerar_docx_consolidado(documentos, branding))
+    if convertido:
+        return _pdf_aplicar_marca(convertido, branding)
+
     pdf = _pdf_novo(branding)
     pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
+    pdf.set_font("Times", "B", 14)
+    largura = pdf.w - pdf.l_margin - pdf.r_margin
     pdf.multi_cell(
-        pdf.w - 40, 8,
-        _latin1_seguro("Documentos da Fase Preparatória - Lei nº 14.133/2021"),
-        new_x="LMARGIN", new_y="NEXT",
+        largura, 8,
+        _latin1_seguro("DOCUMENTOS DA FASE PREPARATÓRIA - LEI Nº 14.133/2021"),
+        align="C", new_x="LMARGIN", new_y="NEXT",
     )
-    pdf.set_font("Helvetica", "", 11)
-    pdf.multi_cell(pdf.w - 40, 6, f"Dossiê gerado em {date.today().strftime('%d/%m/%Y')}.",
-                  new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Times", "", 10)
+    pdf.multi_cell(largura, 6, f"Dossiê gerado em {date.today().strftime('%d/%m/%Y')}.",
+                   new_x="LMARGIN", new_y="NEXT")
     for doc_key in SEQUENCIA_DOCUMENTOS:
         if doc_key not in documentos:
             continue
         pdf.add_page()
-        pdf.set_font("Helvetica", "B", 15)
-        pdf.multi_cell(pdf.w - 40, 8, _latin1_seguro(DOCUMENTOS[doc_key]["titulo"]),
-                      new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Times", "B", 13)
+        pdf.multi_cell(largura, 8, _latin1_seguro(DOCUMENTOS[doc_key]["titulo"].upper()),
+                       align="C", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(3)
         _pdf_inserir_markdown(pdf, documentos[doc_key])
     return _pdf_bytes(pdf)

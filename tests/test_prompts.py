@@ -17,8 +17,9 @@ def test_system_prompt_tem_hierarquia_e_modelo():
     assert "pegue este documento como modelo" in sp.lower()
     # não transportar dados concretos de outro processo
     assert "NUNCA transporte" in sp or "PROIBIDO" in sp
-    # compacidade permitida
-    assert "compacto" in sp.lower() or "enxut" in sp.lower()
+    # sem menção à mecânica interna nos documentos + profundidade controlada
+    assert "NUNCA mencione" in sp
+    assert "Profundidade" in sp
 
 
 def test_memorando_entra_em_bloco_proprio():

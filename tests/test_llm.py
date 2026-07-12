@@ -165,7 +165,7 @@ def test_testar_conexao_ok(monkeypatch):
 
 
 def test_params_modelo_reasoning():
-    assert llm._params_modelo_openai("gpt-5-mini") == {"reasoning_effort": "minimal"}
+    assert llm._params_modelo_openai("gpt-5-mini") == {"reasoning_effort": "low"}
     assert llm._params_modelo_openai("o3-mini") == {"reasoning_effort": "low"}
     assert llm._params_modelo_openai("gpt-4o-mini") == {}
 

@@ -288,15 +288,61 @@ def _botao_voltar(meta: dict) -> None:
 # Etapa 5 — Conclusão e exportação
 # ---------------------------------------------------------------------------
 def render_sucesso() -> None:
+    from .. import validacao
+
     st.subheader("Processo concluído")
-    st.markdown(
-        "Os **quatro documentos da fase preparatória** foram elaborados e "
-        "aprovados. Baixe o dossiê completo ou os arquivos individuais."
-    )
 
     docs = st.session_state.documentos
     orgao = (st.session_state.dados.get("orgao") or "orgao").strip()
     prefixo = "".join(c if c.isalnum() else "-" for c in orgao)[:40].strip("-") or "dossie"
+
+    # ------------------------------------------------------------------
+    # Validação automática ANTES da emissão: pendências ([PREENCHER],
+    # marcadores internos etc.) BLOQUEIAM o download — devem ser resolvidas
+    # na revisão, nunca aparecer no PDF/DOCX definitivo.
+    # ------------------------------------------------------------------
+    achados = validacao.validar_todos(docs)
+    bloqueios = validacao.bloqueios(achados)
+    avisos = validacao.avisos(achados)
+
+    if bloqueios:
+        st.error(
+            f"**Emissão bloqueada — {len(bloqueios)} pendência(s) impedem o "
+            "documento final.** Volte à etapa do documento, resolva no editor "
+            "e aprove novamente."
+        )
+        for a in bloqueios:
+            st.markdown(f"- **{a['documento']}** — {a['mensagem']}  \n"
+                        f"  `…{a['trecho']}…`")
+        etapas_com_pendencia = sorted({
+            DOCUMENTOS[a["doc"]]["etapa"] for a in bloqueios if a["doc"] in DOCUMENTOS
+        })
+        if etapas_com_pendencia and st.button(
+            "Ir para o primeiro documento com pendência", type="primary",
+        ):
+            state.ir_para(etapas_com_pendencia[0])
+    if avisos:
+        with st.expander(f"Avisos de qualidade ({len(avisos)}) — não bloqueiam"):
+            for a in avisos:
+                st.markdown(f"- **{a['documento']}** — {a['mensagem']}")
+
+    registro = st.session_state.get("registro_geracoes") or []
+    if registro:
+        with st.expander("Registro técnico de geração (auditoria)"):
+            st.caption(
+                f"Motor de PDF ativo: **{export.motor_pdf()}** "
+                "(libreoffice = DOCX convertido, padrão institucional fiel)."
+            )
+            st.dataframe(registro, use_container_width=True)
+
+    if bloqueios:
+        return  # nada de downloads com pendência
+
+    st.markdown(
+        "Os **quatro documentos da fase preparatória** foram elaborados, "
+        "aprovados e validados. Baixe o dossiê completo ou os arquivos "
+        "individuais."
+    )
 
     # Identidade visual (cabeçalho/rodapé/marca d'água) definida pelo admin
     branding = None

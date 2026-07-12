@@ -89,8 +89,12 @@ def test_fluxo_completo_ate_sucesso():
     assert at.session_state["aprovados"] == {"dfd", "etp", "tr", "edital"}
     # planilha consolidada: valor global = 100 × 4500 = 450000
     assert at.session_state["dados"]["valor_estimado"] == 450000.0
-    corpo = " ".join(m.value for m in at.markdown)
-    assert "concluído" in corpo.lower()
+    assert any("concluído" in s.value.lower() for s in at.subheader)
+    # minutas demo contêm [PREENCHER] → a validação BLOQUEIA a emissão
+    # (pendências ficam na revisão, nunca no PDF/DOCX final)
+    assert any("bloqueada" in e.value.lower() for e in at.error)
+    rotulos_download = " ".join(getattr(b, "label", "") or "" for b in at.button)
+    assert "Baixar todos" not in rotulos_download
 
 
 def _dados_validos() -> dict:

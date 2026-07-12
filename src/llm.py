@@ -12,8 +12,10 @@ interface). Todos os erros de API (timeout, chave inválida, cota,
 bloqueio de conteúdo) viram mensagens amigáveis.
 """
 
+import logging
 import os
 import time
+from datetime import datetime
 
 import streamlit as st
 
@@ -41,6 +43,42 @@ class ErroGeracaoIA(Exception):
     def __init__(self, mensagem: str, detalhe: str = ""):
         super().__init__(mensagem)
         self.detalhe = detalhe
+
+
+# ---------------------------------------------------------------------------
+# Registro técnico de geração (auditoria) — NUNCA grava chave de API nem o
+# conteúdo dos documentos; apenas metadados sanitizados.
+# ---------------------------------------------------------------------------
+_log = logging.getLogger("govdocs.geracao")
+
+# metadados da última chamada bem-sucedida (tokens/modelo/id), preenchidos
+# pelos executores de chamada de cada motor
+_ultimo_uso: dict = {}
+
+
+def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
+                      erro: str = "", fallback: bool = False,
+                      processo_id: str | None = None) -> dict:
+    """Grava o registro no log do servidor e no histórico da sessão."""
+    registro = {
+        "quando": datetime.now().isoformat(timespec="seconds"),
+        "processo": processo_id or st.session_state.get("processo_id") or "(novo)",
+        "documento": doc_key,
+        "motor": motor,
+        "modelo": _ultimo_uso.get("modelo", ""),
+        "duracao_s": round(time.time() - inicio, 1),
+        "tokens_entrada": _ultimo_uso.get("tokens_entrada"),
+        "tokens_saida": _ultimo_uso.get("tokens_saida"),
+        "request_id": _ultimo_uso.get("request_id", ""),
+        "status": status,                      # "ok" | "falha"
+        "erro": (erro or "")[:300],            # sanitizado (sem chave/conteúdo)
+        "fallback": fallback,
+    }
+    _log.info("geracao %s", registro)
+    historico = st.session_state.setdefault("registro_geracoes", [])
+    historico.append(registro)
+    del historico[:-40]  # guarda os 40 últimos
+    return registro
 
 
 def _ler_chave(nome_secret: str, chave_sidebar: str) -> str:
@@ -218,13 +256,13 @@ def _params_modelo_openai(modelo: str) -> dict:
     """
     Parâmetros extras por família de modelo. Modelos de raciocínio consomem
     tokens 'pensando' antes de escrever — com prompt grande podem gastar todo
-    o orçamento no raciocínio e devolver conteúdo VAZIO. Usamos o menor esforço
-    disponível para sobrar tokens para o texto: gpt-5 aceita 'minimal';
-    a série o aceita 'low'.
+    o orçamento no raciocínio e devolver conteúdo VAZIO. Usamos esforço baixo
+    (qualidade com orçamento p/ texto); se ainda vier vazio, a troca de
+    modelo automática assume.
     """
     ml = modelo.lower()
     if ml.startswith("gpt-5"):
-        return {"reasoning_effort": "minimal"}
+        return {"reasoning_effort": "low"}
     if ml.startswith(("o1", "o3", "o4")):
         return {"reasoning_effort": "low"}
     return {}
@@ -257,6 +295,13 @@ def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
             if not texto:
                 motivo = getattr(escolha, "finish_reason", "?")
                 raise _RespostaVazia(f"conteúdo vazio (finish_reason={motivo})")
+            uso = getattr(resposta, "usage", None)
+            _ultimo_uso.update(
+                modelo=modelo,
+                tokens_entrada=getattr(uso, "prompt_tokens", None),
+                tokens_saida=getattr(uso, "completion_tokens", None),
+                request_id=getattr(resposta, "id", "") or "",
+            )
             return texto
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
@@ -313,12 +358,19 @@ def _gemini_uma_chamada(cliente, types, modelo: str, system_prompt: str,
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
                     temperature=0.3,
-                    max_output_tokens=8192,
+                    max_output_tokens=16384,
                 ),
             )
             texto = (resposta.text or "").strip()
             if not texto:
                 raise _RespostaVazia("conteúdo vazio")
+            uso = getattr(resposta, "usage_metadata", None)
+            _ultimo_uso.update(
+                modelo=modelo,
+                tokens_entrada=getattr(uso, "prompt_token_count", None),
+                tokens_saida=getattr(uso, "candidates_token_count", None),
+                request_id=getattr(resposta, "response_id", "") or "",
+            )
             return texto
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
@@ -373,8 +425,13 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
     from . import planilha
 
     if st.session_state.get("modo_demo", False):
-        return planilha.injetar_tabela(_gerar_demo(doc_key, dados),
-                                       dados.get("itens"))
+        # Fallback EXPLÍCITO (nunca silencioso): só ocorre com o toggle
+        # "Modo Demonstração" ligado pelo usuário; registrado como tal.
+        inicio = time.time()
+        texto = planilha.injetar_tabela(_gerar_demo(doc_key, dados),
+                                        dados.get("itens"))
+        registrar_geracao(doc_key, "demo", inicio, "ok", fallback=True)
+        return texto
 
     chave_openai = obter_openai_key()
     chave_gemini = obter_api_key()
@@ -393,12 +450,17 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
 
     user_prompt += rag.montar_bloco_referencias(dados, doc_key)
 
-    # Motor principal: OpenAI; fallback automático: Gemini
+    # Motor principal: OpenAI; fallback automático (e AVISADO): Gemini.
+    # Toda geração — sucesso ou falha — entra no registro técnico.
     texto = ""
     if chave_openai:
+        inicio = time.time()
         try:
             texto = _chamar_openai(system_prompt, user_prompt, chave_openai)
+            registrar_geracao(doc_key, "openai", inicio, "ok")
         except ErroGeracaoIA as erro:
+            registrar_geracao(doc_key, "openai", inicio, "falha",
+                              erro=getattr(erro, "detalhe", "") or str(erro))
             if not chave_gemini:
                 raise
             st.warning(
@@ -406,7 +468,16 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
                 f"{erro}\n\n`{getattr(erro, 'detalhe', '')}`",
             )
     if not texto:
-        texto = _chamar_gemini(system_prompt, user_prompt, chave_gemini)
+        inicio = time.time()
+        try:
+            texto = _chamar_gemini(system_prompt, user_prompt, chave_gemini)
+            registrar_geracao(doc_key, "gemini", inicio, "ok",
+                              fallback=bool(chave_openai))
+        except ErroGeracaoIA as erro:
+            registrar_geracao(doc_key, "gemini", inicio, "falha",
+                              erro=getattr(erro, "detalhe", "") or str(erro),
+                              fallback=bool(chave_openai))
+            raise
     # Injeta a tabela real da planilha (grande) no lugar da marca [[TABELA_ITENS]].
     return planilha.injetar_tabela(texto, dados.get("itens"))
 
