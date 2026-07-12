@@ -95,3 +95,14 @@ def test_pdf_consolidado_mesmo_conteudo_do_docx():
 
     texto = "".join(p.get_text() for p in fitz.open(stream=pdf, filetype="pdf"))
     assert "DO OBJETO" in texto and "Caneta" in texto
+
+
+def test_fallback_fpdf2_linha_gigante_nao_estoura(monkeypatch):
+    """Regressão do crash em produção: fpdf2 'row too high' com descrição
+    enorme — deve degradar (fonte menor/parágrafos), nunca levantar."""
+    monkeypatch.setattr(export, "_docx_em_pdf", lambda b: None)  # força fallback
+    descricao = "ESPECIFICAÇÃO: " + "texto muito longo de item, " * 150
+    md = ("## 5. ESTIMATIVA\n\n| Código | Descrição | Qtd |\n|---|---|---|\n"
+          f"| 001 | {descricao} | 100 |\n")
+    pdf = export.gerar_pdf_consolidado({"dfd": md})
+    assert pdf.startswith(b"%PDF")

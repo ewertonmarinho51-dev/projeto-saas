@@ -551,7 +551,15 @@ def _pdf_novo(branding: dict | None = None):
 
 
 def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
-    """Renderiza uma tabela Markdown como tabela real do fpdf2 (com links)."""
+    """
+    Renderiza uma tabela Markdown como tabela real do fpdf2 (com links).
+
+    O fpdf2 NÃO divide uma linha entre páginas: uma célula muito longa
+    (ex.: descrição de item vinda de planilha) estoura a altura da página
+    e levanta ValueError ("row ... too high"). Estratégia: tenta fontes
+    decrescentes; em último caso, degrada para parágrafos "Rótulo: valor"
+    — o download nunca pode quebrar.
+    """
     linhas = [
         [_latin1_seguro(c.strip()) for c in ln.strip("|").split("|")]
         for ln in linhas_tab
@@ -561,13 +569,32 @@ def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
         return
     n = max(len(l) for l in linhas)
     linhas = [l + [""] * (n - len(l)) for l in linhas]
-    pdf.set_font("Times", "", 9)
-    with pdf.table(markdown=True, first_row_as_headings=True,
-                   line_height=5, width=pdf.w - pdf.l_margin - pdf.r_margin) as tabela:
-        for linha in linhas:
-            fpdf_linha = tabela.row()
-            for celula in linha:
-                fpdf_linha.cell(celula)
+    largura = pdf.w - pdf.l_margin - pdf.r_margin
+
+    for fonte_pt, altura_linha in ((9, 5), (7, 3.5), (6, 3)):
+        try:
+            pdf.set_font("Times", "", fonte_pt)
+            with pdf.table(markdown=True, first_row_as_headings=True,
+                           line_height=altura_linha, width=largura) as tabela:
+                for linha in linhas:
+                    fpdf_linha = tabela.row()
+                    for celula in linha:
+                        fpdf_linha.cell(celula)
+            pdf.ln(2)
+            return
+        except ValueError:
+            continue  # linha alta demais até para esta fonte — reduz e tenta
+
+    # Último recurso: conteúdo em parágrafos (nunca perde dados nem quebra)
+    cabecalho = linhas[0]
+    pdf.set_font("Times", "", 10)
+    for linha in linhas[1:]:
+        texto = "; ".join(
+            f"{cab}: {val}" for cab, val in zip(cabecalho, linha) if val
+        )
+        pdf.multi_cell(largura, 5, _latin1_seguro(texto),
+                       new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(1)
     pdf.ln(2)
 
 
