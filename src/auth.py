@@ -109,10 +109,13 @@ def criar_usuario(nome: str, login: str, senha: str, papel: str) -> dict:
 
 def autenticar(login: str, senha: str) -> dict:
     """Valida credenciais e retorna o usuário (sem o hash)."""
+    # select("*") em vez de lista fixa: o dicionário do usuário carrega as
+    # colunas de vínculo institucional (tenant_id/secretaria_id) quando as
+    # migrações 0006/0007 estão aplicadas — e continua funcionando antes.
     try:
         resposta = (
             _tabela()
-            .select("id, nome, login, papel, ativo, senha_hash")
+            .select("*")
             .eq("login", login.strip().lower())
             .limit(1)
             .execute()
@@ -131,14 +134,17 @@ def autenticar(login: str, senha: str) -> dict:
 
 def listar_usuarios() -> list[dict]:
     try:
-        return (
+        usuarios = (
             _tabela()
-            .select("id, nome, login, papel, ativo, criado_em")
+            .select("*")
             .order("criado_em")
             .execute()
         ).data or []
     except Exception as exc:  # noqa: BLE001
         raise ErroAuth(f"Falha ao listar usuários: {exc}") from exc
+    for usuario in usuarios:
+        usuario.pop("senha_hash", None)
+    return usuarios
 
 
 def atualizar_usuario(usuario_id: str, **campos) -> None:
@@ -157,6 +163,17 @@ def atualizar_usuario(usuario_id: str, **campos) -> None:
 # ---------------------------------------------------------------------------
 # Sessão / permissões
 # ---------------------------------------------------------------------------
+def entrar(usuario: dict) -> None:
+    """
+    Registra o usuário na sessão e deriva o contexto institucional do
+    VÍNCULO dele (tenant; a secretaria fica no próprio dicionário) —
+    nunca de um campo livre do frontend (Fase 2 da matriz).
+    """
+    st.session_state.usuario = usuario
+    if usuario.get("tenant_id"):
+        st.session_state.tenant_id = usuario["tenant_id"]
+
+
 def usuario_logado() -> dict | None:
     return st.session_state.get("usuario")
 
@@ -188,6 +205,7 @@ def eh_admin() -> bool:
 
 def sair() -> None:
     st.session_state.usuario = None
+    st.session_state.tenant_id = None
     # limpa o processo em andamento da sessão anterior
     st.session_state.dados = {}
     st.session_state.documentos = {}

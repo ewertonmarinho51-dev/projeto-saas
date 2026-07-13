@@ -59,7 +59,7 @@ def render_bootstrap_admin() -> None:
         try:
             usuario = auth.criar_usuario(nome, login, senha, "admin")
             usuario.pop("senha_hash", None)
-            st.session_state.usuario = usuario
+            auth.entrar(usuario)
             st.rerun()
         except auth.ErroAuth as erro:
             st.error(str(erro))
@@ -78,7 +78,7 @@ def render_login() -> None:
         )
     if enviado:
         try:
-            st.session_state.usuario = auth.autenticar(login, senha)
+            auth.entrar(auth.autenticar(login, senha))
             st.rerun()
         except auth.ErroAuth as erro:
             st.error(str(erro))

@@ -8,7 +8,7 @@ aprovações) vive em st.session_state, inicializado aqui.
 
 import streamlit as st
 
-from . import db
+from . import contexto, db
 from .config import SEQUENCIA_DOCUMENTOS
 
 
@@ -46,6 +46,7 @@ def autosalvar() -> None:
             st.session_state.aprovados,
             st.session_state.etapa,
             usuario_id=usuario.get("id"),
+            secretaria_id=contexto.secretaria_para_processo(),
         )
     except db.ErroBanco as erro:
         st.warning(f"Progresso não salvo no banco: {erro}")

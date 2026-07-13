@@ -7,7 +7,7 @@ Telas de cada etapa do wizard:
 
 import streamlit as st
 
-from .. import db, export, planilha, rag, state
+from .. import contexto, db, export, planilha, rag, state
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
@@ -344,23 +344,45 @@ def render_sucesso() -> None:
         "individuais."
     )
 
-    # Identidade visual (cabeçalho/rodapé/marca d'água) definida pelo admin
+    # Identidade visual (cabeçalho/rodapé/marca d'água). Com a flag da
+    # Fase 2 ligada, ela é resolvida pelo VÍNCULO do usuário (secretaria >
+    # município) — o servidor não escolhe timbrado. Com a flag desligada,
+    # mantém a seleção manual antiga (resolvedor roda em shadow mode).
     branding = None
     if db.disponivel():
-        try:
-            orgaos = db.listar_orgaos()
-        except db.ErroBanco:
-            orgaos = []
-        if orgaos:
-            rotulos = {o["orgao"]: o for o in orgaos}
-            escolha = st.selectbox(
-                "Identidade visual dos arquivos",
-                ["Sem identidade visual", *rotulos],
-                index=1,  # a padrão vem primeiro na listagem
-                help="Cabeçalho e rodapé em todas as páginas; marca d'água no PDF.",
-            )
-            if escolha != "Sem identidade visual":
-                branding = rotulos[escolha]
+        resolvido = contexto.identidade_para_exportacao()
+        if resolvido is not None:
+            branding, origem = resolvido
+            if branding is not None:
+                rotulo_origem = {
+                    "secretaria": "identidade da sua secretaria",
+                    "municipio": "identidade padrão do município",
+                }.get(origem, origem)
+                st.caption(
+                    "Identidade visual aplicada automaticamente: "
+                    f"**{branding.get('nome') or branding.get('orgao') or ''}** "
+                    f"({rotulo_origem})."
+                )
+            else:
+                st.caption(
+                    "Nenhuma identidade visual cadastrada para o seu vínculo; "
+                    "os arquivos saem sem timbrado."
+                )
+        else:
+            try:
+                orgaos = db.listar_orgaos()
+            except db.ErroBanco:
+                orgaos = []
+            if orgaos:
+                rotulos = {o["orgao"]: o for o in orgaos}
+                escolha = st.selectbox(
+                    "Identidade visual dos arquivos",
+                    ["Sem identidade visual", *rotulos],
+                    index=1,  # a padrão vem primeiro na listagem
+                    help="Cabeçalho e rodapé em todas as páginas; marca d'água no PDF.",
+                )
+                if escolha != "Sem identidade visual":
+                    branding = rotulos[escolha]
 
     st.markdown("#### Dossiê completo (arquivo único)")
     col_pdf, col_docx = st.columns(2)

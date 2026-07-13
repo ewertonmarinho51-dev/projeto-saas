@@ -244,17 +244,25 @@ def buscar_referencias(consulta: str, qtd: int = RAG_TOP_K) -> list[dict]:
     cliente = db._cliente()  # noqa: SLF001
 
     embedding = _gerar_embeddings([consulta], para_consulta=True)
+    if embedding:
+        funcao = "buscar_chunks_vetorial"
+        params = {"query_embedding": embedding[0], "qtd": qtd}
+    else:
+        funcao = "buscar_chunks_textual"
+        params = {"consulta": consulta, "qtd": qtd}
     try:
-        if embedding:
+        # Fase 2: busca restrita ao tenant do contexto da sessão. Antes da
+        # migração 0007 a função não tem o parâmetro `tenant` — o PostgREST
+        # devolve erro citando-o e a chamada é repetida na forma antiga
+        # (comportamento global de tenant único, idêntico ao de hoje).
+        try:
             resposta = cliente.rpc(
-                "buscar_chunks_vetorial",
-                {"query_embedding": embedding[0], "qtd": qtd},
+                funcao, {**params, "tenant": db.tenant_atual()}
             ).execute()
-        else:
-            resposta = cliente.rpc(
-                "buscar_chunks_textual",
-                {"consulta": consulta, "qtd": qtd},
-            ).execute()
+        except Exception as exc:  # noqa: BLE001
+            if "tenant" not in str(exc).lower():
+                raise
+            resposta = cliente.rpc(funcao, params).execute()
         return resposta.data or []
     except Exception as exc:  # noqa: BLE001
         raise ErroRAG(f"Falha na busca da base de conhecimento: {exc}") from exc

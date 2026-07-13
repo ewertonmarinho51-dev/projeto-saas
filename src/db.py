@@ -70,6 +70,7 @@ def salvar_processo(
     aprovados: set,
     etapa: int,
     usuario_id: str | None = None,
+    secretaria_id: str | None = None,
 ) -> str:
     """Cria ou atualiza o processo e retorna seu id (uuid)."""
     registro = {
@@ -82,6 +83,11 @@ def salvar_processo(
     }
     if usuario_id:
         registro["usuario_id"] = usuario_id
+    if secretaria_id:
+        # Fase 2 (flag_secretarias): vínculo institucional do processo.
+        # Só chega preenchido com a flag ligada — que pressupõe a
+        # migração 0007 aplicada (coluna existente).
+        registro["secretaria_id"] = secretaria_id
     try:
         tabela = _cliente().table("processos")
         if processo_id:
@@ -122,9 +128,9 @@ TENANT_PADRAO = "11111111-1111-1111-1111-111111111111"
 
 def tenant_atual() -> str:
     """
-    Tenant do contexto da sessão. Fase 1: sempre o tenant padrão.
-    Fase 2: derivado do VÍNCULO do usuário autenticado — nunca de campo
-    livre vindo do frontend.
+    Tenant do contexto da sessão: derivado do VÍNCULO do usuário
+    autenticado no login (auth.entrar) — nunca de campo livre vindo do
+    frontend. Sem vínculo/login (modo aberto, CI): tenant padrão.
     """
     return st.session_state.get("tenant_id") or TENANT_PADRAO
 
@@ -185,6 +191,15 @@ def salvar_config(chave: str, valor: str) -> None:
         raise _traduzir_erro(exc) from exc
 
 
+def flag_ativa(nome: str) -> bool:
+    """
+    Feature flag da matriz de compatibilidade: chave `flag_<nome>` em
+    config_app. Default OFF (sem banco, sem registro ou valor falso);
+    rollback de uma fase = desligar a flag.
+    """
+    return obter_config(f"flag_{nome}").lower() in ("1", "true", "on", "sim")
+
+
 # ---------------------------------------------------------------------------
 # Identidade visual por órgão (cabeçalho, rodapé, marca d'água)
 # ---------------------------------------------------------------------------
@@ -208,6 +223,86 @@ def salvar_orgao(registro: dict, orgao_id: str | None = None) -> None:
             ).execute()
         if orgao_id:
             tabela.update(registro).eq("id", orgao_id).execute()
+        else:
+            resposta = tabela.insert(registro).execute()
+            orgao_id = ((resposta.data or [{}])[0]).get("id")
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+    _espelhar_orgao_em_secretaria(registro, orgao_id)
+
+
+def _espelhar_orgao_em_secretaria(registro: dict, orgao_id: str | None) -> None:
+    """
+    Fase 2: mantém `secretarias` sincronizada com o legado `config_orgaos`
+    (a aba Identidade visual continua sendo o único ponto de captura).
+    Best-effort: antes da migração 0007 a tabela não existe e o espelho é
+    silenciosamente ignorado — o fluxo antigo nunca quebra por causa dele.
+    """
+    if not orgao_id:
+        return
+    campos_visuais = (
+        "cabecalho", "rodape", "marca_dagua", "cabecalho_img",
+        "rodape_img", "marca_img", "cabecalho_pct", "rodape_pct",
+    )
+    espelho = {k: v for k, v in registro.items() if k in campos_visuais}
+    if registro.get("orgao"):
+        espelho["nome"] = registro["orgao"]
+    if "padrao" in registro:
+        espelho["padrao"] = bool(registro["padrao"])
+    try:
+        tabela = _cliente().table("secretarias")
+        if espelho.get("padrao"):
+            tabela.update({"padrao": False}).eq(
+                "tenant_id", tenant_atual()
+            ).execute()
+        existentes = (
+            tabela.select("id").eq("origem_orgao_id", orgao_id).limit(1).execute()
+        )
+        if existentes.data:
+            tabela.update(espelho).eq("id", existentes.data[0]["id"]).execute()
+        else:
+            tabela.insert({
+                **espelho,
+                "nome": espelho.get("nome") or "Identidade sem nome",
+                "tenant_id": tenant_atual(),
+                "origem_orgao_id": orgao_id,
+            }).execute()
+    except Exception:  # noqa: BLE001 — migração 0007 ausente: segue sem espelho
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Secretarias (Fase 2 — unidades do município; ver src/contexto.py)
+# ---------------------------------------------------------------------------
+def listar_secretarias(incluir_inativas: bool = False) -> list[dict]:
+    """Secretarias do tenant atual (padrão primeiro, depois por nome)."""
+    try:
+        consulta = (
+            _cliente().table("secretarias").select("*")
+            .eq("tenant_id", tenant_atual())
+        )
+        if not incluir_inativas:
+            consulta = consulta.eq("ativo", True)
+        return (
+            consulta.order("padrao", desc=True).order("nome").execute()
+        ).data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def salvar_secretaria(registro: dict, secretaria_id: str | None = None) -> None:
+    """Cria/atualiza secretaria; padrao=True desmarca as demais do tenant."""
+    try:
+        tabela = _cliente().table("secretarias")
+        registro = dict(registro)
+        if not secretaria_id:
+            registro.setdefault("tenant_id", tenant_atual())
+        if registro.get("padrao"):
+            tabela.update({"padrao": False}).eq(
+                "tenant_id", tenant_atual()
+            ).execute()
+        if secretaria_id:
+            tabela.update(registro).eq("id", secretaria_id).execute()
         else:
             tabela.insert(registro).execute()
     except Exception as exc:  # noqa: BLE001

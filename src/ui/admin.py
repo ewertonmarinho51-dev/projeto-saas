@@ -3,18 +3,20 @@ Página "Administração" (exclusiva do papel admin):
   - Usuários: criar contas, alterar papel, ativar/desativar, trocar senha
   - Chaves de IA: OPENAI_API_KEY / GOOGLE_API_KEY e modelos
   - Identidade visual: cabeçalho, rodapé e marca d'água por órgão
+  - Secretarias: unidades do município, vínculo dos usuários e a flag
+    da resolução automática de contexto (Fase 2)
 """
 
 import streamlit as st
 
-from .. import auth, branding, db, llm
+from .. import auth, branding, contexto, db, llm
 from ..llm import motor_ativo
 
 
 def render_admin() -> None:
     st.subheader("Administração")
-    aba_usuarios, aba_chaves, aba_identidade = st.tabs(
-        ["Usuários", "Chaves de IA", "Identidade visual"]
+    aba_usuarios, aba_chaves, aba_identidade, aba_secretarias = st.tabs(
+        ["Usuários", "Chaves de IA", "Identidade visual", "Secretarias"]
     )
     with aba_usuarios:
         _render_usuarios()
@@ -22,6 +24,8 @@ def render_admin() -> None:
         _render_chaves()
     with aba_identidade:
         _render_identidade()
+    with aba_secretarias:
+        _render_secretarias()
 
 
 # ---------------------------------------------------------------------------
@@ -325,4 +329,134 @@ def _render_identidades_cadastradas() -> None:
                 db.excluir_orgao(o["id"])
                 st.rerun()
             except db.ErroBanco as erro:
+                st.error(str(erro))
+
+
+# ---------------------------------------------------------------------------
+# Secretarias e contexto institucional (Fase 2)
+# ---------------------------------------------------------------------------
+def _render_secretarias() -> None:
+    st.caption(
+        "Secretarias são as unidades do município. Cada usuário pode ser "
+        "vinculado a uma; com a resolução automática ligada, o timbrado dos "
+        "documentos e o registro do processo passam a seguir esse vínculo "
+        "(secretaria com identidade própria; senão, a identidade padrão do "
+        "município). Identidades capturadas na aba ao lado aparecem aqui "
+        "automaticamente."
+    )
+
+    try:
+        secretarias = db.listar_secretarias(incluir_inativas=True)
+    except db.ErroBanco as erro:
+        st.error(str(erro))
+        st.info(
+            "Se a tabela ainda não existe, aplique a migração "
+            "`supabase/migrations/0007_secretarias_e_contexto.sql` no "
+            "SQL Editor do Supabase (exige a 0006 aplicada antes)."
+        )
+        return
+
+    # Flag da Fase 2 — rollback imediato: desligar
+    flag_atual = db.flag_ativa(contexto.FLAG_SECRETARIAS)
+    ligada = st.toggle(
+        "Resolução automática de contexto institucional",
+        value=flag_atual,
+        help="Ligada: identidade visual resolvida pelo vínculo do usuário "
+        "(sem escolha manual na exportação) e processos gravados com a "
+        "secretaria. Desligada: comportamento anterior; a resolução roda "
+        "apenas em modo sombra (logs).",
+    )
+    if ligada != flag_atual:
+        try:
+            db.salvar_config(f"flag_{contexto.FLAG_SECRETARIAS}", "1" if ligada else "")
+            st.rerun()
+        except db.ErroBanco as erro:
+            st.error(str(erro))
+
+    with st.form("form_nova_secretaria", clear_on_submit=True):
+        st.markdown("##### Nova secretaria")
+        col_nome, col_sigla = st.columns([3, 1])
+        nome = col_nome.text_input("Nome", placeholder="Ex.: Secretaria Municipal de Educação")
+        sigla = col_sigla.text_input("Sigla", placeholder="Ex.: SEMED")
+        if st.form_submit_button("Criar secretaria", type="primary",
+                                 use_container_width=True):
+            if not nome.strip():
+                st.error("Informe o nome da secretaria.")
+            else:
+                try:
+                    db.salvar_secretaria(
+                        {"nome": nome.strip(), "sigla": sigla.strip()}
+                    )
+                    st.success(f"Secretaria '{nome.strip()}' criada.")
+                    st.rerun()
+                except db.ErroBanco as erro:
+                    st.error(str(erro))
+
+    st.divider()
+    st.markdown("##### Secretarias cadastradas")
+    if not secretarias:
+        st.caption(
+            "Nenhuma secretaria cadastrada. Crie acima ou salve uma "
+            "identidade visual (aba ao lado) para gerar a primeira."
+        )
+    for s in secretarias:
+        col_info, col_padrao, col_ativo = st.columns([4, 1.6, 1.4])
+        etiquetas = []
+        if s.get("padrao"):
+            etiquetas.append("identidade padrão do município")
+        if not s.get("ativo", True):
+            etiquetas.append("desativada")
+        identidade = (
+            "identidade própria" if contexto.tem_identidade_propria(s)
+            else "herda a identidade padrão"
+        )
+        sufixo = f" · {' · '.join(etiquetas)}" if etiquetas else ""
+        sufixo_sigla = f" ({s['sigla']})" if s.get("sigla") else ""
+        col_info.markdown(f"**{s['nome']}{sufixo_sigla}**  \n{identidade}{sufixo}")
+        if not s.get("padrao") and contexto.tem_identidade_propria(s):
+            if col_padrao.button("Tornar padrão", key=f"sec_padrao_{s['id']}",
+                                 use_container_width=True):
+                try:
+                    db.salvar_secretaria({"padrao": True}, s["id"])
+                    st.rerun()
+                except db.ErroBanco as erro:
+                    st.error(str(erro))
+        rotulo = "Desativar" if s.get("ativo", True) else "Reativar"
+        if col_ativo.button(rotulo, key=f"sec_ativo_{s['id']}",
+                            use_container_width=True):
+            try:
+                db.salvar_secretaria({"ativo": not s.get("ativo", True)}, s["id"])
+                st.rerun()
+            except db.ErroBanco as erro:
+                st.error(str(erro))
+
+    st.divider()
+    st.markdown("##### Vínculo dos usuários")
+    st.caption(
+        "O vínculo define a secretaria dos processos e o timbrado aplicado "
+        "para cada usuário. Sem vínculo, vale a identidade padrão do município."
+    )
+    try:
+        usuarios = auth.listar_usuarios()
+    except auth.ErroAuth as erro:
+        st.error(str(erro))
+        return
+    ativas = [s for s in secretarias if s.get("ativo", True)]
+    opcoes = {s["id"]: s["nome"] for s in ativas}
+    ids = [None, *opcoes]
+    for u in usuarios:
+        col_u, col_s = st.columns([2.5, 3])
+        col_u.markdown(f"**{u['nome']}**  \n`{u['login']}`")
+        atual = u.get("secretaria_id")
+        vinculo = col_s.selectbox(
+            "Secretaria", ids,
+            index=ids.index(atual) if atual in ids else 0,
+            key=f"vinculo_{u['id']}", label_visibility="collapsed",
+            format_func=lambda i: "— sem vínculo —" if i is None else opcoes[i],
+        )
+        if vinculo != atual:
+            try:
+                auth.atualizar_usuario(u["id"], secretaria_id=vinculo)
+                st.rerun()
+            except auth.ErroAuth as erro:
                 st.error(str(erro))
