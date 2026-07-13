@@ -20,7 +20,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from . import blocos, db, validacao
+from . import blocos, db, perfis, validacao
 
 FLAG_ACHADOS = "achados_estruturados"
 
@@ -171,20 +171,26 @@ def _classificar(mensagem: str) -> dict:
     return _PADRAO_DESCONHECIDO
 
 
-def caminhos_bloqueados(blocos_doc: list[dict]) -> list[str]:
+def caminhos_bloqueados(doc_key: str, blocos_doc: list[dict]) -> list[str]:
     """
-    Caminhos que a IA nunca pode alterar. Nesta etapa: cláusulas de
-    assinatura/equipe (quem assina não é decisão de máquina). As
-    cláusulas FIXED_LOCKED por perfil entram na Etapa 4.
+    Caminhos que a IA nunca pode alterar:
+      - cláusulas FIXED_LOCKED do perfil do documento (perfis.py);
+      - cláusulas de assinatura/equipe pelo título (heurística que cobre
+        documentos fora do perfil — quem assina não é decisão de máquina).
     """
-    bloqueados: list[str] = []
+    numeros: set[int] = {
+        n for n, tipo in perfis.clausulas_fixas(doc_key).items()
+        if tipo == "LOCKED"
+    }
     for bloco in blocos_doc:
         if bloco["tipo"] != "titulo":
             continue
         titulo = bloco["conteudo"].upper()
         if "ASSINATURA" in titulo or "EQUIPE DE PLANEJAMENTO" in titulo:
-            bloqueados.extend(
-                blocos.caminhos_da_clausula(blocos_doc, bloco["clausula"]))
+            numeros.add(bloco["clausula"])
+    bloqueados: list[str] = []
+    for numero in sorted(numeros):
+        bloqueados.extend(blocos.caminhos_da_clausula(blocos_doc, numero))
     return bloqueados
 
 
@@ -223,7 +229,7 @@ def estruturar(achados_brutos: list[dict],
         regra = _classificar(achado["mensagem"])
         blocos_doc = por_doc.get(achado["doc"], [])
         permitidos = _caminhos_permitidos(achado, regra, blocos_doc)
-        bloqueados = caminhos_bloqueados(blocos_doc)
+        bloqueados = caminhos_bloqueados(achado["doc"], blocos_doc)
         permitidos = [p for p in permitidos if p not in bloqueados]
         auto = bool(regra["auto"] and permitidos)
         finding = {
