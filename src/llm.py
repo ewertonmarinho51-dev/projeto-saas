@@ -78,6 +78,11 @@ def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
     historico = st.session_state.setdefault("registro_geracoes", [])
     historico.append(registro)
     del historico[:-40]  # guarda os 40 últimos
+    # Persistência (tabela `geracoes`, migração 0006) — best-effort: a
+    # auditoria nunca pode derrubar a geração.
+    from . import db
+
+    db.registrar_geracao_bd(registro)
     return registro
 
 

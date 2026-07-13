@@ -114,6 +114,50 @@ def listar_processos(limite: int = 20, usuario_id: str | None = None) -> list[di
 
 
 # ---------------------------------------------------------------------------
+# Multi-tenant (Fase 1 — fundação; ver docs/matriz-compatibilidade.md)
+# ---------------------------------------------------------------------------
+# Tenant padrão = município atual (uuid fixo da migração 0006).
+TENANT_PADRAO = "11111111-1111-1111-1111-111111111111"
+
+
+def tenant_atual() -> str:
+    """
+    Tenant do contexto da sessão. Fase 1: sempre o tenant padrão.
+    Fase 2: derivado do VÍNCULO do usuário autenticado — nunca de campo
+    livre vindo do frontend.
+    """
+    return st.session_state.get("tenant_id") or TENANT_PADRAO
+
+
+def registrar_geracao_bd(registro: dict) -> None:
+    """
+    Persiste o registro técnico de geração em `geracoes` (migração 0006).
+    Best-effort: auditoria NUNCA pode derrubar uma geração — sem banco ou
+    sem a tabela (migração ainda não aplicada), falha em silêncio.
+    """
+    if not disponivel():
+        return
+    processo = registro.get("processo") or ""
+    try:
+        _cliente().table("geracoes").insert({
+            "tenant_id": tenant_atual(),
+            "processo_id": processo if "-" in str(processo) else None,
+            "documento": registro.get("documento", ""),
+            "motor": registro.get("motor", ""),
+            "modelo": registro.get("modelo", ""),
+            "duracao_s": registro.get("duracao_s"),
+            "tokens_entrada": registro.get("tokens_entrada"),
+            "tokens_saida": registro.get("tokens_saida"),
+            "request_id": registro.get("request_id", ""),
+            "status": registro.get("status", ""),
+            "erro": registro.get("erro", ""),
+            "fallback": bool(registro.get("fallback")),
+        }).execute()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+# ---------------------------------------------------------------------------
 # Configurações do aplicativo (chaves de IA definidas pelo administrador)
 # ---------------------------------------------------------------------------
 @st.cache_data(ttl=60, show_spinner=False)
