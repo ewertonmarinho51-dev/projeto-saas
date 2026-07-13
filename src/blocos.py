@@ -105,27 +105,39 @@ def reconstruir(blocos: list[dict]) -> str:
 
 def localizar_bloco(blocos: list[dict], trecho: str) -> dict | None:
     """
-    Bloco que contém o trecho (espaços normalizados). O trecho do
-    validador carrega ±40 caracteres de contexto e pode atravessar a
-    fronteira de blocos — nesse caso vale o bloco que contiver a MAIOR
-    janela de palavras consecutivas do trecho (mínimo de 3, para nunca
-    casar por acidente com uma palavra solta).
+    Bloco que contém o trecho. O trecho do validador carrega ±40
+    caracteres de contexto: pode atravessar fronteiras de bloco e ter a
+    primeira/última palavra truncada. Estratégia:
+      - comparação por TOKENS inteiros (palavra truncada nunca casa por
+        acidente com o prefixo de outra);
+      - vale a MAIOR janela de tokens consecutivos contida num único
+        bloco (mínimo de 3);
+      - empate: vence a janela mais próxima do CENTRO do trecho — é lá
+        que está a ocorrência que gerou o achado, não no contexto.
     """
     alvo = " ".join((trecho or "").split()).strip(" .…")
     if not alvo:
         return None
-    conteudos = [(b, " ".join(b["conteudo"].split())) for b in blocos]
-    for bloco, conteudo in conteudos:
-        if alvo in conteudo:
-            return bloco
     palavras = alvo.split()
+    candidatos = [(b, " ".join(b["conteudo"].split()).split())
+                  for b in blocos]
+
+    def contem(tokens: list[str], janela: list[str]) -> bool:
+        tam = len(janela)
+        return any(tokens[j:j + tam] == janela
+                   for j in range(len(tokens) - tam + 1))
+
+    centro = len(palavras) / 2
     minimo = min(3, len(palavras))
-    for tam in range(len(palavras) - 1, minimo - 1, -1):
-        for i in range(len(palavras) - tam + 1):
-            janela = " ".join(palavras[i:i + tam])
-            for bloco, conteudo in conteudos:
-                if janela in conteudo:
-                    return bloco
+    for tam in range(len(palavras), minimo - 1, -1):
+        achados_no_tam = [
+            (abs(i + tam / 2 - centro), bloco)
+            for i in range(len(palavras) - tam + 1)
+            for bloco, tokens in candidatos
+            if contem(tokens, palavras[i:i + tam])
+        ]
+        if achados_no_tam:
+            return min(achados_no_tam, key=lambda par: par[0])[1]
     return None
 
 
