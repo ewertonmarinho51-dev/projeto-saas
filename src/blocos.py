@@ -139,6 +139,69 @@ def caminhos_da_clausula(blocos: list[dict], numero: int) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Diff estrutural entre versões (Etapa 2 — 01_ARQUITETURA/03)
+# ---------------------------------------------------------------------------
+def diff_estrutural(antes: list[dict], depois: list[dict]) -> dict:
+    """
+    Compara duas versões de um documento por caminho de bloco:
+    alterados (mesmo path, hash diferente), adicionados e removidos.
+    """
+    h_antes = {b["path"]: b["hash"] for b in antes}
+    h_depois = {b["path"]: b["hash"] for b in depois}
+    return {
+        "alterados": sorted(
+            p for p in h_antes if p in h_depois and h_antes[p] != h_depois[p]),
+        "adicionados": sorted(p for p in h_depois if p not in h_antes),
+        "removidos": sorted(p for p in h_antes if p not in h_depois),
+        "total_antes": len(antes),
+    }
+
+
+def diff_bundle(snap_antes: dict, snap_depois: dict) -> dict:
+    """Diff estrutural documento a documento entre snapshots do bundle."""
+    docs = set(snap_antes["documentos"]) | set(snap_depois["documentos"])
+    por_doc = {}
+    for doc in sorted(docs):
+        por_doc[doc] = diff_estrutural(
+            snap_antes["documentos"].get(doc, {}).get("blocos", []),
+            snap_depois["documentos"].get(doc, {}).get("blocos", []),
+        )
+    return {
+        "de_versao": snap_antes["versao"],
+        "para_versao": snap_depois["versao"],
+        "documentos": por_doc,
+    }
+
+
+def validar_diff(diff: dict, permitidos: list[str], bloqueados: list[str],
+                 max_proporcao_blocos: float = 0.25) -> list[str]:
+    """
+    Regras de preservação (03_preservacao_e_diff.md) sobre o diff de UM
+    documento. Retorna as violações — qualquer uma rejeita o patch
+    INTEIRO (o aplicador da Etapa 4 é transacional):
+      1. todo caminho alterado/adicionado/removido está em `permitidos`;
+      2. nenhum caminho bloqueado foi tocado;
+      3. a quantidade de alterações respeita o orçamento do ciclo.
+    """
+    violacoes = []
+    tocados = diff["alterados"] + diff["adicionados"] + diff["removidos"]
+    permitidos_set = set(permitidos)
+    for path in tocados:
+        if path not in permitidos_set:
+            violacoes.append(f"alteração fora do escopo autorizado: {path}")
+    for path in tocados:
+        if path in set(bloqueados):
+            violacoes.append(f"alteração em caminho bloqueado: {path}")
+    total = max(diff.get("total_antes") or 0, 1)
+    proporcao = len(tocados) / total
+    if tocados and proporcao > max_proporcao_blocos:
+        violacoes.append(
+            f"orçamento de alterações excedido: {len(tocados)}/{total} "
+            f"blocos ({proporcao:.0%} > {max_proporcao_blocos:.0%})")
+    return violacoes
+
+
+# ---------------------------------------------------------------------------
 # Snapshot versionado do bundle (dossiê completo)
 # ---------------------------------------------------------------------------
 def snapshot_documento(doc_key: str, texto: str) -> dict:

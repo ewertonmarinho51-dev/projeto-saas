@@ -14,7 +14,7 @@ salvos" apenas fica desativado.
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import streamlit as st
 
@@ -115,6 +115,85 @@ def listar_processos(limite: int = 20, usuario_id: str | None = None) -> list[di
             consulta.order("atualizado_em", desc=True).limit(limite).execute()
         )
         return resposta.data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# Revisões — ciclo de correção automática (migração 0008)
+# ---------------------------------------------------------------------------
+def criar_revisao(processo_id: str | None, snapshot: dict, relatorio: dict,
+                  idempotency_key: str = "") -> dict:
+    """
+    Cria o job de revisão/correção com a versão 1 do bundle e o primeiro
+    audit-report. Reexecução com a MESMA idempotency_key não cria novo
+    job — devolve o existente (inclusive na corrida entre duas sessões,
+    resolvida pelo índice único da migração 0008).
+    """
+    if idempotency_key:
+        existente = obter_revisao_por_chave(idempotency_key)
+        if existente:
+            return existente
+    registro = {
+        "tenant_id": tenant_atual(),
+        "processo_id": processo_id,
+        "status": "REVIEW_QUEUED",
+        "ciclo": 0,
+        "versao_atual": snapshot.get("versao", 1),
+        "bundle_hash": snapshot.get("hash", ""),
+        "snapshots": [snapshot],
+        "relatorios": [relatorio] if relatorio else [],
+        "idempotency_key": idempotency_key,
+    }
+    try:
+        resposta = _cliente().table("revisoes").insert(registro).execute()
+        return resposta.data[0]
+    except Exception as exc:  # noqa: BLE001
+        texto = str(exc).lower()
+        if idempotency_key and ("duplicate" in texto or "unique" in texto):
+            existente = obter_revisao_por_chave(idempotency_key)
+            if existente:
+                return existente
+        raise _traduzir_erro(exc) from exc
+
+
+def obter_revisao_por_chave(idempotency_key: str) -> dict | None:
+    try:
+        resposta = (
+            _cliente().table("revisoes").select("*")
+            .eq("idempotency_key", idempotency_key).limit(1).execute()
+        )
+        return resposta.data[0] if resposta.data else None
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def obter_revisao(processo_id: str) -> dict | None:
+    """Job de revisão mais recente do processo (para retomar a tela)."""
+    try:
+        resposta = (
+            _cliente().table("revisoes").select("*")
+            .eq("processo_id", processo_id)
+            .order("criado_em", desc=True).limit(1).execute()
+        )
+        return resposta.data[0] if resposta.data else None
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def atualizar_revisao(revisao_id: str, **campos) -> dict:
+    """Atualiza o job (status, ciclo, snapshots…) e carimba atualizado_em."""
+    campos["atualizado_em"] = datetime.now(timezone.utc).isoformat()
+    try:
+        resposta = (
+            _cliente().table("revisoes").update(campos)
+            .eq("id", revisao_id).execute()
+        )
+        if not resposta.data:
+            raise ErroBanco("Revisão não encontrada para atualizar.")
+        return resposta.data[0]
+    except ErroBanco:
+        raise
     except Exception as exc:  # noqa: BLE001
         raise _traduzir_erro(exc) from exc
 
