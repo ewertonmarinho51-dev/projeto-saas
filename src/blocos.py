@@ -22,7 +22,6 @@ import hashlib
 import re
 
 from . import validacao
-from .config import DOCUMENTOS
 
 # Mesma noção de cláusula da validação — uma única fonte de verdade
 _RE_CLAUSULA = validacao._RE_CLAUSULA  # noqa: SLF001
@@ -227,7 +226,6 @@ def snapshot_bundle(documentos: dict[str, str], versao: int = 1) -> dict:
         "versao": versao,
         "hash": hash_bundle(documentos),
         "documentos": {
-            k: snapshot_documento(k, v)
-            for k, v in documentos.items() if k in DOCUMENTOS
+            k: snapshot_documento(k, v) for k, v in documentos.items()
         },
     }

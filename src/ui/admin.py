@@ -9,7 +9,7 @@ Página "Administração" (exclusiva do papel admin):
 
 import streamlit as st
 
-from .. import achados, auth, branding, contexto, db, llm
+from .. import achados, auth, branding, contexto, corretor, db, llm
 from ..llm import motor_ativo
 
 
@@ -479,19 +479,27 @@ def _render_revisao() -> None:
         st.info("Configure o Supabase para gerenciar as flags de revisão.")
         return
 
-    flag_atual = db.flag_ativa(achados.FLAG_ACHADOS)
-    ligada = st.toggle(
-        "Relatório estruturado da revisão (Etapa 1)",
-        value=flag_atual,
-        help="Ligada: a tela final exibe os findings estruturados da "
-        "revisão (documento, escopo autorizado, gravidade, corrigível ou "
-        "não). Desligada: tela anterior — a auditoria estruturada roda "
-        "apenas em modo sombra (logs). Esta etapa não altera a emissão.",
-    )
-    if ligada != flag_atual:
-        try:
-            db.salvar_config(
-                f"flag_{achados.FLAG_ACHADOS}", "1" if ligada else "")
-            st.rerun()
-        except db.ErroBanco as erro:
-            st.error(str(erro))
+    flags = [
+        (achados.FLAG_ACHADOS,
+         "Relatório estruturado da revisão (Etapa 1)",
+         "Ligada: a tela final exibe os findings estruturados da revisão "
+         "(documento, escopo autorizado, gravidade, corrigível ou não). "
+         "Desligada: tela anterior — a auditoria estruturada roda apenas "
+         "em modo sombra (logs). Esta etapa não altera a emissão."),
+        (corretor.FLAG_CORRETOR,
+         "Corretor por patches em modo sombra (Etapa 3)",
+         "Ligada: ao chegar à tela final, a IA gera o PLANO de correção "
+         "dos findings corrigíveis e o registra (logs e histórico da "
+         "revisão) SEM aplicar nenhuma alteração. Consome chamadas de IA. "
+         "Desligada: nenhuma chamada é feita."),
+    ]
+    for flag, rotulo, ajuda in flags:
+        flag_atual = db.flag_ativa(flag)
+        ligada = st.toggle(rotulo, value=flag_atual, help=ajuda,
+                           key=f"toggle_{flag}")
+        if ligada != flag_atual:
+            try:
+                db.salvar_config(f"flag_{flag}", "1" if ligada else "")
+                st.rerun()
+            except db.ErroBanco as erro:
+                st.error(str(erro))

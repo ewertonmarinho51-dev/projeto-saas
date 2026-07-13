@@ -7,7 +7,7 @@ Telas de cada etapa do wizard:
 
 import streamlit as st
 
-from .. import achados, contexto, db, export, planilha, rag, state
+from .. import achados, contexto, corretor, db, export, planilha, rag, state
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
@@ -366,6 +366,12 @@ def render_sucesso() -> None:
         docs, st.session_state.get("processo_id"))
     if relatorio is not None:
         _render_relatorio_estruturado(relatorio)
+
+    # Etapa 3 (flag_corretor_shadow): gera e REGISTRA o plano de patch em
+    # modo sombra — nunca aplica nada e nenhuma falha chega à tela.
+    # Roda uma única vez por versão do bundle (cache por hash na sessão).
+    corretor.plano_em_shadow(docs, st.session_state.dados,
+                             st.session_state.get("processo_id"))
 
     registro = st.session_state.get("registro_geracoes") or []
     if registro:

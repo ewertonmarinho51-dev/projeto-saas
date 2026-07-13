@@ -487,6 +487,46 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
     return planilha.injetar_tabela(texto, dados.get("itens"))
 
 
+def chamar_ia_texto(system_prompt: str, user_prompt: str,
+                    finalidade: str = "revisao") -> str:
+    """
+    Chamada genérica de IA para a correção automática (auditor/corretor):
+    mesma ordem de motores, fallback e registro técnico da geração de
+    documentos — sem RAG, sem modo demo e sem pós-processamento.
+    `finalidade` identifica a chamada no registro (ex.: 'corretor').
+    """
+    chave_openai = obter_openai_key()
+    chave_gemini = obter_api_key()
+    if not chave_openai and not chave_gemini:
+        raise ErroGeracaoIA(
+            "Nenhuma chave de API configurada para a revisão com IA. "
+            "Informe a chave da OpenAI ou do Gemini no painel do "
+            "administrador."
+        )
+    if chave_openai:
+        inicio = time.time()
+        try:
+            texto = _chamar_openai(system_prompt, user_prompt, chave_openai)
+            registrar_geracao(finalidade, "openai", inicio, "ok")
+            return texto
+        except ErroGeracaoIA as erro:
+            registrar_geracao(finalidade, "openai", inicio, "falha",
+                              erro=getattr(erro, "detalhe", "") or str(erro))
+            if not chave_gemini:
+                raise
+    inicio = time.time()
+    try:
+        texto = _chamar_gemini(system_prompt, user_prompt, chave_gemini)
+        registrar_geracao(finalidade, "gemini", inicio, "ok",
+                          fallback=bool(chave_openai))
+        return texto
+    except ErroGeracaoIA as erro:
+        registrar_geracao(finalidade, "gemini", inicio, "falha",
+                          erro=getattr(erro, "detalhe", "") or str(erro),
+                          fallback=bool(chave_openai))
+        raise
+
+
 def testar_conexao(motor: str) -> tuple[bool, str]:
     """
     Faz uma chamada mínima ao motor ('openai' | 'gemini') e devolve
