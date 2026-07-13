@@ -399,6 +399,13 @@ def render_sucesso() -> None:
     if veredito == "pendente" or bloqueios:
         return  # nada de downloads com pendência
 
+    # Gate técnico (Etapa 7 — flag_gate_emissao): sem aprovação do ciclo
+    # para a versão ATUAL do bundle, a emissão é tecnicamente impossível.
+    liberada, motivo_gate = revisao.emissao_liberada(docs)
+    if not liberada:
+        st.error(f"**Emissão bloqueada pelo gate técnico.** {motivo_gate}")
+        return
+
     st.markdown(
         "Os **quatro documentos da fase preparatória** foram elaborados, "
         "aprovados e validados. Baixe o dossiê completo ou os arquivos "

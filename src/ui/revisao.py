@@ -27,6 +27,7 @@ import streamlit as st
 from .. import blocos, ciclo, db, state
 
 FLAG_TELA = "tela_progresso"
+FLAG_GATE = "gate_emissao"
 
 ETAPAS = [
     ("analisando", "Analisando os documentos"),
@@ -199,6 +200,32 @@ def _render_bloqueado(resultado: dict, docs: dict[str, str]) -> None:
                          use_container_width=True):
         st.session_state["_ciclo_manual"] = True
         st.rerun()
+
+
+# ---------------------------------------------------------------------------
+# Gate técnico de emissão (Etapa 7 — flag_gate_emissao)
+# ---------------------------------------------------------------------------
+def emissao_liberada(docs: dict[str, str]) -> tuple[bool, str]:
+    """
+    Com a flag ligada, a emissão exige um ciclo APPROVED para o conteúdo
+    ATUAL do bundle (editar qualquer documento invalida a aprovação — o
+    hash muda e a revisão precisa rodar de novo). Com a flag desligada,
+    vale o comportamento anterior (o gate é o validador da tela).
+    """
+    if not db.flag_ativa(FLAG_GATE):
+        return True, ""
+    cache = st.session_state.get("_ciclo_resultado") or {}
+    resultado = cache.get("resultado") or {}
+    if (cache.get("hash") == blocos.hash_bundle(docs)
+            and resultado.get("status") == "APPROVED"):
+        return True, ""
+    return False, (
+        "O gate técnico de emissão está ligado: os arquivos só são "
+        "liberados após a revisão automática APROVAR a versão atual dos "
+        "documentos. Conclua a revisão automática (qualquer edição exige "
+        "nova aprovação) — ou o administrador pode desligar o gate na "
+        "aba Revisão."
+    )
 
 
 # ---------------------------------------------------------------------------

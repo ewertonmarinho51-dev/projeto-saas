@@ -512,6 +512,12 @@ def _render_revisao() -> None:
          "Corrigindo → Validando → Arquivos finais), pedindo apenas o "
          "dado que faltar. Requer a aplicação automática ligada. "
          "Desligada: tela anterior."),
+        (revisao.FLAG_GATE,
+         "Gate técnico de emissão (Etapa 7)",
+         "Ligada: os downloads só existem depois que a revisão automática "
+         "APROVA a versão atual dos documentos — editar qualquer texto "
+         "exige nova aprovação. Requer a tela de correção automática "
+         "ligada. Desligada: a emissão segue as regras da tela em uso."),
     ]
     for flag, rotulo, ajuda in flags:
         flag_atual = db.flag_ativa(flag)
