@@ -7,7 +7,7 @@ Telas de cada etapa do wizard:
 
 import streamlit as st
 
-from .. import contexto, db, export, planilha, rag, state
+from .. import achados, contexto, db, export, planilha, rag, state
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
@@ -284,6 +284,38 @@ def _botao_voltar(meta: dict) -> None:
         state.ir_para(meta["etapa"] - 1)
 
 
+def _render_relatorio_estruturado(relatorio: dict) -> None:
+    """Findings estruturados na tela final (flag_achados_estruturados)."""
+    findings = relatorio["findings"]
+    rotulo_status = {
+        "APPROVED": "aprovado",
+        "CORRECTIONS_REQUIRED": "correções necessárias",
+        "BLOCKED": "exige intervenção humana",
+    }.get(relatorio["status"], relatorio["status"])
+    with st.expander(
+        f"Relatório estruturado da revisão — {rotulo_status} "
+        f"({len(findings)} finding(s))"
+    ):
+        st.caption(
+            "Cada achado da revisão vira um finding com escopo autorizado "
+            "por bloco — a base do corretor por patches (etapas seguintes). "
+            "Nesta etapa nada é alterado nos documentos."
+        )
+        st.markdown(f"**{relatorio['summary']}**")
+        if findings:
+            st.dataframe(
+                [{
+                    "Documento": f["documentId"].upper(),
+                    "Gravidade": f["severity"],
+                    "Categoria": f["categoria"],
+                    "Problema": f["descricao"],
+                    "Corrigível": "sim" if f["autoCorrectable"] else "não",
+                    "Escopo autorizado": ", ".join(f["allowedPaths"]) or "—",
+                } for f in findings],
+                use_container_width=True,
+            )
+
+
 # ---------------------------------------------------------------------------
 # Etapa 5 — Conclusão e exportação
 # ---------------------------------------------------------------------------
@@ -301,9 +333,9 @@ def render_sucesso() -> None:
     # marcadores internos etc.) BLOQUEIAM o download — devem ser resolvidas
     # na revisão, nunca aparecer no PDF/DOCX definitivo.
     # ------------------------------------------------------------------
-    achados = validacao.validar_todos(docs)
-    bloqueios = validacao.bloqueios(achados)
-    avisos = validacao.avisos(achados)
+    achados_brutos = validacao.validar_todos(docs)
+    bloqueios = validacao.bloqueios(achados_brutos)
+    avisos = validacao.avisos(achados_brutos)
 
     if bloqueios:
         st.error(
@@ -325,6 +357,15 @@ def render_sucesso() -> None:
         with st.expander(f"Avisos de qualidade ({len(avisos)}) — não bloqueiam"):
             for a in avisos:
                 st.markdown(f"- **{a['documento']}** — {a['mensagem']}")
+
+    # Correção automática (Etapa 1 — flag_achados_estruturados): os mesmos
+    # achados acima, estruturados com escopo autorizado por bloco. Flag
+    # DESLIGADA: nada muda nesta tela (auditoria roda em shadow mode/log).
+    # Nesta etapa o relatório é informativo — a emissão não é alterada.
+    relatorio = achados.relatorio_para_tela(
+        docs, st.session_state.get("processo_id"))
+    if relatorio is not None:
+        _render_relatorio_estruturado(relatorio)
 
     registro = st.session_state.get("registro_geracoes") or []
     if registro:

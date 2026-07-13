@@ -9,14 +9,16 @@ Página "Administração" (exclusiva do papel admin):
 
 import streamlit as st
 
-from .. import auth, branding, contexto, db, llm
+from .. import achados, auth, branding, contexto, db, llm
 from ..llm import motor_ativo
 
 
 def render_admin() -> None:
     st.subheader("Administração")
-    aba_usuarios, aba_chaves, aba_identidade, aba_secretarias = st.tabs(
-        ["Usuários", "Chaves de IA", "Identidade visual", "Secretarias"]
+    (aba_usuarios, aba_chaves, aba_identidade, aba_secretarias,
+     aba_revisao) = st.tabs(
+        ["Usuários", "Chaves de IA", "Identidade visual", "Secretarias",
+         "Revisão"]
     )
     with aba_usuarios:
         _render_usuarios()
@@ -26,6 +28,8 @@ def render_admin() -> None:
         _render_identidade()
     with aba_secretarias:
         _render_secretarias()
+    with aba_revisao:
+        _render_revisao()
 
 
 # ---------------------------------------------------------------------------
@@ -460,3 +464,34 @@ def _render_secretarias() -> None:
                 st.rerun()
             except auth.ErroAuth as erro:
                 st.error(str(erro))
+
+
+# ---------------------------------------------------------------------------
+# Revisão — flags do ciclo de correção automática (por etapa)
+# ---------------------------------------------------------------------------
+def _render_revisao() -> None:
+    st.markdown("##### Correção automática de documentos")
+    st.caption(
+        "Ativação por etapas, cada uma com sua flag (rollback = desligar). "
+        "Com tudo desligado, a revisão se comporta exatamente como antes."
+    )
+    if not db.disponivel():
+        st.info("Configure o Supabase para gerenciar as flags de revisão.")
+        return
+
+    flag_atual = db.flag_ativa(achados.FLAG_ACHADOS)
+    ligada = st.toggle(
+        "Relatório estruturado da revisão (Etapa 1)",
+        value=flag_atual,
+        help="Ligada: a tela final exibe os findings estruturados da "
+        "revisão (documento, escopo autorizado, gravidade, corrigível ou "
+        "não). Desligada: tela anterior — a auditoria estruturada roda "
+        "apenas em modo sombra (logs). Esta etapa não altera a emissão.",
+    )
+    if ligada != flag_atual:
+        try:
+            db.salvar_config(
+                f"flag_{achados.FLAG_ACHADOS}", "1" if ligada else "")
+            st.rerun()
+        except db.ErroBanco as erro:
+            st.error(str(erro))
