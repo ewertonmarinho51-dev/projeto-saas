@@ -9,8 +9,9 @@ Página "Administração" (exclusiva do papel admin):
 
 import streamlit as st
 
-from .. import achados, auth, branding, contexto, corretor, db, llm
+from .. import achados, auth, branding, ciclo, contexto, corretor, db, llm, patches
 from ..llm import motor_ativo
+from . import revisao
 
 
 def render_admin() -> None:
@@ -492,6 +493,25 @@ def _render_revisao() -> None:
          "dos findings corrigíveis e o registra (logs e histórico da "
          "revisão) SEM aplicar nenhuma alteração. Consome chamadas de IA. "
          "Desligada: nenhuma chamada é feita."),
+        (patches.FLAG_APLICACAO,
+         "Aplicação automática das correções (Etapas 4–5)",
+         "Ligada: o ciclo corrige de verdade — plano validado, aplicação "
+         "transacional (tudo ou nada) e NOVA auditoria obrigatória, até "
+         "3 ciclos. Cláusulas de assinatura nunca mudam; alteração fora "
+         "do escopo rejeita tudo. Desligada: nada é alterado."),
+        (ciclo.FLAG_REAUDITORIA,
+         "Auditoria semântica por IA (Etapa 5)",
+         "Ligada: além das validações determinísticas, uma IA audita "
+         "coerência entre documentos e fundamentação. Findings semânticos "
+         "não geram correção automática; um item CRÍTICO bloqueia para "
+         "revisão humana. Consome chamadas de IA."),
+        (revisao.FLAG_TELA,
+         "Tela de correção automática (Etapa 6)",
+         "Ligada: a tela final deixa de mandar o servidor corrigir no "
+         "editor e passa a mostrar o progresso (Analisando → Preparando → "
+         "Corrigindo → Validando → Arquivos finais), pedindo apenas o "
+         "dado que faltar. Requer a aplicação automática ligada. "
+         "Desligada: tela anterior."),
     ]
     for flag, rotulo, ajuda in flags:
         flag_atual = db.flag_ativa(flag)
