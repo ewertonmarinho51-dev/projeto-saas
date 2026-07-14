@@ -355,6 +355,122 @@ def atualizar_feedback(feedback_id: str, **campos) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Centro de Governança (migração 0010 — pacote V6)
+# ---------------------------------------------------------------------------
+def obter_ou_criar_artefato(tipo_artefato: str, chave_estavel: str,
+                            plataforma: bool = False,
+                            secretaria_id: str | None = None) -> dict:
+    """
+    Artefato do escopo pedido (plataforma = tenant NULL; senão, tenant
+    da sessão). Idempotente: devolve o existente se já houver.
+    """
+    tenant = None if plataforma else tenant_atual()
+    try:
+        tabela = _cliente().table("governanca_artefatos")
+        consulta = (tabela.select("*")
+                    .eq("tipo_artefato", tipo_artefato)
+                    .eq("chave_estavel", chave_estavel))
+        consulta = (consulta.is_("tenant_id", "null") if tenant is None
+                    else consulta.eq("tenant_id", tenant))
+        existentes = consulta.limit(1).execute().data
+        if existentes:
+            return existentes[0]
+        registro = {"tipo_artefato": tipo_artefato,
+                    "chave_estavel": chave_estavel,
+                    "tenant_id": tenant, "secretaria_id": secretaria_id}
+        return tabela.insert(registro).execute().data[0]
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def listar_artefatos(tipo_artefato: str | None = None) -> list[dict]:
+    """Artefatos visíveis: plataforma (tenant NULL) + tenant da sessão."""
+    try:
+        consulta = _cliente().table("governanca_artefatos").select("*")
+        if tipo_artefato:
+            consulta = consulta.eq("tipo_artefato", tipo_artefato)
+        registros = consulta.order("chave_estavel").execute().data or []
+        atual = tenant_atual()
+        return [r for r in registros
+                if r.get("tenant_id") in (None, atual)]
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def criar_versao_governanca(artefato_id: str, registro: dict) -> dict:
+    campos = {k: registro[k] for k in
+              ("versao", "status", "vigencia_inicio", "vigencia_fim",
+               "payload", "hash") if k in registro}
+    campos["artefato_id"] = artefato_id
+    if registro.get("autor"):
+        campos["autor"] = registro["autor"]
+    try:
+        resposta = _cliente().table("governanca_versoes").insert(
+            campos).execute()
+        return resposta.data[0]
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def listar_versoes_governanca(artefato_id: str) -> list[dict]:
+    try:
+        resposta = (
+            _cliente().table("governanca_versoes").select("*")
+            .eq("artefato_id", artefato_id)
+            .order("versao", desc=True).execute()
+        )
+        return resposta.data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def atualizar_versao_governanca(versao_id: str, **campos) -> dict:
+    """
+    Atualiza uma versão EDITÁVEL (DRAFT/UNDER_REVIEW) ou aplica uma
+    transição de status. Versão publicada é imutável: qualquer outra
+    alteração exige derivar nova versão.
+    """
+    try:
+        tabela = _cliente().table("governanca_versoes")
+        atual = tabela.select("status").eq("id", versao_id).limit(1)\
+            .execute()
+        status_atual = atual.data[0]["status"] if atual.data else ""
+        so_transicao = set(campos) <= {"status", "revisor", "aprovador",
+                                       "vigencia_inicio", "vigencia_fim"}
+        if status_atual not in ("DRAFT", "UNDER_REVIEW") and \
+                not so_transicao:
+            raise ErroBanco(
+                "Versão publicada é imutável — derive uma nova versão.")
+        campos["atualizado_em"] = datetime.now(timezone.utc).isoformat()
+        resposta = tabela.update(campos).eq("id", versao_id).execute()
+        if not resposta.data:
+            raise ErroBanco("Versão não encontrada para atualizar.")
+        return resposta.data[0]
+    except ErroBanco:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def registrar_evento_governanca(tipo_evento: str, entidade_tipo: str,
+                                entidade_id: str | None,
+                                payload: dict | None = None,
+                                ator: str | None = None) -> None:
+    """Trilha de auditoria do Centro — APPEND-ONLY (só insert)."""
+    try:
+        _cliente().table("governanca_eventos").insert({
+            "tenant_id": tenant_atual(),
+            "ator": ator,
+            "tipo_evento": tipo_evento,
+            "entidade_tipo": entidade_tipo,
+            "entidade_id": entidade_id,
+            "payload": payload or {},
+        }).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+# ---------------------------------------------------------------------------
 # Multi-tenant (Fase 1 — fundação; ver docs/matriz-compatibilidade.md)
 # ---------------------------------------------------------------------------
 # Tenant padrão = município atual (uuid fixo da migração 0006).

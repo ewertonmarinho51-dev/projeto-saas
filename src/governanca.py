@@ -306,3 +306,184 @@ def novo_feedback(processo_id: str | None, origem: str,
 
 def transicao_feedback_valida(de: str, para: str) -> bool:
     return para in _TRANSICOES_FEEDBACK.get(de, set())
+
+
+# ===========================================================================
+# CENTRO DE GOVERNANÇA (pacote V6) — artefatos versionados do catálogo
+# ===========================================================================
+FLAG_CENTRO = "governance_center"
+FLAG_CATALOGO = "clause_catalog_admin"
+FLAG_POLITICAS_VISUAL = "visual_policy_builder"
+FLAG_FAMILIAS_SHADOW = "model_family_resolution_shadow"
+FLAG_FAMILIAS_ATIVA = "model_family_resolution_active"
+FLAG_TEMPLATES = "template_builder"
+FLAG_HERANCA = "tenant_inheritance_admin"
+FLAG_IMPLANTACAO = "onboarding_assistant"
+FLAG_PARECERES = "legal_opinion_ingestion"
+FLAG_PARECERES_LOTE = "legal_opinion_batch_processing"
+FLAG_LABORATORIO = "improvement_laboratory"
+FLAG_PUBLICACAO_GATE = "governance_publication_gate"
+
+FLAGS_V6 = (
+    FLAG_CENTRO, FLAG_CATALOGO, FLAG_POLITICAS_VISUAL,
+    FLAG_FAMILIAS_SHADOW, FLAG_FAMILIAS_ATIVA, FLAG_TEMPLATES,
+    FLAG_HERANCA, FLAG_IMPLANTACAO, FLAG_PARECERES, FLAG_PARECERES_LOTE,
+    FLAG_LABORATORIO, FLAG_PUBLICACAO_GATE,
+)
+
+TIPOS_ARTEFATO = ("clausula", "politica", "familia", "template")
+
+COMPORTAMENTOS_CLAUSULA = ("FIXED_LOCKED", "FIXED_PARAMETERIZED",
+                           "CONDITIONAL_LOCKED", "HYBRID", "AI_GENERATED")
+
+# papéis do Centro (usuarios.papel_governanca; NULL = servidor comum)
+PAPEIS_GOVERNANCA = ("proprietario", "admin_global", "admin_municipal",
+                     "revisor_juridico", "publicador", "auditor")
+
+ESTADOS_ARTEFATO = (
+    "DRAFT", "UNDER_REVIEW", "APPROVED_FOR_SIMULATION", "SHADOW",
+    "SCHEDULED", "PUBLISHED", "SUPERSEDED", "REVOKED",
+)
+_TRANSICOES_ARTEFATO = {
+    "DRAFT": {"UNDER_REVIEW"},
+    "UNDER_REVIEW": {"APPROVED_FOR_SIMULATION", "DRAFT"},
+    "APPROVED_FOR_SIMULATION": {"SHADOW", "UNDER_REVIEW"},
+    "SHADOW": {"SCHEDULED", "PUBLISHED", "UNDER_REVIEW"},
+    "SCHEDULED": {"PUBLISHED", "UNDER_REVIEW"},
+    "PUBLISHED": {"SUPERSEDED", "REVOKED"},
+    "SUPERSEDED": set(),
+    "REVOKED": set(),
+}
+ESTADOS_ARTEFATO_EDITAVEIS = ("DRAFT", "UNDER_REVIEW")
+
+
+def transicao_artefato_valida(de: str, para: str) -> bool:
+    return para in _TRANSICOES_ARTEFATO.get(de, set())
+
+
+def versao_artefato_editavel(versao: dict) -> bool:
+    """Publicada (ou além) é IMUTÁVEL — editar = derivar nova versão."""
+    return versao.get("status") in ESTADOS_ARTEFATO_EDITAVEIS
+
+
+# ---------------------------------------------------------------------------
+# Validação de payload por tipo de artefato
+# ---------------------------------------------------------------------------
+def _validar_payload_clausula(payload: dict) -> list[str]:
+    erros = []
+    if not str(payload.get("titulo") or "").strip():
+        erros.append("cláusula sem título")
+    comportamento = payload.get("comportamento")
+    if comportamento not in COMPORTAMENTOS_CLAUSULA:
+        erros.append(f"comportamento inválido: {comportamento!r}")
+    blocos_texto = payload.get("blocos")
+    if not isinstance(blocos_texto, list) or not blocos_texto:
+        erros.append("cláusula sem blocos de texto")
+    if comportamento == "FIXED_PARAMETERIZED" and not payload.get(
+            "parametros_permitidos"):
+        erros.append("FIXED_PARAMETERIZED exige parametros_permitidos")
+    for parametro in payload.get("parametros_obrigatorios") or []:
+        if parametro not in (payload.get("parametros_permitidos") or []):
+            erros.append(
+                f"parâmetro obrigatório fora dos permitidos: {parametro}")
+    return erros
+
+
+def _validar_payload_politica(payload: dict) -> list[str]:
+    erros = validar_condicao(payload.get("condicao") or {})
+    acoes = payload.get("acoes")
+    if not isinstance(acoes, list) or not acoes:
+        erros.append("política sem ações")
+    else:
+        for i, acao in enumerate(acoes):
+            if acao.get("type") not in TIPOS_ACAO:
+                erros.append(f"ações[{i}]: tipo inválido {acao.get('type')!r}")
+    if not isinstance(payload.get("prioridade", 100), int):
+        erros.append("prioridade deve ser inteira")
+    return erros
+
+
+def _validar_payload_familia(payload: dict) -> list[str]:
+    erros = []
+    if not str(payload.get("nome") or "").strip():
+        erros.append("família sem nome")
+    if not payload.get("documentos_suportados"):
+        erros.append("família sem documentos suportados")
+    criterios = payload.get("criterios")
+    if criterios:
+        erros += validar_condicao(criterios)
+    else:
+        erros.append("família sem critérios de seleção")
+    return erros
+
+
+def _validar_payload_template(payload: dict) -> list[str]:
+    erros = []
+    blocos_template = payload.get("blocos")
+    if not isinstance(blocos_template, list) or not blocos_template:
+        return ["template sem blocos"]
+    tipos_validos = ("cabecalho", "titulo", "metadados",
+                     "clausula_catalogo", "secao_gerada", "tabela",
+                     "lista_itens", "matriz_riscos", "assinatura",
+                     "anexo", "quebra", "rodape")
+    ids = set()
+    for i, bloco in enumerate(blocos_template):
+        if bloco.get("tipo") not in tipos_validos:
+            erros.append(f"blocos[{i}]: tipo inválido {bloco.get('tipo')!r}")
+        bloco_id = bloco.get("id")
+        if not bloco_id or bloco_id in ids:
+            erros.append(f"blocos[{i}]: id ausente ou duplicado")
+        ids.add(bloco_id)
+        if bloco.get("tipo") == "clausula_catalogo" and \
+                not bloco.get("clausula"):
+            erros.append(f"blocos[{i}]: bloco de catálogo sem cláusula")
+        if bloco.get("condicao"):
+            erros += validar_condicao(bloco["condicao"],
+                                      f"blocos[{i}].condicao")
+    return erros
+
+
+_VALIDADORES_PAYLOAD = {
+    "clausula": _validar_payload_clausula,
+    "politica": _validar_payload_politica,
+    "familia": _validar_payload_familia,
+    "template": _validar_payload_template,
+}
+
+
+def nova_versao_artefato(tipo_artefato: str, chave_estavel: str,
+                         payload: dict, versao: int = 1,
+                         status: str = "DRAFT",
+                         vigencia_inicio: str | None = None,
+                         vigencia_fim: str | None = None) -> dict:
+    """Versão de artefato validada por tipo, com hash canônico."""
+    if tipo_artefato not in TIPOS_ARTEFATO:
+        raise ErroContrato(f"tipo de artefato inválido: {tipo_artefato!r}")
+    if status not in ESTADOS_ARTEFATO:
+        raise ErroContrato(f"status de artefato inválido: {status!r}")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,}", chave_estavel or ""):
+        raise ErroContrato(
+            "chave_estavel inválida (minúsculas, dígitos, ., _, -)")
+    if erros := _VALIDADORES_PAYLOAD[tipo_artefato](payload or {}):
+        raise ErroContrato(
+            f"{tipo_artefato} inválido(a): " + "; ".join(erros))
+    return {
+        "tipo_artefato": tipo_artefato,
+        "chave_estavel": chave_estavel,
+        "versao": versao,
+        "status": status,
+        "vigencia_inicio": vigencia_inicio,
+        "vigencia_fim": vigencia_fim,
+        "payload": payload,
+        "hash": hash_canonico({"tipo": tipo_artefato,
+                               "chave": chave_estavel,
+                               "versao": versao, "payload": payload}),
+    }
+
+
+def derivar_versao_artefato(versao: dict) -> dict:
+    """Nova versão DRAFT derivada (a publicada permanece intocada)."""
+    return nova_versao_artefato(
+        versao["tipo_artefato"], versao["chave_estavel"],
+        versao["payload"], versao=int(versao.get("versao", 1)) + 1,
+        status="DRAFT")

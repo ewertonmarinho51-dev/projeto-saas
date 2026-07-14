@@ -203,6 +203,53 @@ def eh_admin() -> bool:
     return bool(usuario and usuario.get("papel") == "admin")
 
 
+# ---------------------------------------------------------------------------
+# Papéis do Centro de Governança (pacote V6; usuarios.papel_governanca)
+# ---------------------------------------------------------------------------
+def papel_governanca() -> str | None:
+    """
+    Papel do usuário no Centro de Governança. None = servidor comum
+    (NUNCA acessa governança). Administrador do app sem papel específico
+    opera como admin_municipal do próprio tenant. Modo aberto (dev/CI)
+    = proprietario.
+    """
+    if modo_aberto():
+        return "proprietario"
+    usuario = usuario_logado() or {}
+    papel = usuario.get("papel_governanca")
+    if papel:
+        return papel
+    return "admin_municipal" if usuario.get("papel") == "admin" else None
+
+
+def acessa_centro_governanca() -> bool:
+    return papel_governanca() is not None
+
+
+def governa_plataforma() -> bool:
+    """Padrões nacionais/da plataforma: só proprietário e admin global."""
+    return papel_governanca() in ("proprietario", "admin_global")
+
+
+def pode_criar_governanca() -> bool:
+    return papel_governanca() in ("proprietario", "admin_global",
+                                  "admin_municipal")
+
+
+def pode_revisar_governanca() -> bool:
+    return papel_governanca() in ("proprietario", "admin_global",
+                                  "admin_municipal", "revisor_juridico")
+
+
+def pode_publicar_governanca() -> bool:
+    return papel_governanca() in ("proprietario", "admin_global",
+                                  "admin_municipal", "publicador")
+
+
+def somente_auditoria() -> bool:
+    return papel_governanca() == "auditor"
+
+
 def sair() -> None:
     st.session_state.usuario = None
     st.session_state.tenant_id = None
