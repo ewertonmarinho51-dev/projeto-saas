@@ -7,7 +7,8 @@ Telas de cada etapa do wizard:
 
 import streamlit as st
 
-from .. import achados, contexto, corretor, db, export, fatos, planilha, rag, state
+from .. import (achados, conhecimento, contexto, corretor, db, export,
+                fatos, planilha, rag, state)
 from . import revisao
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
@@ -323,6 +324,49 @@ def _render_fatos_canonicos(resultado: dict) -> None:
             st.rerun()
 
 
+def _render_decisao_conhecimento(decisao: dict) -> None:
+    """Resultado do motor de conhecimento na tela final (V5 Fase 3)."""
+    resultado = decisao["resultado"]
+    for bloqueio in resultado["bloqueios"]:
+        st.error(
+            f"**Emissão bloqueada pelo motor de conhecimento** — regra "
+            f"`{bloqueio['regra']}`: {bloqueio['motivo']}"
+        )
+    for conflito in resultado["conflitos"]:
+        st.error(
+            f"**Conflito de regras sobre `{conflito['clausula']}`** — "
+            f"{', '.join(conflito['regras'])}: {conflito['motivo']}."
+        )
+    with st.expander(
+        "Regras aplicadas ao processo (motor de conhecimento)"
+    ):
+        st.caption(
+            "Decisão determinística sobre os fatos canônicos — registrada "
+            "com as versões de regras e fatos utilizadas "
+            f"(decisão `{decisao['input_hash'][:12]}…`)."
+        )
+        linhas = []
+        for clausula in resultado["clausulas_incluir"]:
+            linhas.append(f"- **Incluir cláusula** `{clausula}`")
+        for clausula in resultado["clausulas_excluir"]:
+            linhas.append(f"- **Excluir cláusula** `{clausula}`")
+        for parametro in resultado["parametros_exigidos"]:
+            linhas.append(f"- **Parâmetro exigido**: {parametro}")
+        for campo in resultado["campos_exigidos"]:
+            linhas.append(f"- **Campo exigido**: {campo}")
+        if resultado["familia"]:
+            linhas.append(f"- **Família de modelo**: {resultado['familia']}")
+        for alerta in resultado["alertas"]:
+            linhas.append(f"- ⚠ {alerta}")
+        st.markdown("\n".join(linhas) or
+                    "Nenhuma regra publicada se aplica a este processo.")
+        if resultado["pendencias"]:
+            st.warning(
+                "Dados ausentes para avaliar todas as regras: "
+                + ", ".join(f"`{p}`" for p in resultado["pendencias"])
+            )
+
+
 def _render_relatorio_estruturado(relatorio: dict) -> None:
     """Findings estruturados na tela final (flag_achados_estruturados)."""
     findings = relatorio["findings"]
@@ -433,6 +477,14 @@ def render_sucesso() -> None:
     if resultado_fatos is not None:
         _render_fatos_canonicos(resultado_fatos)
 
+    # Motor de conhecimento (V5 F3): regras estruturadas avaliadas sobre
+    # os fatos canônicos. Shadow: apenas registra a decisão (log/banco).
+    # Ativo: exibe o resultado e bloqueios de regra impedem a emissão.
+    decisao_conhecimento = conhecimento.executar_na_tela(
+        st.session_state.dados, st.session_state.get("processo_id"))
+    if decisao_conhecimento is not None:
+        _render_decisao_conhecimento(decisao_conhecimento)
+
     registro = st.session_state.get("registro_geracoes") or []
     if registro:
         with st.expander("Registro técnico de geração (auditoria)"):
@@ -444,6 +496,10 @@ def render_sucesso() -> None:
 
     if veredito == "pendente" or bloqueios:
         return  # nada de downloads com pendência
+
+    if decisao_conhecimento is not None and \
+            decisao_conhecimento["resultado"]["bloqueios"]:
+        return  # bloqueio de regra do motor de conhecimento (flag ativa)
 
     # Gate técnico (Etapa 7 — flag_gate_emissao): sem aprovação do ciclo
     # para a versão ATUAL do bundle, a emissão é tecnicamente impossível.

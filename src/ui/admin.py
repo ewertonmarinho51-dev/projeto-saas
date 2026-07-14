@@ -559,4 +559,39 @@ def _render_qualidade() -> None:
          "itens, prazo) viram fatos versionados no banco, exibidos na tela "
          "final com pendências de confirmação e divergências. Desligada: "
          "extração roda apenas em modo sombra (logs)."),
+        (governanca.FLAG_MOTOR_SHADOW,
+         "Motor de conhecimento em modo sombra (Fase 3)",
+         "Ligada: as regras publicadas são avaliadas sobre os fatos e a "
+         "DECISÃO é registrada (trilha reproduzível por hash), sem afetar "
+         "nada na tela. Use para validar as regras em produção."),
+        (governanca.FLAG_MOTOR_ATIVO,
+         "Motor de conhecimento ativo (Fase 3)",
+         "Ligada: o resultado aparece na tela final (cláusulas, exigências, "
+         "alertas) e regra de BLOQUEIO impede a emissão. Conflito de regras "
+         "sem desempate nunca é resolvido em silêncio: bloqueia e expõe as "
+         "duas regras. Requer regras publicadas no banco."),
     ])
+
+    st.divider()
+    st.markdown("##### Regras de conhecimento publicadas")
+    try:
+        regras = db.listar_regras()
+    except db.ErroBanco as erro:
+        st.error(str(erro))
+        return
+    if not regras:
+        st.caption(
+            "Nenhuma regra publicada. As regras são estruturadas "
+            "(condições ALL/ANY/NOT sobre os fatos canônicos) e nesta fase "
+            "entram pelo banco; o construtor visual chega com o pacote V6."
+        )
+        return
+    st.dataframe(
+        [{
+            "Chave": r["chave_estavel"], "Versão": r["versao"],
+            "Camada": r["camada"], "Prioridade": r["prioridade"],
+            "Vigência início": r.get("vigencia_inicio") or "—",
+            "Vigência fim": r.get("vigencia_fim") or "—",
+        } for r in regras],
+        use_container_width=True,
+    )
