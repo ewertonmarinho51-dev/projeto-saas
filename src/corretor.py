@@ -100,6 +100,21 @@ def _fontes_do_formulario(dados: dict) -> dict:
     return fontes
 
 
+def _fontes_dos_fatos(findings: list[dict], dados: dict) -> dict:
+    """Valores canônicos referenciados por findings `fato:<path>`."""
+    paths = {s.split(":", 1)[1] for f in findings
+             for s in f.get("sourceIds", []) if s.startswith("fato:")}
+    if not paths:
+        return {}
+    from . import fatos as fatos_mod
+
+    extraidos = {f["path"]: f["valor"]
+                 for f in fatos_mod.extrair_do_formulario(dados)}
+    return {f"fato:{p}": json.dumps(extraidos[p], ensure_ascii=False,
+                                    default=str)
+            for p in sorted(paths) if p in extraidos}
+
+
 def montar_prompt(findings: list[dict], documentos: dict[str, str],
                   dados: dict) -> tuple[str, str]:
     """(system, user) do corretor: findings + blocos do escopo + fontes."""
@@ -126,7 +141,8 @@ def montar_prompt(findings: list[dict], documentos: dict[str, str],
             for f in findings
         ],
         "blocosAtuais": blocos_escopo,
-        "fontes": _fontes_do_formulario(dados),
+        "fontes": {**_fontes_do_formulario(dados),
+                   **_fontes_dos_fatos(findings, dados)},
     }
     return _SYSTEM_CORRETOR, json.dumps(payload, ensure_ascii=False, indent=2)
 

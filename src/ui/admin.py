@@ -570,6 +570,13 @@ def _render_qualidade() -> None:
          "alertas) e regra de BLOQUEIO impede a emissão. Conflito de regras "
          "sem desempate nunca é resolvido em silêncio: bloqueia e expõe as "
          "duas regras. Requer regras publicadas no banco."),
+        (governanca.FLAG_CONSISTENCIA,
+         "Consistência entre documentos (Fase 5)",
+         "Ligada: valores, quantidades, prazos e objeto são conferidos "
+         "entre os fatos canônicos e TODOS os documentos; divergências "
+         "viram findings corrigíveis pelo ciclo automático (o fato é a "
+         "fonte). Erro de cálculo é crítico e bloqueia a emissão. "
+         "Desligada: auditoria anterior intacta."),
         (governanca.FLAG_EXPLICACOES,
          "Explicações — Por que isso está aqui? (Fase 4)",
          "Ligada: cada cláusula incluída/excluída pelo motor ganha a "

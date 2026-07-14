@@ -264,6 +264,13 @@ def gerar_relatorio(documentos: dict[str, str],
     """
     brutos = validacao.validar_todos(documentos)
     findings = estruturar(brutos, documentos)
+    # V5 Fase 5 (flag_process_consistency): consistência cruzada entre
+    # fatos canônicos e documentos entra no MESMO relatório — o corretor
+    # v4 corrige divergências usando o fato como fonte. Flag OFF: nada.
+    from . import consistencia
+
+    findings = findings + consistencia.verificar_para_processo(
+        documentos, processo_id)
     if not findings:
         status = "APPROVED"
     elif any(f["blockingReason"] for f in findings):
