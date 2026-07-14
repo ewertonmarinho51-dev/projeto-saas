@@ -324,6 +324,36 @@ def salvar_feedback(registro: dict) -> dict:
         raise _traduzir_erro(exc) from exc
 
 
+def listar_feedbacks(status: str | None = None,
+                     limite: int = 100) -> list[dict]:
+    """Feedbacks do tenant atual (curadoria) — isolamento aplicado."""
+    try:
+        consulta = _cliente().table("aprendizado_feedback").select("*")
+        if status:
+            consulta = consulta.eq("status", status)
+        registros = (consulta.order("criado_em", desc=True)
+                     .limit(limite).execute()).data or []
+        atual = tenant_atual()
+        return [r for r in registros if r.get("tenant_id") == atual]
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def atualizar_feedback(feedback_id: str, **campos) -> None:
+    """Transição de curadoria (status/curador/versão publicada)."""
+    permitidos = {"status", "curador", "versao_publicada"}
+    if extras := set(campos) - permitidos:
+        raise ErroBanco(
+            f"Campos de feedback não atualizáveis: {sorted(extras)} "
+            "(conteúdo e evidências são imutáveis após a captura).")
+    campos["atualizado_em"] = datetime.now(timezone.utc).isoformat()
+    try:
+        _cliente().table("aprendizado_feedback").update(campos).eq(
+            "id", feedback_id).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
 # ---------------------------------------------------------------------------
 # Multi-tenant (Fase 1 — fundação; ver docs/matriz-compatibilidade.md)
 # ---------------------------------------------------------------------------

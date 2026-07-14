@@ -596,7 +596,22 @@ def _render_qualidade() -> None:
          "bloqueada com ocorrência CRÍTICA (sempre, mesmo com score alto) "
          "ou score abaixo de 75. Ligue somente após calibrar em modo "
          "sombra."),
+        (governanca.FLAG_APRENDIZADO_CAPTURA,
+         "Captura de aprendizado institucional (Fase 7)",
+         "Ligada: as edições que os servidores fazem nos rascunhos são "
+         "capturadas ANONIMIZADAS (apenas os blocos alterados, nunca o "
+         "documento) e entram no painel de curadoria abaixo. Nada vira "
+         "regra automaticamente."),
+        (governanca.FLAG_APRENDIZADO_PUBLICACAO,
+         "Publicação de melhorias curadas (Fase 7)",
+         "Ligada: habilita o passo final PUBLISHED no painel de curadoria "
+         "— sempre um ato humano, após revisão e validação em shadow. "
+         "Rollback = marcar como DEPRECATED."),
     ])
+
+    if db.flag_ativa(governanca.FLAG_APRENDIZADO_CAPTURA):
+        st.divider()
+        _render_curadoria()
 
     st.divider()
     st.markdown("##### Regras de conhecimento publicadas")
@@ -621,3 +636,62 @@ def _render_qualidade() -> None:
         } for r in regras],
         use_container_width=True,
     )
+
+
+def _render_curadoria() -> None:
+    """Painel de curadoria do aprendizado institucional (V5 Fase 7)."""
+    from .. import aprendizado
+
+    st.markdown("##### Curadoria do aprendizado institucional")
+    st.caption(
+        "Sinais capturados (anonimizados) aguardando decisão HUMANA. "
+        "Fluxo: capturado → normalizado → em revisão → shadow → validado "
+        "→ publicado. Nada é promovido sem passar por aqui."
+    )
+    try:
+        feedbacks = db.listar_feedbacks()
+    except db.ErroBanco as erro:
+        st.error(str(erro))
+        return
+    pendentes = [f for f in feedbacks
+                 if f.get("status") not in ("DEPRECATED", "REJECTED")]
+    if not pendentes:
+        st.caption("Nenhum sinal de aprendizado aguardando curadoria.")
+        return
+    for feedback in pendentes:
+        conteudo = feedback.get("conteudo") or {}
+        rotulo = (f"{conteudo.get('documento', '?').upper()} — "
+                  f"{conteudo.get('resumo', feedback.get('origem', ''))} "
+                  f"[{feedback.get('status')}]")
+        with st.expander(rotulo):
+            for evidencia in (feedback.get("evidencias") or [])[:5]:
+                st.markdown(f"`{evidencia.get('path')}`")
+                col_antes, col_depois = st.columns(2)
+                col_antes.caption("Antes")
+                col_antes.code(evidencia.get("antes") or "—")
+                col_depois.caption("Depois")
+                col_depois.code(evidencia.get("depois") or "—")
+            destinos = aprendizado.proximos_estados(feedback)
+            if not destinos:
+                continue
+            col_sel, col_btn = st.columns([2, 1])
+            destino = col_sel.selectbox(
+                "Próximo estado", destinos,
+                key=f"curadoria_destino_{feedback['id']}",
+                label_visibility="collapsed")
+            versao = ""
+            if destino == "PUBLISHED":
+                versao = st.text_input(
+                    "Rótulo da versão publicada",
+                    key=f"curadoria_versao_{feedback['id']}",
+                    placeholder="ex.: prompt-tr@4 ou clausula.garantia@2")
+            if col_btn.button("Aplicar", key=f"curadoria_{feedback['id']}",
+                              use_container_width=True):
+                try:
+                    usuario = (auth.usuario_logado() or {})
+                    aprendizado.transicionar(
+                        feedback, destino, curador=usuario.get("id"),
+                        versao_publicada=versao)
+                    st.rerun()
+                except aprendizado.ErroAprendizado as erro:
+                    st.error(str(erro))

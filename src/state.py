@@ -73,6 +73,15 @@ def doc_da_etapa(etapa: int) -> str:
 
 def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
     """Salva a versão editada pelo usuário, marca como aprovado e avança."""
+    # V5 Fase 7 (flag_institutional_learning_capture): a edição humana
+    # sobre o rascunho é um SINAL de aprendizado — capturada anonimizada,
+    # por bloco, best-effort (jamais atrapalha a aprovação). Flag OFF: nada.
+    from . import aprendizado
+
+    aprendizado.capturar_edicao(
+        doc_key, st.session_state.documentos.get(doc_key) or "",
+        texto_editado, st.session_state.processo_id)
+
     st.session_state.documentos[doc_key] = texto_editado
     st.session_state.aprovados.add(doc_key)
     st.session_state.etapa += 1
