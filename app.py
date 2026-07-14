@@ -24,7 +24,7 @@ COMO RODAR LOCALMENTE
 import streamlit as st
 
 from src import auth, state
-from src.ui import admin, biblioteca, components, login, steps
+from src.ui import admin, biblioteca, components, governanca_ui, login, steps
 
 # Configuração da página — deve ser a 1ª chamada Streamlit do script
 st.set_page_config(
@@ -75,6 +75,10 @@ if auth.eh_admin() and pagina == "Base de Conhecimento":
     st.stop()
 if auth.eh_admin() and pagina == "Administração":
     admin.render_admin()
+    st.stop()
+if pagina == "Governança" and governanca_ui.disponivel():
+    # Centro de Governança (V6): flag + papel de governança obrigatórios
+    governanca_ui.render_governanca()
     st.stop()
 
 components.render_stepper(st.session_state.etapa)
