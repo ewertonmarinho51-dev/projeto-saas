@@ -46,9 +46,10 @@ def render_governanca() -> None:
         "templates versionados, com revisão, simulação e publicação. "
         "Nada é publicado automaticamente."
     )
-    aba_visao, aba_catalogo, aba_politicas, aba_familias = st.tabs(
+    (aba_visao, aba_catalogo, aba_politicas, aba_familias,
+     aba_templates, aba_heranca) = st.tabs(
         ["Visão geral", "Catálogo de cláusulas", "Políticas de aplicação",
-         "Biblioteca de modelos"])
+         "Biblioteca de modelos", "Templates", "Herança"])
     with aba_visao:
         _render_visao_geral()
     with aba_catalogo:
@@ -65,6 +66,10 @@ def render_governanca() -> None:
                     "(flag_visual_policy_builder).")
     with aba_familias:
         _render_familias()
+    with aba_templates:
+        _render_templates()
+    with aba_heranca:
+        _render_heranca()
 
 
 def _render_visao_geral() -> None:
@@ -581,3 +586,173 @@ def _render_familia(item: dict, somente_leitura: bool) -> None:
                     st.rerun()
                 except (catalogo.ErroCatalogo, db.ErroBanco) as erro:
                     st.error(str(erro))
+
+
+# ---------------------------------------------------------------------------
+# Construtor de templates (V6 Fase 5)
+# ---------------------------------------------------------------------------
+def _render_templates() -> None:
+    from .. import templates_gov
+
+    if not templates_gov.ativa():
+        st.info("O construtor de templates está desligado "
+                "(flag_template_builder).")
+        return
+    st.caption(
+        "Templates por BLOCOS (nunca editor livre): título, metadados, "
+        "cláusulas do catálogo (com condição), tabelas, assinatura. A "
+        "montagem é determinística e preserva versão/hash de cada "
+        "cláusula usada."
+    )
+    try:
+        itens = catalogo.listar_com_situacao("template")
+    except db.ErroBanco as erro:
+        st.error(str(erro))
+        return
+    if not auth.somente_auditoria():
+        with st.expander("Novo template (a partir das cláusulas publicadas)"):
+            _render_form_novo_template(templates_gov)
+    st.divider()
+    if not itens:
+        st.caption("Nenhum template criado ainda.")
+        return
+    for item in itens:
+        artefato, ultima = item["artefato"], item["ultima"]
+        if not ultima:
+            continue
+        blocos_t = ultima["payload"].get("blocos", [])
+        situacao = _ROTULOS_STATUS.get(ultima["status"], ultima["status"])
+        with st.expander(f"`{artefato['chave_estavel']}` · "
+                         f"v{ultima['versao']} ({situacao}) · "
+                         f"{len(blocos_t)} bloco(s)"):
+            st.markdown(" → ".join(
+                f"`{b.get('tipo')}`" for b in blocos_t))
+            if st.button("Pré-visualizar com contexto de teste",
+                         key=f"tpl_prev_{ultima['id']}"):
+                resultado = templates_gov.montar(
+                    ultima["payload"],
+                    {"procedimento.srp": True,
+                     "orgao.nome": "Prefeitura (teste)"},
+                    parametros={})
+                st.markdown(resultado["texto"])
+                for pendencia in resultado["pendencias"]:
+                    st.warning(str(pendencia))
+            destinos = catalogo.proximas_transicoes(ultima)
+            if destinos and not auth.somente_auditoria():
+                col_sel, col_btn = st.columns([2, 1])
+                destino = col_sel.selectbox(
+                    "Avançar para", destinos,
+                    format_func=lambda d: _ROTULOS_STATUS.get(d, d),
+                    key=f"tpl_destino_{ultima['id']}",
+                    label_visibility="collapsed")
+                if col_btn.button("Aplicar",
+                                  key=f"tpl_aplica_{ultima['id']}",
+                                  use_container_width=True):
+                    try:
+                        catalogo.transicionar(artefato, ultima, destino)
+                        st.rerun()
+                    except (catalogo.ErroCatalogo, db.ErroBanco) as erro:
+                        st.error(str(erro))
+
+
+def _render_form_novo_template(templates_gov) -> None:
+    try:
+        publicadas = [i["artefato"]["chave_estavel"]
+                      for i in catalogo.listar_com_situacao("clausula")
+                      if i["publicada"]]
+    except db.ErroBanco:
+        publicadas = []
+    with st.form("form_novo_template", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        chave = col1.text_input("Chave estável",
+                                placeholder="template.tr-base")
+        titulo = col2.text_input("Título do documento",
+                                 placeholder="TERMO DE REFERÊNCIA")
+        clausulas_escolhidas = st.multiselect(
+            "Cláusulas do catálogo (na ordem)", publicadas)
+        com_tabela = st.checkbox("Incluir tabela de itens", value=True)
+        enviado = st.form_submit_button("Criar rascunho", type="primary",
+                                        use_container_width=True)
+    if enviado:
+        blocos_t = [{"id": "b-titulo", "tipo": "titulo", "texto": titulo}]
+        blocos_t += [{"id": f"b-{i}", "tipo": "clausula_catalogo",
+                      "clausula": c}
+                     for i, c in enumerate(clausulas_escolhidas)]
+        if com_tabela:
+            blocos_t.append({"id": "b-tabela", "tipo": "tabela"})
+        blocos_t.append({"id": "b-assina", "tipo": "assinatura"})
+        try:
+            templates_gov.criar_template(chave.strip(), blocos_t)
+            st.success(f"Rascunho '{chave}' criado.")
+            st.rerun()
+        except (catalogo.ErroCatalogo, governanca.ErroContrato,
+                db.ErroBanco) as erro:
+            st.error(str(erro))
+
+
+# ---------------------------------------------------------------------------
+# Herança e precedência (V6 Fase 6)
+# ---------------------------------------------------------------------------
+def _render_heranca() -> None:
+    from .. import heranca as heranca_mod
+
+    if not heranca_mod.ativa():
+        st.info("A administração de herança está desligada "
+                "(flag_tenant_inheritance_admin).")
+        return
+    st.caption(
+        "Precedência: secretaria > município > plataforma. O nível mais "
+        "específico prevalece; sem override, vale a herança. Restaurar "
+        "revoga o override local (o histórico permanece)."
+    )
+    tipo = st.selectbox("Tipo de artefato",
+                        ["clausula", "politica", "familia", "template"])
+    try:
+        visao = heranca_mod.visao_heranca(tipo)
+    except db.ErroBanco as erro:
+        st.error(str(erro))
+        return
+    if not visao:
+        st.caption("Nenhum artefato deste tipo ainda.")
+        return
+    for linha in visao:
+        origem = linha["origem"] or "sem versão publicada"
+        with st.expander(f"`{linha['chave']}` — origem: **{origem}**"
+                         + (" · com override" if linha["tem_override"]
+                            else "")):
+            for escopo, item in sorted(linha["escopos"].items()):
+                ultima = item["ultima"]
+                st.caption(
+                    f"{escopo}: v{ultima['versao']} "
+                    f"({_ROTULOS_STATUS.get(ultima['status'])}) "
+                    f"hash `{ultima['hash'][:12]}…`" if ultima
+                    else f"{escopo}: sem versões")
+            comparacao = heranca_mod.comparar(linha)
+            if comparacao:
+                st.caption(
+                    "Comparação com a plataforma: "
+                    + ("idênticas" if comparacao["iguais"] else
+                       "difere em " + ", ".join(
+                           comparacao["campos_diferentes"])))
+            if auth.somente_auditoria():
+                continue
+            col_a, col_b = st.columns(2)
+            if linha["origem"] == "plataforma" and \
+                    "municipio" not in linha["escopos"]:
+                if col_a.button("Sobrescrever neste município",
+                                key=f"her_sob_{linha['chave']}"):
+                    try:
+                        heranca_mod.sobrescrever(linha)
+                        st.rerun()
+                    except (heranca_mod.ErroHeranca,
+                            db.ErroBanco) as erro:
+                        st.error(str(erro))
+            if linha["tem_override"] and linha["origem"] != "plataforma":
+                if col_b.button("Restaurar herança da plataforma",
+                                key=f"her_rest_{linha['chave']}"):
+                    try:
+                        heranca_mod.restaurar_heranca(linha)
+                        st.rerun()
+                    except (heranca_mod.ErroHeranca,
+                            db.ErroBanco) as erro:
+                        st.error(str(erro))

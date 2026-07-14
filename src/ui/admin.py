@@ -642,6 +642,17 @@ def _render_qualidade() -> None:
          "Ligada: as diretrizes da família resolvida entram na geração "
          "(cláusulas obrigatórias/proibidas) e ambiguidade real vira "
          "pergunta objetiva ao servidor. Requer famílias publicadas."),
+        (governanca.FLAG_TEMPLATES,
+         "Construtor de templates por blocos",
+         "Ligada: módulo de templates na Governança — blocos tipados "
+         "(título, metadados, cláusulas do catálogo com condição, "
+         "tabelas, assinatura), montagem determinística com snapshot de "
+         "versão/hash de cada cláusula usada e preview."),
+        (governanca.FLAG_HERANCA,
+         "Administração de herança por tenant",
+         "Ligada: módulo Herança na Governança — origem de cada artefato "
+         "(plataforma/município/secretaria), sobrescrever, comparar e "
+         "restaurar herança (revoga o override local, sem apagar nada)."),
     ])
 
     if db.flag_ativa(governanca.FLAG_APRENDIZADO_CAPTURA):
