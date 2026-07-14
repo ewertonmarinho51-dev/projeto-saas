@@ -8,7 +8,8 @@ Telas de cada etapa do wizard:
 import streamlit as st
 
 from .. import (achados, auth, conhecimento, contexto, corretor, db,
-                explicacoes, export, fatos, planilha, rag, state)
+                explicacoes, export, fatos, planilha, qualidade, rag,
+                state)
 from . import revisao
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
@@ -390,6 +391,34 @@ def _render_decisao_conhecimento(decisao: dict) -> None:
                         expanded=False)
 
 
+def _render_score_qualidade(resultado: dict) -> None:
+    """Painel do índice de confiança (V5 Fase 6, gate ligado)."""
+    avaliacao = qualidade.avaliar_gate(resultado)
+    if avaliacao["bloqueia"]:
+        st.error(
+            f"**Emissão bloqueada pelo índice de confiança** — "
+            f"{avaliacao['motivo']}."
+        )
+        for critico in resultado["criticos"]:
+            st.markdown(f"- {critico}")
+    elif avaliacao["motivo"]:
+        st.warning(avaliacao["motivo"])
+    with st.expander(
+        f"Índice de confiança: {resultado['score']} / 100 "
+        f"({resultado['config_versao']})"
+    ):
+        st.caption(
+            "Calculado exclusivamente de componentes determinísticos e "
+            "relatórios reais do processo. Ocorrência crítica bloqueia a "
+            "emissão independentemente do score."
+        )
+        st.dataframe(
+            [{"Dimensão": nome, "Valor": valor}
+             for nome, valor in resultado["dimensoes"].items()],
+            use_container_width=True,
+        )
+
+
 def _render_relatorio_estruturado(relatorio: dict) -> None:
     """Findings estruturados na tela final (flag_achados_estruturados)."""
     findings = relatorio["findings"]
@@ -508,6 +537,13 @@ def render_sucesso() -> None:
     if decisao_conhecimento is not None:
         _render_decisao_conhecimento(decisao_conhecimento)
 
+    # Índice de confiança (V5 F6): shadow calcula e persiste em silêncio;
+    # com o gate ligado, o painel aparece e crítico/score baixo bloqueia.
+    score_qualidade = qualidade.processar_na_tela(
+        docs, st.session_state.dados, st.session_state.get("processo_id"))
+    if score_qualidade is not None:
+        _render_score_qualidade(score_qualidade)
+
     registro = st.session_state.get("registro_geracoes") or []
     if registro:
         with st.expander("Registro técnico de geração (auditoria)"):
@@ -523,6 +559,10 @@ def render_sucesso() -> None:
     if decisao_conhecimento is not None and \
             decisao_conhecimento["resultado"]["bloqueios"]:
         return  # bloqueio de regra do motor de conhecimento (flag ativa)
+
+    if score_qualidade is not None and \
+            qualidade.avaliar_gate(score_qualidade)["bloqueia"]:
+        return  # gate do índice de confiança (crítico ou score baixo)
 
     # Gate técnico (Etapa 7 — flag_gate_emissao): sem aprovação do ciclo
     # para a versão ATUAL do bundle, a emissão é tecnicamente impossível.

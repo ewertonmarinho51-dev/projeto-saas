@@ -584,6 +584,18 @@ def _render_qualidade() -> None:
          "observadas, fontes) — nada é inventado. Administradores veem "
          "também a trilha técnica e o registro de auditoria (hashes). "
          "Requer o motor de conhecimento ativo."),
+        (governanca.FLAG_SCORE_SHADOW,
+         "Índice de confiança em modo sombra (Fase 6)",
+         "Ligada: o score 0–100 (8 dimensões determinísticas, config "
+         "quality-config@1) é calculado e gravado em qualidade_scores a "
+         "cada processo, sem aparecer na tela. Use para calibrar os "
+         "limiares com processos reais antes de ligar o gate."),
+        (governanca.FLAG_SCORE_GATE,
+         "Gate de emissão pelo índice de confiança (Fase 6)",
+         "Ligada: o painel do score aparece na tela final e a emissão é "
+         "bloqueada com ocorrência CRÍTICA (sempre, mesmo com score alto) "
+         "ou score abaixo de 75. Ligue somente após calibrar em modo "
+         "sombra."),
     ])
 
     st.divider()
