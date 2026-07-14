@@ -653,6 +653,22 @@ def _render_qualidade() -> None:
          "Ligada: módulo Herança na Governança — origem de cada artefato "
          "(plataforma/município/secretaria), sobrescrever, comparar e "
          "restaurar herança (revoga o override local, sem apagar nada)."),
+        (governanca.FLAG_IMPLANTACAO,
+         "Assistente de implantação",
+         "Ligada: fluxo guiado para novo município — importar documentos "
+         "aprovados, extrair cláusulas candidatas (código, não IA), "
+         "detectar duplicidades e criar RASCUNHOS no catálogo. A "
+         "importação nunca publica nada."),
+        (governanca.FLAG_PARECERES,
+         "Ingestão de pareceres jurídicos",
+         "Ligada: upload de pareceres com análise por IA em achados "
+         "estruturados e anonimizados. O conteúdo do parecer é tratado "
+         "como DADO (instruções embutidas são ignoradas)."),
+        (governanca.FLAG_PARECERES_LOTE,
+         "Processamento de pareceres em lote",
+         "Ligada: 20+ pareceres enfileirados, processados um a um com "
+         "progresso persistido; falha em um item não derruba o lote e "
+         "pode ser reprocessada."),
     ])
 
     if db.flag_ativa(governanca.FLAG_APRENDIZADO_CAPTURA):

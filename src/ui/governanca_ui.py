@@ -47,9 +47,10 @@ def render_governanca() -> None:
         "Nada é publicado automaticamente."
     )
     (aba_visao, aba_catalogo, aba_politicas, aba_familias,
-     aba_templates, aba_heranca) = st.tabs(
+     aba_templates, aba_heranca, aba_implantacao, aba_pareceres) = st.tabs(
         ["Visão geral", "Catálogo de cláusulas", "Políticas de aplicação",
-         "Biblioteca de modelos", "Templates", "Herança"])
+         "Biblioteca de modelos", "Templates", "Herança",
+         "Implantação", "Pareceres"])
     with aba_visao:
         _render_visao_geral()
     with aba_catalogo:
@@ -70,6 +71,10 @@ def render_governanca() -> None:
         _render_templates()
     with aba_heranca:
         _render_heranca()
+    with aba_implantacao:
+        _render_implantacao()
+    with aba_pareceres:
+        _render_pareceres()
 
 
 def _render_visao_geral() -> None:
@@ -756,3 +761,140 @@ def _render_heranca() -> None:
                     except (heranca_mod.ErroHeranca,
                             db.ErroBanco) as erro:
                         st.error(str(erro))
+
+
+# ---------------------------------------------------------------------------
+# Assistente de implantação (V6 Fase 7)
+# ---------------------------------------------------------------------------
+def _render_implantacao() -> None:
+    from .. import implantacao
+
+    if not implantacao.ativa():
+        st.info("O assistente de implantação está desligado "
+                "(flag_onboarding_assistant).")
+        return
+    st.caption(
+        "Fluxo guiado: 1) município/secretarias já cadastrados na aba "
+        "Secretarias; 2) importe documentos APROVADOS; 3) o sistema "
+        "extrai cláusulas candidatas e detecta duplicidades; 4) revise e "
+        "crie RASCUNHOS no catálogo; 5) simule e publique gradualmente. "
+        "A importação nunca publica nada."
+    )
+    tipo = st.selectbox("Tipo documental dos arquivos",
+                        ["dfd", "etp", "tr", "edital"], index=2)
+    arquivos = st.file_uploader(
+        "Documentos aprovados (PDF, DOCX, TXT ou MD)",
+        type=["pdf", "docx", "txt", "md"], accept_multiple_files=True,
+        key="upload_implantacao")
+    if not arquivos:
+        return
+    candidatas = []
+    for arquivo in arquivos:
+        try:
+            candidatas += implantacao.extrair_candidatas(
+                arquivo.name, arquivo.getvalue(), tipo)
+        except Exception as erro:  # noqa: BLE001
+            st.error(f"{arquivo.name}: {erro}")
+    if not candidatas:
+        st.warning("Nenhuma cláusula candidata encontrada (os documentos "
+                   "têm títulos numerados?).")
+        return
+    marcadas = implantacao.detectar_duplicatas(candidatas)
+    st.markdown(f"**{len(marcadas)} cláusula(s) candidata(s):**")
+    selecionadas = []
+    for i, candidata in enumerate(marcadas):
+        rotulo = (f"{candidata['titulo']} — {candidata['situacao']}"
+                  + (f" (≈ {candidata['referencia']})"
+                     if candidata["referencia"] else "")
+                  + f" · origem: {candidata['origem']}")
+        marcada = st.checkbox(rotulo, key=f"impl_{i}",
+                              value=candidata["situacao"] == "nova")
+        if marcada:
+            selecionadas.append(candidata)
+    if selecionadas and st.button(
+        f"Criar {len(selecionadas)} rascunho(s) no catálogo",
+        type="primary",
+    ):
+        try:
+            criadas = implantacao.criar_rascunhos(selecionadas)
+            st.success(f"{len(criadas)} rascunho(s) criado(s). Próximo "
+                       "passo: revisar no Catálogo, simular e publicar "
+                       "gradualmente.")
+        except (catalogo.ErroCatalogo, governanca.ErroContrato,
+                db.ErroBanco) as erro:
+            st.error(str(erro))
+
+
+# ---------------------------------------------------------------------------
+# Pareceres jurídicos (V6 Fase 8)
+# ---------------------------------------------------------------------------
+def _render_pareceres() -> None:
+    from .. import pareceres
+
+    if not pareceres.ingestao_ativa():
+        st.info("A ingestão de pareceres está desligada "
+                "(flag_legal_opinion_ingestion).")
+        return
+    st.caption(
+        "Envie pareceres individualmente ou em lote (20+). Cada arquivo "
+        "vira um job próprio; a análise extrai apontamentos estruturados "
+        "e anonimizados. O conteúdo do parecer é DADO — instruções "
+        "embutidas são ignoradas e nada é publicado automaticamente."
+    )
+    arquivos = st.file_uploader(
+        "Pareceres (PDF, DOCX, TXT ou MD)",
+        type=["pdf", "docx", "txt", "md"], accept_multiple_files=True,
+        key="upload_pareceres")
+    if arquivos:
+        varios = len(arquivos) > 1
+        if varios and not pareceres.lote_ativo():
+            st.warning("Vários arquivos exigem a flag de lote "
+                       "(flag_legal_opinion_batch_processing).")
+        elif st.button(
+            f"Enfileirar e analisar {len(arquivos)} parecer(es)",
+            type="primary",
+        ):
+            try:
+                if varios:
+                    lote = pareceres.ingerir_lote(
+                        [(a.name, a.getvalue()) for a in arquivos])
+                    barra = st.progress(0.0)
+                    resumo = pareceres.processar_lote(
+                        lote["lote_id"],
+                        ao_progresso=lambda i, n, nome: barra.progress(
+                            i / n, text=f"{i}/{n} — {nome}"))
+                    st.success(
+                        f"Lote {resumo['lote_id']}: "
+                        f"{resumo['processados']} processado(s), "
+                        f"{resumo['falhas']} falha(s). Falhas podem ser "
+                        "reprocessadas reenviando o lote.")
+                    for falha in lote["falhas"]:
+                        st.error(f"{falha['arquivo']}: {falha['erro']}")
+                else:
+                    parecer = pareceres.ingerir(
+                        arquivos[0].name, arquivos[0].getvalue())
+                    achados = pareceres.analisar(parecer)
+                    st.success(f"{len(achados)} apontamento(s) extraído(s).")
+            except (pareceres.ErroParecer, db.ErroBanco) as erro:
+                st.error(str(erro))
+
+    st.divider()
+    st.markdown("**Pareceres processados**")
+    try:
+        registros = (db._cliente().table("pareceres")  # noqa: SLF001
+                     .select("*").order("criado_em", desc=True)
+                     .limit(50).execute()).data or []
+    except Exception:  # noqa: BLE001
+        registros = []
+    if not registros:
+        st.caption("Nenhum parecer enviado ainda.")
+        return
+    st.dataframe(
+        [{
+            "Arquivo": p.get("nome_arquivo"),
+            "Lote": p.get("lote_id") or "—",
+            "Status": p.get("status"),
+            "Erro": p.get("erro") or "",
+        } for p in registros],
+        use_container_width=True,
+    )
