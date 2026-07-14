@@ -46,8 +46,9 @@ def render_governanca() -> None:
         "templates versionados, com revisão, simulação e publicação. "
         "Nada é publicado automaticamente."
     )
-    aba_visao, aba_catalogo, aba_politicas = st.tabs(
-        ["Visão geral", "Catálogo de cláusulas", "Políticas de aplicação"])
+    aba_visao, aba_catalogo, aba_politicas, aba_familias = st.tabs(
+        ["Visão geral", "Catálogo de cláusulas", "Políticas de aplicação",
+         "Biblioteca de modelos"])
     with aba_visao:
         _render_visao_geral()
     with aba_catalogo:
@@ -62,6 +63,8 @@ def render_governanca() -> None:
         else:
             st.info("O construtor de políticas está desligado "
                     "(flag_visual_policy_builder).")
+    with aba_familias:
+        _render_familias()
 
 
 def _render_visao_geral() -> None:
@@ -451,4 +454,130 @@ def _render_politica(item: dict, somente_leitura: bool) -> None:
                     st.rerun()
                 except (politicas.ErroPolitica, catalogo.ErroCatalogo,
                         db.ErroBanco) as erro:
+                    st.error(str(erro))
+
+
+# ---------------------------------------------------------------------------
+# Biblioteca de famílias de modelos (V6 Fase 4)
+# ---------------------------------------------------------------------------
+def _render_familias() -> None:
+    from .. import familias as familias_mod
+
+    st.caption(
+        "Famílias definem estrutura e cláusulas por tipo de contratação. "
+        "O servidor NÃO escolhe modelo: o sistema resolve pelo contexto; "
+        "só há pergunta objetiva quando existe ambiguidade real. "
+        "Resolução em sombra/ativa pelas flags de família."
+    )
+    somente_leitura = auth.somente_auditoria()
+    if not somente_leitura:
+        with st.expander("Nova família de modelo"):
+            _render_form_nova_familia(familias_mod)
+    st.divider()
+    try:
+        itens = catalogo.listar_com_situacao("familia")
+    except db.ErroBanco as erro:
+        st.error(str(erro))
+        return
+    if not itens:
+        st.caption("Nenhuma família criada ainda. Exemplos típicos: TR "
+                   "para serviços contínuos, ETP para obras, DFD para "
+                   "bens — crie as famílias efetivamente aprovadas.")
+        return
+    for item in itens:
+        _render_familia(item, somente_leitura)
+
+
+def _render_form_nova_familia(familias_mod) -> None:
+    with st.form("form_nova_familia", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        chave = col1.text_input("Chave estável",
+                                placeholder="familia.tr-servicos-continuos")
+        nome = col2.text_input("Nome",
+                               placeholder="TR para serviços contínuos")
+        col3, col4 = st.columns(2)
+        docs = col3.multiselect("Documentos suportados",
+                                ["dfd", "etp", "tr", "edital"],
+                                default=["tr"])
+        prioridade = col4.number_input("Prioridade (desempate)", 1, 1000,
+                                       100)
+        st.markdown("**Critérios de elegibilidade** (todos precisam valer)")
+        condicoes = []
+        for i in range(3):
+            c1, c2, c3 = st.columns([2, 1, 2])
+            campo = c1.text_input(f"Campo {i + 1}", key=f"fam_campo_{i}",
+                                  placeholder="procedimento.srp")
+            operador = c2.selectbox(f"Operador {i + 1}",
+                                    governanca.OPERADORES_FOLHA,
+                                    key=f"fam_op_{i}")
+            valor = c3.text_input(f"Valor {i + 1}", key=f"fam_valor_{i}")
+            condicoes.append((campo, operador, valor))
+        obrigatorias = st.text_input(
+            "Cláusulas obrigatórias (separadas por ;)",
+            placeholder="clausula.tr.dedicacao-exclusiva; clausula.tr.sla")
+        proibidas = st.text_input(
+            "Cláusulas proibidas (separadas por ;)")
+        pergunta = st.text_input(
+            "Pergunta de desambiguação (usada só em empate real)",
+            placeholder="O serviço terá dedicação exclusiva de mão de obra?")
+        enviado = st.form_submit_button("Criar rascunho", type="primary",
+                                        use_container_width=True)
+    if enviado:
+        folhas = [
+            {"field": campo.strip(), "operator": operador,
+             **({} if operador == "EXISTS"
+                else {"value": _interpretar_valor(valor)})}
+            for campo, operador, valor in condicoes if campo.strip()
+        ]
+        criterios = (folhas[0] if len(folhas) == 1
+                     else {"op": "ALL", "children": folhas})
+        try:
+            familias_mod.criar_familia(
+                chave.strip(), nome.strip(), docs, criterios,
+                [c.strip() for c in obrigatorias.split(";") if c.strip()],
+                [c.strip() for c in proibidas.split(";") if c.strip()],
+                int(prioridade), pergunta.strip())
+            st.success(f"Rascunho '{chave}' criado.")
+            st.rerun()
+        except (catalogo.ErroCatalogo, governanca.ErroContrato,
+                db.ErroBanco) as erro:
+            st.error(str(erro))
+
+
+def _render_familia(item: dict, somente_leitura: bool) -> None:
+    artefato, ultima = item["artefato"], item["ultima"]
+    if not ultima:
+        return
+    payload = ultima["payload"]
+    situacao = _ROTULOS_STATUS.get(ultima["status"], ultima["status"])
+    with st.expander(
+        f"`{artefato['chave_estavel']}` — {payload.get('nome', '')} "
+        f"· v{ultima['versao']} ({situacao}) · "
+        f"docs: {', '.join(payload.get('documentos_suportados', []))}"
+    ):
+        st.markdown(
+            f"**Elegível quando:** "
+            f"{descrever_condicao(payload.get('criterios', {}))}")
+        if payload.get("clausulas_obrigatorias"):
+            st.caption("Obrigatórias: "
+                       + "; ".join(payload["clausulas_obrigatorias"]))
+        if payload.get("clausulas_proibidas"):
+            st.caption("Proibidas: "
+                       + "; ".join(payload["clausulas_proibidas"]))
+        if somente_leitura:
+            return
+        destinos = catalogo.proximas_transicoes(ultima)
+        if destinos:
+            col_sel, col_btn = st.columns([2, 1])
+            destino = col_sel.selectbox(
+                "Avançar para", destinos,
+                format_func=lambda d: _ROTULOS_STATUS.get(d, d),
+                key=f"fam_destino_{ultima['id']}",
+                label_visibility="collapsed")
+            if col_btn.button("Aplicar", key=f"fam_aplica_{ultima['id']}",
+                              use_container_width=True):
+                try:
+                    catalogo.transicionar(artefato, ultima, destino)
+                    st.rerun()
+                except (catalogo.ErroCatalogo, db.ErroBanco) as erro:
                     st.error(str(erro))
