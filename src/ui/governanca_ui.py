@@ -10,7 +10,7 @@ formulários e botões, nunca JSON como forma principal de edição.
 
 import streamlit as st
 
-from .. import auth, catalogo, db, governanca
+from .. import auth, catalogo, db, governanca, politicas
 
 _ROTULOS_STATUS = {
     "DRAFT": "rascunho",
@@ -46,8 +46,8 @@ def render_governanca() -> None:
         "templates versionados, com revisão, simulação e publicação. "
         "Nada é publicado automaticamente."
     )
-    aba_visao, aba_catalogo = st.tabs(["Visão geral",
-                                       "Catálogo de cláusulas"])
+    aba_visao, aba_catalogo, aba_politicas = st.tabs(
+        ["Visão geral", "Catálogo de cláusulas", "Políticas de aplicação"])
     with aba_visao:
         _render_visao_geral()
     with aba_catalogo:
@@ -56,6 +56,12 @@ def render_governanca() -> None:
         else:
             st.info("O Catálogo de Cláusulas está desligado "
                     "(flag_clause_catalog_admin).")
+    with aba_politicas:
+        if politicas.ativa():
+            _render_politicas()
+        else:
+            st.info("O construtor de políticas está desligado "
+                    "(flag_visual_policy_builder).")
 
 
 def _render_visao_geral() -> None:
@@ -234,4 +240,215 @@ def _render_clausula(item: dict, somente_leitura: bool) -> None:
                     catalogo.transicionar(artefato, ultima, destino)
                     st.rerun()
                 except (catalogo.ErroCatalogo, db.ErroBanco) as erro:
+                    st.error(str(erro))
+
+
+# ---------------------------------------------------------------------------
+# Políticas de aplicação (V6 Fase 3) — construtor visual, sem código
+# ---------------------------------------------------------------------------
+_CAMPOS_SUGERIDOS = [
+    "procedimento.srp", "procedimento.execucao_continuada",
+    "objeto.natureza", "valor.total", "execucao.modelo", "orgao.nome",
+]
+_ROTULOS_ACAO = {
+    "INCLUIR_CLAUSULA": "Incluir cláusula",
+    "EXCLUIR_CLAUSULA": "Excluir cláusula incompatível",
+    "EXIGIR_PARAMETRO": "Exigir parâmetro",
+    "EXIGIR_CAMPO": "Exigir documento/campo",
+    "SELECIONAR_FAMILIA": "Selecionar família de modelo",
+    "ATIVAR_VALIDACAO": "Ativar validação",
+    "BLOQUEAR_EMISSAO": "Bloquear emissão",
+    "ALERTA": "Emitir alerta",
+}
+
+
+def _interpretar_valor(bruto: str):
+    texto = (bruto or "").strip()
+    if texto.lower() in ("true", "sim", "verdadeiro"):
+        return True
+    if texto.lower() in ("false", "não", "nao", "falso"):
+        return False
+    try:
+        return float(texto) if "." in texto or "," in texto \
+            else int(texto)
+    except ValueError:
+        return texto
+
+
+def descrever_condicao(condicao: dict) -> str:
+    if "op" in condicao:
+        juntor = {"ALL": " E ", "ANY": " OU ", "NOT": "NÃO "}[condicao["op"]]
+        partes = [descrever_condicao(f)
+                  for f in condicao.get("children", [])]
+        if condicao["op"] == "NOT":
+            return f"NÃO ({partes[0]})"
+        return "(" + juntor.join(partes) + ")"
+    return (f"{condicao.get('field')} {condicao.get('operator')} "
+            f"{condicao.get('value', '')}")
+
+
+def _render_politicas() -> None:
+    somente_leitura = auth.somente_auditoria()
+    if not somente_leitura:
+        with st.expander("Nova política"):
+            _render_form_nova_politica()
+    st.divider()
+    try:
+        itens = catalogo.listar_com_situacao("politica")
+    except db.ErroBanco as erro:
+        st.error(str(erro))
+        return
+    if not itens:
+        st.caption("Nenhuma política criada ainda.")
+        return
+    for item in itens:
+        _render_politica(item, somente_leitura)
+
+
+def _render_form_nova_politica() -> None:
+    st.caption(
+        "Condições avaliadas por código sobre os fatos do processo — "
+        "campos sugeridos: " + ", ".join(f"`{c}`" for c in _CAMPOS_SUGERIDOS)
+    )
+    with st.form("form_nova_politica", clear_on_submit=True):
+        col1, col2, col3 = st.columns([2, 1, 1])
+        chave = col1.text_input("Chave estável",
+                                placeholder="politica.me-epp.srp-bens")
+        prioridade = col2.number_input("Prioridade", 1, 1000, 100)
+        operador_grupo = col3.selectbox(
+            "As condições valem…", ["ALL", "ANY"],
+            format_func=lambda o: "Todas juntas (E)" if o == "ALL"
+            else "Qualquer uma (OU)")
+        condicoes = []
+        for i in range(3):
+            c1, c2, c3 = st.columns([2, 1, 2])
+            campo = c1.text_input(f"Campo {i + 1}",
+                                  key=f"pol_campo_{i}",
+                                  placeholder="procedimento.srp")
+            operador = c2.selectbox(
+                f"Operador {i + 1}", governanca.OPERADORES_FOLHA,
+                key=f"pol_op_{i}")
+            valor = c3.text_input(f"Valor {i + 1}", key=f"pol_valor_{i}",
+                                  placeholder="sim / BENS / 50000")
+            condicoes.append((campo, operador, valor))
+        st.markdown("**Ações**")
+        acoes = []
+        for i in range(2):
+            a1, a2 = st.columns([1, 2])
+            tipo = a1.selectbox(
+                f"Ação {i + 1}", ["—"] + list(governanca.TIPOS_ACAO),
+                format_func=lambda t: _ROTULOS_ACAO.get(t, t),
+                key=f"pol_acao_{i}")
+            alvo = a2.text_input(f"Alvo/mensagem {i + 1}",
+                                 key=f"pol_alvo_{i}",
+                                 placeholder="clausula.tr.me-epp")
+            acoes.append((tipo, alvo))
+        justificativa = st.text_input(
+            "Justificativa", placeholder="Por que esta regra existe?")
+        fontes = st.text_input("Fontes", placeholder="lc-123-2006")
+        enviado = st.form_submit_button("Criar rascunho", type="primary",
+                                        use_container_width=True)
+    if enviado:
+        folhas = [
+            {"field": campo.strip(), "operator": operador,
+             **({} if operador == "EXISTS"
+                else {"value": _interpretar_valor(valor)})}
+            for campo, operador, valor in condicoes if campo.strip()
+        ]
+        condicao = (folhas[0] if len(folhas) == 1
+                    else {"op": operador_grupo, "children": folhas})
+        lista_acoes = []
+        for tipo, alvo in acoes:
+            if tipo == "—":
+                continue
+            acao = {"type": tipo}
+            if tipo == "ALERTA":
+                acao["mensagem"] = alvo.strip()
+            elif tipo == "BLOQUEAR_EMISSAO":
+                acao["motivo"] = alvo.strip()
+            else:
+                acao["target"] = alvo.strip()
+            lista_acoes.append(acao)
+        try:
+            politicas.criar_politica(
+                chave.strip(), condicao, lista_acoes, int(prioridade),
+                justificativa,
+                [f.strip() for f in fontes.split(";") if f.strip()])
+            st.success(f"Rascunho '{chave}' criado.")
+            st.rerun()
+        except (catalogo.ErroCatalogo, governanca.ErroContrato,
+                db.ErroBanco) as erro:
+            st.error(str(erro))
+
+
+def _render_politica(item: dict, somente_leitura: bool) -> None:
+    artefato, ultima = item["artefato"], item["ultima"]
+    if not ultima:
+        return
+    payload = ultima["payload"]
+    situacao = _ROTULOS_STATUS.get(ultima["status"], ultima["status"])
+    with st.expander(
+        f"`{artefato['chave_estavel']}` · v{ultima['versao']} "
+        f"({situacao}) · prioridade {payload.get('prioridade', 100)}"
+    ):
+        st.markdown(f"**SE** {descrever_condicao(payload.get('condicao', {}))}")
+        for acao in payload.get("acoes", []):
+            rotulo = _ROTULOS_ACAO.get(acao.get("type"), acao.get("type"))
+            st.markdown(f"**ENTÃO** {rotulo}: "
+                        f"`{acao.get('target') or acao.get('mensagem') or acao.get('motivo', '')}`")
+        if payload.get("justificativa"):
+            st.caption(f"Justificativa: {payload['justificativa']}")
+
+        # simulação: o efeito antes de publicar
+        with st.form(f"form_simula_{ultima['id']}"):
+            st.markdown("**Simular com um processo de teste**")
+            s1, s2, s3 = st.columns(3)
+            srp = s1.checkbox("Registro de preços (SRP)", value=True,
+                              key=f"sim_srp_{ultima['id']}")
+            natureza = s2.selectbox(
+                "Natureza", ["BENS", "SERVICOS", "OBRAS_ENGENHARIA"],
+                key=f"sim_nat_{ultima['id']}")
+            valor_total = s3.number_input(
+                "Valor global", 0.0, value=50000.0,
+                key=f"sim_valor_{ultima['id']}")
+            simular = st.form_submit_button("Simular")
+        if simular:
+            decisao = politicas.simular(artefato, ultima, {
+                "procedimento.srp": srp,
+                "objeto.natureza": natureza,
+                "valor.total": valor_total,
+            })
+            resultado = decisao["resultado"]
+            aplicada = any(
+                r["chave"] == artefato["chave_estavel"]
+                for r in decisao["regras_versoes"])
+            st.info(
+                ("A política SE APLICARIA a este processo. " if aplicada
+                 else "A política NÃO se aplicaria a este processo. ")
+                + f"Resultado: incluir={resultado['clausulas_incluir']}, "
+                  f"excluir={resultado['clausulas_excluir']}, "
+                  f"bloqueios={len(resultado['bloqueios'])}, "
+                  f"alertas={len(resultado['alertas'])}."
+            )
+
+        if somente_leitura:
+            return
+        destinos = catalogo.proximas_transicoes(ultima)
+        if destinos:
+            col_sel, col_btn = st.columns([2, 1])
+            destino = col_sel.selectbox(
+                "Avançar para", destinos,
+                format_func=lambda d: _ROTULOS_STATUS.get(d, d),
+                key=f"pol_destino_{ultima['id']}",
+                label_visibility="collapsed")
+            if col_btn.button("Aplicar", key=f"pol_aplica_{ultima['id']}",
+                              use_container_width=True):
+                try:
+                    if destino == "PUBLISHED":
+                        politicas.publicar(artefato, ultima)
+                    else:
+                        catalogo.transicionar(artefato, ultima, destino)
+                    st.rerun()
+                except (politicas.ErroPolitica, catalogo.ErroCatalogo,
+                        db.ErroBanco) as erro:
                     st.error(str(erro))

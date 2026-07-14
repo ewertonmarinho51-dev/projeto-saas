@@ -44,39 +44,45 @@ def _evento(tipo: str, entidade_id: str | None, payload: dict) -> None:
 # ---------------------------------------------------------------------------
 # Criação, edição de rascunho e derivação
 # ---------------------------------------------------------------------------
-def criar_clausula(chave_estavel: str, payload: dict,
+def criar_artefato(tipo_artefato: str, chave_estavel: str, payload: dict,
                    plataforma: bool = False) -> tuple[dict, dict]:
+    """Cria artefato + versão 1 DRAFT (genérico: cláusula/política/…)."""
     _exigir(auth.pode_criar_governanca(),
-            "Seu papel não permite criar cláusulas.")
+            f"Seu papel não permite criar {tipo_artefato}s.")
     if plataforma:
         _exigir(auth.governa_plataforma(),
                 "Escopo da plataforma exige papel global.")
     artefato = db.obter_ou_criar_artefato(
-        "clausula", chave_estavel, plataforma=plataforma)
+        tipo_artefato, chave_estavel, plataforma=plataforma)
     versoes = db.listar_versoes_governanca(artefato["id"])
     proxima = max((v["versao"] for v in versoes), default=0) + 1
     contrato = governanca.nova_versao_artefato(
-        "clausula", chave_estavel, payload, versao=proxima)
+        tipo_artefato, chave_estavel, payload, versao=proxima)
     contrato["autor"] = (auth.usuario_logado() or {}).get("id")
     gravada = db.criar_versao_governanca(artefato["id"], contrato)
-    _evento("clausula_rascunho_criado", gravada.get("id"),
+    _evento(f"{tipo_artefato}_rascunho_criado", gravada.get("id"),
             {"chave": chave_estavel, "versao": proxima})
     return artefato, gravada
 
 
-def editar_rascunho(versao: dict, chave_estavel: str,
-                    payload: dict) -> dict:
+def criar_clausula(chave_estavel: str, payload: dict,
+                   plataforma: bool = False) -> tuple[dict, dict]:
+    return criar_artefato("clausula", chave_estavel, payload, plataforma)
+
+
+def editar_rascunho(versao: dict, chave_estavel: str, payload: dict,
+                    tipo_artefato: str = "clausula") -> dict:
     _exigir(auth.pode_criar_governanca(),
-            "Seu papel não permite editar cláusulas.")
+            "Seu papel não permite editar este artefato.")
     _exigir(governanca.versao_artefato_editavel(versao),
             "Versão publicada é imutável — derive uma nova versão.")
     contrato = governanca.nova_versao_artefato(
-        "clausula", chave_estavel, payload,
+        tipo_artefato, chave_estavel, payload,
         versao=versao["versao"], status=versao["status"])
     atualizada = db.atualizar_versao_governanca(
         versao["id"], payload=contrato["payload"],
         hash=contrato["hash"])
-    _evento("clausula_rascunho_editado", versao["id"],
+    _evento(f"{tipo_artefato}_rascunho_editado", versao["id"],
             {"chave": chave_estavel, "versao": versao["versao"]})
     return atualizada
 
@@ -85,14 +91,15 @@ def derivar_nova_versao(artefato: dict, versao: dict) -> dict:
     """'Editar' uma publicada: cria a versão seguinte em rascunho."""
     _exigir(auth.pode_criar_governanca(),
             "Seu papel não permite derivar versões.")
+    tipo = artefato.get("tipo_artefato", "clausula")
     versoes = db.listar_versoes_governanca(artefato["id"])
     proxima = max((v["versao"] for v in versoes), default=0) + 1
     contrato = governanca.nova_versao_artefato(
-        "clausula", artefato["chave_estavel"], versao["payload"],
+        tipo, artefato["chave_estavel"], versao["payload"],
         versao=proxima)
     contrato["autor"] = (auth.usuario_logado() or {}).get("id")
     gravada = db.criar_versao_governanca(artefato["id"], contrato)
-    _evento("clausula_versao_derivada", gravada.get("id"),
+    _evento(f"{tipo}_versao_derivada", gravada.get("id"),
             {"chave": artefato["chave_estavel"], "de": versao["versao"],
              "para": proxima})
     return gravada
@@ -117,6 +124,7 @@ def transicionar(artefato: dict, versao: dict, novo_status: str,
     if checagem:
         _exigir(checagem(), f"Seu papel não permite {novo_status}.")
 
+    tipo = artefato.get("tipo_artefato", "clausula")
     campos: dict = {"status": novo_status}
     usuario_id = (auth.usuario_logado() or {}).get("id")
     if novo_status == "APPROVED_FOR_SIMULATION" and usuario_id:
@@ -132,11 +140,11 @@ def transicionar(artefato: dict, versao: dict, novo_status: str,
                     anterior["id"] != versao["id"]:
                 db.atualizar_versao_governanca(anterior["id"],
                                                status="SUPERSEDED")
-                _evento("clausula_versao_superada", anterior["id"],
+                _evento(f"{tipo}_versao_superada", anterior["id"],
                         {"chave": artefato["chave_estavel"],
                          "versao": anterior["versao"]})
     atualizada = db.atualizar_versao_governanca(versao["id"], **campos)
-    _evento(f"clausula_{novo_status.lower()}", versao["id"],
+    _evento(f"{tipo}_{novo_status.lower()}", versao["id"],
             {"chave": artefato["chave_estavel"],
              "versao": versao["versao"]})
     return atualizada
@@ -154,10 +162,10 @@ def proximas_transicoes(versao: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 # Consulta
 # ---------------------------------------------------------------------------
-def listar_com_situacao() -> list[dict]:
-    """Cláusulas visíveis + última versão + publicada vigente."""
+def listar_com_situacao(tipo_artefato: str = "clausula") -> list[dict]:
+    """Artefatos visíveis + última versão + publicada vigente."""
     resultado = []
-    for artefato in db.listar_artefatos("clausula"):
+    for artefato in db.listar_artefatos(tipo_artefato):
         versoes = db.listar_versoes_governanca(artefato["id"])
         publicada = next((v for v in versoes
                           if v.get("status") == "PUBLISHED"), None)

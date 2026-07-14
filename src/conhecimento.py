@@ -318,6 +318,15 @@ def executar_na_tela(dados: dict, processo_id: str | None) -> dict | None:
         regras = db.listar_regras() if db.disponivel() else []
     except db.ErroBanco:
         regras = []
+    # V6 Fase 3 (flag_visual_policy_builder): as políticas PUBLICADAS no
+    # Centro de Governança entram no motor junto às regras do banco.
+    if db.disponivel() and db.flag_ativa(governanca.FLAG_POLITICAS_VISUAL):
+        from . import politicas
+
+        try:
+            regras = regras + politicas.regras_publicadas()
+        except db.ErroBanco:
+            pass
 
     decisao = resolver(lista_fatos, regras, fontes_revogadas_do_banco(),
                        processo_id)
