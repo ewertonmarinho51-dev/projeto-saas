@@ -60,11 +60,16 @@ PERFIS: dict[str, dict] = {
             {"n": 8, "titulo": "PERÍODO",
              "finalidade": "Período/prazo pretendido para a contratação e vigência.",
              "blocos": (1, 2, 5), "complexidade": "baixa", "obrigatoria": True,
-             "tabela": False, "fundamentacao": False},
+             "tabela": False, "fundamentacao": False,
+             # correção automática: só PARÂMETROS (prazos, datas, valores)
+             # podem mudar — a prosa da cláusula é preservada
+             "fixa": "PARAMETERIZED"},
             {"n": 9, "titulo": "EQUIPE DE PLANEJAMENTO",
              "finalidade": "Composição da equipe, com local para data e assinaturas.",
              "blocos": (1, 3, 5), "complexidade": "baixa", "obrigatoria": True,
-             "tabela": False, "fundamentacao": False},
+             "tabela": False, "fundamentacao": False,
+             # correção automática: quem assina não é decisão de máquina
+             "fixa": "LOCKED"},
         ],
     },
     "etp": {
@@ -140,7 +145,9 @@ PERFIS: dict[str, dict] = {
             {"n": 16, "titulo": "EQUIPE DE PLANEJAMENTO",
              "finalidade": "Composição e assinaturas da equipe de planejamento.",
              "blocos": (1, 3, 5), "complexidade": "baixa", "obrigatoria": True,
-             "tabela": False, "fundamentacao": False},
+             "tabela": False, "fundamentacao": False,
+             # correção automática: quem assina não é decisão de máquina
+             "fixa": "LOCKED"},
             {"n": 17, "titulo": "POSSIBILIDADE DE RENOVAÇÃO DO QUANTITATIVO REGISTRADO",
              "finalidade": "Renovação de quantitativos — aplicável quando SRP.",
              "blocos": (1, 3, 6), "complexidade": "media", "obrigatoria": False,
@@ -248,6 +255,18 @@ def perfil(doc_key: str) -> dict | None:
 def clausulas_obrigatorias(doc_key: str) -> list[dict]:
     p = perfil(doc_key)
     return [c for c in p["clausulas"] if c["obrigatoria"]] if p else []
+
+
+def clausulas_fixas(doc_key: str) -> dict[int, str]:
+    """
+    Governança da correção automática: nº da cláusula → 'LOCKED'
+    (a IA nunca altera) ou 'PARAMETERIZED' (só parâmetros autorizados —
+    números, valores, datas e percentuais — podem mudar).
+    """
+    p = perfil(doc_key)
+    if not p:
+        return {}
+    return {c["n"]: c["fixa"] for c in p["clausulas"] if c.get("fixa")}
 
 
 def palavras_minimas(doc_key: str) -> int:

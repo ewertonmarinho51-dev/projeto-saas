@@ -9,14 +9,17 @@ Página "Administração" (exclusiva do papel admin):
 
 import streamlit as st
 
-from .. import auth, branding, contexto, db, llm
+from .. import achados, auth, branding, ciclo, contexto, corretor, db, llm, patches
 from ..llm import motor_ativo
+from . import revisao
 
 
 def render_admin() -> None:
     st.subheader("Administração")
-    aba_usuarios, aba_chaves, aba_identidade, aba_secretarias = st.tabs(
-        ["Usuários", "Chaves de IA", "Identidade visual", "Secretarias"]
+    (aba_usuarios, aba_chaves, aba_identidade, aba_secretarias,
+     aba_revisao) = st.tabs(
+        ["Usuários", "Chaves de IA", "Identidade visual", "Secretarias",
+         "Revisão"]
     )
     with aba_usuarios:
         _render_usuarios()
@@ -26,6 +29,8 @@ def render_admin() -> None:
         _render_identidade()
     with aba_secretarias:
         _render_secretarias()
+    with aba_revisao:
+        _render_revisao()
 
 
 # ---------------------------------------------------------------------------
@@ -459,4 +464,68 @@ def _render_secretarias() -> None:
                 auth.atualizar_usuario(u["id"], secretaria_id=vinculo)
                 st.rerun()
             except auth.ErroAuth as erro:
+                st.error(str(erro))
+
+
+# ---------------------------------------------------------------------------
+# Revisão — flags do ciclo de correção automática (por etapa)
+# ---------------------------------------------------------------------------
+def _render_revisao() -> None:
+    st.markdown("##### Correção automática de documentos")
+    st.caption(
+        "Ativação por etapas, cada uma com sua flag (rollback = desligar). "
+        "Com tudo desligado, a revisão se comporta exatamente como antes."
+    )
+    if not db.disponivel():
+        st.info("Configure o Supabase para gerenciar as flags de revisão.")
+        return
+
+    flags = [
+        (achados.FLAG_ACHADOS,
+         "Relatório estruturado da revisão (Etapa 1)",
+         "Ligada: a tela final exibe os findings estruturados da revisão "
+         "(documento, escopo autorizado, gravidade, corrigível ou não). "
+         "Desligada: tela anterior — a auditoria estruturada roda apenas "
+         "em modo sombra (logs). Esta etapa não altera a emissão."),
+        (corretor.FLAG_CORRETOR,
+         "Corretor por patches em modo sombra (Etapa 3)",
+         "Ligada: ao chegar à tela final, a IA gera o PLANO de correção "
+         "dos findings corrigíveis e o registra (logs e histórico da "
+         "revisão) SEM aplicar nenhuma alteração. Consome chamadas de IA. "
+         "Desligada: nenhuma chamada é feita."),
+        (patches.FLAG_APLICACAO,
+         "Aplicação automática das correções (Etapas 4–5)",
+         "Ligada: o ciclo corrige de verdade — plano validado, aplicação "
+         "transacional (tudo ou nada) e NOVA auditoria obrigatória, até "
+         "3 ciclos. Cláusulas de assinatura nunca mudam; alteração fora "
+         "do escopo rejeita tudo. Desligada: nada é alterado."),
+        (ciclo.FLAG_REAUDITORIA,
+         "Auditoria semântica por IA (Etapa 5)",
+         "Ligada: além das validações determinísticas, uma IA audita "
+         "coerência entre documentos e fundamentação. Findings semânticos "
+         "não geram correção automática; um item CRÍTICO bloqueia para "
+         "revisão humana. Consome chamadas de IA."),
+        (revisao.FLAG_TELA,
+         "Tela de correção automática (Etapa 6)",
+         "Ligada: a tela final deixa de mandar o servidor corrigir no "
+         "editor e passa a mostrar o progresso (Analisando → Preparando → "
+         "Corrigindo → Validando → Arquivos finais), pedindo apenas o "
+         "dado que faltar. Requer a aplicação automática ligada. "
+         "Desligada: tela anterior."),
+        (revisao.FLAG_GATE,
+         "Gate técnico de emissão (Etapa 7)",
+         "Ligada: os downloads só existem depois que a revisão automática "
+         "APROVA a versão atual dos documentos — editar qualquer texto "
+         "exige nova aprovação. Requer a tela de correção automática "
+         "ligada. Desligada: a emissão segue as regras da tela em uso."),
+    ]
+    for flag, rotulo, ajuda in flags:
+        flag_atual = db.flag_ativa(flag)
+        ligada = st.toggle(rotulo, value=flag_atual, help=ajuda,
+                           key=f"toggle_{flag}")
+        if ligada != flag_atual:
+            try:
+                db.salvar_config(f"flag_{flag}", "1" if ligada else "")
+                st.rerun()
+            except db.ErroBanco as erro:
                 st.error(str(erro))

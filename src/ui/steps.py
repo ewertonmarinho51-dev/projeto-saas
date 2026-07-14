@@ -7,7 +7,8 @@ Telas de cada etapa do wizard:
 
 import streamlit as st
 
-from .. import contexto, db, export, planilha, rag, state
+from .. import achados, contexto, corretor, db, export, planilha, rag, state
+from . import revisao
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
@@ -284,6 +285,38 @@ def _botao_voltar(meta: dict) -> None:
         state.ir_para(meta["etapa"] - 1)
 
 
+def _render_relatorio_estruturado(relatorio: dict) -> None:
+    """Findings estruturados na tela final (flag_achados_estruturados)."""
+    findings = relatorio["findings"]
+    rotulo_status = {
+        "APPROVED": "aprovado",
+        "CORRECTIONS_REQUIRED": "correções necessárias",
+        "BLOCKED": "exige intervenção humana",
+    }.get(relatorio["status"], relatorio["status"])
+    with st.expander(
+        f"Relatório estruturado da revisão — {rotulo_status} "
+        f"({len(findings)} finding(s))"
+    ):
+        st.caption(
+            "Cada achado da revisão vira um finding com escopo autorizado "
+            "por bloco — a base do corretor por patches (etapas seguintes). "
+            "Nesta etapa nada é alterado nos documentos."
+        )
+        st.markdown(f"**{relatorio['summary']}**")
+        if findings:
+            st.dataframe(
+                [{
+                    "Documento": f["documentId"].upper(),
+                    "Gravidade": f["severity"],
+                    "Categoria": f["categoria"],
+                    "Problema": f["descricao"],
+                    "Corrigível": "sim" if f["autoCorrectable"] else "não",
+                    "Escopo autorizado": ", ".join(f["allowedPaths"]) or "—",
+                } for f in findings],
+                use_container_width=True,
+            )
+
+
 # ---------------------------------------------------------------------------
 # Etapa 5 — Conclusão e exportação
 # ---------------------------------------------------------------------------
@@ -297,34 +330,62 @@ def render_sucesso() -> None:
     prefixo = "".join(c if c.isalnum() else "-" for c in orgao)[:40].strip("-") or "dossie"
 
     # ------------------------------------------------------------------
-    # Validação automática ANTES da emissão: pendências ([PREENCHER],
-    # marcadores internos etc.) BLOQUEIAM o download — devem ser resolvidas
-    # na revisão, nunca aparecer no PDF/DOCX definitivo.
+    # Correção automática (Etapa 6 — flag_tela_progresso): substitui a
+    # atribuição manual da revisão. 'aprovado' libera os downloads com o
+    # bundle já corrigido; 'pendente' aguarda dado/decisão do servidor
+    # (sem downloads); None mantém a tela antiga (flag OFF, aplicação
+    # desligada ou saída manual escolhida pelo usuário).
     # ------------------------------------------------------------------
-    achados = validacao.validar_todos(docs)
-    bloqueios = validacao.bloqueios(achados)
-    avisos = validacao.avisos(achados)
+    veredito = revisao.render_correcao_automatica()
+    if veredito == "aprovado":
+        docs = st.session_state.documentos  # pode ter sido corrigido
 
-    if bloqueios:
-        st.error(
-            f"**Emissão bloqueada — {len(bloqueios)} pendência(s) impedem o "
-            "documento final.** Volte à etapa do documento, resolva no editor "
-            "e aprove novamente."
-        )
-        for a in bloqueios:
-            st.markdown(f"- **{a['documento']}** — {a['mensagem']}  \n"
-                        f"  `…{a['trecho']}…`")
-        etapas_com_pendencia = sorted({
-            DOCUMENTOS[a["doc"]]["etapa"] for a in bloqueios if a["doc"] in DOCUMENTOS
-        })
-        if etapas_com_pendencia and st.button(
-            "Ir para o primeiro documento com pendência", type="primary",
-        ):
-            state.ir_para(etapas_com_pendencia[0])
-    if avisos:
-        with st.expander(f"Avisos de qualidade ({len(avisos)}) — não bloqueiam"):
-            for a in avisos:
-                st.markdown(f"- **{a['documento']}** — {a['mensagem']}")
+    bloqueios: list[dict] = []
+    if veredito is None:
+        # --------------------------------------------------------------
+        # Tela ANTERIOR (inalterada): pendências ([PREENCHER], marcadores
+        # internos etc.) BLOQUEIAM o download — devem ser resolvidas na
+        # revisão, nunca aparecer no PDF/DOCX definitivo.
+        # --------------------------------------------------------------
+        achados_brutos = validacao.validar_todos(docs)
+        bloqueios = validacao.bloqueios(achados_brutos)
+        avisos = validacao.avisos(achados_brutos)
+
+        if bloqueios:
+            st.error(
+                f"**Emissão bloqueada — {len(bloqueios)} pendência(s) impedem o "
+                "documento final.** Volte à etapa do documento, resolva no editor "
+                "e aprove novamente."
+            )
+            for a in bloqueios:
+                st.markdown(f"- **{a['documento']}** — {a['mensagem']}  \n"
+                            f"  `…{a['trecho']}…`")
+            etapas_com_pendencia = sorted({
+                DOCUMENTOS[a["doc"]]["etapa"] for a in bloqueios if a["doc"] in DOCUMENTOS
+            })
+            if etapas_com_pendencia and st.button(
+                "Ir para o primeiro documento com pendência", type="primary",
+            ):
+                state.ir_para(etapas_com_pendencia[0])
+        if avisos:
+            with st.expander(f"Avisos de qualidade ({len(avisos)}) — não bloqueiam"):
+                for a in avisos:
+                    st.markdown(f"- **{a['documento']}** — {a['mensagem']}")
+
+        # Correção automática (Etapa 1 — flag_achados_estruturados): os mesmos
+        # achados acima, estruturados com escopo autorizado por bloco. Flag
+        # DESLIGADA: nada muda nesta tela (auditoria roda em shadow mode/log).
+        # Nesta etapa o relatório é informativo — a emissão não é alterada.
+        relatorio = achados.relatorio_para_tela(
+            docs, st.session_state.get("processo_id"))
+        if relatorio is not None:
+            _render_relatorio_estruturado(relatorio)
+
+        # Etapa 3 (flag_corretor_shadow): gera e REGISTRA o plano de patch em
+        # modo sombra — nunca aplica nada e nenhuma falha chega à tela.
+        # Roda uma única vez por versão do bundle (cache por hash na sessão).
+        corretor.plano_em_shadow(docs, st.session_state.dados,
+                                 st.session_state.get("processo_id"))
 
     registro = st.session_state.get("registro_geracoes") or []
     if registro:
@@ -335,8 +396,15 @@ def render_sucesso() -> None:
             )
             st.dataframe(registro, use_container_width=True)
 
-    if bloqueios:
+    if veredito == "pendente" or bloqueios:
         return  # nada de downloads com pendência
+
+    # Gate técnico (Etapa 7 — flag_gate_emissao): sem aprovação do ciclo
+    # para a versão ATUAL do bundle, a emissão é tecnicamente impossível.
+    liberada, motivo_gate = revisao.emissao_liberada(docs)
+    if not liberada:
+        st.error(f"**Emissão bloqueada pelo gate técnico.** {motivo_gate}")
+        return
 
     st.markdown(
         "Os **quatro documentos da fase preparatória** foram elaborados, "
