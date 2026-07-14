@@ -9,7 +9,8 @@ Página "Administração" (exclusiva do papel admin):
 
 import streamlit as st
 
-from .. import achados, auth, branding, ciclo, contexto, corretor, db, llm, patches
+from .. import (achados, auth, branding, ciclo, contexto, corretor, db,
+                governanca, llm, patches)
 from ..llm import motor_ativo
 from . import revisao
 
@@ -17,9 +18,9 @@ from . import revisao
 def render_admin() -> None:
     st.subheader("Administração")
     (aba_usuarios, aba_chaves, aba_identidade, aba_secretarias,
-     aba_revisao) = st.tabs(
+     aba_revisao, aba_qualidade) = st.tabs(
         ["Usuários", "Chaves de IA", "Identidade visual", "Secretarias",
-         "Revisão"]
+         "Revisão", "Qualidade"]
     )
     with aba_usuarios:
         _render_usuarios()
@@ -31,6 +32,22 @@ def render_admin() -> None:
         _render_secretarias()
     with aba_revisao:
         _render_revisao()
+    with aba_qualidade:
+        _render_qualidade()
+
+
+def _render_toggles_de_flags(flags: list[tuple[str, str, str]]) -> None:
+    """Toggles padrão de feature flag (rollback = desligar)."""
+    for flag, rotulo, ajuda in flags:
+        flag_atual = db.flag_ativa(flag)
+        ligada = st.toggle(rotulo, value=flag_atual, help=ajuda,
+                           key=f"toggle_{flag}")
+        if ligada != flag_atual:
+            try:
+                db.salvar_config(f"flag_{flag}", "1" if ligada else "")
+                st.rerun()
+            except db.ErroBanco as erro:
+                st.error(str(erro))
 
 
 # ---------------------------------------------------------------------------
@@ -519,13 +536,162 @@ def _render_revisao() -> None:
          "exige nova aprovação. Requer a tela de correção automática "
          "ligada. Desligada: a emissão segue as regras da tela em uso."),
     ]
-    for flag, rotulo, ajuda in flags:
-        flag_atual = db.flag_ativa(flag)
-        ligada = st.toggle(rotulo, value=flag_atual, help=ajuda,
-                           key=f"toggle_{flag}")
-        if ligada != flag_atual:
-            try:
-                db.salvar_config(f"flag_{flag}", "1" if ligada else "")
-                st.rerun()
-            except db.ErroBanco as erro:
-                st.error(str(erro))
+    _render_toggles_de_flags(flags)
+
+
+# ---------------------------------------------------------------------------
+# Qualidade — flags do pacote de governança e qualidade documental (V5)
+# ---------------------------------------------------------------------------
+def _render_qualidade() -> None:
+    st.markdown("##### Governança e qualidade documental")
+    st.caption(
+        "Fases do pacote V5 (fatos canônicos, motor de conhecimento, "
+        "consistência, score e aprendizado). Cada fase liga por flag; "
+        "com tudo desligado, o comportamento atual não muda."
+    )
+    if not db.disponivel():
+        st.info("Configure o Supabase para gerenciar as flags de qualidade.")
+        return
+    _render_toggles_de_flags([
+        (governanca.FLAG_FATOS,
+         "Fatos canônicos do processo (Fase 2)",
+         "Ligada: os dados materiais do formulário (objeto, SRP, valores, "
+         "itens, prazo) viram fatos versionados no banco, exibidos na tela "
+         "final com pendências de confirmação e divergências. Desligada: "
+         "extração roda apenas em modo sombra (logs)."),
+        (governanca.FLAG_MOTOR_SHADOW,
+         "Motor de conhecimento em modo sombra (Fase 3)",
+         "Ligada: as regras publicadas são avaliadas sobre os fatos e a "
+         "DECISÃO é registrada (trilha reproduzível por hash), sem afetar "
+         "nada na tela. Use para validar as regras em produção."),
+        (governanca.FLAG_MOTOR_ATIVO,
+         "Motor de conhecimento ativo (Fase 3)",
+         "Ligada: o resultado aparece na tela final (cláusulas, exigências, "
+         "alertas) e regra de BLOQUEIO impede a emissão. Conflito de regras "
+         "sem desempate nunca é resolvido em silêncio: bloqueia e expõe as "
+         "duas regras. Requer regras publicadas no banco."),
+        (governanca.FLAG_CONSISTENCIA,
+         "Consistência entre documentos (Fase 5)",
+         "Ligada: valores, quantidades, prazos e objeto são conferidos "
+         "entre os fatos canônicos e TODOS os documentos; divergências "
+         "viram findings corrigíveis pelo ciclo automático (o fato é a "
+         "fonte). Erro de cálculo é crítico e bloqueia a emissão. "
+         "Desligada: auditoria anterior intacta."),
+        (governanca.FLAG_EXPLICACOES,
+         "Explicações — Por que isso está aqui? (Fase 4)",
+         "Ligada: cada cláusula incluída/excluída pelo motor ganha a "
+         "explicação derivada do REGISTRO da decisão (regra, condições "
+         "observadas, fontes) — nada é inventado. Administradores veem "
+         "também a trilha técnica e o registro de auditoria (hashes). "
+         "Requer o motor de conhecimento ativo."),
+        (governanca.FLAG_SCORE_SHADOW,
+         "Índice de confiança em modo sombra (Fase 6)",
+         "Ligada: o score 0–100 (8 dimensões determinísticas, config "
+         "quality-config@1) é calculado e gravado em qualidade_scores a "
+         "cada processo, sem aparecer na tela. Use para calibrar os "
+         "limiares com processos reais antes de ligar o gate."),
+        (governanca.FLAG_SCORE_GATE,
+         "Gate de emissão pelo índice de confiança (Fase 6)",
+         "Ligada: o painel do score aparece na tela final e a emissão é "
+         "bloqueada com ocorrência CRÍTICA (sempre, mesmo com score alto) "
+         "ou score abaixo de 75. Ligue somente após calibrar em modo "
+         "sombra."),
+        (governanca.FLAG_APRENDIZADO_CAPTURA,
+         "Captura de aprendizado institucional (Fase 7)",
+         "Ligada: as edições que os servidores fazem nos rascunhos são "
+         "capturadas ANONIMIZADAS (apenas os blocos alterados, nunca o "
+         "documento) e entram no painel de curadoria abaixo. Nada vira "
+         "regra automaticamente."),
+        (governanca.FLAG_APRENDIZADO_PUBLICACAO,
+         "Publicação de melhorias curadas (Fase 7)",
+         "Ligada: habilita o passo final PUBLISHED no painel de curadoria "
+         "— sempre um ato humano, após revisão e validação em shadow. "
+         "Rollback = marcar como DEPRECATED."),
+    ])
+
+    if db.flag_ativa(governanca.FLAG_APRENDIZADO_CAPTURA):
+        st.divider()
+        _render_curadoria()
+
+    st.divider()
+    st.markdown("##### Regras de conhecimento publicadas")
+    try:
+        regras = db.listar_regras()
+    except db.ErroBanco as erro:
+        st.error(str(erro))
+        return
+    if not regras:
+        st.caption(
+            "Nenhuma regra publicada. As regras são estruturadas "
+            "(condições ALL/ANY/NOT sobre os fatos canônicos) e nesta fase "
+            "entram pelo banco; o construtor visual chega com o pacote V6."
+        )
+        return
+    st.dataframe(
+        [{
+            "Chave": r["chave_estavel"], "Versão": r["versao"],
+            "Camada": r["camada"], "Prioridade": r["prioridade"],
+            "Vigência início": r.get("vigencia_inicio") or "—",
+            "Vigência fim": r.get("vigencia_fim") or "—",
+        } for r in regras],
+        use_container_width=True,
+    )
+
+
+def _render_curadoria() -> None:
+    """Painel de curadoria do aprendizado institucional (V5 Fase 7)."""
+    from .. import aprendizado
+
+    st.markdown("##### Curadoria do aprendizado institucional")
+    st.caption(
+        "Sinais capturados (anonimizados) aguardando decisão HUMANA. "
+        "Fluxo: capturado → normalizado → em revisão → shadow → validado "
+        "→ publicado. Nada é promovido sem passar por aqui."
+    )
+    try:
+        feedbacks = db.listar_feedbacks()
+    except db.ErroBanco as erro:
+        st.error(str(erro))
+        return
+    pendentes = [f for f in feedbacks
+                 if f.get("status") not in ("DEPRECATED", "REJECTED")]
+    if not pendentes:
+        st.caption("Nenhum sinal de aprendizado aguardando curadoria.")
+        return
+    for feedback in pendentes:
+        conteudo = feedback.get("conteudo") or {}
+        rotulo = (f"{conteudo.get('documento', '?').upper()} — "
+                  f"{conteudo.get('resumo', feedback.get('origem', ''))} "
+                  f"[{feedback.get('status')}]")
+        with st.expander(rotulo):
+            for evidencia in (feedback.get("evidencias") or [])[:5]:
+                st.markdown(f"`{evidencia.get('path')}`")
+                col_antes, col_depois = st.columns(2)
+                col_antes.caption("Antes")
+                col_antes.code(evidencia.get("antes") or "—")
+                col_depois.caption("Depois")
+                col_depois.code(evidencia.get("depois") or "—")
+            destinos = aprendizado.proximos_estados(feedback)
+            if not destinos:
+                continue
+            col_sel, col_btn = st.columns([2, 1])
+            destino = col_sel.selectbox(
+                "Próximo estado", destinos,
+                key=f"curadoria_destino_{feedback['id']}",
+                label_visibility="collapsed")
+            versao = ""
+            if destino == "PUBLISHED":
+                versao = st.text_input(
+                    "Rótulo da versão publicada",
+                    key=f"curadoria_versao_{feedback['id']}",
+                    placeholder="ex.: prompt-tr@4 ou clausula.garantia@2")
+            if col_btn.button("Aplicar", key=f"curadoria_{feedback['id']}",
+                              use_container_width=True):
+                try:
+                    usuario = (auth.usuario_logado() or {})
+                    aprendizado.transicionar(
+                        feedback, destino, curador=usuario.get("id"),
+                        versao_publicada=versao)
+                    st.rerun()
+                except aprendizado.ErroAprendizado as erro:
+                    st.error(str(erro))
