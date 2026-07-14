@@ -199,6 +199,132 @@ def atualizar_revisao(revisao_id: str, **campos) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Governança e qualidade documental (migração 0009 — pacote V5)
+# ---------------------------------------------------------------------------
+def salvar_fatos(fatos: list[dict]) -> list[dict]:
+    """Insere fatos canônicos (novas versões; nunca sobrescreve)."""
+    if not fatos:
+        return []
+    registros = [{**f, "tenant_id": tenant_atual()} for f in fatos]
+    try:
+        resposta = (
+            _cliente().table("fatos_canonicos").insert(registros).execute()
+        )
+        return resposta.data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def listar_fatos(processo_id: str, apenas_vigentes: bool = True) -> list[dict]:
+    try:
+        consulta = (
+            _cliente().table("fatos_canonicos").select("*")
+            .eq("processo_id", processo_id)
+        )
+        if apenas_vigentes:
+            consulta = consulta.neq("status", "substituido")
+        resposta = consulta.order("path").order(
+            "versao", desc=True).execute()
+        return resposta.data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def atualizar_fato(fato_id: str, **campos) -> None:
+    """Transição de status (confirmar/disputar/substituir) — só isso."""
+    permitidos = {"status", "confirmado_por", "confianca"}
+    if extras := set(campos) - permitidos:
+        raise ErroBanco(f"Campos de fato não atualizáveis: {sorted(extras)} "
+                        "(mudar valor = nova versão, nunca edição).")
+    try:
+        _cliente().table("fatos_canonicos").update(campos).eq(
+            "id", fato_id).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def registrar_decisao(registro: dict) -> dict:
+    """Decisão é APPEND-ONLY: só insert (a 0009 não tem policy de update)."""
+    try:
+        resposta = _cliente().table("decisoes").insert(
+            {**registro, "tenant_id": tenant_atual()}).execute()
+        return resposta.data[0]
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def listar_decisoes(processo_id: str, limite: int = 50) -> list[dict]:
+    try:
+        resposta = (
+            _cliente().table("decisoes").select("*")
+            .eq("processo_id", processo_id)
+            .order("criado_em", desc=True).limit(limite).execute()
+        )
+        return resposta.data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def listar_regras(apenas_publicadas: bool = True) -> list[dict]:
+    """Regras do tenant atual + camada plataforma/nacional (tenant NULL)."""
+    try:
+        consulta = _cliente().table("regras_conhecimento").select("*")
+        if apenas_publicadas:
+            consulta = consulta.eq("status", "PUBLISHED")
+        resposta = consulta.order("prioridade", desc=True).execute()
+        registros = resposta.data or []
+        # isolamento: só o próprio tenant ou regras de plataforma (NULL)
+        atual = tenant_atual()
+        return [r for r in registros
+                if r.get("tenant_id") in (None, atual)]
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def salvar_regra(registro: dict, regra_id: str | None = None) -> dict:
+    """Insere regra nova ou atualiza um RASCUNHO (nunca publicada)."""
+    try:
+        tabela = _cliente().table("regras_conhecimento")
+        if regra_id:
+            atual = tabela.select("status").eq("id", regra_id).limit(1)\
+                .execute()
+            status = (atual.data[0]["status"] if atual.data else "")
+            if status not in ("DRAFT", "UNDER_REVIEW"):
+                raise ErroBanco(
+                    "Versão publicada é imutável — derive uma nova versão.")
+            resposta = tabela.update(registro).eq("id", regra_id).execute()
+            return resposta.data[0]
+        registro = {**registro, "tenant_id": registro.get(
+            "tenant_id", tenant_atual())}
+        resposta = tabela.insert(registro).execute()
+        return resposta.data[0]
+    except ErroBanco:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def salvar_score(registro: dict) -> None:
+    """Score de qualidade — best-effort (observabilidade nunca derruba)."""
+    if not disponivel():
+        return
+    try:
+        _cliente().table("qualidade_scores").insert(
+            {**registro, "tenant_id": tenant_atual()}).execute()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def salvar_feedback(registro: dict) -> dict:
+    try:
+        resposta = _cliente().table("aprendizado_feedback").insert(
+            {**registro, "tenant_id": tenant_atual()}).execute()
+        return resposta.data[0]
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+# ---------------------------------------------------------------------------
 # Multi-tenant (Fase 1 — fundação; ver docs/matriz-compatibilidade.md)
 # ---------------------------------------------------------------------------
 # Tenant padrão = município atual (uuid fixo da migração 0006).
