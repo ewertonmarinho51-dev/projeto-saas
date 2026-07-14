@@ -7,7 +7,7 @@ Telas de cada etapa do wizard:
 
 import streamlit as st
 
-from .. import achados, contexto, corretor, db, export, planilha, rag, state
+from .. import achados, contexto, corretor, db, export, fatos, planilha, rag, state
 from . import revisao
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
@@ -285,6 +285,44 @@ def _botao_voltar(meta: dict) -> None:
         state.ir_para(meta["etapa"] - 1)
 
 
+def _render_fatos_canonicos(resultado: dict) -> None:
+    """Fatos do processo + pendências de confirmação (V5 Fase 2)."""
+    lista = resultado["fatos"]
+    pendentes = [f for f in lista if f.get("status") == "extraido"]
+    with st.expander(
+        f"Fatos canônicos do processo ({len(lista)}) — "
+        f"{len(pendentes)} aguardando confirmação"
+    ):
+        st.caption(
+            "Registro material do processo, extraído do formulário e "
+            "versionado: os documentos passam a referenciar estes valores. "
+            "Confirme-os para elevar a confiança das validações."
+        )
+        st.dataframe(
+            [{
+                "Fato": f["path"],
+                "Valor": str(f.get("valor")),
+                "Status": f.get("status"),
+                "Fonte": f.get("fonte"),
+                "Versão": f.get("versao"),
+                "Confiança": f.get("confianca"),
+            } for f in lista],
+            use_container_width=True,
+        )
+        for divergencia in resultado["divergencias"]:
+            st.warning(f"**{divergencia['path']}** — "
+                       f"{divergencia['mensagem']}.")
+        if pendentes and st.button(
+            f"Confirmar os {len(pendentes)} fato(s) extraído(s)",
+            key="confirmar_fatos",
+        ):
+            usuario = st.session_state.get("usuario") or {}
+            fatos.confirmar_todos(
+                st.session_state.get("processo_id"), usuario.get("id"))
+            st.session_state.pop("_fatos_cache", None)
+            st.rerun()
+
+
 def _render_relatorio_estruturado(relatorio: dict) -> None:
     """Findings estruturados na tela final (flag_achados_estruturados)."""
     findings = relatorio["findings"]
@@ -386,6 +424,14 @@ def render_sucesso() -> None:
         # Roda uma única vez por versão do bundle (cache por hash na sessão).
         corretor.plano_em_shadow(docs, st.session_state.dados,
                                  st.session_state.get("processo_id"))
+
+    # Fatos canônicos (V5 F2 — flag_canonical_facts): registro material
+    # do processo, versionado, que os documentos referenciam. Flag OFF:
+    # extração roda em shadow (só log) e a tela permanece idêntica.
+    resultado_fatos = fatos.processar_na_tela(
+        st.session_state.dados, docs, st.session_state.get("processo_id"))
+    if resultado_fatos is not None:
+        _render_fatos_canonicos(resultado_fatos)
 
     registro = st.session_state.get("registro_geracoes") or []
     if registro:

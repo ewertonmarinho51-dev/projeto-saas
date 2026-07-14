@@ -9,7 +9,8 @@ Página "Administração" (exclusiva do papel admin):
 
 import streamlit as st
 
-from .. import achados, auth, branding, ciclo, contexto, corretor, db, llm, patches
+from .. import (achados, auth, branding, ciclo, contexto, corretor, db,
+                governanca, llm, patches)
 from ..llm import motor_ativo
 from . import revisao
 
@@ -17,9 +18,9 @@ from . import revisao
 def render_admin() -> None:
     st.subheader("Administração")
     (aba_usuarios, aba_chaves, aba_identidade, aba_secretarias,
-     aba_revisao) = st.tabs(
+     aba_revisao, aba_qualidade) = st.tabs(
         ["Usuários", "Chaves de IA", "Identidade visual", "Secretarias",
-         "Revisão"]
+         "Revisão", "Qualidade"]
     )
     with aba_usuarios:
         _render_usuarios()
@@ -31,6 +32,22 @@ def render_admin() -> None:
         _render_secretarias()
     with aba_revisao:
         _render_revisao()
+    with aba_qualidade:
+        _render_qualidade()
+
+
+def _render_toggles_de_flags(flags: list[tuple[str, str, str]]) -> None:
+    """Toggles padrão de feature flag (rollback = desligar)."""
+    for flag, rotulo, ajuda in flags:
+        flag_atual = db.flag_ativa(flag)
+        ligada = st.toggle(rotulo, value=flag_atual, help=ajuda,
+                           key=f"toggle_{flag}")
+        if ligada != flag_atual:
+            try:
+                db.salvar_config(f"flag_{flag}", "1" if ligada else "")
+                st.rerun()
+            except db.ErroBanco as erro:
+                st.error(str(erro))
 
 
 # ---------------------------------------------------------------------------
@@ -519,13 +536,27 @@ def _render_revisao() -> None:
          "exige nova aprovação. Requer a tela de correção automática "
          "ligada. Desligada: a emissão segue as regras da tela em uso."),
     ]
-    for flag, rotulo, ajuda in flags:
-        flag_atual = db.flag_ativa(flag)
-        ligada = st.toggle(rotulo, value=flag_atual, help=ajuda,
-                           key=f"toggle_{flag}")
-        if ligada != flag_atual:
-            try:
-                db.salvar_config(f"flag_{flag}", "1" if ligada else "")
-                st.rerun()
-            except db.ErroBanco as erro:
-                st.error(str(erro))
+    _render_toggles_de_flags(flags)
+
+
+# ---------------------------------------------------------------------------
+# Qualidade — flags do pacote de governança e qualidade documental (V5)
+# ---------------------------------------------------------------------------
+def _render_qualidade() -> None:
+    st.markdown("##### Governança e qualidade documental")
+    st.caption(
+        "Fases do pacote V5 (fatos canônicos, motor de conhecimento, "
+        "consistência, score e aprendizado). Cada fase liga por flag; "
+        "com tudo desligado, o comportamento atual não muda."
+    )
+    if not db.disponivel():
+        st.info("Configure o Supabase para gerenciar as flags de qualidade.")
+        return
+    _render_toggles_de_flags([
+        (governanca.FLAG_FATOS,
+         "Fatos canônicos do processo (Fase 2)",
+         "Ligada: os dados materiais do formulário (objeto, SRP, valores, "
+         "itens, prazo) viram fatos versionados no banco, exibidos na tela "
+         "final com pendências de confirmação e divergências. Desligada: "
+         "extração roda apenas em modo sombra (logs)."),
+    ])
