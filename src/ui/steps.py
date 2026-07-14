@@ -7,8 +7,8 @@ Telas de cada etapa do wizard:
 
 import streamlit as st
 
-from .. import (achados, conhecimento, contexto, corretor, db, export,
-                fatos, planilha, rag, state)
+from .. import (achados, auth, conhecimento, contexto, corretor, db,
+                explicacoes, export, fatos, planilha, rag, state)
 from . import revisao
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
@@ -365,6 +365,29 @@ def _render_decisao_conhecimento(decisao: dict) -> None:
                 "Dados ausentes para avaliar todas as regras: "
                 + ", ".join(f"`{p}`" for p in resultado["pendencias"])
             )
+
+        # Explicabilidade (V5 Fase 4 — flag_explanations): tudo abaixo
+        # vem EXCLUSIVAMENTE do registro de decisão — nada é inventado.
+        if explicacoes.ativa():
+            afetadas = (resultado["clausulas_incluir"]
+                        + resultado["clausulas_excluir"])
+            if afetadas:
+                st.markdown("**Por que isso está aqui?**")
+            for clausula in afetadas:
+                explicacao = explicacoes.explicar_clausula(
+                    decisao, clausula)
+                st.markdown(
+                    f"- {explicacoes.texto_usuario(explicacao)}"
+                    if explicacao else
+                    f"- `{clausula}`: não há registro de decisão para "
+                    "esta cláusula."
+                )
+            if auth.eh_admin():
+                st.caption("Trilha técnica (administrador):")
+                for linha in explicacoes.texto_admin(decisao):
+                    st.caption(f"· {linha}")
+                st.json(explicacoes.registro_auditor(decisao),
+                        expanded=False)
 
 
 def _render_relatorio_estruturado(relatorio: dict) -> None:

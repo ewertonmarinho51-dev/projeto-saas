@@ -188,6 +188,9 @@ def resolver(fatos: list[dict], regras: list[dict],
             "camada": regra["camada"], "prioridade": regra["prioridade"],
             "satisfeita": avaliacao["resultado"],
             "folhas": avaliacao["folhas"],
+            "acoes": regra["acoes"],
+            "fontes": list(regra.get("fontes") or []),
+            "justificativa": regra.get("justificativa", ""),
         })
         ausentes.update(avaliacao["ausentes"])
         if avaliacao["resultado"]:

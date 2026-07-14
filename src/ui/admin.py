@@ -570,6 +570,13 @@ def _render_qualidade() -> None:
          "alertas) e regra de BLOQUEIO impede a emissão. Conflito de regras "
          "sem desempate nunca é resolvido em silêncio: bloqueia e expõe as "
          "duas regras. Requer regras publicadas no banco."),
+        (governanca.FLAG_EXPLICACOES,
+         "Explicações — Por que isso está aqui? (Fase 4)",
+         "Ligada: cada cláusula incluída/excluída pelo motor ganha a "
+         "explicação derivada do REGISTRO da decisão (regra, condições "
+         "observadas, fontes) — nada é inventado. Administradores veem "
+         "também a trilha técnica e o registro de auditoria (hashes). "
+         "Requer o motor de conhecimento ativo."),
     ])
 
     st.divider()
