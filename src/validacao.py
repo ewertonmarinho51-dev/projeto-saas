@@ -31,7 +31,26 @@ _BLOQUEANTES = [
      "menção a prompt do sistema"),
     (re.compile(r"base de conhecimento do sistema", re.IGNORECASE),
      "menção à base interna do sistema"),
+    # Etiqueta de procedência INTERNA vazada no corpo (ex.: "(fonte:
+    # formulário)") — a origem do dado não pode aparecer no ato. Mira só
+    # o formulário/matriz (mecânica interna); referências legítimas a
+    # documentos reais do processo (planilha orçamentária, memorando,
+    # anexos) NÃO são vazamento e não entram aqui.
+    (re.compile(r"\(\s*fonte:\s*(o\s+)?(formul[áa]rio|matriz|"
+                r"dados do formul)\b[^)]*\)", re.IGNORECASE),
+     "etiqueta de origem interna ('(fonte: formulário)') no texto"),
+    (re.compile(r"\bconforme\s+(o\s+)?formul[áa]rio\b", re.IGNORECASE),
+     "referência à mecânica interna ('conforme o formulário')"),
 ]
+
+# Aberturas meta-descritivas: a cláusula descreve o que deveria conter em
+# vez de trazer o conteúdo real (ex.: "Descrição da necessidade…",
+# "Indicação da solução proposta…"). Sinalizam cláusula não desenvolvida.
+_RE_META_DESCRITIVA = re.compile(
+    r"^\s*(descri[çc][ãa]o|indica[çc][ãa]o|especifica[çc][ãa]o|"
+    r"identifica[çc][ãa]o|apresenta[çc][ãa]o)\s+d[aeo]s?\b"
+    r"[^.]*\b(conforme|segundo|com base n)[^.]*\bformul[áa]rio\b",
+    re.IGNORECASE)
 
 _RE_CLAUSULA = re.compile(r"(?m)^#{1,3}\s*(\d{1,2})\s*[\.\-–]?\s+(.+?)\s*$")
 
@@ -89,7 +108,9 @@ def _validar_estrutura(doc_key: str, texto: str) -> list[dict]:
             achados.append(_achado(
                 doc_key, "aviso", f"salto na numeração das cláusulas: {', '.join(saltos)}"))
 
-    # título de cláusula sem conteúdo (próxima linha não vazia já é outro título)
+    # título de cláusula sem conteúdo (próxima linha não vazia já é outro
+    # título) OU corpo meta-descritivo (descreve o que deveria conter em
+    # vez de trazer o conteúdo real — cláusula não desenvolvida)
     linhas = texto.splitlines()
     for i, ln in enumerate(linhas):
         if not _RE_CLAUSULA.match(ln):
@@ -98,6 +119,11 @@ def _validar_estrutura(doc_key: str, texto: str) -> list[dict]:
         if corpo.startswith("#"):
             achados.append(_achado(
                 doc_key, "aviso", "título de cláusula sem conteúdo", ln))
+        elif _RE_META_DESCRITIVA.match(corpo):
+            achados.append(_achado(
+                doc_key, "aviso",
+                "cláusula meta-descritiva (descreve o conteúdo em vez de "
+                "desenvolvê-lo)", corpo))
 
     # cláusulas obrigatórias do perfil presentes?
     perfil = perfis.perfil(doc_key)
