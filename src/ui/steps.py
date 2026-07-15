@@ -8,8 +8,8 @@ Telas de cada etapa do wizard:
 import streamlit as st
 
 from .. import (achados, auth, conhecimento, contexto, corretor, db,
-                explicacoes, export, fatos, planilha, qualidade, rag,
-                state)
+                explicacoes, export, familias, fatos, planilha,
+                qualidade, rag, state)
 from . import revisao
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
@@ -225,6 +225,36 @@ def render_etapa_documento(doc_key: str) -> None:
                 f"Este documento será redigido pela IA usando o formulário e o "
                 f"**{DOCUMENTOS[contexto_key]['sigla']} aprovado** como contexto."
             )
+
+        # Família de modelo (V6 F4): resolvida pelo CONTEXTO do processo.
+        # Shadow: só registra a decisão. Ativa: injeta as diretrizes na
+        # geração; ambiguidade REAL vira pergunta objetiva (nunca lista
+        # técnica de modelos). Flags OFF: nada muda.
+        bloco_familia = ""
+        resolucao = familias.resolver_para_processo(
+            doc_key, st.session_state.dados,
+            st.session_state.get("processo_id"),
+            st.session_state.get(f"_familia_escolha_{doc_key}"))
+        if resolucao is not None:
+            if resolucao["situacao"] == "ambigua":
+                st.radio(
+                    resolucao["pergunta"],
+                    [o["chave"] for o in resolucao["opcoes"]],
+                    format_func=lambda c, _o=resolucao["opcoes"]: next(
+                        o["rotulo"] for o in _o if o["chave"] == c),
+                    index=None, key=f"_familia_escolha_{doc_key}",
+                )
+                st.info("Responda à pergunta acima para gerar o documento.")
+                _botao_voltar(meta)
+                return
+            if resolucao["situacao"] == "unica":
+                st.caption(
+                    "Família de modelo aplicada automaticamente: "
+                    f"**{resolucao['payload']['nome']}**"
+                )
+                bloco_familia = familias.bloco_para_prompt(
+                    resolucao["payload"])
+
         if st.button(
             f"Gerar {meta['sigla']} com IA", type="primary",
             use_container_width=True,
@@ -233,7 +263,9 @@ def render_etapa_documento(doc_key: str) -> None:
                 f"Redigindo o {meta['sigla']}… isso pode levar até 2 minutos."
             ):
                 try:
-                    texto = gerar_documento(doc_key, st.session_state.dados, contexto)
+                    texto = gerar_documento(doc_key, st.session_state.dados,
+                                            contexto,
+                                            instrucoes_extra=bloco_familia)
                     st.session_state.documentos[doc_key] = texto
                     st.rerun()
                 except ErroGeracaoIA as erro:

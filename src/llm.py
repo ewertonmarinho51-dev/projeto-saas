@@ -419,12 +419,16 @@ def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str) -> str:
     )
 
 
-def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) -> str:
+def gerar_documento(doc_key: str, dados: dict,
+                    contexto_anterior: str | None,
+                    instrucoes_extra: str = "") -> str:
     """
     Gera o documento `doc_key` ('dfd' | 'etp' | 'tr' | 'edital').
 
     Com chave de API configurada, usa o Gemini; sem chave (ou com o modo
     demonstração ativado), devolve uma minuta-esqueleto offline.
+    `instrucoes_extra` (V6): diretrizes adicionais da família de modelo
+    resolvida — aditivas ao perfil institucional.
     Levanta ErroGeracaoIA com mensagem amigável em caso de falha.
     """
     from . import planilha
@@ -454,6 +458,8 @@ def gerar_documento(doc_key: str, dados: dict, contexto_anterior: str | None) ->
     from . import rag
 
     user_prompt += rag.montar_bloco_referencias(dados, doc_key)
+    if instrucoes_extra:
+        user_prompt += instrucoes_extra
 
     # Motor principal: OpenAI; fallback automático (e AVISADO): Gemini.
     # Toda geração — sucesso ou falha — entra no registro técnico.

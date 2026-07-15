@@ -213,13 +213,20 @@ def render_sidebar() -> None:
     with st.sidebar:
         usuario = auth.usuario_logado()
         if auth.eh_admin():
+            opcoes = [
+                "Assistente de Documentos",
+                "Base de Conhecimento",
+                "Administração",
+            ]
+            # Centro de Governança (V6): só com a flag ligada E papel de
+            # governança — o servidor comum nunca vê esta opção.
+            from . import governanca_ui
+
+            if governanca_ui.disponivel():
+                opcoes.append("Governança")
             st.radio(
                 "Navegação",
-                options=[
-                    "Assistente de Documentos",
-                    "Base de Conhecimento",
-                    "Administração",
-                ],
+                options=opcoes,
                 key="pagina",
                 label_visibility="collapsed",
             )

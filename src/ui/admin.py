@@ -609,6 +609,78 @@ def _render_qualidade() -> None:
          "Rollback = marcar como DEPRECATED."),
     ])
 
+    st.divider()
+    st.markdown("##### Centro de Governança (V6)")
+    st.caption(
+        "A página Governança aparece no menu lateral para papéis de "
+        "governança quando o Centro está ligado. Cada módulo tem flag "
+        "própria; rollback = desligar."
+    )
+    _render_toggles_de_flags([
+        (governanca.FLAG_CENTRO,
+         "Centro de Governança (página)",
+         "Ligada: administradores autorizados ganham a página Governança "
+         "no menu (catálogo, políticas, famílias…). O servidor comum "
+         "nunca vê. Desligada: nada aparece."),
+        (governanca.FLAG_CATALOGO,
+         "Catálogo de cláusulas",
+         "Ligada: módulo de cláusulas versionadas com fluxo rascunho → "
+         "revisão → simulação → shadow → publicação (publicada é "
+         "imutável). Inclui a importação dos perfis como rascunhos."),
+        (governanca.FLAG_POLITICAS_VISUAL,
+         "Construtor visual de políticas",
+         "Ligada: módulo de políticas SE/ENTÃO com simulação e detecção "
+         "de conflito antes de publicar; as políticas PUBLICADAS passam "
+         "a alimentar o motor de conhecimento (que segue as flags de "
+         "shadow/ativo do V5)."),
+        (governanca.FLAG_FAMILIAS_SHADOW,
+         "Resolução de família de modelo em sombra",
+         "Ligada: a família aplicável a cada documento é resolvida pelo "
+         "contexto e REGISTRADA como decisão, sem afetar a geração."),
+        (governanca.FLAG_FAMILIAS_ATIVA,
+         "Resolução de família de modelo ativa",
+         "Ligada: as diretrizes da família resolvida entram na geração "
+         "(cláusulas obrigatórias/proibidas) e ambiguidade real vira "
+         "pergunta objetiva ao servidor. Requer famílias publicadas."),
+        (governanca.FLAG_TEMPLATES,
+         "Construtor de templates por blocos",
+         "Ligada: módulo de templates na Governança — blocos tipados "
+         "(título, metadados, cláusulas do catálogo com condição, "
+         "tabelas, assinatura), montagem determinística com snapshot de "
+         "versão/hash de cada cláusula usada e preview."),
+        (governanca.FLAG_HERANCA,
+         "Administração de herança por tenant",
+         "Ligada: módulo Herança na Governança — origem de cada artefato "
+         "(plataforma/município/secretaria), sobrescrever, comparar e "
+         "restaurar herança (revoga o override local, sem apagar nada)."),
+        (governanca.FLAG_IMPLANTACAO,
+         "Assistente de implantação",
+         "Ligada: fluxo guiado para novo município — importar documentos "
+         "aprovados, extrair cláusulas candidatas (código, não IA), "
+         "detectar duplicidades e criar RASCUNHOS no catálogo. A "
+         "importação nunca publica nada."),
+        (governanca.FLAG_PARECERES,
+         "Ingestão de pareceres jurídicos",
+         "Ligada: upload de pareceres com análise por IA em achados "
+         "estruturados e anonimizados. O conteúdo do parecer é tratado "
+         "como DADO (instruções embutidas são ignoradas)."),
+        (governanca.FLAG_PARECERES_LOTE,
+         "Processamento de pareceres em lote",
+         "Ligada: 20+ pareceres enfileirados, processados um a um com "
+         "progresso persistido; falha em um item não derruba o lote e "
+         "pode ser reprocessada."),
+        (governanca.FLAG_LABORATORIO,
+         "Laboratório de melhorias",
+         "Ligada: achados de parecer viram clusters e propostas de "
+         "melhoria (anonimizadas, sem dados do processo), com regressão "
+         "histórica e curadoria. Nada é promovido a regra sozinho."),
+        (governanca.FLAG_PUBLICACAO_GATE,
+         "Gate de publicação com aprovação segregada",
+         "Ligada: publicar um artefato exige aprovação registrada por "
+         "um usuário DIFERENTE do autor. Desligada: vale o fluxo padrão "
+         "(que já exige passar por revisão e shadow)."),
+    ])
+
     if db.flag_ativa(governanca.FLAG_APRENDIZADO_CAPTURA):
         st.divider()
         _render_curadoria()
