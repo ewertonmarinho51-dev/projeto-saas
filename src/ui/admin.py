@@ -669,6 +669,16 @@ def _render_qualidade() -> None:
          "Ligada: 20+ pareceres enfileirados, processados um a um com "
          "progresso persistido; falha em um item não derruba o lote e "
          "pode ser reprocessada."),
+        (governanca.FLAG_LABORATORIO,
+         "Laboratório de melhorias",
+         "Ligada: achados de parecer viram clusters e propostas de "
+         "melhoria (anonimizadas, sem dados do processo), com regressão "
+         "histórica e curadoria. Nada é promovido a regra sozinho."),
+        (governanca.FLAG_PUBLICACAO_GATE,
+         "Gate de publicação com aprovação segregada",
+         "Ligada: publicar um artefato exige aprovação registrada por "
+         "um usuário DIFERENTE do autor. Desligada: vale o fluxo padrão "
+         "(que já exige passar por revisão e shadow)."),
     ])
 
     if db.flag_ativa(governanca.FLAG_APRENDIZADO_CAPTURA):

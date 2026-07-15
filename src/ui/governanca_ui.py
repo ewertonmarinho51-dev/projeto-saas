@@ -47,10 +47,11 @@ def render_governanca() -> None:
         "Nada é publicado automaticamente."
     )
     (aba_visao, aba_catalogo, aba_politicas, aba_familias,
-     aba_templates, aba_heranca, aba_implantacao, aba_pareceres) = st.tabs(
+     aba_templates, aba_heranca, aba_implantacao, aba_pareceres,
+     aba_laboratorio) = st.tabs(
         ["Visão geral", "Catálogo de cláusulas", "Políticas de aplicação",
          "Biblioteca de modelos", "Templates", "Herança",
-         "Implantação", "Pareceres"])
+         "Implantação", "Pareceres", "Laboratório"])
     with aba_visao:
         _render_visao_geral()
     with aba_catalogo:
@@ -75,6 +76,8 @@ def render_governanca() -> None:
         _render_implantacao()
     with aba_pareceres:
         _render_pareceres()
+    with aba_laboratorio:
+        _render_laboratorio()
 
 
 def _render_visao_geral() -> None:
@@ -898,3 +901,91 @@ def _render_pareceres() -> None:
         } for p in registros],
         use_container_width=True,
     )
+
+
+# ---------------------------------------------------------------------------
+# Laboratório de melhorias e publicações (V6 Fases 9-10)
+# ---------------------------------------------------------------------------
+def _render_laboratorio() -> None:
+    from .. import laboratorio, pareceres
+
+    if not laboratorio.ativa():
+        st.info("O laboratório de melhorias está desligado "
+                "(flag_improvement_laboratory).")
+        return
+    st.caption(
+        "Do apontamento à melhoria PUBLICADA, com humano no comando: "
+        "achados de parecer viram clusters, os clusters viram propostas "
+        "(sem dados específicos), que passam por regressão, aprovação e "
+        "publicação. Rollback = nova publicação restauradora."
+    )
+
+    # 1. clusters a partir dos achados de parecer
+    try:
+        achados = (db._cliente().table("parecer_achados")  # noqa: SLF001
+                   .select("*").limit(500).execute()).data or []
+    except Exception:  # noqa: BLE001
+        achados = []
+    if not achados:
+        st.caption("Nenhum achado de parecer ainda. Envie pareceres na "
+                   "aba Pareceres para alimentar o laboratório.")
+    else:
+        clusters = pareceres.clusterizar(achados)
+        st.markdown(f"**Problemas recorrentes ({len(clusters)} cluster(s)):**")
+        for i, cluster in enumerate(clusters):
+            with st.expander(
+                f"{cluster['rotulo']} — {cluster['ocorrencias']} "
+                f"ocorrência(s) · gravidade {cluster['gravidade_maxima']} "
+                f"· {len(cluster['pareceres'])} parecer(es)"
+            ):
+                st.caption(f"Categoria sugerida: {cluster['categoria']}")
+                with st.form(f"form_proposta_{i}"):
+                    tipo = st.selectbox(
+                        "Tipo de melhoria", laboratorio.TIPOS_ALVO,
+                        index=laboratorio.TIPOS_ALVO.index("clausula"))
+                    descricao = st.text_area("Descrição da proposta")
+                    criar = st.form_submit_button("Criar proposta")
+                if criar:
+                    try:
+                        laboratorio.criar_proposta(cluster, tipo, descricao)
+                        st.success("Proposta criada (rascunho).")
+                        st.rerun()
+                    except laboratorio.ErroLaboratorio as erro:
+                        st.error(str(erro))
+
+    # 2. propostas em andamento
+    st.divider()
+    st.markdown("**Propostas de melhoria**")
+    try:
+        propostas = (db._cliente().table("melhoria_propostas")  # noqa: SLF001
+                     .select("*").order("criado_em", desc=True)
+                     .limit(50).execute()).data or []
+    except Exception:  # noqa: BLE001
+        propostas = []
+    if not propostas:
+        st.caption("Nenhuma proposta criada ainda.")
+        return
+    for proposta in propostas:
+        payload = proposta.get("proposta") or {}
+        with st.expander(
+            f"{proposta.get('tipo_alvo')} · {proposta.get('status')} — "
+            f"{payload.get('descricao', '')[:80]}"
+        ):
+            evidencias = payload.get("evidencias") or {}
+            st.caption(
+                f"Evidências: {evidencias.get('ocorrencias', 0)} "
+                f"ocorrência(s), {len(evidencias.get('pareceres', []))} "
+                "parecer(es).")
+            if proposta.get("status") == "DRAFT" and \
+                    not auth.somente_auditoria():
+                col_a, col_r = st.columns(2)
+                if col_a.button("Aceitar", key=f"prop_ok_{proposta['id']}"):
+                    try:
+                        laboratorio.decidir_proposta(proposta, "ACCEPTED")
+                        st.rerun()
+                    except laboratorio.ErroLaboratorio as erro:
+                        st.error(str(erro))
+                if col_r.button("Rejeitar",
+                                key=f"prop_no_{proposta['id']}"):
+                    laboratorio.decidir_proposta(proposta, "REJECTED")
+                    st.rerun()
