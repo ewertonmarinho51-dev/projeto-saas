@@ -100,6 +100,36 @@ _CLASSIFICACAO: list[tuple[str, dict]] = [
         "auto": True,
         "gravidade": "HIGH",
     }),
+    ("etiqueta de origem interna", {
+        "categoria": "vazamento_mecanica_interna",
+        "regra": "A origem do dado (formulário, planilha, memorando) não "
+                 "pode aparecer no ato administrativo.",
+        "esperado": "Remover a etiqueta de procedência, mantendo o texto "
+                    "institucional; fontes legítimas (lei, pesquisa de "
+                    "preços) são citadas de forma própria.",
+        "auto": True,
+        "gravidade": "HIGH",
+    }),
+    ("referência à mecânica interna", {
+        "categoria": "vazamento_mecanica_interna",
+        "regra": "O documento não pode remeter ao formulário/planilha "
+                 "internos ('conforme o formulário').",
+        "esperado": "Reescrever sem citar a mecânica interna, mantendo o "
+                    "conteúdo institucional.",
+        "auto": True,
+        "gravidade": "HIGH",
+    }),
+    ("cláusula meta-descritiva", {
+        "categoria": "clausula_nao_desenvolvida",
+        "regra": "A cláusula deve trazer o conteúdo real do ato, não uma "
+                 "descrição do que deveria conter.",
+        "esperado": "Desenvolver a cláusula com argumentação própria a "
+                    "partir do objeto e do memorando — decisão do "
+                    "redator/revisor, não correção pontual.",
+        "auto": False,
+        "gravidade": "MEDIUM",
+        "bloqueio": MOTIVO_DISCRICIONARIO,
+    }),
     ("numeração de cláusula duplicada", {
         "categoria": "numeracao",
         "regra": "A numeração das cláusulas deve ser sequencial e única.",
