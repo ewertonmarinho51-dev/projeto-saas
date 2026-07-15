@@ -280,11 +280,12 @@ def _trocar_de_modelo(exc: Exception) -> bool:
 
 
 def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
-                        user_prompt: str) -> str:
+                        user_prompt: str,
+                        tentativas: int = API_TENTATIVAS) -> str:
     """Uma chamada ao modelo indicado, com retentativas/backoff em falhas."""
     ultima_excecao: Exception | None = None
     extra = _params_modelo_openai(modelo)
-    for tentativa in range(1, API_TENTATIVAS + 1):
+    for tentativa in range(1, tentativas + 1):
         try:
             resposta = cliente.chat.completions.create(
                 model=modelo,
@@ -314,20 +315,22 @@ def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
             # modelo — sobe já para trocar de modelo.
             if _trocar_de_modelo(exc):
                 raise
-            if tentativa < API_TENTATIVAS:
+            if tentativa < tentativas:
                 time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
     raise ultima_excecao  # type: ignore[misc]
 
 
 def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str,
-                   timeout: float | None = None) -> str:
+                   timeout: float | None = None,
+                   tentativas: int = API_TENTATIVAS) -> str:
     """
     Motor principal: OpenAI. Tenta o modelo configurado e, se ele não existir,
     não tiver acesso, ou devolver resposta vazia (comum em modelos de
     raciocínio), cai automaticamente para modelos alternativos amplamente
     disponíveis (gpt-4o-mini etc.).
-    `timeout` permite às tarefas rápidas (auditor/corretor) desistir bem
-    antes do teto de geração de documentos longos.
+    `timeout`/`tentativas` permitem às tarefas rápidas (auditor/corretor)
+    desistir bem antes do teto de geração de documentos longos — inclui
+    o loop de retentativa por modelo de `_openai_uma_chamada`.
     """
     # Import tardio: a interface abre mesmo sem a biblioteca instalada
     from openai import OpenAI
@@ -340,7 +343,8 @@ def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str,
     for i, modelo in enumerate(modelos):
         tentados.append(modelo)
         try:
-            return _openai_uma_chamada(cliente, modelo, system_prompt, user_prompt)
+            return _openai_uma_chamada(cliente, modelo, system_prompt,
+                                       user_prompt, tentativas)
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
             # Troca de modelo em erro de modelo OU resposta vazia. Chave
@@ -526,7 +530,7 @@ def chamar_ia_texto(system_prompt: str, user_prompt: str,
         inicio = time.time()
         try:
             texto = _chamar_openai(system_prompt, user_prompt, chave_openai,
-                                   timeout=timeout)
+                                   timeout=timeout, tentativas=tentativas)
             registrar_geracao(finalidade, "openai", inicio, "ok")
             return texto
         except ErroGeracaoIA as erro:
