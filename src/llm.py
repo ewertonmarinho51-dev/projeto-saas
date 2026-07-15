@@ -280,11 +280,12 @@ def _trocar_de_modelo(exc: Exception) -> bool:
 
 
 def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
-                        user_prompt: str) -> str:
+                        user_prompt: str,
+                        tentativas: int = API_TENTATIVAS) -> str:
     """Uma chamada ao modelo indicado, com retentativas/backoff em falhas."""
     ultima_excecao: Exception | None = None
     extra = _params_modelo_openai(modelo)
-    for tentativa in range(1, API_TENTATIVAS + 1):
+    for tentativa in range(1, tentativas + 1):
         try:
             resposta = cliente.chat.completions.create(
                 model=modelo,
@@ -314,29 +315,36 @@ def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
             # modelo — sobe já para trocar de modelo.
             if _trocar_de_modelo(exc):
                 raise
-            if tentativa < API_TENTATIVAS:
+            if tentativa < tentativas:
                 time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
     raise ultima_excecao  # type: ignore[misc]
 
 
-def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str) -> str:
+def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str,
+                   timeout: float | None = None,
+                   tentativas: int = API_TENTATIVAS) -> str:
     """
     Motor principal: OpenAI. Tenta o modelo configurado e, se ele não existir,
     não tiver acesso, ou devolver resposta vazia (comum em modelos de
     raciocínio), cai automaticamente para modelos alternativos amplamente
     disponíveis (gpt-4o-mini etc.).
+    `timeout`/`tentativas` permitem às tarefas rápidas (auditor/corretor)
+    desistir bem antes do teto de geração de documentos longos — inclui
+    o loop de retentativa por modelo de `_openai_uma_chamada`.
     """
     # Import tardio: a interface abre mesmo sem a biblioteca instalada
     from openai import OpenAI
 
-    cliente = OpenAI(api_key=api_key, timeout=API_TIMEOUT_SEGUNDOS, max_retries=0)
+    cliente = OpenAI(api_key=api_key,
+                     timeout=timeout or API_TIMEOUT_SEGUNDOS, max_retries=0)
     modelos = _modelos_openai()
     ultima_excecao: Exception | None = None
     tentados: list[str] = []
     for i, modelo in enumerate(modelos):
         tentados.append(modelo)
         try:
-            return _openai_uma_chamada(cliente, modelo, system_prompt, user_prompt)
+            return _openai_uma_chamada(cliente, modelo, system_prompt,
+                                       user_prompt, tentativas)
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
             # Troca de modelo em erro de modelo OU resposta vazia. Chave
@@ -352,10 +360,11 @@ def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str) -> str:
 
 
 def _gemini_uma_chamada(cliente, types, modelo: str, system_prompt: str,
-                        user_prompt: str) -> str:
+                        user_prompt: str, tentativas: int = API_TENTATIVAS
+                        ) -> str:
     """Uma chamada ao modelo indicado, com retentativas/backoff em falhas."""
     ultima_excecao: Exception | None = None
-    for tentativa in range(1, API_TENTATIVAS + 1):
+    for tentativa in range(1, tentativas + 1):
         try:
             resposta = cliente.models.generate_content(
                 model=modelo,
@@ -381,15 +390,18 @@ def _gemini_uma_chamada(cliente, types, modelo: str, system_prompt: str,
             ultima_excecao = exc
             if _trocar_de_modelo(exc):
                 raise
-            if tentativa < API_TENTATIVAS:
+            if tentativa < tentativas:
                 time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
     raise ultima_excecao  # type: ignore[misc]
 
 
-def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str) -> str:
+def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str,
+                   timeout: float | None = None,
+                   tentativas: int = API_TENTATIVAS) -> str:
     """
     Fallback: Gemini. Tenta o modelo configurado e, se não existir/sem
     acesso, cai para modelos alternativos (gemini-1.5-flash etc.).
+    `timeout`/`tentativas` deixam tarefas rápidas (auditor) desistir cedo.
     """
     # Import tardio: a interface abre mesmo sem a biblioteca instalada
     from google import genai
@@ -397,7 +409,8 @@ def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str) -> str:
 
     cliente = genai.Client(
         api_key=api_key,
-        http_options=types.HttpOptions(timeout=API_TIMEOUT_SEGUNDOS * 1000),  # ms
+        http_options=types.HttpOptions(
+            timeout=int((timeout or API_TIMEOUT_SEGUNDOS) * 1000)),  # ms
     )
     modelos = _modelos_gemini()
     ultima_excecao: Exception | None = None
@@ -406,7 +419,7 @@ def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str) -> str:
         tentados.append(modelo)
         try:
             return _gemini_uma_chamada(cliente, types, modelo, system_prompt,
-                                       user_prompt)
+                                       user_prompt, tentativas)
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
             if _trocar_de_modelo(exc) and i < len(modelos) - 1:
@@ -494,12 +507,16 @@ def gerar_documento(doc_key: str, dados: dict,
 
 
 def chamar_ia_texto(system_prompt: str, user_prompt: str,
-                    finalidade: str = "revisao") -> str:
+                    finalidade: str = "revisao",
+                    timeout: float | None = None,
+                    tentativas: int = API_TENTATIVAS) -> str:
     """
     Chamada genérica de IA para a correção automática (auditor/corretor):
     mesma ordem de motores, fallback e registro técnico da geração de
     documentos — sem RAG, sem modo demo e sem pós-processamento.
     `finalidade` identifica a chamada no registro (ex.: 'corretor').
+    `timeout`/`tentativas` deixam tarefas rápidas (auditor) desistir bem
+    antes do teto de geração — sem esperar minutos por um motor lento.
     """
     chave_openai = obter_openai_key()
     chave_gemini = obter_api_key()
@@ -512,7 +529,8 @@ def chamar_ia_texto(system_prompt: str, user_prompt: str,
     if chave_openai:
         inicio = time.time()
         try:
-            texto = _chamar_openai(system_prompt, user_prompt, chave_openai)
+            texto = _chamar_openai(system_prompt, user_prompt, chave_openai,
+                                   timeout=timeout, tentativas=tentativas)
             registrar_geracao(finalidade, "openai", inicio, "ok")
             return texto
         except ErroGeracaoIA as erro:
@@ -522,7 +540,8 @@ def chamar_ia_texto(system_prompt: str, user_prompt: str,
                 raise
     inicio = time.time()
     try:
-        texto = _chamar_gemini(system_prompt, user_prompt, chave_gemini)
+        texto = _chamar_gemini(system_prompt, user_prompt, chave_gemini,
+                               timeout=timeout, tentativas=tentativas)
         registrar_geracao(finalidade, "gemini", inicio, "ok",
                           fallback=bool(chave_openai))
         return texto

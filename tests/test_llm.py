@@ -121,7 +121,7 @@ def test_openai_troca_de_modelo_quando_nao_encontrado(monkeypatch):
 
     chamados = []
 
-    def fake_uma_chamada(cliente, modelo, s, u):
+    def fake_uma_chamada(cliente, modelo, s, u, *_):
         chamados.append(modelo)
         if modelo == "modelo-inexistente":
             raise Exception("Error code: 404 - model_not_found")
@@ -139,7 +139,7 @@ def test_openai_nao_troca_modelo_em_erro_de_chave(monkeypatch):
 
     chamados = []
 
-    def fake_uma_chamada(cliente, modelo, s, u):
+    def fake_uma_chamada(cliente, modelo, s, u, *_):
         chamados.append(modelo)
         raise Exception("401 invalid_api_key")
 
@@ -149,6 +149,39 @@ def test_openai_nao_troca_modelo_em_erro_de_chave(monkeypatch):
         llm._chamar_openai("s", "u", "sk-x")
     assert len(chamados) == 1  # não tentou outros modelos
     assert "chave" in str(exc.value).lower()
+
+
+def test_openai_honra_tentativas_no_loop_de_retry(monkeypatch):
+    """O timeout curto do auditor (tentativas=1) não pode fazer 3 retries."""
+    import time as _time
+
+    monkeypatch.setattr(_time, "sleep", lambda *_: None)  # sem backoff real
+    monkeypatch.setattr(llm, "_obter_modelo_openai", lambda: "gpt-5-mini")
+    monkeypatch.setattr(llm, "_modelos_openai", lambda: ["gpt-5-mini"])
+
+    tentativas_feitas = {"n": 0}
+
+    def cliente_lento(**_kw):
+        class _Chat:
+            class completions:
+                @staticmethod
+                def create(**_k):
+                    tentativas_feitas["n"] += 1
+                    raise TimeoutError("Request timed out")
+        return type("C", (), {"chat": _Chat()})()
+
+    monkeypatch.setattr("openai.OpenAI", cliente_lento)
+
+    # tentativas=1: uma única chamada por modelo, sem os 3 retries
+    with pytest.raises(llm.ErroGeracaoIA):
+        llm._chamar_openai("s", "u", "sk-x", timeout=45, tentativas=1)
+    assert tentativas_feitas["n"] == 1
+
+    # controle: sem o parâmetro, mantém o padrão de 3 tentativas
+    tentativas_feitas["n"] = 0
+    with pytest.raises(llm.ErroGeracaoIA):
+        llm._chamar_openai("s", "u", "sk-x")
+    assert tentativas_feitas["n"] == llm.API_TENTATIVAS
 
 
 def test_testar_conexao_sem_chave(monkeypatch):
@@ -178,7 +211,7 @@ def test_openai_resposta_vazia_troca_de_modelo(monkeypatch):
 
     chamados = []
 
-    def fake_uma_chamada(cliente, modelo, s, u):
+    def fake_uma_chamada(cliente, modelo, s, u, *_):
         chamados.append(modelo)
         if modelo == "gpt-5-mini":
             raise llm._RespostaVazia("conteúdo vazio (finish_reason=length)")
@@ -194,7 +227,8 @@ def test_openai_todos_vazios_mensagem_amigavel(monkeypatch):
     monkeypatch.setattr("openai.OpenAI", lambda **kw: object())
     monkeypatch.setattr(
         llm, "_openai_uma_chamada",
-        lambda c, m, s, u: (_ for _ in ()).throw(llm._RespostaVazia("vazio")),
+        lambda c, m, s, u, *_: (_ for _ in ()).throw(
+            llm._RespostaVazia("vazio")),
     )
     with pytest.raises(llm.ErroGeracaoIA) as exc:
         llm._chamar_openai("s", "u", "sk-x")

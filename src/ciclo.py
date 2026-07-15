@@ -35,6 +35,12 @@ FLAG_REAUDITORIA = "reauditoria"
 
 MAX_CICLOS_SEMANTICOS = 3
 
+# Auditoria/correção são tarefas rápidas e estruturadas: não faz sentido
+# esperar o teto de 180s da geração de documentos longos. Timeout curto e
+# uma única tentativa por motor para o auditor desistir cedo (e a
+# determinística seguir) em vez de travar a tela por minutos.
+TIMEOUT_AUDITORIA_SEGUNDOS = 45
+
 # etapas exibidas na tela de progresso (Etapa 6)
 ETAPAS_UI = (
     "analisando",    # 1. Analisando os documentos
@@ -103,7 +109,11 @@ def auditoria_semantica(documentos: dict[str, str], chamar=None) -> list[dict]:
     sempre com autoCorrectable=False (a IA não autoriza a própria
     correção; escopo de patch nasce apenas de regra determinística).
     """
-    chamar = chamar or llm.chamar_ia_texto
+    if chamar is None:
+        def chamar(system, user, finalidade):
+            return llm.chamar_ia_texto(
+                system, user, finalidade=finalidade,
+                timeout=TIMEOUT_AUDITORIA_SEGUNDOS, tentativas=1)
     corpo = json.dumps(
         {k: (v or "")[:20000] for k, v in documentos.items()},
         ensure_ascii=False)
@@ -135,15 +145,32 @@ def auditoria_semantica(documentos: dict[str, str], chamar=None) -> list[dict]:
 
 def _auditar(documentos: dict[str, str], processo_id: str | None,
              versao: int, semantica: bool, chamar) -> dict:
-    """Auditoria determinística + (opcional) semântica consolidadas."""
+    """
+    Auditoria determinística (obrigatória) + semântica (OPCIONAL).
+
+    A auditoria semântica por IA é uma camada opcional (flag_reauditoria):
+    se a IA falhar ou demorar (timeout), ela é PULADA com um aviso e a
+    auditoria determinística — que já rodou e nunca depende de IA — segue
+    carregando a revisão. Uma camada opcional NUNCA pode derrubar o ciclo
+    inteiro: sem isto, uma lentidão da IA virava um falso "auditoria
+    indisponível" e descartava o trabalho determinístico.
+    """
     relatorio = achados.gerar_relatorio(documentos, processo_id, versao)
-    if semantica:
+    if not semantica:
+        return relatorio
+    try:
         extras = auditoria_semantica(documentos, chamar)
-        relatorio["findings"] = relatorio["findings"] + extras
-        if any(f["severity"] == "CRITICAL" for f in extras):
-            relatorio["status"] = "BLOCKED"
-        elif extras and relatorio["status"] == "APPROVED":
-            relatorio["status"] = "CORRECTIONS_REQUIRED"
+    except (corretor.ErroCorrecao, llm.ErroGeracaoIA) as erro:
+        _log.warning(
+            "auditoria semântica indisponível — seguindo apenas com a "
+            "determinística: %s", erro)
+        relatorio["semantica_indisponivel"] = True
+        return relatorio
+    relatorio["findings"] = relatorio["findings"] + extras
+    if any(f["severity"] == "CRITICAL" for f in extras):
+        relatorio["status"] = "BLOCKED"
+    elif extras and relatorio["status"] == "APPROVED":
+        relatorio["status"] = "CORRECTIONS_REQUIRED"
     return relatorio
 
 
