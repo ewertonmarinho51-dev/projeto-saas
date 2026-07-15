@@ -203,16 +203,43 @@ def test_auditoria_semantica_critica_bloqueia_para_humano():
     assert f["categoria"] == "semantica" and not f["autoCorrectable"]
 
 
-def test_falha_da_auditoria_semantica_e_estado_explicito():
-    docs = {"memo": "## 1. OBJETO\n\nAquisição de canetas.\n"}
+def test_falha_da_auditoria_semantica_nao_derruba_a_revisao():
+    """
+    A auditoria semântica é OPCIONAL: se a IA falhar/demorar, o ciclo
+    segue com a auditoria determinística — nunca vira REVIEW_FAILED
+    (regressão do falso "auditoria indisponível").
+    """
+    docs = {"memo": "## 1. OBJETO\n\nAquisição de canetas.\n"}  # limpo
 
     def chamar(*_a, **_k):
-        return "quebrou"
+        return "quebrou"  # resposta inválida = ErroCorrecao no auditor
 
     resultado = ciclo.executar_ciclo(
         docs, DADOS, chamar=chamar,
         aplicar_patches=True, reauditoria_semantica=True)
-    assert resultado["status"] == "REVIEW_FAILED"
+    # documento limpo + semântica indisponível → aprovado assim mesmo
+    assert resultado["status"] == "APPROVED"
+    assert resultado["relatorios"][0].get("semantica_indisponivel") is True
+
+
+def test_timeout_da_semantica_com_findings_deterministicos_prossegue():
+    """IA fora do ar não impede a correção dos findings determinísticos."""
+    docs = {"memo": DOC_COM_PLACEHOLDER}
+    chamadas = {"n": 0}
+
+    def chamar(system, user, finalidade):
+        if finalidade == "auditor":
+            raise ciclo.llm.ErroGeracaoIA("timeout: demorou demais")
+        chamadas["n"] += 1
+        return _chamar_corretor_ok(docs)(system, user, finalidade)
+
+    resultado = ciclo.executar_ciclo(
+        docs, DADOS, chamar=chamar,
+        aplicar_patches=True, reauditoria_semantica=True)
+    # o placeholder determinístico foi corrigido apesar da IA de auditoria
+    assert resultado["status"] == "APPROVED"
+    assert "12 (doze) meses" in resultado["documentos"]["memo"]
+    assert all(r.get("semantica_indisponivel") for r in resultado["relatorios"])
 
 
 # ---------------------------------------------------------------------------

@@ -123,6 +123,15 @@ def _render_aprovado(resultado: dict, docs: dict[str, str]) -> None:
            f"aplicado(s)." if resultado["ciclos"] else
            "Nenhuma correção foi necessária.")
     )
+    # Camada semântica (IA) opcional indisponível: a revisão foi concluída
+    # pela auditoria determinística — informa sem alarmar.
+    if any(r.get("semantica_indisponivel")
+           for r in resultado.get("relatorios", [])):
+        st.caption(
+            "Observação: a auditoria semântica por IA ficou indisponível "
+            "nesta execução; a revisão foi concluída pelas validações "
+            "determinísticas (obrigatórias)."
+        )
     with st.expander("Histórico da revisão (transparência)"):
         inicial = resultado["relatorios"][0] if resultado["relatorios"] else {}
         st.markdown(
