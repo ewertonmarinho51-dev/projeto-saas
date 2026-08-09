@@ -163,6 +163,11 @@ def test_reiniciar_processo_limpa_estado_transitorio():
     st.session_state["_familia_escolha_dfd"] = "familia-1"
     st.session_state["_memorando_lido"] = "file-1"
     st.session_state["registro_geracoes"] = [{"doc": "dfd"}]
+    # estado GLOBAL da sessão: sobrevive ao reinício do processo
+    st.session_state["usuario"] = {"id": "u1", "nome": "Ana"}
+    st.session_state["tenant_id"] = "t1"
+    st.session_state["api_key_manual"] = "chave"
+    st.session_state["_modelo_img"] = b"png-preview-do-admin"
     try:
         state.reiniciar_processo()
     except Exception:  # noqa: BLE001 — st.rerun() exige o runtime do Streamlit
@@ -174,6 +179,16 @@ def test_reiniciar_processo_limpa_estado_transitorio():
                   "_familia_escolha_dfd", "_memorando_lido",
                   "registro_geracoes"):
         assert chave not in st.session_state, chave
+    # autenticação, tenant, chaves de API e caches globais preservados
+    assert st.session_state["usuario"]["nome"] == "Ana"
+    assert st.session_state["tenant_id"] == "t1"
+    assert st.session_state["api_key_manual"] == "chave"
+    assert st.session_state["_modelo_img"] == b"png-preview-do-admin"
+    # higiene: session_state é global no modo bare — remove o que o teste
+    # criou para não contaminar os demais testes do processo
+    for chave in ("usuario", "tenant_id", "api_key_manual", "_modelo_img",
+                  "dados", "documentos", "aprovados", "processo_id", "etapa"):
+        st.session_state.pop(chave, None)
 
 
 # ---------------------------------------------------------------------------

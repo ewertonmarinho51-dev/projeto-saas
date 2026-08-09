@@ -109,6 +109,26 @@ def invalidar_a_partir_de(doc_key: str) -> None:
         descartar_documento(chave)
 
 
+# Caches e marcadores que pertencem a UM processo (contratação) e são
+# limpos ao reiniciar. LISTA EXPLÍCITA — nunca limpar por prefixo "_":
+# há chaves "_" de estado GLOBAL da sessão (ex.: _modelo_chave/_modelo_img,
+# preview de branding do admin) que não têm relação com o processo.
+# Estado global preservado: usuario, tenant_id, api_key_manual,
+# openai_key_manual, modo_demo, pagina, _modelo_chave, _modelo_img.
+_CHAVES_DO_PROCESSO = (
+    "_ciclo_resultado",     # cache da revisão/correção automática
+    "_ciclo_manual",        # opt-out manual do ciclo desta sessão
+    "_shadow_plano_hash",   # dedupe do corretor em shadow
+    "_fatos_cache",         # fatos canônicos do processo
+    "_decisao_cache",       # decisão do motor de conhecimento
+    "_score_cache",         # índice de confiança
+    "registro_geracoes",    # histórico técnico das gerações
+)
+_PREFIXOS_DO_PROCESSO = (
+    "_familia_escolha_",    # escolha de família de modelo por documento
+)
+
+
 def reiniciar_processo() -> None:
     """Limpa tudo e volta ao Formulário Matriz (novo processo no banco)."""
     for chave in ("dados", "documentos"):
@@ -128,9 +148,10 @@ def reiniciar_processo() -> None:
             # uploader não pôde ser limpo: mantém o marcador para o arquivo
             # antigo não ser reimportado no novo processo
             pass
-    for chave in [k for k in list(st.session_state.keys())
-                  if isinstance(k, str) and k.startswith("_")
-                  and k not in ("_memorando_lido", "_xlsx_lido")]:
+    for chave in _CHAVES_DO_PROCESSO:
         st.session_state.pop(chave, None)
-    st.session_state.pop("registro_geracoes", None)
+    for chave in [k for k in list(st.session_state.keys())
+                  if isinstance(k, str)
+                  and k.startswith(_PREFIXOS_DO_PROCESSO)]:
+        st.session_state.pop(chave, None)
     ir_para(0)
