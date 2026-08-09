@@ -115,4 +115,22 @@ def reiniciar_processo() -> None:
         st.session_state[chave] = {}
     st.session_state.aprovados = set()
     st.session_state.processo_id = None
+    # Estado TRANSITÓRIO do processo anterior (caches do ciclo/fatos/score,
+    # escolha de família, uploads lidos, histórico de gerações) não pode
+    # vazar para a próxima contratação.
+    for widget, marcador in (("upload_memorando", "_memorando_lido"),
+                             ("upload_itens", "_xlsx_lido")):
+        try:
+            if widget in st.session_state:
+                del st.session_state[widget]
+            st.session_state.pop(marcador, None)
+        except Exception:  # noqa: BLE001
+            # uploader não pôde ser limpo: mantém o marcador para o arquivo
+            # antigo não ser reimportado no novo processo
+            pass
+    for chave in [k for k in list(st.session_state.keys())
+                  if isinstance(k, str) and k.startswith("_")
+                  and k not in ("_memorando_lido", "_xlsx_lido")]:
+        st.session_state.pop(chave, None)
+    st.session_state.pop("registro_geracoes", None)
     ir_para(0)

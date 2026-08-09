@@ -479,11 +479,14 @@ def resumo_para_prompt(itens: list[dict], valor_global: float) -> str:
     return (
         f"A planilha orçamentária possui {n} itens. VALOR GLOBAL (estimativa "
         f"total da contratação) = {formatar_moeda(valor_global)}.\n"
-        f"IMPORTANTE: NÃO redija a lista de itens um a um. A TABELA COMPLETA já "
-        f"formatada (com todas as colunas e o valor global) será inserida "
-        f"AUTOMATICAMENTE no documento no lugar da marca {MARCADOR_TABELA}. "
-        f"Escreva o texto da seção de estimativa de valor e coloque a marca "
-        f"{MARCADOR_TABELA} sozinha, em uma linha, onde a tabela deve aparecer.\n"
+        f"IMPORTANTE: NÃO redija a lista de itens um a um — nem a partir desta "
+        f"amostra, nem a partir do memorando/anexos (se eles contiverem a "
+        f"lista de itens, ignore-a: a tabela oficial vem da planilha do "
+        f"sistema). A TABELA COMPLETA já formatada (com todas as colunas e o "
+        f"valor global) será inserida AUTOMATICAMENTE no documento no lugar "
+        f"da marca {MARCADOR_TABELA}. Escreva o texto da seção de estimativa "
+        f"de valor e coloque a marca {MARCADOR_TABELA} EXATAMENTE UMA VEZ, "
+        f"SOZINHA em uma linha própria, na cláusula de estimativa de valor.\n"
         f"Amostra apenas ilustrativa dos primeiros itens (não a reproduza):\n"
         + amostra
     )
@@ -494,13 +497,26 @@ def injetar_tabela(texto: str, itens_brutos: list[dict] | None) -> str:
     Substitui a marca [[TABELA_ITENS]] pela tabela real; se a planilha for
     grande e a marca não vier (a IA esqueceu), acrescenta a tabela ao final.
     Em tabelas pequenas (fluxo inline) não há marca e nada muda.
+
+    Robustez (defeitos observados em documentos reais):
+      - a tabela entra SOMENTE UMA vez — se a IA escrever a marca em mais
+        de um lugar, as ocorrências extras são removidas (uma planilha de
+        centenas de itens duplicada inviabiliza o documento);
+      - a tabela sempre ocupa um BLOCO próprio (linhas em branco antes e
+        depois): se a marca vier no meio de uma frase, a linha de
+        cabeçalho Markdown ficaria colada na prosa e o conversor DOCX
+        promoveria o PRIMEIRO ITEM a cabeçalho — repetido em toda página.
     """
     itens, glob = calcular(itens_brutos or [])
     if not itens:
         return texto.replace(MARCADOR_TABELA, "").strip()
     tabela = para_markdown(itens, glob)
     if MARCADOR_TABELA in texto:
-        return texto.replace(MARCADOR_TABELA, tabela)
+        antes, _, depois = texto.partition(MARCADOR_TABELA)
+        depois = depois.replace(MARCADOR_TABELA, "")
+        return (
+            antes.rstrip() + "\n\n" + tabela + "\n\n" + depois.lstrip()
+        ).strip()
     if len(itens) > LIMITE_ITENS_INLINE:
         return texto.rstrip() + "\n\n" + tabela
     return texto
