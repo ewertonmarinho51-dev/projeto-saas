@@ -3,16 +3,21 @@
 Branch `p1-grounding-consistencia` (a partir de `main` `e088cef`, já com o
 P0). **Nenhum PR aberto.** Commits: `f4fd7e2` (RAG temático + trace +
 cláusulas condicionais), `4bf6308` (ETP + consistência + testes),
-`0c8064d` (relatório) e `91f6fde` (**correções da 2ª auditoria**).
+`0c8064d` (relatório), `91f6fde` (**correções da 2ª auditoria**) e
+`d57c796` (**ajustes da 3ª revisão**).
 
 ---
 
 ## A. Arquitetura encontrada e reutilizada
 
-Nenhum componente novo. Tudo entrou nos módulos que já deveriam executar
-a função: `rag.py`, `conhecimento.py` (motor v5), `fatos.py`,
-`consistencia.py`, `perfis.py`, `prompts.py`, `validacao.py`,
-`achados.py`, `llm.py`, `db.py`, `config_app` (flags).
+Tudo entrou nos módulos que já deveriam executar a função: `rag.py`,
+`conhecimento.py` (motor v5), `fatos.py`, `consistencia.py`, `perfis.py`,
+`prompts.py`, `validacao.py`, `achados.py`, `llm.py`, `db.py`,
+`config_app` (flags). O único arquivo novo é `src/normas.py` — não é
+motor nem pipeline: é o normalizador de identidade `norma:dispositivo`
+usado pelos três consumidores existentes (mapa canônico, RAG e
+validação), justamente para que não existam três normalizações
+divergentes.
 
 Achado estrutural da 1ª rodada: **o motor v5 estava correto, mas
 `regras_conhecimento` nasce vazia** — nenhuma regra era avaliada. A base
@@ -23,7 +28,7 @@ consumida pelo resolver existente.
 
 | # | Problema apontado | Correção |
 |---|---|---|
-| 1 | Autoridade decisória: `_verificar_decisoes` tratava "o primeiro que falou" como verdade; `_verificar_srp_contra_fato` tratava o formulário como definitivo; as diretrizes derivavam sempre do formulário — contradizendo o `RACIOCINIO_ETP` | autoridade por decisão e estágio (§ C); `documento_consolidador()`; `dados_consolidados()` sobrepõe o formulário com o que o ETP consolidou |
+| 1 | Autoridade decisória: `_verificar_decisoes` tratava "o primeiro que falou" como verdade; `_verificar_srp_contra_fato` tratava o formulário como definitivo; as diretrizes derivavam sempre do formulário — contradizendo o `RACIOCINIO_ETP` | autoridade por decisão e estágio (§ C); `documento_consolidador()`; sobreposição do formulário pelo que o ETP consolidou (refinada na 3ª revisão, § B2) |
 | 2 | `objeto.natureza` deduzida de `modelo_execucao` com *fallback* BENS — errado para SRP (modelagem ≠ natureza) | natureza só das opções que a declaram (obra/serviço); senão, da categoria (inferência); sem base, **nenhum fato** |
 | 3 | Fatos derivados booleanos: ausência de evidência virava `False` | tri-state — `True` / `False` explícito / **ausente**; sem informação o motor **alerta**, não decide |
 | 4 | Termos em frases negativas geravam fato positivo | `avaliar_termos()` detecta negação ("não será exigida", "dispensa-se", "sem exigência de", "fica dispensada") |
@@ -38,6 +43,18 @@ consumida pelo resolver existente.
 | 13 | Regra de citação dependia da obediência do LLM | verificação determinística pós-geração (§ H) |
 | 14 | Acórdão rotulado como "fonte normativa" | hierarquia em 4 níveis: legislação / jurisprudência de controle / processo atual / molde |
 | 15 | Jurisdição | mantida explícita, com **precedência operacional** da regulamentação municipal; limitação registrada (§ J) |
+
+## B2. Ajustes da 3ª revisão
+
+| # | Problema apontado | Correção |
+|---|---|---|
+| 1 | `documento_consolidador()` promovia o último documento anterior quando o consolidador estava silencioso (o DFD virava "decisão consolidada") | consulta **apenas** o documento com autoridade; sem manifestação dele a decisão fica *não consolidada* e ninguém é acusado. Divergência sem consolidação vira aviso MEDIUM apontado ao documento competente — e só se ele existir no dossiê |
+| 2 | Consolidar "não SRP" reescrevia `modelo_execucao` como "Entrega parcelada" | `sobrepor_decisoes_consolidadas()` substitui **apenas o fato** `procedimento.srp` (fonte `documento:etp`, versionado). A forma de execução informada permanece intacta |
+| 3 | Lastro comparava número de artigo solto | identidade **`norma:dispositivo`** (`src/normas.py`): `lei_14133_2021:84` ≠ `decreto_10024_2019:84`. Reconhece leis, LCs, decretos, INs, NRs e NBRs; citação sem norma declarada assume a norma de referência da fase preparatória (suposição explícita). `MAPA_CANONICO` ancorado à Lei nº 14.133/2021 |
+| 4 | `lastro_do_trace()` aceitava artigo de qualquer fonte | só `categoria = lei` sustenta dispositivo normativo. Acórdão/entendimento não autorizam artigo de lei só por mencioná-lo; processo anterior e modelo nunca dão lastro |
+| 5 | `_rag_trace` era gravado antes da IA responder | associado **após geração bem-sucedida**, com `hash_texto`, `request_id` e `modelo`. Falha de todos os motores preserva o rastro anterior; no fallback OpenAI→Gemini vale o rastro da geração vencedora |
+| 6 | Gatilho `ti` tratava software e hardware igual | proteção de dados dispara para software/SaaS/hospedagem **ou** quando o processo exige o tema (dados pessoais, sigilo, segurança da informação). Monitor não recebe LGPD |
+| 7 | "mão de obra" genérico decidia o regime | só expressão inequívoca (dedicação exclusiva/predominante/pessoal residente) decide; menção genérica vira indício inferido (`procedimento.mencao_mao_de_obra`) e o regime permanece UNKNOWN, com alerta |
 
 ## C. Autoridade decisória por estágio
 
@@ -56,10 +73,11 @@ EDITAL      herda o que o TR definiu
 | modalidade | TR | legítima | finding |
 | garantia contratual | TR | legítima | finding |
 
-Regras: a referência é o **último** documento que se manifestou até o
-consolidador; silêncio não é divergência; sem ETP no dossiê, a
-divergência com o formulário vira aviso MEDIUM ("modelagem não
-confirmada"), nunca erro do documento.
+Regras: **somente o documento com autoridade consolida** — silêncio dele
+significa "não consolidado", e nunca promove um documento preliminar a
+decisão vinculante; silêncio de um documento qualquer não é divergência;
+sem ETP no dossiê, a divergência com o formulário vira aviso MEDIUM
+("modelagem não confirmada"), nunca erro do documento.
 
 ## D. ETP — antes × depois
 
@@ -123,33 +141,41 @@ de 10 trechos no prompt.
 ```
 texto gerado → dispositivos citados → lastro? → finding
 ```
-Lastro válido: (a) `prompts.MAPA_CANONICO` — agora **dado declarado**,
-lido pelo prompt e pela validação (não há duas listas para divergirem);
-(b) dispositivos extraídos dos trechos que o RAG recuperou naquela
-geração (`geracoes.rag_trace[].dispositivos`). Sem lastro → finding
+Toda comparação usa a identidade **`norma:dispositivo`** de
+`src/normas.py`. Lastro válido: (a) `prompts.MAPA_CANONICO` — **dado
+declarado** e ancorado à Lei nº 14.133/2021, lido pelo prompt e pela
+validação (não há duas listas para divergirem); (b) dispositivos
+extraídos dos trechos de **legislação** que o RAG recuperou naquela
+geração (`geracoes.rag_trace[].dispositivos`) — acórdão, entendimento,
+processo anterior e modelo não dão lastro. O rastro pertence à geração
+bem-sucedida que produziu o texto (`hash_texto`). Sem lastro → finding
 `fundamento_sem_lastro` (HIGH), cuja correção **remove o número e mantém
 a norma** — nunca substitui por outro artigo. Documento sem rastro
 (importado, editado à mão, gerado antes do P1) fica de fora: a checagem
 não opina.
 
-Exemplo verificado: `art. 347` → finding; `art. 84`/`arts. 141 a 146`
-(canônicos) → passam; `art. 211` presente no trace → passa.
+Exemplos verificados: `art. 347` → finding; `art. 84`/`arts. 141 a 146`
+(canônicos) → passam; `art. 250 da Lei nº 14.133/2021` presente no trace
+→ passa; `art. 84 do Decreto nº 10.024/2019` **não** valida o `art. 84`
+da Lei nº 14.133/2021.
 
 ## I. Testes
 
 | | main | branch |
 |---|---|---|
-| Suíte | **395 passed / 1 failed** | **485 passed / 1 failed** |
+| Suíte | **395 passed / 1 failed** | **503 passed / 1 failed** |
 
 Mesma única falha nos dois lados (`test_export_estilos.py::
 test_pdf_via_libreoffice_quando_disponivel` — LibreOffice do container
 troca Times por Helvetica): **pré-existente, não é regressão**.
 
-`tests/test_p1_grounding.py` (31) e `tests/test_p1_inteligencia.py` (59)
+`tests/test_p1_grounding.py` (40) e `tests/test_p1_inteligencia.py` (68)
 — RAG-01..06, ETP-01..04, COND-01..05, CONS-01..06 e todos os testes
 exigidos na 2ª auditoria: autoridade (5 cenários A–E), tri-state,
 negações, natureza, confiança, regras revisadas, orçamento/reserva do
-RAG e grounding (4 casos).
+RAG e grounding (4 casos). A 3ª revisão acrescentou: consolidador
+silencioso (3), norma × dispositivo e origem do lastro (6), ciclo de vida
+do trace (3), gatilho de TI (3) e dedicação inequívoca (2).
 
 **Regressões declaradas:** cinco testes anteriores foram atualizados —
 não por conveniência, mas porque a semântica mudou de propósito:
