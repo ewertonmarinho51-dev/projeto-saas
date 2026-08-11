@@ -47,12 +47,18 @@ TABELA = "chunks_referencia"
 
 
 # ---------------------------------------------------------------------------
-# Credenciais (ambiente ou .streamlit/secrets.toml) — nunca impressas
+# Credenciais — resolvidas, NUNCA exibidas
+#
+# Ordem: variável de ambiente → .streamlit/secrets.toml → configuração
+# administrativa no banco (`config_app`, o mesmo contrato que a aplicação
+# usa em llm._ler_chave). O valor não é impresso, logado, mascarado nem
+# medido: o script só informa se a credencial existe.
 # ---------------------------------------------------------------------------
-def _segredo(nome: str) -> str:
-    valor = os.environ.get(nome, "")
-    if valor:
-        return valor
+def _do_ambiente(nome: str) -> str:
+    return os.environ.get(nome, "").strip()
+
+
+def _dos_secrets(nome: str) -> str:
     caminho = RAIZ / ".streamlit" / "secrets.toml"
     if not caminho.exists():
         return ""
@@ -61,22 +67,48 @@ def _segredo(nome: str) -> str:
     except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
         return ""
     with open(caminho, "rb") as fh:
-        return str(tomllib.load(fh).get(nome, ""))
+        return str(tomllib.load(fh).get(nome, "")).strip()
 
 
-def _exigir(nome: str) -> str:
-    valor = _segredo(nome)
+def _do_banco(nome: str) -> str:
+    """Configuração administrativa (config_app) — contrato da aplicação."""
+    try:
+        from src import db
+
+        return db.obter_config(nome).strip()
+    except Exception:  # noqa: BLE001 — sem banco disponível, segue vazio
+        return ""
+
+
+def resolver_credencial(nome: str, com_banco: bool = True) -> str:
+    """Valor da credencial (jamais impresso) ou string vazia."""
+    for origem in (_do_ambiente, _dos_secrets):
+        valor = origem(nome)
+        if valor:
+            return valor
+    return _do_banco(nome) if com_banco else ""
+
+
+def credencial_disponivel(nome: str, com_banco: bool = True) -> bool:
+    """Presença da credencial — é isto que o script pode reportar."""
+    return bool(resolver_credencial(nome, com_banco))
+
+
+def _exigir(nome: str, com_banco: bool = True) -> str:
+    valor = resolver_credencial(nome, com_banco)
     if not valor:
         raise SystemExit(
-            f"[ABORTADO] {nome} não configurado. Rode este script no "
-            "ambiente que possui as credenciais; nada foi alterado.")
+            f"[ABORTADO] credencial {nome} indisponível (ambiente, secrets "
+            "e configuração administrativa). Nada foi alterado.")
     return valor
 
 
 def cliente_supabase():
     from supabase import create_client
 
-    return create_client(_exigir("SUPABASE_URL"), _exigir("SUPABASE_KEY"))
+    # o acesso ao banco não pode depender do próprio banco
+    return create_client(_exigir("SUPABASE_URL", com_banco=False),
+                         _exigir("SUPABASE_KEY", com_banco=False))
 
 
 def cliente_openai():
@@ -137,8 +169,43 @@ def marcar_falha(sb, chunk: dict) -> None:
         "id", chunk["id"]).execute()
 
 
-def executar(lote: int, maximo: int | None, simular: bool) -> int:
-    sb = cliente_supabase()
+# Tentativas por LOTE antes de desistir da execução. Esgotadas, o script
+# encerra com erro em vez de martelar a API: os chunks continuam com
+# `embedding_v2 is null` e a próxima execução os reprocessa.
+MAX_TENTATIVAS_LOTE = 3
+BACKOFF_BASE_SEGUNDOS = 2
+
+
+class BackfillInterrompido(RuntimeError):
+    """Provedor persistentemente indisponível — execução encerrada."""
+
+
+def _vetorizar_com_backoff(openai_, textos: list[str], dormir) -> list[list[float]]:
+    ultimo = None
+    for tentativa in range(1, MAX_TENTATIVAS_LOTE + 1):
+        try:
+            return vetorizar(openai_, textos)
+        except Exception as erro:  # noqa: BLE001
+            ultimo = erro
+            print(f"  [tentativa {tentativa}/{MAX_TENTATIVAS_LOTE}] "
+                  f"{type(erro).__name__}")
+            if tentativa < MAX_TENTATIVAS_LOTE:
+                dormir(BACKOFF_BASE_SEGUNDOS ** tentativa)
+    raise BackfillInterrompido(
+        f"provedor indisponível após {MAX_TENTATIVAS_LOTE} tentativas "
+        f"({type(ultimo).__name__})")
+
+
+def executar(lote: int, maximo: int | None, simular: bool,
+             sb=None, openai_=None, dormir=time.sleep) -> int:
+    """
+    Vetoriza os pendentes. `maximo` limita o total desta execução — e
+    nunca é ultrapassado, mesmo com lote maior que ele.
+
+    Levanta BackfillInterrompido se o provedor não responder após as
+    tentativas previstas: sem laço infinito e sem trocar de provedor.
+    """
+    sb = sb or cliente_supabase()
     restantes = total_pendentes(sb)
     print(f"[inicio] {restantes} chunk(s) pendente(s) de "
           f"{EMBEDDING_V2_PROVEDOR}/{EMBEDDING_V2_MODELO}/"
@@ -150,24 +217,23 @@ def executar(lote: int, maximo: int | None, simular: bool) -> int:
                   f"({len(c['conteudo'])} caracteres) — nada gravado")
         return 0
 
-    openai_ = cliente_openai()
+    openai_ = openai_ or cliente_openai()
     processados = 0
-    while True:
-        if maximo is not None and processados >= maximo:
-            break
-        atual = pendentes(sb, lote)
+    while maximo is None or processados < maximo:
+        # o lote nunca pode ultrapassar o que ainda cabe no limite
+        tamanho = lote if maximo is None else min(lote, maximo - processados)
+        atual = pendentes(sb, tamanho)
         if not atual:
             break
         try:
-            vetores = vetorizar(openai_, [c["conteudo"] for c in atual])
-        except Exception as erro:  # noqa: BLE001
-            # lote inteiro fica para a próxima execução (retomável)
-            print(f"  [falha] lote de {len(atual)}: {type(erro).__name__} — "
-                  "marcado para reprocessamento")
+            vetores = _vetorizar_com_backoff(
+                openai_, [c["conteudo"] for c in atual], dormir)
+        except BackfillInterrompido:
             for c in atual:
-                marcar_falha(sb, c)
-            time.sleep(5)
-            continue
+                marcar_falha(sb, c)   # visível no banco; segue retomável
+            print(f"  [interrompido] lote de {len(atual)} marcado como "
+                  "'falha'; reexecute quando o provedor voltar")
+            raise
         for chunk, vetor in zip(atual, vetores):
             gravar(sb, chunk, vetor)
         processados += len(atual)
@@ -225,11 +291,25 @@ def main() -> None:
                         help="mostra o que faria, sem gravar nada")
     parser.add_argument("--validar", action="store_true",
                         help="apenas confere a cobertura do índice V2")
+    parser.add_argument("--credenciais", action="store_true",
+                        help="informa apenas se as credenciais existem")
     args = parser.parse_args()
+    if args.credenciais:
+        for nome, com_banco in (("SUPABASE_URL", False),
+                                ("SUPABASE_KEY", False),
+                                ("OPENAI_API_KEY", True)):
+            rotulo = ("credencial do provedor V2" if nome == "OPENAI_API_KEY"
+                      else nome)
+            disponivel = "sim" if credencial_disponivel(nome, com_banco) else "não"
+            print(f"{rotulo} disponível: {disponivel}")
+        return
     if args.validar:
         validar()
         return
-    executar(args.lote, args.limite, args.simular)
+    try:
+        executar(args.lote, args.limite, args.simular)
+    except BackfillInterrompido as erro:
+        raise SystemExit(f"[ERRO] {erro}") from erro
 
 
 if __name__ == "__main__":
