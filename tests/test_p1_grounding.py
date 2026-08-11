@@ -611,3 +611,62 @@ def test_fallback_para_gemini_associa_o_trace_da_geracao_vencedora(monkeypatch):
     assert "gemini" in texto
     assert rag.lastro_do_trace(
         st.session_state["_rag_trace"]["tr"]) == {"lei_14133_2021:140"}
+
+
+# --------------------------------------------------------------------------
+# Busca textual: websearch_to_tsquery combina termos com E — a frase
+# temática inteira zera a recuperação (medido na base real)
+# --------------------------------------------------------------------------
+def test_consulta_textual_usa_ou_entre_termos_significativos():
+    consulta = rag.consulta_textual(
+        "pagamento liquidação da despesa ordem cronológica prazo de "
+        "pagamento nota fiscal atesto")
+    assert " or " in consulta
+    assert "pagamento" in consulta and "liquidação" in consulta
+    # preposições e artigos não viram termo de busca
+    for stop in (" da ", " de ", " or da or ", " or de or "):
+        assert stop not in f" {consulta} "
+    # sem repetição e dentro do teto
+    termos = consulta.split(" or ")
+    assert len(termos) == len(set(termos)) <= 6
+
+
+def test_busca_textual_recebe_a_consulta_reduzida(monkeypatch):
+    enviadas = []
+
+    monkeypatch.setattr(rag.db, "disponivel", lambda: True)
+    monkeypatch.setattr(rag.db, "obter_config", lambda chave: "")
+    monkeypatch.setattr(rag, "_gerar_embeddings",
+                        lambda textos, para_consulta: None)   # modo textual
+
+    def _rpc(funcao, params):
+        enviadas.append(params.get("consulta"))
+        return []
+
+    monkeypatch.setattr(rag, "_executar_rpc", _rpc)
+    rag.recuperar(BENS_SRP, "tr")
+    assert enviadas and all(" or " in c for c in enviadas)
+    assert all(len(c.split(" or ")) <= 6 for c in enviadas)
+
+
+def test_busca_vetorial_mantem_a_consulta_semantica_completa(monkeypatch):
+    monkeypatch.setattr(rag.db, "disponivel", lambda: True)
+    monkeypatch.setattr(rag.db, "obter_config", lambda chave: "")
+    monkeypatch.setattr(rag, "_gerar_embeddings",
+                        lambda textos, para_consulta: [[0.1] * 8
+                                                       for _ in textos])
+    monkeypatch.setattr(rag, "_executar_rpc", lambda funcao, params: [])
+    resultado = rag.recuperar(BENS_SRP, "tr")
+    # a consulta registrada no trace é a frase temática, não a reduzida
+    assert all(" or " not in c["texto"] for c in resultado["consultas"])
+
+
+def test_trace_nao_inventa_campos_que_o_rpc_nao_devolve(monkeypatch):
+    # os RPCs devolvem apenas conteudo/titulo/categoria/similaridade
+    real = {"conteudo": "Art. 84. …", "titulo": "Lei nº 14.133/2021",
+            "categoria": "lei", "similaridade": 0.7}
+    _fingir_base(monkeypatch, lambda consulta: [real])
+    referencia = rag.montar_contexto(BENS_SRP, "edital")["trace"]["referencias"][0]
+    assert "documento_id" not in referencia and "ordem" not in referencia
+    assert referencia["titulo"] == "Lei nº 14.133/2021"
+    assert referencia["dispositivos"] == ["lei_14133_2021:84"]

@@ -474,6 +474,31 @@ def temas_prioritarios(dados: dict, doc_key: str) -> list[str]:
             or TEMAS_JURIDICOS[c][2] in gatilhos]
 
 
+# `buscar_chunks_textual` usa websearch_to_tsquery, que combina os termos
+# com E: a frase temática inteira exige que TODOS apareçam no mesmo
+# trecho e a recuperação zera (medido na base real: "pagamento liquidação
+# da despesa ordem cronológica…" → 0 resultados). Para a busca textual a
+# consulta é reduzida às palavras significativas, combinadas com OU.
+_STOPWORDS = {
+    "para", "pela", "pelo", "pelas", "pelos", "com", "sem", "sobre",
+    "entre", "como", "que", "dos", "das", "aos", "nas", "nos", "uma",
+    "uns", "umas", "seu", "sua", "seus", "suas", "este", "esta", "esse",
+    "essa", "quando", "onde", "ser", "são", "the", "and", "por",
+}
+
+
+def consulta_textual(texto: str, maximo: int = 6) -> str:
+    """Termos significativos combinados com OU (recall na busca textual)."""
+    palavras: list[str] = []
+    for palavra in re.findall(r"[\wÀ-ÿ]+", (texto or "").lower()):
+        if len(palavra) < 4 or palavra in _STOPWORDS or palavra in palavras:
+            continue
+        palavras.append(palavra)
+        if len(palavras) >= maximo:
+            break
+    return " or ".join(palavras) or (texto or "")
+
+
 def piso_de_relevancia(modo: str) -> float:
     """Piso configurável (config_app); padrão conservador por modo."""
     padrao = PISO_VETORIAL_PADRAO if modo == "vetorial" else PISO_TEXTUAL_PADRAO
@@ -552,7 +577,8 @@ def recuperar(dados: dict, doc_key: str) -> dict:
             else:
                 brutos = _executar_rpc(
                     "buscar_chunks_textual",
-                    {"consulta": consulta["texto"], "qtd": qtd})
+                    {"consulta": consulta_textual(consulta["texto"]),
+                     "qtd": qtd})
         except ErroRAG:
             raise
         consulta["recuperados"] = len(brutos)
@@ -738,16 +764,22 @@ def montar_contexto(dados: dict, doc_key: str) -> dict:
         ],
         # rastro da FONTE, não do conteúdo: título, categoria, score e
         # posição bastam para responder "por que citou este artigo?"
+        # Só o que os RPCs realmente devolvem (conteúdo, título,
+        # categoria, similaridade) — nada de campo inventado. Quando a
+        # busca expuser identificadores de chunk, eles entram aqui.
         "referencias": [
-            {"tema": r.get("tema"), "titulo": r.get("titulo"),
-             "categoria": r.get("categoria"),
-             "score": round(float(r.get("score") or 0), 4),
-             "documento_id": r.get("documento_id"), "ordem": r.get("ordem"),
-             # dispositivos EXPRESSOS no trecho (norma:artigo): é o
-             # lastro que autoriza o documento a citar o dispositivo
-             "dispositivos": dispositivos_do_trecho(r.get("conteudo"),
-                                                    r.get("titulo") or ""),
-             "trecho": (r.get("conteudo") or "")[:160]}
+            {k: v for k, v in {
+                "tema": r.get("tema"), "titulo": r.get("titulo"),
+                "categoria": r.get("categoria"),
+                "score": round(float(r.get("score") or 0), 4),
+                "documento_id": r.get("documento_id"),
+                "ordem": r.get("ordem"),
+                # dispositivos EXPRESSOS no trecho (norma:artigo): é o
+                # lastro que autoriza o documento a citar o dispositivo
+                "dispositivos": dispositivos_do_trecho(
+                    r.get("conteudo"), r.get("titulo") or ""),
+                "trecho": (r.get("conteudo") or "")[:160],
+            }.items() if v is not None}
             for r in referencias
         ],
     }

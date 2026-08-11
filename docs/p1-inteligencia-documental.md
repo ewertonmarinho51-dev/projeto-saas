@@ -163,7 +163,7 @@ da Lei nº 14.133/2021.
 
 | | main | branch |
 |---|---|---|
-| Suíte | **395 passed / 1 failed** | **503 passed / 1 failed** |
+| Suíte | **395 passed / 1 failed** | **507 passed / 1 failed** |
 
 Mesma única falha nos dois lados (`test_export_estilos.py::
 test_pdf_via_libreoffice_quando_disponivel` — LibreOffice do container
@@ -187,9 +187,10 @@ agora percorre a recuperação temática). Nenhuma perda de cobertura.
 
 ## J. Limitações remanescentes
 
-1. **Base de conhecimento vazia** — sem normas indexadas o grounding se
-   apoia só no mapa canônico, e a verificação de lastro fica restrita a
-   ele. É o bloqueio do § K.
+1. **Legislação sem embeddings** (§ K.1): a base tem a Lei nº
+   14.133/2021, mas sem vetores — logo, invisível à busca vetorial de
+   produção. Até a reindexação, o grounding se apoia só no mapa
+   canônico. É o bloqueio principal.
 2. **Jurisdição não é metadado do banco**: `documentos_referencia` tem
    `categoria`, não escopo federal/estadual/municipal. A separação é
    feita no bloco do prompt. Não foi criada segunda arquitetura.
@@ -204,36 +205,104 @@ agora percorre a recuperação temática). Nenhuma perda de cobertura.
    CNPJ) seguem como `[PREENCHER]` — P2, inalterado.
 7. **Sem execução com IA real** neste ambiente (sem chaves/Supabase).
 
-## K. Smoke test pendente (item 17)
+## K. Smoke test — parcial, executado contra o Supabase real
 
-Não executável neste ambiente: não há chaves de API nem Supabase, e a
-base de conhecimento está vazia. Não foi criado seed com conteúdo
-normativo — inventar norma seria pior que não ter nenhuma.
+**Correção de uma afirmação anterior deste relatório: a base de
+conhecimento NÃO está vazia.** A inspeção do projeto real
+(`govdocs-wizard`) mostrou 40 documentos e 4.539 chunks. O que foi
+possível executar aqui (leitura do banco e recuperação real) revelou
+três fatos que mudam o quadro:
 
-Para executá-lo no ambiente do usuário, usando a página **Base de
-Conhecimento** já existente (nenhum código novo é necessário):
+### K.1 A legislação nunca foi recuperável em produção — causa-raiz de dados
 
-1. indexar, a partir de **fontes oficiais**: (a) Lei nº 14.133/2021
-   (Planalto), categoria `lei`; (b) o decreto/regulamento municipal
-   vigente de Paragominas que disciplina a Lei nº 14.133/2021, categoria
-   `lei`; (c) as normas específicas usadas pelas regras que forem
-   testadas (ex.: NR-6/Portaria MTP nº 672/2021 para EPI);
-2. aplicar a migração `0011_rag_trace.sql`;
-3. ligar as flags na ordem: `canonical_facts` →
-   `knowledge_engine_shadow` → conferir decisões na tela →
+| categoria | docs | chunks | **sem embedding** |
+|---|---|---|---|
+| processo_anterior | 20 | 1.401 | 0 |
+| modelo | 16 | 1.577 | 0 |
+| entendimento (manuais) | 3 | 1.311 | **1.311 (100%)** |
+| **lei (Lei 14.133/2021)** | 1 | 250 | **250 (100%)** |
+
+`buscar_chunks_vetorial` filtra `where c.embedding is not null`. Com
+chave de API configurada — o caminho normal em produção — a busca é
+vetorial, portanto **a Lei nº 14.133/2021 e os manuais jamais foram
+recuperados**: só modelos e processos anteriores chegavam ao prompt.
+Isso explica, no nível dos DADOS, os artigos errados encontrados no P0:
+o modelo citava de memória porque a lei nunca esteve disponível — e o
+que estava disponível eram justamente as fontes que não fundamentam.
+
+**Ação necessária (no app, com a chave de API ativa): reindexar
+`Lei 14133.pdf` e os manuais** pela página Base de Conhecimento (excluir
+e reenviar). Sem isso, o grounding do P1 funciona, mas não terá
+legislação para recuperar — e a verificação de lastro ficará restrita ao
+mapa canônico.
+
+### K.2 Defeito real encontrado e corrigido: recuperação textual zerada
+
+`buscar_chunks_textual` usa `websearch_to_tsquery`, que combina os termos
+com **E**. Medido na base real, a frase temática inteira devolvia **zero**
+resultados para *pagamento* e *SRP*. Correção em `rag.consulta_textual()`
+— termos significativos combinados com **OU** apenas na busca textual (a
+vetorial mantém a frase semântica completa):
+
+| tema | consulta longa (antes) | consulta reduzida (depois) |
+|---|---|---|
+| pagamento | **0** resultados | 3 (ts_rank 0,062) |
+| SRP | **0** resultados | 3, incluindo a lei (arts. 85, 86) |
+| sanções | 1 | 3, incluindo a lei (art. 156) |
+| execução/recebimento | — | 3 |
+| gestão/fiscalização | — | 3 |
+
+Os `ts_rank` reais ficam entre **0,05 e 0,09**, o que confirma que o piso
+textual conservador (0,01) filtra ruído sem cortar evidência.
+
+### K.3 Contrato real dos RPCs
+
+`buscar_chunks_vetorial/textual` devolvem apenas `conteudo, titulo,
+categoria, similaridade` — **não expõem id do chunk, documento nem
+ordem**. O trace passou a registrar somente o que existe (nada de campo
+nulo inventado); a deduplicação usa o conteúdo. Expor o identificador do
+chunk exigiria recriar as funções (expand-only) — **não foi feito para
+não alterar objetos de produção sem autorização**.
+
+### K.4 Também confirmado no banco real
+
+- `regras_conhecimento` com **0 regras publicadas** — confirma o achado
+  estrutural da 1ª rodada (o motor nunca teve o que avaliar);
+- `geracoes` com 61 registros e **sem a coluna `rag_trace`** — a
+  migração `0011` continua pendente de aplicação;
+- **não há regulamentação municipal de Paragominas indexada** (a
+  categoria `lei` tem apenas a Lei 14.133/2021).
+
+### K.5 O que falta para o smoke test completo
+
+1. reindexar a Lei nº 14.133/2021 e os manuais **com embeddings** (K.1);
+2. indexar o decreto/regulamento municipal vigente de Paragominas —
+   fonte oficial, não fornecida a este ambiente;
+3. aplicar `0011_rag_trace.sql`;
+4. ligar as flags na ordem: `canonical_facts` →
+   `knowledge_engine_shadow` → conferir as decisões na tela →
    `knowledge_engine_active` → `process_consistency`;
-4. gerar DFD→ETP→TR→Edital de um caso real e conferir: temas
-   recuperados no `rag_trace`, ausência de `fundamento_sem_lastro`,
-   cláusulas condicionais coerentes e nenhum finding de decisão.
+5. gerar DFD→ETP→TR→Edital de um caso real **com chave de API** (não
+   disponível aqui) e conferir: temas no `rag_trace`, ausência de
+   `fundamento_sem_lastro`, cláusulas condicionais coerentes e nenhum
+   finding de decisão.
 
 ## Veredito
 
 **NÃO APTO PARA PR.**
 
-Justificativa: os 16 pontos técnicos da 2ª auditoria estão corrigidos e
-cobertos por testes (485 passed, sem regressão frente à `main`), mas o
-item 17 — smoke test em ambiente com RAG funcional e fontes oficiais
-indexadas — **não pôde ser executado aqui** e foi expressamente colocado
-como condição para declarar o P1 pronto. O bloqueio é ambiental, não de
-implementação: assim que o § K for concluído com sucesso no ambiente do
-usuário, a branch passa a APTO sem necessidade de novas alterações.
+Justificativa: os pontos técnicos das três revisões estão corrigidos e
+cobertos por testes (**507 passed / 1 failed**, mesma falha pré-existente
+da `main`, sem regressão). O smoke test foi executado **parcialmente**
+contra o Supabase real e, em vez de confirmar, revelou dois problemas de
+dados que precisam ser resolvidos ANTES de declarar o P1 pronto:
+
+1. **a Lei nº 14.133/2021 está indexada sem embeddings** e, portanto,
+   nunca foi recuperada em produção (§ K.1) — é preciso reindexá-la;
+2. **não há regulamentação municipal de Paragominas na base** — fonte
+   oficial que este ambiente não possui e que não deve ser inventada.
+
+Sem essas duas correções de acervo, o grounding jurídico não tem o que
+recuperar e o smoke test completo (geração com IA real, indisponível
+neste ambiente) não teria valor probatório. Nenhuma alteração de código
+adicional é necessária: resolvidos K.5, a branch passa a APTO.
