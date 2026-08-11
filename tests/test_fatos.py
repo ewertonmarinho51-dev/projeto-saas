@@ -35,7 +35,9 @@ def _por_path(lista):
 def test_extracao_mapeia_fatos_materiais_com_fonte():
     mapa = _por_path(fatos.extrair_do_formulario(DADOS, "p1"))
     assert mapa["procedimento.srp"]["valor"] is True
-    assert mapa["objeto.natureza"]["valor"] == "BENS"
+    # o SRP é MODELAGEM: dele não se deduz a natureza do objeto — sem
+    # base segura, nenhum fato é emitido (P1: 'não sei' ≠ 'BENS')
+    assert "objeto.natureza" not in mapa
     assert mapa["valor.total"]["valor"] == 45000.0
     assert mapa["itens[0].quantidade"]["valor"] == 100.0
     assert mapa["prazo.descricao"]["fonte"] == "formulario:prazo"

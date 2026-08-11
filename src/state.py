@@ -122,6 +122,7 @@ _CHAVES_DO_PROCESSO = (
     "_fatos_cache",         # fatos canônicos do processo
     "_decisao_cache",       # decisão do motor de conhecimento
     "_score_cache",         # índice de confiança
+    "_rag_trace",           # rastro do RAG por documento (lastro das citações)
     "registro_geracoes",    # histórico técnico das gerações
 )
 _PREFIXOS_DO_PROCESSO = (

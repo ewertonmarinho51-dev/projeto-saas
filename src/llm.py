@@ -482,6 +482,9 @@ def gerar_documento(doc_key: str, dados: dict,
     contexto_rag = rag.montar_contexto(dados, doc_key)
     user_prompt += contexto_rag["bloco"]
     rag_trace = contexto_rag["trace"]
+    # o rastro fica disponível para a revisão verificar o LASTRO das
+    # citações deste documento (validacao._validar_lastro_das_citacoes)
+    st.session_state.setdefault("_rag_trace", {})[doc_key] = rag_trace
 
     # P1: cláusulas condicionais resolvidas pelo MOTOR DE CONHECIMENTO
     # (mesmas regras, fatos e trilha exibidos na tela final). Com o motor
@@ -489,7 +492,8 @@ def gerar_documento(doc_key: str, dados: dict,
     from . import conhecimento
 
     user_prompt += conhecimento.diretrizes_para_prompt(
-        dados, st.session_state.get("processo_id"))
+        dados, st.session_state.get("processo_id"),
+        documentos=st.session_state.get("documentos") or {}, doc_key=doc_key)
     if instrucoes_extra:
         user_prompt += instrucoes_extra
 

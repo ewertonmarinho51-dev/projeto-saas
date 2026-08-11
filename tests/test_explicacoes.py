@@ -27,6 +27,11 @@ def _decisao():
         status="PUBLISHED", fontes=["lc-123-2006"],
         justificativa="Tratamento favorecido para ME/EPP no SRP de bens.")
     lista = fatos.extrair_do_formulario(DADOS, "p1")
+    # natureza do objeto: dado confirmado do processo (não se deduz do
+    # modelo de execução)
+    lista.append(governanca.novo_fato(
+        "p1", "objeto.natureza", "BENS", "texto", "formulario:objeto",
+        status="confirmado"))
     return conhecimento.resolver(lista, [regra], set(), "p1")
 
 

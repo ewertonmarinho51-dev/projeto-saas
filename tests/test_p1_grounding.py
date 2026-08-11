@@ -180,8 +180,23 @@ def test_rag05_processo_anterior_nao_supera_a_norma(monkeypatch):
     assert referencias[0]["categoria"] == "lei"
     bloco = rag.montar_bloco_referencias(BENS_SRP, "edital")
     assert "NÃO fundamenta" in bloco        # o molde é rotulado como tal
-    assert "pode fundamentar juridicamente" in bloco
+    assert "fundamenta diretamente a cláusula" in bloco   # papel da lei
     assert "a norma pode ter mudado" in bloco
+
+
+def test_acordao_nao_e_apresentado_como_legislacao(monkeypatch):
+    acordao = _chunk("c-ac", "Acórdão 1234/2023-TCU", "acordao",
+                     "Entendimento sobre parcelamento do objeto.", 0.8)
+    lei = _chunk("c-lei", "Lei nº 14.133/2021", "lei",
+                 "Art. 40. O termo de referência…", 0.6)
+    _fingir_base(monkeypatch, lambda consulta: [acordao, lei])
+    bloco = rag.montar_bloco_referencias(BENS_SRP, "etp")
+    assert "jurisprudência de controle" in bloco
+    assert "não substitui a norma" in bloco
+    # e a hierarquia separa legislação de jurisprudência
+    assert "LEGISLAÇÃO E REGULAMENTO" in bloco
+    assert "JURISPRUDÊNCIA E ORIENTAÇÃO DE CONTROLE" in bloco
+    assert "PRECEDÊNCIA OPERACIONAL" in bloco   # regulamentação municipal
 
 
 def test_hierarquia_e_jurisdicao_explicitas_no_bloco(monkeypatch):
@@ -323,3 +338,126 @@ def test_recuperacao_funciona_para_objetos_diferentes(monkeypatch, dados,
     resultado = rag.recuperar(dados, doc_key)
     assert resultado["consultas"][0]["tema"] == "geral"
     assert len(resultado["consultas"]) <= rag.MAX_TEMAS + 1
+
+
+# --------------------------------------------------------------------------
+# GROUNDING pós-geração: citação sem lastro vira finding
+# --------------------------------------------------------------------------
+def _lastro(*dispositivos):
+    return set(dispositivos)
+
+
+def test_artigo_sustentado_pelo_trace_passa():
+    from src import validacao
+
+    texto = ("## 3. DO REGIME\n\n3.1. Observa-se o art. 211 da Lei nº "
+             "14.133/2021.\n")
+    achados = validacao.validar_documento("edital", texto, _lastro("211"))
+    assert not any("sem lastro" in a["mensagem"] for a in achados)
+
+
+def test_artigo_do_mapa_canonico_passa():
+    from src import validacao
+
+    texto = ("## 2. DA ATA\n\n2.5. Vigência de 1 (um) ano (art. 84), "
+             "com pagamento na forma dos arts. 141 a 146.\n")
+    achados = validacao.validar_documento("edital", texto, _lastro())
+    assert not any("sem lastro" in a["mensagem"] for a in achados)
+
+
+def test_artigo_sem_trace_e_fora_do_mapa_gera_finding():
+    from src import validacao
+
+    texto = "## 8. DAS SANÇÕES\n\n8.1. Aplica-se o art. 347 da Lei.\n"
+    achados = validacao.validar_documento("edital", texto, _lastro("211"))
+    mensagens = [a["mensagem"] for a in achados if "sem lastro" in a["mensagem"]]
+    assert mensagens and "347" in mensagens[0]
+
+
+def test_correcao_preferida_remove_o_numero_e_nao_inventa_substituto():
+    from src import achados as achados_mod
+    from src import validacao
+
+    texto = "## 8. DAS SANÇÕES\n\n8.1. Aplica-se o art. 347 da Lei.\n"
+    bruto = [a for a in validacao.validar_documento("edital", texto, set())
+             if "sem lastro" in a["mensagem"]]
+    finding = achados_mod.estruturar(bruto, {"edital": texto})[0]
+    assert finding["categoria"] == "fundamento_sem_lastro"
+    assert "Remoção do número" in finding["resultadoEsperado"]
+    assert "NUNCA a substituição por outro artigo" in finding["resultadoEsperado"]
+
+
+def test_sem_rastro_do_rag_a_checagem_nao_opina():
+    from src import validacao
+
+    texto = "## 8. DAS SANÇÕES\n\n8.1. Aplica-se o art. 347 da Lei.\n"
+    achados = validacao.validar_documento("edital", texto)   # lastro=None
+    assert not any("sem lastro" in a["mensagem"] for a in achados)
+
+
+def test_mapa_canonico_nao_aceita_numero_espurio():
+    from src import prompts
+
+    # "art. 84 (1 ano…)" e "LC nº 123/2006" não podem virar lastro
+    assert "1" not in prompts.DISPOSITIVOS_CANONICOS
+    assert "123" not in prompts.DISPOSITIVOS_CANONICOS
+    assert "2006" not in prompts.DISPOSITIVOS_CANONICOS
+    assert {"84", "141", "156"} <= prompts.DISPOSITIVOS_CANONICOS
+
+
+def test_prompt_e_validacao_leem_o_mesmo_mapa():
+    from src import prompts
+
+    # o texto da regra 7 é gerado a partir da estrutura: não há duas
+    # listas para divergirem
+    assert "{MAPA_CANONICO}" not in prompts.SYSTEM_PROMPT_BASE
+    for _, _, referencia in prompts.MAPA_CANONICO:
+        assert referencia in prompts.SYSTEM_PROMPT_BASE
+
+
+def test_lastro_do_trace_extrai_dispositivos_das_fontes():
+    trace = {"referencias": [
+        {"titulo": "Lei nº 14.133/2021", "dispositivos": ["84", "86"]},
+        {"titulo": "Decreto municipal", "dispositivos": ["7"]}]}
+    assert rag.lastro_do_trace(trace) == {"84", "86", "7"}
+    assert rag.lastro_do_trace(None) == set()
+
+
+def test_trace_registra_dispositivos_do_trecho_recuperado(monkeypatch):
+    chunk = _chunk("c1", "Lei nº 14.133/2021", "lei",
+                   "Art. 84. A vigência da ata será de 1 (um) ano. "
+                   "Art. 86. A adesão observará…", 0.8)
+    _fingir_base(monkeypatch, lambda consulta: [chunk])
+    trace = rag.montar_contexto(BENS_SRP, "edital")["trace"]
+    assert trace["referencias"][0]["dispositivos"] == ["84", "86"]
+
+
+# --------------------------------------------------------------------------
+# Orçamento revisado: núcleo garantido + reserva por tema
+# --------------------------------------------------------------------------
+def test_sancoes_do_tr_recebem_consulta_tematica():
+    temas = rag.temas_para(BENS_SRP, "tr")
+    for essencial in ("execucao_recebimento", "pagamento", "sancoes",
+                      "gestao_fiscalizacao"):
+        assert essencial in temas
+    # tema condicional não expulsa o núcleo
+    assert "srp" in temas
+
+
+def test_tema_prioritario_mantem_pelo_menos_um_chunk(monkeypatch):
+    forte = [_chunk(f"forte{i}", "Lei nº 14.133/2021", "lei",
+                    f"Art. 4{i}. Requisitos…", 0.99) for i in range(9)]
+    sancao = _chunk("sancao", "Lei nº 14.133/2021", "lei",
+                    "Art. 156. São sanções…", 0.30)
+
+    def resultados(consulta):
+        if "sanções" in str(consulta) or "infrações" in str(consulta):
+            return [sancao]
+        return forte
+
+    _fingir_base(monkeypatch, resultados)
+    referencias = rag.recuperar(BENS_SRP, "tr")["referencias"]
+    ids = {r["id"] for r in referencias}
+    assert "sancao" in ids           # sobreviveu ao ranking global
+    assert len(referencias) <= rag.MAX_CHUNKS_PROMPT
+    assert len(ids) == len(referencias)      # sem duplicatas

@@ -53,10 +53,27 @@ COM_GARANTIA = {**BENS_SEM_SRP,
                               "modalidade seguro-garantia."}
 
 
-def _decidir(dados: dict) -> dict:
-    """Resolve as regras-base sobre os fatos do formulário (sem banco)."""
+def _fatos(dados: dict, confirmar: tuple[str, ...] = ()) -> list[dict]:
+    """
+    Fatos do formulário; `confirmar` marca paths como CONFIRMADOS pelo
+    humano — é o que transforma uma inferência heurística em base de
+    decisão vinculante (mecanismo de status/confiança já existente).
+    """
     lista = fatos.extrair_do_formulario(dados, None)
-    return conhecimento.resolver(lista, conhecimento.regras_base())["resultado"]
+    for fato in lista:
+        if fato["path"] in confirmar:
+            fato["status"] = "confirmado"
+    return lista
+
+
+def _decidir(dados: dict, confirmar: tuple[str, ...] = ()) -> dict:
+    """Resolve as regras-base sobre os fatos do formulário (sem banco)."""
+    return conhecimento.resolver(
+        _fatos(dados, confirmar), conhecimento.regras_base())["resultado"]
+
+
+def _alvos_sugeridos(resultado: dict) -> set[str]:
+    return {alvo for s in resultado["sugestoes"] for alvo in s["alvos"]}
 
 
 # ===========================================================================
@@ -176,10 +193,15 @@ def test_fatos_derivados_sao_estruturados_e_nao_palavra_solta():
 
 
 def test_cond01_compra_de_materiais_nao_ativa_repactuacao():
+    # a natureza vem da categoria (heurística): a exclusão é SUGERIDA...
     resultado = _decidir(BENS_SRP)
-    assert "preco.repactuacao" in resultado["clausulas_excluir"]
-    assert "preco.reajuste" in resultado["clausulas_incluir"]
-    bloco = conhecimento.bloco_de_diretrizes(resultado)
+    assert "preco.repactuacao" not in resultado["clausulas_incluir"]
+    assert "preco.repactuacao" in _alvos_sugeridos(resultado)
+    # ...e vira decisão quando o fato é confirmado pelo humano
+    confirmado = _decidir(BENS_SRP, confirmar=("objeto.natureza",))
+    assert "preco.repactuacao" in confirmado["clausulas_excluir"]
+    assert "preco.reajuste" in confirmado["clausulas_incluir"]
+    bloco = conhecimento.bloco_de_diretrizes(confirmado)
     assert "NÃO PODE CONSTAR" in bloco and "repactuação" in bloco
 
 
@@ -190,17 +212,37 @@ def test_cond02_servico_com_mao_de_obra_ativa_repactuacao():
 
 
 def test_cond03_garantia_nao_e_inventada_sem_fato():
+    # ausência de fato é constatação sobre o processo (não é heurística):
+    # a exclusão vale de imediato
     sem = _decidir(BENS_SRP)
     assert "contrato.garantia" in sem["clausulas_excluir"]
+    # a menção afirmativa em texto livre SUGERE a cláusula; só confirmada
+    # ela obriga — exigir garantia é decisão restritiva
     com = _decidir(COM_GARANTIA)
-    assert "contrato.garantia" in com["clausulas_incluir"]
+    assert "contrato.garantia" not in com["clausulas_excluir"]
+    assert "contrato.garantia" in _alvos_sugeridos(com)
+    confirmado = _decidir(COM_GARANTIA,
+                          confirmar=("contratacao.garantia_exigida",))
+    assert "contrato.garantia" in confirmado["clausulas_incluir"]
 
 
 def test_cond03_amostra_tambem_nao_e_presumida():
     assert "julgamento.amostra" in _decidir(BENS_SRP)["clausulas_excluir"]
     com_amostra = {**BENS_SRP,
                    "requisitos": "Será exigida amostra do item vencedor."}
-    assert "julgamento.amostra" in _decidir(com_amostra)["clausulas_incluir"]
+    sugerido = _decidir(com_amostra)
+    assert "julgamento.amostra" in _alvos_sugeridos(sugerido)
+    assert "julgamento.amostra" not in sugerido["clausulas_incluir"]
+    confirmado = _decidir(com_amostra,
+                          confirmar=("contratacao.amostra_exigida",))
+    assert "julgamento.amostra" in confirmado["clausulas_incluir"]
+
+
+def test_amostra_cita_o_regime_correto():
+    regra = next(r for r in conhecimento.regras_base()
+                 if r["chave_estavel"] == "base.amostra.exigida-no-processo")
+    fontes = " ".join(regra["fontes"])
+    assert "art. 41, II" in fontes and "art. 42" in fontes
 
 
 def test_cond04_srp_ativa_as_clausulas_da_ata():
@@ -218,11 +260,11 @@ def test_cond05_sem_srp_as_clausulas_da_ata_nao_aparecem():
     assert "vigência da Ata de Registro de Preços" in bloco
 
 
-def test_objeto_de_ti_ativa_lgpd_e_niveis_de_servico():
-    incluir = _decidir(SAAS_TI)["clausulas_incluir"]
+def test_objeto_de_ti_software_ativa_lgpd_e_niveis_de_servico():
+    confirmado = _decidir(SAAS_TI, confirmar=("objeto.categoria",))
     for alvo in ("ti.protecao_dados", "ti.nivel_servico",
                  "ti.seguranca_backup", "ti.migracao_saida"):
-        assert alvo in incluir
+        assert alvo in confirmado["clausulas_incluir"]
     # e não vazam para uma compra de material comum
     assert "ti.protecao_dados" not in _decidir(BENS_SRP)["clausulas_incluir"]
 
@@ -236,22 +278,23 @@ def test_regra_do_municipio_prevalece_sobre_a_base_da_plataforma():
         "acoes": [{"type": "INCLUIR_CLAUSULA", "target": "contrato.garantia"}],
         "fontes": ["Decreto municipal 1/2026"], "justificativa": "política local",
     }
-    lista = fatos.extrair_do_formulario(BENS_SRP, None)
     resultado = conhecimento.resolver(
-        lista, conhecimento.regras_base() + [municipal])["resultado"]
+        _fatos(BENS_SRP, confirmar=("objeto.natureza",)),
+        conhecimento.regras_base() + [municipal])["resultado"]
     assert "contrato.garantia" in resultado["clausulas_incluir"]
     assert "contrato.garantia" not in resultado["clausulas_excluir"]
 
 
 def test_decisao_do_motor_e_rastreavel_ate_a_fonte_normativa():
-    lista = fatos.extrair_do_formulario(BENS_SRP, None)
-    decisao = conhecimento.resolver(lista, conhecimento.regras_base())
+    decisao = conhecimento.resolver(
+        _fatos(BENS_SRP, confirmar=("objeto.natureza",)),
+        conhecimento.regras_base())
     trilha = decisao["explicacao"]["regras_avaliadas"]
-    repactuacao = next(r for r in trilha
-                       if r["chave"] == "base.repactuacao.somente-mao-de-obra")
-    assert repactuacao["satisfeita"] is True
-    assert any("art. 135" in f for f in repactuacao["fontes"])
-    assert repactuacao["folhas"]      # condição avaliada, com valor observado
+    reajuste = next(r for r in trilha if r["chave"] == "base.reajuste.bens")
+    assert reajuste["satisfeita"] is True
+    assert any("art. 92" in f for f in reajuste["fontes"])
+    assert reajuste["folhas"]        # condição avaliada, com valor observado
+    assert reajuste["confianca"] == 1.0   # fato confirmado pelo humano
 
 
 def test_diretrizes_nao_entram_no_prompt_com_motor_inativo(monkeypatch):
@@ -379,3 +422,246 @@ def test_motor_resolve_qualquer_cenario_sem_conflito_nem_bloqueio(dados):
     assert resultado["conflitos"] == []
     assert resultado["bloqueios"] == []
     assert resultado["clausulas_incluir"] or resultado["clausulas_excluir"]
+
+
+# ===========================================================================
+# Segunda auditoria (P1-R): autoridade decisória, tri-state, negações,
+# confiança dos fatos e regras-base revisadas.
+# ===========================================================================
+SERVICO_SEM_INFO = {**BENS_SRP,
+                    "objeto": "Contratação de serviço de manutenção predial",
+                    "modelo_execucao": "Serviço de execução continuada",
+                    "requisitos": "Atendimento em dias úteis."}
+SEM_GARANTIA = {**BENS_SEM_SRP,
+                "requisitos": "Não será exigida garantia contratual, dada a "
+                              "natureza do fornecimento."}
+SEM_AMOSTRA = {**BENS_SEM_SRP,
+               "requisitos": "Dispensa-se a apresentação de amostra."}
+GARANTIA_DE_FABRICA = {
+    **BENS_SEM_SRP,
+    "requisitos": "Os equipamentos devem ter garantia de 12 meses do "
+                  "fabricante contra defeitos."}
+EQUIPAMENTO_TI = {
+    **BENS_SEM_SRP,
+    "objeto": "Aquisição de monitores e notebooks para as secretarias",
+    "requisitos": "Monitor de 24 polegadas; notebook com 16GB.",
+    "itens": [{"descricao": "Monitor 24 polegadas", "quantidade": 30,
+               "unidade": "un", "valor_unitario": 900.0}]}
+VEICULOS = {
+    **BENS_SEM_SRP,
+    "objeto": "Aquisição de veículo utilitário para a Secretaria de Saúde",
+    "requisitos": "Veículo zero quilômetro.",
+    "itens": [{"descricao": "Veículo utilitário", "quantidade": 1,
+               "unidade": "un", "valor_unitario": 120000.0}]}
+
+
+# --- autoridade decisória por estágio -------------------------------------
+def test_autoridade_formulario_srp_e_etp_afasta_sem_finding():
+    docs = {
+        "dfd": "## 4. SOLUÇÃO PROPOSTA\n\nSugere-se registro de preços.\n",
+        "etp": "## 6. DESCRIÇÃO DA SOLUÇÃO\n\nO estudo conclui pela "
+               "contratação sem registro de preços, dada a previsibilidade "
+               "do consumo e a entrega única.\n",
+    }
+    mensagens = _achados(docs, BENS_SRP)   # formulário pedia SRP
+    assert not any("divergente" in m or "incompatível" in m
+                   for m in mensagens)
+
+
+def test_autoridade_etp_afasta_srp_e_tr_reintroduz_gera_finding():
+    docs = {
+        "etp": "## 6. SOLUÇÃO\n\nA contratação será feita sem registro de "
+               "preços.\n",
+        "tr": "## 6. FORMALIZAÇÃO\n\nSerá firmada ata de registro de "
+              "preços com os fornecedores.\n",
+    }
+    mensagens = _achados(docs, BENS_SRP)
+    assert any("Registro de Preços" in m and "TR" in m for m in mensagens)
+
+
+def test_autoridade_etp_escolhe_srp_e_tr_mantem_sem_finding():
+    docs = {
+        "etp": "## 6. SOLUÇÃO\n\nAdota-se o sistema de registro de preços.\n",
+        "tr": "## 6. FORMALIZAÇÃO\n\nSerá firmada ata de registro de "
+              "preços, na forma do edital.\n",
+    }
+    assert not any("divergente" in m for m in _achados(docs, BENS_SRP))
+
+
+def test_autoridade_tr_define_modalidade_e_edital_diverge():
+    docs = {
+        "tr": "## 2. FUNDAMENTAÇÃO\n\nA contratação se dará por pregão "
+              "eletrônico.\n",
+        "edital": "## 1. PREÂMBULO\n\nModalidade: concorrência eletrônica.\n",
+    }
+    mensagens = _achados(docs)
+    assert any("modalidade" in m and "EDITAL" in m for m in mensagens)
+
+
+def test_autoridade_dfd_sugere_item_e_etp_escolhe_lote_sem_finding():
+    docs = {
+        "dfd": "## 5. DESCRIÇÃO DA SOLUÇÃO\n\nPropõe-se adjudicação por "
+               "item.\n",
+        "etp": "## 10. PARCELAMENTO\n\nA análise técnica recomenda "
+               "adjudicação por lote, por economia de escala na "
+               "distribuição.\n",
+    }
+    assert not any("adjudicação" in m for m in _achados(docs))
+
+
+def test_diretrizes_seguem_a_decisao_consolidada_e_nao_o_formulario():
+    # formulário pede SRP; o ETP aprovado afastou → o TR não recebe as
+    # cláusulas da Ata
+    documentos = {"etp": "## 6. SOLUÇÃO\n\nA contratação será feita sem "
+                         "registro de preços.\n"}
+    ajustado = conhecimento.dados_consolidados(BENS_SRP, documentos)
+    assert not str(ajustado["modelo_execucao"]).startswith(
+        "Sistema de Registro de Preços")
+    resultado = _decidir(ajustado)
+    assert "srp.vigencia_ata" in resultado["clausulas_excluir"]
+    assert "srp.vigencia_ata" not in resultado["clausulas_incluir"]
+
+
+def test_dados_consolidados_preserva_formulario_quando_etp_confirma():
+    documentos = {"etp": "## 6. SOLUÇÃO\n\nAdota-se o sistema de registro "
+                         "de preços.\n"}
+    assert conhecimento.dados_consolidados(BENS_SRP, documentos) is BENS_SRP
+
+
+# --- fatos: tri-state, natureza e negações --------------------------------
+def test_srp_nao_gera_natureza_bens():
+    caminhos = {f["path"] for f in fatos.extrair_do_formulario(
+        {"objeto": "Registro de preços para aquisição diversa",
+         "modelo_execucao": "Sistema de Registro de Preços (SRP)"}, None)}
+    assert "objeto.natureza" not in caminhos
+
+
+def test_natureza_vem_da_execucao_quando_ela_a_declara():
+    por_path = {f["path"]: f for f in fatos.extrair_do_formulario(
+        {"objeto": "Serviço de vigilância",
+         "modelo_execucao": "Serviço de execução continuada"}, None)}
+    assert por_path["objeto.natureza"]["valor"] == "SERVICOS"
+    assert por_path["objeto.natureza"]["fonte"] == "formulario:modelo_execucao"
+
+
+def test_dedicacao_sem_informacao_fica_desconhecida():
+    caminhos = {f["path"] for f in
+                fatos.extrair_do_formulario(SERVICO_SEM_INFO, None)}
+    assert "procedimento.dedicacao_mao_de_obra" not in caminhos
+    # e o motor ALERTA em vez de decidir o instituto
+    resultado = _decidir(SERVICO_SEM_INFO)
+    assert "preco.repactuacao" not in resultado["clausulas_incluir"]
+    assert "preco.repactuacao" not in resultado["clausulas_excluir"]
+    assert any("dedicação de mão de obra" in a for a in resultado["alertas"])
+
+
+def test_dedicacao_explicita_e_verdadeira():
+    por_path = {f["path"]: f["valor"] for f in
+                fatos.extrair_do_formulario(SERVICO_MAO_DE_OBRA, None)}
+    assert por_path["procedimento.dedicacao_mao_de_obra"] is True
+
+
+def test_dedicacao_negada_explicitamente_e_falsa():
+    dados = {**SERVICO_SEM_INFO,
+             "requisitos": "O serviço não será prestado com dedicação "
+                           "exclusiva de mão de obra."}
+    por_path = {f["path"]: f["valor"] for f in
+                fatos.extrair_do_formulario(dados, None)}
+    assert por_path["procedimento.dedicacao_mao_de_obra"] is False
+    resultado = _decidir(dados)
+    assert "preco.repactuacao" in resultado["clausulas_excluir"]
+    assert "preco.reajuste" in resultado["clausulas_incluir"]
+
+
+def test_negacao_de_garantia_nao_vira_fato_positivo():
+    por_path = {f["path"]: f["valor"] for f in
+                fatos.extrair_do_formulario(SEM_GARANTIA, None)}
+    assert por_path["contratacao.garantia_exigida"] is False
+    assert "contrato.garantia" in _decidir(SEM_GARANTIA)["clausulas_excluir"]
+
+
+def test_negacao_de_amostra_nao_vira_fato_positivo():
+    por_path = {f["path"]: f["valor"] for f in
+                fatos.extrair_do_formulario(SEM_AMOSTRA, None)}
+    assert por_path["contratacao.amostra_exigida"] is False
+    assert "julgamento.amostra" in _decidir(SEM_AMOSTRA)["clausulas_excluir"]
+
+
+def test_garantia_do_fabricante_nao_vira_garantia_contratual():
+    caminhos = {f["path"] for f in
+                fatos.extrair_do_formulario(GARANTIA_DE_FABRICA, None)}
+    assert "contratacao.garantia_exigida" not in caminhos
+    assert "contrato.garantia" in _decidir(
+        GARANTIA_DE_FABRICA)["clausulas_excluir"]
+
+
+# --- confiança: inferência não obriga -------------------------------------
+def test_inferencia_de_baixa_confianca_nao_cria_obrigacao_restritiva():
+    resultado = _decidir(SAAS_TI)          # categoria inferida do texto
+    assert resultado["clausulas_incluir"] == [] or \
+        "ti.protecao_dados" not in resultado["clausulas_incluir"]
+    assert "ti.protecao_dados" in _alvos_sugeridos(resultado)
+    sugestao = next(s for s in resultado["sugestoes"]
+                    if "ti.protecao_dados" in s["alvos"])
+    assert sugestao["fato"] == "objeto.categoria"
+    assert "confirme o fato" in sugestao["motivo"]
+
+
+def test_fato_informado_no_processo_continua_vinculante():
+    # procedimento.srp vem de campo do formulário (informação, não
+    # inferência): decide sem depender de confirmação
+    assert "srp.vigencia_ata" in _decidir(BENS_SRP)["clausulas_incluir"]
+
+
+def test_regra_pode_aceitar_inferencia_por_politica_explicita():
+    regra = {
+        "chave_estavel": "municipio.ti.exige-lgpd", "versao": 1,
+        "status": "PUBLISHED", "camada": "municipio", "prioridade": 100,
+        "condicao": {"field": "objeto.categoria", "operator": "EQ",
+                     "value": "TI_SOFTWARE"},
+        "acoes": [{"type": "INCLUIR_CLAUSULA", "target": "ti.protecao_dados"}],
+        "fontes": ["Decreto municipal"], "justificativa": "política local",
+        "aceita_inferencia": True,
+    }
+    resultado = conhecimento.resolver(
+        _fatos(SAAS_TI), conhecimento.regras_base() + [regra])["resultado"]
+    assert "ti.protecao_dados" in resultado["clausulas_incluir"]
+
+
+# --- regras-base revisadas -------------------------------------------------
+def test_srp_nao_ativa_renovacao_de_quantitativo():
+    resultado = _decidir(BENS_SRP)
+    assert "srp.renovacao_quantitativo" not in resultado["clausulas_incluir"]
+    assert "srp.vigencia_ata" in resultado["clausulas_incluir"]
+    # sem SRP, a matéria continua expressamente excluída
+    assert "srp.renovacao_quantitativo" in _decidir(
+        BENS_SEM_SRP)["clausulas_excluir"]
+
+
+def test_equipamento_de_ti_nao_ativa_migracao_de_dados():
+    confirmado = _decidir(EQUIPAMENTO_TI, confirmar=("objeto.categoria",))
+    for alvo in ("ti.migracao_saida", "ti.protecao_dados",
+                 "ti.seguranca_backup"):
+        assert alvo not in confirmado["clausulas_incluir"]
+
+
+def test_software_ativa_requisitos_digitais_pertinentes():
+    confirmado = _decidir(SAAS_TI, confirmar=("objeto.categoria",))
+    assert "ti.migracao_saida" in confirmado["clausulas_incluir"]
+    assert "ti.protecao_dados" in confirmado["clausulas_incluir"]
+
+
+def test_veiculo_nao_recebe_exigencia_territorial_automatica():
+    confirmado = _decidir(VEICULOS, confirmar=("objeto.categoria",))
+    juntos = confirmado["clausulas_incluir"] + confirmado["clausulas_excluir"]
+    assert not any(alvo.startswith("veiculos.") for alvo in juntos)
+    assert any("assistência" in a and "justificativa" in a
+               for a in confirmado["alertas"])
+
+
+def test_epi_mantem_ca_com_fonte_identificada():
+    regra = next(r for r in conhecimento.regras_base()
+                 if r["chave_estavel"] == "base.epi.certificado-de-aprovacao")
+    fonte = " ".join(regra["fontes"])
+    assert "NR-6" in fonte and "Portaria" in fonte
+    assert "confirmar vigência" in fonte     # depende de indexação no RAG

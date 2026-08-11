@@ -37,10 +37,26 @@ CATEGORIAS = {
 }
 
 # Hierarquia da fonte recuperada (P1): o que cada categoria PODE
-# sustentar. Um processo anterior é molde de estrutura e linguagem —
-# nunca prova do direito vigente.
-NORMATIVAS = ("lei", "acordao", "entendimento")
+# sustentar. Legislação e jurisprudência NÃO se confundem — acórdão e
+# entendimento de Tribunal de Contas orientam a interpretação e o
+# controle, mas não são a norma. Processo anterior é molde de estrutura
+# e linguagem, nunca prova do direito vigente.
+LEGISLACAO = ("lei",)
+CONTROLE = ("acordao", "entendimento")
 MOLDES = ("processo_anterior", "modelo")
+NORMATIVAS = LEGISLACAO + CONTROLE   # compatibilidade: fontes jurídicas
+
+_PAPEL_DA_FONTE = {
+    "lei": "legislação/regulamento — fundamenta diretamente a cláusula",
+    "acordao": "jurisprudência de controle — orienta a interpretação; "
+               "não substitui a norma",
+    "entendimento": "orientação de órgão de controle — orienta a "
+                    "interpretação; não substitui a norma",
+    "processo_anterior": "processo anterior — apenas estrutura e "
+                         "linguagem; NÃO fundamenta",
+    "modelo": "modelo/minuta padrão — apenas estrutura e linguagem; "
+              "NÃO fundamenta",
+}
 
 # ---------------------------------------------------------------------------
 # Recuperação TEMÁTICA (P1)
@@ -118,25 +134,36 @@ TEMAS_JURIDICOS: dict[str, tuple[str, str, str | None]] = {
         None),
 }
 
-# Temas de cada documento EM ORDEM DE PRIORIDADE: como o orçamento de
-# buscas é fixo, a ordem decide o que entra. Ela reflete as matérias que
-# cada peça realmente decide — e onde a fundamentação costuma escorregar
-# (pagamento no TR, modalidade e recursos no edital).
-TEMAS_POR_DOCUMENTO: dict[str, tuple[str, ...]] = {
-    "dfd": ("necessidade", "srp", "parcelamento"),
-    "etp": ("necessidade", "parcelamento", "requisitos", "modalidade",
-            "reajuste", "protecao_dados", "me_epp", "srp"),
-    "tr": ("execucao_recebimento", "pagamento", "requisitos", "reajuste",
-           "sancoes", "gestao_fiscalizacao", "garantia", "protecao_dados",
-           "srp"),
-    "edital": ("modalidade", "requisitos", "sancoes", "recursos", "me_epp",
-               "garantia", "parcelamento", "srp"),
+# TEMAS NÚCLEO: as matérias que o documento SEMPRE decide. Recuperação
+# garantida — nenhuma delas pode ficar sem consulta por disputa de vaga
+# com um tema condicional (foi assim que 'sanções' e 'pagamento' ficaram
+# de fora do TR na primeira versão).
+TEMAS_NUCLEO: dict[str, tuple[str, ...]] = {
+    "dfd": ("necessidade",),
+    "etp": ("necessidade", "requisitos", "parcelamento", "modalidade"),
+    "tr": ("execucao_recebimento", "pagamento", "sancoes",
+           "gestao_fiscalizacao"),
+    "edital": ("modalidade", "requisitos", "sancoes", "recursos"),
 }
 
-# Orçamento de recuperação (custo/latência sob controle)
-MAX_TEMAS = 4               # buscas temáticas por geração, além da geral
+# TEMAS COMPLEMENTARES: entram conforme o objeto/modelagem. Os que têm
+# gatilho satisfeito vêm primeiro; os demais ocupam a folga do orçamento.
+TEMAS_COMPLEMENTARES: dict[str, tuple[str, ...]] = {
+    "dfd": ("srp", "parcelamento"),
+    "etp": ("srp", "protecao_dados", "reajuste", "me_epp"),
+    "tr": ("srp", "garantia", "protecao_dados", "reajuste", "requisitos"),
+    "edital": ("srp", "garantia", "protecao_dados", "me_epp",
+               "parcelamento"),
+}
+
+# Orçamento de recuperação (custo/latência sob controle): no máximo
+# 1 (geral) + 4 (núcleo) + 3 (complementares) = 8 buscas, sempre com UMA
+# única chamada de embeddings em lote.
+MAX_TEMAS_NUCLEO = 4
+MAX_TEMAS_COMPLEMENTARES = 3
+MAX_TEMAS = MAX_TEMAS_NUCLEO + MAX_TEMAS_COMPLEMENTARES
 TOP_K_TEMA = 3              # trechos por busca temática
-MAX_CHUNKS_PROMPT = 8       # teto de trechos enviados à IA
+MAX_CHUNKS_PROMPT = 10      # teto de trechos enviados à IA
 
 # Piso de relevância por modo de busca. Escalas diferentes: similaridade
 # de cosseno (0..1) no vetorial; ts_rank (tipicamente < 0,1) no textual.
@@ -403,23 +430,37 @@ def _gatilhos(dados: dict) -> set[str]:
     return gatilhos
 
 
-def temas_para(dados: dict, doc_key: str, limite: int = MAX_TEMAS) -> list[str]:
+def temas_para(dados: dict, doc_key: str,
+               limite: int = MAX_TEMAS) -> list[str]:
     """
-    Lista CONTROLADA de temas do documento, na ordem de prioridade de
-    `TEMAS_POR_DOCUMENTO` e limitada ao orçamento de buscas. Os temas
-    CONDICIONAIS satisfeitos (SRP, TI, garantia) vêm primeiro: são
-    específicos desta contratação e é neles que a fundamentação genérica
-    mais erra. Tema condicional sem gatilho não é consultado.
+    Lista CONTROLADA de temas: o NÚCLEO do documento (sempre consultado,
+    nunca disputa vaga) seguido dos COMPLEMENTARES — primeiro os que o
+    objeto/modelagem acionam, depois os demais, se houver folga.
+    Tema condicional sem gatilho não é consultado.
     """
     gatilhos = _gatilhos(dados)
-    condicionais, gerais = [], []
-    for chave in TEMAS_POR_DOCUMENTO.get(doc_key, ()):
+    nucleo = [c for c in TEMAS_NUCLEO.get(doc_key, ())][:MAX_TEMAS_NUCLEO]
+    acionados, folga = [], []
+    for chave in TEMAS_COMPLEMENTARES.get(doc_key, ()):
+        if chave in nucleo:
+            continue
         condicao = TEMAS_JURIDICOS[chave][2]
         if condicao is None:
-            gerais.append(chave)
+            folga.append(chave)
         elif condicao in gatilhos:
-            condicionais.append(chave)
-    return (condicionais + gerais)[:limite]
+            acionados.append(chave)
+    complementares = (acionados + folga)[:MAX_TEMAS_COMPLEMENTARES]
+    return (nucleo + complementares)[:limite]
+
+
+def temas_prioritarios(dados: dict, doc_key: str) -> list[str]:
+    """Temas que têm direito a uma vaga reservada no bloco (núcleo +
+    complementares acionados pelo objeto)."""
+    gatilhos = _gatilhos(dados)
+    selecionados = temas_para(dados, doc_key)
+    return [c for c in selecionados
+            if c in TEMAS_NUCLEO.get(doc_key, ())
+            or TEMAS_JURIDICOS[c][2] in gatilhos]
 
 
 def piso_de_relevancia(modo: str) -> float:
@@ -523,12 +564,44 @@ def recuperar(dados: dict, doc_key: str) -> dict:
                                   "tema_rotulo": consulta["rotulo"],
                                   "score": score})
 
-    referencias = sorted(
-        selecionados.values(),
-        key=lambda t: (_prioridade_fonte(t), t["score"]), reverse=True,
-    )[:MAX_CHUNKS_PROMPT]
+    ranking = sorted(selecionados.values(),
+                     key=lambda t: (_prioridade_fonte(t), t["score"]),
+                     reverse=True)
+    referencias = _selecionar_com_reserva(
+        ranking, temas_prioritarios(dados, doc_key))
     return {"referencias": referencias, "consultas": consultas,
             "modo": modo, "piso": piso, "descartados": descartados}
+
+
+def _selecionar_com_reserva(ranking: list[dict],
+                            prioritarios: list[str]) -> list[dict]:
+    """
+    Reserva UMA vaga para a melhor evidência de cada tema prioritário e
+    só então preenche o restante pelo ranking global.
+
+    Sem isso, um tema com muitos trechos fortes (ex.: requisitos) ocupa
+    todas as vagas e o tema consultado ao lado (ex.: sanções) chega ao
+    prompt sem nenhuma evidência — a recuperação temática teria sido
+    inútil. Nada é duplicado: a reserva usa a mesma lista.
+    """
+    escolhidos: list[dict] = []
+    vistos: set[int] = set()
+    for tema in prioritarios:
+        melhor = next((t for t in ranking
+                       if t.get("tema") == tema and id(t) not in vistos), None)
+        if melhor is not None and len(escolhidos) < MAX_CHUNKS_PROMPT:
+            escolhidos.append(melhor)
+            vistos.add(id(melhor))
+    for trecho in ranking:
+        if len(escolhidos) >= MAX_CHUNKS_PROMPT:
+            break
+        if id(trecho) not in vistos:
+            escolhidos.append(trecho)
+            vistos.add(id(trecho))
+    # ordem final de exibição: hierarquia da fonte e relevância
+    return sorted(escolhidos,
+                  key=lambda t: (_prioridade_fonte(t), t["score"]),
+                  reverse=True)
 
 
 def montar_consulta(dados: dict, doc_key: str) -> str:
@@ -564,23 +637,47 @@ REGRA_DE_CITACAO = (
 
 _HIERARQUIA_FONTES = (
     "HIERARQUIA DAS FONTES (respeite estritamente):\n"
-    "1) FONTE NORMATIVA (lei, decreto, acórdão, entendimento de Tribunal "
-    "de Contas): pode fundamentar a conclusão jurídica.\n"
-    "2) PROCESSO ATUAL (memorando, formulário, planilha, anexos): é a "
+    "1) LEGISLAÇÃO E REGULAMENTO (lei, decreto, regulamento municipal): "
+    "fundamenta diretamente a cláusula.\n"
+    "2) JURISPRUDÊNCIA E ORIENTAÇÃO DE CONTROLE (acórdãos e "
+    "entendimentos de Tribunais de Contas): orienta a INTERPRETAÇÃO da "
+    "norma e as boas práticas de controle. NÃO é legislação: cite-a como "
+    "orientação ('conforme entendimento do TCU no Acórdão nº …'), nunca "
+    "como se fosse o texto da lei, e jamais deduza dela um número de "
+    "artigo de lei.\n"
+    "3) PROCESSO ATUAL (memorando, formulário, planilha, anexos): é a "
     "única fonte dos FATOS desta contratação.\n"
-    "3) PROCESSO ANTERIOR / MODELO PADRÃO: fonte apenas de ESTRUTURA, "
+    "4) PROCESSO ANTERIOR / MODELO PADRÃO: fonte apenas de ESTRUTURA, "
     "ordem dos tópicos, linguagem e cláusulas institucionais recorrentes. "
     "NÃO é prova do direito vigente nem fonte de fato: é PROIBIDO "
     "transportar dele objeto, justificativa, quantitativos, valores, "
     "fornecedores, fiscais/gestores, dotações, unidades, prazos, datas ou "
     "números, e é PROIBIDO citar um dispositivo apenas porque ele "
     "aparecia no documento antigo (a norma pode ter mudado).\n"
-    "JURISDIÇÃO: esta é uma contratação MUNICIPAL. A Lei nº 14.133/2021 e "
-    "a regulamentação do próprio Município se aplicam diretamente. "
-    "Instruções normativas, decretos e manuais FEDERAIS só valem como "
-    "referência técnica — nunca os apresente como norma obrigatória para "
-    "o Município sem que o trecho recuperado demonstre a aplicabilidade."
+    "JURISDIÇÃO: esta é uma contratação MUNICIPAL. Aplicam-se diretamente "
+    "a Lei nº 14.133/2021 e a regulamentação do próprio Município, que "
+    "tem PRECEDÊNCIA OPERACIONAL quando disciplinar a matéria. Instruções "
+    "normativas, decretos e manuais FEDERAIS só valem como referência "
+    "técnica — nunca os apresente como norma obrigatória para o Município "
+    "sem que o trecho recuperado demonstre a aplicabilidade."
 )
+
+
+_RE_ARTIGO_TRECHO = re.compile(r"\bart(?:igo|s?)?\.?\s*(\d{1,3})\s*[º°]?",
+                               re.IGNORECASE)
+
+
+def dispositivos_do_trecho(texto: str) -> list[str]:
+    """Artigos citados EXPRESSAMENTE em um trecho recuperado."""
+    return sorted({m.group(1) for m in _RE_ARTIGO_TRECHO.finditer(texto or "")},
+                  key=int)
+
+
+def lastro_do_trace(trace: dict | None) -> set[str]:
+    """Artigos com apoio nas fontes recuperadas (base da verificação de
+    fundamento sem lastro em validacao.py)."""
+    return {d for r in (trace or {}).get("referencias", [])
+            for d in (r.get("dispositivos") or [])}
 
 
 def montar_contexto(dados: dict, doc_key: str) -> dict:
@@ -615,6 +712,9 @@ def montar_contexto(dados: dict, doc_key: str) -> dict:
              "categoria": r.get("categoria"),
              "score": round(float(r.get("score") or 0), 4),
              "documento_id": r.get("documento_id"), "ordem": r.get("ordem"),
+             # dispositivos EXPRESSOS no trecho: é o lastro que autoriza
+             # o documento a citar o número do artigo
+             "dispositivos": dispositivos_do_trecho(r.get("conteudo")),
              "trecho": (r.get("conteudo") or "")[:160]}
             for r in referencias
         ],
@@ -636,14 +736,14 @@ def montar_contexto(dados: dict, doc_key: str) -> dict:
     for tema, itens in por_tema.items():
         linhas.append(f"\n### TEMA: {tema}")
         for i, t in enumerate(itens, start=1):
-            rotulo = CATEGORIAS.get(t.get("categoria", ""),
-                                    t.get("categoria", "") or "Outro")
-            sustenta = ("pode fundamentar juridicamente"
-                        if (t.get("categoria") or "") in NORMATIVAS
-                        else "apenas estrutura/linguagem — NÃO fundamenta")
+            categoria = (t.get("categoria") or "").lower()
+            rotulo = CATEGORIAS.get(categoria, categoria or "Outro")
+            papel = _PAPEL_DA_FONTE.get(
+                categoria, "fonte não classificada — trate com cautela e "
+                           "não a use para fundamentar dispositivo")
             linhas.append(
                 f"[{i}] Fonte: {t.get('titulo', '(sem título)')} "
-                f"| Tipo: {rotulo} ({sustenta}) "
+                f"| Tipo: {rotulo} ({papel}) "
                 f"| Relevância: {t.get('score', 0):.3f}")
             linhas.append("Trecho recuperado: "
                           + (t.get("conteudo") or "").strip())

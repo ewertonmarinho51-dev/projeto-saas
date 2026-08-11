@@ -22,7 +22,14 @@ DADOS_SRP_BENS = {
 
 
 def _fatos(dados=None):
-    return fatos.extrair_do_formulario(dados or DADOS_SRP_BENS, "p1")
+    lista = fatos.extrair_do_formulario(dados or DADOS_SRP_BENS, "p1")
+    # A natureza do objeto NÃO se deduz do modelo de execução (o SRP
+    # serve a qualquer natureza): nestes cenários ela é dado CONFIRMADO
+    # do processo, como o revisor faria na tela de fatos.
+    lista.append(governanca.novo_fato(
+        "p1", "objeto.natureza", "BENS", "texto", "formulario:objeto",
+        status="confirmado"))
+    return lista
 
 
 def _regra_me_epp(status="PUBLISHED", camada="municipio", prioridade=100,

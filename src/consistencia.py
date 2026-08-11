@@ -37,14 +37,24 @@ CATEGORIAS = ("consistencia_valor", "consistencia_calculo",
 # DECISÕES: modalidade, registro de preços, adjudicação por item ou lote,
 # exigência de garantia. A comparação NÃO é textual (cada documento
 # escreve à sua maneira): de cada documento extrai-se o VALOR da decisão
-# e comparam-se os valores. Só há achado quando dois documentos afirmam
-# coisas diferentes — silêncio não é divergência.
+# e comparam-se os valores. Silêncio não é divergência.
+#
+# AUTORIDADE POR ESTÁGIO — cada decisão é CONSOLIDADA em um documento:
+#   formulário/DFD  propõem (preferência e solução preliminar);
+#   ETP             consolida solução, modelagem (SRP) e parcelamento —
+#                   pode confirmar, ajustar ou AFASTAR o que veio antes;
+#   TR              consolida a execução (modalidade, garantia) e não
+#                   pode contrariar a solução consolidada no ETP;
+#   Edital          herda o que o TR definiu.
+# Divergir ANTES do estágio consolidador é legítimo (é o estudo fazendo
+# seu trabalho); divergir DEPOIS é o achado que interessa.
 #
 # ordem: o primeiro padrão que casar define o valor da decisão no doc.
 # ---------------------------------------------------------------------------
 DECISOES: dict[str, dict] = {
     "modalidade": {
         "rotulo": "modalidade de licitação",
+        "autoridade": "tr",
         "valores": {
             "pregao": r"preg[ãa]o(?:\s+eletr[ôo]nico|\s+presencial)?",
             "concorrencia": r"concorr[êe]ncia(?:\s+eletr[ôo]nica)?",
@@ -55,6 +65,7 @@ DECISOES: dict[str, dict] = {
     },
     "srp": {
         "rotulo": "adoção do Sistema de Registro de Preços",
+        "autoridade": "etp",
         "valores": {
             "nao": r"n[ãa]o\s+(?:ser[áa]|se)\s+(?:adotad[oa]|utilizad[oa])\s+"
                    r"(?:o\s+)?(?:sistema\s+de\s+registro\s+de\s+pre[çc]os|SRP)"
@@ -66,6 +77,7 @@ DECISOES: dict[str, dict] = {
     },
     "adjudicacao": {
         "rotulo": "critério de adjudicação (item × lote)",
+        "autoridade": "etp",
         "valores": {
             "item": r"adjudica[çc][ãa]o\s+por\s+item|julgamento\s+por\s+item|"
                     r"disputa\s+por\s+item",
@@ -75,6 +87,7 @@ DECISOES: dict[str, dict] = {
     },
     "garantia": {
         "rotulo": "exigência de garantia contratual",
+        "autoridade": "tr",
         "valores": {
             "nao": r"(?:n[ãa]o\s+(?:ser[áa]|haver[áa]|se)\s+"
                    r"(?:exigid[ao]|exigir[áa]|exige)[^.]{0,60}garantia"
@@ -302,36 +315,58 @@ def _ordem_documental(doc_key: str) -> int:
             if doc_key in SEQUENCIA_DOCUMENTOS else 99)
 
 
+def documento_consolidador(chave: str, documentos: dict) -> tuple[str, str, str]:
+    """
+    (documento de referência, valor consolidado, evidência) para a decisão
+    `chave`. A referência é o ÚLTIMO documento que se manifestou até o
+    estágio consolidador — ou, se nenhum lá se manifestou, o primeiro
+    posterior. Devolve ("", "", "") quando ninguém decidiu.
+    """
+    autoridade = _ordem_documental(DECISOES[chave].get("autoridade", "etp"))
+    manifestos = []
+    for doc_key, texto in documentos.items():
+        valor, evidencia = decisao_no_documento(texto, chave)
+        if valor:
+            manifestos.append((_ordem_documental(doc_key), doc_key, valor,
+                               evidencia))
+    manifestos.sort()
+    ate_autoridade = [m for m in manifestos if m[0] <= autoridade]
+    escolhido = ate_autoridade[-1] if ate_autoridade else (
+        manifestos[0] if manifestos else None)
+    if not escolhido:
+        return "", "", ""
+    _, doc_key, valor, evidencia = escolhido
+    return doc_key, valor, evidencia
+
+
 def _verificar_decisoes(contexto, documentos, por_doc, achados_out,
                         contador) -> None:
     """
-    Decisões contraditórias entre documentos da MESMA cadeia. O documento
-    anterior (DFD → ETP → TR → Edital) é a referência; quem diverge é o
-    posterior — é ele que precisa voltar à decisão já tomada.
+    Decisões contraditórias APÓS a consolidação. Documento anterior ao
+    estágio consolidador que divirja não é erro: é proposta preliminar
+    sendo revista (o ETP existe justamente para isso).
     """
     for chave, definicao in DECISOES.items():
-        observado: dict[str, tuple[str, str]] = {}
+        base_doc, base_valor, _ = documento_consolidador(chave, documentos)
+        if not base_doc:
+            continue
+        ordem_base = _ordem_documental(base_doc)
         for doc_key, texto in documentos.items():
+            if _ordem_documental(doc_key) <= ordem_base:
+                continue  # antes (ou o próprio) do consolidador: preliminar
             valor, evidencia = decisao_no_documento(texto, chave)
-            if valor:
-                observado[doc_key] = (valor, evidencia)
-        if len({v for v, _ in observado.values()}) < 2:
-            continue  # todos concordam, ou só um documento se manifestou
-        ordenados = sorted(observado.items(), key=lambda kv: _ordem_documental(kv[0]))
-        base_doc, (base_valor, _) = ordenados[0]
-        for doc_key, (valor, evidencia) in ordenados[1:]:
-            if valor == base_valor:
+            if not valor or valor == base_valor:
                 continue
             bloco = blocos.localizar_bloco(por_doc.get(doc_key, []), evidencia)
             achados_out.append(_finding(
                 contador(), doc_key, "consistencia_decisao", "HIGH",
-                f"{definicao['rotulo']} divergente na cadeia do processo: "
-                f"{base_doc.upper()} define '{base_valor}' e "
+                f"{definicao['rotulo']} divergente da decisão já "
+                f"consolidada: {base_doc.upper()} define '{base_valor}' e "
                 f"{doc_key.upper()} traz '{valor}'",
                 evidencia[:160],
-                f"Mesma decisão em todo o processo ({base_valor}, conforme "
-                f"o {base_doc.upper()}) — ou alteração justificada e "
-                "propagada aos demais documentos.",
+                f"Documento alinhado à decisão consolidada no "
+                f"{base_doc.upper()} ({base_valor}) — ou alteração "
+                "justificada e propagada a todo o processo.",
                 False, [bloco["path"]] if bloco else [],
                 [f"documento:{base_doc}"],
                 bloqueio="DISCRETIONARY_DECISION"))
@@ -339,21 +374,32 @@ def _verificar_decisoes(contexto, documentos, por_doc, achados_out,
 
 def _verificar_srp_contra_fato(contexto, documentos, achados_out,
                                contador) -> None:
-    """A modelagem registrada como fato canônico vale para todo o dossiê."""
+    """
+    Modelagem do formulário × documentos. O formulário é PREFERÊNCIA: se
+    o ETP (estágio consolidador do SRP) se manifestou, é ele que vale e
+    nada é apontado. Sem ETP no dossiê, a divergência vira aviso de
+    modelagem não confirmada — nunca erro do documento.
+    """
     fato_srp = contexto.get("procedimento.srp")
     if fato_srp is None:
         return
+    consolidador = DECISOES["srp"].get("autoridade", "etp")
+    valor_etp, _ = decisao_no_documento(documentos.get(consolidador, ""), "srp")
+    if valor_etp:
+        return  # o estudo consolidou a modelagem: a preferência cedeu
     esperado = "sim" if fato_srp else "nao"
     for doc_key, texto in documentos.items():
         valor, evidencia = decisao_no_documento(texto, "srp")
         if valor and valor != esperado:
             achados_out.append(_finding(
-                contador(), doc_key, "consistencia_decisao", "HIGH",
+                contador(), doc_key, "consistencia_decisao", "MEDIUM",
                 "o documento trata o Sistema de Registro de Preços de forma "
                 f"incompatível com o processo (formulário: "
-                f"{'com' if fato_srp else 'sem'} SRP)",
+                f"{'com' if fato_srp else 'sem'} SRP) e não há ETP no "
+                "dossiê consolidando a mudança",
                 evidencia[:160],
-                "Documento alinhado à modelagem registrada no processo.",
+                "Modelagem alinhada ao processo — ou consolidada no ETP "
+                "com justificativa.",
                 False, [], ["fato:procedimento.srp"],
                 bloqueio="DISCRETIONARY_DECISION"))
 

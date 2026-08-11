@@ -442,6 +442,47 @@ def _validar_absolutismo(doc_key: str, texto: str) -> list[dict]:
         texto[ini:m.end() + 60].replace("\n", " "))]
 
 
+# ---------------------------------------------------------------------------
+# Lastro das citações (P1): fecha o circuito da regra de citação.
+#
+# A instrução no prompt depende da obediência do modelo. Aqui a
+# verificação é determinística: todo número de artigo citado precisa
+# estar (a) no mapa canônico validado do sistema ou (b) em um trecho que
+# o RAG efetivamente recuperou para AQUELA geração. Sem lastro, vira
+# finding — e a correção preferida REMOVE o número, mantendo a norma;
+# jamais troca por outro artigo inventado.
+# ---------------------------------------------------------------------------
+_RE_ARTIGO = re.compile(r"\bart(?:igo|s?)?\.?\s*(\d{1,3})\s*[º°]?", re.IGNORECASE)
+
+
+def dispositivos_citados(texto: str) -> set[str]:
+    """Números de artigo mencionados no documento."""
+    return {m.group(1) for m in _RE_ARTIGO.finditer(texto or "")}
+
+
+def _validar_lastro_das_citacoes(doc_key: str, texto: str,
+                                 lastro: set[str] | None) -> list[dict]:
+    if lastro is None:
+        return []          # sem rastro do RAG: nada a afirmar (conservador)
+    from . import prompts
+
+    sem_lastro = sorted(
+        dispositivos_citados(texto) - prompts.DISPOSITIVOS_CANONICOS - lastro,
+        key=int)
+    if not sem_lastro:
+        return []
+    exemplo = _RE_ARTIGO.search(texto)
+    return [_achado(
+        doc_key, "aviso",
+        "fundamento sem lastro: art(s). " + ", ".join(sem_lastro)
+        + " — dispositivo não consta do mapa canônico do sistema nem de "
+        "qualquer trecho recuperado da base de conhecimento nesta "
+        "geração. Remova o número e mantenha a referência à norma "
+        "(ex.: 'nos termos da Lei nº 14.133/2021'); não substitua por "
+        "outro artigo sem fonte",
+        (exemplo.group(0) if exemplo else ""))]
+
+
 def _validar_tabelas(doc_key: str, texto: str) -> list[dict]:
     """Tabela Markdown sem linha separadora (---) = sem cabeçalho definido."""
     achados = []
@@ -455,13 +496,21 @@ def _validar_tabelas(doc_key: str, texto: str) -> list[dict]:
     return achados
 
 
-def validar_documento(doc_key: str, texto: str) -> list[dict]:
-    """Valida um documento; retorna a lista de achados (pode ser vazia)."""
+def validar_documento(doc_key: str, texto: str,
+                      lastro: set[str] | None = None) -> list[dict]:
+    """
+    Valida um documento; retorna a lista de achados (pode ser vazia).
+
+    `lastro`: números de artigo recuperados pelo RAG na geração deste
+    documento. Quando informado, habilita a checagem de fundamento sem
+    lastro; quando None (sem rastro disponível), a checagem é omitida.
+    """
     texto = texto or ""
     return (
         _validar_bloqueantes(doc_key, texto)
         + _validar_dados_improvisados(doc_key, texto)
         + _validar_fundamentos_legais(doc_key, texto)
+        + _validar_lastro_das_citacoes(doc_key, texto, lastro)
         + _validar_raciocinio_etp(doc_key, texto)
         + _validar_absolutismo(doc_key, texto)
         + _validar_estrutura(doc_key, texto)
@@ -469,10 +518,12 @@ def validar_documento(doc_key: str, texto: str) -> list[dict]:
     )
 
 
-def validar_todos(documentos: dict[str, str]) -> list[dict]:
+def validar_todos(documentos: dict[str, str],
+                  lastro_por_doc: dict[str, set[str]] | None = None) -> list[dict]:
     achados: list[dict] = []
     for doc_key, texto in documentos.items():
-        achados.extend(validar_documento(doc_key, texto))
+        achados.extend(validar_documento(
+            doc_key, texto, (lastro_por_doc or {}).get(doc_key)))
     return achados
 
 
