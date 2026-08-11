@@ -1,0 +1,17 @@
+-- ============================================================
+-- 0014 — Índice HNSW do embedding_v2  (NÃO APLICAR AINDA)
+--
+-- Só depois que o backfill cobrir 4.539/4.539 chunks (validação do
+-- script scripts/reindexar_embeddings_v2.py --validar). Criar índice
+-- vetorial sobre coluna incompleta desperdiça o trabalho e precisa ser
+-- refeito.
+--
+-- CONCURRENTLY não bloqueia leituras/escritas: a busca em produção
+-- (coluna legada `embedding`) segue disponível durante a construção. O
+-- índice antigo NÃO é removido — rollback continua possível.
+-- ============================================================
+
+create index concurrently if not exists chunks_referencia_embedding_v2_hnsw
+  on public.chunks_referencia
+  using hnsw (embedding_v2 public.vector_cosine_ops)
+  with (m = 16, ef_construction = 64);

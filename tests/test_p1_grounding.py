@@ -12,6 +12,8 @@ Os cenários cobrem objetos diferentes (materiais, serviço contínuo,
 SaaS) para que nada fique acoplado à contratação que originou o P0.
 """
 
+import sys
+
 import pytest
 
 from src import llm, rag
@@ -670,3 +672,128 @@ def test_trace_nao_inventa_campos_que_o_rpc_nao_devolve(monkeypatch):
     assert "documento_id" not in referencia and "ordem" not in referencia
     assert referencia["titulo"] == "Lei nº 14.133/2021"
     assert referencia["dispositivos"] == ["lei_14133_2021:84"]
+
+
+# --------------------------------------------------------------------------
+# Índice vetorial V2: um único provedor/modelo, sem fallback silencioso
+# --------------------------------------------------------------------------
+def test_embeddings_nao_caem_para_outro_provedor(monkeypatch):
+    """Sem chave do provedor do índice NÃO se gera vetor com outro motor."""
+    from src import llm
+
+    chamou_gemini = []
+    monkeypatch.setattr(llm, "obter_openai_key", lambda: "")
+    monkeypatch.setattr(llm, "obter_api_key",
+                        lambda: chamou_gemini.append(True) or "k-gemini")
+    avisos = []
+    monkeypatch.setattr(rag.st, "warning", avisos.append)
+
+    assert rag._gerar_embeddings(["texto"], para_consulta=False) is None
+    assert not chamou_gemini            # o Gemini nem foi consultado
+    assert any("NÃO admite outro provedor" in a for a in avisos)
+
+
+def test_proveniencia_v2_e_fixa_e_declarada():
+    from src import config
+
+    p = rag.proveniencia_v2()
+    assert p["embedding_provider"] == config.EMBEDDING_V2_PROVEDOR == "openai"
+    assert p["embedding_model"] == "text-embedding-3-small"
+    assert p["embedding_dimensions"] == 768
+    assert p["embedding_version"] == config.EMBEDDING_V2_VERSAO
+
+
+def test_dimensao_divergente_e_recusada(monkeypatch):
+    """Vetor fora da dimensão do índice não entra na base."""
+    import types as _types
+
+    from src import llm
+
+    monkeypatch.setattr(llm, "obter_openai_key", lambda: "k")
+
+    class _Embeddings:
+        def create(self, **kwargs):
+            return _types.SimpleNamespace(
+                data=[_types.SimpleNamespace(embedding=[0.1] * 1536)])
+
+    class _Cliente:
+        def __init__(self, **kwargs):
+            self.embeddings = _Embeddings()
+
+    monkeypatch.setitem(sys.modules, "openai",
+                        _types.SimpleNamespace(OpenAI=_Cliente))
+    with pytest.raises(rag.ErroRAG, match="dimensão"):
+        rag._gerar_embeddings(["texto"], para_consulta=False)
+
+
+def test_indexacao_sem_vetor_fica_pendente_e_avisa(monkeypatch):
+    """Nunca mais `embedding = NULL` silencioso (causa dos 34% sem vetor)."""
+    gravados = {}
+
+    class _Tabela:
+        def __init__(self, nome):
+            self.nome = nome
+
+        def insert(self, dados):
+            gravados.setdefault(self.nome, []).extend(
+                dados if isinstance(dados, list) else [dados])
+            return self
+
+        def execute(self):
+            return _Resposta(gravados[self.nome][-1:])
+
+    class _Resposta:
+        def __init__(self, data):
+            self.data = [{"id": "doc-1"}] if data and "titulo" in data[0] else data
+
+    class _Cliente:
+        def table(self, nome):
+            return _Tabela(nome)
+
+    monkeypatch.setattr(rag.db, "disponivel", lambda: True)
+    monkeypatch.setattr(rag.db, "_cliente", _Cliente)
+    monkeypatch.setattr(rag, "_gerar_embeddings",
+                        lambda textos, para_consulta: None)
+    avisos = []
+    monkeypatch.setattr(rag.st, "warning", avisos.append)
+
+    rag.indexar_arquivo("norma.txt", "Norma", "lei", b"x" * 200)
+    chunks = gravados["chunks_referencia"]
+    assert chunks and all(c["embedding_status"] == "pendente" for c in chunks)
+    assert all(c["embedding_v2"] is None for c in chunks)
+    assert all("embedding_provider" not in c for c in chunks)
+    assert any("PENDENTE de indexação vetorial" in a for a in avisos)
+
+
+def test_indexacao_com_vetor_grava_proveniencia_completa(monkeypatch):
+    gravados = {}
+
+    class _Tabela:
+        def __init__(self, nome):
+            self.nome = nome
+
+        def insert(self, dados):
+            gravados.setdefault(self.nome, []).extend(
+                dados if isinstance(dados, list) else [dados])
+            return self
+
+        def execute(self):
+            return type("R", (), {"data": [{"id": "doc-1"}]})()
+
+    class _Cliente:
+        def table(self, nome):
+            return _Tabela(nome)
+
+    monkeypatch.setattr(rag.db, "disponivel", lambda: True)
+    monkeypatch.setattr(rag.db, "_cliente", _Cliente)
+    monkeypatch.setattr(rag, "_gerar_embeddings",
+                        lambda textos, para_consulta: [[0.1] * 768
+                                                       for _ in textos])
+    rag.indexar_arquivo("norma.txt", "Norma", "lei", b"x" * 200)
+    chunk = gravados["chunks_referencia"][0]
+    assert chunk["embedding_status"] == "ok"
+    assert chunk["embedding_provider"] == "openai"
+    assert chunk["embedding_model"] == "text-embedding-3-small"
+    assert chunk["embedding_dimensions"] == 768
+    assert chunk["embedding_version"] == "v2"
+    assert chunk["embedding_generated_at"]

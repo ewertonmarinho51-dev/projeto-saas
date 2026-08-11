@@ -257,51 +257,75 @@ def dividir_em_chunks(
 
 
 # ---------------------------------------------------------------------------
-# Embeddings (Gemini) — opcionais; sem eles a busca textual assume
+# Embeddings — UM ÚNICO espaço vetorial (P1)
+#
+# Aqui NÃO existe fallback entre provedores. Um vetor OpenAI e um vetor
+# Gemini são pontos de espaços diferentes: misturá-los na mesma coluna
+# produz uma base que "funciona" e responde errado, sem erro visível.
+# Foi assim que a base ficou com 34% dos chunks sem vetor e sem qualquer
+# registro de origem (auditoria de 11/08/2026).
+#
+# Regra: provedor, modelo, dimensão e versão do índice são FIXOS
+# (config.EMBEDDING_V2_*). Provedor indisponível ⇒ NÃO se gera vetor com
+# outro: a indexação fica PENDENTE e a busca textual assume.
 # ---------------------------------------------------------------------------
+def proveniencia_v2() -> dict:
+    """Identidade do índice vetorial vigente (gravada com cada vetor)."""
+    from .config import (EMBEDDING_V2_DIMENSOES, EMBEDDING_V2_MODELO,
+                         EMBEDDING_V2_PROVEDOR, EMBEDDING_V2_VERSAO)
+
+    return {
+        "embedding_provider": EMBEDDING_V2_PROVEDOR,
+        "embedding_model": EMBEDDING_V2_MODELO,
+        "embedding_dimensions": EMBEDDING_V2_DIMENSOES,
+        "embedding_version": EMBEDDING_V2_VERSAO,
+    }
+
+
 def _gerar_embeddings(textos: list[str], para_consulta: bool) -> list[list[float]] | None:
     """
-    Retorna embeddings (768 dims) ou None se não houver chave de API.
+    Embeddings do provedor/modelo FIXOS do índice, ou None.
 
-    Provedor segue o motor principal: OpenAI (text-embedding-3-small com
-    dimensions=768) quando há chave; senão Gemini. IMPORTANTE: indexação e
-    consulta precisam do MESMO provedor — se você trocar de provedor com a
-    base já populada, reindexe os arquivos (os espaços vetoriais são
-    incompatíveis entre si).
+    None significa "não foi possível vetorizar" — nunca "vetorizei com
+    outra coisa". Quem indexa deve marcar o material como PENDENTE;
+    quem consulta cai para a busca textual.
     """
-    from .config import OPENAI_EMBEDDING_MODEL
-    from .llm import obter_api_key, obter_openai_key
+    from .config import (EMBEDDING_V2_DIMENSOES, EMBEDDING_V2_MODELO,
+                         EMBEDDING_V2_PROVEDOR)
+    from .llm import obter_openai_key
 
-    chave_openai = obter_openai_key()
-    chave_gemini = obter_api_key()
-    try:
-        if chave_openai:
-            from openai import OpenAI
+    if EMBEDDING_V2_PROVEDOR != "openai":  # pragma: no cover - guarda
+        raise ErroRAG(
+            f"Provedor de embedding não suportado: {EMBEDDING_V2_PROVEDOR!r}. "
+            "Trocar de provedor exige reindexar toda a base.")
 
-            cliente = OpenAI(api_key=chave_openai, timeout=60, max_retries=1)
-            resposta = cliente.embeddings.create(
-                model=OPENAI_EMBEDDING_MODEL,
-                input=textos,
-                dimensions=EMBEDDING_DIMENSOES,
-            )
-            return [item.embedding for item in resposta.data]
-        if chave_gemini:
-            from google import genai
-            from google.genai import types
-
-            cliente = genai.Client(api_key=chave_gemini)
-            resposta = cliente.models.embed_content(
-                model=EMBEDDING_MODEL,
-                contents=textos,
-                config=types.EmbedContentConfig(
-                    task_type="RETRIEVAL_QUERY" if para_consulta else "RETRIEVAL_DOCUMENT",
-                    output_dimensionality=EMBEDDING_DIMENSOES,
-                ),
-            )
-            return [list(e.values) for e in resposta.embeddings]
+    chave = obter_openai_key()
+    if not chave:
+        # Sem a chave do provedor do índice não se improvisa outro motor:
+        # o Gemini continua servindo à GERAÇÃO DE TEXTO, jamais ao índice.
+        st.warning(
+            "Chave da OpenAI ausente: o índice vetorial usa "
+            f"{EMBEDDING_V2_MODELO} e NÃO admite outro provedor. A busca "
+            "segue em modo textual e novas indexações ficam pendentes.")
         return None
+    try:
+        from openai import OpenAI
+
+        cliente = OpenAI(api_key=chave, timeout=60, max_retries=1)
+        resposta = cliente.embeddings.create(
+            model=EMBEDDING_V2_MODELO,
+            input=textos,
+            dimensions=EMBEDDING_V2_DIMENSOES,
+        )
+        vetores = [item.embedding for item in resposta.data]
+        if any(len(v) != EMBEDDING_V2_DIMENSOES for v in vetores):
+            raise ErroRAG(
+                f"{EMBEDDING_V2_MODELO} devolveu vetor com dimensão "
+                f"diferente de {EMBEDDING_V2_DIMENSOES} — índice recusado.")
+        return vetores
+    except ErroRAG:
+        raise
     except Exception as exc:  # noqa: BLE001
-        # Falha de embedding não deve impedir a indexação: busca textual assume
         st.warning(f"Embeddings indisponíveis ({exc}); usando busca textual.")
         return None
 
@@ -338,18 +362,33 @@ def indexar_arquivo(nome_arquivo: str, titulo: str, categoria: str, dados: bytes
             .execute()
         ).data[0]
 
+        # Proveniência explícita em cada chunk: sem vetor, o registro
+        # nasce PENDENTE — nunca mais um `embedding = NULL` silencioso.
+        from datetime import datetime, timezone
+
+        proveniencia = proveniencia_v2()
+        agora = datetime.now(timezone.utc).isoformat()
         registros = [
             {
                 "documento_id": doc["id"],
                 "ordem": i,
                 "conteudo": trecho,
-                "embedding": embeddings[i] if embeddings else None,
+                "embedding_v2": embeddings[i] if embeddings else None,
+                "embedding_status": "ok" if embeddings else "pendente",
+                "embedding_generated_at": agora if embeddings else None,
+                **(proveniencia if embeddings else {}),
             }
             for i, trecho in enumerate(chunks)
         ]
         # insere em lotes para não estourar o payload
         for i in range(0, len(registros), 50):
             cliente.table("chunks_referencia").insert(registros[i : i + 50]).execute()
+        if not embeddings:
+            st.warning(
+                f"'{titulo or nome_arquivo}' foi indexado para BUSCA TEXTUAL, "
+                "mas está PENDENTE de indexação vetorial (o provedor de "
+                "embeddings não respondeu). Reindexe quando a chave estiver "
+                "disponível — até lá ele não aparece na busca semântica.")
         return len(chunks)
     except Exception as exc:  # noqa: BLE001
         raise ErroRAG(f"Falha ao gravar na base de conhecimento: {exc}") from exc
