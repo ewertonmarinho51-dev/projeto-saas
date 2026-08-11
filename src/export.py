@@ -242,20 +242,44 @@ def _estilo_do_paragrafo(texto: str) -> str:
                                                           "GovDocs Item 3")
 
 
-def _docx_formatar_tabela(tabela) -> None:
-    """Cabeçalho repetido por página, linha sem quebra e fonte do padrão."""
+# Uma linha de tabela com até este total de caracteres cabe com folga em
+# uma página; acima disso (descrições longas de planilha) ela PRECISA poder
+# dividir entre páginas — senão cada item ocupa uma página inteira.
+_LIMITE_LINHA_SEM_QUEBRA = 250
+
+# Linha separadora de cabeçalho Markdown: |---|---| (com ou sem ':')
+_RE_SEPARADOR_TABELA = re.compile(r"^\|?[\s:|-]+\|?$")
+
+
+def _tem_cabecalho(tabela_buffer: list[str]) -> bool:
+    """
+    A tabela Markdown só tem cabeçalho REAL quando a 2ª linha é a
+    separadora (|---|). Sem isso, a 1ª linha é DADO — promovê-la a
+    cabeçalho (negrito + repetição em toda página) foi a causa do
+    "primeiro item repetido em todas as páginas" nos documentos reais.
+    """
+    return len(tabela_buffer) >= 2 and bool(
+        _RE_SEPARADOR_TABELA.match(tabela_buffer[1].strip()))
+
+
+def _docx_formatar_tabela(tabela, com_cabecalho: bool = True) -> None:
+    """Cabeçalho repetido por página (quando existe), fonte do padrão e
+    quebra de página permitida nas linhas longas."""
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
     from docx.shared import Pt
 
     for i, linha in enumerate(tabela.rows):
         tr_pr = linha._tr.get_or_add_trPr()
-        if i == 0:  # repete o cabeçalho nas páginas seguintes
+        eh_cabecalho = com_cabecalho and i == 0
+        if eh_cabecalho:  # repete o cabeçalho nas páginas seguintes
             cab = OxmlElement("w:tblHeader")
             cab.set(qn("w:val"), "true")
             tr_pr.append(cab)
-        sem_quebra = OxmlElement("w:cantSplit")  # linha não divide entre páginas
-        tr_pr.append(sem_quebra)
+        total_chars = sum(len(cel.text) for cel in linha.cells)
+        if total_chars <= _LIMITE_LINHA_SEM_QUEBRA:
+            sem_quebra = OxmlElement("w:cantSplit")  # linha curta não divide
+            tr_pr.append(sem_quebra)
         for cel in linha.cells:
             for par in cel.paragraphs:
                 pf = par.paragraph_format
@@ -264,7 +288,7 @@ def _docx_formatar_tabela(tabela) -> None:
                 for run in par.runs:
                     run.font.name = FONTE_CORPO
                     run.font.size = Pt(10)
-                    if i == 0:
+                    if eh_cabecalho:
                         run.font.bold = True
 
 
@@ -275,10 +299,11 @@ def _docx_inserir_markdown(doc, texto_md: str) -> None:
     def descarregar_tabela():
         if not tabela_buffer:
             return
+        com_cabecalho = _tem_cabecalho(tabela_buffer)
         linhas_tab = [
             [c.strip() for c in ln.strip("|").split("|")]
             for ln in tabela_buffer
-            if not re.match(r"^\|?[\s:|-]+\|?$", ln)  # descarta linha ---|---
+            if not _RE_SEPARADOR_TABELA.match(ln)  # descarta linha ---|---
         ]
         if linhas_tab:
             n_cols = max(len(l) for l in linhas_tab)
@@ -288,11 +313,11 @@ def _docx_inserir_markdown(doc, texto_md: str) -> None:
             for i, linha in enumerate(linhas_tab):
                 for j, celula in enumerate(linha[: len(tabela.columns)]):
                     par = tabela.cell(i, j).paragraphs[0]
-                    if i == 0:  # cabeçalho: negrito, sem links
+                    if i == 0 and com_cabecalho:  # cabeçalho: negrito, sem links
                         par.add_run(_limpar_inline(celula)).bold = True
                     else:
                         _docx_runs_ricos(par, celula)
-            _docx_formatar_tabela(tabela)
+            _docx_formatar_tabela(tabela, com_cabecalho)
         tabela_buffer.clear()
 
     for linha in linhas:
@@ -560,10 +585,11 @@ def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
     decrescentes; em último caso, degrada para parágrafos "Rótulo: valor"
     — o download nunca pode quebrar.
     """
+    com_cabecalho = _tem_cabecalho(linhas_tab)
     linhas = [
         [_latin1_seguro(c.strip()) for c in ln.strip("|").split("|")]
         for ln in linhas_tab
-        if not re.match(r"^\|?[\s:|-]+\|?$", ln)  # descarta a linha ---|---
+        if not _RE_SEPARADOR_TABELA.match(ln)  # descarta a linha ---|---
     ]
     if not linhas:
         return
@@ -574,7 +600,8 @@ def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
     for fonte_pt, altura_linha in ((9, 5), (7, 3.5), (6, 3)):
         try:
             pdf.set_font("Times", "", fonte_pt)
-            with pdf.table(markdown=True, first_row_as_headings=True,
+            with pdf.table(markdown=True,
+                           first_row_as_headings=com_cabecalho,
                            line_height=altura_linha, width=largura) as tabela:
                 for linha in linhas:
                     fpdf_linha = tabela.row()
@@ -586,9 +613,9 @@ def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
             continue  # linha alta demais até para esta fonte — reduz e tenta
 
     # Último recurso: conteúdo em parágrafos (nunca perde dados nem quebra)
-    cabecalho = linhas[0]
+    cabecalho = linhas[0] if com_cabecalho else [""] * n
     pdf.set_font("Times", "", 10)
-    for linha in linhas[1:]:
+    for linha in (linhas[1:] if com_cabecalho else linhas):
         texto = "; ".join(
             f"{cab}: {val}" for cab, val in zip(cabecalho, linha) if val
         )

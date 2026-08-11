@@ -119,6 +119,99 @@ _CLASSIFICACAO: list[tuple[str, dict]] = [
         "auto": True,
         "gravidade": "HIGH",
     }),
+    ("URL crua na prosa", {
+        "categoria": "vazamento_planilha",
+        "regra": "Links de pesquisa de preço pertencem à coluna Fonte da "
+                 "planilha ([link](https://…)); URL solta na prosa é "
+                 "vazamento da planilha/memorando para o texto do ato.",
+        "esperado": "Remover a URL da prosa (ou compactá-la como "
+                    "[link](https://…) se pertencer à tabela).",
+        "auto": True,
+        "gravidade": "HIGH",
+    }),
+    ("função/cargo preenchido com valor inválido", {
+        "categoria": "dado_improvisado",
+        "regra": "Nome/identificação de agente público não informado deve "
+                 "virar [PREENCHER: …] — nunca um número ou palavra solta "
+                 "copiada do contexto.",
+        "esperado": "Substituir o valor inválido por [PREENCHER: nome e "
+                    "matrícula do agente] até o dado real ser informado.",
+        "auto": True,
+        "gravidade": "HIGH",
+        "fontes": ["formulario:responsavel"],
+    }),
+    ("matrícula com aparência de improviso", {
+        "categoria": "dado_improvisado",
+        "regra": "Matrícula é dado determinístico: vem do processo ou vira "
+                 "[PREENCHER: matrícula] — nunca um número provisório.",
+        "esperado": "Confirmar a matrícula real com o requisitante ou "
+                    "marcar [PREENCHER: matrícula].",
+        "auto": False,
+        "gravidade": "MEDIUM",
+        "bloqueio": MOTIVO_DADO_AUSENTE,
+    }),
+    ("CNPJ inválido", {
+        "categoria": "dado_improvisado",
+        "regra": "CNPJ é dado determinístico verificável por dígitos "
+                 "verificadores; um CNPJ inválido foi inventado ou "
+                 "transcrito errado.",
+        "esperado": "Usar o CNPJ real do processo ou [PREENCHER: CNPJ].",
+        "auto": False,
+        "gravidade": "HIGH",
+        "bloqueio": MOTIVO_DADO_AUSENTE,
+    }),
+    ("tabela de itens duplicada", {
+        "categoria": "tabela_duplicada",
+        "regra": "A planilha orçamentária aparece uma única vez no "
+                 "documento (injetada pelo sistema); cópias na prosa "
+                 "inviabilizam o ato.",
+        "esperado": "Remover as reproduções da tabela, mantendo apenas a "
+                    "tabela oficial na cláusula de estimativa de valor.",
+        "auto": True,
+        "gravidade": "HIGH",
+        "fontes": ["formulario:itens"],
+    }),
+    ("fundamento legal incorreto", {
+        "categoria": "fundamento_legal",
+        "regra": "Dispositivo citado incompatível com o instituto tratado "
+                 "(mapa canônico da Lei nº 14.133/2021).",
+        "esperado": "Trocar a citação pelo dispositivo indicado na "
+                    "mensagem do achado, sem alterar o conteúdo da "
+                    "cláusula.",
+        "auto": True,
+        "gravidade": "HIGH",
+    }),
+    ("fundamento legal impreciso", {
+        "categoria": "fundamento_legal",
+        "regra": "Dispositivo citado incompatível com o instituto tratado "
+                 "(mapa canônico da Lei nº 14.133/2021).",
+        "esperado": "Trocar a citação pelo dispositivo indicado na "
+                    "mensagem do achado, sem alterar o conteúdo da "
+                    "cláusula.",
+        "auto": True,
+        "gravidade": "MEDIUM",
+    }),
+    ("instituto possivelmente inadequado", {
+        "categoria": "fundamento_legal",
+        "regra": "Repactuação pressupõe serviço contínuo com dedicação de "
+                 "mão de obra (art. 135); para bens/materiais o instituto "
+                 "é o reajuste (art. 92, §3º).",
+        "esperado": "Decisão do revisor: trocar por reajuste ou justificar "
+                    "o regime de mão de obra.",
+        "auto": False,
+        "gravidade": "MEDIUM",
+        "bloqueio": MOTIVO_DISCRICIONARIO,
+    }),
+    ("cláusula de garantia sem fundamentação", {
+        "categoria": "clausula_nao_desenvolvida",
+        "regra": "Garantia contratual exige modalidade, condições e base "
+                 "legal (arts. 96 a 98) — não apenas um percentual.",
+        "esperado": "Desenvolver a cláusula ou removê-la se inaplicável — "
+                    "decisão do revisor.",
+        "auto": False,
+        "gravidade": "MEDIUM",
+        "bloqueio": MOTIVO_DISCRICIONARIO,
+    }),
     ("cláusula meta-descritiva", {
         "categoria": "clausula_nao_desenvolvida",
         "regra": "A cláusula deve trazer o conteúdo real do ato, não uma "
