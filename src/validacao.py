@@ -453,11 +453,32 @@ def _validar_absolutismo(doc_key: str, texto: str) -> list[dict]:
 # jamais troca por outro artigo inventado.
 # ---------------------------------------------------------------------------
 _RE_ARTIGO = re.compile(r"\bart(?:igo|s?)?\.?\s*(\d{1,3})\s*[º°]?", re.IGNORECASE)
+# janela após a citação onde a norma costuma aparecer ("art. 84 da Lei
+# nº 14.133/2021", "arts. 141 a 146 da Lei nº 14.133/2021")
+_JANELA_NORMA = 90
 
 
 def dispositivos_citados(texto: str) -> set[str]:
-    """Números de artigo mencionados no documento."""
-    return {m.group(1) for m in _RE_ARTIGO.finditer(texto or "")}
+    """
+    Dispositivos citados no documento, como `norma:artigo`.
+
+    A norma é lida logo após a citação; sem norma declarada, vale a norma
+    de referência da fase preparatória (`normas.NORMA_PADRAO`) — que é
+    como o próprio documento se lê ("na forma do art. 33" significa a Lei
+    nº 14.133/2021). Isso impede que o art. 84 de uma norma qualquer
+    valide o art. 84 da Lei nº 14.133/2021.
+    """
+    from .normas import NORMA_PADRAO, dispositivo, identificar_norma
+
+    texto = texto or ""
+    citados: set[str] = set()
+    for m in _RE_ARTIGO.finditer(texto):
+        janela = texto[m.end():m.end() + _JANELA_NORMA]
+        # a norma vale até o fim da frase: "art. 5º da CF. O art. 40…"
+        janela = re.split(r"(?<=[.;:])\s", janela)[0]
+        citados.add(dispositivo(identificar_norma(janela) or NORMA_PADRAO,
+                                m.group(1)))
+    return citados
 
 
 def _validar_lastro_das_citacoes(doc_key: str, texto: str,
@@ -467,19 +488,19 @@ def _validar_lastro_das_citacoes(doc_key: str, texto: str,
     from . import prompts
 
     sem_lastro = sorted(
-        dispositivos_citados(texto) - prompts.DISPOSITIVOS_CANONICOS - lastro,
-        key=int)
+        dispositivos_citados(texto) - prompts.DISPOSITIVOS_CANONICOS - lastro)
     if not sem_lastro:
         return []
     exemplo = _RE_ARTIGO.search(texto)
+    legivel = ", ".join(f"art. {d.split(':')[1]} ({d.split(':')[0]})"
+                        for d in sem_lastro)
     return [_achado(
         doc_key, "aviso",
-        "fundamento sem lastro: art(s). " + ", ".join(sem_lastro)
-        + " — dispositivo não consta do mapa canônico do sistema nem de "
-        "qualquer trecho recuperado da base de conhecimento nesta "
-        "geração. Remova o número e mantenha a referência à norma "
-        "(ex.: 'nos termos da Lei nº 14.133/2021'); não substitua por "
-        "outro artigo sem fonte",
+        f"fundamento sem lastro: {legivel} — o dispositivo, NA NORMA "
+        "citada, não consta do mapa canônico do sistema nem de qualquer "
+        "trecho de legislação recuperado nesta geração. Remova o número e "
+        "mantenha a referência à norma (ex.: 'nos termos da Lei nº "
+        "14.133/2021'); não substitua por outro artigo sem fonte",
         (exemplo.group(0) if exemplo else ""))]
 
 

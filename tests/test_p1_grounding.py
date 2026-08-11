@@ -344,6 +344,7 @@ def test_recuperacao_funciona_para_objetos_diferentes(monkeypatch, dados,
 # GROUNDING pós-geração: citação sem lastro vira finding
 # --------------------------------------------------------------------------
 def _lastro(*dispositivos):
+    """Lastro no formato `norma:artigo` (identidade completa)."""
     return set(dispositivos)
 
 
@@ -352,7 +353,8 @@ def test_artigo_sustentado_pelo_trace_passa():
 
     texto = ("## 3. DO REGIME\n\n3.1. Observa-se o art. 211 da Lei nº "
              "14.133/2021.\n")
-    achados = validacao.validar_documento("edital", texto, _lastro("211"))
+    achados = validacao.validar_documento(
+        "edital", texto, _lastro("lei_14133_2021:211"))
     assert not any("sem lastro" in a["mensagem"] for a in achados)
 
 
@@ -369,7 +371,8 @@ def test_artigo_sem_trace_e_fora_do_mapa_gera_finding():
     from src import validacao
 
     texto = "## 8. DAS SANÇÕES\n\n8.1. Aplica-se o art. 347 da Lei.\n"
-    achados = validacao.validar_documento("edital", texto, _lastro("211"))
+    achados = validacao.validar_documento(
+        "edital", texto, _lastro("lei_14133_2021:211"))
     mensagens = [a["mensagem"] for a in achados if "sem lastro" in a["mensagem"]]
     assert mensagens and "347" in mensagens[0]
 
@@ -399,10 +402,12 @@ def test_mapa_canonico_nao_aceita_numero_espurio():
     from src import prompts
 
     # "art. 84 (1 ano…)" e "LC nº 123/2006" não podem virar lastro
-    assert "1" not in prompts.DISPOSITIVOS_CANONICOS
-    assert "123" not in prompts.DISPOSITIVOS_CANONICOS
-    assert "2006" not in prompts.DISPOSITIVOS_CANONICOS
-    assert {"84", "141", "156"} <= prompts.DISPOSITIVOS_CANONICOS
+    for espurio in ("1", "123", "2006"):
+        assert f"lei_14133_2021:{espurio}" not in prompts.DISPOSITIVOS_CANONICOS
+    assert {"lei_14133_2021:84", "lei_14133_2021:141",
+            "lei_14133_2021:156"} <= prompts.DISPOSITIVOS_CANONICOS
+    # e o lastro canônico é ANCORADO na norma: nada de número solto
+    assert all(":" in d for d in prompts.DISPOSITIVOS_CANONICOS)
 
 
 def test_prompt_e_validacao_leem_o_mesmo_mapa():
@@ -417,9 +422,12 @@ def test_prompt_e_validacao_leem_o_mesmo_mapa():
 
 def test_lastro_do_trace_extrai_dispositivos_das_fontes():
     trace = {"referencias": [
-        {"titulo": "Lei nº 14.133/2021", "dispositivos": ["84", "86"]},
-        {"titulo": "Decreto municipal", "dispositivos": ["7"]}]}
-    assert rag.lastro_do_trace(trace) == {"84", "86", "7"}
+        {"titulo": "Lei nº 14.133/2021", "categoria": "lei",
+         "dispositivos": ["lei_14133_2021:84", "lei_14133_2021:86"]},
+        {"titulo": "Decreto municipal", "categoria": "lei",
+         "dispositivos": ["decreto_7_2024:7"]}]}
+    assert rag.lastro_do_trace(trace) == {
+        "lei_14133_2021:84", "lei_14133_2021:86", "decreto_7_2024:7"}
     assert rag.lastro_do_trace(None) == set()
 
 
@@ -429,7 +437,8 @@ def test_trace_registra_dispositivos_do_trecho_recuperado(monkeypatch):
                    "Art. 86. A adesão observará…", 0.8)
     _fingir_base(monkeypatch, lambda consulta: [chunk])
     trace = rag.montar_contexto(BENS_SRP, "edital")["trace"]
-    assert trace["referencias"][0]["dispositivos"] == ["84", "86"]
+    assert trace["referencias"][0]["dispositivos"] == [
+        "lei_14133_2021:84", "lei_14133_2021:86"]
 
 
 # --------------------------------------------------------------------------
@@ -461,3 +470,144 @@ def test_tema_prioritario_mantem_pelo_menos_um_chunk(monkeypatch):
     assert "sancao" in ids           # sobreviveu ao ranking global
     assert len(referencias) <= rag.MAX_CHUNKS_PROMPT
     assert len(ids) == len(referencias)      # sem duplicatas
+
+
+# --------------------------------------------------------------------------
+# Identidade norma:dispositivo e quem pode fornecer lastro
+# --------------------------------------------------------------------------
+def test_artigo_de_outra_norma_nao_sustenta_o_mesmo_numero_da_lei():
+    from src import validacao
+
+    # o art. 84 do decreto NÃO autoriza o art. 84 da Lei nº 14.133/2021
+    texto = ("## 2. DA ATA\n\n2.5. A vigência observa o art. 84 do Decreto "
+             "nº 10.024/2019 e o art. 250 da Lei nº 14.133/2021.\n")
+    lastro = {"decreto_10024_2019:84", "decreto_10024_2019:250"}
+    mensagens = [a["mensagem"] for a in
+                 validacao.validar_documento("edital", texto, lastro)
+                 if "sem lastro" in a["mensagem"]]
+    assert mensagens and "250" in mensagens[0]
+    assert "lei_14133_2021" in mensagens[0]
+
+
+def test_artigo_da_norma_correta_tem_lastro():
+    from src import validacao
+
+    texto = ("## 3. DO REGIME\n\n3.1. Observa-se o art. 250 da Lei nº "
+             "14.133/2021.\n")
+    achados = validacao.validar_documento("edital", texto,
+                                          {"lei_14133_2021:250"})
+    assert not any("sem lastro" in a["mensagem"] for a in achados)
+
+
+def test_processo_anterior_nao_fornece_lastro():
+    trace = {"referencias": [
+        {"titulo": "Edital 2019", "categoria": "processo_anterior",
+         "dispositivos": ["lei_14133_2021:250"]},
+        {"titulo": "Minuta padrão", "categoria": "modelo",
+         "dispositivos": ["lei_14133_2021:251"]}]}
+    assert rag.lastro_do_trace(trace) == set()
+
+
+def test_acordao_nao_autoriza_dispositivo_de_lei():
+    trace = {"referencias": [
+        {"titulo": "Acórdão 1234/2023-TCU", "categoria": "acordao",
+         "dispositivos": ["lei_14133_2021:250"]}]}
+    assert rag.lastro_do_trace(trace) == set()
+
+
+def test_legislacao_fornece_lastro():
+    trace = {"referencias": [
+        {"titulo": "Lei nº 14.133/2021", "categoria": "lei",
+         "dispositivos": ["lei_14133_2021:250"]},
+        {"titulo": "Decreto municipal nº 45/2024", "categoria": "lei",
+         "dispositivos": ["decreto_45_2024:7"]}]}
+    assert rag.lastro_do_trace(trace) == {"lei_14133_2021:250",
+                                          "decreto_45_2024:7"}
+
+
+def test_norma_do_chunk_vem_do_titulo_quando_o_trecho_nao_a_declara():
+    # trecho cru da lei ("Art. 84. …") sem repetir o nome da norma
+    assert rag.dispositivos_do_trecho(
+        "Art. 84. A vigência da ata…", "Lei nº 14.133/2021") == [
+        "lei_14133_2021:84"]
+    # sem norma identificável em lugar nenhum, não há lastro
+    assert rag.dispositivos_do_trecho("Art. 84. …", "Apostila") == []
+
+
+# --------------------------------------------------------------------------
+# Trace pertence à geração que produziu o documento
+# --------------------------------------------------------------------------
+def _preparar_geracao(monkeypatch, chunk_conteudo, falhar_tudo=False,
+                      falhar_openai=False):
+    import streamlit as st
+
+    from src import conhecimento, planilha, prompts
+
+    st.session_state.clear()
+    monkeypatch.setattr(llm, "obter_openai_key", lambda: "k-openai")
+    monkeypatch.setattr(llm, "obter_api_key", lambda: "k-gemini")
+    monkeypatch.setattr(llm, "montar_prompt",
+                        lambda doc, dados, ctx: ("s", "u"))
+    monkeypatch.setattr(llm, "registrar_geracao",
+                        lambda *a, **k: {})
+    monkeypatch.setattr(conhecimento, "diretrizes_para_prompt",
+                        lambda *a, **k: "")
+    monkeypatch.setattr(planilha, "injetar_tabela", lambda texto, itens: texto)
+    monkeypatch.setattr(
+        rag, "montar_contexto",
+        lambda dados, doc: {"bloco": "", "trace": {
+            "modo": "vetorial", "consultas": [],
+            "referencias": [{"titulo": "Lei nº 14.133/2021",
+                             "categoria": "lei",
+                             "dispositivos": [chunk_conteudo]}]}})
+
+    def _openai(s, u, chave):
+        if falhar_tudo or falhar_openai:
+            raise llm.ErroGeracaoIA("openai fora do ar")
+        return f"texto via openai ({chunk_conteudo})"
+
+    def _gemini(s, u, chave):
+        if falhar_tudo:
+            raise llm.ErroGeracaoIA("gemini fora do ar")
+        return f"texto via gemini ({chunk_conteudo})"
+
+    monkeypatch.setattr(llm, "_chamar_openai", _openai)
+    monkeypatch.setattr(llm, "_chamar_gemini", _gemini)
+    monkeypatch.setattr(llm.st, "warning", lambda *a, **k: None)
+    return st
+
+
+def test_geracao_bem_sucedida_associa_o_trace_novo(monkeypatch):
+    st = _preparar_geracao(monkeypatch, "lei_14133_2021:84")
+    texto = llm.gerar_documento("tr", BENS_SRP, None)
+    trace = st.session_state["_rag_trace"]["tr"]
+    assert trace["referencias"][0]["dispositivos"] == ["lei_14133_2021:84"]
+    assert trace["hash_texto"]           # amarrado ao texto produzido
+    assert rag.lastro_do_trace(trace) == {"lei_14133_2021:84"}
+    assert "openai" in texto
+
+
+def test_falha_de_todas_as_engines_preserva_o_trace_anterior(monkeypatch):
+    import pytest as _pytest
+
+    st = _preparar_geracao(monkeypatch, "lei_14133_2021:84")
+    llm.gerar_documento("tr", BENS_SRP, None)
+    anterior = st.session_state["_rag_trace"]["tr"]
+
+    # nova tentativa (com outro rastro) que fracassa em todos os motores
+    _preparar_geracao(monkeypatch, "lei_14133_2021:999", falhar_tudo=True)
+    st.session_state["_rag_trace"] = {"tr": anterior}
+    with _pytest.raises(llm.ErroGeracaoIA):
+        llm.gerar_documento("tr", BENS_SRP, None)
+    assert st.session_state["_rag_trace"]["tr"] is anterior
+    assert rag.lastro_do_trace(
+        st.session_state["_rag_trace"]["tr"]) == {"lei_14133_2021:84"}
+
+
+def test_fallback_para_gemini_associa_o_trace_da_geracao_vencedora(monkeypatch):
+    st = _preparar_geracao(monkeypatch, "lei_14133_2021:140",
+                           falhar_openai=True)
+    texto = llm.gerar_documento("tr", BENS_SRP, None)
+    assert "gemini" in texto
+    assert rag.lastro_do_trace(
+        st.session_state["_rag_trace"]["tr"]) == {"lei_14133_2021:140"}

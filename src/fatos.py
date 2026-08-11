@@ -108,8 +108,17 @@ _EVIDENCIA_MINIMA = 3
 # Instituto de reajuste × repactuação: repactuação pressupõe serviço
 # contínuo COM dedicação de mão de obra. A base é ESTRUTURADA (modelo de
 # execução); o texto livre apenas complementa.
-_TERMOS_MAO_DE_OBRA = ("dedicacao exclusiva", "mao de obra", "posto de "
-                       "trabalho", "terceirizacao de pessoal")
+#
+# Só expressões INEQUÍVOCAS de regime de pessoal decidem o fato. "mão de
+# obra" solta aparece em qualquer serviço ("mão de obra especializada
+# para o conserto") e não significa dedicação exclusiva: nesse caso o
+# fato fica UNKNOWN e o motor alerta em vez de escolher o instituto.
+_TERMOS_DEDICACAO = ("dedicacao exclusiva", "dedicacao predominante",
+                     "dedicacao integral de mao de obra",
+                     "mao de obra exclusiva", "mao de obra residente",
+                     "terceirizacao de pessoal")
+_TERMOS_MAO_DE_OBRA_GENERICO = ("mao de obra", "posto de trabalho",
+                                "posto de servico")
 # Garantia CONTRATUAL (arts. 96 a 98) — não confundir com garantia do
 # produto/fabricante ("garantia de 12 meses do fabricante"), que é
 # requisito técnico do objeto e NÃO exige garantia de execução.
@@ -259,13 +268,20 @@ def extrair_do_formulario(dados: dict,
 
     if "continuada" in execucao.lower():
         # Repactuação exige serviço contínuo COM dedicação de mão de obra
-        # (art. 135). TRI-STATE: sem informação sobre o regime de pessoal
-        # nenhum fato é emitido — o motor alerta em vez de decidir.
-        dedicacao = avaliar_termos(campos, _TERMOS_MAO_DE_OBRA)
+        # (art. 135). TRI-STATE: sem informação INEQUÍVOCA sobre o regime
+        # de pessoal nenhum fato é emitido — o motor alerta em vez de
+        # decidir. Menção genérica a mão de obra não basta.
+        dedicacao = avaliar_termos(campos, _TERMOS_DEDICACAO)
         if dedicacao is not None:
             fato("procedimento.dedicacao_mao_de_obra", dedicacao,
                  "booleano", "modelo_execucao+requisitos",
                  confianca=CONFIANCA_ESTRUTURADA)
+        elif _tem_termo(campos, _TERMOS_MAO_DE_OBRA_GENERICO):
+            # há pessoal envolvido, mas o regime não está declarado:
+            # registra o indício SEM decidir o instituto de preços
+            fato("procedimento.mencao_mao_de_obra", True, "booleano",
+                 "requisitos", confianca=CONFIANCA_HEURISTICA,
+                 inferido=True)
 
     # Garantia CONTRATUAL e amostra: fato positivo só com menção
     # afirmativa; menção negada vira fato FALSE; silêncio não vira fato.

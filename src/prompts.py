@@ -58,9 +58,18 @@ MAPA_CANONICO: tuple[tuple[str, tuple[str, ...], str], ...] = (
 )
 
 
+# Todo o mapa é da Lei nº 14.133/2021 (o item de ME/EPP não traz artigo,
+# apenas a LC nº 123/2006): o lastro canônico é ancorado NELA — nunca em
+# um número de artigo solto, que serviria a qualquer norma.
+NORMA_DO_MAPA = "lei_14133_2021"
+
+
 def _dispositivos_do_mapa() -> set[str]:
-    """Números de artigo validados pelo mapa (ex.: {'28', '84', '156'})."""
-    return {numero for _, numeros, _ in MAPA_CANONICO for numero in numeros}
+    """Dispositivos validados pelo mapa, como `norma:artigo`."""
+    from .normas import dispositivo
+
+    return {dispositivo(NORMA_DO_MAPA, numero)
+            for _, numeros, _ in MAPA_CANONICO for numero in numeros}
 
 
 def _texto_do_mapa() -> str:

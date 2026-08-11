@@ -317,26 +317,18 @@ def _ordem_documental(doc_key: str) -> int:
 
 def documento_consolidador(chave: str, documentos: dict) -> tuple[str, str, str]:
     """
-    (documento de referência, valor consolidado, evidência) para a decisão
-    `chave`. A referência é o ÚLTIMO documento que se manifestou até o
-    estágio consolidador — ou, se nenhum lá se manifestou, o primeiro
-    posterior. Devolve ("", "", "") quando ninguém decidiu.
+    (documento consolidador, valor consolidado, evidência) para a decisão
+    `chave` — ("", "", "") quando ela AINDA NÃO FOI CONSOLIDADA.
+
+    Só o documento com AUTORIDADE sobre a matéria consolida: o SRP se
+    consolida no ETP, a modalidade no TR. Documento preliminar não é
+    promovido a consolidador pelo silêncio do consolidador — o DFD
+    apenas propõe, e uma proposta não obriga o TR.
     """
-    autoridade = _ordem_documental(DECISOES[chave].get("autoridade", "etp"))
-    manifestos = []
-    for doc_key, texto in documentos.items():
-        valor, evidencia = decisao_no_documento(texto, chave)
-        if valor:
-            manifestos.append((_ordem_documental(doc_key), doc_key, valor,
-                               evidencia))
-    manifestos.sort()
-    ate_autoridade = [m for m in manifestos if m[0] <= autoridade]
-    escolhido = ate_autoridade[-1] if ate_autoridade else (
-        manifestos[0] if manifestos else None)
-    if not escolhido:
-        return "", "", ""
-    _, doc_key, valor, evidencia = escolhido
-    return doc_key, valor, evidencia
+    autoridade = DECISOES[chave].get("autoridade", "etp")
+    valor, evidencia = decisao_no_documento(documentos.get(autoridade, ""),
+                                            chave)
+    return (autoridade, valor, evidencia) if valor else ("", "", "")
 
 
 def _verificar_decisoes(contexto, documentos, por_doc, achados_out,
@@ -345,10 +337,15 @@ def _verificar_decisoes(contexto, documentos, por_doc, achados_out,
     Decisões contraditórias APÓS a consolidação. Documento anterior ao
     estágio consolidador que divirja não é erro: é proposta preliminar
     sendo revista (o ETP existe justamente para isso).
+
+    Com o consolidador silencioso, nada é acusado de contrariar decisão
+    — no máximo se registra que a decisão ainda não foi consolidada.
     """
     for chave, definicao in DECISOES.items():
         base_doc, base_valor, _ = documento_consolidador(chave, documentos)
         if not base_doc:
+            _avisar_decisao_nao_consolidada(chave, definicao, documentos,
+                                            achados_out, contador)
             continue
         ordem_base = _ordem_documental(base_doc)
         for doc_key, texto in documentos.items():
@@ -370,6 +367,37 @@ def _verificar_decisoes(contexto, documentos, por_doc, achados_out,
                 False, [bloco["path"]] if bloco else [],
                 [f"documento:{base_doc}"],
                 bloqueio="DISCRETIONARY_DECISION"))
+
+
+def _avisar_decisao_nao_consolidada(chave, definicao, documentos,
+                                    achados_out, contador) -> None:
+    """
+    Documentos divergem numa matéria que o documento competente ainda não
+    decidiu. Não é contradição com decisão consolidada (não há decisão):
+    é lacuna de instrução — aviso de gravidade menor, sem culpar um
+    documento por contrariar outro que não tinha autoridade.
+    """
+    autoridade = definicao.get("autoridade", "etp")
+    if autoridade not in documentos:
+        return  # o documento competente nem existe no dossiê ainda
+    valores = {}
+    for doc_key, texto in documentos.items():
+        valor, evidencia = decisao_no_documento(texto, chave)
+        if valor:
+            valores[doc_key] = (valor, evidencia)
+    if len({v for v, _ in valores.values()}) < 2:
+        return
+    detalhe = ", ".join(f"{doc.upper()} = {valor}"
+                        for doc, (valor, _) in sorted(valores.items()))
+    achados_out.append(_finding(
+        contador(), autoridade, "consistencia_decisao", "MEDIUM",
+        f"{definicao['rotulo']} ainda NÃO CONSOLIDADA: os documentos "
+        f"divergem ({detalhe}) e o {autoridade.upper()} — competente pela "
+        "matéria — não se manifesta",
+        "", f"Decisão expressa e fundamentada no {autoridade.upper()}, "
+        "propagada aos documentos seguintes.",
+        False, [], [f"documento:{autoridade}"],
+        bloqueio="DISCRETIONARY_DECISION"))
 
 
 def _verificar_srp_contra_fato(contexto, documentos, achados_out,

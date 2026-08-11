@@ -126,7 +126,7 @@ TEMAS_JURIDICOS: dict[str, tuple[str, str, str | None]] = {
     "protecao_dados": (
         "Proteção de dados e segurança da informação",
         "proteção de dados pessoais LGPD segurança da informação "
-        "confidencialidade níveis de serviço", "ti"),
+        "confidencialidade níveis de serviço", "dados"),
     "necessidade": (
         "Necessidade, estudo técnico preliminar e planejamento",
         "estudo técnico preliminar descrição da necessidade levantamento "
@@ -172,6 +172,13 @@ MAX_CHUNKS_PROMPT = 10      # teto de trechos enviados à IA
 # quando não há embeddings.
 PISO_VETORIAL_PADRAO = 0.20
 PISO_TEXTUAL_PADRAO = 0.01
+
+# O processo pede o tema de proteção de dados mesmo sem ser software
+# (ex.: serviço que manipula base de dados de pacientes).
+_TERMOS_DADOS_NO_PROCESSO = re.compile(
+    r"dados\s+pessoais|lgpd|prote[çc][ãa]o\s+de\s+dados|sigilo|"
+    r"seguran[çc]a\s+da\s+informa[çc][ãa]o|confidencialidade",
+    re.IGNORECASE)
 
 
 class ErroRAG(Exception):
@@ -419,12 +426,16 @@ def _gatilhos(dados: dict) -> set[str]:
 
     execucao = str(dados.get("modelo_execucao") or "")
     categoria, _ = fatos.categoria_do_objeto(dados)
+    campos = fatos._texto_dos_campos(dados)  # noqa: SLF001
     gatilhos = set()
     if execucao.startswith("Sistema de Registro de Preços"):
         gatilhos.add("srp")
-    if categoria in ("TI_SOFTWARE", "TI_EQUIPAMENTO"):
-        gatilhos.add("ti")
-    campos = fatos._texto_dos_campos(dados)  # noqa: SLF001
+    # Proteção de dados NÃO decorre de "ser de TI": um monitor não trata
+    # dado pessoal. Dispara para software/SaaS/hospedagem — que operam
+    # dados da Administração — ou quando o próprio processo exige o tema.
+    if categoria == "TI_SOFTWARE" or _TERMOS_DADOS_NO_PROCESSO.search(
+            " ".join(campos.values())):
+        gatilhos.add("dados")
     if fatos._tem_termo(campos, fatos._TERMOS_GARANTIA):  # noqa: SLF001
         gatilhos.add("garantia")
     return gatilhos
@@ -667,16 +678,36 @@ _RE_ARTIGO_TRECHO = re.compile(r"\bart(?:igo|s?)?\.?\s*(\d{1,3})\s*[º°]?",
                                re.IGNORECASE)
 
 
-def dispositivos_do_trecho(texto: str) -> list[str]:
-    """Artigos citados EXPRESSAMENTE em um trecho recuperado."""
-    return sorted({m.group(1) for m in _RE_ARTIGO_TRECHO.finditer(texto or "")},
-                  key=int)
+def dispositivos_do_trecho(texto: str, titulo: str = "") -> list[str]:
+    """
+    Dispositivos citados no trecho, na forma `norma:artigo`.
+
+    O número isolado não identifica nada: o art. 84 da Lei nº 14.133/2021
+    não autoriza um "art. 84" de outra norma. A norma vem do próprio
+    trecho ou, na falta dela, do TÍTULO da fonte indexada (é o que
+    identifica o documento na base).
+    """
+    from .normas import identificar_norma
+
+    norma = identificar_norma(texto) or identificar_norma(titulo)
+    if not norma:
+        return []
+    return sorted({f"{norma}:{m.group(1)}"
+                   for m in _RE_ARTIGO_TRECHO.finditer(texto or "")},
+                  key=lambda d: int(d.split(":")[1]))
 
 
 def lastro_do_trace(trace: dict | None) -> set[str]:
-    """Artigos com apoio nas fontes recuperadas (base da verificação de
-    fundamento sem lastro em validacao.py)."""
+    """
+    Dispositivos (`norma:artigo`) com lastro nas fontes recuperadas.
+
+    Só LEGISLAÇÃO sustenta dispositivo normativo. Um acórdão pode citar o
+    art. 40 ao interpretá-lo, mas quem autoriza o documento a invocar o
+    art. 40 é a lei — não a ementa que o menciona. Processo anterior e
+    modelo nunca fornecem lastro (a norma pode ter mudado).
+    """
     return {d for r in (trace or {}).get("referencias", [])
+            if (r.get("categoria") or "").lower() in LEGISLACAO
             for d in (r.get("dispositivos") or [])}
 
 
@@ -712,9 +743,10 @@ def montar_contexto(dados: dict, doc_key: str) -> dict:
              "categoria": r.get("categoria"),
              "score": round(float(r.get("score") or 0), 4),
              "documento_id": r.get("documento_id"), "ordem": r.get("ordem"),
-             # dispositivos EXPRESSOS no trecho: é o lastro que autoriza
-             # o documento a citar o número do artigo
-             "dispositivos": dispositivos_do_trecho(r.get("conteudo")),
+             # dispositivos EXPRESSOS no trecho (norma:artigo): é o
+             # lastro que autoriza o documento a citar o dispositivo
+             "dispositivos": dispositivos_do_trecho(r.get("conteudo"),
+                                                    r.get("titulo") or ""),
              "trecho": (r.get("conteudo") or "")[:160]}
             for r in referencias
         ],

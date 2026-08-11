@@ -595,7 +595,8 @@ def motor_ativo() -> bool:
     return db.flag_ativa(governanca.FLAG_MOTOR_ATIVO)
 
 
-def executar_na_tela(dados: dict, processo_id: str | None) -> dict | None:
+def executar_na_tela(dados: dict, processo_id: str | None,
+                     documentos: dict[str, str] | None = None) -> dict | None:
     """
     Resolve o conhecimento para o processo atual:
       - motor ATIVO: retorna a decisão (a tela exibe e respeita
@@ -613,6 +614,10 @@ def executar_na_tela(dados: dict, processo_id: str | None) -> dict | None:
             lista_fatos = db.listar_fatos(processo_id) or lista_fatos
         except db.ErroBanco:
             pass
+    # decisões que os documentos aprovados já consolidaram prevalecem
+    # sobre a preferência do formulário
+    lista_fatos = sobrepor_decisoes_consolidadas(lista_fatos, documentos,
+                                                 processo_id)
     try:
         do_banco = db.listar_regras() if db.disponivel() else []
     except db.ErroBanco:
@@ -731,36 +736,48 @@ def bloco_de_diretrizes(resultado: dict) -> str:
     return "\n".join(linhas)
 
 
-def dados_consolidados(dados: dict, documentos: dict[str, str] | None) -> dict:
+def sobrepor_decisoes_consolidadas(
+        lista_fatos: list[dict], documentos: dict[str, str] | None,
+        processo_id: str | None = None) -> list[dict]:
     """
-    Dados do processo com as decisões JÁ CONSOLIDADAS pelos documentos
-    aprovados sobrepondo a preferência do formulário.
+    Fatos do processo com as decisões JÁ CONSOLIDADAS pelos documentos
+    aprovados sobrepondo a preferência registrada no formulário.
 
     O formulário é hipótese de modelagem; o ETP é quem consolida o SRP.
     Sem esta sobreposição, gerar o TR depois de um ETP que afastou o
     registro de preços reintroduziria as cláusulas da Ata pela porta dos
-    fundos. Usa o extrator de decisões da consistência — sem duplicar
-    lógica de leitura de documento.
+    fundos.
+
+    A sobreposição é CIRÚRGICA: o ETP decidiu sobre o registro de preços,
+    então só `procedimento.srp` muda — a forma de execução (entrega
+    única, parcelada, serviço continuado) NÃO decorre disso e permanece
+    como está. O fato sobreposto nasce com fonte `documento:etp` e versão
+    nova, no mesmo contrato de versionamento dos demais fatos.
     """
     if not documentos:
-        return dados
+        return lista_fatos
     from . import consistencia
 
     doc_ref, valor, _ = consistencia.documento_consolidador("srp", documentos)
     if not doc_ref or valor not in ("sim", "nao"):
-        return dados
+        return lista_fatos
     srp_consolidado = valor == "sim"
-    if srp_consolidado == str(dados.get("modelo_execucao") or "").startswith(
-            "Sistema de Registro de Preços"):
-        return dados
-    ajustado = dict(dados)
-    ajustado["modelo_execucao"] = (
-        "Sistema de Registro de Preços (SRP)" if srp_consolidado
-        else "Entrega parcelada")
-    ajustado["_consolidado_por"] = doc_ref
+    vigente = next((f for f in lista_fatos
+                    if f["path"] == "procedimento.srp"
+                    and f.get("status") != "substituido"), None)
+    if vigente is not None and bool(vigente.get("valor")) == srp_consolidado:
+        return lista_fatos
+
+    substituido = [dict(f, status="substituido") if f is vigente else f
+                   for f in lista_fatos]
+    novo = governanca.novo_fato(
+        processo_id, "procedimento.srp", srp_consolidado, "booleano",
+        f"documento:{doc_ref}", status="confirmado",
+        confianca=1.0,
+        versao=int((vigente or {}).get("versao", 0)) + 1)
     _log.info("modelagem consolidada pelo %s: srp=%s (formulário sobreposto)",
               doc_ref, srp_consolidado)
-    return ajustado
+    return substituido + [novo]
 
 
 def diretrizes_para_prompt(dados: dict, processo_id: str | None,
@@ -779,8 +796,7 @@ def diretrizes_para_prompt(dados: dict, processo_id: str | None,
         # o documento em produção não consolida a si mesmo
         anteriores = {k: v for k, v in (documentos or {}).items()
                       if k != doc_key}
-        decisao = executar_na_tela(
-            dados_consolidados(dados, anteriores), processo_id)
+        decisao = executar_na_tela(dados, processo_id, anteriores)
         if not decisao:
             return ""
         return bloco_de_diretrizes(decisao["resultado"])

@@ -462,6 +462,10 @@ def gerar_documento(doc_key: str, dados: dict,
         texto = planilha.injetar_tabela(_gerar_demo(doc_key, dados),
                                         dados.get("itens"))
         registrar_geracao(doc_key, "demo", inicio, "ok", fallback=True)
+        # esqueleto offline não consulta a base: rastro vazio, mas do
+        # documento certo (o anterior não pode ficar valendo)
+        _associar_rag_trace(doc_key, {"modo": "demo", "consultas": [],
+                                      "referencias": []}, texto)
         return texto
 
     chave_openai = obter_openai_key()
@@ -482,9 +486,6 @@ def gerar_documento(doc_key: str, dados: dict,
     contexto_rag = rag.montar_contexto(dados, doc_key)
     user_prompt += contexto_rag["bloco"]
     rag_trace = contexto_rag["trace"]
-    # o rastro fica disponível para a revisão verificar o LASTRO das
-    # citações deste documento (validacao._validar_lastro_das_citacoes)
-    st.session_state.setdefault("_rag_trace", {})[doc_key] = rag_trace
 
     # P1: cláusulas condicionais resolvidas pelo MOTOR DE CONHECIMENTO
     # (mesmas regras, fatos e trilha exibidos na tela final). Com o motor
@@ -530,7 +531,29 @@ def gerar_documento(doc_key: str, dados: dict,
                               rag_trace=rag_trace)
             raise
     # Injeta a tabela real da planilha (grande) no lugar da marca [[TABELA_ITENS]].
-    return planilha.injetar_tabela(texto, dados.get("itens"))
+    final = planilha.injetar_tabela(texto, dados.get("itens"))
+    _associar_rag_trace(doc_key, rag_trace, final)
+    return final
+
+
+def _associar_rag_trace(doc_key: str, rag_trace: dict, texto: str) -> None:
+    """
+    Vincula o rastro do RAG ao documento SOMENTE após uma geração bem
+    sucedida — e ao texto que ela produziu.
+
+    Se todos os motores falharem, a função não é chamada: o rastro do
+    documento anterior permanece intacto. Sem isso, uma tentativa
+    fracassada de regerar substituiria a evidência e o documento vigente
+    passaria a ser auditado com o rastro de outra geração.
+    """
+    import hashlib
+
+    st.session_state.setdefault("_rag_trace", {})[doc_key] = {
+        **rag_trace,
+        "hash_texto": hashlib.sha256(texto.encode("utf-8")).hexdigest()[:16],
+        "request_id": _ultimo_uso.get("request_id", ""),
+        "modelo": _ultimo_uso.get("modelo", ""),
+    }
 
 
 def chamar_ia_texto(system_prompt: str, user_prompt: str,

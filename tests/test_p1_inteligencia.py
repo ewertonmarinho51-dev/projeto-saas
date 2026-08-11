@@ -331,13 +331,18 @@ def test_cons02_etp_por_item_e_edital_lote_unico():
 
 
 def test_cons03_etp_sem_garantia_e_edital_com_5_por_cento():
+    # a garantia se consolida no TR: com o TR presente e alinhado ao ETP,
+    # o Edital que diverge é apontado
     docs = {
         "etp": "## 6. REQUISITOS\n\nNão será exigida garantia contratual, "
                "dada a natureza do fornecimento.\n",
+        "tr": "## 6. FORMALIZAÇÃO\n\nNão será exigida garantia "
+              "contratual.\n",
         "edital": "## 9. DA ATA\n\nSerá exigida garantia contratual de 5% "
                   "do valor do contrato.\n",
     }
-    assert any("garantia" in m for m in _achados(docs))
+    mensagens = _achados(docs)
+    assert any("garantia" in m and "EDITAL" in m for m in mensagens)
 
 
 def test_cons04_tr_pregao_e_edital_concorrencia():
@@ -514,18 +519,40 @@ def test_diretrizes_seguem_a_decisao_consolidada_e_nao_o_formulario():
     # cláusulas da Ata
     documentos = {"etp": "## 6. SOLUÇÃO\n\nA contratação será feita sem "
                          "registro de preços.\n"}
-    ajustado = conhecimento.dados_consolidados(BENS_SRP, documentos)
-    assert not str(ajustado["modelo_execucao"]).startswith(
-        "Sistema de Registro de Preços")
-    resultado = _decidir(ajustado)
+    sobrepostos = conhecimento.sobrepor_decisoes_consolidadas(
+        _fatos(BENS_SRP), documentos)
+    vigentes = {f["path"]: f for f in sobrepostos
+                if f.get("status") != "substituido"}
+    assert vigentes["procedimento.srp"]["valor"] is False
+    assert vigentes["procedimento.srp"]["fonte"] == "documento:etp"
+    resultado = conhecimento.resolver(
+        sobrepostos, conhecimento.regras_base())["resultado"]
     assert "srp.vigencia_ata" in resultado["clausulas_excluir"]
     assert "srp.vigencia_ata" not in resultado["clausulas_incluir"]
 
 
-def test_dados_consolidados_preserva_formulario_quando_etp_confirma():
+def test_consolidacao_do_srp_nao_inventa_forma_de_execucao():
+    # o ETP decidiu sobre REGISTRO DE PREÇOS — não sobre entrega única,
+    # parcelada ou serviço continuado
+    documentos = {"etp": "## 6. SOLUÇÃO\n\nA contratação será feita sem "
+                         "registro de preços.\n"}
+    sobrepostos = conhecimento.sobrepor_decisoes_consolidadas(
+        _fatos(BENS_SRP), documentos)
+    vigentes = {f["path"]: f["valor"] for f in sobrepostos
+                if f.get("status") != "substituido"}
+    # a forma de execução informada permanece intacta
+    assert vigentes["execucao.modelo"] == BENS_SRP["modelo_execucao"]
+    assert BENS_SRP["modelo_execucao"] == "Sistema de Registro de Preços (SRP)"
+    # e nenhum fato de execução foi inventado
+    assert vigentes.get("procedimento.execucao_continuada") is False
+
+
+def test_consolidacao_preserva_os_fatos_quando_etp_confirma():
     documentos = {"etp": "## 6. SOLUÇÃO\n\nAdota-se o sistema de registro "
                          "de preços.\n"}
-    assert conhecimento.dados_consolidados(BENS_SRP, documentos) is BENS_SRP
+    lista = _fatos(BENS_SRP)
+    assert conhecimento.sobrepor_decisoes_consolidadas(
+        lista, documentos) is lista
 
 
 # --- fatos: tri-state, natureza e negações --------------------------------
@@ -665,3 +692,97 @@ def test_epi_mantem_ca_com_fonte_identificada():
     fonte = " ".join(regra["fontes"])
     assert "NR-6" in fonte and "Portaria" in fonte
     assert "confirmar vigência" in fonte     # depende de indexação no RAG
+
+
+# ===========================================================================
+# Ajustes finais (3ª revisão): consolidador silencioso, norma+dispositivo,
+# trace da geração bem-sucedida, gatilho de TI e dedicação inequívoca.
+# ===========================================================================
+def test_dfd_nao_vira_consolidador_quando_o_etp_silencia():
+    docs = {
+        "dfd": "## 4. SOLUÇÃO PROPOSTA\n\nPropõe-se o sistema de registro "
+               "de preços.\n",
+        "etp": "## 6. DESCRIÇÃO DA SOLUÇÃO\n\nO estudo detalha os "
+               "requisitos e a análise de mercado da contratação.\n",
+        "tr": "## 6. FORMALIZAÇÃO\n\nA contratação será formalizada sem "
+              "registro de preços, por contrato direto.\n",
+    }
+    # o ETP (competente) não decidiu: o DFD não é promovido a consolidador
+    assert consistencia.documento_consolidador("srp", docs) == ("", "", "")
+    mensagens = _achados(docs, BENS_SEM_SRP)
+    assert not any("decisão já consolidada" in m for m in mensagens)
+    # e a lacuna é registrada, sem acusar o TR
+    assert any("NÃO CONSOLIDADA" in m for m in mensagens)
+
+
+def test_etp_nao_vira_consolidador_de_materia_cuja_autoridade_e_o_tr():
+    docs = {
+        "etp": "## 6. REQUISITOS\n\nNão será exigida garantia contratual.\n",
+        "tr": "## 6. FORMALIZAÇÃO\n\nO contrato observará as condições "
+              "previstas no edital.\n",       # silente quanto à garantia
+        "edital": "## 9. DA ATA\n\nSerá exigida garantia contratual de 5% "
+                  "do valor do contrato.\n",
+    }
+    assert consistencia.documento_consolidador("garantia", docs) == ("", "", "")
+    mensagens = _achados(docs)
+    assert not any("decisão já consolidada" in m and "garantia" in m
+                   for m in mensagens)
+
+
+def test_sem_o_documento_competente_no_dossie_nao_ha_aviso():
+    # só DFD e TR: o ETP nem existe ainda — nada a cobrar
+    docs = {
+        "dfd": "## 4. SOLUÇÃO\n\nPropõe-se registro de preços.\n",
+        "tr": "## 6. FORMALIZAÇÃO\n\nSem registro de preços.\n",
+    }
+    assert not any("NÃO CONSOLIDADA" in m for m in _achados(docs,
+                                                            BENS_SEM_SRP))
+
+
+# --- gatilho de TI ---------------------------------------------------------
+def test_equipamento_de_ti_nao_aciona_tema_de_protecao_de_dados():
+    from src import rag
+
+    assert "protecao_dados" not in rag.temas_para(EQUIPAMENTO_TI, "tr")
+    assert "dados" not in rag._gatilhos(EQUIPAMENTO_TI)
+
+
+def test_software_aciona_tema_de_protecao_de_dados():
+    from src import rag
+
+    assert "protecao_dados" in rag.temas_para(SAAS_TI, "tr")
+
+
+def test_processo_que_exige_seguranca_aciona_o_tema_mesmo_sem_ser_software():
+    from src import rag
+
+    servico_com_dados = {
+        **BENS_SEM_SRP,
+        "objeto": "Serviço de digitalização de prontuários",
+        "requisitos": "Tratamento de dados pessoais sensíveis com sigilo e "
+                      "segurança da informação."}
+    assert "protecao_dados" in rag.temas_para(servico_com_dados, "tr")
+
+
+# --- dedicação de mão de obra inequívoca -----------------------------------
+def test_mencao_generica_a_mao_de_obra_nao_ativa_repactuacao():
+    generico = {
+        **BENS_SRP,
+        "objeto": "Contratação de serviço continuado de manutenção predial",
+        "modelo_execucao": "Serviço de execução continuada",
+        "requisitos": "Mão de obra especializada para reparos sob demanda."}
+    caminhos = {f["path"]: f["valor"]
+                for f in fatos.extrair_do_formulario(generico, None)}
+    assert "procedimento.dedicacao_mao_de_obra" not in caminhos
+    assert caminhos.get("procedimento.mencao_mao_de_obra") is True
+    resultado = _decidir(generico)
+    assert "preco.repactuacao" not in resultado["clausulas_incluir"]
+    assert any("dedicação de mão de obra" in a for a in resultado["alertas"])
+
+
+def test_dedicacao_exclusiva_continua_ativando_repactuacao():
+    caminhos = {f["path"]: f["valor"]
+                for f in fatos.extrair_do_formulario(SERVICO_MAO_DE_OBRA, None)}
+    assert caminhos["procedimento.dedicacao_mao_de_obra"] is True
+    assert "preco.repactuacao" in _decidir(
+        SERVICO_MAO_DE_OBRA)["clausulas_incluir"]
