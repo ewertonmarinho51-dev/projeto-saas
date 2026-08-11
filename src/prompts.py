@@ -40,6 +40,30 @@ EXEMPLO DO PADRÃO EXIGIDO (cláusula de Justificativa):
 - CERTO (desenvolvido, institucional): "A contratação justifica-se pela necessidade de assegurar o fornecimento contínuo e padronizado de materiais de expediente às secretarias municipais, evitando a descontinuidade das atividades-meio e os custos de aquisições fragmentadas. O Sistema de Registro de Preços (art. 82 da Lei nº 14.133/2021) confere economicidade e previsibilidade ao atendimento de demanda recorrente e de quantitativo não exatamente conhecido. [PREENCHER: indicador ou histórico de consumo que dimensione a economia esperada, se disponível]." """
 
 # ---------------------------------------------------------------------------
+# Raciocínio do ETP (P1)
+#
+# A estrutura do ETP já vinha correta dos documentos aprovados; o defeito
+# era SEMÂNTICO: o modelo recebia "modelo de execução: SRP" do formulário
+# e escrevia o estudo como se a solução já estivesse decidida — as
+# alternativas viravam enfeite e a conclusão apenas confirmava a premissa.
+# O ETP é o documento que ESCOLHE a solução; a preferência do requisitante
+# entra como hipótese a ser testada, não como conclusão.
+# ---------------------------------------------------------------------------
+RACIOCINIO_ETP = """
+
+RACIOCÍNIO OBRIGATÓRIO DO ETP (o estudo CONCLUI, não pressupõe):
+Encadeie o documento nesta ordem lógica, e só avance quando a etapa anterior estiver estabelecida:
+NECESSIDADE (qual problema administrativo existe) → REQUISITOS (o que a solução precisa atender) → ALTERNATIVAS (quais caminhos reais existem no mercado/na Administração) → ANÁLISE TÉCNICA E ECONÔMICA (comparação entre as alternativas) → SOLUÇÃO ESCOLHIDA (decorrência da análise) → CONSEQUÊNCIAS DA ESCOLHA (quantitativos, valor, riscos, providências, resultados).
+
+REGRAS DESTE RACIOCÍNIO:
+a) A cláusula de NECESSIDADE descreve o PROBLEMA e o interesse público — é PROIBIDO anunciar nela a solução, a modalidade ou o modelo de execução como decisão tomada ("adota-se o SRP", "a solução será…"). A necessidade não conhece a resposta ainda.
+b) A solução indicada pelo demandante no DFD e o MODELO DE EXECUÇÃO informado no formulário são PREFERÊNCIA/HIPÓTESE DE MODELAGEM do requisitante — insumos legítimos, jamais conclusão. O ETP pode confirmá-los, ajustá-los, refiná-los ou REJEITÁ-LOS de forma fundamentada. Se confirmar, precisa DEMONSTRAR por que a modelagem é adequada a esta demanda (ex.: por que o Sistema de Registro de Preços serve a este objeto), e não apenas repetir que foi o que se pediu.
+c) O LEVANTAMENTO DE SOLUÇÕES analisa alternativas REAIS e pertinentes ao objeto — por exemplo, conforme o caso: aquisição × locação; contratação própria × adesão a ata; execução direta × terceirizada; solução integrada × fragmentada; contratação pontual × registro de preços; solução instalada × serviço em nuvem. Selecione apenas as plausíveis para ESTE objeto, com vantagens e desvantagens de cada uma. É PROIBIDO inventar alternativas fictícias só para preencher a cláusula; se houver de fato uma única alternativa tecnicamente viável, diga isso e explique o motivo.
+d) A SOLUÇÃO ESCOLHIDA deve decorrer de critérios explicitáveis — adequação técnica, custo, competitividade, capacidade de atendimento do mercado, flexibilidade, padronização, risco, prazo, manutenção, ciclo de vida, escalabilidade, economicidade e eficiência administrativa —, indicando quais pesaram nesta contratação.
+e) É PROIBIDO o absolutismo sem evidência: não escreva "única solução possível", "solução incontestável", "juridicamente irrepreensível" ou equivalentes. Conclua com a firmeza que a análise sustenta."""
+
+
+# ---------------------------------------------------------------------------
 # Instruções específicas por documento
 # ---------------------------------------------------------------------------
 # DFD, ETP e TR seguem a ESTRUTURA DOS DOCUMENTOS APROVADOS pela
@@ -60,6 +84,7 @@ _ABERTURAS = {
         "RISCOS, monte a matriz em tabela Markdown com as colunas: Risco | "
         "Probabilidade (Baixa/Média/Alta) | Impacto (Baixo/Médio/Alto) | "
         "Medida de Mitigação | Responsável."
+        + RACIOCINIO_ETP
     ),
     "tr": (
         "Elabore o TERMO DE REFERÊNCIA (TR), nos termos do art. 6º, XXIII, e "
@@ -97,8 +122,13 @@ def _instrucoes(doc_key: str, dados: dict) -> str:
     return _ABERTURAS[doc_key] + "\n\n" + perfis.estrutura_para_prompt(doc_key, srp=srp)
 
 
-def formatar_dados_formulario(dados: dict) -> str:
-    """Converte o Formulário Matriz em um bloco de texto legível para a IA."""
+def formatar_dados_formulario(dados: dict, doc_key: str = "") -> str:
+    """
+    Converte o Formulário Matriz em um bloco de texto legível para a IA.
+
+    No ETP o modelo de execução é apresentado como PREFERÊNCIA do
+    requisitante — é justamente o estudo que decide a modelagem (P1).
+    """
     linhas = []
     for chave, meta in CAMPOS_FORMULARIO.items():
         if chave == "memorando":
@@ -124,6 +154,12 @@ def formatar_dados_formulario(dados: dict) -> str:
         valor = dados.get(chave)
         if valor in (None, "", 0):
             valor = "(não informado)"
+        if chave == "modelo_execucao" and doc_key == "etp":
+            linhas.append(
+                f"- {meta['rotulo']} — PREFERÊNCIA DE MODELAGEM indicada "
+                f"pelo requisitante, a ser CONFIRMADA OU AFASTADA pelo "
+                f"estudo (não é conclusão do ETP): {valor}")
+            continue
         linhas.append(f"- {meta['rotulo']}: {valor}")
     return "\n".join(linhas)
 
@@ -153,13 +189,26 @@ def montar_prompt(doc_key: str, dados: dict, contexto_anterior: str | None) -> t
         )
     partes.append(
         "\n=== DADOS DO FORMULÁRIO MATRIZ (fonte primária do processo atual) ===\n"
-        + formatar_dados_formulario(dados)
+        + formatar_dados_formulario(dados, doc_key)
     )
     if contexto_anterior:
         nomes = {"dfd": "DFD APROVADO", "etp": "ETP APROVADO", "tr": "TR APROVADO"}
         origem = {"etp": "dfd", "tr": "etp", "edital": "tr"}[doc_key]
+        # P1: o DFD PROPÕE, o ETP DECIDE, o TR EXECUTA a decisão do ETP.
+        papel = {
+            "etp": "A solução indicada pelo DFD é PRELIMINAR: use-a como "
+                   "hipótese inicial do estudo, que pode confirmá-la, "
+                   "ajustá-la ou afastá-la de forma fundamentada.",
+            "tr": "O TR OPERACIONALIZA a solução escolhida no ETP: é "
+                  "PROIBIDO criar solução, modelagem, modalidade ou "
+                  "critério de julgamento diferentes dos definidos no ETP.",
+            "edital": "O Edital deve respeitar objeto, requisitos, "
+                      "modalidade, critério de julgamento, prazos, "
+                      "garantia e habilitação já definidos no TR.",
+        }[doc_key]
         partes.append(
             f"\n=== {nomes[origem]} PELO USUÁRIO (contexto obrigatório) ===\n"
+            f"{papel}\n"
             + contexto_anterior
         )
     return SYSTEM_PROMPT_BASE, "\n".join(partes)

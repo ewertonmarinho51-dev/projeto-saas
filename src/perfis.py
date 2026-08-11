@@ -278,6 +278,29 @@ def palavras_minimas(doc_key: str) -> int:
     return p["palavras_alvo"][0] // 2
 
 
+def clausulas_aplicaveis(doc_key: str, srp: bool = False) -> list[dict]:
+    """
+    Cláusulas do perfil que entram no documento, RENUMERADAS em sequência.
+
+    Cláusulas condicionais (obrigatoria=False) só entram quando o caso as
+    justifica — hoje, quando a contratação é por SRP. Ao suprimir uma
+    cláusula do meio do perfil, a numeração precisa fechar sem buracos:
+    o campo `n` original é preservado em `n_perfil` para rastreio.
+    """
+    p = perfil(doc_key)
+    if not p:
+        return []
+    saida = []
+    for c in p["clausulas"]:
+        if not c["obrigatoria"] and not srp:
+            continue
+        item = dict(c)
+        item["n_perfil"] = c["n"]
+        item["n"] = len(saida) + 1
+        saida.append(item)
+    return saida
+
+
 def estrutura_para_prompt(doc_key: str, srp: bool = False) -> str:
     """
     Esqueleto de cláusulas + metas de profundidade, no formato usado pelos
@@ -289,11 +312,11 @@ def estrutura_para_prompt(doc_key: str, srp: bool = False) -> str:
     linhas = [
         f"ESTRUTURA OBRIGATÓRIA DO DOCUMENTO — siga EXATAMENTE esta sequência "
         f"de cláusulas, com títulos numerados em caixa alta (ex.: '## 1. TÍTULO') "
-        f"e itens/subitens numerados hierarquicamente (1.1., 1.1.1.):",
+        f"e itens/subitens numerados hierarquicamente (1.1., 1.1.1.). A "
+        f"numeração abaixo já está fechada em sequência contínua: use-a como "
+        f"está, sem pular nem renumerar:",
     ]
-    for c in p["clausulas"]:
-        if not c["obrigatoria"] and not srp:
-            continue
+    for c in clausulas_aplicaveis(doc_key, srp):
         minimo, medio, maximo = c["blocos"]
         extras = []
         if c["tabela"]:

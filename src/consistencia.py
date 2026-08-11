@@ -27,7 +27,79 @@ from . import blocos, db, governanca, planilha
 
 CATEGORIAS = ("consistencia_valor", "consistencia_calculo",
               "consistencia_quantidade", "consistencia_prazo",
-              "consistencia_objeto")
+              "consistencia_objeto", "consistencia_decisao",
+              "requisito_nao_operacionalizavel")
+
+# ---------------------------------------------------------------------------
+# DECISÕES do processo (P1)
+#
+# Além dos números, a cadeia DFD → ETP → TR → Edital precisa manter as
+# DECISÕES: modalidade, registro de preços, adjudicação por item ou lote,
+# exigência de garantia. A comparação NÃO é textual (cada documento
+# escreve à sua maneira): de cada documento extrai-se o VALOR da decisão
+# e comparam-se os valores. Só há achado quando dois documentos afirmam
+# coisas diferentes — silêncio não é divergência.
+#
+# ordem: o primeiro padrão que casar define o valor da decisão no doc.
+# ---------------------------------------------------------------------------
+DECISOES: dict[str, dict] = {
+    "modalidade": {
+        "rotulo": "modalidade de licitação",
+        "valores": {
+            "pregao": r"preg[ãa]o(?:\s+eletr[ôo]nico|\s+presencial)?",
+            "concorrencia": r"concorr[êe]ncia(?:\s+eletr[ôo]nica)?",
+            "dispensa": r"dispensa\s+de\s+licita[çc][ãa]o",
+            "inexigibilidade": r"inexigibilidade\s+de\s+licita[çc][ãa]o",
+            "leilao": r"leil[ãa]o",
+        },
+    },
+    "srp": {
+        "rotulo": "adoção do Sistema de Registro de Preços",
+        "valores": {
+            "nao": r"n[ãa]o\s+(?:ser[áa]|se)\s+(?:adotad[oa]|utilizad[oa])\s+"
+                   r"(?:o\s+)?(?:sistema\s+de\s+registro\s+de\s+pre[çc]os|SRP)"
+                   r"|sem\s+registro\s+de\s+pre[çc]os"
+                   r"|contrata[çc][ãa]o\s+direta\s+sem\s+ata",
+            "sim": r"sistema\s+de\s+registro\s+de\s+pre[çc]os|\bSRP\b|"
+                   r"ata\s+de\s+registro\s+de\s+pre[çc]os",
+        },
+    },
+    "adjudicacao": {
+        "rotulo": "critério de adjudicação (item × lote)",
+        "valores": {
+            "item": r"adjudica[çc][ãa]o\s+por\s+item|julgamento\s+por\s+item|"
+                    r"disputa\s+por\s+item",
+            "lote": r"adjudica[çc][ãa]o\s+por\s+(?:lote|grupo)|"
+                    r"julgamento\s+por\s+(?:lote|grupo)|lote\s+[úu]nico",
+        },
+    },
+    "garantia": {
+        "rotulo": "exigência de garantia contratual",
+        "valores": {
+            "nao": r"(?:n[ãa]o\s+(?:ser[áa]|haver[áa]|se)\s+"
+                   r"(?:exigid[ao]|exigir[áa]|exige)[^.]{0,60}garantia"
+                   r"|dispensad[ao]\s+a\s+(?:presta[çc][ãa]o\s+de\s+)?garantia"
+                   r"|sem\s+exig[êe]ncia\s+de\s+garantia)",
+            "sim": r"(?:garantia\s+contratual|garantia\s+de\s+execu[çc][ãa]o)"
+                   r"[^.]{0,80}?\d{1,2}\s*%"
+                   r"|\d{1,2}\s*%[^.]{0,60}?garantia\s+contratual"
+                   r"|ser[áa]\s+exigida[^.]{0,40}garantia",
+        },
+    },
+}
+
+# Requisitos objetivamente verificáveis: quando o TR exige um documento
+# comprobatório, alguém precisa verificá-lo em algum momento. Começamos
+# pelos que são inequívocos (certificação/registro/laudo).
+_RE_REQUISITO_VERIFICAVEL = re.compile(
+    r"(certifica[çc][ãa]o\s+[\wÀ-ÿ\-/º°\. ]{2,40}"
+    r"|certificado\s+de\s+aprova[çc][ãa]o|registro\s+na\s+ANVISA"
+    r"|laudo\s+[\wÀ-ÿ\-/ ]{2,30}|norma\s+ABNT\s+NBR\s*[\d\.\-]+"
+    r"|selo\s+do\s+INMETRO|licen[çc]a\s+ambiental)", re.IGNORECASE)
+_TITULOS_VERIFICACAO = ("ACEITAÇÃO", "ACEITACAO", "RECEBIMENTO",
+                        "FISCALIZAÇÃO", "FISCALIZACAO", "HABILITAÇÃO",
+                        "HABILITACAO", "OBRIGAÇÕES DA CONTRATADA",
+                        "OBRIGACOES DA CONTRATADA", "EXECUÇÃO", "EXECUCAO")
 
 _RE_MOEDA = re.compile(r"R\$\s?([\d.]+,\d{2})")
 _RE_MESES = re.compile(r"(\d{1,3})\s*(?:\([^)]*\)\s*)?m[eê]s(?:es)?",
@@ -208,6 +280,140 @@ def _verificar_objeto(contexto, por_doc, achados_out, contador):
                 bloqueio="DISCRETIONARY_DECISION"))
 
 
+def decisao_no_documento(texto: str, chave: str) -> tuple[str, str]:
+    """
+    (valor, evidência) da decisão `chave` no documento — ("", "") quando
+    o documento não se manifesta. A negativa é testada antes da
+    afirmativa: "não será exigida garantia" não pode virar "sim".
+    """
+    definicao = DECISOES[chave]
+    for valor, padrao in definicao["valores"].items():
+        m = re.search(padrao, texto or "", re.IGNORECASE)
+        if m:
+            ini = max(0, m.start() - 60)
+            return valor, (texto[ini:m.end() + 60] or "").replace("\n", " ")
+    return "", ""
+
+
+def _ordem_documental(doc_key: str) -> int:
+    from .config import SEQUENCIA_DOCUMENTOS
+
+    return (SEQUENCIA_DOCUMENTOS.index(doc_key)
+            if doc_key in SEQUENCIA_DOCUMENTOS else 99)
+
+
+def _verificar_decisoes(contexto, documentos, por_doc, achados_out,
+                        contador) -> None:
+    """
+    Decisões contraditórias entre documentos da MESMA cadeia. O documento
+    anterior (DFD → ETP → TR → Edital) é a referência; quem diverge é o
+    posterior — é ele que precisa voltar à decisão já tomada.
+    """
+    for chave, definicao in DECISOES.items():
+        observado: dict[str, tuple[str, str]] = {}
+        for doc_key, texto in documentos.items():
+            valor, evidencia = decisao_no_documento(texto, chave)
+            if valor:
+                observado[doc_key] = (valor, evidencia)
+        if len({v for v, _ in observado.values()}) < 2:
+            continue  # todos concordam, ou só um documento se manifestou
+        ordenados = sorted(observado.items(), key=lambda kv: _ordem_documental(kv[0]))
+        base_doc, (base_valor, _) = ordenados[0]
+        for doc_key, (valor, evidencia) in ordenados[1:]:
+            if valor == base_valor:
+                continue
+            bloco = blocos.localizar_bloco(por_doc.get(doc_key, []), evidencia)
+            achados_out.append(_finding(
+                contador(), doc_key, "consistencia_decisao", "HIGH",
+                f"{definicao['rotulo']} divergente na cadeia do processo: "
+                f"{base_doc.upper()} define '{base_valor}' e "
+                f"{doc_key.upper()} traz '{valor}'",
+                evidencia[:160],
+                f"Mesma decisão em todo o processo ({base_valor}, conforme "
+                f"o {base_doc.upper()}) — ou alteração justificada e "
+                "propagada aos demais documentos.",
+                False, [bloco["path"]] if bloco else [],
+                [f"documento:{base_doc}"],
+                bloqueio="DISCRETIONARY_DECISION"))
+
+
+def _verificar_srp_contra_fato(contexto, documentos, achados_out,
+                               contador) -> None:
+    """A modelagem registrada como fato canônico vale para todo o dossiê."""
+    fato_srp = contexto.get("procedimento.srp")
+    if fato_srp is None:
+        return
+    esperado = "sim" if fato_srp else "nao"
+    for doc_key, texto in documentos.items():
+        valor, evidencia = decisao_no_documento(texto, "srp")
+        if valor and valor != esperado:
+            achados_out.append(_finding(
+                contador(), doc_key, "consistencia_decisao", "HIGH",
+                "o documento trata o Sistema de Registro de Preços de forma "
+                f"incompatível com o processo (formulário: "
+                f"{'com' if fato_srp else 'sem'} SRP)",
+                evidencia[:160],
+                "Documento alinhado à modelagem registrada no processo.",
+                False, [], ["fato:procedimento.srp"],
+                bloqueio="DISCRETIONARY_DECISION"))
+
+
+def _verificar_requisitos_operacionalizaveis(por_doc, achados_out,
+                                             contador) -> None:
+    """
+    REQUISITO → EXECUÇÃO → FISCALIZAÇÃO → ACEITAÇÃO: um requisito
+    objetivamente verificável (certificação, laudo, norma técnica) exigido
+    no TR precisa ser retomado em alguma cláusula de verificação — senão
+    ninguém sabe quando nem quem confere. Aviso: a forma é discricionária.
+    """
+    blocos_doc = por_doc.get("tr") or []
+    if not blocos_doc:
+        return
+    requisitos = _blocos_da_clausula_por_titulo(blocos_doc, ("REQUISITOS",))
+    if not requisitos:
+        return
+    verificacao = " ".join(
+        b["conteudo"] for b in
+        _blocos_da_clausula_por_titulo(blocos_doc, _TITULOS_VERIFICACAO))
+    if not verificacao.strip():
+        return
+    verificacao_norm = _normalizar(verificacao)
+    vistos: set[str] = set()
+    for bloco in requisitos:
+        for achado in _RE_REQUISITO_VERIFICAVEL.finditer(bloco["conteudo"]):
+            termo = " ".join(achado.group(0).split())
+            chave = _normalizar(termo)
+            if chave in vistos or len(chave) < 8:
+                continue
+            vistos.add(chave)
+            # o requisito é retomado se o termo (ou seu núcleo) reaparece
+            nucleo = " ".join(chave.split()[:3])
+            if nucleo and nucleo in verificacao_norm:
+                continue
+            achados_out.append(_finding(
+                contador(), "tr", "requisito_nao_operacionalizavel", "LOW",
+                f"requisito verificável sem operacionalização: '{termo}' é "
+                "exigido, mas não aparece nas cláusulas de execução, "
+                "fiscalização, recebimento/aceitação ou habilitação",
+                bloco["conteudo"][:160],
+                "Indicar o documento comprobatório, o momento da "
+                "verificação, o responsável e a consequência da não "
+                "conformidade.",
+                False, [], ["documento:tr"],
+                bloqueio="DISCRETIONARY_DECISION"))
+
+
+def _normalizar(texto: str) -> str:
+    """Minúsculo, sem acento e SEM pontuação — 'INMETRO.' casa com
+    'INMETRO de cada equipamento'."""
+    import unicodedata
+
+    t = unicodedata.normalize("NFKD", texto or "")
+    t = "".join(c for c in t if not unicodedata.combining(c)).lower()
+    t = re.sub(r"[^0-9a-z\s]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
 def verificar(fatos: list[dict],
               documentos: dict[str, str]) -> list[dict]:
     """Achados de consistência (formato v4) — função pura."""
@@ -230,6 +436,11 @@ def verificar(fatos: list[dict],
     _verificar_quantidades(contexto, por_doc, achados_out, contador)
     _verificar_prazo(por_doc, achados_out, contador)
     _verificar_objeto(contexto, por_doc, achados_out, contador)
+    # P1: coerência das DECISÕES ao longo da cadeia e requisitos que
+    # precisam ser verificáveis na execução
+    _verificar_decisoes(contexto, docs, por_doc, achados_out, contador)
+    _verificar_srp_contra_fato(contexto, docs, achados_out, contador)
+    _verificar_requisitos_operacionalizaveis(por_doc, achados_out, contador)
     return achados_out
 
 

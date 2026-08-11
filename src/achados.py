@@ -212,6 +212,47 @@ _CLASSIFICACAO: list[tuple[str, dict]] = [
         "gravidade": "MEDIUM",
         "bloqueio": MOTIVO_DISCRICIONARIO,
     }),
+    ("cláusula de necessidade antecipa a solução", {
+        "categoria": "raciocinio_etp",
+        "regra": "O ETP conclui a solução a partir da necessidade, dos "
+                 "requisitos e do levantamento de alternativas — a "
+                 "necessidade não pode trazer a escolha pronta.",
+        "esperado": "Necessidade redigida como problema a resolver; a "
+                    "escolha da solução decorre da análise — reescrita "
+                    "discricionária do redator.",
+        "auto": False,
+        "gravidade": "MEDIUM",
+        "bloqueio": MOTIVO_DISCRICIONARIO,
+    }),
+    ("ordem do raciocínio invertida", {
+        "categoria": "raciocinio_etp",
+        "regra": "Levantamento de soluções precede a descrição da solução "
+                 "escolhida (art. 18, §1º, V e VII).",
+        "esperado": "Cláusulas reordenadas: levantamento antes da "
+                    "solução escolhida.",
+        "auto": False,
+        "gravidade": "MEDIUM",
+        "bloqueio": MOTIVO_DISCRICIONARIO,
+    }),
+    ("solução descrita sem cláusula de levantamento", {
+        "categoria": "raciocinio_etp",
+        "regra": "A solução escolhida deve decorrer de um levantamento de "
+                 "alternativas (art. 18, §1º, V).",
+        "esperado": "Cláusula de levantamento de soluções incluída, com "
+                    "as alternativas reais analisadas.",
+        "auto": False,
+        "gravidade": "MEDIUM",
+        "bloqueio": MOTIVO_DISCRICIONARIO,
+    }),
+    ("afirmação absoluta sem evidência", {
+        "categoria": "conclusao_sem_lastro",
+        "regra": "Conclusões devem ter a firmeza que a análise sustenta; "
+                 "absolutismos não são demonstráveis.",
+        "esperado": "Afirmação ajustada ao que a análise demonstra.",
+        "auto": False,
+        "gravidade": "LOW",
+        "bloqueio": MOTIVO_DISCRICIONARIO,
+    }),
     ("cláusula meta-descritiva", {
         "categoria": "clausula_nao_desenvolvida",
         "regra": "A cláusula deve trazer o conteúdo real do ato, não uma "

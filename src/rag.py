@@ -56,79 +56,81 @@ MOLDES = ("processo_anterior", "modelo")
 # consultas viajam em UMA única chamada de embeddings (lote) e cada busca
 # usa top-k reduzido — o custo fica próximo do fluxo atual.
 # ---------------------------------------------------------------------------
-# chave: (rótulo, termos de busca, documentos aplicáveis, condição)
-# condição: None (sempre) ou nome de um gatilho calculado em `_gatilhos`
-TEMAS_JURIDICOS: dict[str, tuple[str, str, tuple[str, ...], str | None]] = {
+# chave: (rótulo, termos de busca, condição)
+# condição: None (sempre aplicável) ou gatilho estrutural de `_gatilhos`
+TEMAS_JURIDICOS: dict[str, tuple[str, str, str | None]] = {
     "modalidade": (
         "Modalidade e critério de julgamento",
         "modalidade de licitação pregão concorrência critério de "
-        "julgamento menor preço maior desconto",
-        ("etp", "tr", "edital"), None),
+        "julgamento menor preço maior desconto", None),
     "srp": (
         "Sistema de Registro de Preços",
         "sistema de registro de preços ata de registro de preços vigência "
-        "da ata adesão órgão gerenciador cadastro de reserva",
-        ("dfd", "etp", "tr", "edital"), "srp"),
+        "da ata adesão órgão gerenciador cadastro de reserva", "srp"),
     "parcelamento": (
         "Parcelamento e adjudicação por item ou lote",
         "parcelamento do objeto adjudicação por item lote divisibilidade "
-        "economia de escala",
-        ("etp", "tr", "edital"), None),
+        "economia de escala", None),
     "requisitos": (
         "Requisitos técnicos e habilitação",
         "requisitos da contratação especificação técnica habilitação "
-        "jurídica fiscal técnica econômico-financeira qualificação",
-        ("etp", "tr", "edital"), None),
+        "jurídica fiscal técnica econômico-financeira qualificação", None),
     "execucao_recebimento": (
         "Execução, recebimento e aceitação do objeto",
         "prazo de entrega execução do objeto recebimento provisório "
-        "definitivo aceitação do objeto",
-        ("tr", "edital"), None),
+        "definitivo aceitação do objeto", None),
     "pagamento": (
         "Pagamento e liquidação",
         "pagamento liquidação da despesa ordem cronológica prazo de "
-        "pagamento nota fiscal atesto",
-        ("tr", "edital"), None),
+        "pagamento nota fiscal atesto", None),
     "reajuste": (
         "Reajuste e repactuação de preços",
         "reajuste de preços índice repactuação equilíbrio "
-        "econômico-financeiro revisão",
-        ("etp", "tr", "edital"), None),
+        "econômico-financeiro revisão", None),
     "garantia": (
         "Garantia contratual",
         "garantia contratual caução seguro-garantia fiança bancária "
-        "percentual da garantia",
-        ("tr", "edital"), "garantia"),
+        "percentual da garantia", "garantia"),
     "gestao_fiscalizacao": (
         "Gestão e fiscalização do contrato",
         "gestor do contrato fiscal do contrato fiscalização registro de "
-        "ocorrências",
-        ("tr", "edital"), None),
+        "ocorrências", None),
     "sancoes": (
         "Infrações e sanções administrativas",
         "infrações administrativas sanções advertência multa impedimento "
-        "de licitar declaração de inidoneidade",
-        ("tr", "edital"), None),
+        "de licitar declaração de inidoneidade", None),
     "recursos": (
         "Impugnações e recursos",
         "impugnação ao edital pedido de esclarecimento recurso "
-        "administrativo prazo recursal",
-        ("edital",), None),
+        "administrativo prazo recursal", None),
     "me_epp": (
         "Tratamento favorecido a ME/EPP",
         "microempresa empresa de pequeno porte tratamento favorecido "
-        "empate ficto regularidade fiscal",
-        ("etp", "edital"), None),
+        "empate ficto regularidade fiscal", None),
     "protecao_dados": (
         "Proteção de dados e segurança da informação",
         "proteção de dados pessoais LGPD segurança da informação "
-        "confidencialidade níveis de serviço",
-        ("etp", "tr", "edital"), "ti"),
+        "confidencialidade níveis de serviço", "ti"),
     "necessidade": (
         "Necessidade, estudo técnico preliminar e planejamento",
         "estudo técnico preliminar descrição da necessidade levantamento "
         "de soluções alternativas viabilidade planejamento da contratação",
-        ("dfd", "etp"), None),
+        None),
+}
+
+# Temas de cada documento EM ORDEM DE PRIORIDADE: como o orçamento de
+# buscas é fixo, a ordem decide o que entra. Ela reflete as matérias que
+# cada peça realmente decide — e onde a fundamentação costuma escorregar
+# (pagamento no TR, modalidade e recursos no edital).
+TEMAS_POR_DOCUMENTO: dict[str, tuple[str, ...]] = {
+    "dfd": ("necessidade", "srp", "parcelamento"),
+    "etp": ("necessidade", "parcelamento", "requisitos", "modalidade",
+            "reajuste", "protecao_dados", "me_epp", "srp"),
+    "tr": ("execucao_recebimento", "pagamento", "requisitos", "reajuste",
+           "sancoes", "gestao_fiscalizacao", "garantia", "protecao_dados",
+           "srp"),
+    "edital": ("modalidade", "requisitos", "sancoes", "recursos", "me_epp",
+               "garantia", "parcelamento", "srp"),
 }
 
 # Orçamento de recuperação (custo/latência sob controle)
@@ -403,16 +405,16 @@ def _gatilhos(dados: dict) -> set[str]:
 
 def temas_para(dados: dict, doc_key: str, limite: int = MAX_TEMAS) -> list[str]:
     """
-    Lista CONTROLADA de temas do documento: aplicáveis ao doc_key, com a
-    condição satisfeita, limitada ao orçamento de buscas. Temas
-    condicionais (SRP, TI, garantia) vêm primeiro — são os que o padrão
-    genérico costuma errar.
+    Lista CONTROLADA de temas do documento, na ordem de prioridade de
+    `TEMAS_POR_DOCUMENTO` e limitada ao orçamento de buscas. Os temas
+    CONDICIONAIS satisfeitos (SRP, TI, garantia) vêm primeiro: são
+    específicos desta contratação e é neles que a fundamentação genérica
+    mais erra. Tema condicional sem gatilho não é consultado.
     """
     gatilhos = _gatilhos(dados)
     condicionais, gerais = [], []
-    for chave, (_, _, docs, condicao) in TEMAS_JURIDICOS.items():
-        if doc_key not in docs:
-            continue
+    for chave in TEMAS_POR_DOCUMENTO.get(doc_key, ()):
+        condicao = TEMAS_JURIDICOS[chave][2]
         if condicao is None:
             gerais.append(chave)
         elif condicao in gatilhos:
@@ -474,7 +476,7 @@ def recuperar(dados: dict, doc_key: str) -> dict:
     consultas = [{"tema": "geral", "rotulo": "Contexto geral da contratação",
                   "texto": montar_consulta(dados, doc_key)}]
     for chave in temas:
-        rotulo, termos, _, _ = TEMAS_JURIDICOS[chave]
+        rotulo, termos, _ = TEMAS_JURIDICOS[chave]
         consultas.append({
             "tema": chave, "rotulo": rotulo,
             "texto": f"{termos} {dados.get('objeto') or ''}".strip()[:500],
