@@ -433,3 +433,146 @@ grounding depende deste passo.
 **Nada da reindexação foi executado; aguarda autorização específica.**
 Os RPCs também não foram alterados — nenhum defeito independente os
 impede de rodar o smoke test.
+
+---
+
+## M. Homogeneização do índice vetorial — preparação concluída, backfill bloqueado
+
+Executado em 11/08/2026 sob autorização. **A reindexação em si NÃO foi
+executada** — o bloqueio está em M.7 e é de credencial, não de plano.
+
+### M.1 Catálogo dos 40 documentos (item 6)
+
+| categoria | docs | chunks | origem / natureza | jurisdição |
+|---|---|---|---|---|
+| `lei` | 1 | 250 | **Lei nº 14.133/2021** — Presidência da República (Planalto) | federal, aplicação direta |
+| `entendimento` | 3 | 1.311 | ver quadro abaixo | federal |
+| `modelo` | 16 | 1.577 | PGE-PA (5), AGU (5), Governo Digital/TIC (4), demais | referência de redação |
+| `processo_anterior` | 20 | 1.401 | DFD/ETP/TR de processos já realizados | local |
+
+**Os 3 documentos hoje classificados como `entendimento`** — inspeção do
+primeiro chunk de cada:
+
+| documento | emissor real | natureza |
+|---|---|---|
+| `instrumento-de-padronizacao-...-agu-fev-2024.pdf` (158) | AGU + Ministério da Gestão e da Inovação em Serviços Públicos | **manual/orientação federal** |
+| `manual de fase de planejamento.pdf` (43) | **Ministério das Comunicações**, "Manual de Contratações — Módulo 1", ago/2025 | **manual interno de órgão federal** |
+| `ManualdeLicitacoeseContratacoesAdministrativas.pdf` (1.110) | AGU — Consultoria-Geral da União / Corregedoria-Geral | **manual/orientação federal** |
+
+**Nenhum dos três é entendimento de Tribunal de Contas.** No código,
+`entendimento` está declarado como "Entendimento / Orientação de TC" e o
+P1 os rotula no prompt como *jurisprudência/orientação de controle* —
+o que **superestima** um manual interno do Executivo federal diante de
+uma contratação municipal.
+
+**Proposta (não executada, aguarda decisão):** criar a categoria
+`manual` ("Manual / Orientação técnica") em `rag.CATEGORIAS`, com o mesmo
+peso de hierarquia dos moldes (não fundamenta dispositivo), e
+reclassificar esses 3 documentos. Impacto no lastro: **nenhum** — só
+`lei` fornece lastro. Impacto real: rótulo correto no prompt.
+Categoria de `lei` e das demais: **corretas, nada a mudar**.
+
+### M.2 Padrão V2 fixado (itens 1 e 2)
+
+`openai` / `text-embedding-3-small` / `768` / `v2`, declarado em
+`src/config.EMBEDDING_V2_*`. `rag._gerar_embeddings` **não tem mais
+fallback entre provedores**: sem a chave do provedor do índice não se
+gera vetor com outro motor — a busca cai para textual, a indexação fica
+`pendente` e o usuário é avisado. Vetor com dimensão diferente é
+recusado. O fallback OpenAI → Gemini continua valendo **só para geração
+de texto**. Provado por teste (`test_embeddings_nao_caem_para_outro_provedor`
+verifica que o Gemini sequer é consultado).
+
+### M.3 Backup e rollback (item 5)
+
+Impressão digital tomada **antes** de qualquer alteração e reconferida
+após a cópia — backup e tabela viva idênticos:
+
+| | linhas | impressão estrutural (id\|doc\|ordem\|md5(conteúdo)) | legado com vetor |
+|---|---|---|---|
+| `chunks_referencia` | 4.539 | `90c41e57140a984909bbd86547d72d50` | 2.978 |
+| `chunks_referencia_bkp_20260811` | 4.539 | `90c41e57140a984909bbd86547d72d50` | 2.978 |
+| `documentos_referencia` / `_bkp_20260811` | 40 / 40 | `8a1c325f060d8ef9659ba6739b803ae6` (ambos) | — |
+
+Hash do conteúdo puro: `226d8ce165b98cacf00b995756fe5956` (6.055.174
+caracteres). Nenhuma linha de `conteudo` foi tocada em momento algum.
+
+### M.4 Migrações aplicadas
+
+- **0012** — backup (acima).
+- **0013** — `embedding_v2 vector(768)` + `embedding_provider`,
+  `embedding_model`, `embedding_dimensions`, `embedding_version`,
+  `embedding_generated_at`, `embedding_status` (default `pendente`).
+  Dois CHECKs impedem o retorno do problema histórico: vetor sem
+  proveniência é rejeitado, e `status = 'ok'` sem vetor também.
+  Índice parcial `…_backfill_idx` para a retomada em lotes.
+  **Expand-only:** coluna e índice legados intactos; produção (`main`)
+  segue lendo `embedding` normalmente.
+- **0014** — HNSW do `embedding_v2`, gravado como
+  `.sql.PENDENTE`: só deve ser aplicado **após** a cobertura integral
+  (com `CONCURRENTLY`, sem bloquear a busca atual; o índice antigo
+  permanece).
+
+Estado após as migrações: 4.539 chunks, **4.539 `pendente`**, 0 com V2,
+2.978 legados intactos, impressão estrutural **inalterada**.
+
+### M.5 Backfill preparado (item 7)
+
+`scripts/reindexar_embeddings_v2.py` — idempotente (processa apenas
+`embedding_v2 is null`, em ordem estável por documento/ordem), retomável
+sem checkpoint externo, em lotes configuráveis; grava vetor +
+proveniência; **não toca** `conteudo`, `ordem`, `documento_id`, `tsv` nem
+`embedding`. Falha de lote marca `falha` e o lote volta na execução
+seguinte — nunca grava vetor de outro modelo. Tem `--simular` e
+`--validar`. Sem credenciais, aborta sem alterar nada (verificado).
+
+### M.6 Indexação futura (item 11)
+
+`rag.indexar_arquivo` passou a gravar provedor, modelo, dimensão, versão
+e data em cada chunk. Sem vetor, o chunk nasce `pendente` e a tela avisa
+que o documento **não aparece na busca semântica** até ser reindexado.
+
+### M.7 BLOQUEIO — por que o backfill não foi executado
+
+O backfill precisa da chave da OpenAI, que está em
+`config_app.OPENAI_API_KEY` **no banco de produção**. Duas formas de
+obtê-la aqui e **ambas foram recusadas**:
+
+1. **Ler a chave via SQL** — o valor voltaria como resultado de
+   ferramenta e ficaria registrado no transcrito da sessão. Expor um
+   segredo de produção é inaceitável, ainda que a operação fosse
+   autorizada.
+2. **Instalar `pg_net`/`http` no Postgres** para chamar a OpenAI de
+   dentro do banco — ambas as extensões existem no projeto mas **não
+   estão instaladas**. Instalá-las criaria um caminho de rede
+   permanente no banco de produção, fora da arquitetura da aplicação, só
+   para contornar a ausência da chave.
+
+**Como destravar (qualquer uma das opções):**
+
+- **(A) Rodar o script no ambiente que já tem as credenciais** — local
+  ou Streamlit Cloud: `python scripts/reindexar_embeddings_v2.py --lote 100`
+  e depois `--validar`. É o caminho recomendado: usa a mesma chave que a
+  aplicação já usa, e nada trafega por aqui. ~46 chamadas, ~US$ 0,04.
+- **(B) Fornecer uma chave temporária** por canal seguro, revogada
+  depois — só se preferir que eu execute.
+
+Enquanto isso não ocorre: **nada foi perdido**. A produção segue
+funcionando com o índice legado, o V2 está criado e vazio, o backup está
+verificado e o rollback é imediato (a coluna legada nunca foi tocada).
+
+### M.8 O que permanece pendente (itens 8 a 16)
+
+Todos dependem do backfill ou de credenciais indisponíveis aqui:
+validação de cobertura 4.539/4.539 (8), índice HNSW (9), corte do RPC
+(10), indexação da **regulamentação municipal de Paragominas** — que
+continua **ausente** da base e exige fonte oficial (12), testes de
+recuperação por tema com V2 ativo (13), isolamento semântico (14),
+smoke test DFD→ETP→TR→Edital com IA real (15) e o `rag_trace` de cada
+documento (16).
+
+### Veredito
+
+**NÃO APTO PARA PR** — inalterado e agora com o caminho crítico
+totalmente instrumentado: falta executar o backfill (M.7), indexar a
+regulamentação municipal e rodar o smoke test com IA real.
