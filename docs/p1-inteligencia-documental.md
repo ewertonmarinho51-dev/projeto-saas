@@ -576,3 +576,109 @@ documento (16).
 **NÃO APTO PARA PR** — inalterado e agora com o caminho crítico
 totalmente instrumentado: falta executar o backfill (M.7), indexar a
 regulamentação municipal e rodar o smoke test com IA real.
+
+---
+
+## N. Ajustes operacionais pré-backfill (11/08/2026)
+
+**O backfill NÃO foi executado.** Os três ajustes pedidos estão feitos.
+
+### N.1 Backup: diagnóstico e blindagem
+
+Estado encontrado (somente leitura) — **exposição real**:
+
+| tabela | RLS | políticas | anon | authenticated | service_role | PostgREST |
+|---|---|---|---|---|---|---|
+| `chunks_referencia_bkp_20260811` | **não** | 0 | **SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER** | idem | idem | **sim** (schema `public`) |
+| `documentos_referencia_bkp_20260811` | **não** | 0 | idem | idem | idem | **sim** |
+| (referência) `chunks_referencia` viva | sim | 3 | mesmos grants, mas contidos pela RLS | — | — | sim |
+
+Owner: `postgres` em ambas. Como o `CREATE TABLE AS` herdou os
+privilégios padrão do schema `public` e a RLS **não** vem habilitada por
+padrão, **qualquer portador da chave anônima podia ler ou APAGAR o
+backup** — a rede de rollback estava menos protegida que a tabela viva.
+
+Correção (migrações **0015** e **0016**, aplicadas):
+
+| tabela | RLS | políticas | anon/authenticated | service_role |
+|---|---|---|---|---|
+| `chunks_referencia_bkp_20260811` | **sim** | 0 | **(nenhum)** | **SELECT** |
+| `documentos_referencia_bkp_20260811` | **sim** | 0 | **(nenhum)** | **SELECT** |
+
+RLS habilitada **sem políticas** é defesa em profundidade: mesmo que um
+`GRANT` reapareça, nenhuma linha fica visível para os papéis da
+aplicação. `service_role` ficou apenas com `SELECT` — o suficiente para
+o rollback (que lê do backup e escreve na tabela viva) e insuficiente
+para um `TRUNCATE` acidental. O owner `postgres` mantém controle para a
+limpeza futura do legado.
+
+**Dados preservados:** 4.539 e 40 linhas, impressão estrutural
+`90c41e57140a984909bbd86547d72d50` — idêntica à de antes e à da tabela
+viva. Nada foi movido ou apagado.
+
+### N.2 Backfill: fim do laço e limite correto
+
+| antes | depois |
+|---|---|
+| falha da API → `falha` → `pendentes()` devolve o mesmo lote → nova tentativa imediata → **laço potencialmente infinito** | 3 tentativas por lote com backoff (2 s, 4 s); esgotadas, o lote é marcado `falha`, a execução **encerra com código de erro** e a próxima execução reprocessa (`embedding_v2 is null`) |
+| `--limite 50 --lote 100` processava 100 | processa **50**, em uma única chamada |
+
+Sem troca de provedor em nenhuma hipótese — há teste que varre o código
+do script e falha se aparecer `genai`, `gemini` ou `GOOGLE_API_KEY`.
+
+### N.3 Credencial: resolvida, nunca exibida
+
+Ordem: **variável de ambiente → `.streamlit/secrets.toml` → `config_app`**
+(este último via `db.obter_config`, o mesmo contrato que a aplicação usa
+em `llm._ler_chave`). `SUPABASE_URL`/`SUPABASE_KEY` **não** são buscadas
+no próprio banco. A única saída possível é:
+
+```
+credencial do provedor V2 disponível: sim
+```
+
+Teste dedicado injeta um segredo e verifica que ele **não** aparece na
+saída — nem valor, nem prefixo (`sk-`), nem tamanho, nem hash.
+
+### N.4 Provas executadas
+
+| verificação | resultado |
+|---|---|
+| suíte completa | **528 passed / 1 failed** (LibreOffice, pré-existente na `main`) |
+| `tests/test_backfill_v2.py` | 16 casos: indisponibilidade persistente encerra (3 tentativas, backoff `[2, 4]`, nada vetorizado, 300 chunks continuam pendentes), `main()` sai com código ≠ 0, falha intermitente se recupera, limite × lote, idempotência, proveniência e sigilo da credencial |
+| `--simular` | aborta sem credenciais **sem alterar nada** |
+| `--credenciais` | reporta apenas `sim/não` |
+| backup | protegido e íntegro (N.1) |
+
+### N.5 Índice HNSW (0014) — procedimento não transacional
+
+`CREATE INDEX CONCURRENTLY` **não pode rodar dentro de transação**, e as
+ferramentas de migração encapsulam cada arquivo em uma. Por isso a 0014
+permanece como `.sql.PENDENTE` e, na etapa de corte, deve ser executada
+por caminho explicitamente **não transacional** — SQL Editor do Supabase
+(autocommit) ou `psql` sem bloco de transação —, com verificação de
+`pg_index.indisvalid` ao final (um `CONCURRENTLY` interrompido deixa
+índice inválido, que precisa ser derrubado e refeito). O índice legado
+**não** é removido.
+
+### N.6 Categoria `manual` — proposta pronta, não aplicada
+
+`documentos_referencia_categoria_check` aceita hoje apenas
+`lei, acordao, entendimento, processo_anterior, modelo, outro`: um
+`UPDATE` para `manual` **falharia**, e incluir `manual` só no código
+faria a tela oferecer uma opção que o banco rejeita.
+`0017_categoria_manual.sql.PENDENTE` documenta a ordem obrigatória:
+**(1)** ampliar o CHECK (só acrescenta valor — nenhum dado existente se
+invalida e a produção segue gravando o que já gravava); **(2)**
+reclassificar os 3 documentos; **(3)** publicar o código com `manual` em
+`CATEGORIAS`, `_PAPEL_DA_FONTE` e `_prioridade_fonte`, fora de
+`LEGISLACAO` (continua sem fornecer lastro). Reversível por `UPDATE`.
+
+**Isto precisa estar resolvido antes do smoke test jurídico**, para que
+o modelo não receba manual do Executivo federal rotulado como orientação
+de órgão de controle.
+
+### Veredito
+
+**NÃO APTO PARA PR** — aguardando autorização para executar o backfill
+dos 4.539 chunks.
