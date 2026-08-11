@@ -306,3 +306,130 @@ Sem essas duas correções de acervo, o grounding jurídico não tem o que
 recuperar e o smoke test completo (geração com IA real, indisponível
 neste ambiente) não teria valor probatório. Nenhuma alteração de código
 adicional é necessária: resolvidos K.5, a branch passa a APTO.
+
+---
+
+## L. Migração 0011 aplicada e auditoria de proveniência dos embeddings
+
+Executado em 11/08/2026 no projeto `govdocs-wizard`
+(`nxibohgoekphxblqtqku`), com autorização expressa.
+
+### L.1 Resultado da migração
+
+`alter table … add column if not exists` + `comment` + índice parcial.
+Aplicada com sucesso e verificada:
+
+| Verificação | Resultado |
+|---|---|
+| Coluna criada | `rag_trace \| jsonb \| nullable=NO \| default='{}'::jsonb` |
+| Default | `'{}'::jsonb` — **61/61** registros antigos ficaram com ele; 0 nulos |
+| Dados preservados | 61 registros antes e depois; **MD5 dos ids idêntico** (`1d16b3c2…`) |
+| Índice | `CREATE INDEX geracoes_rag_trace_idx ON public.geracoes USING btree (tenant_id, criado_em DESC) WHERE (rag_trace <> '{}'::jsonb)` |
+
+### L.2 Retrocompatibilidade — teste controlado
+
+Dois inserts, depois removidos (base restaurada: 61 registros, mesmo MD5):
+
+| Insert | Resultado |
+|---|---|
+| Formato da `main` (**sem** informar `rag_trace`) | aceito; campo assumiu `{}` |
+| Formato da branch P1 (**com** `rag_trace`) | aceito; `rag_trace #>> '{referencias,0,dispositivos,0}'` = `lei_14133_2021:84` |
+
+A versão em produção hoje (`main`) continua gravando normalmente.
+
+### L.3 Origem dos embeddings existentes — evidência convergente
+
+Não existe metadado de provedor/modelo no banco: `chunks_referencia` tem
+apenas `id, documento_id, ordem, conteudo, embedding, tsv` (e nem
+`criado_em`); `documentos_referencia` não registra o motor usado. Os logs
+do Supabase cobrem **24 horas** — nada de 08/07/2026. E **o repositório
+git começa em 13/07/2026**: o código que rodou na indexação (08/07) não
+está versionado aqui. Portanto **não há registro explícito** — a
+conclusão vem de três evidências independentes que convergem:
+
+**(a) Cronologia (config_app.atualizado_em × documentos_referencia.criado_em)**
+
+| Horário (08/07/2026 UTC) | Evento | Embedding |
+|---|---|---|
+| 02:58:32 | indexada `Lei 14133.pdf` | **não** |
+| 03:06:23–03:06:55 | indexados os 3 manuais | **não** |
+| **03:13:13** | **`OPENAI_API_KEY` definida** (164 caracteres) | — |
+| 03:13:14 | `OPENAI_MODEL` e `GEMINI_MODEL` gravados vazios (default do código) | — |
+| 12:25:17–12:27:40 | indexados 16 modelos | **sim** |
+| 12:32:36–12:41:15 | indexados 20 processos anteriores | **sim** |
+| **12:46:13** | **`GOOGLE_API_KEY` definida** (53 caracteres) | — |
+
+Todo chunk com vetor foi criado entre 12:25 e 12:41 — janela em que a
+**única** chave configurada era a da OpenAI. A chave do Google entrou
+**5 minutos depois** do último documento embeddado. Como
+`rag._gerar_embeddings` usa OpenAI quando há chave OpenAI e só cai para o
+Gemini na ausência dela, nenhum vetor pôde ter vindo do Gemini.
+
+**(b) Impressão vetorial (L2)** — todos os 2.978 vetores normalizados:
+
+| categoria | chunks | dims | norma mín | média | máx | desvio |
+|---|---|---|---|---|---|---|
+| modelo | 1.577 | 768 | 0,999340 | 1,000040 | 1,000703 | 0,00027 |
+| processo_anterior | 1.401 | 768 | 0,999318 | 1,000032 | 1,000772 | 0,00025 |
+
+Distribuição única e apertada (sem outliers, mesmo perfil nas duas
+categorias) → **um único provedor/modelo para todos**. Normalização L2
+é o comportamento do `text-embedding-3-*` da OpenAI com `dimensions=768`.
+
+**(c) Precedência do código e o mistério dos 1.561 sem vetor** — a lei e
+os manuais foram indexados **antes de qualquer chave existir**:
+`_gerar_embeddings` devolveu `None`, `indexar_arquivo` gravou
+`embedding = NULL` e seguiu (por desenho: "falha de embedding não impede
+a indexação"). Falhou em silêncio, e ninguém percebeu que justamente a
+legislação ficou fora do índice vetorial.
+
+**Conclusão:** provedor **OpenAI**, dimensão 768, provedor único para
+100% dos vetores existentes — comprovado por convergência, não por
+registro. **Ressalva honesta:** a cronologia e a normalização provam o
+*provedor*, mas **não distinguem `text-embedding-3-small` de
+`text-embedding-3-large` truncado a 768** — ambos OpenAI, ambos
+normalizados, e **espaços vetoriais incompatíveis entre si**. O default
+do código é `text-embedding-3-small`, mas o código daquela data não está
+no git.
+
+### L.4 Estado atual do índice vetorial
+
+| categoria | docs | chunks | com embedding | **sem embedding** |
+|---|---|---|---|---|
+| processo_anterior | 20 | 1.401 | 1.401 | 0 |
+| modelo | 16 | 1.577 | 1.577 | 0 |
+| entendimento (manuais) | 3 | 1.311 | 0 | **1.311** |
+| **lei (Lei 14.133/2021)** | 1 | 250 | 0 | **250** |
+| **total** | **40** | **4.539** | **2.978 (66%)** | **1.561 (34%)** |
+
+### L.5 Recomendação objetiva — reindexação integral, provedor único
+
+Como o **modelo exato** não é comprovável e 34% da base precisa de
+vetores de qualquer forma, **não misturar**: reindexar tudo com um único
+provedor/modelo declarado. Plano seguro, sem indisponibilidade e sem
+perda (nada disto foi executado):
+
+1. **Padronizar** em `text-embedding-3-small` @ 768 (provedor comprovado,
+   chave já configurada, default do código, custo desprezível).
+2. **Rastreabilidade permanente** (migração expand-only): acrescentar a
+   `chunks_referencia` as colunas `embedding_provedor`, `embedding_modelo`
+   e `embedding_em` — para que esta auditoria nunca precise ser refeita.
+3. **Preservar o original**: `create table chunks_referencia_bkp_20260811
+   as select * from chunks_referencia` antes de qualquer escrita.
+4. **Escrita paralela**: nova coluna `embedding_v2 vector(768)` populada
+   por lotes (100 chunks/chamada), documento a documento, **sem tocar**
+   em `embedding` — a busca atual segue funcionando o tempo todo.
+5. **Corte atômico** após 4.539/4.539 preenchidos e conferidos (contagem,
+   dims, norma ≈ 1, busca de sanidade por tema): troca das colunas em
+   transação curta e recriação do índice vetorial.
+6. **Descarte** da coluna antiga e da tabela de backup só em migração
+   posterior, depois de o smoke test passar.
+7. **Custo estimado**: ~1,8 M tokens ≈ **US$ 0,04**; ~46 chamadas de API.
+
+Enquanto isso não ocorrer, a busca vetorial continua sem legislação — o
+P1 mitiga (regra de citação + verificação de lastro), mas o ganho real do
+grounding depende deste passo.
+
+**Nada da reindexação foi executado; aguarda autorização específica.**
+Os RPCs também não foram alterados — nenhum defeito independente os
+impede de rodar o smoke test.
