@@ -104,12 +104,18 @@ def test_bloco_referencias_vazio_sem_banco(monkeypatch):
 
 
 def test_bloco_referencias_formata_trechos(monkeypatch):
+    # P1: a recuperação passou a ser temática — o bloco é montado a
+    # partir das buscas (RPC), não mais de uma consulta única.
+    monkeypatch.setattr(rag.db, "disponivel", lambda: True)
+    monkeypatch.setattr(rag.db, "obter_config", lambda chave: "")
+    monkeypatch.setattr(rag, "_gerar_embeddings",
+                        lambda textos, para_consulta: None)
     monkeypatch.setattr(
-        rag,
-        "buscar_referencias",
-        lambda consulta, qtd=6: [
-            {"conteudo": "Súmula 247 do TCU...", "titulo": "Acórdão 1234",
-             "categoria": "acordao", "similaridade": 0.9}
+        rag, "_executar_rpc",
+        lambda funcao, params: [
+            {"id": "c1", "conteudo": "Súmula 247 do TCU...",
+             "titulo": "Acórdão 1234", "categoria": "acordao",
+             "similaridade": 0.9}
         ],
     )
     bloco = rag.montar_bloco_referencias({"objeto": "x"}, "etp")

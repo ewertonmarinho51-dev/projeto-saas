@@ -33,10 +33,105 @@ NATUREZA_POR_EXECUCAO = {
     "Serviço por escopo (execução única)": "SERVICOS",
 }
 
+# ---------------------------------------------------------------------------
+# Vocabulário controlado da CATEGORIA do objeto (P1).
+#
+# As regras do motor de conhecimento precisam de um dado ESTRUTURADO para
+# decidir cláusulas condicionais — jamais de um `if "software" in objeto`
+# espalhado pelo prompt. A categoria é, portanto, extraída aqui como FATO
+# (confiança baixa, status 'extraido' → confirmável pelo humano) a partir
+# de EVIDÊNCIA ACUMULADA em vários campos do formulário, não de uma única
+# ocorrência textual. Quando a evidência é fraca, nenhum fato é emitido —
+# ausência de fato faz as regras condicionais NÃO dispararem (conservador).
+# ---------------------------------------------------------------------------
+CATEGORIAS_OBJETO: dict[str, tuple[str, ...]] = {
+    "TI_SOFTWARE": ("software", "sistema de informacao", "licenca de uso",
+                    "saas", "plataforma digital", "aplicativo", "nuvem",
+                    "hospedagem", "assinatura de solucao", "erp"),
+    "TI_EQUIPAMENTO": ("computador", "notebook", "servidor de rede",
+                       "switch", "storage", "impressora", "monitor",
+                       "nobreak", "scanner"),
+    "EPI": ("equipamento de protecao", "epi", "luva de seguranca",
+            "capacete", "protetor auricular", "bota de seguranca",
+            "oculos de protecao"),
+    "VEICULOS": ("veiculo", "automovel", "caminhao", "onibus",
+                 "motocicleta", "ambulancia", "retroescavadeira"),
+    "MEDICAMENTOS": ("medicamento", "farmaco", "insumo farmaceutico",
+                     "material medico-hospitalar", "anvisa"),
+    "ALIMENTOS": ("genero alimenticio", "merenda", "alimentacao escolar",
+                  "cesta basica"),
+    "MATERIAL_CONSUMO": ("material de expediente", "material de consumo",
+                         "papel a4", "caneta", "grampeador", "almofada "
+                         "para carimbo", "material de limpeza"),
+    "OBRAS_ENGENHARIA": ("reforma", "construcao", "pavimentacao",
+                         "obra de engenharia", "recuperacao de via"),
+}
+
+# Peso da evidência por campo: o objeto é a fonte primária da categoria.
+_PESO_CAMPO = {"objeto": 3, "itens": 1, "requisitos": 1}
+_EVIDENCIA_MINIMA = 3
+
+# Instituto de reajuste × repactuação: repactuação pressupõe serviço
+# contínuo COM dedicação de mão de obra. A base é ESTRUTURADA (modelo de
+# execução); o texto livre apenas complementa.
+_TERMOS_MAO_DE_OBRA = ("dedicacao exclusiva", "mao de obra", "posto de "
+                       "trabalho", "terceirizacao de pessoal")
+# Garantia CONTRATUAL (arts. 96 a 98) — não confundir com garantia do
+# produto/fabricante, que é requisito técnico do objeto.
+_TERMOS_GARANTIA = ("garantia contratual", "garantia de execucao",
+                    "caucao", "seguro-garantia", "fianca bancaria")
+_TERMOS_AMOSTRA = ("amostra", "prova de conceito", "prototipo")
+
 
 # ---------------------------------------------------------------------------
 # Extração determinística (formulário → fatos)
 # ---------------------------------------------------------------------------
+def _sem_acento(texto) -> str:
+    import unicodedata
+
+    t = unicodedata.normalize("NFKD", str(texto or ""))
+    return "".join(c for c in t if not unicodedata.combining(c)).lower()
+
+
+def _texto_dos_campos(dados: dict) -> dict[str, str]:
+    """Texto normalizado por campo de origem (para evidência ponderada)."""
+    itens = " ".join(str(i.get("descricao") or "")
+                     for i in (dados.get("itens") or []))
+    return {
+        "objeto": _sem_acento(dados.get("objeto")),
+        "itens": _sem_acento(itens),
+        "requisitos": _sem_acento(dados.get("requisitos")),
+    }
+
+
+def categoria_do_objeto(dados: dict) -> tuple[str, int]:
+    """
+    (categoria, evidência) do objeto pelo vocabulário controlado.
+    Evidência = soma dos pesos dos campos onde os termos aparecem; abaixo
+    de `_EVIDENCIA_MINIMA` devolve ("INDEFINIDA", n) e nenhum fato é
+    emitido — regra condicional não dispara sem dado.
+    """
+    campos = _texto_dos_campos(dados)
+    placar: dict[str, int] = {}
+    for categoria, termos in CATEGORIAS_OBJETO.items():
+        pontos = 0
+        for campo, texto in campos.items():
+            achados = sum(1 for t in termos if t in texto)
+            pontos += achados * _PESO_CAMPO[campo]
+        if pontos:
+            placar[categoria] = pontos
+    if not placar:
+        return "INDEFINIDA", 0
+    categoria, pontos = max(placar.items(), key=lambda kv: (kv[1], kv[0]))
+    if pontos < _EVIDENCIA_MINIMA:
+        return "INDEFINIDA", pontos
+    return categoria, pontos
+
+
+def _tem_termo(campos: dict[str, str], termos: tuple[str, ...]) -> bool:
+    return any(t in texto for texto in campos.values() for t in termos)
+
+
 def extrair_do_formulario(dados: dict,
                           processo_id: str | None = None) -> list[dict]:
     """Fatos materiais do Formulário Matriz (sempre com fonte)."""
@@ -72,6 +167,37 @@ def extrair_do_formulario(dados: dict,
 
     if (dados.get("prazo") or "").strip():
         fato("prazo.descricao", dados["prazo"].strip(), "texto", "prazo")
+
+    # -----------------------------------------------------------------
+    # Fatos DERIVADOS (P1) — base estruturada das cláusulas condicionais.
+    # Confiança menor: são inferências determinísticas e documentadas,
+    # sujeitas a confirmação humana como qualquer outro fato 'extraido'.
+    # -----------------------------------------------------------------
+    campos = _texto_dos_campos(dados)
+    categoria, evidencia = categoria_do_objeto(dados)
+    if categoria != "INDEFINIDA":
+        fato("objeto.categoria", categoria, "texto", "objeto+itens",
+             confianca=0.6)
+        fato("objeto.categoria_evidencia", float(evidencia), "numero",
+             "objeto+itens", confianca=0.6)
+
+    if execucao:
+        # repactuação exige serviço contínuo COM dedicação de mão de obra
+        # (art. 135): a execução continuada é a base estruturada; o texto
+        # livre apenas confirma a dedicação de pessoal.
+        continuada = "continuada" in execucao.lower()
+        fato("procedimento.dedicacao_mao_de_obra",
+             bool(continuada and _tem_termo(campos, _TERMOS_MAO_DE_OBRA)),
+             "booleano", "modelo_execucao+requisitos", confianca=0.6)
+
+    # Garantia CONTRATUAL e amostra só existem como fato quando o
+    # processo as menciona: sem fato, a cláusula não é inventada.
+    if _tem_termo(campos, _TERMOS_GARANTIA):
+        fato("contratacao.garantia_exigida", True, "booleano",
+             "requisitos", confianca=0.6)
+    if _tem_termo(campos, _TERMOS_AMOSTRA):
+        fato("contratacao.amostra_exigida", True, "booleano",
+             "requisitos", confianca=0.6)
 
     if dados.get("valor_estimado") is not None:
         fato("valor.total", float(dados["valor_estimado"]), "numero",
