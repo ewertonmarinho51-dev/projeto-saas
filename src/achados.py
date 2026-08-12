@@ -30,7 +30,6 @@ _log = logging.getLogger("govdocs.achados")
 MOTIVO_DADO_AUSENTE = "MISSING_REQUIRED_DATA"
 MOTIVO_DISCRICIONARIO = "DISCRETIONARY_DECISION"
 
-_RE_PREENCHER = re.compile(r"\[PREENCHER:?\s*([^\]]*)\]", re.IGNORECASE)
 _RE_CLAUSULA_AUSENTE = re.compile(r"ausente:\s*(\d{1,2})\.")
 
 # Classificação por prefixo da mensagem do validador (validacao.py).
@@ -149,6 +148,8 @@ _CLASSIFICACAO: list[tuple[str, dict]] = [
         "auto": False,
         "gravidade": "MEDIUM",
         "bloqueio": MOTIVO_DADO_AUSENTE,
+        # sem marcador no texto: a pergunta ao servidor vem da regra
+        "campo": "matrícula do agente responsável",
     }),
     ("CNPJ inválido", {
         "categoria": "dado_improvisado",
@@ -159,6 +160,7 @@ _CLASSIFICACAO: list[tuple[str, dict]] = [
         "auto": False,
         "gravidade": "HIGH",
         "bloqueio": MOTIVO_DADO_AUSENTE,
+        "campo": "CNPJ correto (com dígitos verificadores válidos)",
     }),
     ("tabela de itens duplicada", {
         "categoria": "tabela_duplicada",
@@ -386,12 +388,80 @@ def _caminhos_permitidos(achado: dict, regra: dict,
     return [bloco["path"]] if bloco else []
 
 
-def _campos_requeridos(doc_key: str, texto: str) -> list[str]:
-    """Descrições dos [PREENCHER: …] — o que pedir ao servidor."""
-    return [
-        (m.group(1).strip() or "informação pendente")
-        for m in _RE_PREENCHER.finditer(texto or "")
-    ]
+def _pendencias_do_achado(achado: dict, regra: dict, texto: str,
+                          blocos_doc: list[dict]) -> list[dict]:
+    """
+    O que exatamente falta NESTE achado, da fonte mais precisa para a
+    menos precisa:
+
+      1. a pendência que o validador anexou ao achado (marcador exato,
+         com ocorrência — é a evidência em si);
+      2. os marcadores presentes na evidência (trecho) do achado;
+      3. os marcadores do bloco/cláusula apontado pelo achado;
+      4. os marcadores do documento inteiro (último recurso).
+
+    Achados de dado ausente SEM marcador (matrícula improvisada, CNPJ
+    inválido) não têm o que extrair do texto: a regra declara o campo a
+    pedir (`campo`), senão o servidor veria um formulário vazio.
+    """
+    pendencia = achado.get("pendencia")
+    if pendencia:
+        return [dict(pendencia)]
+
+    do_documento = validacao.campos_pendentes(texto)
+
+    do_trecho = validacao.campos_pendentes(achado.get("trecho") or "")
+    if do_trecho:
+        return _reancorar(do_trecho, do_documento)
+
+    bloco = blocos.localizar_bloco(blocos_doc, achado.get("trecho", ""))
+    if bloco:
+        do_bloco = validacao.campos_pendentes(bloco["conteudo"])
+        if do_bloco:
+            return _reancorar(do_bloco, do_documento)
+
+    if do_documento:
+        return do_documento
+
+    campo = regra.get("campo")
+    if campo:
+        return [{
+            "campo": campo,
+            "marcador": "",
+            "ocorrencia": 0,
+            "clausula": "",
+            "contexto": achado.get("trecho", ""),
+            "origem": "regra",
+        }]
+    return []
+
+
+def _reancorar(pendencias: list[dict],
+               do_documento: list[dict]) -> list[dict]:
+    """
+    Pendências extraídas de um recorte (trecho/bloco) carregam a
+    ocorrência daquele recorte, não a do documento — e o recorte pode
+    truncar a linha. Recupera a pendência equivalente do documento
+    (mesmo marcador, contexto compatível) para que a substituição atinja
+    o marcador certo; sem equivalente, mantém a do recorte.
+    """
+    reancoradas = []
+    for pendencia in pendencias:
+        marcador = pendencia["marcador"].lower()
+        iguais = [p for p in do_documento
+                  if p["marcador"].lower() == marcador]
+        recorte = pendencia["contexto"]
+        compativeis = [p for p in iguais
+                       if recorte in p["contexto"] or p["contexto"] in recorte]
+        escolhidas = compativeis or iguais
+        reancoradas.append(dict(escolhidas[0]) if len(escolhidas) == 1
+                           else dict(pendencia))
+    return reancoradas
+
+
+def _campos_requeridos(pendencias: list[dict]) -> list[str]:
+    """Nomes dos campos — contrato histórico consumido pelo corretor."""
+    return [p["campo"] for p in pendencias]
 
 
 def estruturar(achados_brutos: list[dict],
@@ -423,9 +493,15 @@ def estruturar(achados_brutos: list[dict],
             "sourceIds": list(regra.get("fontes", [])),
             "blockingReason": regra.get("bloqueio") if not auto else None,
         }
-        if regra["categoria"] == "dado_pendente":
-            finding["camposRequeridos"] = _campos_requeridos(
-                achado["doc"], documentos.get(achado["doc"], ""))
+        # Dado ausente é a única categoria que vira PERGUNTA ao servidor:
+        # o finding carrega o que pedir (nome do campo) e onde aplicar a
+        # resposta (marcador exato + ocorrência), para que a tela nunca
+        # precise adivinhar nem o usuário precise procurar.
+        if finding["blockingReason"] == MOTIVO_DADO_AUSENTE:
+            pendencias = _pendencias_do_achado(
+                achado, regra, documentos.get(achado["doc"], ""), blocos_doc)
+            finding["pendencias"] = pendencias
+            finding["camposRequeridos"] = _campos_requeridos(pendencias)
         findings.append(finding)
     return findings
 

@@ -18,9 +18,14 @@ import unicodedata
 from . import perfis
 from .config import DOCUMENTOS
 
+# Marcador de dado pendente. Fica FORA de _BLOQUEANTES porque é o único
+# padrão cuja ocorrência vira uma PERGUNTA ao servidor (ver
+# `campos_pendentes`): cada marcador é um achado próprio, com o nome do
+# campo que falta — não um contador agregado.
+RE_PREENCHER = re.compile(r"\[PREENCHER[^\]\n]*\]?", re.IGNORECASE)
+
 # Padrões que NUNCA podem aparecer no documento final (bloqueiam)
 _BLOQUEANTES = [
-    (re.compile(r"\[PREENCHER[^\]]*\]?", re.IGNORECASE), "campo pendente [PREENCHER]"),
     (re.compile(r"\[\[TABELA_ITENS\]\]"), "marcador interno de tabela não substituído"),
     (re.compile(r"\bplaceholder\b", re.IGNORECASE), "texto 'placeholder'"),
     (re.compile(r"formul[áa]rio[- ]matriz", re.IGNORECASE),
@@ -174,8 +179,281 @@ def _achado(doc_key: str, gravidade: str, mensagem: str, trecho: str = "") -> di
     }
 
 
-def _validar_bloqueantes(doc_key: str, texto: str) -> list[dict]:
+# ---------------------------------------------------------------------------
+# Pendências de preenchimento — QUAL campo o sistema está pedindo
+#
+# O marcador é o contrato entre a geração e a revisão humana. Quando ele
+# traz a descrição ([PREENCHER: prazo de vigência]), o campo é o que o
+# próprio marcador declara. Quando vem "seco" ([PREENCHER] — forma que os
+# prompts e as minutas de demonstração ainda produzem), o nome do campo é
+# deduzido DETERMINISTICAMENTE do documento, nesta ordem: rótulo que
+# antecede o marcador na linha → coluna da tabela → título da cláusula.
+#
+# Regra de UX: nunca se pergunta ao servidor "informação pendente". Sem
+# rótulo, sem coluna e sem título, a pergunta cita o trecho onde a lacuna
+# está — o usuário jamais precisa adivinhar o que o sistema quer saber.
+# ---------------------------------------------------------------------------
+_RE_DESCRICAO_PREENCHER = re.compile(
+    r"\[PREENCHER\s*[:\-–—]?\s*([^\]\n]*)", re.IGNORECASE)
+
+# numeração/marcação no início do rótulo: "3.2.", "1 -", "III -", "- ", "**"
+_RE_NUMERACAO = re.compile(
+    r"^\s*(?:[-*•>]\s+)*(?:\d+(?:\.\d+)*|[IVXLCDM]+)\s*[.)\-–—]\s*")
+_RE_MARCACAO = re.compile(r"[*_`#]+")
+_RE_SEPARADOR_TABELA = re.compile(r"^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$")
+
+# rótulo que não identifica nada (conectivo, artigo, preposição solta)
+_PALAVRAS_VAZIAS = {
+    "e", "ou", "de", "do", "da", "dos", "das", "em", "no", "na", "nos",
+    "nas", "o", "a", "os", "as", "um", "uma", "por", "para", "com", "ao",
+    "aos", "à", "às", "que", "se", "ser", "sao", "é",
+}
+
+# Rótulo mínimo para valer como nome de campo: precisa ter substância.
+_TAMANHO_MINIMO_ROTULO = 3
+_TAMANHO_MAXIMO_ROTULO = 80
+
+
+def _limpar_rotulo(bruto: str, limite: int = _TAMANHO_MAXIMO_ROTULO) -> str:
+    """Rótulo legível: sem numeração de cláusula, marcação Markdown ou
+    pontuação de arremate. Devolve '' quando não sobra substância."""
+    rotulo = bruto or ""
+    # resto de outra célula ou de outro marcador não nomeia campo algum
+    if "|" in rotulo or "[" in rotulo or "]" in rotulo:
+        return ""
+    rotulo = _RE_MARCACAO.sub("", rotulo).strip()
+    rotulo = _RE_NUMERACAO.sub("", rotulo).strip()
+    rotulo = rotulo.strip(" \t-–—:;.,()[]")
+    rotulo = re.sub(r"\s+", " ", rotulo)
+    if len(rotulo) < _TAMANHO_MINIMO_ROTULO:
+        return ""
+    if len(rotulo) > limite:
+        return ""
+    palavras = [p for p in rotulo.lower().split() if p not in _PALAVRAS_VAZIAS]
+    if not palavras:
+        return ""
+    # rótulo puramente numérico não nomeia campo algum
+    if not re.search(r"[A-Za-zÀ-ÿ]", rotulo):
+        return ""
+    # Títulos vêm em CAIXA ALTA nos documentos e a pergunta é em prosa —
+    # mas siglas (PCA, CNPJ, DFD) são palavra única e devem permanecer
+    # como são: "Pca" seria uma pergunta pior que "PCA".
+    if rotulo.isupper() and " " in rotulo:
+        return rotulo.capitalize()
+    return rotulo
+
+
+def _rotulo_antes_do_marcador(antes: str) -> str:
+    """
+    Nome do campo a partir do texto que antecede o marcador NA MESMA
+    linha: "3.2. Prazo de vigência: [PREENCHER]" → "prazo de vigência";
+    "…, número do processo [PREENCHER], modalidade…" → "número do
+    processo".
+    """
+    trecho = antes.rstrip()
+    if not trecho:
+        return ""
+    if trecho.endswith(":"):
+        # rótulo declarado: o que vem antes dos dois-pontos
+        trecho = trecho[:-1]
+        # corta o que pertence à frase anterior (ponto-e-vírgula, ponto
+        # final seguido de espaço) preservando a numeração "3.2."
+        pedaco = re.split(r";|(?<=[a-zà-ÿ])\.\s", trecho)[-1]
+        return _limpar_rotulo(pedaco)
+    # sem dois-pontos: última expressão da enumeração ("a, b, campo X ")
+    pedaco = re.split(r"[;,:]|—|–|\.\s", trecho)[-1]
+    return _limpar_rotulo(pedaco)
+
+
+def _coluna_da_tabela(linhas: list[str], indice: int, linha: str,
+                      posicao: int) -> str:
+    """
+    Marcador dentro de linha de tabela Markdown: o nome do campo é o
+    CABEÇALHO da coluna em que ele está (a matriz de riscos gera linhas
+    inteiras de marcadores secos, indistinguíveis sem isso).
+    """
+    if "|" not in linha:
+        return ""
+    coluna = linha.count("|", 0, posicao)
+    if coluna == 0:
+        return ""
+    for i in range(indice - 1, -1, -1):
+        anterior = linhas[i]
+        if not anterior.strip() or "|" not in anterior:
+            break
+        if not _RE_SEPARADOR_TABELA.match(anterior):
+            continue  # outra linha de dados: o cabeçalho está mais acima
+        # o cabeçalho é a linha imediatamente acima do separador
+        if i == 0 or "|" not in linhas[i - 1]:
+            break
+        celulas = linhas[i - 1].split("|")
+        return _limpar_rotulo(celulas[coluna]) if coluna < len(celulas) else ""
+    return ""
+
+
+def _identificador_da_linha(linha: str) -> str:
+    """
+    Primeira célula preenchida da linha de tabela — é ela que distingue
+    "Probabilidade" da linha do atraso da "Probabilidade" da linha da
+    falha de qualidade. Sem isso, duas perguntas idênticas na tela.
+    """
+    for celula in linha.split("|"):
+        rotulo = _limpar_rotulo(celula)
+        if rotulo:
+            return rotulo
+    return ""
+
+
+def _titulo_da_clausula(linhas: list[str], indice: int) -> str:
+    """Título da cláusula/seção mais próxima acima do marcador."""
+    for i in range(indice, -1, -1):
+        m = _RE_CLAUSULA.match(linhas[i])
+        if m:
+            return f"{m.group(1)}. {m.group(2).strip()}"
+        if linhas[i].startswith("#"):
+            titulo = _RE_MARCACAO.sub("", linhas[i]).strip()
+            if titulo:
+                return titulo
+    return ""
+
+
+def _contexto_do_marcador(texto: str, inicio: int, fim: int) -> str:
+    """Frase ao redor do marcador — o que a tela mostra sob o campo."""
+    ini = texto.rfind("\n", 0, inicio) + 1
+    termino = texto.find("\n", fim)
+    linha = texto[ini:termino if termino != -1 else len(texto)]
+    return re.sub(r"\s+", " ", linha).strip()
+
+
+def _indice_da_linha(texto: str, posicao: int) -> int:
+    return texto.count("\n", 0, posicao)
+
+
+def pendencia_de_valor(texto: str, inicio: int, fim: int,
+                       valor_improvisado: str, campo: str) -> dict:
+    """
+    Pendência de dado IMPROVISADO (matrícula provisória, CNPJ inválido):
+    não há marcador a substituir — o alvo é o próprio valor errado, no
+    lugar exato onde ele está. O `molde` preserva o rótulo em volta
+    ("matrícula: {valor}") para que a resposta do servidor entre no
+    documento sem arrastar o texto vizinho junto.
+    """
+    linhas = texto.splitlines()
+    indice = _indice_da_linha(texto, inicio)
+    alvo = texto[inicio:fim]
+    corte = alvo.rfind(valor_improvisado)
+    molde = ("{valor}" if corte < 0 else
+             alvo[:corte] + "{valor}" + alvo[corte + len(valor_improvisado):])
+    return {
+        "campo": campo,
+        "qualificador": "",
+        "marcador": alvo,
+        "molde": molde,
+        "ocorrencia": texto.count(alvo, 0, inicio) + 1,
+        "inicio": inicio,
+        "fim": fim,
+        "linha": indice + 1,
+        "clausula": _titulo_da_clausula(linhas, indice),
+        "contexto": _contexto_do_marcador(texto, inicio, fim),
+        "origem": "valor_improvisado",
+    }
+
+
+def campos_pendentes(texto: str) -> list[dict]:
+    """
+    Uma entrada por marcador [PREENCHER] do documento, com o NOME do
+    campo que falta, o marcador exato (para substituição sem ambiguidade)
+    e a ocorrência daquele marcador idêntico no texto.
+
+    `origem` registra como o nome foi obtido — 'marcador' (o próprio
+    marcador descrevia o campo), 'rotulo', 'tabela', 'clausula' ou
+    'trecho' (último recurso). Só 'trecho' significa que o documento não
+    permitia nomear o campo com segurança.
+    """
+    texto = texto or ""
+    linhas = texto.splitlines()
+
+    vistos: dict[str, int] = {}
+    pendencias: list[dict] = []
+    for m in RE_PREENCHER.finditer(texto):
+        marcador = m.group(0)
+        chave = marcador.lower()
+        vistos[chave] = vistos.get(chave, 0) + 1
+
+        indice = _indice_da_linha(texto, m.start())
+        linha = linhas[indice] if indice < len(linhas) else ""
+        inicio_linha = texto.rfind("\n", 0, m.start()) + 1
+        posicao = m.start() - inicio_linha
+
+        # a descrição do próprio marcador é o campo declarado pela
+        # geração: vale integralmente, sem o teto dos rótulos inferidos
+        declarada = _RE_DESCRICAO_PREENCHER.match(marcador)
+        descricao = _limpar_rotulo(
+            declarada.group(1) if declarada else "", limite=240)
+        clausula = _titulo_da_clausula(linhas, indice)
+        contexto = _contexto_do_marcador(texto, m.start(), m.end())
+
+        qualificador = ""
+        if descricao:
+            campo, origem = descricao, "marcador"
+        else:
+            # em linha de tabela o rótulo é o CABEÇALHO da coluna: o texto
+            # à esquerda pertence a outra célula, não nomeia esta lacuna
+            campo = _coluna_da_tabela(linhas, indice, linha, posicao)
+            origem = "tabela"
+            if campo:
+                qualificador = _identificador_da_linha(linha)
+            if not campo:
+                campo = _rotulo_antes_do_marcador(linha[:posicao])
+                origem = "rotulo"
+            if not campo and clausula:
+                campo = f"conteúdo de «{clausula}»"
+                origem = "clausula"
+            if not campo:
+                # último recurso: nunca "informação pendente" seca — a
+                # pergunta carrega o trecho em que a lacuna aparece
+                resumo = contexto.replace(marcador, "___")[:80].strip()
+                campo = (f"informação pendente em “{resumo}”" if resumo
+                         else "informação pendente (marcador sem contexto)")
+                origem = "trecho"
+
+        pendencias.append({
+            "campo": campo,
+            "qualificador": qualificador,
+            "marcador": marcador,
+            "molde": "",           # o marcador é substituído por inteiro
+            "ocorrencia": vistos[chave],
+            "inicio": m.start(),
+            "fim": m.end(),
+            "linha": indice + 1,
+            "clausula": clausula,
+            "contexto": contexto,
+            "origem": origem,
+        })
+    return pendencias
+
+
+def _validar_pendencias(doc_key: str, texto: str) -> list[dict]:
+    """
+    Um achado POR MARCADOR: cada pendência precisa ser endereçável
+    individualmente (a tela pergunta campo a campo). O achado carrega a
+    pendência estruturada para que achados.py não tenha de reanalisar o
+    documento inteiro para descobrir o que pedir.
+    """
     achados = []
+    for pendencia in campos_pendentes(texto):
+        achado = _achado(
+            doc_key, "bloqueia",
+            f"campo pendente [PREENCHER]: {pendencia['campo']}",
+            pendencia["contexto"],
+        )
+        achado["pendencia"] = pendencia
+        achados.append(achado)
+    return achados
+
+
+def _validar_bloqueantes(doc_key: str, texto: str) -> list[dict]:
+    achados = _validar_pendencias(doc_key, texto)
     for padrao, rotulo in _BLOQUEANTES:
         ocorrencias = list(padrao.finditer(texto))
         if ocorrencias:
@@ -305,30 +583,37 @@ def _validar_dados_improvisados(doc_key: str, texto: str) -> list[dict]:
             "não informado deve virar [PREENCHER: …], nunca um número ou "
             "palavra solta", m.group(0)))
 
+    # Dado improvisado é PERGUNTA ao servidor (como o [PREENCHER]): um
+    # achado por ocorrência, cada um sabendo qual valor errado substituir
+    # — senão a tela pede "a matrícula" sem poder aplicar a resposta.
     suspeitas = [m for m in _RE_MATRICULA.finditer(texto)
                  if len(set(m.group(1))) == 1 or len(m.group(1)) <= 2]
-    if suspeitas:
-        m = suspeitas[0]
+    for m in suspeitas:
         ini = max(0, m.start() - 40)
-        achados.append(_achado(
+        achado = _achado(
             doc_key, "aviso",
             f"matrícula com aparência de improviso/provisória "
-            f"({len(suspeitas)} ocorrência(s): "
-            f"{', '.join(x.group(1) for x in suspeitas[:4])}) — confirme o "
-            "dado real ou use [PREENCHER: matrícula]",
-            texto[ini:m.end() + 20].replace("\n", " ")))
+            f"({m.group(1)}) — confirme o dado real ou use "
+            "[PREENCHER: matrícula]",
+            texto[ini:m.end() + 20].replace("\n", " "))
+        achado["pendencia"] = pendencia_de_valor(
+            texto, m.start(), m.end(), m.group(1),
+            "matrícula do agente responsável")
+        achados.append(achado)
 
     cnpjs_invalidos = [
         m for m in _RE_CNPJ.finditer(texto)
         if not _cnpj_valido("".join(m.groups()))
     ]
-    if cnpjs_invalidos:
-        m = cnpjs_invalidos[0]
-        achados.append(_achado(
+    for m in cnpjs_invalidos:
+        achado = _achado(
             doc_key, "bloqueia",
-            f"CNPJ inválido ({len(cnpjs_invalidos)} ocorrência(s)) — "
-            "dígitos verificadores não conferem; use o CNPJ real ou "
-            "[PREENCHER: CNPJ]", m.group(0)))
+            f"CNPJ inválido ({m.group(0)}) — dígitos verificadores não "
+            "conferem; use o CNPJ real ou [PREENCHER: CNPJ]", m.group(0))
+        achado["pendencia"] = pendencia_de_valor(
+            texto, m.start(), m.end(), m.group(0),
+            "CNPJ correto (com dígitos verificadores válidos)")
+        achados.append(achado)
 
     if len(_RE_CABECALHO_ITENS.findall(texto)) >= 2:
         achados.append(_achado(

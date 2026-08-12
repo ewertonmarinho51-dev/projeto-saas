@@ -10,7 +10,7 @@ from pathlib import Path
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
-from src import ciclo, db
+from src import achados, ciclo, db
 from src.ui import revisao
 
 APP = str(Path(__file__).resolve().parent.parent / "app.py")
@@ -142,6 +142,42 @@ def test_tela_aguardando_dado_pede_somente_o_campo(monkeypatch):
     assert any("prazo de vigência" in r for r in rotulos)
     # emissão continua bloqueada
     assert not [b for b in at.get("download_button")]
+
+
+def test_tela_nunca_pede_informacao_pendente_generica(monkeypatch):
+    """
+    Regressão da tela reportada em produção: os campos apareciam como
+    `informação pendente (documento DFD)` e o servidor não tinha como
+    saber o que responder. Agora o rótulo nomeia o campo e o documento
+    vem pela sigla — a partir de marcadores SECOS, como os do defeito.
+    """
+    docs = {
+        "dfd": "## 1. IDENTIFICAÇÃO\n\nÓrgão requisitante: [PREENCHER]\n",
+        "etp": "## 2. VIGÊNCIA\n\nPrazo de vigência: [PREENCHER]\n",
+    }
+    relatorio = achados.gerar_relatorio(docs)
+    resultado = {
+        "status": "WAITING_REQUIRED_DATA", "documentos": docs,
+        "versao": 1, "ciclos": 0, "relatorios": [relatorio],
+        "planos": [], "diffs": [], "eventos": [],
+        "campos_requeridos": ciclo._campos_requeridos(relatorio),
+        "decisoes_requeridas": ciclo._decisoes_requeridas(relatorio),
+    }
+    monkeypatch.setattr(
+        db, "flag_ativa",
+        lambda n: n in (revisao.FLAG_TELA, "correcao_automatica"))
+    monkeypatch.setattr(ciclo, "executar_com_persistencia",
+                        lambda *a, **k: resultado)
+    at = _app_na_tela_final()
+    at.session_state["documentos"] = dict(docs)
+    at.run()
+    assert not at.exception
+    rotulos = [i.label or "" for i in at.text_input]
+    assert any("Órgão requisitante" in r for r in rotulos), rotulos
+    assert any("Prazo de vigência" in r for r in rotulos), rotulos
+    assert not any("informação pendente" in r for r in rotulos), rotulos
+    assert not any("documento DFD" in r for r in rotulos), rotulos
+    assert not [b for b in at.get("download_button")]  # emissão bloqueada
 
 
 def test_flag_off_mantem_a_tela_antiga_de_bloqueio(monkeypatch):
