@@ -682,3 +682,96 @@ de órgão de controle.
 
 **NÃO APTO PARA PR** — aguardando autorização para executar o backfill
 dos 4.539 chunks.
+
+---
+
+## O. Categoria `manual` aplicada; backfill segue bloqueado
+
+### O.1 Categoria `manual` — concluída (banco + código)
+
+Reconferência antes de qualquer escrita — os três documentos auditados,
+com ID:
+
+| ID | documento | origem | chunks |
+|---|---|---|---|
+| `dfac3fad-414c-…` | instrumento-de-padronizacao-…-agu-fev-2024.pdf | AGU + Ministério da Gestão e da Inovação | 158 |
+| `8c030522-33c3-…` | manual de fase de planejamento.pdf | Ministério das Comunicações (ago/2025) | 43 |
+| `82dcb022-32e9-…` | ManualdeLicitacoeseContratacoesAdministrativas.pdf | AGU — Consultoria-Geral / Corregedoria-Geral | 1.110 |
+
+**Migração 0017** aplicada (o CHECK passou a aceitar `manual` — apenas
+amplia o domínio, nada existente se invalida). A reclassificação foi
+feita **por DML com os três IDs explícitos**, com `and categoria =
+'entendimento'` como trava — nunca um UPDATE genérico que pudesse
+alcançar documentos futuros.
+
+| verificação | antes | depois |
+|---|---|---|
+| `entendimento` | 3 docs / 1.311 chunks | **0** |
+| `manual` | — | **3 docs / 1.311 chunks** |
+| `lei` | 1 / 250 | 1 / 250 |
+| `modelo` | 16 / 1.577 | 16 / 1.577 |
+| `processo_anterior` | 20 / 1.401 | 20 / 1.401 |
+| total de documentos | 40 | **40** (nenhum removido) |
+| chunks | 4.539 | **4.539** |
+| embeddings legados | 2.978 | **2.978** |
+| `embedding_v2` | 0 | 0 |
+| impressão estrutural | `90c41e57…` | **`90c41e57…`** (inalterada) |
+
+Nenhum chunk, embedding ou documento foi tocado — só a coluna
+`categoria` de três linhas.
+
+**Código** (branch): `CATEGORIAS["manual"] = "Manual / Orientação
+técnica"`; `_PAPEL_DA_FONTE["manual"]` declara que o manual apoia
+estrutura e interpretação técnica mas **não fornece dispositivo
+normativo**, e que **manual federal não obriga o Município**; `manual`
+fica **fora de `LEGISLACAO`** — logo, `lastro_do_trace` não aceita
+dispositivo vindo dele; a prioridade fica **abaixo** de legislação e de
+jurisprudência/controle e **acima** dos moldes. Cinco testes novos,
+inclusive um que confere que o catálogo do código e o CHECK do banco não
+divergem. Suíte: **533 passed / 1 failed** (LibreOffice, pré-existente).
+
+### O.2 Backfill (itens 2 a 9) — não executado, mesmo bloqueio
+
+O relatório de credenciais neste ambiente, com o comando que não expõe
+valor algum:
+
+```
+SUPABASE_URL disponível: não
+SUPABASE_KEY disponível: não
+credencial do provedor V2 disponível: não
+```
+
+A instrução desta rodada é clara — "executar somente no ambiente que já
+possua acesso legítimo às credenciais" — e proíbe justamente os atalhos
+que existiriam: imprimir/copiar a chave, gravá-la em arquivo, instalar
+extensão HTTP no Postgres ou criar rota alternativa à gestão de
+segredos. Nenhum deles foi usado. **Portanto o backfill, o piloto de 20,
+o índice HNSW, o corte do RPC, as consultas jurídicas, a indexação do
+regulamento municipal e o smoke test permanecem pendentes.**
+
+Sequência pronta para execução no ambiente com credenciais (Streamlit
+Cloud ou máquina local do projeto):
+
+```bash
+python scripts/reindexar_embeddings_v2.py --credenciais   # deve dizer "sim"
+python scripts/reindexar_embeddings_v2.py --limite 20      # piloto
+python scripts/reindexar_embeddings_v2.py --validar        # confere o piloto
+python scripts/reindexar_embeddings_v2.py --lote 100       # integral
+python scripts/reindexar_embeddings_v2.py --validar        # 4539/4539
+```
+
+Basta me enviar a saída dos comandos (ou avisar que rodou) que eu sigo
+com a validação SQL completa, o HNSW, o corte do RPC e o restante.
+
+### O.3 Nota de infraestrutura
+
+O contêiner desta sessão foi reiniciado no meio do trabalho e a cópia
+local do repositório da aplicação foi perdida. Nada se perdeu de fato:
+tudo estava publicado na branch, que foi reclonada, e as alterações de
+banco já estavam aplicadas no Supabase. Os caminhos locais mudaram; o
+conteúdo, não.
+
+### Veredito
+
+**NÃO APTO PARA PR** — a categoria `manual` está resolvida no banco e no
+código; falta executar o backfill V2 e tudo que depende dele.
