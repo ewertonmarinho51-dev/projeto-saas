@@ -212,6 +212,58 @@ _CLASSIFICACAO: list[tuple[str, dict]] = [
         "gravidade": "MEDIUM",
         "bloqueio": MOTIVO_DISCRICIONARIO,
     }),
+    ("fundamento sem lastro", {
+        "categoria": "fundamento_sem_lastro",
+        "regra": "Dispositivo só é citado com lastro: mapa canônico do "
+                 "sistema ou trecho efetivamente recuperado da base de "
+                 "conhecimento.",
+        "esperado": "Remoção do número do dispositivo, mantendo a "
+                    "referência à norma — NUNCA a substituição por outro "
+                    "artigo sem fonte.",
+        "auto": True,
+        "gravidade": "HIGH",
+    }),
+    ("cláusula de necessidade antecipa a solução", {
+        "categoria": "raciocinio_etp",
+        "regra": "O ETP conclui a solução a partir da necessidade, dos "
+                 "requisitos e do levantamento de alternativas — a "
+                 "necessidade não pode trazer a escolha pronta.",
+        "esperado": "Necessidade redigida como problema a resolver; a "
+                    "escolha da solução decorre da análise — reescrita "
+                    "discricionária do redator.",
+        "auto": False,
+        "gravidade": "MEDIUM",
+        "bloqueio": MOTIVO_DISCRICIONARIO,
+    }),
+    ("ordem do raciocínio invertida", {
+        "categoria": "raciocinio_etp",
+        "regra": "Levantamento de soluções precede a descrição da solução "
+                 "escolhida (art. 18, §1º, V e VII).",
+        "esperado": "Cláusulas reordenadas: levantamento antes da "
+                    "solução escolhida.",
+        "auto": False,
+        "gravidade": "MEDIUM",
+        "bloqueio": MOTIVO_DISCRICIONARIO,
+    }),
+    ("solução descrita sem cláusula de levantamento", {
+        "categoria": "raciocinio_etp",
+        "regra": "A solução escolhida deve decorrer de um levantamento de "
+                 "alternativas (art. 18, §1º, V).",
+        "esperado": "Cláusula de levantamento de soluções incluída, com "
+                    "as alternativas reais analisadas.",
+        "auto": False,
+        "gravidade": "MEDIUM",
+        "bloqueio": MOTIVO_DISCRICIONARIO,
+    }),
+    ("afirmação absoluta sem evidência", {
+        "categoria": "conclusao_sem_lastro",
+        "regra": "Conclusões devem ter a firmeza que a análise sustenta; "
+                 "absolutismos não são demonstráveis.",
+        "esperado": "Afirmação ajustada ao que a análise demonstra.",
+        "auto": False,
+        "gravidade": "LOW",
+        "bloqueio": MOTIVO_DISCRICIONARIO,
+    }),
     ("cláusula meta-descritiva", {
         "categoria": "clausula_nao_desenvolvida",
         "regra": "A cláusula deve trazer o conteúdo real do ato, não uma "
@@ -378,6 +430,21 @@ def estruturar(achados_brutos: list[dict],
     return findings
 
 
+def _lastro_da_sessao(documentos: dict[str, str]) -> dict[str, set]:
+    """
+    doc_key → artigos recuperados pelo RAG naquela geração. Documento sem
+    rastro (gerado antes do P1, importado ou editado à mão) fica FORA do
+    dicionário: a checagem de lastro não opina sobre ele.
+    """
+    import streamlit as st
+
+    from . import rag
+
+    traces = st.session_state.get("_rag_trace") or {}
+    return {doc_key: rag.lastro_do_trace(traces[doc_key])
+            for doc_key in documentos if doc_key in traces}
+
+
 def gerar_relatorio(documentos: dict[str, str],
                     processo_id: str | None = None,
                     versao: int = 1) -> dict:
@@ -385,7 +452,10 @@ def gerar_relatorio(documentos: dict[str, str],
     Relatório de auditoria (audit-report) do bundle: roda o revisor
     determinístico existente e estrutura o resultado. Não altera nada.
     """
-    brutos = validacao.validar_todos(documentos)
+    # P1: lastro das citações — artigos que o RAG realmente recuperou na
+    # geração de cada documento (sem rastro, a checagem não opina).
+    lastro_por_doc = _lastro_da_sessao(documentos)
+    brutos = validacao.validar_todos(documentos, lastro_por_doc)
     findings = estruturar(brutos, documentos)
     # V5 Fase 5 (flag_process_consistency): consistência cruzada entre
     # fatos canônicos e documentos entra no MESMO relatório — o corretor

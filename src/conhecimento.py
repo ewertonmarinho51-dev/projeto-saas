@@ -38,6 +38,216 @@ _PESO_CAMADA = {camada: i for i, camada in enumerate(governanca.CAMADAS)}
 
 
 # ---------------------------------------------------------------------------
+# Base de regras da PLATAFORMA (P1)
+#
+# O motor já resolvia regras corretamente, mas a tabela `regras_conheci-
+# mento` nasce VAZIA: sem regra publicada, nenhuma cláusula condicional
+# jamais era ativada ou suprimida. Estas regras são o piso institucional
+# — camada 'nacional', a MENOS específica de todas, de modo que qualquer
+# regra do município, da secretaria ou do processo (banco/Centro de
+# Governança) prevalece pela precedência já existente.
+#
+# São DADOS para o resolver existente: nenhuma lógica condicional nova
+# foi criada, e cada regra aponta a fonte normativa que a sustenta.
+# ---------------------------------------------------------------------------
+def _regra(chave, condicao, acoes, justificativa, fontes,
+           prioridade=10) -> dict:
+    return {
+        "chave_estavel": chave, "versao": 1, "status": "PUBLISHED",
+        "camada": "nacional", "prioridade": prioridade,
+        "condicao": condicao, "acoes": acoes,
+        "vigencia_inicio": None, "vigencia_fim": None,
+        "fontes": list(fontes), "justificativa": justificativa,
+    }
+
+
+def _eq(campo, valor) -> dict:
+    return {"field": campo, "operator": "EQ", "value": valor}
+
+
+def _nao(condicao: dict) -> dict:
+    return {"op": "NOT", "children": [condicao]}
+
+
+def _existe(campo: str) -> dict:
+    return {"field": campo, "operator": "EXISTS", "value": None}
+
+
+def _incluir(*alvos) -> list[dict]:
+    return [{"type": "INCLUIR_CLAUSULA", "target": a} for a in alvos]
+
+
+def _excluir(*alvos) -> list[dict]:
+    return [{"type": "EXCLUIR_CLAUSULA", "target": a} for a in alvos]
+
+
+_LEI = "Lei nº 14.133/2021"
+
+def _alerta(mensagem: str) -> list[dict]:
+    return [{"type": "ALERTA", "mensagem": mensagem}]
+
+
+REGRAS_BASE: list[dict] = [
+    # --- Sistema de Registro de Preços -------------------------------
+    # A renovação do quantitativo registrado NÃO decorre da simples
+    # adoção do SRP: depende da regulamentação do ente e dos
+    # entendimentos aplicáveis. Fica de fora da base — uma regra
+    # municipal publicada no Centro de Governança pode ativá-la com a
+    # fundamentação própria (o alvo `srp.renovacao_quantitativo`
+    # permanece disponível para isso).
+    _regra(
+        "base.srp.clausulas-proprias",
+        _eq("procedimento.srp", True),
+        _incluir("srp.vigencia_ata", "srp.gerenciamento", "srp.adesao",
+                 "srp.cadastro_reserva"),
+        "Contratação por Sistema de Registro de Preços exige as cláusulas "
+        "próprias da Ata (vigência, gerenciamento, adesão, cadastro de "
+        "reserva).",
+        [f"{_LEI}, arts. 82 a 86"]),
+    _regra(
+        "base.srp.sem-srp-nao-ha-ata",
+        _nao(_eq("procedimento.srp", True)),
+        _excluir("srp.vigencia_ata", "srp.gerenciamento", "srp.adesao",
+                 "srp.cadastro_reserva", "srp.renovacao_quantitativo"),
+        "Sem Sistema de Registro de Preços não há Ata: as cláusulas "
+        "próprias da ARP não podem constar do documento.",
+        [f"{_LEI}, arts. 82 a 86"]),
+
+    # --- Reajuste × repactuação --------------------------------------
+    # Tri-state: só decide quem tem informação. Sem saber o regime de
+    # pessoal, o motor ALERTA em vez de excluir ou impor o instituto.
+    _regra(
+        "base.repactuacao.sem-dedicacao-de-mao-de-obra",
+        _eq("procedimento.dedicacao_mao_de_obra", False),
+        _excluir("preco.repactuacao") + _incluir("preco.reajuste"),
+        "Sem dedicação de mão de obra não cabe repactuação: a manutenção "
+        "do equilíbrio se dá por reajuste por índice.",
+        [f"{_LEI}, art. 92, §3º", f"{_LEI}, art. 135"]),
+    _regra(
+        "base.repactuacao.servico-com-mao-de-obra",
+        _eq("procedimento.dedicacao_mao_de_obra", True),
+        _incluir("preco.repactuacao"),
+        "Serviço contínuo com dedicação exclusiva de mão de obra admite "
+        "repactuação para manutenção do equilíbrio econômico-financeiro.",
+        [f"{_LEI}, art. 135"], prioridade=20),
+    _regra(
+        "base.repactuacao.regime-nao-informado",
+        {"op": "ALL", "children": [
+            _eq("procedimento.execucao_continuada", True),
+            _nao(_existe("procedimento.dedicacao_mao_de_obra"))]},
+        _alerta("Serviço continuado sem informação sobre dedicação de mão "
+                "de obra: a escolha entre REAJUSTE (art. 92, §3º) e "
+                "REPACTUAÇÃO (art. 135) depende desse regime — registre-o "
+                "no processo antes de fixar a cláusula."),
+        "O instituto de atualização de preços depende do regime de "
+        "pessoal, que não consta do processo.",
+        [f"{_LEI}, art. 135", f"{_LEI}, art. 92, §3º"]),
+    _regra(
+        "base.reajuste.bens",
+        _eq("objeto.natureza", "BENS"),
+        _excluir("preco.repactuacao") + _incluir("preco.reajuste"),
+        "Fornecimento de bens não comporta repactuação: aplica-se o "
+        "reajuste por índice.",
+        [f"{_LEI}, art. 92, §3º"]),
+
+    # --- Garantia contratual -----------------------------------------
+    _regra(
+        "base.garantia.nao-presumida",
+        _nao(_eq("contratacao.garantia_exigida", True)),
+        _excluir("contrato.garantia"),
+        "A garantia contratual é FACULDADE motivada da Administração: sem "
+        "decisão registrada no processo, não se presume exigência nem "
+        "percentual.",
+        [f"{_LEI}, arts. 96 a 98"]),
+    _regra(
+        "base.garantia.exigida-no-processo",
+        _eq("contratacao.garantia_exigida", True),
+        _incluir("contrato.garantia"),
+        "Havendo exigência de garantia no processo, a cláusula deve "
+        "indicar modalidade, percentual e condições de liberação.",
+        [f"{_LEI}, arts. 96 a 98"], prioridade=20),
+
+    # --- Amostra / prova de conceito ---------------------------------
+    _regra(
+        "base.amostra.nao-presumida",
+        _nao(_eq("contratacao.amostra_exigida", True)),
+        _excluir("julgamento.amostra"),
+        "Exigência de amostra ou prova de conceito restringe a competição "
+        "e só cabe quando prevista no edital e justificada tecnicamente.",
+        [f"{_LEI}, art. 41, II", f"{_LEI}, art. 42"]),
+    _regra(
+        "base.amostra.exigida-no-processo",
+        _eq("contratacao.amostra_exigida", True),
+        _incluir("julgamento.amostra"),
+        "Amostra prevista no processo: definir momento, critérios "
+        "objetivos de aceitação e consequência da reprovação.",
+        [f"{_LEI}, art. 41, II", f"{_LEI}, art. 42"], prioridade=20),
+
+    # --- Tratamento favorecido ME/EPP --------------------------------
+    _regra(
+        "base.me-epp.bens-e-servicos",
+        {"op": "ANY", "children": [_eq("objeto.natureza", "BENS"),
+                                   _eq("objeto.natureza", "SERVICOS")]},
+        _incluir("participacao.me_epp"),
+        "Aquisição de bens e contratação de serviços atraem o tratamento "
+        "favorecido às microempresas e empresas de pequeno porte.",
+        ["LC nº 123/2006, arts. 42 a 49"]),
+
+    # --- Categorias do objeto (fato estruturado, nunca texto solto) ---
+    # SOFTWARE/SaaS trata dados da Administração: daí LGPD, backup e
+    # migração de saída. EQUIPAMENTO não recebe nada disso por padrão —
+    # comprar monitores não gera cláusula de migração de dados. Quando o
+    # hardware efetivamente armazenar dados, a regra própria é municipal.
+    _regra(
+        "base.ti.solucao-de-software",
+        _eq("objeto.categoria", "TI_SOFTWARE"),
+        _incluir("ti.nivel_servico", "ti.seguranca_backup",
+                 "ti.interoperabilidade", "ti.protecao_dados",
+                 "ti.migracao_saida"),
+        "Software, SaaS e hospedagem tratam dados da Administração: "
+        "exigem níveis de serviço, segurança e continuidade, "
+        "interoperabilidade, proteção de dados pessoais e condições de "
+        "migração/devolução ao término do contrato.",
+        ["Lei nº 13.709/2018 (LGPD)", f"{_LEI}, art. 40"]),
+
+    _regra(
+        "base.epi.certificado-de-aprovacao",
+        _eq("objeto.categoria", "EPI"),
+        _incluir("epi.certificado_aprovacao"),
+        "Equipamento de proteção individual exige Certificado de "
+        "Aprovação (CA) válido, emitido pelo órgão competente.",
+        # a fonte precisa estar INDEXADA na base para sustentar citação
+        # de dispositivo no documento (ver rag.REGRA_DE_CITACAO)
+        ["NR-6 — Portaria MTP nº 672/2021 (consolidação das NRs); "
+         "confirmar vigência na base de conhecimento"]),
+
+    # Veículos: garantia, manutenção e assistência dependem do que o
+    # processo exigir. Exigência de rede autorizada, cobertura territorial
+    # ou distância máxima restringe a competição e precisa de necessidade
+    # técnica demonstrada — por isso a base apenas ALERTA.
+    _regra(
+        "base.veiculos.condicoes-a-justificar",
+        _eq("objeto.categoria", "VEICULOS"),
+        _alerta("Aquisição de veículos: defina garantia, manutenção e "
+                "documentação de entrega conforme a necessidade do "
+                "processo. Exigência de rede de assistência autorizada, "
+                "cobertura territorial ou distância máxima só é admissível "
+                "com justificativa técnica no processo — sem ela, não a "
+                "inclua."),
+        "Condições de garantia e assistência de veículos variam com a "
+        "necessidade; restrições territoriais exigem motivação própria.",
+        [f"{_LEI}, art. 40"]),
+]
+
+
+def regras_base() -> list[dict]:
+    """Cópia da base de regras da plataforma (nunca mutável pelo chamador)."""
+    import copy
+
+    return copy.deepcopy(REGRAS_BASE)
+
+
+# ---------------------------------------------------------------------------
 # Contexto: fatos vigentes → {path: valor}
 # ---------------------------------------------------------------------------
 def contexto_dos_fatos(fatos: list[dict]) -> dict:
@@ -51,6 +261,64 @@ def contexto_dos_fatos(fatos: list[dict]) -> dict:
             versao[path] = int(fato.get("versao", 1))
             contexto[path] = fato.get("valor")
     return contexto
+
+
+# Uma INFERÊNCIA do sistema (fato cuja fonte é `inferencia:…`, ainda não
+# confirmado por um humano) não pode, sozinha, incluir cláusula
+# obrigatória, excluir matéria do documento, criar exigência técnica ou
+# restringir a competição: a regra continua valendo, mas o efeito vira
+# SUGESTÃO com alerta. Informação prestada no processo (qualquer fonte
+# que não seja inferência) e fato confirmado seguem vinculando
+# normalmente. Uma regra pode aceitar inferência explicitamente com
+# `aceita_inferencia: True` — política declarada, não efeito colateral.
+CONFIANCA_VINCULANTE = 0.75
+
+
+def _perfil_dos_fatos(fatos: list[dict]) -> dict[str, dict]:
+    """path → {'confianca', 'inferido'} da versão vigente do fato."""
+    from .fatos import PREFIXO_INFERENCIA
+
+    perfil: dict[str, dict] = {}
+    versao: dict[str, int] = {}
+    for fato in fatos:
+        if fato.get("status") == "substituido":
+            continue
+        path = fato["path"]
+        if versao.get(path, 0) >= int(fato.get("versao", 1)):
+            continue
+        versao[path] = int(fato.get("versao", 1))
+        confirmado = fato.get("status") == "confirmado"
+        perfil[path] = {
+            "confianca": 1.0 if confirmado
+            else float(fato.get("confianca") or 0.5),
+            "inferido": (not confirmado) and str(fato.get("fonte") or "")
+            .startswith(PREFIXO_INFERENCIA),
+        }
+    return perfil
+
+
+def confiancas_dos_fatos(fatos: list[dict]) -> dict[str, float]:
+    """path → confiança vigente (fato confirmado pelo humano vale 1.0)."""
+    return {path: dados["confianca"]
+            for path, dados in _perfil_dos_fatos(fatos).items()}
+
+
+def _confianca_da_avaliacao(avaliacao: dict,
+                            perfil: dict[str, dict]) -> tuple[float, str, bool]:
+    """
+    (confiança, fato mais fraco, é inferência?) da regra satisfeita.
+    Vale o fato MENOS confiável entre os efetivamente usados. Condição
+    satisfeita por AUSÊNCIA de fato (ex.: 'garantia não foi pedida no
+    processo') não é inferência: é constatação sobre o processo.
+    """
+    usados = [f for f in avaliacao["folhas"] if f["satisfeita"] and f["presente"]]
+    if not usados:
+        return 1.0, "", False
+    pior = min(usados,
+               key=lambda f: perfil.get(f["field"], {}).get("confianca", 0.5))
+    dados = perfil.get(pior["field"], {})
+    return (dados.get("confianca", 0.5), pior["field"],
+            bool(dados.get("inferido")))
 
 
 # ---------------------------------------------------------------------------
@@ -176,13 +444,17 @@ def resolver(fatos: list[dict], regras: list[dict],
     conflitos e regras ignoradas. Determinística e reproduzível.
     """
     contexto = contexto_dos_fatos(fatos)
+    perfil = _perfil_dos_fatos(fatos)
     elegiveis, ignoradas = regras_elegiveis(regras, fontes_revogadas, agora)
 
     satisfeitas: list[dict] = []
     trilha: list[dict] = []
     ausentes: set[str] = set()
+    sugeridas: list[tuple[dict, float, str]] = []
     for regra in sorted(elegiveis, key=_peso, reverse=True):
         avaliacao = avaliar_condicao(regra["condicao"], contexto)
+        confianca, fato_fraco, inferido = _confianca_da_avaliacao(
+            avaliacao, perfil)
         trilha.append({
             "chave": regra["chave_estavel"], "versao": regra["versao"],
             "camada": regra["camada"], "prioridade": regra["prioridade"],
@@ -191,10 +463,17 @@ def resolver(fatos: list[dict], regras: list[dict],
             "acoes": regra["acoes"],
             "fontes": list(regra.get("fontes") or []),
             "justificativa": regra.get("justificativa", ""),
+            "confianca": round(confianca, 2),
         })
         ausentes.update(avaliacao["ausentes"])
-        if avaliacao["resultado"]:
-            satisfeitas.append(regra)
+        if not avaliacao["resultado"]:
+            continue
+        if inferido and not regra.get("aceita_inferencia"):
+            # a regra vale, mas quem a sustenta é uma inferência do
+            # sistema: a ação é oferecida ao revisor, não imposta
+            sugeridas.append((regra, confianca, fato_fraco))
+            continue
+        satisfeitas.append(regra)
 
     # ações por cláusula-alvo: camada/prioridade decidem; empate oposto
     # = conflito não determinístico (bloqueia — nunca resolve sozinho)
@@ -205,7 +484,27 @@ def resolver(fatos: list[dict], regras: list[dict],
         "familia": None, "validacoes": [], "alertas": [],
         "bloqueios": [], "pendencias": sorted(ausentes),
         "conflitos": [], "regras_ignoradas": ignoradas,
+        # regras satisfeitas por fato de baixa confiança: sugestão ao
+        # revisor, nunca imposição ao documento
+        "sugestoes": [],
     }
+    for regra, confianca, fato_fraco in sugeridas:
+        alvos = [a.get("target") for a in regra["acoes"] if a.get("target")]
+        resultado["sugestoes"].append({
+            "regra": regra["chave_estavel"],
+            "acoes": [a.get("type") for a in regra["acoes"]],
+            "alvos": alvos,
+            "confianca": round(confianca, 2),
+            "fato": fato_fraco,
+            "motivo": (
+                f"sustentada por inferência de baixa confiança "
+                f"({fato_fraco} = {confianca:.2f}); confirme o fato para "
+                "que a regra passe a valer"),
+            "justificativa": regra.get("justificativa", ""),
+        })
+        resultado["alertas"].append(
+            f"{regra.get('justificativa') or regra['chave_estavel']} "
+            f"— avaliar: depende de confirmar '{fato_fraco}'.")
     for regra in satisfeitas:
         for acao in regra["acoes"]:
             tipo, alvo = acao.get("type"), acao.get("target")
@@ -296,7 +595,8 @@ def motor_ativo() -> bool:
     return db.flag_ativa(governanca.FLAG_MOTOR_ATIVO)
 
 
-def executar_na_tela(dados: dict, processo_id: str | None) -> dict | None:
+def executar_na_tela(dados: dict, processo_id: str | None,
+                     documentos: dict[str, str] | None = None) -> dict | None:
     """
     Resolve o conhecimento para o processo atual:
       - motor ATIVO: retorna a decisão (a tela exibe e respeita
@@ -314,10 +614,17 @@ def executar_na_tela(dados: dict, processo_id: str | None) -> dict | None:
             lista_fatos = db.listar_fatos(processo_id) or lista_fatos
         except db.ErroBanco:
             pass
+    # decisões que os documentos aprovados já consolidaram prevalecem
+    # sobre a preferência do formulário
+    lista_fatos = sobrepor_decisoes_consolidadas(lista_fatos, documentos,
+                                                 processo_id)
     try:
-        regras = db.listar_regras() if db.disponivel() else []
+        do_banco = db.listar_regras() if db.disponivel() else []
     except db.ErroBanco:
-        regras = []
+        do_banco = []
+    # a base da plataforma é o piso: qualquer regra do banco (município,
+    # secretaria, processo) vence pela precedência já existente
+    regras = regras_base() + do_banco
     # V6 Fase 3 (flag_visual_policy_builder): as políticas PUBLICADAS no
     # Centro de Governança entram no motor junto às regras do banco.
     if db.disponivel() and db.flag_ativa(governanca.FLAG_POLITICAS_VISUAL):
@@ -352,3 +659,147 @@ def executar_na_tela(dados: dict, processo_id: str | None) -> dict | None:
             len(resultado["conflitos"]))
         return None
     return decisao
+
+
+# ---------------------------------------------------------------------------
+# Diretrizes de cláusulas condicionais para a GERAÇÃO (P1)
+#
+# Até aqui a decisão do motor só aparecia na tela final — depois do
+# documento pronto. As cláusulas condicionais precisam chegar ao prompt,
+# e por isso a MESMA decisão (mesmo resolver, mesmos fatos, mesma
+# trilha) é traduzida em instruções objetivas para a redação.
+# ---------------------------------------------------------------------------
+ROTULOS_CLAUSULA = {
+    "srp.vigencia_ata": "vigência da Ata de Registro de Preços (art. 84 da "
+                        "Lei nº 14.133/2021: 1 ano, prorrogável por igual "
+                        "período)",
+    "srp.gerenciamento": "gerenciamento da Ata (órgão gerenciador, "
+                         "participantes e controle dos quantitativos)",
+    "srp.adesao": "adesão à Ata por órgãos não participantes, com os "
+                  "limites do art. 86",
+    "srp.cadastro_reserva": "cadastro de reserva dos licitantes que "
+                            "aceitarem cotar nos preços do primeiro colocado",
+    "srp.renovacao_quantitativo": "possibilidade de renovação do "
+                                  "quantitativo registrado",
+    "preco.reajuste": "reajuste de preços por índice oficial (art. 92, §3º)",
+    "preco.repactuacao": "repactuação de preços (art. 135), restrita a "
+                         "serviço contínuo com dedicação de mão de obra",
+    "contrato.garantia": "garantia contratual, com modalidade, percentual e "
+                         "condições (arts. 96 a 98)",
+    "julgamento.amostra": "exigência de amostra/prova de conceito, com "
+                          "critérios objetivos de aceitação",
+    "participacao.me_epp": "tratamento favorecido a microempresas e "
+                           "empresas de pequeno porte (LC nº 123/2006)",
+    "ti.nivel_servico": "níveis mínimos de serviço (disponibilidade, "
+                        "suporte e prazos de atendimento)",
+    "ti.seguranca_backup": "segurança da informação, backup e continuidade",
+    "ti.interoperabilidade": "interoperabilidade e formatos abertos de "
+                             "intercâmbio de dados",
+    "ti.protecao_dados": "proteção de dados pessoais (Lei nº 13.709/2018)",
+    "ti.migracao_saida": "migração e devolução dos dados ao término do "
+                         "contrato",
+    "epi.certificado_aprovacao": "exigência de Certificado de Aprovação "
+                                 "(CA) válido para cada equipamento",
+}
+
+
+def _rotulo(alvo: str) -> str:
+    return ROTULOS_CLAUSULA.get(alvo, alvo.replace("_", " ").replace(".", ": "))
+
+
+def bloco_de_diretrizes(resultado: dict) -> str:
+    """Texto das cláusulas condicionais resolvidas (vazio se nada a dizer)."""
+    incluir = resultado.get("clausulas_incluir") or []
+    excluir = resultado.get("clausulas_excluir") or []
+    alertas = resultado.get("alertas") or []
+    if not (incluir or excluir or alertas):
+        return ""
+    linhas = [
+        "\n=== CLÁUSULAS CONDICIONAIS DETERMINADAS PELAS REGRAS "
+        "INSTITUCIONAIS (obrigatório) ===",
+        "Estas determinações vêm das regras vigentes aplicadas aos dados "
+        "do processo — não são sugestões e prevalecem sobre o padrão dos "
+        "documentos anteriores.",
+    ]
+    if incluir:
+        linhas.append("DEVE TRATAR (desenvolva a matéria na cláusula "
+                      "adequada do documento):")
+        linhas += [f"- {_rotulo(a)}" for a in incluir]
+    if excluir:
+        linhas.append("NÃO PODE CONSTAR (a matéria é inaplicável a esta "
+                      "contratação; não escreva a cláusula nem mencione o "
+                      "instituto como se aplicável):")
+        linhas += [f"- {_rotulo(a)}" for a in excluir]
+    if alertas:
+        linhas.append("ATENÇÃO:")
+        linhas += [f"- {a}" for a in alertas]
+    return "\n".join(linhas)
+
+
+def sobrepor_decisoes_consolidadas(
+        lista_fatos: list[dict], documentos: dict[str, str] | None,
+        processo_id: str | None = None) -> list[dict]:
+    """
+    Fatos do processo com as decisões JÁ CONSOLIDADAS pelos documentos
+    aprovados sobrepondo a preferência registrada no formulário.
+
+    O formulário é hipótese de modelagem; o ETP é quem consolida o SRP.
+    Sem esta sobreposição, gerar o TR depois de um ETP que afastou o
+    registro de preços reintroduziria as cláusulas da Ata pela porta dos
+    fundos.
+
+    A sobreposição é CIRÚRGICA: o ETP decidiu sobre o registro de preços,
+    então só `procedimento.srp` muda — a forma de execução (entrega
+    única, parcelada, serviço continuado) NÃO decorre disso e permanece
+    como está. O fato sobreposto nasce com fonte `documento:etp` e versão
+    nova, no mesmo contrato de versionamento dos demais fatos.
+    """
+    if not documentos:
+        return lista_fatos
+    from . import consistencia
+
+    doc_ref, valor, _ = consistencia.documento_consolidador("srp", documentos)
+    if not doc_ref or valor not in ("sim", "nao"):
+        return lista_fatos
+    srp_consolidado = valor == "sim"
+    vigente = next((f for f in lista_fatos
+                    if f["path"] == "procedimento.srp"
+                    and f.get("status") != "substituido"), None)
+    if vigente is not None and bool(vigente.get("valor")) == srp_consolidado:
+        return lista_fatos
+
+    substituido = [dict(f, status="substituido") if f is vigente else f
+                   for f in lista_fatos]
+    novo = governanca.novo_fato(
+        processo_id, "procedimento.srp", srp_consolidado, "booleano",
+        f"documento:{doc_ref}", status="confirmado",
+        confianca=1.0,
+        versao=int((vigente or {}).get("versao", 0)) + 1)
+    _log.info("modelagem consolidada pelo %s: srp=%s (formulário sobreposto)",
+              doc_ref, srp_consolidado)
+    return substituido + [novo]
+
+
+def diretrizes_para_prompt(dados: dict, processo_id: str | None,
+                           documentos: dict[str, str] | None = None,
+                           doc_key: str = "") -> str:
+    """
+    Bloco de cláusulas condicionais para a geração. Só produz texto com o
+    motor ATIVO (flag): shadow e OFF mantêm o prompt idêntico ao atual.
+    As decisões consolidadas nos documentos anteriores prevalecem sobre a
+    preferência registrada no formulário.
+    Nunca levanta exceção — conhecimento é enriquecimento, não requisito.
+    """
+    try:
+        if not motor_ativo():
+            return ""
+        # o documento em produção não consolida a si mesmo
+        anteriores = {k: v for k, v in (documentos or {}).items()
+                      if k != doc_key}
+        decisao = executar_na_tela(dados, processo_id, anteriores)
+        if not decisao:
+            return ""
+        return bloco_de_diretrizes(decisao["resultado"])
+    except Exception as erro:  # noqa: BLE001
+        _log.warning("diretrizes do motor indisponíveis: %s", erro)
+        return ""

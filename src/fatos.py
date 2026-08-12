@@ -20,6 +20,7 @@ Feature flag `flag_canonical_facts` (default OFF):
 """
 
 import logging
+import re
 
 import streamlit as st
 
@@ -27,25 +28,198 @@ from . import blocos, db, governanca, planilha
 
 _log = logging.getLogger("govdocs.fatos")
 
+# Confiança dos fatos derivados: quem nasce de campo estruturado do
+# formulário sustenta decisão vinculante; quem nasce de heurística sobre
+# texto livre só sugere (o motor aplica o corte — ver conhecimento.py).
+CONFIANCA_ESTRUTURADA = 0.85
+CONFIANCA_HEURISTICA = 0.6
+
+# Prefixo de fonte que marca o fato como INFERÊNCIA do sistema (e não
+# informação prestada). É o que o motor observa para não transformar
+# heurística em obrigação — ver conhecimento.py.
+PREFIXO_INFERENCIA = "inferencia"
+
+# Natureza do objeto: SÓ das opções de execução que a declaram. "SRP",
+# "Entrega única" e "Entrega parcelada" são MODELAGEM/procedimento e
+# servem a qualquer natureza — delas não se deduz nada. Sem base segura,
+# nenhum fato é emitido (ausência ≠ BENS).
 NATUREZA_POR_EXECUCAO = {
     "Obra / serviço de engenharia": "OBRAS_ENGENHARIA",
     "Serviço de execução continuada": "SERVICOS",
     "Serviço por escopo (execução única)": "SERVICOS",
 }
 
+# Natureza que a CATEGORIA do objeto permite inferir (heurística — herda
+# a confiança baixa da categoria). TI_SOFTWARE fica de fora: licença de
+# uso e SaaS ora são bem, ora serviço.
+NATUREZA_POR_CATEGORIA = {
+    "MATERIAL_CONSUMO": "BENS", "TI_EQUIPAMENTO": "BENS", "EPI": "BENS",
+    "VEICULOS": "BENS", "MEDICAMENTOS": "BENS", "ALIMENTOS": "BENS",
+    "OBRAS_ENGENHARIA": "OBRAS_ENGENHARIA",
+}
+
+# ---------------------------------------------------------------------------
+# Vocabulário controlado da CATEGORIA do objeto (P1).
+#
+# As regras do motor de conhecimento precisam de um dado ESTRUTURADO para
+# decidir cláusulas condicionais — jamais de um `if "software" in objeto`
+# espalhado pelo prompt. A categoria é, portanto, extraída aqui como FATO
+# (confiança baixa, status 'extraido' → confirmável pelo humano) a partir
+# de EVIDÊNCIA ACUMULADA em vários campos do formulário, não de uma única
+# ocorrência textual. Quando a evidência é fraca, nenhum fato é emitido —
+# ausência de fato faz as regras condicionais NÃO dispararem (conservador).
+# ---------------------------------------------------------------------------
+CATEGORIAS_OBJETO: dict[str, tuple[str, ...]] = {
+    "TI_SOFTWARE": ("software", "sistema de informacao", "licenca de uso",
+                    "saas", "plataforma digital", "aplicativo", "nuvem",
+                    "hospedagem", "assinatura de solucao", "erp"),
+    "TI_EQUIPAMENTO": ("computador", "notebook", "servidor de rede",
+                       "switch", "storage", "impressora", "monitor",
+                       "nobreak", "scanner"),
+    "EPI": ("equipamento de protecao", "epi", "luva de seguranca",
+            "capacete", "protetor auricular", "bota de seguranca",
+            "oculos de protecao"),
+    "VEICULOS": ("veiculo", "automovel", "caminhao", "onibus",
+                 "motocicleta", "ambulancia", "retroescavadeira"),
+    "MEDICAMENTOS": ("medicamento", "farmaco", "insumo farmaceutico",
+                     "material medico-hospitalar", "anvisa"),
+    "ALIMENTOS": ("genero alimenticio", "merenda", "alimentacao escolar",
+                  "cesta basica"),
+    "MATERIAL_CONSUMO": ("material de expediente", "material de consumo",
+                         "papel a4", "caneta", "grampeador", "almofada "
+                         "para carimbo", "material de limpeza"),
+    "OBRAS_ENGENHARIA": ("reforma", "construcao", "pavimentacao",
+                         "obra de engenharia", "recuperacao de via"),
+}
+
+# Peso da evidência por campo: o objeto é a fonte primária da categoria.
+_PESO_CAMPO = {"objeto": 3, "itens": 1, "requisitos": 1}
+_EVIDENCIA_MINIMA = 3
+
+# ---------------------------------------------------------------------------
+# Fatos derivados são TRI-STATE: True (evidência positiva), False
+# (o processo diz expressamente que não) e AUSENTE (não se sabe).
+#
+# Ausência de evidência NÃO é evidência de ausência: quando o processo
+# nada diz, nenhum fato é emitido e as regras que dependem dele não
+# disparam em nenhuma direção. Frases negativas ("não será exigida
+# garantia") produzem o fato FALSE — nunca o positivo.
+# ---------------------------------------------------------------------------
+# Instituto de reajuste × repactuação: repactuação pressupõe serviço
+# contínuo COM dedicação de mão de obra. A base é ESTRUTURADA (modelo de
+# execução); o texto livre apenas complementa.
+#
+# Só expressões INEQUÍVOCAS de regime de pessoal decidem o fato. "mão de
+# obra" solta aparece em qualquer serviço ("mão de obra especializada
+# para o conserto") e não significa dedicação exclusiva: nesse caso o
+# fato fica UNKNOWN e o motor alerta em vez de escolher o instituto.
+_TERMOS_DEDICACAO = ("dedicacao exclusiva", "dedicacao predominante",
+                     "dedicacao integral de mao de obra",
+                     "mao de obra exclusiva", "mao de obra residente",
+                     "terceirizacao de pessoal")
+_TERMOS_MAO_DE_OBRA_GENERICO = ("mao de obra", "posto de trabalho",
+                                "posto de servico")
+# Garantia CONTRATUAL (arts. 96 a 98) — não confundir com garantia do
+# produto/fabricante ("garantia de 12 meses do fabricante"), que é
+# requisito técnico do objeto e NÃO exige garantia de execução.
+_TERMOS_GARANTIA = ("garantia contratual", "garantia de execucao",
+                    "caucao", "seguro-garantia", "fianca bancaria")
+_TERMOS_AMOSTRA = ("amostra", "prova de conceito", "prototipo")
+
+# Negação imediatamente antes do termo (até ~60 caracteres): "não será
+# exigida garantia contratual", "dispensa-se a apresentação de amostra",
+# "sem exigência de amostra", "fica dispensada a caução".
+_RE_NEGACAO = re.compile(
+    r"\b(nao\s+(?:sera|serao|se|ha|havera|e)\b[^.;]{0,60}?"
+    r"|sem\s+(?:exigencia|necessidade|apresentacao)\s+de\s+[^.;]{0,40}?"
+    r"|dispensa(?:-se|da|do|se)\b[^.;]{0,60}?"
+    r"|fica\s+dispensad[ao]\b[^.;]{0,60}?"
+    r"|inexig[ei]\w*\b[^.;]{0,40}?)$")
+
 
 # ---------------------------------------------------------------------------
 # Extração determinística (formulário → fatos)
 # ---------------------------------------------------------------------------
+def _sem_acento(texto) -> str:
+    import unicodedata
+
+    t = unicodedata.normalize("NFKD", str(texto or ""))
+    return "".join(c for c in t if not unicodedata.combining(c)).lower()
+
+
+def _texto_dos_campos(dados: dict) -> dict[str, str]:
+    """Texto normalizado por campo de origem (para evidência ponderada)."""
+    itens = " ".join(str(i.get("descricao") or "")
+                     for i in (dados.get("itens") or []))
+    return {
+        "objeto": _sem_acento(dados.get("objeto")),
+        "itens": _sem_acento(itens),
+        "requisitos": _sem_acento(dados.get("requisitos")),
+    }
+
+
+def categoria_do_objeto(dados: dict) -> tuple[str, int]:
+    """
+    (categoria, evidência) do objeto pelo vocabulário controlado.
+    Evidência = soma dos pesos dos campos onde os termos aparecem; abaixo
+    de `_EVIDENCIA_MINIMA` devolve ("INDEFINIDA", n) e nenhum fato é
+    emitido — regra condicional não dispara sem dado.
+    """
+    campos = _texto_dos_campos(dados)
+    placar: dict[str, int] = {}
+    for categoria, termos in CATEGORIAS_OBJETO.items():
+        pontos = 0
+        for campo, texto in campos.items():
+            achados = sum(1 for t in termos if t in texto)
+            pontos += achados * _PESO_CAMPO[campo]
+        if pontos:
+            placar[categoria] = pontos
+    if not placar:
+        return "INDEFINIDA", 0
+    categoria, pontos = max(placar.items(), key=lambda kv: (kv[1], kv[0]))
+    if pontos < _EVIDENCIA_MINIMA:
+        return "INDEFINIDA", pontos
+    return categoria, pontos
+
+
+def _tem_termo(campos: dict[str, str], termos: tuple[str, ...]) -> bool:
+    return any(t in texto for texto in campos.values() for t in termos)
+
+
+def avaliar_termos(campos: dict[str, str],
+                   termos: tuple[str, ...]) -> bool | None:
+    """
+    TRI-STATE do termo nos campos do formulário:
+      True   — o termo aparece em contexto afirmativo;
+      False  — TODAS as ocorrências estão negadas ("não será exigida…");
+      None   — o termo não aparece: o processo nada diz (não decida).
+    Conservador: basta UMA ocorrência afirmativa para valer True.
+    """
+    achou = False
+    for texto in campos.values():
+        for termo in termos:
+            inicio = 0
+            while (pos := texto.find(termo, inicio)) >= 0:
+                achou = True
+                antes = texto[max(0, pos - 70):pos]
+                if not _RE_NEGACAO.search(antes.strip()):
+                    return True          # ocorrência afirmativa
+                inicio = pos + len(termo)
+    return False if achou else None
+
+
 def extrair_do_formulario(dados: dict,
                           processo_id: str | None = None) -> list[dict]:
     """Fatos materiais do Formulário Matriz (sempre com fonte)."""
     fatos: list[dict] = []
 
-    def fato(path, valor, tipo, campo, confianca=0.9):
+    def fato(path, valor, tipo, campo, confianca=0.9, inferido=False):
+        # A fonte distingue o que foi INFORMADO do que foi INFERIDO: o
+        # motor não deixa uma inferência, sozinha, impor cláusula
+        # (ver conhecimento.CONFIANCA_VINCULANTE).
+        fonte = f"{PREFIXO_INFERENCIA if inferido else 'formulario'}:{campo}"
         fatos.append(governanca.novo_fato(
-            processo_id, path, valor, tipo, f"formulario:{campo}",
-            confianca=confianca))
+            processo_id, path, valor, tipo, fonte, confianca=confianca))
 
     if (dados.get("orgao") or "").strip():
         fato("orgao.nome", dados["orgao"].strip(), "texto", "orgao")
@@ -64,14 +238,64 @@ def extrair_do_formulario(dados: dict,
         fato("procedimento.execucao_continuada",
              "continuada" in execucao.lower(), "booleano",
              "modelo_execucao")
-        # natureza derivada da execução: menor confiança (heurística
-        # determinística — confirmação humana resolve)
-        natureza = NATUREZA_POR_EXECUCAO.get(execucao, "BENS")
-        fato("objeto.natureza", natureza, "texto", "modelo_execucao",
-             confianca=0.7)
 
     if (dados.get("prazo") or "").strip():
         fato("prazo.descricao", dados["prazo"].strip(), "texto", "prazo")
+
+    # -----------------------------------------------------------------
+    # Fatos DERIVADOS (P1) — base estruturada das cláusulas condicionais.
+    # Confiança menor: são inferências determinísticas e documentadas,
+    # sujeitas a confirmação humana como qualquer outro fato 'extraido'.
+    # -----------------------------------------------------------------
+    campos = _texto_dos_campos(dados)
+    categoria, evidencia = categoria_do_objeto(dados)
+    if categoria != "INDEFINIDA":
+        fato("objeto.categoria", categoria, "texto", "objeto+itens",
+             confianca=CONFIANCA_HEURISTICA, inferido=True)
+        fato("objeto.categoria_evidencia", float(evidencia), "numero",
+             "objeto+itens", confianca=CONFIANCA_HEURISTICA, inferido=True)
+
+    # Natureza do objeto: da execução quando ela a declara (base
+    # estruturada); senão da categoria (heurística, confiança baixa);
+    # sem nenhuma das duas, NENHUM fato — 'não sei' não é 'BENS'.
+    natureza = NATUREZA_POR_EXECUCAO.get(execucao)
+    if natureza:
+        fato("objeto.natureza", natureza, "texto", "modelo_execucao",
+             confianca=CONFIANCA_ESTRUTURADA)
+    elif categoria in NATUREZA_POR_CATEGORIA:
+        fato("objeto.natureza", NATUREZA_POR_CATEGORIA[categoria], "texto",
+             "objeto+itens", confianca=CONFIANCA_HEURISTICA, inferido=True)
+
+    if "continuada" in execucao.lower():
+        # Repactuação exige serviço contínuo COM dedicação de mão de obra
+        # (art. 135). TRI-STATE: sem informação INEQUÍVOCA sobre o regime
+        # de pessoal nenhum fato é emitido — o motor alerta em vez de
+        # decidir. Menção genérica a mão de obra não basta.
+        dedicacao = avaliar_termos(campos, _TERMOS_DEDICACAO)
+        if dedicacao is not None:
+            fato("procedimento.dedicacao_mao_de_obra", dedicacao,
+                 "booleano", "modelo_execucao+requisitos",
+                 confianca=CONFIANCA_ESTRUTURADA)
+        elif _tem_termo(campos, _TERMOS_MAO_DE_OBRA_GENERICO):
+            # há pessoal envolvido, mas o regime não está declarado:
+            # registra o indício SEM decidir o instituto de preços
+            fato("procedimento.mencao_mao_de_obra", True, "booleano",
+                 "requisitos", confianca=CONFIANCA_HEURISTICA,
+                 inferido=True)
+
+    # Garantia CONTRATUAL e amostra: fato positivo só com menção
+    # afirmativa; menção negada vira fato FALSE; silêncio não vira fato.
+    for path, termos in (("contratacao.garantia_exigida", _TERMOS_GARANTIA),
+                         ("contratacao.amostra_exigida", _TERMOS_AMOSTRA)):
+        valor = avaliar_termos(campos, termos)
+        if valor is None:
+            continue
+        # a negativa é explícita no processo (alta confiança); a
+        # afirmativa vem de texto livre e continua heurística
+        fato(path, valor, "booleano", "requisitos",
+             confianca=CONFIANCA_ESTRUTURADA if valor is False
+             else CONFIANCA_HEURISTICA,
+             inferido=valor is not False)
 
     if dados.get("valor_estimado") is not None:
         fato("valor.total", float(dados["valor_estimado"]), "numero",

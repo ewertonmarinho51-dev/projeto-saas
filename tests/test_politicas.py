@@ -211,6 +211,8 @@ def test_politica_publicada_age_no_motor(banco):
         [{"type": "INCLUIR_CLAUSULA", "target": "clausula.me-epp"}])
     _publicar(artefato, versao)
 
+    from src import governanca as gov
+
     lista = fatos.extrair_do_formulario({
         "objeto": "Material escolar",
         "modelo_execucao": "Sistema de Registro de Preços (SRP)",
@@ -218,6 +220,10 @@ def test_politica_publicada_age_no_motor(banco):
         "itens": [{"descricao": "Caneta", "quantidade": 1,
                    "valor_unitario": 100.0}],
     }, "p1")
+    # a natureza do objeto é dado confirmado do processo — o SRP, por si,
+    # não a determina
+    lista.append(gov.novo_fato("p1", "objeto.natureza", "BENS", "texto",
+                               "formulario:objeto", status="confirmado"))
     decisao = conhecimento.resolver(
         lista, politicas.regras_publicadas(), set(), "p1")
     assert decisao["resultado"]["clausulas_incluir"] == ["clausula.me-epp"]

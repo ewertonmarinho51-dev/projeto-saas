@@ -31,10 +31,162 @@ CATEGORIAS = {
     "lei": "Lei / Norma",
     "acordao": "Acórdão (TCU/TCE)",
     "entendimento": "Entendimento / Orientação de TC",
+    "manual": "Manual / Orientação técnica",
     "processo_anterior": "Processo anterior realizado",
     "modelo": "Modelo / Minuta padrão (AGU etc.)",
     "outro": "Outro",
 }
+
+# Hierarquia da fonte recuperada (P1): o que cada categoria PODE
+# sustentar. Legislação e jurisprudência NÃO se confundem — acórdão e
+# entendimento de Tribunal de Contas orientam a interpretação e o
+# controle, mas não são a norma. MANUAL é orientação técnica (inclusive
+# de órgão federal): apoia a redação, jamais fundamenta dispositivo e
+# não obriga o Município. Processo anterior é molde de estrutura e
+# linguagem, nunca prova do direito vigente.
+LEGISLACAO = ("lei",)
+CONTROLE = ("acordao", "entendimento")
+MANUAIS = ("manual",)
+MOLDES = ("processo_anterior", "modelo")
+NORMATIVAS = LEGISLACAO + CONTROLE   # compatibilidade: fontes jurídicas
+
+_PAPEL_DA_FONTE = {
+    "lei": "legislação/regulamento — fundamenta diretamente a cláusula",
+    "acordao": "jurisprudência de controle — orienta a interpretação; "
+               "não substitui a norma",
+    "entendimento": "orientação de órgão de controle — orienta a "
+                    "interpretação; não substitui a norma",
+    "manual": "manual/orientação técnica — apoia a estrutura e a "
+              "interpretação técnica; NÃO fornece dispositivo normativo. "
+              "Manual de órgão FEDERAL não obriga o Município: serve de "
+              "referência, nunca de norma aplicável",
+    "processo_anterior": "processo anterior — apenas estrutura e "
+                         "linguagem; NÃO fundamenta",
+    "modelo": "modelo/minuta padrão — apenas estrutura e linguagem; "
+              "NÃO fundamenta",
+}
+
+# ---------------------------------------------------------------------------
+# Recuperação TEMÁTICA (P1)
+#
+# A consulta única (documento + objeto + justificativa) recupera contexto
+# geral, mas não garante que uma afirmação jurídica específica —
+# "vigência da ata", "pagamento", "sanções" — tenha sido sustentada pelo
+# dispositivo correspondente. Foi assim que artigos errados entraram nos
+# documentos (pregão fundado no art. 109, pagamento no art. 98).
+#
+# A estratégia é uma LISTA CONTROLADA de temas, filtrada pelo documento e
+# pelos fatos da contratação, com orçamento fixo de buscas. Todas as
+# consultas viajam em UMA única chamada de embeddings (lote) e cada busca
+# usa top-k reduzido — o custo fica próximo do fluxo atual.
+# ---------------------------------------------------------------------------
+# chave: (rótulo, termos de busca, condição)
+# condição: None (sempre aplicável) ou gatilho estrutural de `_gatilhos`
+TEMAS_JURIDICOS: dict[str, tuple[str, str, str | None]] = {
+    "modalidade": (
+        "Modalidade e critério de julgamento",
+        "modalidade de licitação pregão concorrência critério de "
+        "julgamento menor preço maior desconto", None),
+    "srp": (
+        "Sistema de Registro de Preços",
+        "sistema de registro de preços ata de registro de preços vigência "
+        "da ata adesão órgão gerenciador cadastro de reserva", "srp"),
+    "parcelamento": (
+        "Parcelamento e adjudicação por item ou lote",
+        "parcelamento do objeto adjudicação por item lote divisibilidade "
+        "economia de escala", None),
+    "requisitos": (
+        "Requisitos técnicos e habilitação",
+        "requisitos da contratação especificação técnica habilitação "
+        "jurídica fiscal técnica econômico-financeira qualificação", None),
+    "execucao_recebimento": (
+        "Execução, recebimento e aceitação do objeto",
+        "prazo de entrega execução do objeto recebimento provisório "
+        "definitivo aceitação do objeto", None),
+    "pagamento": (
+        "Pagamento e liquidação",
+        "pagamento liquidação da despesa ordem cronológica prazo de "
+        "pagamento nota fiscal atesto", None),
+    "reajuste": (
+        "Reajuste e repactuação de preços",
+        "reajuste de preços índice repactuação equilíbrio "
+        "econômico-financeiro revisão", None),
+    "garantia": (
+        "Garantia contratual",
+        "garantia contratual caução seguro-garantia fiança bancária "
+        "percentual da garantia", "garantia"),
+    "gestao_fiscalizacao": (
+        "Gestão e fiscalização do contrato",
+        "gestor do contrato fiscal do contrato fiscalização registro de "
+        "ocorrências", None),
+    "sancoes": (
+        "Infrações e sanções administrativas",
+        "infrações administrativas sanções advertência multa impedimento "
+        "de licitar declaração de inidoneidade", None),
+    "recursos": (
+        "Impugnações e recursos",
+        "impugnação ao edital pedido de esclarecimento recurso "
+        "administrativo prazo recursal", None),
+    "me_epp": (
+        "Tratamento favorecido a ME/EPP",
+        "microempresa empresa de pequeno porte tratamento favorecido "
+        "empate ficto regularidade fiscal", None),
+    "protecao_dados": (
+        "Proteção de dados e segurança da informação",
+        "proteção de dados pessoais LGPD segurança da informação "
+        "confidencialidade níveis de serviço", "dados"),
+    "necessidade": (
+        "Necessidade, estudo técnico preliminar e planejamento",
+        "estudo técnico preliminar descrição da necessidade levantamento "
+        "de soluções alternativas viabilidade planejamento da contratação",
+        None),
+}
+
+# TEMAS NÚCLEO: as matérias que o documento SEMPRE decide. Recuperação
+# garantida — nenhuma delas pode ficar sem consulta por disputa de vaga
+# com um tema condicional (foi assim que 'sanções' e 'pagamento' ficaram
+# de fora do TR na primeira versão).
+TEMAS_NUCLEO: dict[str, tuple[str, ...]] = {
+    "dfd": ("necessidade",),
+    "etp": ("necessidade", "requisitos", "parcelamento", "modalidade"),
+    "tr": ("execucao_recebimento", "pagamento", "sancoes",
+           "gestao_fiscalizacao"),
+    "edital": ("modalidade", "requisitos", "sancoes", "recursos"),
+}
+
+# TEMAS COMPLEMENTARES: entram conforme o objeto/modelagem. Os que têm
+# gatilho satisfeito vêm primeiro; os demais ocupam a folga do orçamento.
+TEMAS_COMPLEMENTARES: dict[str, tuple[str, ...]] = {
+    "dfd": ("srp", "parcelamento"),
+    "etp": ("srp", "protecao_dados", "reajuste", "me_epp"),
+    "tr": ("srp", "garantia", "protecao_dados", "reajuste", "requisitos"),
+    "edital": ("srp", "garantia", "protecao_dados", "me_epp",
+               "parcelamento"),
+}
+
+# Orçamento de recuperação (custo/latência sob controle): no máximo
+# 1 (geral) + 4 (núcleo) + 3 (complementares) = 8 buscas, sempre com UMA
+# única chamada de embeddings em lote.
+MAX_TEMAS_NUCLEO = 4
+MAX_TEMAS_COMPLEMENTARES = 3
+MAX_TEMAS = MAX_TEMAS_NUCLEO + MAX_TEMAS_COMPLEMENTARES
+TOP_K_TEMA = 3              # trechos por busca temática
+MAX_CHUNKS_PROMPT = 10      # teto de trechos enviados à IA
+
+# Piso de relevância por modo de busca. Escalas diferentes: similaridade
+# de cosseno (0..1) no vetorial; ts_rank (tipicamente < 0,1) no textual.
+# Conservadores e sobrescrevíveis em config_app (`rag_piso_vetorial` /
+# `rag_piso_textual`) — sem descartar a busca textual, que é o fallback
+# quando não há embeddings.
+PISO_VETORIAL_PADRAO = 0.20
+PISO_TEXTUAL_PADRAO = 0.01
+
+# O processo pede o tema de proteção de dados mesmo sem ser software
+# (ex.: serviço que manipula base de dados de pacientes).
+_TERMOS_DADOS_NO_PROCESSO = re.compile(
+    r"dados\s+pessoais|lgpd|prote[çc][ãa]o\s+de\s+dados|sigilo|"
+    r"seguran[çc]a\s+da\s+informa[çc][ãa]o|confidencialidade",
+    re.IGNORECASE)
 
 
 class ErroRAG(Exception):
@@ -113,51 +265,75 @@ def dividir_em_chunks(
 
 
 # ---------------------------------------------------------------------------
-# Embeddings (Gemini) — opcionais; sem eles a busca textual assume
+# Embeddings — UM ÚNICO espaço vetorial (P1)
+#
+# Aqui NÃO existe fallback entre provedores. Um vetor OpenAI e um vetor
+# Gemini são pontos de espaços diferentes: misturá-los na mesma coluna
+# produz uma base que "funciona" e responde errado, sem erro visível.
+# Foi assim que a base ficou com 34% dos chunks sem vetor e sem qualquer
+# registro de origem (auditoria de 11/08/2026).
+#
+# Regra: provedor, modelo, dimensão e versão do índice são FIXOS
+# (config.EMBEDDING_V2_*). Provedor indisponível ⇒ NÃO se gera vetor com
+# outro: a indexação fica PENDENTE e a busca textual assume.
 # ---------------------------------------------------------------------------
+def proveniencia_v2() -> dict:
+    """Identidade do índice vetorial vigente (gravada com cada vetor)."""
+    from .config import (EMBEDDING_V2_DIMENSOES, EMBEDDING_V2_MODELO,
+                         EMBEDDING_V2_PROVEDOR, EMBEDDING_V2_VERSAO)
+
+    return {
+        "embedding_provider": EMBEDDING_V2_PROVEDOR,
+        "embedding_model": EMBEDDING_V2_MODELO,
+        "embedding_dimensions": EMBEDDING_V2_DIMENSOES,
+        "embedding_version": EMBEDDING_V2_VERSAO,
+    }
+
+
 def _gerar_embeddings(textos: list[str], para_consulta: bool) -> list[list[float]] | None:
     """
-    Retorna embeddings (768 dims) ou None se não houver chave de API.
+    Embeddings do provedor/modelo FIXOS do índice, ou None.
 
-    Provedor segue o motor principal: OpenAI (text-embedding-3-small com
-    dimensions=768) quando há chave; senão Gemini. IMPORTANTE: indexação e
-    consulta precisam do MESMO provedor — se você trocar de provedor com a
-    base já populada, reindexe os arquivos (os espaços vetoriais são
-    incompatíveis entre si).
+    None significa "não foi possível vetorizar" — nunca "vetorizei com
+    outra coisa". Quem indexa deve marcar o material como PENDENTE;
+    quem consulta cai para a busca textual.
     """
-    from .config import OPENAI_EMBEDDING_MODEL
-    from .llm import obter_api_key, obter_openai_key
+    from .config import (EMBEDDING_V2_DIMENSOES, EMBEDDING_V2_MODELO,
+                         EMBEDDING_V2_PROVEDOR)
+    from .llm import obter_openai_key
 
-    chave_openai = obter_openai_key()
-    chave_gemini = obter_api_key()
-    try:
-        if chave_openai:
-            from openai import OpenAI
+    if EMBEDDING_V2_PROVEDOR != "openai":  # pragma: no cover - guarda
+        raise ErroRAG(
+            f"Provedor de embedding não suportado: {EMBEDDING_V2_PROVEDOR!r}. "
+            "Trocar de provedor exige reindexar toda a base.")
 
-            cliente = OpenAI(api_key=chave_openai, timeout=60, max_retries=1)
-            resposta = cliente.embeddings.create(
-                model=OPENAI_EMBEDDING_MODEL,
-                input=textos,
-                dimensions=EMBEDDING_DIMENSOES,
-            )
-            return [item.embedding for item in resposta.data]
-        if chave_gemini:
-            from google import genai
-            from google.genai import types
-
-            cliente = genai.Client(api_key=chave_gemini)
-            resposta = cliente.models.embed_content(
-                model=EMBEDDING_MODEL,
-                contents=textos,
-                config=types.EmbedContentConfig(
-                    task_type="RETRIEVAL_QUERY" if para_consulta else "RETRIEVAL_DOCUMENT",
-                    output_dimensionality=EMBEDDING_DIMENSOES,
-                ),
-            )
-            return [list(e.values) for e in resposta.embeddings]
+    chave = obter_openai_key()
+    if not chave:
+        # Sem a chave do provedor do índice não se improvisa outro motor:
+        # o Gemini continua servindo à GERAÇÃO DE TEXTO, jamais ao índice.
+        st.warning(
+            "Chave da OpenAI ausente: o índice vetorial usa "
+            f"{EMBEDDING_V2_MODELO} e NÃO admite outro provedor. A busca "
+            "segue em modo textual e novas indexações ficam pendentes.")
         return None
+    try:
+        from openai import OpenAI
+
+        cliente = OpenAI(api_key=chave, timeout=60, max_retries=1)
+        resposta = cliente.embeddings.create(
+            model=EMBEDDING_V2_MODELO,
+            input=textos,
+            dimensions=EMBEDDING_V2_DIMENSOES,
+        )
+        vetores = [item.embedding for item in resposta.data]
+        if any(len(v) != EMBEDDING_V2_DIMENSOES for v in vetores):
+            raise ErroRAG(
+                f"{EMBEDDING_V2_MODELO} devolveu vetor com dimensão "
+                f"diferente de {EMBEDDING_V2_DIMENSOES} — índice recusado.")
+        return vetores
+    except ErroRAG:
+        raise
     except Exception as exc:  # noqa: BLE001
-        # Falha de embedding não deve impedir a indexação: busca textual assume
         st.warning(f"Embeddings indisponíveis ({exc}); usando busca textual.")
         return None
 
@@ -194,18 +370,33 @@ def indexar_arquivo(nome_arquivo: str, titulo: str, categoria: str, dados: bytes
             .execute()
         ).data[0]
 
+        # Proveniência explícita em cada chunk: sem vetor, o registro
+        # nasce PENDENTE — nunca mais um `embedding = NULL` silencioso.
+        from datetime import datetime, timezone
+
+        proveniencia = proveniencia_v2()
+        agora = datetime.now(timezone.utc).isoformat()
         registros = [
             {
                 "documento_id": doc["id"],
                 "ordem": i,
                 "conteudo": trecho,
-                "embedding": embeddings[i] if embeddings else None,
+                "embedding_v2": embeddings[i] if embeddings else None,
+                "embedding_status": "ok" if embeddings else "pendente",
+                "embedding_generated_at": agora if embeddings else None,
+                **(proveniencia if embeddings else {}),
             }
             for i, trecho in enumerate(chunks)
         ]
         # insere em lotes para não estourar o payload
         for i in range(0, len(registros), 50):
             cliente.table("chunks_referencia").insert(registros[i : i + 50]).execute()
+        if not embeddings:
+            st.warning(
+                f"'{titulo or nome_arquivo}' foi indexado para BUSCA TEXTUAL, "
+                "mas está PENDENTE de indexação vetorial (o provedor de "
+                "embeddings não respondeu). Reindexe quando a chave estiver "
+                "disponível — até lá ele não aparece na busca semântica.")
         return len(chunks)
     except Exception as exc:  # noqa: BLE001
         raise ErroRAG(f"Falha ao gravar na base de conhecimento: {exc}") from exc
@@ -237,19 +428,8 @@ def excluir_referencia(documento_id: str) -> None:
 # ---------------------------------------------------------------------------
 # Recuperação (busca) e montagem do bloco de contexto para o prompt
 # ---------------------------------------------------------------------------
-def buscar_referencias(consulta: str, qtd: int = RAG_TOP_K) -> list[dict]:
-    """Top-k trechos relevantes: vetorial se possível, senão textual."""
-    if not db.disponivel():
-        return []
+def _executar_rpc(funcao: str, params: dict) -> list[dict]:
     cliente = db._cliente()  # noqa: SLF001
-
-    embedding = _gerar_embeddings([consulta], para_consulta=True)
-    if embedding:
-        funcao = "buscar_chunks_vetorial"
-        params = {"query_embedding": embedding[0], "qtd": qtd}
-    else:
-        funcao = "buscar_chunks_textual"
-        params = {"consulta": consulta, "qtd": qtd}
     try:
         # Fase 2: busca restrita ao tenant do contexto da sessão. Antes da
         # migração 0007 a função não tem o parâmetro `tenant` — o PostgREST
@@ -266,6 +446,253 @@ def buscar_referencias(consulta: str, qtd: int = RAG_TOP_K) -> list[dict]:
         return resposta.data or []
     except Exception as exc:  # noqa: BLE001
         raise ErroRAG(f"Falha na busca da base de conhecimento: {exc}") from exc
+
+
+def buscar_referencias(consulta: str, qtd: int = RAG_TOP_K) -> list[dict]:
+    """Top-k trechos relevantes: vetorial se possível, senão textual."""
+    if not db.disponivel():
+        return []
+    embedding = _gerar_embeddings([consulta], para_consulta=True)
+    if embedding:
+        return _executar_rpc("buscar_chunks_vetorial",
+                             {"query_embedding": embedding[0], "qtd": qtd})
+    return _executar_rpc("buscar_chunks_textual",
+                         {"consulta": consulta, "qtd": qtd})
+
+
+# ---------------------------------------------------------------------------
+# Seleção de temas e piso de relevância
+# ---------------------------------------------------------------------------
+def _gatilhos(dados: dict) -> set[str]:
+    """
+    Características ESTRUTURADAS da contratação que habilitam temas.
+    Reaproveita a derivação canônica de `fatos.py` — o tema não é
+    escolhido por uma palavra solta no objeto.
+    """
+    from . import fatos
+
+    execucao = str(dados.get("modelo_execucao") or "")
+    categoria, _ = fatos.categoria_do_objeto(dados)
+    campos = fatos._texto_dos_campos(dados)  # noqa: SLF001
+    gatilhos = set()
+    if execucao.startswith("Sistema de Registro de Preços"):
+        gatilhos.add("srp")
+    # Proteção de dados NÃO decorre de "ser de TI": um monitor não trata
+    # dado pessoal. Dispara para software/SaaS/hospedagem — que operam
+    # dados da Administração — ou quando o próprio processo exige o tema.
+    if categoria == "TI_SOFTWARE" or _TERMOS_DADOS_NO_PROCESSO.search(
+            " ".join(campos.values())):
+        gatilhos.add("dados")
+    if fatos._tem_termo(campos, fatos._TERMOS_GARANTIA):  # noqa: SLF001
+        gatilhos.add("garantia")
+    return gatilhos
+
+
+def temas_para(dados: dict, doc_key: str,
+               limite: int = MAX_TEMAS) -> list[str]:
+    """
+    Lista CONTROLADA de temas: o NÚCLEO do documento (sempre consultado,
+    nunca disputa vaga) seguido dos COMPLEMENTARES — primeiro os que o
+    objeto/modelagem acionam, depois os demais, se houver folga.
+    Tema condicional sem gatilho não é consultado.
+    """
+    gatilhos = _gatilhos(dados)
+    nucleo = [c for c in TEMAS_NUCLEO.get(doc_key, ())][:MAX_TEMAS_NUCLEO]
+    acionados, folga = [], []
+    for chave in TEMAS_COMPLEMENTARES.get(doc_key, ()):
+        if chave in nucleo:
+            continue
+        condicao = TEMAS_JURIDICOS[chave][2]
+        if condicao is None:
+            folga.append(chave)
+        elif condicao in gatilhos:
+            acionados.append(chave)
+    complementares = (acionados + folga)[:MAX_TEMAS_COMPLEMENTARES]
+    return (nucleo + complementares)[:limite]
+
+
+def temas_prioritarios(dados: dict, doc_key: str) -> list[str]:
+    """Temas que têm direito a uma vaga reservada no bloco (núcleo +
+    complementares acionados pelo objeto)."""
+    gatilhos = _gatilhos(dados)
+    selecionados = temas_para(dados, doc_key)
+    return [c for c in selecionados
+            if c in TEMAS_NUCLEO.get(doc_key, ())
+            or TEMAS_JURIDICOS[c][2] in gatilhos]
+
+
+# `buscar_chunks_textual` usa websearch_to_tsquery, que combina os termos
+# com E: a frase temática inteira exige que TODOS apareçam no mesmo
+# trecho e a recuperação zera (medido na base real: "pagamento liquidação
+# da despesa ordem cronológica…" → 0 resultados). Para a busca textual a
+# consulta é reduzida às palavras significativas, combinadas com OU.
+_STOPWORDS = {
+    "para", "pela", "pelo", "pelas", "pelos", "com", "sem", "sobre",
+    "entre", "como", "que", "dos", "das", "aos", "nas", "nos", "uma",
+    "uns", "umas", "seu", "sua", "seus", "suas", "este", "esta", "esse",
+    "essa", "quando", "onde", "ser", "são", "the", "and", "por",
+}
+
+
+def consulta_textual(texto: str, maximo: int = 6) -> str:
+    """Termos significativos combinados com OU (recall na busca textual)."""
+    palavras: list[str] = []
+    for palavra in re.findall(r"[\wÀ-ÿ]+", (texto or "").lower()):
+        if len(palavra) < 4 or palavra in _STOPWORDS or palavra in palavras:
+            continue
+        palavras.append(palavra)
+        if len(palavras) >= maximo:
+            break
+    return " or ".join(palavras) or (texto or "")
+
+
+def piso_de_relevancia(modo: str) -> float:
+    """Piso configurável (config_app); padrão conservador por modo."""
+    padrao = PISO_VETORIAL_PADRAO if modo == "vetorial" else PISO_TEXTUAL_PADRAO
+    bruto = db.obter_config(f"rag_piso_{modo}") if db.disponivel() else ""
+    try:
+        return float(str(bruto).replace(",", ".")) if bruto else padrao
+    except ValueError:
+        return padrao
+
+
+def _identidade(trecho: dict) -> tuple:
+    """Chave de deduplicação: id do chunk ou (documento, ordem)/conteúdo."""
+    if trecho.get("id"):
+        return ("id", trecho["id"])
+    if trecho.get("documento_id") is not None and trecho.get("ordem") is not None:
+        return ("pos", trecho["documento_id"], trecho["ordem"])
+    return ("txt", (trecho.get("conteudo") or "")[:200])
+
+
+def _score(trecho: dict) -> float:
+    try:
+        return float(trecho.get("similaridade") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _prioridade_fonte(trecho: dict) -> int:
+    """
+    Ordem de exibição: legislação > controle > manual > (outros) > molde.
+    O manual fica acima dos moldes porque traz orientação técnica
+    aproveitável, e abaixo do controle porque não interpreta a norma com
+    autoridade — e não fundamenta dispositivo em hipótese alguma.
+    """
+    categoria = (trecho.get("categoria") or "").lower()
+    if categoria in LEGISLACAO:
+        return 4
+    if categoria in CONTROLE:
+        return 3
+    if categoria in MANUAIS:
+        return 2
+    if categoria in MOLDES:
+        return 0
+    return 1
+
+
+def recuperar(dados: dict, doc_key: str) -> dict:
+    """
+    Recuperação temática com metadados, piso de relevância, deduplicação
+    e teto de trechos. Devolve {"referencias": [...], "consultas": [...],
+    "modo": ..., "piso": ...} — as `consultas` são a base do trace.
+    Nunca levanta: sem banco/base, devolve estrutura vazia.
+    """
+    vazio = {"referencias": [], "consultas": [], "modo": "", "piso": None,
+             "descartados": 0}
+    if not db.disponivel():
+        return vazio
+
+    temas = temas_para(dados, doc_key)
+    consultas = [{"tema": "geral", "rotulo": "Contexto geral da contratação",
+                  "texto": montar_consulta(dados, doc_key)}]
+    for chave in temas:
+        rotulo, termos, _ = TEMAS_JURIDICOS[chave]
+        consultas.append({
+            "tema": chave, "rotulo": rotulo,
+            "texto": f"{termos} {dados.get('objeto') or ''}".strip()[:500],
+        })
+
+    # UMA chamada de embeddings para todas as consultas (custo controlado)
+    embeddings = _gerar_embeddings([c["texto"] for c in consultas],
+                                   para_consulta=True)
+    modo = "vetorial" if embeddings else "textual"
+    piso = piso_de_relevancia(modo)
+
+    selecionados: dict[tuple, dict] = {}
+    descartados = 0
+    for i, consulta in enumerate(consultas):
+        qtd = RAG_TOP_K if consulta["tema"] == "geral" else TOP_K_TEMA
+        try:
+            if embeddings:
+                brutos = _executar_rpc(
+                    "buscar_chunks_vetorial",
+                    {"query_embedding": embeddings[i], "qtd": qtd})
+            else:
+                brutos = _executar_rpc(
+                    "buscar_chunks_textual",
+                    {"consulta": consulta_textual(consulta["texto"]),
+                     "qtd": qtd})
+        except ErroRAG:
+            raise
+        consulta["recuperados"] = len(brutos)
+        for bruto in brutos:
+            score = _score(bruto)
+            if score < piso:
+                descartados += 1
+                continue
+            chave = _identidade(bruto)
+            existente = selecionados.get(chave)
+            if existente is None:
+                selecionados[chave] = {
+                    **bruto, "tema": consulta["tema"],
+                    "tema_rotulo": consulta["rotulo"], "score": score,
+                }
+            elif score > existente["score"]:
+                # mesma fonte recuperada por dois temas: fica o tema em
+                # que ela é mais relevante (nunca duplica no prompt)
+                existente.update({"tema": consulta["tema"],
+                                  "tema_rotulo": consulta["rotulo"],
+                                  "score": score})
+
+    ranking = sorted(selecionados.values(),
+                     key=lambda t: (_prioridade_fonte(t), t["score"]),
+                     reverse=True)
+    referencias = _selecionar_com_reserva(
+        ranking, temas_prioritarios(dados, doc_key))
+    return {"referencias": referencias, "consultas": consultas,
+            "modo": modo, "piso": piso, "descartados": descartados}
+
+
+def _selecionar_com_reserva(ranking: list[dict],
+                            prioritarios: list[str]) -> list[dict]:
+    """
+    Reserva UMA vaga para a melhor evidência de cada tema prioritário e
+    só então preenche o restante pelo ranking global.
+
+    Sem isso, um tema com muitos trechos fortes (ex.: requisitos) ocupa
+    todas as vagas e o tema consultado ao lado (ex.: sanções) chega ao
+    prompt sem nenhuma evidência — a recuperação temática teria sido
+    inútil. Nada é duplicado: a reserva usa a mesma lista.
+    """
+    escolhidos: list[dict] = []
+    vistos: set[int] = set()
+    for tema in prioritarios:
+        melhor = next((t for t in ranking
+                       if t.get("tema") == tema and id(t) not in vistos), None)
+        if melhor is not None and len(escolhidos) < MAX_CHUNKS_PROMPT:
+            escolhidos.append(melhor)
+            vistos.add(id(melhor))
+    for trecho in ranking:
+        if len(escolhidos) >= MAX_CHUNKS_PROMPT:
+            break
+        if id(trecho) not in vistos:
+            escolhidos.append(trecho)
+            vistos.add(id(trecho))
+    # ordem final de exibição: hierarquia da fonte e relevância
+    return sorted(escolhidos,
+                  key=lambda t: (_prioridade_fonte(t), t["score"]),
+                  reverse=True)
 
 
 def montar_consulta(dados: dict, doc_key: str) -> str:
@@ -285,39 +712,162 @@ def montar_consulta(dados: dict, doc_key: str) -> str:
     return " ".join(p for p in partes if p)[:1500]
 
 
-def montar_bloco_referencias(dados: dict, doc_key: str) -> str:
+# Regra de citação (P1): o número do dispositivo só entra no documento
+# quando sustentado por trecho recuperado ou pelo mapa canônico do system
+# prompt. Sem lastro, cita-se a norma sem o artigo — nunca se inventa.
+REGRA_DE_CITACAO = (
+    "REGRA DE CITAÇÃO (obrigatória): só escreva o NÚMERO de um dispositivo "
+    "(artigo, inciso, parágrafo, súmula, acórdão, decreto, instrução "
+    "normativa) quando ele estiver (a) presente em um dos trechos "
+    "recuperados abaixo ou (b) no mapa canônico da Lei nº 14.133/2021 "
+    "constante das suas instruções. Se você sabe a norma aplicável mas não "
+    "tem lastro para o dispositivo específico, cite apenas a norma — "
+    "'nos termos da Lei nº 14.133/2021' é preferível a um artigo errado. "
+    "É PROIBIDO deduzir número de artigo por memória ou analogia."
+)
+
+_HIERARQUIA_FONTES = (
+    "HIERARQUIA DAS FONTES (respeite estritamente):\n"
+    "1) LEGISLAÇÃO E REGULAMENTO (lei, decreto, regulamento municipal): "
+    "fundamenta diretamente a cláusula.\n"
+    "2) JURISPRUDÊNCIA E ORIENTAÇÃO DE CONTROLE (acórdãos e "
+    "entendimentos de Tribunais de Contas): orienta a INTERPRETAÇÃO da "
+    "norma e as boas práticas de controle. NÃO é legislação: cite-a como "
+    "orientação ('conforme entendimento do TCU no Acórdão nº …'), nunca "
+    "como se fosse o texto da lei, e jamais deduza dela um número de "
+    "artigo de lei.\n"
+    "3) PROCESSO ATUAL (memorando, formulário, planilha, anexos): é a "
+    "única fonte dos FATOS desta contratação.\n"
+    "4) PROCESSO ANTERIOR / MODELO PADRÃO: fonte apenas de ESTRUTURA, "
+    "ordem dos tópicos, linguagem e cláusulas institucionais recorrentes. "
+    "NÃO é prova do direito vigente nem fonte de fato: é PROIBIDO "
+    "transportar dele objeto, justificativa, quantitativos, valores, "
+    "fornecedores, fiscais/gestores, dotações, unidades, prazos, datas ou "
+    "números, e é PROIBIDO citar um dispositivo apenas porque ele "
+    "aparecia no documento antigo (a norma pode ter mudado).\n"
+    "JURISDIÇÃO: esta é uma contratação MUNICIPAL. Aplicam-se diretamente "
+    "a Lei nº 14.133/2021 e a regulamentação do próprio Município, que "
+    "tem PRECEDÊNCIA OPERACIONAL quando disciplinar a matéria. Instruções "
+    "normativas, decretos e manuais FEDERAIS só valem como referência "
+    "técnica — nunca os apresente como norma obrigatória para o Município "
+    "sem que o trecho recuperado demonstre a aplicabilidade."
+)
+
+
+_RE_ARTIGO_TRECHO = re.compile(r"\bart(?:igo|s?)?\.?\s*(\d{1,3})\s*[º°]?",
+                               re.IGNORECASE)
+
+
+def dispositivos_do_trecho(texto: str, titulo: str = "") -> list[str]:
     """
-    Bloco de texto com as referências recuperadas, pronto para anexar ao
-    prompt. Retorna string vazia se não houver base configurada/conteúdo.
-    Nunca levanta exceção — RAG é enriquecimento, não pré-requisito.
+    Dispositivos citados no trecho, na forma `norma:artigo`.
+
+    O número isolado não identifica nada: o art. 84 da Lei nº 14.133/2021
+    não autoriza um "art. 84" de outra norma. A norma vem do próprio
+    trecho ou, na falta dela, do TÍTULO da fonte indexada (é o que
+    identifica o documento na base).
     """
+    from .normas import identificar_norma
+
+    norma = identificar_norma(texto) or identificar_norma(titulo)
+    if not norma:
+        return []
+    return sorted({f"{norma}:{m.group(1)}"
+                   for m in _RE_ARTIGO_TRECHO.finditer(texto or "")},
+                  key=lambda d: int(d.split(":")[1]))
+
+
+def lastro_do_trace(trace: dict | None) -> set[str]:
+    """
+    Dispositivos (`norma:artigo`) com lastro nas fontes recuperadas.
+
+    Só LEGISLAÇÃO sustenta dispositivo normativo. Um acórdão pode citar o
+    art. 40 ao interpretá-lo, mas quem autoriza o documento a invocar o
+    art. 40 é a lei — não a ementa que o menciona. Processo anterior e
+    modelo nunca fornecem lastro (a norma pode ter mudado).
+    """
+    return {d for r in (trace or {}).get("referencias", [])
+            if (r.get("categoria") or "").lower() in LEGISLACAO
+            for d in (r.get("dispositivos") or [])}
+
+
+def montar_contexto(dados: dict, doc_key: str) -> dict:
+    """
+    {"bloco": texto para o prompt, "trace": rastro auditável}.
+    O bloco agrupa os trechos POR TEMA e expõe fonte, categoria e
+    relevância — o modelo enxerga a evidência de cada matéria, não uma
+    pilha indistinta. Nunca levanta exceção: RAG é enriquecimento.
+    """
+    trace = {"consultas": [], "referencias": [], "modo": "", "piso": None}
     try:
-        trechos = buscar_referencias(montar_consulta(dados, doc_key))
+        resultado = recuperar(dados, doc_key)
     except ErroRAG as erro:
         st.warning(str(erro))
-        return ""
-    if not trechos:
-        return ""
+        trace["erro"] = str(erro)[:200]
+        return {"bloco": "", "trace": trace}
+
+    referencias = resultado["referencias"]
+    trace = {
+        "modo": resultado["modo"],
+        "piso": resultado["piso"],
+        "descartados_por_piso": resultado["descartados"],
+        "consultas": [
+            {"tema": c["tema"], "consulta": c["texto"][:200],
+             "recuperados": c.get("recuperados", 0)}
+            for c in resultado["consultas"]
+        ],
+        # rastro da FONTE, não do conteúdo: título, categoria, score e
+        # posição bastam para responder "por que citou este artigo?"
+        # Só o que os RPCs realmente devolvem (conteúdo, título,
+        # categoria, similaridade) — nada de campo inventado. Quando a
+        # busca expuser identificadores de chunk, eles entram aqui.
+        "referencias": [
+            {k: v for k, v in {
+                "tema": r.get("tema"), "titulo": r.get("titulo"),
+                "categoria": r.get("categoria"),
+                "score": round(float(r.get("score") or 0), 4),
+                "documento_id": r.get("documento_id"),
+                "ordem": r.get("ordem"),
+                # dispositivos EXPRESSOS no trecho (norma:artigo): é o
+                # lastro que autoriza o documento a citar o dispositivo
+                "dispositivos": dispositivos_do_trecho(
+                    r.get("conteudo"), r.get("titulo") or ""),
+                "trecho": (r.get("conteudo") or "")[:160],
+            }.items() if v is not None}
+            for r in referencias
+        ],
+    }
+    if not referencias:
+        return {"bloco": "", "trace": trace}
 
     linhas = [
-        "\n=== REFERÊNCIAS DA BASE DE CONHECIMENTO (trechos recuperados) ===",
-        "COMO USAR: normas, leis, decretos, acórdãos e manuais devem ser "
-        "OBSERVADOS e podem ser citados expressamente (com número/órgão quando "
-        "constar do trecho) — eles têm PRIORIDADE. Processos anteriores e "
-        "modelos servem como MOLDE: 'pegue como modelo e adapte ao novo "
-        "objeto' — reaproveite a estrutura, a ordem dos tópicos, a linguagem, "
-        "os textos padrão e as cláusulas administrativas padrão/imutáveis. "
-        "PROIBIDO transportar do processo anterior qualquer dado concreto "
-        "(objeto, justificativa, quantitativos, valores, fornecedores, "
-        "fiscais/gestores, dotações, secretarias/unidades, prazos, datas, "
-        "números). Em caso de divergência: 1º a legislação/manuais; 2º os "
-        "dados do processo atual (memorando, formulário, planilha); 3º o "
-        "padrão dos anteriores (só estrutura/linguagem). Onde faltar dado do "
-        "processo atual, use [PREENCHER] — nunca preencha com dado de outro "
-        "processo.",
+        "\n=== REFERÊNCIAS DA BASE DE CONHECIMENTO (recuperadas por tema) ===",
+        _HIERARQUIA_FONTES,
+        REGRA_DE_CITACAO,
+        "Onde faltar dado do processo atual, use [PREENCHER] — nunca "
+        "preencha com dado de outro processo.",
     ]
-    for i, t in enumerate(trechos, start=1):
-        rotulo = CATEGORIAS.get(t.get("categoria", ""), t.get("categoria", ""))
-        linhas.append(f"\n--- Referência {i} [{rotulo}] {t.get('titulo', '')} ---")
-        linhas.append((t.get("conteudo") or "").strip())
-    return "\n".join(linhas)
+    por_tema: dict[str, list[dict]] = {}
+    for referencia in referencias:
+        por_tema.setdefault(referencia.get("tema_rotulo") or "Geral",
+                            []).append(referencia)
+    for tema, itens in por_tema.items():
+        linhas.append(f"\n### TEMA: {tema}")
+        for i, t in enumerate(itens, start=1):
+            categoria = (t.get("categoria") or "").lower()
+            rotulo = CATEGORIAS.get(categoria, categoria or "Outro")
+            papel = _PAPEL_DA_FONTE.get(
+                categoria, "fonte não classificada — trate com cautela e "
+                           "não a use para fundamentar dispositivo")
+            linhas.append(
+                f"[{i}] Fonte: {t.get('titulo', '(sem título)')} "
+                f"| Tipo: {rotulo} ({papel}) "
+                f"| Relevância: {t.get('score', 0):.3f}")
+            linhas.append("Trecho recuperado: "
+                          + (t.get("conteudo") or "").strip())
+    return {"bloco": "\n".join(linhas), "trace": trace}
+
+
+def montar_bloco_referencias(dados: dict, doc_key: str) -> str:
+    """Compatibilidade: apenas o bloco de texto do contexto recuperado."""
+    return montar_contexto(dados, doc_key)["bloco"]

@@ -495,23 +495,34 @@ def registrar_geracao_bd(registro: dict) -> None:
     if not disponivel():
         return
     processo = registro.get("processo") or ""
+    linha = {
+        "tenant_id": tenant_atual(),
+        "processo_id": processo if "-" in str(processo) else None,
+        "documento": registro.get("documento", ""),
+        "motor": registro.get("motor", ""),
+        "modelo": registro.get("modelo", ""),
+        "duracao_s": registro.get("duracao_s"),
+        "tokens_entrada": registro.get("tokens_entrada"),
+        "tokens_saida": registro.get("tokens_saida"),
+        "request_id": registro.get("request_id", ""),
+        "status": registro.get("status", ""),
+        "erro": registro.get("erro", ""),
+        "fallback": bool(registro.get("fallback")),
+    }
+    # P1: rastro do RAG (coluna `rag_trace`, migração 0011). Antes dela a
+    # coluna não existe — o insert é refeito sem o campo, preservando a
+    # compatibilidade com bancos ainda não migrados.
+    trace = registro.get("rag_trace") or {}
     try:
-        _cliente().table("geracoes").insert({
-            "tenant_id": tenant_atual(),
-            "processo_id": processo if "-" in str(processo) else None,
-            "documento": registro.get("documento", ""),
-            "motor": registro.get("motor", ""),
-            "modelo": registro.get("modelo", ""),
-            "duracao_s": registro.get("duracao_s"),
-            "tokens_entrada": registro.get("tokens_entrada"),
-            "tokens_saida": registro.get("tokens_saida"),
-            "request_id": registro.get("request_id", ""),
-            "status": registro.get("status", ""),
-            "erro": registro.get("erro", ""),
-            "fallback": bool(registro.get("fallback")),
-        }).execute()
+        _cliente().table("geracoes").insert(
+            {**linha, "rag_trace": trace} if trace else linha).execute()
     except Exception:  # noqa: BLE001
-        pass
+        if not trace:
+            return
+        try:
+            _cliente().table("geracoes").insert(linha).execute()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 # ---------------------------------------------------------------------------

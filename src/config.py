@@ -26,7 +26,26 @@ API_TIMEOUT_SEGUNDOS = 180  # documentos longos + planilhas grandes
 API_TENTATIVAS = 3          # nº de tentativas antes de desistir
 API_BACKOFF_BASE = 2        # espera 2s, 4s, 8s... entre tentativas
 
-# Base de Conhecimento (RAG)
+# ---------------------------------------------------------------------------
+# Base de Conhecimento (RAG) — índice vetorial V2
+#
+# Decisão registrada em 11/08/2026 (auditoria de proveniência): o índice
+# tem UM provedor, UM modelo, UMA dimensão e UMA versão. A versão do
+# índice muda SEMPRE que qualquer um dos três primeiros mudar — e trocar
+# a versão exige reindexar a base inteira, porque vetores de modelos
+# diferentes não são comparáveis entre si.
+#
+# A geração de TEXTO mantém o fallback OpenAI → Gemini; os EMBEDDINGS
+# não têm fallback algum (ver rag._gerar_embeddings).
+# ---------------------------------------------------------------------------
+EMBEDDING_V2_PROVEDOR = "openai"
+EMBEDDING_V2_MODELO = "text-embedding-3-small"
+EMBEDDING_V2_DIMENSOES = 768
+EMBEDDING_V2_VERSAO = "v2"
+
+# Compatibilidade com o índice legado (coluna `embedding`), cuja origem
+# não pôde ser comprovada documentalmente — mantido apenas para leitura
+# até o corte para o V2.
 EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIMENSOES = 768   # deve casar com vector(768) no banco
 RAG_CHUNK_TAMANHO = 1500    # ~caracteres por trecho indexado

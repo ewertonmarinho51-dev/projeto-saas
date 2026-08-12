@@ -11,6 +11,72 @@ from . import perfis, planilha
 from .config import CAMPOS_FORMULARIO
 
 # ---------------------------------------------------------------------------
+# Mapa canônico da Lei nº 14.133/2021 — DADO, não texto solto.
+#
+# É a única lista de dispositivos que o sistema considera validada. Serve
+# a dois consumidores, que assim não podem divergir:
+#   - a regra 7 do system prompt (texto gerado a partir daqui);
+#   - a verificação de LASTRO das citações (validacao.py), que aponta
+#     artigo citado sem apoio nem no mapa nem no que o RAG recuperou.
+# Acrescentar dispositivo aqui é ato deliberado de curadoria.
+# ---------------------------------------------------------------------------
+# (tema, artigos com lastro, como citar). Os artigos são DECLARADOS, não
+# extraídos do texto: "art. 84 (1 ano…)" não pode fazer o sistema aceitar
+# um "art. 1" qualquer.
+MAPA_CANONICO: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("modalidade pregão", ("28", "29"), "arts. 28, I, e 29"),
+    ("modalidade concorrência", ("28", "29"), "arts. 28, II, e 29"),
+    ("critério de julgamento", ("33",), "art. 33"),
+    ("termo de referência", ("6",), "art. 6º, XXIII"),
+    ("estudo técnico preliminar", ("18",), "art. 18, §1º"),
+    ("documento de formalização da demanda", ("12",), "art. 12, VII"),
+    ("edital", ("25",), "art. 25"),
+    ("pesquisa de preços / valor estimado", ("23",), "art. 23"),
+    ("exigência de amostra ou prova de conceito", ("41", "42"),
+     "art. 41, II, e art. 42"),
+    ("Sistema de Registro de Preços", ("82", "83", "84", "85", "86"),
+     "arts. 82 a 86"),
+    ("vigência da Ata de Registro de Preços", ("84",),
+     "art. 84 (1 ano, prorrogável por igual período)"),
+    ("adesão à Ata por não participantes", ("86",), "art. 86"),
+    ("habilitação", ("62", "63", "64", "65", "66", "67", "68", "69", "70"),
+     "arts. 62 a 70"),
+    ("recebimento provisório e definitivo", ("140",), "art. 140"),
+    ("pagamento e ordem cronológica", ("141", "142", "143", "144", "145",
+                                       "146"), "arts. 141 a 146"),
+    ("garantia contratual", ("96", "97", "98"),
+     "arts. 96 a 98 (o art. 98 fixa o LIMITE da garantia — não fundamenta "
+     "pagamento)"),
+    ("reajuste por índice (bens e materiais)", ("92",), "art. 92, §3º"),
+    ("repactuação (somente serviço contínuo com dedicação de mão de obra)",
+     ("135",), "art. 135"),
+    ("gestão e fiscalização do contrato", ("117",), "art. 117"),
+    ("infrações e sanções", ("155", "156"), "arts. 155 e 156"),
+    ("impugnações e recursos", ("164", "165", "166", "167", "168"),
+     "arts. 164 a 168"),
+    ("tratamento favorecido a ME/EPP", (), "LC nº 123/2006"),
+)
+
+
+# Todo o mapa é da Lei nº 14.133/2021 (o item de ME/EPP não traz artigo,
+# apenas a LC nº 123/2006): o lastro canônico é ancorado NELA — nunca em
+# um número de artigo solto, que serviria a qualquer norma.
+NORMA_DO_MAPA = "lei_14133_2021"
+
+
+def _dispositivos_do_mapa() -> set[str]:
+    """Dispositivos validados pelo mapa, como `norma:artigo`."""
+    from .normas import dispositivo
+
+    return {dispositivo(NORMA_DO_MAPA, numero)
+            for _, numeros, _ in MAPA_CANONICO for numero in numeros}
+
+
+def _texto_do_mapa() -> str:
+    return "; ".join(f"{tema} = {referencia}"
+                     for tema, _, referencia in MAPA_CANONICO)
+
+# ---------------------------------------------------------------------------
 # System Prompt base — aplicado a todas as gerações
 # ---------------------------------------------------------------------------
 SYSTEM_PROMPT_BASE = """Você é um Analista Sênior de Licitações e Contratos da Administração Pública brasileira, com domínio integral da Lei nº 14.133/2021 (Nova Lei de Licitações e Contratos Administrativos) e das melhores práticas dos órgãos de controle (TCU e CGU).
@@ -29,7 +95,7 @@ REGRAS OBRIGATÓRIAS — cumpra TODAS, sem exceção:
 4. ESCREVA O CONTEÚDO, NÃO O DESCREVA. Cada cláusula deve conter o texto real e desenvolvido do ato administrativo — jamais uma frase que apenas DESCREVE o que a cláusula deveria conter. É PROIBIDO redigir cláusulas como "Descrição da necessidade...", "Indicação da solução proposta...", "Justificativa da contratação conforme o processo" ou qualquer variação meta-descritiva. Desenvolva a Justificativa, a Necessidade e a Solução a partir do objeto, do memorando e da natureza da contratação, com argumentação técnica própria; se faltar o insumo essencial, use [PREENCHER: ...] específico — nunca um resumo genérico que serviria a qualquer contratação.
 5. PROIBIDO EXPOR A ORIGEM DO DADO NO CORPO. Nunca escreva no documento etiquetas de procedência como "(fonte: formulário)", "(fonte: planilha)", "(conforme formulário)", "conforme o formulário" ou similares. O documento é um ato administrativo; a origem dos dados é interna e não aparece no texto oficial. Fontes legítimas (leis, acórdãos, pesquisa de preços) são citadas de forma institucional no corpo.
 6. Estruture o documento em Markdown: cláusulas como '## N. TÍTULO EM CAIXA ALTA'; itens e subitens como parágrafos numerados hierarquicamente no próprio texto (1.1., 1.1.1.), no padrão dos documentos oficiais; tabelas em Markdown. Não cole URLs cruas no meio da prosa: links de pesquisa de preço permanecem SOMENTE na coluna de fonte da planilha, no formato [link](https://...).
-7. Fundamente as cláusulas citando os dispositivos pertinentes da Lei nº 14.133/2021 e das normas/manuais fornecidos — sempre CONECTANDO o dispositivo ao conteúdo tratado; não transforme cláusulas em mera transcrição de artigos de lei. CITE APENAS dispositivos dos quais tenha certeza; na dúvida, cite a lei sem o número do artigo. MAPA CANÔNICO (Lei nº 14.133/2021) — use exatamente estas referências: modalidade pregão = arts. 28, I, e 29; Sistema de Registro de Preços = arts. 82 a 86; vigência da Ata de Registro de Preços = art. 84 (1 ano, prorrogável por igual período); adesão/carona = art. 86; pagamentos e ordem cronológica = arts. 141 a 146; recebimento provisório/definitivo = art. 140; garantias contratuais = arts. 96 a 98 (o art. 98 fixa o LIMITE da garantia — não fundamenta pagamento); REAJUSTE (bens/materiais e índices) = art. 92, §3º; REPACTUAÇÃO (SOMENTE serviços contínuos com dedicação de mão de obra) = art. 135 — em contratação de bens/materiais NUNCA use "repactuação", use "reajuste"; infrações e sanções = arts. 155 e 156; impugnações e recursos = arts. 164 a 168; ME/EPP = LC nº 123/2006.
+7. Fundamente as cláusulas citando os dispositivos pertinentes da Lei nº 14.133/2021 e das normas/manuais fornecidos — sempre CONECTANDO o dispositivo ao conteúdo tratado; não transforme cláusulas em mera transcrição de artigos de lei. CITE APENAS dispositivos COM LASTRO: os do MAPA CANÔNICO abaixo, ou os que constem EXPRESSAMENTE de um trecho recuperado da base de conhecimento. Sem lastro, cite a norma SEM o número do artigo — "nos termos da Lei nº 14.133/2021" é sempre preferível a um artigo errado; é PROIBIDO deduzir número de dispositivo por memória ou analogia. Em contratação de bens/materiais NUNCA use "repactuação": o instituto é o reajuste. MAPA CANÔNICO (Lei nº 14.133/2021) — use exatamente estas referências: {MAPA_CANONICO}.
 8. Produza APENAS o texto do documento solicitado — sem comentários, sem explicações introdutórias e sem observações finais fora do documento.
 9. NUNCA mencione no documento: o funcionamento interno do sistema, prompts, inteligência artificial, modelos de linguagem, "formulário matriz", bases de treinamento ou instruções recebidas. O documento é um ato administrativo, não um relatório do sistema.
 10. Profundidade: siga as metas de blocos indicadas por cláusula. É proibido tanto o texto raso/genérico que serviria a qualquer contratação quanto o enchimento artificial com repetições. Cada afirmação relevante deve decorrer de informação do processo atual ou de norma aplicável.
@@ -38,6 +104,38 @@ REGRAS OBRIGATÓRIAS — cumpra TODAS, sem exceção:
 EXEMPLO DO PADRÃO EXIGIDO (cláusula de Justificativa):
 - ERRADO (raso/meta-descritivo, com etiqueta de origem): "Atender as necessidades administrativas da Prefeitura. (fonte: formulário)"
 - CERTO (desenvolvido, institucional): "A contratação justifica-se pela necessidade de assegurar o fornecimento contínuo e padronizado de materiais de expediente às secretarias municipais, evitando a descontinuidade das atividades-meio e os custos de aquisições fragmentadas. O Sistema de Registro de Preços (art. 82 da Lei nº 14.133/2021) confere economicidade e previsibilidade ao atendimento de demanda recorrente e de quantitativo não exatamente conhecido. [PREENCHER: indicador ou histórico de consumo que dimensione a economia esperada, se disponível]." """
+
+# O mapa canônico é injetado a partir da estrutura de dados: prompt e
+# verificação de lastro (validacao.py) leem a MESMA fonte e não divergem.
+SYSTEM_PROMPT_BASE = SYSTEM_PROMPT_BASE.replace("{MAPA_CANONICO}",
+                                                _texto_do_mapa())
+
+# Números de artigo com lastro canônico — consumido pela validação.
+DISPOSITIVOS_CANONICOS = _dispositivos_do_mapa()
+
+# ---------------------------------------------------------------------------
+# Raciocínio do ETP (P1)
+#
+# A estrutura do ETP já vinha correta dos documentos aprovados; o defeito
+# era SEMÂNTICO: o modelo recebia "modelo de execução: SRP" do formulário
+# e escrevia o estudo como se a solução já estivesse decidida — as
+# alternativas viravam enfeite e a conclusão apenas confirmava a premissa.
+# O ETP é o documento que ESCOLHE a solução; a preferência do requisitante
+# entra como hipótese a ser testada, não como conclusão.
+# ---------------------------------------------------------------------------
+RACIOCINIO_ETP = """
+
+RACIOCÍNIO OBRIGATÓRIO DO ETP (o estudo CONCLUI, não pressupõe):
+Encadeie o documento nesta ordem lógica, e só avance quando a etapa anterior estiver estabelecida:
+NECESSIDADE (qual problema administrativo existe) → REQUISITOS (o que a solução precisa atender) → ALTERNATIVAS (quais caminhos reais existem no mercado/na Administração) → ANÁLISE TÉCNICA E ECONÔMICA (comparação entre as alternativas) → SOLUÇÃO ESCOLHIDA (decorrência da análise) → CONSEQUÊNCIAS DA ESCOLHA (quantitativos, valor, riscos, providências, resultados).
+
+REGRAS DESTE RACIOCÍNIO:
+a) A cláusula de NECESSIDADE descreve o PROBLEMA e o interesse público — é PROIBIDO anunciar nela a solução, a modalidade ou o modelo de execução como decisão tomada ("adota-se o SRP", "a solução será…"). A necessidade não conhece a resposta ainda.
+b) A solução indicada pelo demandante no DFD e o MODELO DE EXECUÇÃO informado no formulário são PREFERÊNCIA/HIPÓTESE DE MODELAGEM do requisitante — insumos legítimos, jamais conclusão. O ETP pode confirmá-los, ajustá-los, refiná-los ou REJEITÁ-LOS de forma fundamentada. Se confirmar, precisa DEMONSTRAR por que a modelagem é adequada a esta demanda (ex.: por que o Sistema de Registro de Preços serve a este objeto), e não apenas repetir que foi o que se pediu.
+c) O LEVANTAMENTO DE SOLUÇÕES analisa alternativas REAIS e pertinentes ao objeto — por exemplo, conforme o caso: aquisição × locação; contratação própria × adesão a ata; execução direta × terceirizada; solução integrada × fragmentada; contratação pontual × registro de preços; solução instalada × serviço em nuvem. Selecione apenas as plausíveis para ESTE objeto, com vantagens e desvantagens de cada uma. É PROIBIDO inventar alternativas fictícias só para preencher a cláusula; se houver de fato uma única alternativa tecnicamente viável, diga isso e explique o motivo.
+d) A SOLUÇÃO ESCOLHIDA deve decorrer de critérios explicitáveis — adequação técnica, custo, competitividade, capacidade de atendimento do mercado, flexibilidade, padronização, risco, prazo, manutenção, ciclo de vida, escalabilidade, economicidade e eficiência administrativa —, indicando quais pesaram nesta contratação.
+e) É PROIBIDO o absolutismo sem evidência: não escreva "única solução possível", "solução incontestável", "juridicamente irrepreensível" ou equivalentes. Conclua com a firmeza que a análise sustenta."""
+
 
 # ---------------------------------------------------------------------------
 # Instruções específicas por documento
@@ -60,6 +158,7 @@ _ABERTURAS = {
         "RISCOS, monte a matriz em tabela Markdown com as colunas: Risco | "
         "Probabilidade (Baixa/Média/Alta) | Impacto (Baixo/Médio/Alto) | "
         "Medida de Mitigação | Responsável."
+        + RACIOCINIO_ETP
     ),
     "tr": (
         "Elabore o TERMO DE REFERÊNCIA (TR), nos termos do art. 6º, XXIII, e "
@@ -97,8 +196,13 @@ def _instrucoes(doc_key: str, dados: dict) -> str:
     return _ABERTURAS[doc_key] + "\n\n" + perfis.estrutura_para_prompt(doc_key, srp=srp)
 
 
-def formatar_dados_formulario(dados: dict) -> str:
-    """Converte o Formulário Matriz em um bloco de texto legível para a IA."""
+def formatar_dados_formulario(dados: dict, doc_key: str = "") -> str:
+    """
+    Converte o Formulário Matriz em um bloco de texto legível para a IA.
+
+    No ETP o modelo de execução é apresentado como PREFERÊNCIA do
+    requisitante — é justamente o estudo que decide a modelagem (P1).
+    """
     linhas = []
     for chave, meta in CAMPOS_FORMULARIO.items():
         if chave == "memorando":
@@ -124,6 +228,12 @@ def formatar_dados_formulario(dados: dict) -> str:
         valor = dados.get(chave)
         if valor in (None, "", 0):
             valor = "(não informado)"
+        if chave == "modelo_execucao" and doc_key == "etp":
+            linhas.append(
+                f"- {meta['rotulo']} — PREFERÊNCIA DE MODELAGEM indicada "
+                f"pelo requisitante, a ser CONFIRMADA OU AFASTADA pelo "
+                f"estudo (não é conclusão do ETP): {valor}")
+            continue
         linhas.append(f"- {meta['rotulo']}: {valor}")
     return "\n".join(linhas)
 
@@ -153,13 +263,26 @@ def montar_prompt(doc_key: str, dados: dict, contexto_anterior: str | None) -> t
         )
     partes.append(
         "\n=== DADOS DO FORMULÁRIO MATRIZ (fonte primária do processo atual) ===\n"
-        + formatar_dados_formulario(dados)
+        + formatar_dados_formulario(dados, doc_key)
     )
     if contexto_anterior:
         nomes = {"dfd": "DFD APROVADO", "etp": "ETP APROVADO", "tr": "TR APROVADO"}
         origem = {"etp": "dfd", "tr": "etp", "edital": "tr"}[doc_key]
+        # P1: o DFD PROPÕE, o ETP DECIDE, o TR EXECUTA a decisão do ETP.
+        papel = {
+            "etp": "A solução indicada pelo DFD é PRELIMINAR: use-a como "
+                   "hipótese inicial do estudo, que pode confirmá-la, "
+                   "ajustá-la ou afastá-la de forma fundamentada.",
+            "tr": "O TR OPERACIONALIZA a solução escolhida no ETP: é "
+                  "PROIBIDO criar solução, modelagem, modalidade ou "
+                  "critério de julgamento diferentes dos definidos no ETP.",
+            "edital": "O Edital deve respeitar objeto, requisitos, "
+                      "modalidade, critério de julgamento, prazos, "
+                      "garantia e habilitação já definidos no TR.",
+        }[doc_key]
         partes.append(
             f"\n=== {nomes[origem]} PELO USUÁRIO (contexto obrigatório) ===\n"
+            f"{papel}\n"
             + contexto_anterior
         )
     return SYSTEM_PROMPT_BASE, "\n".join(partes)

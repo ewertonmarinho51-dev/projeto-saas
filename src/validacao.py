@@ -130,6 +130,33 @@ _RE_META_DESCRITIVA = re.compile(
 
 _RE_CLAUSULA = re.compile(r"(?m)^#{1,3}\s*(\d{1,2})\s*[\.\-–]?\s+(.+?)\s*$")
 
+# ---------------------------------------------------------------------------
+# Raciocínio do ETP (P1): o estudo CONCLUI a solução — não a pressupõe.
+# ---------------------------------------------------------------------------
+# A cláusula da necessidade descreve o problema; anunciar nela a solução,
+# a modalidade ou o modelo de execução como decisão tomada inverte o
+# raciocínio do art. 18 (o levantamento vira formalidade).
+_RE_SOLUCAO_ANTECIPADA = re.compile(
+    r"\b(adota(?:-se|remos)?|opta(?:-se|remos)?|escolhe(?:-se)?|"
+    r"conclui-se\s+(?:pel[ao]|que)|define-se|fica\s+definid[ao]|"
+    r"a\s+solu[çc][ãa]o\s+(?:ser[áa]|escolhida\s+[ée]|adotada\s+[ée]))\b",
+    re.IGNORECASE)
+_RE_DECISAO_MODELAGEM = re.compile(
+    r"\b(sistema\s+de\s+registro\s+de\s+pre[çc]os|\bSRP\b|preg[ãa]o|"
+    r"concorr[êe]ncia|ades[ãa]o\s+[àa]\s+ata|loca[çc][ãa]o|aquisi[çc][ãa]o)\b",
+    re.IGNORECASE)
+_TITULO_NECESSIDADE = ("NECESSIDADE",)
+_TITULO_LEVANTAMENTO = ("LEVANTAMENTO",)
+_TITULO_SOLUCAO = ("DESCRIÇÃO DA SOLUÇÃO", "DESCRICAO DA SOLUCAO")
+
+# Absolutismo sem evidência: a conclusão do estudo deve ter a firmeza que
+# a análise sustenta — nem mais, nem menos.
+_RE_ABSOLUTISMO = re.compile(
+    r"\b(única\s+(?:solu[çc][ãa]o|alternativa|op[çc][ãa]o)\s+"
+    r"(?:poss[íi]vel|viável|existente)|incontest[áa]vel|inquestion[áa]vel|"
+    r"juridicamente\s+irrepreens[íi]vel|absolutamente\s+seguro)\b",
+    re.IGNORECASE)
+
 
 def _norm(texto: str) -> str:
     t = unicodedata.normalize("NFKD", texto or "")
@@ -351,6 +378,132 @@ def _validar_fundamentos_legais(doc_key: str, texto: str) -> list[dict]:
     return achados
 
 
+def _corpo_da_clausula(texto: str, titulos: tuple[str, ...]) -> tuple[int, str]:
+    """(posição da cláusula, corpo até a próxima) — (-1, "") se ausente."""
+    clausulas = list(_RE_CLAUSULA.finditer(texto))
+    for i, m in enumerate(clausulas):
+        alvo = _norm(m.group(2))
+        if any(_norm(t) in alvo for t in titulos):
+            fim = clausulas[i + 1].start() if i + 1 < len(clausulas) else len(texto)
+            return i, texto[m.end():fim]
+    return -1, ""
+
+
+def _validar_raciocinio_etp(doc_key: str, texto: str) -> list[dict]:
+    """
+    O ETP deve CONCLUIR a solução: necessidade → requisitos →
+    alternativas → análise → solução. Verificações determinísticas da
+    inversão desse encadeamento (avisos: a redação é discricionária).
+    """
+    if doc_key != "etp":
+        return []
+    achados: list[dict] = []
+
+    pos_necessidade, corpo_necessidade = _corpo_da_clausula(
+        texto, _TITULO_NECESSIDADE)
+    if corpo_necessidade:
+        for frase in re.split(r"(?<=[.;])\s+", corpo_necessidade):
+            if _RE_SOLUCAO_ANTECIPADA.search(frase) and \
+                    _RE_DECISAO_MODELAGEM.search(frase):
+                achados.append(_achado(
+                    doc_key, "aviso",
+                    "cláusula de necessidade antecipa a solução/modelagem "
+                    "como decidida — a necessidade descreve o problema; a "
+                    "escolha decorre do levantamento e da análise",
+                    frase.strip()))
+                break
+
+    pos_levantamento, _ = _corpo_da_clausula(texto, _TITULO_LEVANTAMENTO)
+    pos_solucao, _ = _corpo_da_clausula(texto, _TITULO_SOLUCAO)
+    if pos_levantamento >= 0 and pos_solucao >= 0 and \
+            pos_levantamento > pos_solucao:
+        achados.append(_achado(
+            doc_key, "aviso",
+            "ordem do raciocínio invertida: a descrição da solução "
+            "escolhida aparece ANTES do levantamento de soluções"))
+    elif pos_solucao >= 0 and pos_levantamento < 0:
+        achados.append(_achado(
+            doc_key, "aviso",
+            "solução descrita sem cláusula de levantamento de soluções — "
+            "a escolha precisa decorrer da análise de alternativas"))
+    return achados
+
+
+def _validar_absolutismo(doc_key: str, texto: str) -> list[dict]:
+    """Afirmação absoluta sem evidência que a sustente (aviso)."""
+    m = _RE_ABSOLUTISMO.search(texto)
+    if not m:
+        return []
+    ini = max(0, m.start() - 60)
+    return [_achado(
+        doc_key, "aviso",
+        "afirmação absoluta sem evidência ('" + m.group(0).lower() + "') — "
+        "conclua com a firmeza que a análise sustenta",
+        texto[ini:m.end() + 60].replace("\n", " "))]
+
+
+# ---------------------------------------------------------------------------
+# Lastro das citações (P1): fecha o circuito da regra de citação.
+#
+# A instrução no prompt depende da obediência do modelo. Aqui a
+# verificação é determinística: todo número de artigo citado precisa
+# estar (a) no mapa canônico validado do sistema ou (b) em um trecho que
+# o RAG efetivamente recuperou para AQUELA geração. Sem lastro, vira
+# finding — e a correção preferida REMOVE o número, mantendo a norma;
+# jamais troca por outro artigo inventado.
+# ---------------------------------------------------------------------------
+_RE_ARTIGO = re.compile(r"\bart(?:igo|s?)?\.?\s*(\d{1,3})\s*[º°]?", re.IGNORECASE)
+# janela após a citação onde a norma costuma aparecer ("art. 84 da Lei
+# nº 14.133/2021", "arts. 141 a 146 da Lei nº 14.133/2021")
+_JANELA_NORMA = 90
+
+
+def dispositivos_citados(texto: str) -> set[str]:
+    """
+    Dispositivos citados no documento, como `norma:artigo`.
+
+    A norma é lida logo após a citação; sem norma declarada, vale a norma
+    de referência da fase preparatória (`normas.NORMA_PADRAO`) — que é
+    como o próprio documento se lê ("na forma do art. 33" significa a Lei
+    nº 14.133/2021). Isso impede que o art. 84 de uma norma qualquer
+    valide o art. 84 da Lei nº 14.133/2021.
+    """
+    from .normas import NORMA_PADRAO, dispositivo, identificar_norma
+
+    texto = texto or ""
+    citados: set[str] = set()
+    for m in _RE_ARTIGO.finditer(texto):
+        janela = texto[m.end():m.end() + _JANELA_NORMA]
+        # a norma vale até o fim da frase: "art. 5º da CF. O art. 40…"
+        janela = re.split(r"(?<=[.;:])\s", janela)[0]
+        citados.add(dispositivo(identificar_norma(janela) or NORMA_PADRAO,
+                                m.group(1)))
+    return citados
+
+
+def _validar_lastro_das_citacoes(doc_key: str, texto: str,
+                                 lastro: set[str] | None) -> list[dict]:
+    if lastro is None:
+        return []          # sem rastro do RAG: nada a afirmar (conservador)
+    from . import prompts
+
+    sem_lastro = sorted(
+        dispositivos_citados(texto) - prompts.DISPOSITIVOS_CANONICOS - lastro)
+    if not sem_lastro:
+        return []
+    exemplo = _RE_ARTIGO.search(texto)
+    legivel = ", ".join(f"art. {d.split(':')[1]} ({d.split(':')[0]})"
+                        for d in sem_lastro)
+    return [_achado(
+        doc_key, "aviso",
+        f"fundamento sem lastro: {legivel} — o dispositivo, NA NORMA "
+        "citada, não consta do mapa canônico do sistema nem de qualquer "
+        "trecho de legislação recuperado nesta geração. Remova o número e "
+        "mantenha a referência à norma (ex.: 'nos termos da Lei nº "
+        "14.133/2021'); não substitua por outro artigo sem fonte",
+        (exemplo.group(0) if exemplo else ""))]
+
+
 def _validar_tabelas(doc_key: str, texto: str) -> list[dict]:
     """Tabela Markdown sem linha separadora (---) = sem cabeçalho definido."""
     achados = []
@@ -364,22 +517,34 @@ def _validar_tabelas(doc_key: str, texto: str) -> list[dict]:
     return achados
 
 
-def validar_documento(doc_key: str, texto: str) -> list[dict]:
-    """Valida um documento; retorna a lista de achados (pode ser vazia)."""
+def validar_documento(doc_key: str, texto: str,
+                      lastro: set[str] | None = None) -> list[dict]:
+    """
+    Valida um documento; retorna a lista de achados (pode ser vazia).
+
+    `lastro`: números de artigo recuperados pelo RAG na geração deste
+    documento. Quando informado, habilita a checagem de fundamento sem
+    lastro; quando None (sem rastro disponível), a checagem é omitida.
+    """
     texto = texto or ""
     return (
         _validar_bloqueantes(doc_key, texto)
         + _validar_dados_improvisados(doc_key, texto)
         + _validar_fundamentos_legais(doc_key, texto)
+        + _validar_lastro_das_citacoes(doc_key, texto, lastro)
+        + _validar_raciocinio_etp(doc_key, texto)
+        + _validar_absolutismo(doc_key, texto)
         + _validar_estrutura(doc_key, texto)
         + _validar_tabelas(doc_key, texto)
     )
 
 
-def validar_todos(documentos: dict[str, str]) -> list[dict]:
+def validar_todos(documentos: dict[str, str],
+                  lastro_por_doc: dict[str, set[str]] | None = None) -> list[dict]:
     achados: list[dict] = []
     for doc_key, texto in documentos.items():
-        achados.extend(validar_documento(doc_key, texto))
+        achados.extend(validar_documento(
+            doc_key, texto, (lastro_por_doc or {}).get(doc_key)))
     return achados
 
 

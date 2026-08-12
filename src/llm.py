@@ -58,8 +58,16 @@ _ultimo_uso: dict = {}
 
 def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
                       erro: str = "", fallback: bool = False,
-                      processo_id: str | None = None) -> dict:
-    """Grava o registro no log do servidor e no histórico da sessão."""
+                      processo_id: str | None = None,
+                      rag_trace: dict | None = None) -> dict:
+    """
+    Grava o registro no log do servidor e no histórico da sessão.
+
+    `rag_trace` (P1) responde "por que o sistema citou este artigo?":
+    consultas/temas feitos à base, fontes recuperadas com título,
+    categoria e score. Guarda IDENTIFICAÇÃO da fonte — nunca chaves de
+    API, nunca o documento inteiro.
+    """
     registro = {
         "quando": datetime.now().isoformat(timespec="seconds"),
         "processo": processo_id or st.session_state.get("processo_id") or "(novo)",
@@ -73,6 +81,7 @@ def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
         "status": status,                      # "ok" | "falha"
         "erro": (erro or "")[:300],            # sanitizado (sem chave/conteúdo)
         "fallback": fallback,
+        "rag_trace": rag_trace or {},
     }
     _log.info("geracao %s", registro)
     historico = st.session_state.setdefault("registro_geracoes", [])
@@ -453,6 +462,10 @@ def gerar_documento(doc_key: str, dados: dict,
         texto = planilha.injetar_tabela(_gerar_demo(doc_key, dados),
                                         dados.get("itens"))
         registrar_geracao(doc_key, "demo", inicio, "ok", fallback=True)
+        # esqueleto offline não consulta a base: rastro vazio, mas do
+        # documento certo (o anterior não pode ficar valendo)
+        _associar_rag_trace(doc_key, {"modo": "demo", "consultas": [],
+                                      "referencias": []}, texto)
         return texto
 
     chave_openai = obter_openai_key()
@@ -470,7 +483,18 @@ def gerar_documento(doc_key: str, dados: dict,
     # bloqueia a geração — o bloco simplesmente fica vazio.
     from . import rag
 
-    user_prompt += rag.montar_bloco_referencias(dados, doc_key)
+    contexto_rag = rag.montar_contexto(dados, doc_key)
+    user_prompt += contexto_rag["bloco"]
+    rag_trace = contexto_rag["trace"]
+
+    # P1: cláusulas condicionais resolvidas pelo MOTOR DE CONHECIMENTO
+    # (mesmas regras, fatos e trilha exibidos na tela final). Com o motor
+    # inativo devolve "" — o prompt fica idêntico ao de hoje.
+    from . import conhecimento
+
+    user_prompt += conhecimento.diretrizes_para_prompt(
+        dados, st.session_state.get("processo_id"),
+        documentos=st.session_state.get("documentos") or {}, doc_key=doc_key)
     if instrucoes_extra:
         user_prompt += instrucoes_extra
 
@@ -481,10 +505,12 @@ def gerar_documento(doc_key: str, dados: dict,
         inicio = time.time()
         try:
             texto = _chamar_openai(system_prompt, user_prompt, chave_openai)
-            registrar_geracao(doc_key, "openai", inicio, "ok")
+            registrar_geracao(doc_key, "openai", inicio, "ok",
+                              rag_trace=rag_trace)
         except ErroGeracaoIA as erro:
             registrar_geracao(doc_key, "openai", inicio, "falha",
-                              erro=getattr(erro, "detalhe", "") or str(erro))
+                              erro=getattr(erro, "detalhe", "") or str(erro),
+                              rag_trace=rag_trace)
             if not chave_gemini:
                 raise
             st.warning(
@@ -496,14 +522,38 @@ def gerar_documento(doc_key: str, dados: dict,
         try:
             texto = _chamar_gemini(system_prompt, user_prompt, chave_gemini)
             registrar_geracao(doc_key, "gemini", inicio, "ok",
-                              fallback=bool(chave_openai))
+                              fallback=bool(chave_openai),
+                              rag_trace=rag_trace)
         except ErroGeracaoIA as erro:
             registrar_geracao(doc_key, "gemini", inicio, "falha",
                               erro=getattr(erro, "detalhe", "") or str(erro),
-                              fallback=bool(chave_openai))
+                              fallback=bool(chave_openai),
+                              rag_trace=rag_trace)
             raise
     # Injeta a tabela real da planilha (grande) no lugar da marca [[TABELA_ITENS]].
-    return planilha.injetar_tabela(texto, dados.get("itens"))
+    final = planilha.injetar_tabela(texto, dados.get("itens"))
+    _associar_rag_trace(doc_key, rag_trace, final)
+    return final
+
+
+def _associar_rag_trace(doc_key: str, rag_trace: dict, texto: str) -> None:
+    """
+    Vincula o rastro do RAG ao documento SOMENTE após uma geração bem
+    sucedida — e ao texto que ela produziu.
+
+    Se todos os motores falharem, a função não é chamada: o rastro do
+    documento anterior permanece intacto. Sem isso, uma tentativa
+    fracassada de regerar substituiria a evidência e o documento vigente
+    passaria a ser auditado com o rastro de outra geração.
+    """
+    import hashlib
+
+    st.session_state.setdefault("_rag_trace", {})[doc_key] = {
+        **rag_trace,
+        "hash_texto": hashlib.sha256(texto.encode("utf-8")).hexdigest()[:16],
+        "request_id": _ultimo_uso.get("request_id", ""),
+        "modelo": _ultimo_uso.get("modelo", ""),
+    }
 
 
 def chamar_ia_texto(system_prompt: str, user_prompt: str,
