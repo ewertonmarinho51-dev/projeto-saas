@@ -31,6 +31,7 @@ CATEGORIAS = {
     "lei": "Lei / Norma",
     "acordao": "Acórdão (TCU/TCE)",
     "entendimento": "Entendimento / Orientação de TC",
+    "manual": "Manual / Orientação técnica",
     "processo_anterior": "Processo anterior realizado",
     "modelo": "Modelo / Minuta padrão (AGU etc.)",
     "outro": "Outro",
@@ -39,10 +40,13 @@ CATEGORIAS = {
 # Hierarquia da fonte recuperada (P1): o que cada categoria PODE
 # sustentar. Legislação e jurisprudência NÃO se confundem — acórdão e
 # entendimento de Tribunal de Contas orientam a interpretação e o
-# controle, mas não são a norma. Processo anterior é molde de estrutura
-# e linguagem, nunca prova do direito vigente.
+# controle, mas não são a norma. MANUAL é orientação técnica (inclusive
+# de órgão federal): apoia a redação, jamais fundamenta dispositivo e
+# não obriga o Município. Processo anterior é molde de estrutura e
+# linguagem, nunca prova do direito vigente.
 LEGISLACAO = ("lei",)
 CONTROLE = ("acordao", "entendimento")
+MANUAIS = ("manual",)
 MOLDES = ("processo_anterior", "modelo")
 NORMATIVAS = LEGISLACAO + CONTROLE   # compatibilidade: fontes jurídicas
 
@@ -52,6 +56,10 @@ _PAPEL_DA_FONTE = {
                "não substitui a norma",
     "entendimento": "orientação de órgão de controle — orienta a "
                     "interpretação; não substitui a norma",
+    "manual": "manual/orientação técnica — apoia a estrutura e a "
+              "interpretação técnica; NÃO fornece dispositivo normativo. "
+              "Manual de órgão FEDERAL não obriga o Município: serve de "
+              "referência, nunca de norma aplicável",
     "processo_anterior": "processo anterior — apenas estrutura e "
                          "linguagem; NÃO fundamenta",
     "modelo": "modelo/minuta padrão — apenas estrutura e linguagem; "
@@ -565,11 +573,18 @@ def _score(trecho: dict) -> float:
 
 
 def _prioridade_fonte(trecho: dict) -> int:
-    """Norma > entendimento/acórdão > modelo/processo anterior."""
+    """
+    Ordem de exibição: legislação > controle > manual > (outros) > molde.
+    O manual fica acima dos moldes porque traz orientação técnica
+    aproveitável, e abaixo do controle porque não interpreta a norma com
+    autoridade — e não fundamenta dispositivo em hipótese alguma.
+    """
     categoria = (trecho.get("categoria") or "").lower()
-    if categoria == "lei":
+    if categoria in LEGISLACAO:
+        return 4
+    if categoria in CONTROLE:
         return 3
-    if categoria in NORMATIVAS:
+    if categoria in MANUAIS:
         return 2
     if categoria in MOLDES:
         return 0

@@ -16,7 +16,11 @@ import sys
 
 import pytest
 
+from pathlib import Path
+
 from src import llm, rag
+
+RAIZ_REPO = Path(__file__).resolve().parent.parent
 
 # --------------------------------------------------------------------------
 # Cenários (fixtures sintéticas — nenhum contrato real)
@@ -797,3 +801,60 @@ def test_indexacao_com_vetor_grava_proveniencia_completa(monkeypatch):
     assert chunk["embedding_dimensions"] == 768
     assert chunk["embedding_version"] == "v2"
     assert chunk["embedding_generated_at"]
+
+
+# --------------------------------------------------------------------------
+# Categoria `manual`: apoia a redação, não fundamenta dispositivo
+# --------------------------------------------------------------------------
+def test_manual_esta_no_catalogo_e_fora_da_legislacao():
+    assert rag.CATEGORIAS["manual"] == "Manual / Orientação técnica"
+    assert "manual" in rag.MANUAIS
+    assert "manual" not in rag.LEGISLACAO
+    assert "manual" not in rag.CONTROLE
+    assert "manual" not in rag.NORMATIVAS
+
+
+def test_manual_nao_fornece_lastro_juridico():
+    trace = {"referencias": [
+        {"titulo": "Manual de Licitações (AGU)", "categoria": "manual",
+         "dispositivos": ["lei_14133_2021:40"]},
+        {"titulo": "Modelo de TR", "categoria": "modelo",
+         "dispositivos": ["lei_14133_2021:41"]},
+        {"titulo": "Lei nº 14.133/2021", "categoria": "lei",
+         "dispositivos": ["lei_14133_2021:84"]}]}
+    # só a legislação sustenta dispositivo
+    assert rag.lastro_do_trace(trace) == {"lei_14133_2021:84"}
+
+
+def test_manual_fica_abaixo_de_lei_e_de_controle_e_acima_dos_moldes():
+    prioridade = rag._prioridade_fonte
+    assert (prioridade({"categoria": "lei"})
+            > prioridade({"categoria": "acordao"})
+            > prioridade({"categoria": "manual"})
+            > prioridade({"categoria": "modelo"}))
+    assert prioridade({"categoria": "manual"}) > prioridade(
+        {"categoria": "processo_anterior"})
+
+
+def test_manual_e_rotulado_sem_forca_normativa_no_bloco(monkeypatch):
+    manual = _chunk("c-manual", "Manual de Licitações e Contratações (AGU)",
+                    "manual", "Orientação sobre a fase preparatória…", 0.9)
+    lei = _chunk("c-lei", "Lei nº 14.133/2021", "lei",
+                 "Art. 18. A fase preparatória…", 0.4)
+    _fingir_base(monkeypatch, lambda consulta: [manual, lei])
+    bloco = rag.montar_bloco_referencias(BENS_SRP, "etp")
+
+    assert "Manual / Orientação técnica" in bloco
+    assert "NÃO fornece dispositivo normativo" in bloco
+    assert "não obriga o Município" in bloco
+    # apesar do score maior, a lei aparece antes do manual
+    assert bloco.index("Lei nº 14.133/2021") < bloco.index(
+        "Manual de Licitações e Contratações (AGU)")
+
+
+def test_categoria_manual_do_codigo_existe_no_banco():
+    """O CHECK do banco (migração 0017) e o catálogo do código batem."""
+    migracao = (RAIZ_REPO / "supabase" / "migrations"
+                / "0017_categoria_manual.sql").read_text(encoding="utf-8")
+    for categoria in rag.CATEGORIAS:
+        assert f"'{categoria}'::text" in migracao

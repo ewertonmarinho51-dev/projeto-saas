@@ -1,6 +1,6 @@
 -- ============================================================
 -- 0017 — Categoria `manual` no catálogo da Base de Conhecimento
---         (PROPOSTA — NÃO APLICAR SEM DECISÃO)
+--         APLICADA EM 11/08/2026 (com autorização)
 --
 -- MOTIVO
 -- Os três documentos hoje gravados como `entendimento` não são
@@ -59,19 +59,17 @@ alter table public.documentos_referencia
     'outro'::text
   ]));
 
--- ---- BLOCO 2: reclassificação (revisar antes de executar) ----------
--- Confira o alvo antes:
---   select id, titulo, categoria from public.documentos_referencia
---    where categoria = 'entendimento';
+-- ---- BLOCO 2: reclassificação (executada como DML, por ID) ---------
+-- Feita fora desta migração, por IDs conferidos um a um — jamais por
+-- um UPDATE genérico que pudesse alcançar documentos futuros:
 --
--- update public.documentos_referencia
---    set categoria = 'manual'
---  where categoria = 'entendimento'
---    and titulo in (
---      'instrumento-de-padronizacao-dos-procedimento-de-contratacao-agu-fev-2024.pdf',
---      'manual de fase de planejamento.pdf',
---      'ManualdeLicitacoeseContratacoesAdministrativaspdf.pdf'
---    );
+--   update public.documentos_referencia set categoria = 'manual'
+--    where id in ('dfac3fad-414c-4719-a853-40fe2785320d',   -- AGU + MGI
+--                 '8c030522-33c3-4ca1-8d9c-dc14da29e217',   -- MCom
+--                 '82dcb022-32e9-4ca6-bc8e-f53ff5873cb7')   -- AGU/CGU
+--      and categoria = 'entendimento';
 --
--- Reversível: basta voltar `categoria` para 'entendimento'. O conteúdo,
--- os chunks e os embeddings não são tocados.
+-- Resultado conferido: 3 documentos migrados; `entendimento` zerado;
+-- 40 documentos no total; 4.539 chunks e 2.978 embeddings legados
+-- intactos; impressão estrutural 90c41e57140a984909bbd86547d72d50
+-- inalterada. Reversível: basta voltar `categoria` para 'entendimento'.
