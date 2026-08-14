@@ -184,3 +184,61 @@ def test_clausula_publicada_do_municipio_sobrepoe_a_base(dados):
     assert "[PREENCHER: comarca do foro]" not in resultado["texto"]
     assert {"chave": "arp.foro", "versao": 3, "hash": "abc"} in \
         resultado["clausulas_usadas"]
+
+
+# ---------------------------------------------------------------------------
+# Lacunas descobertas ao reler a minuta de ARP do edital auditado
+#
+# O relatório afirmou que "não havia ARP". Havia: um ANEXO III — MINUTA DA
+# ATA DE REGISTRO DE PREÇOS com 10 cláusulas, dentro do documento
+# 'edital'. Reler esse anexo revelou dois defeitos que nenhuma regra
+# pegava — e que eram exatamente o exigido no pedido original.
+# ---------------------------------------------------------------------------
+def test_cnpj_com_numero_de_digitos_errado_bloqueia():
+    """Trecho literal da ARP auditada: 15 dígitos, sem formato de CNPJ."""
+    texto = ("1.1. Prefeitura Municipal, inscrita no CNPJ sob o nº "
+             "541984981984984, doravante Administração.\n")
+    bloqueios = [a["mensagem"]
+                 for a in validacao.bloqueios(
+                     validacao.validar_documento("arp", texto))]
+    assert any("CNPJ com 15 dígitos" in m for m in bloqueios), bloqueios
+
+
+def test_cnpj_valido_de_14_digitos_passa():
+    texto = "CNPJ nº 05.514.464/0001-30.\n"
+    assert not [a for a in validacao.validar_documento("arp", texto)
+                if "CNPJ" in a["mensagem"]]
+
+
+def test_cnpj_de_14_digitos_com_dv_errado_continua_bloqueando():
+    texto = "CNPJ nº 11.111.111/1111-11.\n"
+    bloqueios = [a["mensagem"]
+                 for a in validacao.bloqueios(
+                     validacao.validar_documento("arp", texto))]
+    assert any("dígitos verificadores não conferem" in m for m in bloqueios)
+    # e não é reportado duas vezes pelas duas regras
+    assert len([m for m in bloqueios if "CNPJ" in m]) == 1, bloqueios
+
+
+def test_fornecedor_licitantes_bloqueia():
+    """Trecho literal da ARP auditada: a parte contratada era 'licitantes'."""
+    texto = ("1.2. Fornecedor (s) adjudicatário (s):licitantes, doravante "
+             "denominado(s) Fornecedor(es).\n")
+    bloqueios = [a["mensagem"]
+                 for a in validacao.bloqueios(
+                     validacao.validar_documento("arp", texto))]
+    assert any("identificada por categoria" in m for m in bloqueios), bloqueios
+
+
+def test_fornecedor_com_razao_social_real_passa():
+    texto = "1.2. Fornecedor adjudicatário: Papelaria Central Ltda.\n"
+    assert not [a for a in validacao.validar_documento("arp", texto)
+                if "categoria" in a["mensagem"]]
+
+
+def test_a_arp_do_catalogo_nao_reproduz_nenhum_desses_defeitos(dados):
+    """A minuta determinística nasce com pendência, não com invenção."""
+    texto = _montar("arp", dados)["texto"]
+    achados = validacao.validar_documento("arp", texto, None, dados)
+    assert not [a for a in achados if "CNPJ com" in a["mensagem"]]
+    assert not [a for a in achados if "identificada por categoria" in a["mensagem"]]

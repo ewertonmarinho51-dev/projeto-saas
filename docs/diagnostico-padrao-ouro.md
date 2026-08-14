@@ -15,7 +15,7 @@ produção (tabelas `processos` e `revisoes`), não simulados.
 | 2 | Após injeção da tabela | snapshots v1 dos jobs de 14–15/07 em `revisoes` | `b39f30c3`, `1d9c327d`, `66013c30` | na época: 21–29 findings, até 20 `[PREENCHER]` no edital |
 | 3 | Após autocorreção | bundle v4 do job de 15/07 23:09 | `eab5726f` | — |
 | 4 | Conteúdo enviado ao exportador | `processos.documentos` (o que a tela exporta) | `eab5726f` — **idêntico ao aprovado** | **6 bloqueios + 17 avisos** |
-| 5 | Texto extraído do PDF final | regenerado com `export.gerar_pdf_consolidado` (motor libreoffice) | sha256 `d8ae49ed…`, 190 páginas | defeitos do estágio 4 + defeitos próprios de renderização |
+| 5 | Texto extraído do PDF final | regenerado com `export.gerar_pdf_consolidado` (motor **fpdf2** — ver seção 7) | sha256 `d8ae49ed…`, 190 páginas | defeitos do estágio 4 + defeitos próprios de renderização |
 
 O PDF do usuário chama-se `prefeitura-municipal-de-paragominas-fase-preparatoria.pdf`
 — exatamente o nome que `steps.render_sucesso` dá ao dossiê consolidado
@@ -73,17 +73,25 @@ compara hashes — não revalida.
 - **EDITAL** — **3 fragmentos de tabela escritos pelo modelo somando 53
   códigos de 210** (tabela parcial/copiada), pregão fundamentado no
   art. 109, garantia sem fundamentação.
-- **ARP** — não existe como instrumento: 10 menções dentro do edital,
-  nenhum documento próprio.
+- **ARP** — existe como **ANEXO III — MINUTA DA ATA DE REGISTRO DE
+  PREÇOS**, com 10 cláusulas, **dentro do documento `edital`**. Não é
+  documento próprio do bundle (`processos.documentos` tem apenas dfd,
+  etp, tr e edital), logo não é exportado como arquivo separado. E é
+  juridicamente defeituoso: vigência fundada nos arts. 82 e 103 (a
+  vigência da Ata é do **art. 84**), zero menção ao art. 84 e ao art.
+  86 (adesão), previsão de a Ata ser "repactuada" em aquisição de bens,
+  parte contratada identificada como **"licitantes"** e **CNPJ de 15
+  dígitos** (`5419849819849…`).
 - Nenhum validador conferia a tabela contra a fonte (contagem, códigos,
   total) — a duplicação/parcialidade passou pelas regras da época.
 
 ## 4. Defeitos próprios da exportação (estágio 5)
 
-Inspeção visual dos PDFs renderizados (motor libreoffice):
+Inspeção visual dos PDFs renderizados (motor **fpdf2**, que é o que
+efetivamente roda — ver seção 7):
 
 - **190 páginas** para 4 documentos (~150 são tabela).
-- Colunas de largura uniforme: a Descrição fica com ~2 cm e o LibreOffice
+- Colunas de largura uniforme: a Descrição fica com ~2 cm e o renderizador
   quebra palavra a cada poucos caracteres ("ESPECIFICA ÇÃO", "PASTA
   SANFONAD A", "el ástico") — 455 fragmentos de 1–3 letras no texto
   extraído; até "matrícula:999999" deixa de ser localizável na extração.
@@ -104,7 +112,7 @@ Inspeção visual dos PDFs renderizados (motor libreoffice):
 - O auditor semântico (`flag_reauditoria`) corta cada documento em 20 000
   caracteres **com a tabela dentro** — a tabela determinística consome o
   orçamento e a prosa final (TR tem 91 KB) fica sem auditoria.
-- Edital gerado por prosa livre da IA; ARP inexistente; nenhum template
+- Edital e minuta de ARP gerados por prosa livre da IA; nenhum template
   determinístico em uso (`templates_gov`/`catalogo` existem, atrás de
   flag, com catálogo vazio).
 
@@ -122,7 +130,7 @@ escopos; nenhuma dessas chaves foi utilizada neste trabalho.
 
 ## 7. Resultado das correções
 
-Branch `correcao-padrao-ouro-documentos`, cinco commits, **620 testes
+Branch `correcao-padrao-ouro-documentos`, sete commits, **626 testes
 passando e nenhum falhando** — a suíte inteira passa pela primeira vez
 (a falha tida como "pré-existente" era o sintoma do defeito do motor de
 PDF descrito abaixo).
@@ -131,11 +139,15 @@ PDF descrito abaixo).
 |---|---|---|
 | Veredito do bundle exportado | APPROVED, "nenhuma correção foi necessária" | **BLOCKED**, 16 achados bloqueantes, 32 findings |
 | Achados bloqueantes por documento | — | Edital 7, DFD 6, ETP 2, TR 1 |
-| Páginas do dossiê | 190 | **79** |
+| Páginas do dossiê¹ | 190 | **79** |
 | Palavras partidas no PDF | 455 | **0** (restam 12 palavras curtas legítimas) |
 | Blocos fora da margem direita | 203 | **0** |
 | Itens da planilha no PDF | 210/210 | 210/210 (agora conferidos por código) |
-| ARP como instrumento | inexistente | documento próprio, exportado |
+| ARP | anexo dentro do edital, sem art. 84/86, fornecedor "licitantes", CNPJ de 15 dígitos | documento próprio e exportável, art. 84/86, fornecedor e CNPJ como pendência |
+
+¹ As duas contagens são de PDFs **regenerados neste ambiente** a partir
+do mesmo bundle, com o mesmo renderizador — são comparáveis entre si,
+mas **não** com o arquivo que o usuário possui. Ver seção 9.
 
 Defeito adicional descoberto na Fase 5, que sustentava todos os
 problemas de apresentação: **o LibreOffice está no PATH mas a conversão
@@ -165,3 +177,38 @@ partir de uma conversão real de sonda.
 5. **Exportação** — larguras de coluna, fonte da tabela, fim das
    palavras quebradas, sumário do dossiê; regressão com o fixture de
    210 itens e inspeção visual antes/depois.
+
+
+## 9. Correções a este relatório (14/08, após revisão do usuário)
+
+Duas afirmações da primeira versão estavam erradas. O registro fica aqui
+porque o relatório é peça de auditoria.
+
+**9.1. "A ARP não existe como instrumento" — INCORRETO.**
+A Ata existe, como `ANEXO III — MINUTA DA ATA DE REGISTRO DE PREÇOS`,
+com 10 cláusulas, dentro do documento `edital`. Eu havia contado apenas
+as menções à expressão "Ata de Registro" na prosa e concluí, sem ler o
+anexo, que não havia instrumento. O que é correto afirmar é mais
+restrito: a ARP **não é documento próprio do bundle** e por isso não é
+exportada como arquivo separado nem validada como instrumento autônomo.
+
+O erro tinha consequência prática: por acreditar que não havia ARP, não
+li o anexo — e deixei passar dois defeitos que estavam no pedido
+original e que nenhuma regra pegava:
+
+| Defeito no anexo | Estava coberto? | Agora |
+|---|---|---|
+| `CNPJ sob o nº 541984981984984` (15 dígitos) | **Não** — a regra só via CNPJ com 14 dígitos no formato brasileiro | bloqueia: "CNPJ com 15 dígitos" |
+| `Fornecedor (s) adjudicatário (s):licitantes` | **Não** — nenhuma regra olhava a identificação da parte | bloqueia: "parte contratada identificada por categoria" |
+
+**9.2. "190 páginas" — número correto, comparação mal rotulada.**
+As 190 páginas são de um PDF que **regenerei neste ambiente** a partir do
+bundle salvo, porque o arquivo original não estava acessível na sessão
+(foi a alternativa que o usuário autorizou). O PDF que o usuário tem
+possui **231 páginas** e foi gerado no Streamlit Cloud. A diferença não
+indica conteúdo diferente: a paginação depende do renderizador (lá o
+LibreOffice pode estar convertendo, aqui a conversão falha e o dossiê sai
+pelo fpdf2 — ver seção 7) e da identidade visual aplicada. O par
+190 → 79 é válido como medida do efeito das correções porque os dois
+lados foram gerados aqui, com o mesmo motor, a partir do mesmo bundle.
+Nunca tive acesso ao arquivo de 231 páginas.

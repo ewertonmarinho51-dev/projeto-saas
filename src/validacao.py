@@ -116,6 +116,26 @@ _RE_GARANTIA_SECA = re.compile(
 # CNPJ no formato brasileiro (com ou sem pontuação)
 _RE_CNPJ = re.compile(r"\b(\d{2})\.?(\d{3})\.?(\d{3})/(\d{4})-?(\d{2})\b")
 
+# Número apresentado COMO CNPJ, em qualquer formatação. O CNPJ tem 14
+# dígitos: um número rotulado com outra quantidade não é CNPJ mal
+# formatado, é número inventado — na ARP auditada constava
+# "CNPJ sob o nº 541984981984984" (15 dígitos), que escapava da regra
+# acima justamente por não ter o formato de CNPJ.
+_RE_CNPJ_ROTULADO = re.compile(
+    r"CNPJ[^\d\n]{0,30}([\d][\d./\-\s]{8,28}\d)", re.IGNORECASE)
+_DIGITOS_CNPJ = 14
+
+# Fornecedor "preenchido" com uma categoria em vez de uma empresa: na
+# ARP auditada, a parte contratada era literalmente "licitantes". Quem
+# assina a Ata é a empresa adjudicatária identificada — sem ela, o
+# instrumento não pode ser emitido.
+_RE_FORNECEDOR_GENERICO = re.compile(
+    r"(?i:\b(?:fornecedor|contratada|adjudicat[áa]ri[ao]|"
+    r"benefici[áa]ri[ao]|detentor[a]?\s+da\s+ata)\b[^:\n]{0,60}:)\s*"
+    r"(licitantes?|adjudicat[áa]ri[ao]s?|vencedor(?:es|a|as)?|"
+    r"empresa\s+vencedora|a\s+definir|a\s+ser\s+definid[ao]|"
+    r"contratad[ao]s?)\b")
+
 # ---------------------------------------------------------------------------
 # Fundamentos legais — confusões recorrentes com a Lei nº 14.133/2021.
 # Verificação DETERMINÍSTICA por parágrafo: (tema presente, artigo citado
@@ -698,6 +718,35 @@ def _validar_dados_improvisados(doc_key: str, texto: str) -> list[dict]:
         achado["pendencia"] = pendencia_de_valor(
             texto, m.start(), m.end(), numero,
             "número funcional do agente responsável")
+        achados.append(achado)
+
+    # CNPJ com quantidade de dígitos errada: não é formatação ruim, é
+    # número inventado. A checagem por dígito verificador (abaixo) só
+    # alcança quem TEM 14 dígitos — as duas regras se completam.
+    for m in _RE_CNPJ_ROTULADO.finditer(texto):
+        bruto = m.group(1)
+        digitos = re.sub(r"\D", "", bruto)
+        if len(digitos) == _DIGITOS_CNPJ:
+            continue
+        achado = _achado(
+            doc_key, "bloqueia",
+            f"CNPJ com {len(digitos)} dígitos ({bruto.strip()}) — o CNPJ "
+            "tem 14; use o CNPJ real ou [PREENCHER: CNPJ]", m.group(0))
+        achado["pendencia"] = pendencia_de_valor(
+            texto, m.start(1), m.end(1), bruto,
+            "CNPJ (14 dígitos, com dígitos verificadores válidos)")
+        achados.append(achado)
+
+    for m in _RE_FORNECEDOR_GENERICO.finditer(texto):
+        achado = _achado(
+            doc_key, "bloqueia",
+            f"parte contratada identificada por categoria, não por empresa "
+            f"('{m.group(1)}') — quem assina o instrumento é a pessoa "
+            "jurídica adjudicatária; use a razão social real ou "
+            "[PREENCHER: razão social do fornecedor]", m.group(0))
+        achado["pendencia"] = pendencia_de_valor(
+            texto, m.start(1), m.end(1), m.group(1),
+            "razão social do fornecedor adjudicatário")
         achados.append(achado)
 
     cnpjs_invalidos = [
