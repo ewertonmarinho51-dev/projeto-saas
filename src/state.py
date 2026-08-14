@@ -19,6 +19,7 @@ def inicializar() -> None:
         "dados": {},           # respostas do Formulário Matriz
         "documentos": {},      # doc_key -> texto gerado/editado
         "aprovados": set(),    # doc_keys aprovados pelo usuário
+        "edicoes_pendentes": {},  # doc_key -> edição ainda não aprovada
         "processo_id": None,   # uuid do processo no Supabase (None = não salvo)
         "usuario": None,       # {id, nome, login, papel} após o login
         "modo_demo": False,
@@ -58,6 +59,7 @@ def carregar_processo_salvo(proc: dict) -> None:
     st.session_state.dados = proc.get("dados") or {}
     st.session_state.documentos = proc.get("documentos") or {}
     st.session_state.aprovados = set(proc.get("aprovados") or [])
+    st.session_state.edicoes_pendentes = {}
     ir_para(int(proc.get("etapa") or 0))
 
 
@@ -69,6 +71,75 @@ def ir_para(etapa: int) -> None:
 def doc_da_etapa(etapa: int) -> str:
     """Etapas 1..4 correspondem a dfd, etp, tr, edital."""
     return SEQUENCIA_DOCUMENTOS[etapa - 1]
+
+
+def calcular_etapas_navegaveis(
+    dados: dict,
+    documentos: dict,
+    aprovados: set[str],
+) -> set[int]:
+    """Retorna as etapas que podem ser visitadas sem quebrar a sequência.
+
+    O formulário está sempre disponível. Cada documento seguinte só é
+    liberado quando todos os anteriores existem e foram aprovados. A tela de
+    conclusão exige o pacote completo. Assim o stepper serve como navegação,
+    mas nunca vira um atalho para pular uma decisão humana obrigatória.
+    """
+    disponiveis = {0}
+    if not dados:
+        return disponiveis
+
+    concluidos = {
+        doc_key for doc_key in SEQUENCIA_DOCUMENTOS
+        if doc_key in documentos and doc_key in aprovados
+    }
+    for etapa, _doc_key in enumerate(SEQUENCIA_DOCUMENTOS, start=1):
+        anteriores = set(SEQUENCIA_DOCUMENTOS[: etapa - 1])
+        if anteriores.issubset(concluidos):
+            disponiveis.add(etapa)
+
+    if set(SEQUENCIA_DOCUMENTOS).issubset(concluidos):
+        disponiveis.add(5)
+    return disponiveis
+
+
+def etapas_navegaveis() -> set[int]:
+    """Etapas acessíveis no processo carregado na sessão atual."""
+    return calcular_etapas_navegaveis(
+        st.session_state.dados,
+        st.session_state.documentos,
+        st.session_state.aprovados,
+    )
+
+
+def guardar_edicao_pendente(doc_key: str, texto: str) -> None:
+    """Preserva uma edição ao navegar, sem alterar a versão aprovada."""
+    pendentes = st.session_state.setdefault("edicoes_pendentes", {})
+    original = st.session_state.documentos.get(doc_key)
+    if original is None or texto == original:
+        pendentes.pop(doc_key, None)
+    else:
+        pendentes[doc_key] = texto
+
+
+def _preservar_editor_atual() -> None:
+    """Copia o editor visível para o buffer antes de trocar de etapa."""
+    etapa = int(st.session_state.get("etapa") or 0)
+    if not 1 <= etapa <= len(SEQUENCIA_DOCUMENTOS):
+        return
+    doc_key = doc_da_etapa(etapa)
+    chave_editor = f"editor_{doc_key}"
+    if (chave_editor in st.session_state
+            and doc_key in st.session_state.documentos):
+        guardar_edicao_pendente(doc_key, st.session_state[chave_editor])
+
+
+def navegar_pelo_stepper(etapa: int) -> None:
+    """Callback do stepper clicável; etapas futuras são ignoradas."""
+    if etapa not in etapas_navegaveis():
+        return
+    _preservar_editor_atual()
+    st.session_state.etapa = etapa
 
 
 def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
@@ -83,6 +154,7 @@ def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
         texto_editado, st.session_state.processo_id)
 
     st.session_state.documentos[doc_key] = texto_editado
+    st.session_state.setdefault("edicoes_pendentes", {}).pop(doc_key, None)
     st.session_state.aprovados.add(doc_key)
     st.session_state.etapa += 1
     autosalvar()  # persiste cada avanço no Supabase (quando configurado)
@@ -92,6 +164,7 @@ def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
 def descartar_documento(doc_key: str) -> None:
     """Remove o documento gerado (usado no 'Gerar novamente')."""
     st.session_state.documentos.pop(doc_key, None)
+    st.session_state.setdefault("edicoes_pendentes", {}).pop(doc_key, None)
     st.session_state.aprovados.discard(doc_key)
 
 
@@ -132,7 +205,7 @@ _PREFIXOS_DO_PROCESSO = (
 
 def reiniciar_processo() -> None:
     """Limpa tudo e volta ao Formulário Matriz (novo processo no banco)."""
-    for chave in ("dados", "documentos"):
+    for chave in ("dados", "documentos", "edicoes_pendentes"):
         st.session_state[chave] = {}
     st.session_state.aprovados = set()
     st.session_state.processo_id = None
