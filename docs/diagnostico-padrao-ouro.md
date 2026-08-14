@@ -120,7 +120,32 @@ aplicar RLS/revogação de grants nessas tabelas** (mesmo padrão das
 migrações 0015/0016 dos backups). Não corrigi aqui para não misturar
 escopos; nenhuma dessas chaves foi utilizada neste trabalho.
 
-## 7. Plano de correção (ordem de implementação)
+## 7. Resultado das correções
+
+Branch `correcao-padrao-ouro-documentos`, cinco commits, **620 testes
+passando e nenhum falhando** — a suíte inteira passa pela primeira vez
+(a falha tida como "pré-existente" era o sintoma do defeito do motor de
+PDF descrito abaixo).
+
+| Métrica no caso real (210 itens) | Antes | Depois |
+|---|---|---|
+| Veredito do bundle exportado | APPROVED, "nenhuma correção foi necessária" | **BLOCKED**, 16 achados bloqueantes, 32 findings |
+| Achados bloqueantes por documento | — | Edital 7, DFD 6, ETP 2, TR 1 |
+| Páginas do dossiê | 190 | **79** |
+| Palavras partidas no PDF | 455 | **0** (restam 12 palavras curtas legítimas) |
+| Blocos fora da margem direita | 203 | **0** |
+| Itens da planilha no PDF | 210/210 | 210/210 (agora conferidos por código) |
+| ARP como instrumento | inexistente | documento próprio, exportado |
+
+Defeito adicional descoberto na Fase 5, que sustentava todos os
+problemas de apresentação: **o LibreOffice está no PATH mas a conversão
+falha em tempo de execução**. `_docx_em_pdf` devolvia `None` em silêncio,
+o dossiê saía pelo renderizador fpdf2 e a tela de auditoria continuava
+anunciando "Motor de PDF ativo: libreoffice" — todo diagnóstico de
+formatação ia para o motor errado. `motor_pdf()` passa a responder a
+partir de uma conversão real de sonda.
+
+## 8. Plano de correção (ordem de implementação)
 
 1. **Gate e identidade** — chave de idempotência ganha a impressão
    digital do auditor (replay só entre regras idênticas); o caminho
