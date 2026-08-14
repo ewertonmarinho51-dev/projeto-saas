@@ -28,8 +28,8 @@ from src.ui import admin, biblioteca, components, governanca_ui, login, steps
 
 # Configuração da página — deve ser a 1ª chamada Streamlit do script
 st.set_page_config(
-    page_title="GovDocs Wizard — Lei 14.133/2021",
-    page_icon="🏛️",
+    page_title="GovConnect | GovDocs",
+    page_icon=components.page_icon(),
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -42,12 +42,10 @@ components.aplicar_estilo()
 # Porta de entrada: configuração necessária → login → app
 # ---------------------------------------------------------------------------
 if auth.precisa_configurar():
-    components.render_cabecalho()
     login.render_configuracao_necessaria()
     st.stop()
 
 if not auth.modo_aberto() and not auth.usuario_logado():
-    components.render_cabecalho()
     try:
         existe_admin = auth.tem_admin()
     except auth.ErroAuth as erro:
@@ -80,8 +78,6 @@ if pagina == "Governança" and governanca_ui.disponivel():
     # Centro de Governança (V6): flag + papel de governança obrigatórios
     governanca_ui.render_governanca()
     st.stop()
-
-components.render_stepper(st.session_state.etapa)
 
 # ---------------------------------------------------------------------------
 # Roteamento do wizard

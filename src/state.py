@@ -25,6 +25,7 @@ def inicializar() -> None:
         "modo_demo": False,
         "api_key_manual": "",
         "openai_key_manual": "",
+        "_save_status": "nao_salvo",  # refletido pela topbar; nunca decorativo
     }
     for chave, valor in padroes.items():
         if chave not in st.session_state:
@@ -36,8 +37,13 @@ def autosalvar() -> None:
     Salva o processo no Supabase (se configurado). Falhas de banco nunca
     interrompem o fluxo do wizard — viram apenas um aviso na tela.
     """
-    if not db.disponivel() or not st.session_state.dados:
+    if not st.session_state.dados:
+        st.session_state["_save_status"] = "nao_salvo"
         return
+    if not db.disponivel():
+        st.session_state["_save_status"] = "local"
+        return
+    st.session_state["_save_status"] = "salvando"
     try:
         usuario = st.session_state.get("usuario") or {}
         st.session_state.processo_id = db.salvar_processo(
@@ -49,7 +55,9 @@ def autosalvar() -> None:
             usuario_id=usuario.get("id"),
             secretaria_id=contexto.secretaria_para_processo(),
         )
+        st.session_state["_save_status"] = "salvo"
     except db.ErroBanco as erro:
+        st.session_state["_save_status"] = "erro"
         st.warning(f"Progresso não salvo no banco: {erro}")
 
 
@@ -60,6 +68,7 @@ def carregar_processo_salvo(proc: dict) -> None:
     st.session_state.documentos = proc.get("documentos") or {}
     st.session_state.aprovados = set(proc.get("aprovados") or [])
     st.session_state.edicoes_pendentes = {}
+    st.session_state["_save_status"] = "salvo"
     ir_para(int(proc.get("etapa") or 0))
 
 
@@ -209,6 +218,7 @@ def reiniciar_processo() -> None:
         st.session_state[chave] = {}
     st.session_state.aprovados = set()
     st.session_state.processo_id = None
+    st.session_state["_save_status"] = "nao_salvo"
     # Estado TRANSITÓRIO do processo anterior (caches do ciclo/fatos/score,
     # escolha de família, uploads lidos, histórico de gerações) não pode
     # vazar para a próxima contratação.

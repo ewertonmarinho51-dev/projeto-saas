@@ -10,7 +10,7 @@ import streamlit as st
 from .. import (achados, auth, conhecimento, contexto, corretor, db,
                 explicacoes, export, familias, fatos, planilha,
                 qualidade, rag, state)
-from . import revisao
+from . import components, revisao
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
@@ -71,118 +71,169 @@ def _render_planilha(dados: dict, meta: dict) -> list[dict]:
 # Etapa 0 — Formulário Matriz
 # ---------------------------------------------------------------------------
 def render_formulario() -> None:
-    st.subheader("Formulário Matriz: dados da demanda")
-    st.caption(
-        "Preencha as informações essenciais da contratação. Elas alimentarão "
-        "a redação sequencial dos quatro documentos. O ícone de ajuda de "
-        "cada campo explica o que a Lei nº 14.133/2021 espera."
+    components.render_page_header(
+        "Dados da demanda",
+        "Preencha as informações essenciais para iniciar o planejamento da contratação.",
+        legacy_subheader="Formulário Matriz: dados da demanda",
     )
+    components.render_stepper(st.session_state.etapa)
 
     dados = st.session_state.dados
 
-    # Documento inicial da demanda (memorando/ofício) — upload opcional que
-    # extrai o texto para o campo. Fica fora do form para semear na hora.
-    with st.expander("Documento inicial da demanda (memorando / ofício)"):
-        st.caption(
-            "Opcional, mas recomendado. Envie o memorando, ofício ou "
-            "solicitação que originou a demanda (PDF, DOCX, TXT ou MD) — o "
-            "texto é extraído e usado como contexto do processo atual (origem "
-            "da demanda, unidade solicitante, justificativa e finalidade). "
-            "Você também pode colar o texto direto no campo do formulário."
-        )
-        doc_inicial = st.file_uploader(
-            "Arquivo do memorando/ofício", type=["pdf", "docx", "txt", "md"],
-            key="upload_memorando",
-        )
-        if doc_inicial is not None and \
-                st.session_state.get("_memorando_lido") != doc_inicial.file_id:
-            try:
-                texto = rag.extrair_texto(doc_inicial.name, doc_inicial.getvalue())
-                dados["memorando"] = texto
-                st.session_state.dados = dados
-                st.session_state["_memorando_lido"] = doc_inicial.file_id
-                st.success(
-                    f"Memorando/ofício importado ({len(texto)} caracteres). "
-                    "Revise o texto no campo abaixo."
-                )
-                st.rerun()
-            except rag.ErroRAG as erro:
-                st.error(str(erro))
+    # Uploads continuam fora do form (contrato necessário para re-semear os
+    # widgets imediatamente), mas ocupam uma única faixa compacta.
+    upload_documento, upload_planilha = st.columns(2)
+    with upload_documento:
+        with st.expander("Anexar documento inicial"):
+            st.caption(
+                "Envie o memorando, ofício ou solicitação de origem em PDF, "
+                "DOCX, TXT ou MD. O texto extraído poderá ser revisado abaixo."
+            )
+            doc_inicial = st.file_uploader(
+                "Arquivo do memorando/ofício", type=["pdf", "docx", "txt", "md"],
+                key="upload_memorando",
+            )
+            if doc_inicial is not None and \
+                    st.session_state.get("_memorando_lido") != doc_inicial.file_id:
+                try:
+                    texto = rag.extrair_texto(doc_inicial.name, doc_inicial.getvalue())
+                    dados["memorando"] = texto
+                    st.session_state.dados = dados
+                    st.session_state["_memorando_lido"] = doc_inicial.file_id
+                    st.success(
+                        f"Memorando/ofício importado ({len(texto)} caracteres). "
+                        "Revise o texto no campo abaixo."
+                    )
+                    st.rerun()
+                except rag.ErroRAG as erro:
+                    st.error(str(erro))
 
-    # Importação opcional da planilha via XLSX (fora do form, para
-    # re-semear a tabela imediatamente após o upload)
-    with st.expander("Importar planilha de um arquivo Excel (.xlsx)"):
-        st.caption(
-            "Opcional. Envie a planilha ANTES de preencher os demais campos. "
-            "Colunas reconhecidas: código, descrição, unidade, quantidade e "
-            "valor unitário (aceita variações de nome). O valor total e o "
-            "valor global são recalculados."
-        )
-        st.download_button(
-            "Baixar modelo de planilha (.xlsx)",
-            data=planilha.modelo_xlsx(),
-            file_name="modelo-planilha-orcamentaria.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="btn_modelo_xlsx",
-        )
-        arquivo = st.file_uploader("Arquivo .xlsx", type=["xlsx"], key="upload_itens")
-        if arquivo is not None and st.session_state.get("_xlsx_lido") != arquivo.file_id:
-            try:
-                importados = planilha.importar_de_xlsx(arquivo.getvalue())
-                dados["itens"] = importados
-                st.session_state.dados = dados
-                st.session_state["_xlsx_lido"] = arquivo.file_id
-                st.success(f"{len(importados)} itens importados da planilha.")
-                st.rerun()
-            except planilha.ErroPlanilha as erro:
-                st.error(str(erro))
+    with upload_planilha:
+        with st.expander("Importar planilha Excel"):
+            st.caption(
+                "Importe código, descrição, unidade, quantidade e valor "
+                "unitário. Totais são recalculados pelo sistema."
+            )
+            st.download_button(
+                "Baixar modelo de planilha (.xlsx)",
+                data=planilha.modelo_xlsx(),
+                file_name="modelo-planilha-orcamentaria.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="btn_modelo_xlsx",
+            )
+            arquivo = st.file_uploader(
+                "Arquivo .xlsx", type=["xlsx"], key="upload_itens"
+            )
+            if arquivo is not None and \
+                    st.session_state.get("_xlsx_lido") != arquivo.file_id:
+                try:
+                    importados = planilha.importar_de_xlsx(arquivo.getvalue())
+                    dados["itens"] = importados
+                    st.session_state.dados = dados
+                    st.session_state["_xlsx_lido"] = arquivo.file_id
+                    st.success(f"{len(importados)} itens importados da planilha.")
+                    st.rerun()
+                except planilha.ErroPlanilha as erro:
+                    st.error(str(erro))
 
-    with st.form("formulario_matriz"):
-        col1, col2 = st.columns(2)
-        respostas: dict = {}
+    respostas: dict = {}
 
-        # Distribui os campos simples em duas colunas para uma tela mais limpa
-        colunas = {
-            "orgao": col1, "responsavel": col2,
-            "modelo_execucao": col2, "prazo": col1,
-        }
-        for chave, meta in CAMPOS_FORMULARIO.items():
-            destino = colunas.get(chave, st)
-            rotulo = meta["rotulo"] + (" *" if meta["obrigatorio"] else "")
-            # Sem key: o valor vem sempre de `dados` (value=), para refletir o
-            # memorando importado por upload e o retomar de um processo salvo.
-            if meta["tipo"] == "texto":
-                respostas[chave] = destino.text_input(
-                    rotulo, value=dados.get(chave, ""),
-                    placeholder=meta["placeholder"], help=meta["help"],
-                )
-            elif meta["tipo"] == "area":
-                altura = 150 if chave == "memorando" else 110
-                respostas[chave] = st.text_area(
-                    rotulo, value=dados.get(chave, ""), height=altura,
-                    placeholder=meta["placeholder"], help=meta["help"],
-                )
-            elif meta["tipo"] == "planilha":
-                respostas["itens"] = _render_planilha(dados, meta)
-            elif meta["tipo"] == "selecao":
-                opcoes = meta["opcoes"]
-                atual = dados.get(chave, opcoes[0])
-                respostas[chave] = destino.selectbox(
-                    rotulo, opcoes,
-                    index=opcoes.index(atual) if atual in opcoes else 0,
-                    help=meta["help"],
+    def _campo(chave: str, destino=st) -> None:
+        meta = CAMPOS_FORMULARIO[chave]
+        rotulo = meta["rotulo"] + (" *" if meta["obrigatorio"] else "")
+        # Sem key: o valor vem sempre de ``dados`` para refletir uploads e
+        # processos retomados sem criar uma segunda fonte de verdade.
+        if meta["tipo"] == "texto":
+            respostas[chave] = destino.text_input(
+                rotulo, value=dados.get(chave, ""),
+                placeholder=meta["placeholder"], help=meta["help"],
+            )
+        elif meta["tipo"] == "area":
+            altura = 150 if chave == "memorando" else 110
+            respostas[chave] = destino.text_area(
+                rotulo, value=dados.get(chave, ""), height=altura,
+                placeholder=meta["placeholder"], help=meta["help"],
+            )
+        elif meta["tipo"] == "planilha":
+            respostas["itens"] = _render_planilha(dados, meta)
+        elif meta["tipo"] == "selecao":
+            opcoes = meta["opcoes"]
+            atual = dados.get(chave, opcoes[0])
+            respostas[chave] = destino.selectbox(
+                rotulo, opcoes,
+                index=opcoes.index(atual) if atual in opcoes else 0,
+                help=meta["help"],
+            )
+
+    with st.form("formulario_matriz", border=False):
+        with st.container(border=True):
+            components.render_section_heading(
+                "Informações gerais", "Identificação da contratação"
+            )
+            linha_1a, linha_1b = st.columns(2)
+            _campo("orgao", linha_1a)
+            _campo("responsavel", linha_1b)
+            linha_2a, linha_2b = st.columns(2)
+            _campo("prazo", linha_2a)
+            _campo("modelo_execucao", linha_2b)
+
+        with st.container(border=True):
+            principal, orientacao = st.columns([4, 1], gap="medium")
+            with principal:
+                components.render_section_heading("Objeto e justificativa")
+                _campo("objeto", principal)
+                _campo("justificativa", principal)
+            with orientacao:
+                components.render_guidance(
+                    "Descreva a necessidade administrativa de forma objetiva, "
+                    "sem antecipar uma solução que ainda será avaliada no ETP."
                 )
 
-        enviado = st.form_submit_button(
-            "Iniciar elaboração dos documentos", type="primary",
-            use_container_width=True,
-        )
+        with st.container(border=True):
+            components.render_section_heading(
+                "Contexto da contratação",
+                "Origem, alinhamento, requisitos e riscos da demanda",
+            )
+            _campo("memorando")
+            _campo("alinhamento")
+            _campo("requisitos")
+            _campo("riscos")
+
+        with st.container(border=True):
+            components.render_section_heading(
+                "Itens e estimativa", "Planilha orçamentária da contratação"
+            )
+            _campo("itens")
+
+        acao_secundaria, acao_primaria = st.columns([1, 1])
+        with acao_secundaria:
+            st.markdown('<span class="gc-action-bar-marker"></span>',
+                        unsafe_allow_html=True)
+            salvar_rascunho = st.form_submit_button(
+                "Salvar rascunho", use_container_width=True
+            )
+        with acao_primaria:
+            enviado = st.form_submit_button(
+                "Iniciar elaboração dos documentos", type="primary",
+                use_container_width=True,
+            )
+
+    # Consolida a planilha uma única vez para as duas ações reais.
+    itens, valor_global = planilha.calcular(respostas.get("itens") or [])
+    respostas["itens"] = itens
+    respostas["valor_estimado"] = valor_global
+
+    if salvar_rascunho:
+        if respostas != st.session_state.dados:
+            state.invalidar_a_partir_de("formulario")
+        st.session_state.dados = respostas
+        state.autosalvar()
+        if db.disponivel() and st.session_state.get("_save_status") == "salvo":
+            st.success("Rascunho salvo.")
+        else:
+            st.success("Rascunho mantido nesta sessão local.")
 
     if enviado:
-        # Consolida a planilha: calcula totais e o valor global (estimativa)
-        itens, valor_global = planilha.calcular(respostas.get("itens") or [])
-        respostas["itens"] = itens
-        respostas["valor_estimado"] = valor_global
 
         faltantes = []
         for chave, meta in CAMPOS_FORMULARIO.items():
@@ -213,6 +264,7 @@ def render_formulario() -> None:
 def render_etapa_documento(doc_key: str) -> None:
     meta = DOCUMENTOS[doc_key]
     st.subheader(f"{meta['titulo']} ({meta['sigla']})")
+    components.render_stepper(st.session_state.etapa)
     render_base_legal(f"Base legal: {meta['base_legal']}. {meta['descricao']}")
 
     contexto_key = meta["usa_contexto_de"]
@@ -259,21 +311,21 @@ def render_etapa_documento(doc_key: str) -> None:
             f"Gerar {meta['sigla']} com IA", type="primary",
             use_container_width=True,
         ):
-            with st.spinner(
-                f"Redigindo o {meta['sigla']}… isso pode levar até 2 minutos."
-            ):
-                try:
-                    texto = gerar_documento(doc_key, st.session_state.dados,
-                                            contexto,
-                                            instrucoes_extra=bloco_familia)
-                    st.session_state.documentos[doc_key] = texto
-                    st.rerun()
-                except ErroGeracaoIA as erro:
-                    st.error(str(erro))
-                    detalhe = getattr(erro, "detalhe", "")
-                    if detalhe:
-                        with st.expander("Detalhes técnicos (erro bruto da API)"):
-                            st.code(detalhe)
+            carregamento = st.empty()
+            components.render_document_skeleton(carregamento, meta["sigla"])
+            try:
+                texto = gerar_documento(doc_key, st.session_state.dados,
+                                        contexto,
+                                        instrucoes_extra=bloco_familia)
+                st.session_state.documentos[doc_key] = texto
+                st.rerun()
+            except ErroGeracaoIA as erro:
+                carregamento.empty()
+                st.error(str(erro))
+                detalhe = getattr(erro, "detalhe", "")
+                if detalhe:
+                    with st.expander("Detalhes técnicos (erro bruto da API)"):
+                        st.code(detalhe)
         _botao_voltar(meta)
         return
 
@@ -484,13 +536,40 @@ def _render_relatorio_estruturado(relatorio: dict) -> None:
             )
 
 
+def _render_trilha_final(
+    resultado_fatos: dict | None,
+    decisao_conhecimento: dict | None,
+    score_qualidade: dict | None,
+    registro: list,
+) -> None:
+    """Agrupa os painéis reais de rastreabilidade sem alterar seus gates."""
+    if resultado_fatos is not None:
+        _render_fatos_canonicos(resultado_fatos)
+    if decisao_conhecimento is not None:
+        _render_decisao_conhecimento(decisao_conhecimento)
+    if score_qualidade is not None:
+        _render_score_qualidade(score_qualidade)
+    if registro:
+        with st.expander("Registro técnico de geração (auditoria)"):
+            st.caption(
+                f"Motor de PDF ativo: **{export.motor_pdf()}** "
+                "(libreoffice = DOCX convertido, padrão institucional fiel)."
+            )
+            st.dataframe(registro, use_container_width=True)
+
+
 # ---------------------------------------------------------------------------
 # Etapa 5 — Conclusão e exportação
 # ---------------------------------------------------------------------------
 def render_sucesso() -> None:
     from .. import validacao
 
-    st.subheader("Processo concluído")
+    components.render_page_header(
+        "Processo concluído",
+        "Documentos revisados e prontos para emissão.",
+        legacy_subheader="Processo concluído",
+    )
+    components.render_stepper(st.session_state.etapa)
 
     docs = st.session_state.documentos
     orgao = (st.session_state.dados.get("orgao") or "orgao").strip()
@@ -559,42 +638,38 @@ def render_sucesso() -> None:
     # extração roda em shadow (só log) e a tela permanece idêntica.
     resultado_fatos = fatos.processar_na_tela(
         st.session_state.dados, docs, st.session_state.get("processo_id"))
-    if resultado_fatos is not None:
-        _render_fatos_canonicos(resultado_fatos)
 
     # Motor de conhecimento (V5 F3): regras estruturadas avaliadas sobre
     # os fatos canônicos. Shadow: apenas registra a decisão (log/banco).
     # Ativo: exibe o resultado e bloqueios de regra impedem a emissão.
     decisao_conhecimento = conhecimento.executar_na_tela(
         st.session_state.dados, st.session_state.get("processo_id"))
-    if decisao_conhecimento is not None:
-        _render_decisao_conhecimento(decisao_conhecimento)
 
     # Índice de confiança (V5 F6): shadow calcula e persiste em silêncio;
     # com o gate ligado, o painel aparece e crítico/score baixo bloqueia.
     score_qualidade = qualidade.processar_na_tela(
         docs, st.session_state.dados, st.session_state.get("processo_id"))
-    if score_qualidade is not None:
-        _render_score_qualidade(score_qualidade)
 
     registro = st.session_state.get("registro_geracoes") or []
-    if registro:
-        with st.expander("Registro técnico de geração (auditoria)"):
-            st.caption(
-                f"Motor de PDF ativo: **{export.motor_pdf()}** "
-                "(libreoffice = DOCX convertido, padrão institucional fiel)."
-            )
-            st.dataframe(registro, use_container_width=True)
 
     if veredito == "pendente" or bloqueios:
+        _render_trilha_final(
+            resultado_fatos, decisao_conhecimento, score_qualidade, registro
+        )
         return  # nada de downloads com pendência
 
     if decisao_conhecimento is not None and \
             decisao_conhecimento["resultado"]["bloqueios"]:
+        _render_trilha_final(
+            resultado_fatos, decisao_conhecimento, score_qualidade, registro
+        )
         return  # bloqueio de regra do motor de conhecimento (flag ativa)
 
     if score_qualidade is not None and \
             qualidade.avaliar_gate(score_qualidade)["bloqueia"]:
+        _render_trilha_final(
+            resultado_fatos, decisao_conhecimento, score_qualidade, registro
+        )
         return  # gate do índice de confiança (crítico ou score baixo)
 
     # Gate técnico (Etapa 7 — flag_gate_emissao): sem aprovação do ciclo
@@ -602,13 +677,19 @@ def render_sucesso() -> None:
     liberada, motivo_gate = revisao.emissao_liberada(docs)
     if not liberada:
         st.error(f"**Emissão bloqueada pelo gate técnico.** {motivo_gate}")
+        _render_trilha_final(
+            resultado_fatos, decisao_conhecimento, score_qualidade, registro
+        )
         return
 
-    st.markdown(
-        "Os **quatro documentos da fase preparatória** foram elaborados, "
-        "aprovados e validados. Baixe o dossiê completo ou os arquivos "
-        "individuais."
-    )
+    pendentes_fatos = 0
+    if resultado_fatos is not None:
+        pendentes_fatos = sum(
+            1 for fato in resultado_fatos.get("fatos", [])
+            if fato.get("status") == "extraido"
+        )
+    components.render_success_banner()
+    components.render_summary_strip(len(docs), pendentes_fatos)
 
     # Identidade visual (cabeçalho/rodapé/marca d'água). Com a flag da
     # Fase 2 ligada, ela é resolvida pelo VÍNCULO do usuário (secretaria >
@@ -650,43 +731,80 @@ def render_sucesso() -> None:
                 if escolha != "Sem identidade visual":
                     branding = rotulos[escolha]
 
-    st.markdown("#### Dossiê completo (arquivo único)")
-    col_pdf, col_docx = st.columns(2)
-    col_pdf.download_button(
-        "Baixar todos em PDF",
-        data=export.gerar_pdf_consolidado(docs, branding),
-        file_name=f"{prefixo}-fase-preparatoria.pdf",
-        mime="application/pdf",
-        type="primary", use_container_width=True,
-    )
-    col_docx.download_button(
-        "Baixar todos em DOCX",
-        data=export.gerar_docx_consolidado(docs, branding),
-        file_name=f"{prefixo}-fase-preparatoria.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        type="primary", use_container_width=True,
-    )
+    coluna_arquivos, coluna_trilha = st.columns([1.04, 1], gap="medium")
+    with coluna_arquivos:
+        with st.container(border=True):
+            components.render_section_heading(
+                "Dossiê completo",
+                "Baixe o arquivo único com todos os documentos validados.",
+            )
+            col_pdf, col_docx = st.columns(2)
+            col_pdf.download_button(
+                "Baixar todos em PDF",
+                data=export.gerar_pdf_consolidado(docs, branding),
+                file_name=f"{prefixo}-fase-preparatoria.pdf",
+                mime="application/pdf",
+                type="primary", use_container_width=True,
+            )
+            col_docx.download_button(
+                "Baixar todos em DOCX",
+                data=export.gerar_docx_consolidado(docs, branding),
+                file_name=f"{prefixo}-fase-preparatoria.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+            )
+            col_zip_pdf, col_zip_docx = st.columns(2)
+            col_zip_pdf.download_button(
+                "ZIP com os 4 PDFs",
+                data=export.gerar_zip(docs, "pdf", branding),
+                file_name=f"{prefixo}-documentos-pdf.zip",
+                mime="application/zip", use_container_width=True,
+            )
+            col_zip_docx.download_button(
+                "ZIP com os 4 DOCX",
+                data=export.gerar_zip(docs, "docx", branding),
+                file_name=f"{prefixo}-documentos-docx.zip",
+                mime="application/zip", use_container_width=True,
+            )
 
-    st.markdown("#### Arquivos individuais (pacote .zip)")
-    col_zip_pdf, col_zip_docx = st.columns(2)
-    col_zip_pdf.download_button(
-        "ZIP com os 4 PDFs",
-        data=export.gerar_zip(docs, "pdf", branding),
-        file_name=f"{prefixo}-documentos-pdf.zip",
-        mime="application/zip", use_container_width=True,
-    )
-    col_zip_docx.download_button(
-        "ZIP com os 4 DOCX",
-        data=export.gerar_zip(docs, "docx", branding),
-        file_name=f"{prefixo}-documentos-docx.zip",
-        mime="application/zip", use_container_width=True,
-    )
+        with st.container(border=True):
+            components.render_section_heading(
+                "Arquivos individuais",
+                "Baixe os documentos validados individualmente.",
+            )
+            for doc_key in [k for k in SEQUENCIA_DOCUMENTOS if k in docs]:
+                meta_doc = DOCUMENTOS[doc_key]
+                nome_arquivo = meta_doc["sigla"].lower().replace(" ", "-")
+                rotulo, acao = st.columns([3, 2])
+                rotulo.markdown(
+                    f'<span class="gc-file-label">DOCX</span>'
+                    f'{meta_doc["titulo"]}',
+                    unsafe_allow_html=True,
+                )
+                acao.download_button(
+                    f"Baixar {meta_doc['sigla']} em DOCX",
+                    data=export.gerar_docx(meta_doc["titulo"], docs[doc_key], branding),
+                    file_name=f"{prefixo}-{nome_arquivo}.docx",
+                    mime=("application/vnd.openxmlformats-officedocument."
+                          "wordprocessingml.document"),
+                    use_container_width=True,
+                    key=f"download_individual_{doc_key}",
+                )
 
-    with st.expander("Conferir documentos aprovados"):
-        abas = st.tabs([DOCUMENTOS[k]["sigla"] for k in SEQUENCIA_DOCUMENTOS if k in docs])
-        for aba, doc_key in zip(abas, [k for k in SEQUENCIA_DOCUMENTOS if k in docs]):
-            with aba:
-                st.markdown(docs[doc_key])
+    with coluna_trilha:
+        with st.container(border=True):
+            components.render_section_heading(
+                "Rastreabilidade", "Transparência da revisão"
+            )
+            _render_trilha_final(
+                resultado_fatos, decisao_conhecimento, score_qualidade, registro
+            )
+            with st.expander("Conferir documentos aprovados"):
+                chaves = [k for k in SEQUENCIA_DOCUMENTOS if k in docs]
+                abas = st.tabs([DOCUMENTOS[k]["sigla"] for k in chaves])
+                for aba, doc_key in zip(abas, chaves):
+                    with aba:
+                        st.markdown(docs[doc_key])
 
     st.divider()
     col_rev, col_novo = st.columns(2)
