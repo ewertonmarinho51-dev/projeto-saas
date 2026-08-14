@@ -172,7 +172,8 @@ def _decisoes_requeridas(relatorio: dict) -> list[dict]:
     return decisoes
 
 
-def _estado_sem_corrigiveis(relatorio: dict, documentos: dict) -> str:
+def _estado_sem_corrigiveis(relatorio: dict, documentos: dict,
+                            dados: dict | None = None) -> str:
     """Nada mais é corrigível automaticamente: aprovar ou pedir ajuda."""
     if any(f.get("blockingReason") == achados.MOTIVO_DADO_AUSENTE
            for f in relatorio["findings"]):
@@ -181,7 +182,7 @@ def _estado_sem_corrigiveis(relatorio: dict, documentos: dict) -> str:
         return "BLOCKED_BY_CONFLICT"
     # restam apenas achados que o validador legado classifica como aviso
     # (não impedem a emissão) — mesmo critério da tela anterior
-    if validacao.bloqueios(validacao.validar_todos(documentos)):
+    if validacao.bloqueios(validacao.validar_todos(documentos, None, dados)):
         return "BLOCKED_BY_CONFLICT"
     return "APPROVED"
 
@@ -273,7 +274,8 @@ def auditoria_semantica(documentos: dict[str, str], chamar=None) -> list[dict]:
 
 
 def _auditar(documentos: dict[str, str], processo_id: str | None,
-             versao: int, semantica: bool, chamar) -> dict:
+             versao: int, semantica: bool, chamar,
+             dados: dict | None = None) -> dict:
     """
     Auditoria determinística (obrigatória) + semântica (OPCIONAL).
 
@@ -284,7 +286,8 @@ def _auditar(documentos: dict[str, str], processo_id: str | None,
     inteiro: sem isto, uma lentidão da IA virava um falso "auditoria
     indisponível" e descartava o trabalho determinístico.
     """
-    relatorio = achados.gerar_relatorio(documentos, processo_id, versao)
+    relatorio = achados.gerar_relatorio(documentos, processo_id, versao,
+                                        dados)
     if not semantica:
         return relatorio
     try:
@@ -338,7 +341,7 @@ def executar_ciclo(documentos: dict[str, str], dados: dict,
     progresso("analisando")
     try:
         relatorio = _auditar(docs, processo_id, versao,
-                             reauditoria_semantica, chamar)
+                             reauditoria_semantica, chamar, dados)
     except (corretor.ErroCorrecao, llm.ErroGeracaoIA) as erro:
         estado = _evento(eventos, estado, "REVIEW_FAILED", str(erro), versao)
         return _resultado(estado, docs, versao, 0, relatorios, planos,
@@ -359,7 +362,7 @@ def executar_ciclo(documentos: dict[str, str], dados: dict,
             if not aplicar_patches and corrigiveis:
                 # aplicação automática desligada: comportamento antigo
                 break
-            final = _estado_sem_corrigiveis(relatorio, docs)
+            final = _estado_sem_corrigiveis(relatorio, docs, dados)
             estado = _evento(eventos, estado, final,
                              "sem correções automáticas restantes", versao)
             break
@@ -381,7 +384,7 @@ def executar_ciclo(documentos: dict[str, str], dados: dict,
             break
         planos.append(plano)
         if not plano["operations"]:
-            final = _estado_sem_corrigiveis(relatorio, docs)
+            final = _estado_sem_corrigiveis(relatorio, docs, dados)
             estado = _evento(eventos, estado, final,
                              "corretor não propôs operações", versao)
             break
@@ -405,7 +408,7 @@ def executar_ciclo(documentos: dict[str, str], dados: dict,
                          "nova auditoria obrigatória", versao)
         try:
             relatorio = _auditar(docs, processo_id, versao,
-                                 reauditoria_semantica, chamar)
+                                 reauditoria_semantica, chamar, dados)
         except (corretor.ErroCorrecao, llm.ErroGeracaoIA) as erro:
             estado = _evento(eventos, estado, "REVIEW_FAILED",
                              str(erro), versao)

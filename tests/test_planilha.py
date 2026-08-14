@@ -50,14 +50,19 @@ def test_markdown_tem_cabecalho_itens_e_valor_global():
     assert "VALOR GLOBAL" in md and "R$ 10.000,00" in md
 
 
-def test_prompt_inclui_a_planilha():
+def test_prompt_informa_o_valor_global_mas_nao_o_conteudo_da_planilha():
+    """
+    A IA precisa saber QUANTO é a contratação (fundamenta modalidade e
+    estimativa), mas não o que há em cada linha — descrição, código e
+    preço unitário não entram no prompt.
+    """
     dados = {
         "orgao": "Prefeitura X", "objeto": "Aquisição",
         "itens": [{"descricao": "Notebook", "quantidade": 2, "valor_unitario": 5000}],
     }
     bloco = prompts.formatar_dados_formulario(dados)
-    assert "VALOR GLOBAL" in bloco and "Notebook" in bloco
-    assert "R$ 10.000,00" in bloco
+    assert "VALOR GLOBAL" in bloco and "R$ 10.000,00" in bloco
+    assert "Notebook" not in bloco
 
 
 # ---------------------------------------------------------------------------
@@ -180,14 +185,20 @@ def test_para_markdown_sem_linha_global():
     assert "Item 0" in md
 
 
-def test_resumo_para_prompt_e_compacto():
+def test_resumo_para_prompt_nao_leva_nenhuma_linha_real():
+    """
+    O prompt recebe estatística e marcador — NADA copiável. A antiga
+    "amostra ilustrativa" de 6 linhas reais era material pronto para o
+    modelo reproduzir, e voltava como tabela parcial no documento.
+    """
     itens, glob = planilha.calcular(_itens_grandes(200))
     resumo = planilha.resumo_para_prompt(itens, glob)
-    assert "200 itens" in resumo
+    assert "200 item(ns)" in resumo
     assert planilha.MARCADOR_TABELA in resumo
-    assert "NÃO redija" in resumo
-    # não traz as 200 linhas (só amostra de 6)
-    assert resumo.count("| Item ") <= 6
+    assert "PROIBIDO escrever a lista de itens" in resumo
+    # nenhuma linha de tabela, nenhuma descrição, nenhum código
+    assert "|" not in resumo
+    assert "Item " not in resumo
 
 
 def test_prompt_usa_resumo_para_tabela_grande():
@@ -197,11 +208,13 @@ def test_prompt_usa_resumo_para_tabela_grande():
     assert "Item 49" not in bloco  # não despeja a lista toda no prompt
 
 
-def test_prompt_reproduz_tabela_pequena_inline():
+def test_prompt_nunca_manda_a_ia_escrever_a_tabela_nem_com_poucos_itens():
+    """Tabela pequena segue o MESMO caminho: marcador + injeção."""
     dados = {"orgao": "X", "objeto": "Y", "itens": _itens_grandes(3)}
     bloco = prompts.formatar_dados_formulario(dados)
-    assert planilha.MARCADOR_TABELA not in bloco
-    assert "Item 2" in bloco and "VALOR GLOBAL" in bloco
+    assert planilha.MARCADOR_TABELA in bloco
+    assert "Item 2" not in bloco          # nenhuma descrição real
+    assert "3 item(ns)" in bloco
 
 
 def test_injetar_tabela_substitui_marca():
@@ -218,9 +231,16 @@ def test_injetar_tabela_anexa_se_ia_esquecer_a_marca():
     assert "VALOR GLOBAL" in saida and "Item 0" in saida
 
 
-def test_injetar_tabela_pequena_nao_altera():
+def test_injetar_tabela_pequena_tambem_e_injetada():
+    """
+    Nenhum documento sai sem a planilha: com poucos itens a injeção vale
+    igual. Antes, abaixo de 12 itens a tabela dependia de a IA tê-la
+    redigitado — e o que ela redigita não é conferido contra a fonte.
+    """
     texto = "## Doc\n\nSem marca e tabela pequena."
-    assert planilha.injetar_tabela(texto, _itens_grandes(3)) == texto
+    saida = planilha.injetar_tabela(texto, _itens_grandes(3))
+    assert saida.startswith(texto)
+    assert "VALOR GLOBAL" in saida and "Item 0" in saida
 
 
 # ---------------------------------------------------------------------------

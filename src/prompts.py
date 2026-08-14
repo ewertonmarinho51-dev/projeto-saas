@@ -208,22 +208,16 @@ def formatar_dados_formulario(dados: dict, doc_key: str = "") -> str:
         if chave == "memorando":
             continue  # entra em bloco próprio, mais destacado, em montar_prompt
         if chave == "itens":
+            # A planilha NUNCA entra no prompt: nem completa, nem como
+            # amostra. O modelo recebe só estatística e o marcador; a
+            # tabela é injetada por código, em qualquer tamanho. Enquanto
+            # linhas reais iam no prompt, elas voltavam copiadas e
+            # parciais no documento (edital com 53 de 210 códigos).
             itens, valor_global = planilha.calcular(dados.get("itens") or [])
-            if len(itens) > planilha.LIMITE_ITENS_INLINE:
-                # Tabela grande: resumo no prompt + injeção da tabela real depois.
-                linhas.append(
-                    f"- {meta['rotulo']}:\n"
-                    + planilha.resumo_para_prompt(itens, valor_global)
-                )
-            else:
-                linhas.append(
-                    f"- {meta['rotulo']} (o VALOR GLOBAL é a estimativa da "
-                    "contratação; reproduza a planilha COMPLETA, com todas as "
-                    "colunas, na estimativa de valor do documento. Mantenha os "
-                    "links no formato Markdown exatamente como estão, ex.: "
-                    "[link](https://...), sem expandir a URL):\n"
-                    + planilha.para_markdown(itens, valor_global)
-                )
+            linhas.append(
+                f"- {meta['rotulo']}:\n"
+                + planilha.resumo_para_prompt(itens, valor_global)
+            )
             continue
         valor = dados.get(chave)
         if valor in (None, "", 0):

@@ -472,8 +472,9 @@ def render_correcao_automatica() -> str | None:
         # auditor ATUAL aprovar o conteúdo exatamente como será
         # exportado. Sem isto, uma aprovação antiga (regras antigas)
         # liberava download de documento que o código de hoje bloqueia.
-        bloqueios_atuais = validacao.bloqueios(
-            validacao.validar_todos(resultado["documentos"]))
+        bloqueios_atuais = validacao.bloqueios(validacao.validar_todos(
+            resultado["documentos"], None,
+            st.session_state.get("dados") or None))
         if bloqueios_atuais:
             _render_reprovado_na_revalidacao(bloqueios_atuais, resultado,
                                              docs)

@@ -516,7 +516,8 @@ def render_sucesso() -> None:
         # internos etc.) BLOQUEIAM o download — devem ser resolvidas na
         # revisão, nunca aparecer no PDF/DOCX definitivo.
         # --------------------------------------------------------------
-        achados_brutos = validacao.validar_todos(docs)
+        achados_brutos = validacao.validar_todos(
+            docs, None, st.session_state.dados)
         bloqueios = validacao.bloqueios(achados_brutos)
         avisos = validacao.avisos(achados_brutos)
 

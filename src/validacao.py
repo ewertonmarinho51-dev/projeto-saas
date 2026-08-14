@@ -15,7 +15,7 @@ padrão dos documentos aprovados (perfis.py).
 import re
 import unicodedata
 
-from . import perfis
+from . import perfis, planilha
 from .config import DOCUMENTOS
 
 # Marcador de dado pendente. Fica FORA de _BLOQUEANTES porque é o único
@@ -75,6 +75,34 @@ _RE_CARGO_INVALIDO = re.compile(
 # iguais (999999, 000000) ou curtíssima (1–2 dígitos)
 _RE_MATRICULA = re.compile(
     r"matr[íi]cula\s*(?:n?[ºo°]?\.?\s*)?[:\-]?\s*(\d{1,8})", re.IGNORECASE)
+
+# ---------------------------------------------------------------------------
+# Identificação funcional SEM o rótulo "matrícula"
+#
+# O documento auditado trazia "Luan Jardel de Moura Santos — matrícula:999999"
+# (pego pela regra acima), mas o mesmo improviso aparece sem rótulo:
+# "servidor João da Silva, nº funcional 999999" ou um nome próprio
+# designado para função sem nenhum dado de origem. Nome de agente público
+# e número funcional são DETERMINÍSTICOS: vêm do processo ou viram
+# [PREENCHER] — nunca são inventados para completar a frase.
+# ---------------------------------------------------------------------------
+_RE_NUMERO_FUNCIONAL = re.compile(
+    r"\b(?:n[ºo°]?\.?\s*funcional|registro\s+funcional|SIAPE|"
+    r"n[ºo°]?\.?\s*de\s+registro)\s*[:\-]?\s*(\d{1,10})", re.IGNORECASE)
+
+# Nome próprio (2+ palavras capitalizadas, com conectivos) designado para
+# função — a captura exige o rótulo do cargo ANTES, para não pegar nome de
+# órgão, de norma ou de localidade.
+# O rótulo do cargo é case-insensitive (vem em "Gestor", "GESTOR" ou
+# "gestor"); o NOME não pode ser — é reconhecido pelas iniciais
+# maiúsculas, então IGNORECASE fica restrito ao rótulo por grupo inline.
+_RE_NOME_DESIGNADO = re.compile(
+    r"(?i:\b(?:gestor|gestora|fiscal|respons[áa]vel|representante|"
+    r"pregoeiro|pregoeira|agente\s+de\s+contrata[çc][ãa]o|"
+    r"autoridade\s+competente)\b[^:\n]{0,60}:)\s*"
+    r"((?:[A-ZÀ-Þ][a-zà-ÿ']+\s+)(?:(?:d[aeo]s?|e)\s+)?"
+    r"(?:[A-ZÀ-Þ][a-zà-ÿ']+\s*){1,4})",
+    re.MULTILINE)
 
 # Cabeçalho da tabela de itens gerada pelo sistema (planilha.para_markdown)
 _RE_CABECALHO_ITENS = re.compile(
@@ -637,6 +665,22 @@ def _validar_dados_improvisados(doc_key: str, texto: str) -> list[dict]:
             "matrícula do agente responsável")
         achados.append(achado)
 
+    # Mesma regra sem o rótulo "matrícula": número funcional/SIAPE
+    # improvisado (dígitos repetidos ou curtíssimo) é dado inventado.
+    for m in _RE_NUMERO_FUNCIONAL.finditer(texto):
+        numero = m.group(1)
+        if len(set(numero)) != 1 and len(numero) > 2:
+            continue
+        achado = _achado(
+            doc_key, "aviso",
+            f"número funcional com aparência de improviso ({numero}) — "
+            "identificação de agente público vem do processo ou fica "
+            "[PREENCHER: número funcional]", m.group(0))
+        achado["pendencia"] = pendencia_de_valor(
+            texto, m.start(), m.end(), numero,
+            "número funcional do agente responsável")
+        achados.append(achado)
+
     cnpjs_invalidos = [
         m for m in _RE_CNPJ.finditer(texto)
         if not _cnpj_valido("".join(m.groups()))
@@ -657,6 +701,91 @@ def _validar_dados_improvisados(doc_key: str, texto: str) -> list[dict]:
             "tabela de itens duplicada — a planilha orçamentária deve "
             "aparecer uma única vez no documento"))
     return achados
+
+
+# Designar uma UNIDADE ("Gestora: Secretaria Municipal de Saúde") é
+# legítimo e comum; o que não pode ser inventado é a PESSOA. Um "nome"
+# que começa por substantivo institucional é órgão, não servidor.
+_INSTITUCIONAIS = (
+    "SECRETARIA", "PREFEITURA", "MUNICIPIO", "DEPARTAMENTO", "DIRETORIA",
+    "COORDENADORIA", "COORDENACAO", "SETOR", "COMISSAO", "EQUIPE",
+    "NUCLEO", "GABINETE", "FUNDO", "AUTARQUIA", "AGENCIA", "SUPERINTENDENCIA",
+    "PROCURADORIA", "CONTROLADORIA", "ASSESSORIA", "UNIDADE", "ORGAO",
+    "EMPRESA", "CONTRATADA", "CONTRATANTE", "ADMINISTRACAO",
+)
+
+
+def _e_unidade_administrativa(nome: str) -> bool:
+    primeira = _norm(nome).split()
+    return bool(primeira) and primeira[0] in _INSTITUCIONAIS
+
+
+def _nomes_do_processo(dados: dict | None) -> set[str]:
+    """Nomes que o PROCESSO conhece (formulário) — em forma comparável."""
+    conhecidos: set[str] = set()
+    for chave in ("responsavel", "orgao"):
+        valor = (dados or {}).get(chave) or ""
+        if valor.strip():
+            conhecidos.add(_norm(valor))
+    return conhecidos
+
+
+def _validar_identificacoes(doc_key: str, texto: str,
+                            dados: dict | None) -> list[dict]:
+    """
+    Nome de agente público designado para função tem de vir do processo.
+
+    Sem o formulário (documento importado/revisado fora do fluxo) a
+    checagem não opina. Com ele, um nome que não consta do processo é
+    identificação sem vínculo: o sistema não sabe quem é essa pessoa e
+    não pode designá-la em ato administrativo.
+    """
+    if not dados:
+        return []
+    conhecidos = _nomes_do_processo(dados)
+    achados: list[dict] = []
+    vistos: set[str] = set()
+    for m in _RE_NOME_DESIGNADO.finditer(texto):
+        nome = m.group(1).strip(" .;,")
+        alvo = _norm(nome)
+        if not alvo or alvo in vistos or _e_unidade_administrativa(nome):
+            continue
+        # o nome consta do processo (íntegra ou contido no campo)?
+        if any(alvo in conhecido or conhecido in alvo
+               for conhecido in conhecidos):
+            continue
+        vistos.add(alvo)
+        achado = _achado(
+            doc_key, "bloqueia",
+            f"agente público designado sem vínculo no processo "
+            f"({nome}) — nome de servidor vem do processo ou fica "
+            "[PREENCHER: nome do agente]", m.group(0))
+        achado["pendencia"] = pendencia_de_valor(
+            texto, m.start(1), m.end(1), nome,
+            "nome do agente público designado")
+        achados.append(achado)
+    return achados
+
+
+def _validar_tabela_de_itens(doc_key: str, texto: str,
+                             itens: list[dict] | None) -> list[dict]:
+    """
+    Conferência da tabela emitida CONTRA A PLANILHA DO PROCESSO.
+
+    A planilha é dado determinístico: o documento tem de reproduzi-la
+    integralmente — todos os códigos, nas quantidades, unidades e preços
+    da fonte, uma única vez, com o valor global. Divergência aqui não é
+    questão de estilo: é o ato administrativo dizendo número que o
+    processo não tem. Sem planilha na sessão (documento importado ou
+    revisado fora do fluxo), a checagem não opina.
+    """
+    if not itens:
+        return []
+    return [
+        _achado(doc_key, "bloqueia", f"tabela de itens divergente da "
+                f"planilha do processo: {problema}")
+        for problema in planilha.conferir_tabela(texto, itens)
+    ]
 
 
 def _validar_fundamentos_legais(doc_key: str, texto: str) -> list[dict]:
@@ -839,17 +968,26 @@ def _validar_tabelas(doc_key: str, texto: str) -> list[dict]:
 
 
 def validar_documento(doc_key: str, texto: str,
-                      lastro: set[str] | None = None) -> list[dict]:
+                      lastro: set[str] | None = None,
+                      dados: dict | None = None) -> list[dict]:
     """
     Valida um documento; retorna a lista de achados (pode ser vazia).
 
     `lastro`: números de artigo recuperados pelo RAG na geração deste
     documento. Quando informado, habilita a checagem de fundamento sem
     lastro; quando None (sem rastro disponível), a checagem é omitida.
+
+    `dados`: Formulário Matriz do processo (planilha, responsável…).
+    Quando informado, a tabela emitida é conferida item a item contra a
+    planilha e nomes/identificações são checados contra o processo;
+    quando None, essas checagens são omitidas.
     """
     texto = texto or ""
     return (
         _validar_bloqueantes(doc_key, texto)
+        + _validar_tabela_de_itens(doc_key, texto,
+                                   (dados or {}).get("itens"))
+        + _validar_identificacoes(doc_key, texto, dados)
         + _validar_dados_improvisados(doc_key, texto)
         + _validar_fundamentos_legais(doc_key, texto)
         + _validar_lastro_das_citacoes(doc_key, texto, lastro)
@@ -861,11 +999,12 @@ def validar_documento(doc_key: str, texto: str,
 
 
 def validar_todos(documentos: dict[str, str],
-                  lastro_por_doc: dict[str, set[str]] | None = None) -> list[dict]:
+                  lastro_por_doc: dict[str, set[str]] | None = None,
+                  dados: dict | None = None) -> list[dict]:
     achados: list[dict] = []
     for doc_key, texto in documentos.items():
         achados.extend(validar_documento(
-            doc_key, texto, (lastro_por_doc or {}).get(doc_key)))
+            doc_key, texto, (lastro_por_doc or {}).get(doc_key), dados))
     return achados
 
 
