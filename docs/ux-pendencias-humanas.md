@@ -186,3 +186,45 @@ A única falha é `test_export_estilos::test_pdf_via_libreoffice_quando_disponiv
 — **pré-existente e sem relação** com esta mudança (fonte Helvetica na
 conversão do LibreOffice deste contêiner); confirmada em `main` limpo
 antes de qualquer alteração.
+
+## I. Diagnóstico do check "Vercel" (falha recorrente no GitHub)
+
+**Não é defeito da aplicação nem desta branch. É integração
+mal-endereçada.**
+
+Evidências:
+
+| Fato | Como foi verificado |
+|---|---|
+| O check que falha é um **commit status** chamado `Vercel`, publicado pelo GitHub App da Vercel — não é um job do nosso CI | `GET /pulls/9/status` → `context: "Vercel"`, `state: "failure"`, `target_url: vercel.com/ewertonmarinho51-devs-projects/projeto-saas` |
+| Falha **imediatamente**, no mesmo segundo do push | status `created_at 18:00:42Z`, push `18:00:41Z` — não houve build |
+| O CI real passa | workflow `ci.yml`, job `testes`: `success` em todos os commits desta branch |
+| **Não bloqueia merge** | o PR #9 foi mergeado com esse mesmo status em `failure` |
+| O repositório não tem nada que a Vercel saiba construir | ausentes: `package.json`, `vercel.json`, `index.html`, `next.config.js`, diretório `api/`. Presentes: `app.py`, `requirements.txt`, `packages.txt`, `.streamlit/` |
+
+Causa: existe um projeto Vercel (`ewertonmarinho51-devs-projects/projeto-saas`)
+conectado a este repositório. A cada push a Vercel tenta construí-lo, não
+encontra framework, entrypoint serverless nem diretório de saída
+estática, e aborta. **Este aplicativo é Streamlit e roda no Streamlit
+Cloud** — a Vercel não hospeda processo Streamlit de longa duração;
+nunca houve deploy bem-sucedido a restaurar.
+
+Como resolver (nenhuma opção exige mudança de código):
+
+1. **Recomendado — desconectar.** Vercel → projeto `projeto-saas` →
+   *Settings* → *Git* → *Disconnect* (ou excluir o projeto). O status
+   some do GitHub e o painel de checks passa a refletir só o CI real.
+2. **Manter o projeto e silenciar o build.** Vercel → *Settings* →
+   *Git* → *Ignored Build Step* → `exit 0`.
+3. **Não** adicionar `vercel.json` só para calar o check: seria
+   introduzir configuração de uma plataforma que o projeto não usa.
+
+O log detalhado (`npx vercel inspect dpl_5UhgNqMqucJKPsT12kwCzbakFcMq
+--logs`) exige credencial da Vercel e não foi acessado daqui — a causa
+acima está estabelecida pelos fatos verificáveis no GitHub e pelo
+conteúdo do repositório, não pelo log.
+
+Observação à parte: existe na raiz um arquivo chamado `projeto saas`
+(com espaço) contendo o trecho de bootstrap do GitHub
+(`echo "# projeto-saas" >> README.md` …). É lixo inofensivo, sem relação
+com a Vercel; não foi removido nesta branch para não misturar assuntos.
