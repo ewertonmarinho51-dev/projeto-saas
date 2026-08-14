@@ -286,7 +286,8 @@ def render_etapa_documento(doc_key: str) -> None:
     with aba_editar:
         texto_editado = st.text_area(
             "Conteúdo do documento (editável)",
-            value=st.session_state.documentos[doc_key],
+            value=st.session_state.edicoes_pendentes.get(
+                doc_key, st.session_state.documentos[doc_key]),
             height=480,
             key=f"editor_{doc_key}",
             label_visibility="collapsed",
@@ -296,7 +297,7 @@ def render_etapa_documento(doc_key: str) -> None:
 
     col_voltar, col_regerar, col_aprovar = st.columns([1, 1, 2])
     if col_voltar.button("Voltar", use_container_width=True, key=f"volta_{doc_key}"):
-        st.session_state.documentos[doc_key] = texto_editado  # preserva edições
+        state.guardar_edicao_pendente(doc_key, texto_editado)
         state.ir_para(meta["etapa"] - 1)
     if col_regerar.button(
         "Gerar novamente", use_container_width=True, key=f"regera_{doc_key}",
