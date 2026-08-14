@@ -56,34 +56,28 @@ h1, h2, h3 { letter-spacing: -0.02em; color: var(--tinta); }
     margin: .15rem 0 0; font-size: .84rem; color: var(--cinza);
 }
 
-/* ---------- Stepper (flat, número + rótulo, conector fino) ---------- */
-.gd-stepper {
-    display: flex; gap: 0; margin-bottom: 1.4rem;
+/* ---------- Stepper clicável (botões segmentados) ---------- */
+.gd-step-marker { display: none; }
+div[data-testid="stHorizontalBlock"]:has(.gd-step-marker) {
+    gap: 0 !important; margin-bottom: 1.4rem;
     border: 1px solid var(--linha); border-radius: 8px;
     background: var(--superficie); overflow: hidden;
 }
-.gd-step {
-    flex: 1 1 0; display: flex; align-items: center; justify-content: center;
-    gap: .45rem; padding: .62rem .4rem;
-    font-size: .78rem; font-weight: 600; color: var(--cinza);
-    border-right: 1px solid var(--linha); white-space: nowrap;
+div[data-testid="stHorizontalBlock"]:has(.gd-step-marker)
+div[data-testid="stColumn"] { min-width: 0; }
+div[data-testid="stHorizontalBlock"]:has(.gd-step-marker)
+div[data-testid="stButton"] { margin: 0; }
+div[data-testid="stHorizontalBlock"]:has(.gd-step-marker)
+div[data-testid="stButton"] > button {
+    min-height: 3.05rem; border: 0 !important; border-radius: 0 !important;
+    border-right: 1px solid var(--linha) !important;
+    font-size: .78rem; font-weight: 600; white-space: nowrap;
+    box-shadow: none !important;
 }
-.gd-step:last-child { border-right: none; }
-.gd-step-num {
-    width: 1.35rem; height: 1.35rem; border-radius: 4px;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: .72rem; font-weight: 700;
-    border: 1px solid var(--linha); background: var(--canvas);
-    color: var(--cinza); flex: none;
-}
-.gd-step.ativo { color: var(--tinta); background: var(--azul-pale); }
-.gd-step.ativo .gd-step-num {
-    background: var(--azul); border-color: var(--azul); color: #fff;
-}
-.gd-step.concluido { color: var(--azul); }
-.gd-step.concluido .gd-step-num {
-    background: var(--superficie); border-color: var(--azul); color: var(--azul);
-}
+div[data-testid="stHorizontalBlock"]:has(.gd-step-marker)
+div[data-testid="stColumn"]:last-child button { border-right: 0 !important; }
+div[data-testid="stHorizontalBlock"]:has(.gd-step-marker)
+button:disabled { cursor: not-allowed; opacity: .56; }
 
 /* ---------- Callout de base legal ---------- */
 .gd-base-legal {
@@ -138,18 +132,25 @@ def render_cabecalho() -> None:
 
 
 def render_stepper(etapa_atual: int) -> None:
-    """Barra de progresso do wizard: número + rótulo por etapa."""
-    blocos = []
+    """Barra de progresso e navegação entre etapas já disponíveis."""
+    disponiveis = state.etapas_navegaveis()
+    colunas = st.columns(len(ETAPAS), gap="small")
     for i, nome in enumerate(ETAPAS):
-        classe = "ativo" if i == etapa_atual else "concluido" if i < etapa_atual else ""
         rotulo = nome.split(". ", 1)[-1]
-        blocos.append(
-            f'<div class="gd-step {classe}">'
-            f'<span class="gd-step-num">{i + 1}</span>{rotulo}</div>'
-        )
-    st.markdown(
-        f'<div class="gd-stepper">{"".join(blocos)}</div>', unsafe_allow_html=True
-    )
+        with colunas[i]:
+            st.markdown('<span class="gd-step-marker"></span>',
+                        unsafe_allow_html=True)
+            st.button(
+                f"{i + 1}  {rotulo}",
+                key=f"navegar_etapa_{i}",
+                type="primary" if i == etapa_atual else "secondary",
+                disabled=i not in disponiveis,
+                help=("Abrir esta etapa" if i in disponiveis else
+                      "Conclua e aprove as etapas anteriores para acessar."),
+                use_container_width=True,
+                on_click=state.navegar_pelo_stepper,
+                args=(i,),
+            )
 
 
 def render_base_legal(texto: str) -> None:
