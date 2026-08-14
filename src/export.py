@@ -18,7 +18,7 @@ import shutil
 import zipfile
 from datetime import date
 
-from .config import DOCUMENTOS, SEQUENCIA_DOCUMENTOS
+from .config import DOCUMENTOS, DOCUMENTOS_EXPORTAVEIS
 
 # Padrão institucional (medido nos documentos manuais aprovados)
 FONTE_CORPO = "Times New Roman"
@@ -397,7 +397,7 @@ def gerar_docx_consolidado(documentos: dict[str, str], branding: dict | None = N
                       style="GovDocs Titulo")
     doc.add_paragraph(f"Dossiê gerado em {date.today().strftime('%d/%m/%Y')}.",
                       style="GovDocs Nota")
-    for doc_key in SEQUENCIA_DOCUMENTOS:
+    for doc_key in DOCUMENTOS_EXPORTAVEIS:
         if doc_key not in documentos:
             continue
         doc.add_page_break()
@@ -709,7 +709,7 @@ def gerar_pdf_consolidado(documentos: dict[str, str], branding: dict | None = No
     pdf.set_font("Times", "", 10)
     pdf.multi_cell(largura, 6, f"Dossiê gerado em {date.today().strftime('%d/%m/%Y')}.",
                    new_x="LMARGIN", new_y="NEXT")
-    for doc_key in SEQUENCIA_DOCUMENTOS:
+    for doc_key in DOCUMENTOS_EXPORTAVEIS:
         if doc_key not in documentos:
             continue
         pdf.add_page()
@@ -731,7 +731,7 @@ def gerar_zip(documentos: dict[str, str], formato: str, branding: dict | None = 
         return fn(titulo, texto, branding)
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for i, doc_key in enumerate(SEQUENCIA_DOCUMENTOS, start=1):
+        for i, doc_key in enumerate(DOCUMENTOS_EXPORTAVEIS, start=1):
             if doc_key not in documentos:
                 continue
             meta = DOCUMENTOS[doc_key]

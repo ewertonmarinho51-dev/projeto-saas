@@ -11,7 +11,8 @@ from .. import (achados, auth, conhecimento, contexto, corretor, db,
                 explicacoes, export, familias, fatos, planilha,
                 qualidade, rag, state)
 from . import revisao
-from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
+from ..config import (CAMPOS_FORMULARIO, DOCUMENTOS,
+                      DOCUMENTOS_EXPORTAVEIS, SEQUENCIA_DOCUMENTOS)
 from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
 
@@ -267,6 +268,12 @@ def render_etapa_documento(doc_key: str) -> None:
                                             contexto,
                                             instrucoes_extra=bloco_familia)
                     st.session_state.documentos[doc_key] = texto
+                    # SRP: a Ata é instrumento PRÓPRIO e sai junto do
+                    # edital — determinística, nunca por prosa livre.
+                    if doc_key == "edital" and state.usa_srp(
+                            st.session_state.dados):
+                        st.session_state.documentos["arp"] = gerar_documento(
+                            "arp", st.session_state.dados, contexto)
                     st.rerun()
                 except ErroGeracaoIA as erro:
                     st.error(str(erro))
@@ -689,8 +696,9 @@ def render_sucesso() -> None:
     )
 
     with st.expander("Conferir documentos aprovados"):
-        abas = st.tabs([DOCUMENTOS[k]["sigla"] for k in SEQUENCIA_DOCUMENTOS if k in docs])
-        for aba, doc_key in zip(abas, [k for k in SEQUENCIA_DOCUMENTOS if k in docs]):
+        exportaveis = [k for k in DOCUMENTOS_EXPORTAVEIS if k in docs]
+        abas = st.tabs([DOCUMENTOS[k]["sigla"] for k in exportaveis])
+        for aba, doc_key in zip(abas, exportaveis):
             with aba:
                 st.markdown(docs[doc_key])
 

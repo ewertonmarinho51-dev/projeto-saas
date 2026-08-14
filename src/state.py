@@ -229,3 +229,14 @@ def reiniciar_processo() -> None:
                   and k.startswith(_PREFIXOS_DO_PROCESSO)]:
         st.session_state.pop(chave, None)
     ir_para(0)
+
+
+def usa_srp(dados: dict) -> bool:
+    """
+    O processo adota Sistema de Registro de Preços?
+
+    Critério ÚNICO e explícito: o modelo de execução informado no
+    Formulário Matriz. Não se deduz SRP de objeto, quantidade ou
+    parcelamento — adotar SRP é decisão do estudo, não inferência.
+    """
+    return "registro de preços" in (dados.get("modelo_execucao") or "").lower()
