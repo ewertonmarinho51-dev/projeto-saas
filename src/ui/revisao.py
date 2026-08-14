@@ -25,6 +25,7 @@ import re
 import streamlit as st
 
 from .. import blocos, ciclo, db, state
+from ..config import DOCUMENTOS
 
 FLAG_TELA = "tela_progresso"
 FLAG_GATE = "gate_emissao"
@@ -47,13 +48,90 @@ def ativa() -> bool:
 # Dado ausente: substituição PONTUAL por código (nunca IA, nunca editor)
 # ---------------------------------------------------------------------------
 def aplicar_dado_pontual(documentos: dict[str, str], documento: str,
-                         campo: str, valor: str) -> dict[str, str]:
-    """Substitui o marcador [PREENCHER: campo] pelo valor informado."""
-    padrao = re.compile(
-        r"\[PREENCHER:?\s*" + re.escape(campo) + r"\s*\]", re.IGNORECASE)
+                         campo: str, valor: str, marcador: str = "",
+                         ocorrencia: int = 0,
+                         molde: str = "") -> dict[str, str]:
+    """
+    Substitui a lacuna pelo valor informado pelo servidor — por CÓDIGO,
+    nunca por IA e nunca abrindo o documento para edição livre.
+
+    Com `marcador`/`ocorrencia` a substituição é cirúrgica: exatamente
+    aquele trecho, exatamente aquela ocorrência (marcadores "secos" são
+    idênticos entre si — sem a ocorrência, responder a pergunta de uma
+    linha sobrescreveria as outras). Sem eles, mantém-se o comportamento
+    histórico: o marcador reconstruído a partir do campo.
+
+    `molde` cobre o dado improvisado (matrícula provisória, CNPJ
+    inválido), em que o alvo não é um marcador e sim o valor errado no
+    meio do texto: "matrícula: {valor}" preserva o rótulo em volta.
+    """
     novos = dict(documentos)
-    novos[documento] = padrao.sub(valor, novos.get(documento, ""))
+    texto = novos.get(documento, "")
+    if marcador:
+        padrao = re.compile(re.escape(marcador), re.IGNORECASE)
+    else:
+        padrao = re.compile(
+            r"\[PREENCHER:?\s*" + re.escape(campo) + r"\s*\]", re.IGNORECASE)
+    novo_texto = molde.replace("{valor}", valor) if molde else valor
+
+    if not ocorrencia:
+        novos[documento] = padrao.sub(lambda _: novo_texto, texto)
+        return novos
+
+    contador = {"n": 0}
+
+    def trocar(m: re.Match) -> str:
+        contador["n"] += 1
+        return novo_texto if contador["n"] == ocorrencia else m.group(0)
+
+    novos[documento] = padrao.sub(trocar, texto)
     return novos
+
+
+def aplicar_respostas(documentos: dict[str, str], respostas) -> dict[str, str]:
+    """
+    Aplica TODAS as respostas do formulário de uma vez.
+
+    A ordem importa: marcadores secos são idênticos entre si e são
+    localizados pelo NÚMERO da ocorrência. Substituir a ocorrência 1
+    primeiro faria a ocorrência 5 virar a 4 — e a resposta seguinte
+    cairia na lacuna errada. Aplicando da ÚLTIMA para a primeira, cada
+    substituição só desloca ocorrências que já foram resolvidas.
+    """
+    aplicacoes = []
+    for pedido, valor in respostas:
+        if not (valor or "").strip():
+            continue
+        for alvo in pedido.get("alvos") or [{"documento": pedido["documento"]}]:
+            aplicacoes.append((alvo, pedido["campo"], valor.strip()))
+    aplicacoes.sort(key=lambda a: a[0].get("ocorrencia", 0), reverse=True)
+
+    novos = documentos
+    for alvo, campo, valor in aplicacoes:
+        novos = aplicar_dado_pontual(
+            novos, alvo["documento"], campo, valor,
+            marcador=alvo.get("marcador", ""),
+            ocorrencia=alvo.get("ocorrencia", 0),
+            molde=alvo.get("molde", ""))
+    return novos
+
+
+def _rotulo_do_pedido(pedido: dict) -> str:
+    """
+    Rótulo do campo na tela. O nome do campo vem PRIMEIRO — é o que o
+    servidor precisa ler para saber o que responder. Os documentos
+    afetados vêm depois, entre parênteses, porque uma única resposta
+    completa todos eles.
+    """
+    documentos = pedido.get("documentos") or [pedido["documento"]]
+    siglas = ", ".join(
+        DOCUMENTOS.get(d, {}).get("sigla", d.upper()) for d in documentos)
+    campo = pedido["campo"]
+    # o qualificador distingue lacunas homônimas (a "Ação preventiva" do
+    # risco A não é a do risco B) — sem ele, duas perguntas iguais
+    if pedido.get("qualificador"):
+        campo = f"{campo} — {pedido['qualificador']}"
+    return f"{campo} ({siglas})"
 
 
 # ---------------------------------------------------------------------------
@@ -148,36 +226,85 @@ def _render_aprovado(resultado: dict, docs: dict[str, str]) -> None:
             st.markdown(f"- **Ciclo {i}:** {', '.join(tocados) or '—'}")
 
 
+def _render_decisoes(decisoes: list[dict]) -> None:
+    """
+    Decisão discricionária NÃO é caixa de texto: o sistema não pode
+    receber a resposta como dado. Cada item diz o que precisa ser
+    decidido, onde o problema está e leva o revisor à etapa do documento.
+    """
+    if not decisoes:
+        return
+    st.markdown("##### Decisões que dependem de você")
+    st.caption(
+        "Estes pontos não são dados que faltam: são escolhas do revisor. "
+        "O botão leva ao documento correspondente para você ajustar o "
+        "texto."
+    )
+    for i, decisao in enumerate(decisoes):
+        with st.container(border=True):
+            st.markdown(f"**{decisao['sigla']} — {decisao['descricao']}**")
+            if decisao.get("esperado"):
+                st.markdown(f"O que se espera: {decisao['esperado']}")
+            if decisao.get("evidencia"):
+                st.caption(f"Trecho: “{decisao['evidencia']}”")
+            etapa = decisao.get("etapa")
+            if etapa and st.button(
+                    f"Ir para o {decisao['sigla']}",
+                    key=f"decisao_{decisao['findingId']}_{i}",
+                    use_container_width=True):
+                state.ir_para(etapa)
+
+
 def _render_aguardando_dados(resultado: dict, docs: dict[str, str]) -> None:
+    pedidos = resultado["campos_requeridos"]
+    decisoes = resultado.get("decisoes_requeridas") or []
+    if not pedidos:
+        # WAITING sem pergunta formulável seria exatamente o defeito que
+        # esta tela existe para eliminar — cai no bloqueio explicado.
+        _render_bloqueado(resultado, docs)
+        return
+
     st.warning(
-        "**Falta uma informação essencial.** Informe apenas o(s) campo(s) "
-        "abaixo — o sistema completa o documento e revalida sozinho."
+        f"**Faltam {len(pedidos)} informação(ões) do processo.** Informe "
+        "abaixo o que o sistema não tem como saber — ele completa os "
+        "documentos e revalida sozinho. Nada é preenchido por dedução."
     )
     with st.form("form_dados_pontuais"):
         respostas = {}
-        for i, pedido in enumerate(resultado["campos_requeridos"]):
-            rotulo = (f"{pedido['campo']} "
-                      f"(documento {pedido['documento'].upper()})")
-            respostas[i] = (pedido, st.text_input(rotulo, key=f"dado_{i}"))
+        for i, pedido in enumerate(pedidos):
+            respostas[i] = (
+                pedido,
+                st.text_input(_rotulo_do_pedido(pedido), key=f"dado_{i}"),
+            )
+            detalhe = []
+            if pedido.get("clausula"):
+                detalhe.append(f"Cláusula {pedido['clausula']}")
+            if pedido.get("contexto"):
+                detalhe.append(f"“{pedido['contexto']}”")
+            if len(pedido.get("documentos") or []) > 1:
+                detalhe.append(
+                    "a mesma resposta completa todos os documentos acima")
+            if detalhe:
+                st.caption(" · ".join(detalhe))
         enviado = st.form_submit_button(
             "Enviar e revalidar", type="primary", use_container_width=True)
     if enviado:
-        novos = docs
-        for pedido, valor in respostas.values():
-            if valor.strip():
-                novos = aplicar_dado_pontual(
-                    novos, pedido["documento"], pedido["campo"],
-                    valor.strip())
+        novos = aplicar_respostas(docs, respostas.values())
         if novos != docs:
             st.session_state.documentos = novos
             st.session_state.pop("_ciclo_resultado", None)
             state.autosalvar()
             st.rerun()
         st.error("Preencha ao menos um campo para revalidar.")
+    _render_decisoes(decisoes)
 
 
 def _render_bloqueado(resultado: dict, docs: dict[str, str]) -> None:
     mensagens = {
+        "WAITING_REQUIRED_DATA":
+            "A revisão identificou dado faltante, mas não conseguiu "
+            "formular a pergunta a partir do texto. Os pontos em aberto "
+            "estão listados abaixo, com o trecho de cada um.",
         "BLOCKED_MAX_CYCLES":
             "O limite seguro de ciclos de correção foi atingido sem "
             "aprovação. Um revisor humano precisa concluir.",
@@ -193,13 +320,23 @@ def _render_bloqueado(resultado: dict, docs: dict[str, str]) -> None:
     }
     st.error(f"**{mensagens.get(resultado['status'], resultado['status'])}**")
     ultimo = resultado["relatorios"][-1] if resultado["relatorios"] else {}
+
+    # Decisões primeiro: são o que efetivamente destrava o processo, com
+    # o caminho até o documento. A lista completa de achados fica depois,
+    # recolhida, como transparência — não como tarefa a decifrar.
+    _render_decisoes(resultado.get("decisoes_requeridas") or [])
+
     pendentes = [f for f in ultimo.get("findings", [])
                  if not f["autoCorrectable"]]
     if pendentes:
-        with st.expander(f"Pendências para o revisor ({len(pendentes)})"):
+        with st.expander(f"Todos os pontos em aberto ({len(pendentes)})"):
             for f in pendentes:
-                st.markdown(f"- **{f['documentId'].upper()}** — "
-                            f"{f['descricao']}")
+                sigla = DOCUMENTOS.get(f["documentId"], {}).get(
+                    "sigla", f["documentId"].upper())
+                st.markdown(f"- **{sigla}** — {f['descricao']}")
+                evidencia = (f.get("evidencia") or [""])[0]
+                if evidencia:
+                    st.caption(f"   Trecho: “{evidencia}”")
     col_retry, col_manual = st.columns(2)
     if col_retry.button("Tentar novamente", type="primary",
                         use_container_width=True):

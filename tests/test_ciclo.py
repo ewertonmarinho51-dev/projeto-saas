@@ -104,9 +104,24 @@ def test_dado_ausente_para_em_waiting_com_campos_pontuais():
         docs, DADOS, chamar=None,
         aplicar_patches=True, reauditoria_semantica=False)
     assert resultado["status"] == "WAITING_REQUIRED_DATA"
-    assert resultado["campos_requeridos"] == [{
-        "documento": "memo", "campo": "prazo de vigência",
-        "findingId": resultado["relatorios"][-1]["findings"][0]["findingId"],
+    finding = resultado["relatorios"][-1]["findings"][0]
+    pedidos = resultado["campos_requeridos"]
+    assert len(pedidos) == 1
+    pedido = pedidos[0]
+    # a pergunta diz O QUE falta, em qual documento e em qual cláusula…
+    assert pedido["campo"] == "prazo de vigência"
+    assert pedido["documento"] == "memo"
+    assert pedido["documentos"] == ["memo"]
+    assert pedido["findingId"] == finding["findingId"]
+    assert pedido["clausula"] == "2. VIGÊNCIA"
+    assert "[PREENCHER: prazo de vigência]" in pedido["contexto"]
+    # …e carrega o alvo exato da substituição (marcador + ocorrência)
+    assert pedido["alvos"] == [{
+        "documento": "memo",
+        "marcador": "[PREENCHER: prazo de vigência]",
+        "molde": "",
+        "ocorrencia": 1,
+        "findingId": finding["findingId"],
     }]
     assert resultado["documentos"] == docs  # nada aplicado
 

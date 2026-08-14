@@ -27,9 +27,12 @@ Isolamento por tenant: o job de revisão nasce com o tenant da sessão
 
 import json
 import logging
+import re
+import unicodedata
 from datetime import datetime, timezone
 
 from . import achados, blocos, corretor, db, llm, patches, validacao
+from .config import DOCUMENTOS
 
 FLAG_REAUDITORIA = "reauditoria"
 
@@ -65,16 +68,108 @@ def _evento(eventos: list, de: str, para: str, motivo: str,
     return para
 
 
+def _normalizar_campo(campo: str) -> str:
+    """Comparação de nomes de campo: sem acento, caixa ou pontuação."""
+    texto = unicodedata.normalize("NFKD", campo or "")
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9 ]", " ", texto.lower()).strip()
+
+
+def _chave_do_pedido(pendencia: dict) -> str:
+    """
+    Duas lacunas são a MESMA pergunta quando pedem o mesmo dado do
+    processo — inclusive em documentos diferentes (o prazo de vigência do
+    DFD e o do ETP são o mesmo fato, e devem ser perguntados uma vez só).
+
+    Exceção: quando a lacuna é POSICIONAL — o nome veio da coluna da
+    tabela, do título da cláusula ou do trecho, ou o alvo é um valor
+    improvisado — o mesmo rótulo se repete em pontos que pedem valores
+    diferentes (a matrícula da Ana não é a do Bruno). Ali a chave inclui
+    o contexto, sob pena de a resposta de um ponto vazar para os demais.
+    """
+    campo = _normalizar_campo(pendencia.get("campo", ""))
+    if pendencia.get("origem") in ("tabela", "clausula", "trecho",
+                                   "valor_improvisado"):
+        return f"{campo}|{pendencia.get('contexto', '')}"
+    return campo
+
+
+def _pendencias_do_finding(finding: dict) -> list[dict]:
+    """Pendências estruturadas; findings antigos trazem só os nomes."""
+    if finding.get("pendencias"):
+        return finding["pendencias"]
+    return [{"campo": campo, "qualificador": "", "marcador": "",
+             "molde": "", "ocorrencia": 0, "clausula": "", "contexto": "",
+             "origem": "regra"}
+            for campo in finding.get("camposRequeridos", [])]
+
+
 def _campos_requeridos(relatorio: dict) -> list[dict]:
-    """O que pedir ao servidor: SOMENTE os campos indispensáveis."""
-    pedidos = []
-    for f in relatorio["findings"]:
-        if f.get("blockingReason") == achados.MOTIVO_DADO_AUSENTE:
-            for campo in f.get("camposRequeridos", []):
-                pedidos.append({"documento": f["documentId"],
-                                "campo": campo,
-                                "findingId": f["findingId"]})
-    return pedidos
+    """
+    O que pedir ao servidor: SOMENTE os campos indispensáveis, cada um
+    perguntado UMA vez, com tudo o que a tela precisa para explicar a
+    pergunta (cláusula e trecho) e para aplicar a resposta sem ambiguidade
+    (`alvos`: documento + marcador exato + ocorrência).
+    """
+    pedidos: dict[str, dict] = {}
+    ordem: list[str] = []
+    for f in relatorio.get("findings") or []:
+        if f.get("blockingReason") != achados.MOTIVO_DADO_AUSENTE:
+            continue
+        for pendencia in _pendencias_do_finding(f):
+            chave = _chave_do_pedido(pendencia)
+            alvo = {
+                "documento": f["documentId"],
+                "marcador": pendencia.get("marcador", ""),
+                "molde": pendencia.get("molde", ""),
+                "ocorrencia": pendencia.get("ocorrencia", 0),
+                "findingId": f["findingId"],
+            }
+            pedido = pedidos.get(chave)
+            if pedido is None:
+                pedidos[chave] = {
+                    "documento": f["documentId"],   # 1º documento afetado
+                    "documentos": [f["documentId"]],
+                    "campo": pendencia.get("campo", ""),
+                    "qualificador": pendencia.get("qualificador", ""),
+                    "findingId": f["findingId"],
+                    "clausula": pendencia.get("clausula", ""),
+                    "contexto": pendencia.get("contexto", ""),
+                    "origem": pendencia.get("origem", "regra"),
+                    "alvos": [alvo],
+                }
+                ordem.append(chave)
+                continue
+            if alvo not in pedido["alvos"]:
+                pedido["alvos"].append(alvo)
+            if f["documentId"] not in pedido["documentos"]:
+                pedido["documentos"].append(f["documentId"])
+    return [pedidos[chave] for chave in ordem]
+
+
+def _decisoes_requeridas(relatorio: dict) -> list[dict]:
+    """
+    O que NÃO se pergunta em caixa de texto: escolhas do revisor
+    (instituto jurídico, reescrita de cláusula, ordem do raciocínio).
+    Cada uma aponta a etapa do wizard onde a decisão é tomada — o usuário
+    não precisa descobrir sozinho onde agir.
+    """
+    decisoes = []
+    for f in relatorio.get("findings") or []:
+        if f.get("blockingReason") != achados.MOTIVO_DISCRICIONARIO:
+            continue
+        doc = DOCUMENTOS.get(f["documentId"], {})
+        decisoes.append({
+            "documento": f["documentId"],
+            "sigla": doc.get("sigla", f["documentId"].upper()),
+            "etapa": doc.get("etapa"),
+            "descricao": f["descricao"],
+            "esperado": f.get("resultadoEsperado", ""),
+            "regra": f.get("regraViolada", ""),
+            "evidencia": (f.get("evidencia") or [""])[0],
+            "findingId": f["findingId"],
+        })
+    return decisoes
 
 
 def _estado_sem_corrigiveis(relatorio: dict, documentos: dict) -> str:
@@ -188,7 +283,8 @@ def executar_ciclo(documentos: dict[str, str], dados: dict,
       documentos       bundle final (novo dict; o original não muda)
       versao, ciclos   versão final do bundle e ciclos consumidos
       relatorios/planos/diffs/eventos   histórico completo
-      campos_requeridos  o que pedir ao servidor (quando WAITING_…)
+      campos_requeridos    o que PERGUNTAR ao servidor (dado ausente)
+      decisoes_requeridas  o que o revisor precisa DECIDIR (discricionário)
     """
     progresso = ao_progresso or (lambda etapa: None)
     if aplicar_patches is None:
@@ -283,13 +379,14 @@ def executar_ciclo(documentos: dict[str, str], dados: dict,
         relatorios.append(relatorio)
 
     progresso("finalizando")
+    ultimo = relatorios[-1] if relatorios else {"findings": []}
     return _resultado(estado, docs, versao, ciclos, relatorios, planos,
-                      diffs, eventos, _campos_requeridos(
-                          relatorios[-1] if relatorios else {"findings": []}))
+                      diffs, eventos, _campos_requeridos(ultimo),
+                      _decisoes_requeridas(ultimo))
 
 
 def _resultado(estado, docs, versao, ciclos, relatorios, planos, diffs,
-               eventos, campos) -> dict:
+               eventos, campos, decisoes=None) -> dict:
     return {
         "status": estado,
         "documentos": docs,
@@ -300,6 +397,7 @@ def _resultado(estado, docs, versao, ciclos, relatorios, planos, diffs,
         "diffs": diffs,
         "eventos": eventos,
         "campos_requeridos": campos,
+        "decisoes_requeridas": decisoes or [],
     }
 
 
@@ -345,7 +443,7 @@ def executar_com_persistencia(documentos: dict[str, str], dados: dict,
             revisao.get("versao_atual", 1), revisao.get("ciclo", 0),
             relatorios_salvos, revisao.get("planos") or [],
             revisao.get("diffs") or [], revisao.get("eventos") or [],
-            _campos_requeridos(ultimo),
+            _campos_requeridos(ultimo), _decisoes_requeridas(ultimo),
         )
     if revisao is None:
         revisao = db.criar_revisao(processo_id, snapshot, {}, chave)

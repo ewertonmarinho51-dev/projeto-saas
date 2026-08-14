@@ -639,10 +639,13 @@ def _gerar_demo(doc_key: str, dados: dict) -> str:
         f"# {doc['titulo'].upper()}\n\n"
         f"*Minuta-esqueleto gerada em Modo Demonstração (sem IA) — "
         f"base legal: {doc['base_legal']}.*\n\n"
-        f"## 1. Identificação\n\n- Órgão requisitante: {dados.get('orgao') or '[PREENCHER]'}\n"
-        f"- Responsável: {dados.get('responsavel') or '[PREENCHER]'}\n\n"
+        f"## 1. Identificação\n\n- Órgão requisitante: "
+        f"{dados.get('orgao') or '[PREENCHER: órgão requisitante]'}\n"
+        f"- Responsável: "
+        f"{dados.get('responsavel') or '[PREENCHER: responsável pela demanda]'}\n\n"
         f"## 2. Objeto\n\n{dados.get('objeto') or '[PREENCHER: objeto]'}\n\n"
-        f"## 3. Justificativa da Necessidade\n\n{dados.get('justificativa') or '[PREENCHER]'}\n\n"
+        f"## 3. Justificativa da Necessidade\n\n"
+        f"{dados.get('justificativa') or '[PREENCHER: justificativa da necessidade]'}\n\n"
     )
     corpo = {
         "dfd": (
@@ -652,13 +655,22 @@ def _gerar_demo(doc_key: str, dados: dict) -> str:
             f"## 6. Previsão e Prioridade\n\n{dados.get('prazo') or '[PREENCHER: prazo]'}\n\n"
             "## 7. Encaminhamento\n\nEncaminha-se para autorização da autoridade "
             "competente, nos termos do art. 12, VII, da Lei nº 14.133/2021.\n\n"
-            "Local e data: [PREENCHER]\n\nAssinatura: ________________________"
+            "Local e data: [PREENCHER: local e data de assinatura]\n\n"
+            "Assinatura: ________________________"
         ),
         "etp": (
-            f"## 4. Requisitos da Contratação (art. 18, §1º, III)\n\n{dados.get('requisitos') or '[PREENCHER]'}\n\n"
+            f"## 4. Requisitos da Contratação (art. 18, §1º, III)\n\n"
+            f"{dados.get('requisitos') or '[PREENCHER: requisitos da contratação]'}\n\n"
             "## 5. Levantamento de Mercado (art. 18, §1º, V)\n\n[PREENCHER: pesquisa de mercado]\n\n"
             "## 6. Justificativa do Parcelamento (art. 18, §1º, VIII)\n\n"
-            f"Modelo de execução informado: {dados.get('modelo_execucao') or '[PREENCHER]'}. [PREENCHER: análise]\n\n"
+            f"Modelo de execução informado: "
+            f"{dados.get('modelo_execucao') or '[PREENCHER: modelo de execução]'}. "
+            "[PREENCHER: análise do parcelamento]\n\n"
+            # Células da matriz ficam SEM descrição de propósito: na
+            # revisão o nome do campo vem do cabeçalho da coluna e a
+            # lacuna é tratada como posicional (a "Mitigação" da linha A
+            # não é a da linha B). Um marcador descrito seria idêntico
+            # entre linhas e as respostas se sobreporiam.
             "## 7. Matriz de Riscos\n\n"
             "| Risco | Probabilidade | Impacto | Mitigação | Responsável |\n"
             "|---|---|---|---|---|\n"
@@ -666,9 +678,11 @@ def _gerar_demo(doc_key: str, dados: dict) -> str:
             "## 8. Declaração de Viabilidade (art. 18, §1º, XIII)\n\n[PREENCHER: conclusão]"
         ),
         "tr": (
-            f"## 4. Requisitos e Especificações (art. 6º, XXIII, 'd')\n\n{dados.get('requisitos') or '[PREENCHER]'}\n\n"
+            f"## 4. Requisitos e Especificações (art. 6º, XXIII, 'd')\n\n"
+            f"{dados.get('requisitos') or '[PREENCHER: requisitos e especificações]'}\n\n"
             "## 5. Modelo de Execução e Fiscalização\n\n"
-            f"{dados.get('modelo_execucao') or '[PREENCHER]'} — gestor e fiscal do contrato a designar (art. 117).\n\n"
+            f"{dados.get('modelo_execucao') or '[PREENCHER: modelo de execução]'} "
+            "— gestor e fiscal do contrato a designar (art. 117).\n\n"
             "## 6. Recebimento e Pagamento (art. 140)\n\n[PREENCHER: critérios de medição e recebimento]\n\n"
             "## 7. Sanções\n\nAplicam-se os arts. 155 a 163 da Lei nº 14.133/2021."
         ),

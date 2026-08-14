@@ -844,8 +844,10 @@ def montar_contexto(dados: dict, doc_key: str) -> dict:
         "\n=== REFERÊNCIAS DA BASE DE CONHECIMENTO (recuperadas por tema) ===",
         _HIERARQUIA_FONTES,
         REGRA_DE_CITACAO,
-        "Onde faltar dado do processo atual, use [PREENCHER] — nunca "
-        "preencha com dado de outro processo.",
+        "Onde faltar dado do processo atual, use [PREENCHER: descrição "
+        "precisa da informação faltante] — sempre com a descrição, nunca "
+        "o marcador sozinho — e nunca preencha com dado de outro "
+        "processo.",
     ]
     por_tema: dict[str, list[dict]] = {}
     for referencia in referencias:
