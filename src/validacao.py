@@ -169,6 +169,42 @@ def _norm(texto: str) -> str:
     return re.sub(r"[^A-Z0-9 ]", " ", t.upper()).strip()
 
 
+# ---------------------------------------------------------------------------
+# Identidade do auditor determinístico
+#
+# Um veredito de aprovação só vale para o CONJUNTO DE REGRAS que o
+# emitiu. Defeito observado em produção: um bundle aprovado em 08/08 por
+# regras antigas continuou sendo reproduzido como APPROVED depois de os
+# validadores mudarem — os novos nunca rodaram sobre ele. A impressão
+# digital abaixo entra na chave de idempotência do ciclo: mudou regra,
+# muda a chave, e o bundle é reauditado (barato e determinístico) em vez
+# de herdar um veredito obsoleto.
+# ---------------------------------------------------------------------------
+_ARQUIVOS_DO_AUDITOR = ("validacao.py", "achados.py", "consistencia.py",
+                        "perfis.py")
+_VERSAO_AUDITOR: str | None = None
+
+
+def versao_do_auditor() -> str:
+    """Impressão digital (sha256) do conjunto de regras determinísticas."""
+    global _VERSAO_AUDITOR
+    if _VERSAO_AUDITOR is None:
+        import hashlib
+        from pathlib import Path
+
+        base = Path(__file__).resolve().parent
+        resumo = hashlib.sha256()
+        for nome in _ARQUIVOS_DO_AUDITOR:
+            try:
+                resumo.update((base / nome).read_bytes())
+            except OSError:
+                # fonte indisponível (empacotamento exótico): o nome ao
+                # menos mantém a chave estável dentro da mesma instalação
+                resumo.update(nome.encode())
+        _VERSAO_AUDITOR = resumo.hexdigest()
+    return _VERSAO_AUDITOR
+
+
 def _achado(doc_key: str, gravidade: str, mensagem: str, trecho: str = "") -> dict:
     return {
         "doc": doc_key,

@@ -187,4 +187,6 @@ def test_flag_off_mantem_a_tela_antiga_de_bloqueio(monkeypatch):
     assert not at.exception
     erros = " ".join(e.value for e in at.error)
     assert "Emissão bloqueada" in erros  # atribuição manual preservada
-    assert not [b for b in at.get("download_button")]
+    # nenhum download OFICIAL — só a MINUTA marcada como não aprovada
+    rotulos = [b.label or "" for b in at.get("download_button")]
+    assert not [r for r in rotulos if "MINUTA" not in r], rotulos

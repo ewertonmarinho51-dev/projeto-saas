@@ -490,7 +490,9 @@ def _render_relatorio_estruturado(relatorio: dict) -> None:
 def render_sucesso() -> None:
     from .. import validacao
 
-    st.subheader("Processo concluído")
+    # "Concluído" só quando a emissão é de fato liberada: com pendência,
+    # esta tela é de revisão final — o título não pode prometer conclusão.
+    st.subheader("Emissão dos documentos")
 
     docs = st.session_state.documentos
     orgao = (st.session_state.dados.get("orgao") or "orgao").strip()
@@ -534,6 +536,7 @@ def render_sucesso() -> None:
                 "Ir para o primeiro documento com pendência", type="primary",
             ):
                 state.ir_para(etapas_com_pendencia[0])
+            revisao.render_minuta_nao_aprovada(docs)
         if avisos:
             with st.expander(f"Avisos de qualidade ({len(avisos)}) — não bloqueiam"):
                 for a in avisos:
@@ -604,9 +607,11 @@ def render_sucesso() -> None:
         st.error(f"**Emissão bloqueada pelo gate técnico.** {motivo_gate}")
         return
 
+    st.success("**Processo concluído.**")
     st.markdown(
-        "Os **quatro documentos da fase preparatória** foram elaborados, "
-        "aprovados e validados. Baixe o dossiê completo ou os arquivos "
+        "Os **documentos da fase preparatória** foram elaborados, "
+        "aprovados e validados — a revisão aprovou exatamente o conteúdo "
+        "que será exportado. Baixe o dossiê completo ou os arquivos "
         "individuais."
     )
 

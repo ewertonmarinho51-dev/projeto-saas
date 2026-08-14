@@ -95,7 +95,10 @@ def test_tela_sem_aprovacao_nao_mostra_downloads(monkeypatch):
     at.session_state["aprovados"] = {"dfd", "etp", "tr", "edital"}
     at.run()
     assert not at.exception
-    assert not [b for b in at.get("download_button")]
+    # sem downloads OFICIAIS; a MINUTA marcada como não aprovada é a
+    # única saída permitida em tela bloqueada (Fase 1 do padrão ouro)
+    rotulos = [b.label or "" for b in at.get("download_button")]
+    assert not [r for r in rotulos if "MINUTA" not in r], rotulos
     erros = " ".join(e.value for e in at.error)
     assert "limite seguro de ciclos" in erros
 

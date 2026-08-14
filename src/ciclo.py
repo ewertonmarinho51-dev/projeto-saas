@@ -198,6 +198,40 @@ Devolva EXCLUSIVAMENTE JSON:
 Sem problemas: {"findings": []}. Use CRITICAL apenas para vício que impeça a emissão."""
 
 
+# Acima deste nº de linhas consecutivas de tabela, o bloco é tratado
+# como tabela DETERMINÍSTICA (planilha injetada) e sai do corpo enviado
+# ao auditor semântico: a tabela é conferida por código, e centenas de
+# linhas dela consumiam o orçamento de contexto deixando a prosa final
+# (a parte que só a auditoria semântica cobre) fora da análise.
+_LIMITE_TABELA_AUDITOR = 8
+
+
+def _texto_para_auditor(texto: str) -> str:
+    """Prosa do documento com as tabelas determinísticas resumidas."""
+    linhas = (texto or "").splitlines()
+    saida: list[str] = []
+    bloco: list[str] = []
+
+    def descarrega():
+        if len(bloco) > _LIMITE_TABELA_AUDITOR:
+            saida.append(
+                f"[TABELA DETERMINÍSTICA DE {len(bloco)} LINHAS OMITIDA "
+                "DESTA AUDITORIA — o conteúdo dela é conferido por "
+                "validação determinística contra a planilha-fonte]")
+        else:
+            saida.extend(bloco)
+        bloco.clear()
+
+    for linha in linhas:
+        if linha.lstrip().startswith("|"):
+            bloco.append(linha)
+            continue
+        descarrega()
+        saida.append(linha)
+    descarrega()
+    return "\n".join(saida)
+
+
 def auditoria_semantica(documentos: dict[str, str], chamar=None) -> list[dict]:
     """
     Findings semânticos (IA) no mesmo formato dos determinísticos —
@@ -210,7 +244,7 @@ def auditoria_semantica(documentos: dict[str, str], chamar=None) -> list[dict]:
                 system, user, finalidade=finalidade,
                 timeout=TIMEOUT_AUDITORIA_SEGUNDOS, tentativas=1)
     corpo = json.dumps(
-        {k: (v or "")[:20000] for k, v in documentos.items()},
+        {k: _texto_para_auditor(v)[:20000] for k, v in documentos.items()},
         ensure_ascii=False)
     bruto = chamar(_SYSTEM_AUDITOR, corpo, finalidade="auditor")
     resposta = corretor.extrair_json(bruto)
@@ -425,7 +459,11 @@ def executar_com_persistencia(documentos: dict[str, str], dados: dict,
         return executar_ciclo(documentos, dados, processo_id, chamar,
                               ao_progresso)
 
-    chave = f"ciclo-{processo_id}-{blocos.hash_bundle(documentos)}"
+    # A chave amarra o veredito ao BUNDLE e às REGRAS que o auditaram:
+    # um APPROVED emitido por um auditor antigo não é reaproveitado
+    # depois que os validadores mudam — o job novo reaudita do zero.
+    chave = (f"ciclo-{processo_id}-{blocos.hash_bundle(documentos)}"
+             f"-r{validacao.versao_do_auditor()[:12]}")
     snapshot = blocos.snapshot_bundle(documentos, versao=1)
     revisao = revisao_do_tenant(db.obter_revisao_por_chave(chave))
     if revisao and revisao.get("status") not in ("REVIEW_QUEUED",
