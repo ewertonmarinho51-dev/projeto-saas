@@ -100,6 +100,10 @@ REGRAS OBRIGATÓRIAS — cumpra TODAS, sem exceção:
 9. NUNCA mencione no documento: o funcionamento interno do sistema, prompts, inteligência artificial, modelos de linguagem, "formulário matriz", bases de treinamento ou instruções recebidas. O documento é um ato administrativo, não um relatório do sistema.
 10. Profundidade: siga as metas de blocos indicadas por cláusula. É proibido tanto o texto raso/genérico que serviria a qualquer contratação quanto o enchimento artificial com repetições. Cada afirmação relevante deve decorrer de informação do processo atual ou de norma aplicável.
 11. O documento deve estar pronto para revisão humana e assinatura pela autoridade competente.
+12. AFIRMAÇÃO DE FATO EXIGE EVIDÊNCIA NO PROCESSO. É PROIBIDO afirmar como ocorrido, existente ou verificado qualquer fato que o processo atual não demonstre — em especial: histórico ou média de consumo, séries e percentuais de crescimento, sazonalidade, situação de emergência ou desabastecimento, capacidade de armazenamento, número ou capacidade de fornecedores do mercado, existência de pesquisa de preços realizada, inclusão no Plano de Contratações Anual (PCA), dotação orçamentária e previsão na LOA, prazos de entrega praticados, certificações, ensaios, amostras e assistência técnica. Se o insumo não estiver no processo, ou você escreve a cláusula sem a afirmação, ou registra [PREENCHER: descrição do dado] — nunca a afirmação sem lastro.
+13. NADA DE ENCHIMENTO. As metas de profundidade são atingidas com ANÁLISE do objeto desta contratação, nunca com repetição da mesma ideia em outras palavras, paráfrase da lei, frases de efeito ("em consonância com os princípios da eficiência e economicidade") ou reenunciação do que já foi dito em outra cláusula. Texto que serviria a qualquer contratação não conta como profundidade.
+14. CADA DOCUMENTO É AUTOSSUFICIENTE. Ao herdar uma decisão do documento anterior, EXPRESSE O CONTEÚDO da decisão — é PROIBIDO remeter o leitor à numeração interna de outro artefato ("conforme ETP, item 4.3", "nos termos do item 6.7 do TR"). Citar o documento sem o número do item ("conforme o Estudo Técnico Preliminar aprovado") é permitido.
+15. QUEM ASSINA E QUEM É DESIGNADO NÃO É DECISÃO DE MÁQUINA. Nome, cargo, matrícula, número funcional, gestor, fiscal, pregoeiro, equipe de planejamento e autoridade competente só entram no documento se constarem do processo atual. Não os deduza do órgão, do objeto ou dos documentos anteriores: sem o dado, use [PREENCHER: nome e matrícula do agente]. Designar uma UNIDADE ("a fiscalização caberá à Secretaria Municipal de Administração") é legítimo quando o processo a indica.
 
 EXEMPLO DO PADRÃO EXIGIDO (cláusula de Justificativa):
 - ERRADO (raso/meta-descritivo, com etiqueta de origem): "Atender as necessidades administrativas da Prefeitura. (fonte: formulário)"
@@ -148,7 +152,23 @@ _ABERTURAS = {
     "dfd": (
         "Elabore o DOCUMENTO DE FORMALIZAÇÃO DA DEMANDA (DFD), instrumento "
         "inaugural da fase preparatória previsto no art. 12, VII, da Lei nº "
-        "14.133/2021, no padrão institucional da Administração demandante."
+        "14.133/2021, no padrão institucional da Administração demandante.\n"
+        "O DFD ABRE o processo: ele expõe a demanda, NÃO decide a "
+        "contratação. Distinga com clareza, em cláusulas próprias: a "
+        "JUSTIFICATIVA (por que a Administração precisa agir — o interesse "
+        "público em jogo), a NECESSIDADE (qual carência concreta existe "
+        "hoje), a OPORTUNIDADE (por que agora, e o que ocorre se nada for "
+        "feito) e a SOLUÇÃO PRELIMINARMENTE PROPOSTA pelo demandante — que "
+        "é PROPOSTA, não decisão. É PROIBIDO ao DFD decidir modalidade "
+        "(pregão, concorrência), adotar Sistema de Registro de Preços, "
+        "fixar critério de julgamento ou concluir pelo parcelamento: essas "
+        "escolhas pertencem ao Estudo Técnico Preliminar, que ainda não "
+        "foi feito. Mencione a preferência do requisitante como hipótese a "
+        "ser avaliada, se for o caso.\n"
+        "A cláusula de identificação e a de prioridade/previsão contêm "
+        "APENAS os dados do processo (unidade, responsável, prazo "
+        "pretendido, grau de prioridade); é PROIBIDO inserir nelas itens, "
+        "quantidades, preços ou qualquer trecho da planilha."
     ),
     "etp": (
         "Elabore o ESTUDO TÉCNICO PRELIMINAR (ETP), nos termos do art. 18, "
@@ -165,7 +185,24 @@ _ABERTURAS = {
         "do art. 40 da Lei nº 14.133/2021, utilizando o ETP aprovado "
         "(fornecido abaixo) como CONTEXTO EXCLUSIVO — todas as definições "
         "técnicas devem decorrer dele —, no padrão institucional da "
-        "Administração demandante."
+        "Administração demandante.\n"
+        "O TR HERDA as decisões do ETP aprovado e as expressa como "
+        "conteúdo próprio: não reabra o que o estudo decidiu (modelagem, "
+        "parcelamento, solução escolhida) nem decida o que ele não "
+        "decidiu. Não invente exigências: certificação, norma técnica, "
+        "ensaio, amostra, prova de conceito, prazo de entrega, garantia do "
+        "produto, assistência técnica e nível de serviço só entram se "
+        "constarem do ETP ou do processo — caso contrário, "
+        "[PREENCHER: descrição da exigência], porque exigência sem "
+        "respaldo restringe a competição indevidamente.\n"
+        "RASTREABILIDADE: a cadeia requisito → modelo de execução → "
+        "fiscalização → critério de recebimento → pagamento deve ser "
+        "explícita e coerente — o que se exige tem de ser o que se "
+        "fiscaliza, o que se recebe e o que se paga. Em aquisição de bens, "
+        "o instituto de atualização de preços é o REAJUSTE (art. 92, §3º) "
+        "ou o reequilíbrio econômico-financeiro; é PROIBIDO prever "
+        "repactuação, que pressupõe serviço contínuo com dedicação "
+        "exclusiva de mão de obra (art. 135)."
     ),
 }
 

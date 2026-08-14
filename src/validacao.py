@@ -148,7 +148,10 @@ _FUNDAMENTOS_LEGAIS = [
 
 # Repactuação pressupõe serviço contínuo com dedicação de mão de obra
 # (art. 135); para bens/materiais o instituto é o reajuste (art. 92, §3º)
-_RE_REPACTUACAO = re.compile(r"repactua[çc]", re.IGNORECASE)
+# Cobre repactuação, repactuar, repactuados, repactuado… — a forma
+# verbal ("os preços serão repactuados") escapava do padrão anterior,
+# que exigia 'repactuaç/repactuac'.
+_RE_REPACTUACAO = re.compile(r"repactua", re.IGNORECASE)
 _RE_MAO_DE_OBRA = re.compile(
     r"m[ãa]o\s+de\s+obra|dedica[çc][ãa]o\s+exclusiva", re.IGNORECASE)
 
@@ -181,6 +184,22 @@ _RE_DECISAO_MODELAGEM = re.compile(
 _TITULO_NECESSIDADE = ("NECESSIDADE",)
 _TITULO_LEVANTAMENTO = ("LEVANTAMENTO",)
 _TITULO_SOLUCAO = ("DESCRIÇÃO DA SOLUÇÃO", "DESCRICAO DA SOLUCAO")
+
+# ---------------------------------------------------------------------------
+# Referência de numeração interna de OUTRO documento ("ETP, item 4.3").
+#
+# O TR é autossuficiente: ele HERDA as decisões do ETP e as expressa como
+# conteúdo próprio. Remeter à numeração interna de outro artefato obriga o
+# leitor do ato a ter o outro documento em mãos, e a numeração citada nem
+# sempre corresponde à do ETP efetivamente aprovado (no TR auditado havia
+# 12 remissões desse tipo). Citar o documento SEM o número do item
+# ("conforme o Estudo Técnico Preliminar") continua legítimo.
+# ---------------------------------------------------------------------------
+_RE_REFERENCIA_INTERNA = re.compile(
+    r"\b(ETP|DFD|TR|Termo\s+de\s+Refer[êe]ncia|Estudo\s+T[ée]cnico\s+"
+    r"Preliminar)\s*,?\s*(?:item|itens|cl[áa]usula|subitem)\s*"
+    r"n?[ºo°]?\.?\s*\d+(?:\.\d+)*",
+    re.IGNORECASE)
 
 # Absolutismo sem evidência: a conclusão do estudo deve ter a firmeza que
 # a análise sustenta — nem mais, nem menos.
@@ -788,7 +807,27 @@ def _validar_tabela_de_itens(doc_key: str, texto: str,
     ]
 
 
-def _validar_fundamentos_legais(doc_key: str, texto: str) -> list[dict]:
+def _natureza_do_objeto(dados: dict | None) -> str:
+    """
+    BENS / SERVICOS / OBRAS_ENGENHARIA a partir do processo, reutilizando
+    o classificador de fatos canônicos (fatos.py) — sem segundo motor.
+    Devolve "" quando o processo não permite concluir: 'não sei' nunca
+    vira 'BENS'.
+    """
+    if not dados:
+        return ""
+    from . import fatos
+
+    execucao = (dados.get("modelo_execucao") or "").strip()
+    natureza = fatos.NATUREZA_POR_EXECUCAO.get(execucao)
+    if natureza:
+        return natureza
+    categoria, _ = fatos.categoria_do_objeto(dados)
+    return fatos.NATUREZA_POR_CATEGORIA.get(categoria, "")
+
+
+def _validar_fundamentos_legais(doc_key: str, texto: str,
+                                dados: dict | None = None) -> list[dict]:
     """
     Confusões recorrentes de fundamentação na Lei nº 14.133/2021,
     verificadas POR PARÁGRAFO (tema + artigo incompatível no mesmo
@@ -809,13 +848,24 @@ def _validar_fundamentos_legais(doc_key: str, texto: str) -> list[dict]:
     if _RE_REPACTUACAO.search(texto) and not _RE_MAO_DE_OBRA.search(texto):
         m = _RE_REPACTUACAO.search(texto)
         ini = max(0, m.start() - 60)
+        # Sem saber a natureza do objeto, o instituto é DUVIDOSO (aviso):
+        # o revisor decide. Quando o processo declara aquisição de BENS,
+        # repactuação é simplesmente incabível — art. 135 exige serviço
+        # contínuo com dedicação de mão de obra — e a emissão trava.
+        de_bens = _natureza_do_objeto(dados) == "BENS"
         achados.append(_achado(
-            doc_key, "aviso",
-            "instituto possivelmente inadequado: 'repactuação' prevista sem "
-            "regime de dedicação de mão de obra — para bens/materiais o "
-            "instituto é o reajuste (art. 92, §3º); repactuação restringe-se "
-            "a serviços contínuos com dedicação de mão de obra (art. 135 da "
-            "Lei nº 14.133/2021)",
+            doc_key, "bloqueia" if de_bens else "aviso",
+            ("instituto incabível: 'repactuação' em aquisição de BENS — o "
+             "reajuste de preços de bens segue o art. 92, §3º (ou o "
+             "reequilíbrio do art. 124, II, 'd'); a repactuação do art. 135 "
+             "da Lei nº 14.133/2021 pressupõe serviço contínuo com "
+             "dedicação exclusiva de mão de obra"
+             if de_bens else
+             "instituto possivelmente inadequado: 'repactuação' prevista sem "
+             "regime de dedicação de mão de obra — para bens/materiais o "
+             "instituto é o reajuste (art. 92, §3º); repactuação restringe-se "
+             "a serviços contínuos com dedicação de mão de obra (art. 135 da "
+             "Lei nº 14.133/2021)"),
             texto[ini:m.end() + 60].replace("\n", " ")))
 
     if _RE_GARANTIA_SECA.search(texto):
@@ -837,6 +887,29 @@ def _corpo_da_clausula(texto: str, titulos: tuple[str, ...]) -> tuple[int, str]:
             fim = clausulas[i + 1].start() if i + 1 < len(clausulas) else len(texto)
             return i, texto[m.end():fim]
     return -1, ""
+
+
+def _validar_referencias_internas(doc_key: str, texto: str) -> list[dict]:
+    """
+    Remissão à numeração interna de outro documento do dossiê.
+
+    O ato tem de se sustentar sozinho: a decisão herdada do ETP aparece
+    como conteúdo do TR, não como ponteiro ("conforme ETP, item 4.3")
+    que obriga o leitor a consultar outro artefato — e que aponta para
+    uma numeração que pode nem existir no ETP aprovado.
+    """
+    ocorrencias = list(_RE_REFERENCIA_INTERNA.finditer(texto))
+    if not ocorrencias:
+        return []
+    m = ocorrencias[0]
+    ini = max(0, m.start() - 60)
+    return [_achado(
+        doc_key, "aviso",
+        f"remissão à numeração interna de outro documento "
+        f"({len(ocorrencias)} ocorrência(s): '{m.group(0)}') — o ato deve "
+        "trazer a decisão herdada como conteúdo próprio; cite o documento "
+        "sem o número do item",
+        texto[ini:m.end() + 40].replace("\n", " "))]
 
 
 def _validar_raciocinio_etp(doc_key: str, texto: str) -> list[dict]:
@@ -989,9 +1062,10 @@ def validar_documento(doc_key: str, texto: str,
                                    (dados or {}).get("itens"))
         + _validar_identificacoes(doc_key, texto, dados)
         + _validar_dados_improvisados(doc_key, texto)
-        + _validar_fundamentos_legais(doc_key, texto)
+        + _validar_fundamentos_legais(doc_key, texto, dados)
         + _validar_lastro_das_citacoes(doc_key, texto, lastro)
         + _validar_raciocinio_etp(doc_key, texto)
+        + _validar_referencias_internas(doc_key, texto)
         + _validar_absolutismo(doc_key, texto)
         + _validar_estrutura(doc_key, texto)
         + _validar_tabelas(doc_key, texto)
