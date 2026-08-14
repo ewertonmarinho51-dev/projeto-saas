@@ -476,6 +476,105 @@ MARCADOR_TABELA = "[[TABELA_ITENS]]"
 LIMITE_ITENS_INLINE = 12
 
 
+# ---------------------------------------------------------------------------
+# Resumo SEMÂNTICO da planilha
+#
+# Retirar a planilha do prompt resolveu a cópia, mas criou outro problema:
+# sem saber O QUE se compra, o modelo escreve DFD, ETP e TR genéricos —
+# não há como justificar a necessidade, definir requisitos ou fixar
+# critérios de recebimento para "210 itens" abstratos.
+#
+# A saída é dar COMPOSIÇÃO FUNCIONAL sem dar CONTEÚDO REPRODUZÍVEL: em
+# que famílias os itens se agrupam e com que peso, sem um único código,
+# preço, quantidade, link ou descrição literal. O modelo entende o objeto;
+# não consegue remontar a planilha.
+# ---------------------------------------------------------------------------
+FAMILIAS_ITENS: dict[str, tuple[str, ...]] = {
+    "Papelaria e expediente": (
+        "papel", "caneta", "lapis", "borracha", "caderno", "envelope",
+        "grampeador", "grampo", "clipe", "cola", "tesoura", "regua",
+        "marcador", "pincel atomico", "corretivo", "apontador",
+        "almofada para carimbo", "carimbo", "percevejo", "alfinete"),
+    "Arquivo e organização de documentos": (
+        "pasta", "arquivo morto", "caixa arquivo", "fichario",
+        "porta-documento", "classificador", "divisoria", "etiqueta"),
+    "Impressão e suprimentos de informática": (
+        "toner", "cartucho", "tinta para impressora", "pen drive",
+        "mouse", "teclado", "cabo", "midia", "dvd", "cd"),
+    "Limpeza e higienização": (
+        "detergente", "desinfetante", "agua sanitaria", "sabao",
+        "papel higienico", "papel toalha", "alcool", "vassoura", "rodo",
+        "pano de chao", "saco de lixo", "luva de latex"),
+    "Copa e cozinha": (
+        "copo descartavel", "cafe", "acucar", "adocante", "filtro de cafe",
+        "guardanapo", "colher descartavel"),
+    "Mobiliário e utensílios": (
+        "cadeira", "mesa", "armario", "estante", "quadro branco",
+        "gaveteiro", "suporte"),
+}
+_FAMILIA_OUTROS = "Outros materiais do objeto"
+
+# Abaixo deste percentual a família não é citada isoladamente: entra no
+# agregado, para que o resumo descreva a composição e não a lista.
+_PISO_FAMILIA_PCT = 3.0
+
+
+def _familia_do_item(descricao: str) -> str:
+    texto = _normalizar(descricao or "")
+    for familia, termos in FAMILIAS_ITENS.items():
+        if any(t in texto for t in termos):
+            return familia
+    return _FAMILIA_OUTROS
+
+
+def composicao_por_familia(itens: list[dict]) -> list[tuple[str, int, float]]:
+    """
+    (família, nº de itens, % do total de itens), da maior para a menor.
+
+    Conta ITENS, nunca valores: percentual financeiro permitiria estimar
+    preços por engenharia reversa, e o modelo não precisa disso para
+    entender a composição funcional do objeto.
+    """
+    if not itens:
+        return []
+    contagem: dict[str, int] = {}
+    for item in itens:
+        familia = _familia_do_item(item.get("descricao"))
+        contagem[familia] = contagem.get(familia, 0) + 1
+    total = len(itens)
+    return sorted(
+        ((f, n, round(100.0 * n / total, 1)) for f, n in contagem.items()),
+        key=lambda linha: (-linha[1], linha[0]))
+
+
+def resumo_semantico(itens: list[dict]) -> str:
+    """
+    Composição funcional do objeto em prosa, sem nada reproduzível.
+
+    NÃO contém: código, descrição literal, quantidade, preço, unidade
+    monetária, link, nem linha de tabela. Contém: em que famílias os
+    itens se agrupam e o peso relativo de cada uma.
+    """
+    composicao = composicao_por_familia(itens)
+    if not composicao:
+        return ""
+    principais = [c for c in composicao if c[2] >= _PISO_FAMILIA_PCT]
+    resto = [c for c in composicao if c[2] < _PISO_FAMILIA_PCT]
+    partes = [f"{familia} ({pct:g}% dos itens)"
+              for familia, _, pct in principais]
+    if resto:
+        pct_resto = round(sum(c[2] for c in resto), 1)
+        partes.append(f"outras famílias de menor expressão ({pct_resto:g}%)")
+    return (
+        "COMPOSIÇÃO FUNCIONAL DO OBJETO (para você compreender o que se "
+        "contrata; NÃO reproduza esta análise como lista): "
+        + "; ".join(partes) + ". "
+        "Use isso para fundamentar a necessidade, os requisitos, o modelo "
+        "de execução, a fiscalização e os critérios de recebimento de "
+        "forma pertinente a ESTAS famílias — e não em termos genéricos."
+    )
+
+
 def resumo_para_prompt(itens: list[dict], valor_global: float) -> str:
     """
     O que a IA recebe sobre a planilha: SOMENTE estatística e o marcador.
@@ -507,7 +606,8 @@ def resumo_para_prompt(itens: list[dict], valor_global: float) -> str:
         f"Escreva o texto da cláusula de estimativa de valor (metodologia, "
         f"fundamento e conclusão) e coloque a marca {MARCADOR_TABELA} "
         f"EXATAMENTE UMA VEZ, SOZINHA em uma linha própria, dentro dessa "
-        f"cláusula."
+        f"cláusula.\n"
+        + resumo_semantico(itens)
     )
 
 

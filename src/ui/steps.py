@@ -17,6 +17,19 @@ from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
 
 
+def _rotulo_do_botao(doc_key: str, meta: dict) -> str:
+    """
+    O rótulo diz como o documento é produzido. Edital e ARP são montados
+    por CÓDIGO, a partir do catálogo de cláusulas versionado — anunciar
+    "com IA" ali seria descrever errado o que o botão faz.
+    """
+    from .. import templates_gov
+
+    if doc_key in templates_gov.TEMPLATES_OFICIAIS:
+        return f"Gerar minuta do {meta['sigla']}"
+    return f"Gerar {meta['sigla']} com IA"
+
+
 def _render_planilha(dados: dict, meta: dict) -> list[dict]:
     """Editor da planilha orçamentária dentro do formulário matriz."""
     st.markdown(f"**{meta['rotulo']} \\***")
@@ -257,7 +270,7 @@ def render_etapa_documento(doc_key: str) -> None:
                     resolucao["payload"])
 
         if st.button(
-            f"Gerar {meta['sigla']} com IA", type="primary",
+            _rotulo_do_botao(doc_key, meta), type="primary",
             use_container_width=True,
         ):
             with st.spinner(
@@ -680,16 +693,19 @@ def render_sucesso() -> None:
         type="primary", use_container_width=True,
     )
 
+    # A contagem acompanha o que será realmente empacotado: 4 sem
+    # Sistema de Registro de Preços, 5 quando a Ata entra no dossiê.
+    n_exportaveis = len([k for k in DOCUMENTOS_EXPORTAVEIS if k in docs])
     st.markdown("#### Arquivos individuais (pacote .zip)")
     col_zip_pdf, col_zip_docx = st.columns(2)
     col_zip_pdf.download_button(
-        "ZIP com os 4 PDFs",
+        f"ZIP com os {n_exportaveis} PDFs",
         data=export.gerar_zip(docs, "pdf", branding),
         file_name=f"{prefixo}-documentos-pdf.zip",
         mime="application/zip", use_container_width=True,
     )
     col_zip_docx.download_button(
-        "ZIP com os 4 DOCX",
+        f"ZIP com os {n_exportaveis} DOCX",
         data=export.gerar_zip(docs, "docx", branding),
         file_name=f"{prefixo}-documentos-docx.zip",
         mime="application/zip", use_container_width=True,

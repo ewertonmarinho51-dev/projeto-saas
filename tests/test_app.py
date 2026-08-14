@@ -59,7 +59,15 @@ def _iniciar_com_formulario() -> AppTest:
 
 
 def _aprovar_documento(at: AppTest) -> None:
-    _botao(at, "com IA").click()
+    # O rótulo do botão varia por documento: DFD/ETP/TR são gerados por
+    # IA, Edital e ARP são montados por código a partir do catálogo
+    # ("Gerar minuta do …"). O teste segue o botão de geração, não o
+    # motor.
+    gerar = [b for b in at.button
+             if (b.label or "").startswith("Gerar ")
+             and "novamente" not in (b.label or "")]
+    assert gerar, [b.label for b in at.button]
+    gerar[0].click()
     at.run()
     assert not at.exception
     _botao(at, "Aprovar").click()

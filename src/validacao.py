@@ -121,8 +121,12 @@ _RE_CNPJ = re.compile(r"\b(\d{2})\.?(\d{3})\.?(\d{3})/(\d{4})-?(\d{2})\b")
 # formatado, é número inventado — na ARP auditada constava
 # "CNPJ sob o nº 541984981984984" (15 dígitos), que escapava da regra
 # acima justamente por não ter o formato de CNPJ.
+# O separador entre o rótulo e o número PODE conter quebra de linha: na
+# extração do PDF o par vem como "CNPJ\nsob o nº 541984981984984", e um
+# padrão que barrasse \n deixava passar exatamente o caso que motivou a
+# regra. O número em si também pode vir quebrado entre linhas.
 _RE_CNPJ_ROTULADO = re.compile(
-    r"CNPJ[^\d\n]{0,30}([\d][\d./\-\s]{8,28}\d)", re.IGNORECASE)
+    r"CNPJ[^\d]{0,30}?([\d][\d./\-\s]{8,28}\d)", re.IGNORECASE)
 _DIGITOS_CNPJ = 14
 
 # Fornecedor "preenchido" com uma categoria em vez de uma empresa: na
