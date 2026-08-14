@@ -1,10 +1,9 @@
-# Tema institucional — minimalismo utilitário (setor público)
-# Monocromático quente + acento único azul #1B4F8A
+# Tema institucional GovConnect — superfícies neutras e ação azul
 [theme]
-primaryColor = "#1B4F8A"
-backgroundColor = "#FBFBFA"
-secondaryBackgroundColor = "#F4F3F0"
-textColor = "#2F3437"
+primaryColor = "#2563EB"
+backgroundColor = "#F6F8FB"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#172033"
 font = "sans serif"
 
 [server]

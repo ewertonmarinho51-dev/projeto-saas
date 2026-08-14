@@ -1,149 +1,223 @@
-"""
-Componentes visuais: CSS institucional, cabeçalho, stepper e barra lateral.
+"""Componentes compartilhados da interface GovConnect / GovDocs.
 
-Linguagem visual (skills design-taste + design-minimalist, preset
-setor público): monocromático quente, um único acento (#1B4F8A),
-flat (sem gradientes/sombras), sem emojis, raios 8px (containers) e
-6px (interativos), motion mínimo.
+A camada visual continua sobre os widgets nativos do Streamlit. Os helpers
+abaixo não duplicam navegação, autenticação ou persistência: apenas apresentam
+os mesmos contratos funcionais com a identidade GovConnect.
 """
+
+from __future__ import annotations
+
+import base64
+import html
+from functools import lru_cache
+from pathlib import Path
 
 import streamlit as st
+from PIL import Image
 
 from .. import auth, db, state
-from ..config import APP_SUBTITULO, APP_TITULO, ETAPAS
+from ..config import DOCUMENTOS, ETAPAS
 from ..llm import motor_ativo
 
-_CSS = """
-<style>
-:root {
-    --azul: #1B4F8A;          /* acento único */
-    --azul-escuro: #163F73;
-    --azul-pale: #E8F0F9;     /* fundo de callout */
-    --tinta: #2F3437;         /* texto principal (off-black) */
-    --cinza: #787774;         /* texto secundário */
-    --linha: #E7E6E3;         /* bordas 1px */
-    --superficie: #FFFFFF;
-    --canvas: #FBFBFA;
-}
+_ROOT = Path(__file__).resolve().parents[2]
+_BRAND_DIR = _ROOT / "assets" / "brand"
+_STYLE_PATH = _ROOT / "assets" / "govconnect.css"
 
-html, body, [class*="css"] {
-    font-family: "SF Pro Display", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    color: var(--tinta);
-}
 
-.block-container { padding-top: 1.6rem; max-width: 1040px; }
+@lru_cache(maxsize=None)
+def _asset_data_uri(nome: str) -> str:
+    caminho = _BRAND_DIR / nome
+    mime = "image/png" if caminho.suffix.lower() == ".png" else "image/x-icon"
+    dados = base64.b64encode(caminho.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{dados}"
 
-h1, h2, h3 { letter-spacing: -0.02em; color: var(--tinta); }
 
-/* ---------- Cabeçalho institucional (flat, sem gradiente) ---------- */
-.gd-header {
-    background: var(--superficie);
-    border: 1px solid var(--linha);
-    border-radius: 8px;
-    padding: 1.05rem 1.3rem;
-    margin-bottom: 1.25rem;
-    display: flex; align-items: center; gap: .85rem;
-}
-.gd-header-marca {
-    width: 12px; height: 40px; border-radius: 3px;
-    background: var(--azul); flex: none;
-}
-.gd-header h1 {
-    margin: 0; font-size: 1.28rem; font-weight: 700; line-height: 1.2;
-}
-.gd-header p {
-    margin: .15rem 0 0; font-size: .84rem; color: var(--cinza);
-}
-
-/* ---------- Stepper clicável (botões segmentados) ---------- */
-.gd-step-marker { display: none; }
-div[data-testid="stHorizontalBlock"]:has(.gd-step-marker) {
-    gap: 0 !important; margin-bottom: 1.4rem;
-    border: 1px solid var(--linha); border-radius: 8px;
-    background: var(--superficie); overflow: hidden;
-}
-div[data-testid="stHorizontalBlock"]:has(.gd-step-marker)
-div[data-testid="stColumn"] { min-width: 0; }
-div[data-testid="stHorizontalBlock"]:has(.gd-step-marker)
-div[data-testid="stButton"] { margin: 0; }
-div[data-testid="stHorizontalBlock"]:has(.gd-step-marker)
-div[data-testid="stButton"] > button {
-    min-height: 3.05rem; border: 0 !important; border-radius: 0 !important;
-    border-right: 1px solid var(--linha) !important;
-    font-size: .78rem; font-weight: 600; white-space: nowrap;
-    box-shadow: none !important;
-}
-div[data-testid="stHorizontalBlock"]:has(.gd-step-marker)
-div[data-testid="stColumn"]:last-child button { border-right: 0 !important; }
-div[data-testid="stHorizontalBlock"]:has(.gd-step-marker)
-button:disabled { cursor: not-allowed; opacity: .56; }
-
-/* ---------- Callout de base legal ---------- */
-.gd-base-legal {
-    background: var(--azul-pale);
-    border: 1px solid #D2E2F2; border-left: 3px solid var(--azul);
-    padding: .68rem 1rem; border-radius: 8px;
-    font-size: .86rem; color: #24425F; margin-bottom: 1rem;
-}
-
-/* ---------- Interativos: raio 6px, feedback tátil sutil ---------- */
-.stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
-    border-radius: 6px !important;
-    box-shadow: none !important;
-    transition: background .15s ease, transform .1s ease;
-}
-.stButton > button:active, .stDownloadButton > button:active,
-.stFormSubmitButton > button:active { transform: scale(0.98); }
-
-.stTextInput input, .stNumberInput input, .stTextArea textarea,
-.stSelectbox [data-baseweb="select"] > div {
-    border-radius: 6px !important;
-}
-
-/* ---------- Superfícies ---------- */
-[data-testid="stSidebar"] {
-    background: var(--superficie);
-    border-right: 1px solid var(--linha);
-}
-[data-testid="stExpander"] details {
-    border: 1px solid var(--linha); border-radius: 8px;
-}
-hr { border-color: var(--linha); }
-</style>
-"""
+def page_icon() -> Image.Image:
+    """Ícone oficial do produto para ``st.set_page_config``."""
+    with Image.open(_BRAND_DIR / "favicon-32.png") as imagem:
+        return imagem.copy()
 
 
 def aplicar_estilo() -> None:
-    st.markdown(_CSS, unsafe_allow_html=True)
+    """Injeta o design system central, sem carregar fontes ou scripts externos."""
+    st.markdown(f"<style>{_STYLE_PATH.read_text(encoding='utf-8')}</style>",
+                unsafe_allow_html=True)
+
+
+def render_login_brand() -> None:
+    """Painel institucional usado somente nas portas de entrada."""
+    logo = _asset_data_uri("govconnect-lockup.png")
+    st.markdown(
+        f"""
+        <section class="gc-login-shell" aria-label="GovConnect">
+            <img class="gc-login-logo" src="{logo}"
+                 alt="GovConnect — Licitações, Estratégia, Resultados">
+            <div class="gc-login-copy">
+                <h1>Planejamento público, com método.</h1>
+                <p>Elabore os documentos da fase preparatória em um fluxo
+                seguro, rastreável e alinhado à Lei nº 14.133/2021.</p>
+            </div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_login_panel_marker() -> None:
+    """Marca o painel de acesso para o CSS responsivo do layout bipartido."""
+    st.markdown('<span class="gc-login-panel" aria-hidden="true"></span>',
+                unsafe_allow_html=True)
+
+
+def _iniciais(usuario: dict | None) -> str:
+    nome = str((usuario or {}).get("nome") or (usuario or {}).get("login") or "")
+    partes = [parte for parte in nome.split() if parte]
+    if not partes:
+        return "GC"
+    if len(partes) == 1:
+        return partes[0][:2].upper()
+    return (partes[0][0] + partes[-1][0]).upper()
+
+
+def _contexto_topbar() -> tuple[str, str]:
+    pagina = st.session_state.get("pagina") or "Novo processo"
+    if pagina in {"Base de Conhecimento", "Administração", "Governança"}:
+        return "GovDocs", str(pagina)
+
+    etapa = int(st.session_state.get("etapa") or 0)
+    if etapa == 0:
+        atual = "Novo processo"
+    elif 1 <= etapa <= 4:
+        doc_key = state.doc_da_etapa(etapa)
+        atual = DOCUMENTOS[doc_key]["sigla"]
+    else:
+        atual = "Processo concluído"
+    return "Processos", atual
+
+
+def _estado_salvamento() -> tuple[str, str]:
+    estado = str(st.session_state.get("_save_status") or "")
+    if estado == "salvando":
+        return estado, "Salvando…"
+    if estado == "erro":
+        return estado, "Falha ao salvar"
+    if estado == "salvo" or st.session_state.get("processo_id"):
+        return "salvo", "Salvo"
+    if st.session_state.get("dados"):
+        return "local", "Sessão local"
+    return "nao_salvo", "Não salvo"
 
 
 def render_cabecalho() -> None:
+    """Topbar interna com breadcrumb e status derivado do estado real."""
+    origem, atual = _contexto_topbar()
+    estado, rotulo_estado = _estado_salvamento()
+    usuario = auth.usuario_logado()
+    iniciais = _iniciais(usuario)
+    simbolo = _asset_data_uri("govconnect-symbol.png")
     st.markdown(
-        f"""<div class="gd-header">
-            <div class="gd-header-marca"></div>
-            <div>
-                <h1>{APP_TITULO}</h1>
-                <p>{APP_SUBTITULO}</p>
+        f"""
+        <a class="gc-skip-link" href="#gc-main-content">Pular para o conteúdo</a>
+        <span id="gc-main-content" class="gc-visually-hidden" tabindex="-1">Conteúdo principal</span>
+        <header class="gc-topbar">
+            <img class="gc-topbar-brand" src="{simbolo}"
+                 alt="Símbolo GovConnect">
+            <nav class="gc-breadcrumb" aria-label="Breadcrumb">
+                {html.escape(origem)} &nbsp;/&nbsp;
+                <strong>{html.escape(atual)}</strong>
+            </nav>
+            <div class="gc-topbar-meta">
+                <span class="gc-save-state" data-state="{html.escape(estado)}"
+                      role="status">{html.escape(rotulo_estado)}</span>
+                <span class="gc-topbar-avatar" aria-label="Usuário {html.escape(iniciais)}">
+                    {html.escape(iniciais)}
+                </span>
             </div>
-        </div>""",
+        </header>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_page_header(titulo: str, descricao: str,
+                       *, legacy_subheader: str | None = None) -> None:
+    """Cabeçalho semântico de uma página; mantém heading nativo para testes."""
+    st.markdown(
+        f"""
+        <header class="gc-page-header">
+            <h1>{html.escape(titulo)}</h1>
+            <p>{html.escape(descricao)}</p>
+        </header>
+        """,
+        unsafe_allow_html=True,
+    )
+    if legacy_subheader:
+        st.markdown('<span class="gc-legacy-heading-marker"></span>',
+                    unsafe_allow_html=True)
+        st.subheader(legacy_subheader)
+
+
+def render_section_heading(titulo: str, descricao: str = "") -> None:
+    detalhe = f"<p>{html.escape(descricao)}</p>" if descricao else ""
+    st.markdown(
+        f'<div class="gc-section-heading"><h2>{html.escape(titulo)}</h2>{detalhe}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_guidance(texto: str) -> None:
+    st.markdown(
+        f'<aside class="gc-guidance" aria-label="Orientação">'
+        f'<strong>Orientação</strong><p>{html.escape(texto)}</p></aside>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_document_skeleton(alvo, sigla: str) -> None:
+    """Prévia de carregamento com a geometria aproximada de um documento."""
+    alvo.markdown(
+        f"""
+        <section class="gc-document-skeleton" role="status" aria-live="polite"
+                 aria-label="Gerando {html.escape(sigla)}">
+            <span class="gc-visually-hidden">Gerando {html.escape(sigla)}…</span>
+            <span class="gc-skeleton-line gc-skeleton-title"></span>
+            <span class="gc-skeleton-line"></span>
+            <span class="gc-skeleton-line"></span>
+            <span class="gc-skeleton-line gc-skeleton-short"></span>
+        </section>
+        """,
         unsafe_allow_html=True,
     )
 
 
 def render_stepper(etapa_atual: int) -> None:
-    """Barra de progresso e navegação entre etapas já disponíveis."""
+    """Navegação entre etapas disponíveis, preservando keys e callbacks."""
     disponiveis = state.etapas_navegaveis()
+    aprovados = set(st.session_state.get("aprovados") or set())
+    dados = bool(st.session_state.get("dados"))
     colunas = st.columns(len(ETAPAS), gap="small")
     for i, nome in enumerate(ETAPAS):
         rotulo = nome.split(". ", 1)[-1]
+        if i == etapa_atual:
+            classe = "gc-step-current"
+        elif i == 0 and dados:
+            classe = "gc-step-done"
+        elif 1 <= i <= 4 and state.doc_da_etapa(i) in aprovados:
+            classe = "gc-step-done"
+        elif i == 5 and i < etapa_atual:
+            classe = "gc-step-done"
+        else:
+            classe = "gc-step-future"
+        aria_current = ' aria-current="step"' if i == etapa_atual else ""
         with colunas[i]:
-            st.markdown('<span class="gd-step-marker"></span>',
-                        unsafe_allow_html=True)
+            st.markdown(
+                f'<span class="gc-step-marker {classe}"{aria_current}></span>',
+                unsafe_allow_html=True,
+            )
             st.button(
-                f"{i + 1}  {rotulo}",
+                rotulo,
                 key=f"navegar_etapa_{i}",
-                type="primary" if i == etapa_atual else "secondary",
+                type="secondary",
                 disabled=i not in disponiveis,
                 help=("Abrir esta etapa" if i in disponiveis else
                       "Conclua e aprove as etapas anteriores para acessar."),
@@ -154,21 +228,46 @@ def render_stepper(etapa_atual: int) -> None:
 
 
 def render_base_legal(texto: str) -> None:
-    st.markdown(f'<div class="gd-base-legal">{texto}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="gc-base-legal">{html.escape(texto)}</div>',
+                unsafe_allow_html=True)
+
+
+def render_success_banner() -> None:
+    st.markdown(
+        """
+        <section class="gc-success-banner" role="status">
+            <div>
+                <h2>Dossiê validado com sucesso</h2>
+                <p>Os documentos foram revisados e aprovados para emissão.</p>
+            </div>
+            <span class="gc-status-badge">Pronto para emissão</span>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_summary_strip(total_documentos: int, fatos_pendentes: int) -> None:
+    st.markdown(
+        f"""
+        <section class="gc-summary-strip" aria-label="Resumo do processo">
+            <div class="gc-summary-item"><strong>{total_documentos} documentos</strong></div>
+            <div class="gc-summary-item" data-tone="success"><strong>Validação concluída</strong></div>
+            <div class="gc-summary-item" data-tone="warning"><strong>{fatos_pendentes} fatos para confirmar</strong></div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_processos_salvos() -> None:
     """Painel de processos persistidos no Supabase (retomar / excluir)."""
-    st.markdown("### Processos salvos")
     if not db.disponivel():
-        st.caption(
-            "Configure SUPABASE_URL e SUPABASE_KEY em .streamlit/secrets.toml "
-            "para salvar o andamento e retomá-lo depois (banco Supabase)."
-        )
+        st.caption("Nenhum processo salvo nesta sessão local.")
         return
 
     if st.session_state.processo_id:
-        st.caption(f"Processo atual salvo (id: {st.session_state.processo_id[:8]}…)")
+        st.caption(f"Processo atual: {st.session_state.processo_id[:8]}…")
 
     usuario = auth.usuario_logado()
     filtro = None if auth.eh_admin() else (usuario or {}).get("id")
@@ -179,7 +278,7 @@ def _render_processos_salvos() -> None:
         return
 
     if not processos:
-        st.caption("Nenhum processo salvo ainda. O andamento é salvo automaticamente.")
+        st.caption("Nenhum processo salvo ainda.")
         return
 
     rotulos = {db.rotulo_processo(p): p for p in processos}
@@ -205,68 +304,74 @@ def _render_processos_salvos() -> None:
             db.excluir_processo(rotulos[escolha]["id"])
             if st.session_state.processo_id == rotulos[escolha]["id"]:
                 st.session_state.processo_id = None
+                st.session_state["_save_status"] = "nao_salvo"
             st.rerun()
         except db.ErroBanco as erro:
             st.warning(str(erro))
 
 
 def render_sidebar() -> None:
+    """Shell interno compacto; não cria rotas ou ações sem implementação."""
     with st.sidebar:
+        simbolo = _asset_data_uri("govconnect-symbol.png")
+        st.markdown(
+            f'<div class="gc-sidebar-brand"><img src="{simbolo}" '
+            'alt="Símbolo GovConnect"></div>',
+            unsafe_allow_html=True,
+        )
+
         usuario = auth.usuario_logado()
         if auth.eh_admin():
-            opcoes = [
-                "Assistente de Documentos",
-                "Base de Conhecimento",
-                "Administração",
-            ]
-            # Centro de Governança (V6): só com a flag ligada E papel de
-            # governança — o servidor comum nunca vê esta opção.
+            opcoes = ["Novo processo", "Base de Conhecimento", "Administração"]
             from . import governanca_ui
 
             if governanca_ui.disponivel():
                 opcoes.append("Governança")
-            st.radio(
-                "Navegação",
-                options=opcoes,
-                key="pagina",
-                label_visibility="collapsed",
-            )
-            st.divider()
+            if st.session_state.get("pagina") == "Assistente de Documentos":
+                st.session_state.pagina = "Novo processo"
+            if st.session_state.get("pagina") not in opcoes:
+                st.session_state.pagina = "Novo processo"
+            st.radio("Navegação", options=opcoes, key="pagina",
+                     label_visibility="collapsed")
+        else:
+            st.markdown('<nav class="gc-sidebar-current" aria-current="page">'
+                        'Novo processo</nav>', unsafe_allow_html=True)
+
+        with st.expander("Processos salvos"):
+            _render_processos_salvos()
 
         if usuario:
-            papel = "Administrador" if usuario["papel"] == "admin" else "Usuário"
-            st.markdown(f"**{usuario['nome']}**  \n{papel} · `{usuario['login']}`")
+            papel = (usuario.get("cargo") or
+                     ("Administrador" if usuario.get("papel") == "admin" else "Usuário"))
+            st.markdown(
+                f"""
+                <div class="gc-profile">
+                    <span class="gc-profile-avatar">{html.escape(_iniciais(usuario))}</span>
+                    <div>
+                        <div class="gc-profile-name">{html.escape(str(usuario.get('nome') or usuario.get('login') or 'Usuário'))}</div>
+                        <div class="gc-profile-role">{html.escape(papel)}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.markdown('<span class="gc-logout-marker"></span>',
+                        unsafe_allow_html=True)
             if st.button("Sair", use_container_width=True):
                 auth.sair()
                 st.rerun()
-            st.divider()
 
-        motor = motor_ativo()
-        if motor == "openai":
-            st.caption("Motor de IA: OpenAI (principal)")
-        elif motor == "gemini":
-            st.caption("Motor de IA: Gemini (fallback)")
-        else:
-            st.caption("Motor de IA: não configurado (Modo Demonstração)")
-
-        if auth.eh_admin():
-            st.toggle(
-                "Modo Demonstração (sem IA)",
-                key="modo_demo",
-                help=(
-                    "Gera minutas-esqueleto offline, sem consumir a API. Útil "
-                    "para conhecer o fluxo completo antes de configurar a chave."
-                ),
-            )
-
-        st.divider()
-        _render_processos_salvos()
-
-        st.divider()
-        st.markdown("### Sobre")
-        st.caption(
-            "Assistente passo a passo para elaboração do DFD, ETP, TR e "
-            "Minuta de Edital/Ata (fase preparatória, art. 12 e seguintes "
-            "da Lei nº 14.133/2021). Todo texto gerado pela IA é um rascunho "
-            "que exige revisão e aprovação humana antes do uso oficial."
-        )
+        with st.expander("Ambiente"):
+            motor = motor_ativo()
+            if motor == "openai":
+                st.caption("Motor de IA: OpenAI (principal)")
+            elif motor == "gemini":
+                st.caption("Motor de IA: Gemini (fallback)")
+            else:
+                st.caption("Motor de IA: não configurado")
+            if auth.eh_admin():
+                st.toggle(
+                    "Modo Demonstração (sem IA)",
+                    key="modo_demo",
+                    help="Gera minutas-esqueleto offline, sem consumir a API.",
+                )
