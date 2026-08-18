@@ -51,9 +51,17 @@ deixasse o JWT para trás continuaria autorizando requisições.
 
 Duas regras que o caminho de transição precisa ter, e tem:
 
-- **senha errada no Supabase Auth NÃO cai para o legado.** Se a conta
-  existe lá e a senha não confere, cair de volta daria ao atacante uma
-  segunda tentativa contra outro banco de senhas;
+- **falha no Supabase Auth cai para o legado enquanto a porta estiver
+  aberta.** A primeira versão tentava distinguir "senha errada" de
+  "conta não existe" pela mensagem do GoTrue, para não dar uma segunda
+  chance contra outro banco de senhas. Mas o GoTrue devolve
+  `Invalid login credentials` para os dois casos, de propósito —
+  distinguir permitiria enumerar usuários. A leitura era adivinhação, e
+  **trancou o login em produção**: sem backfill, toda conta é
+  inexistente no Supabase Auth, e todo mundo era recusado antes de
+  chegar ao legado, com a senha certa. A regra de "sem segunda chance"
+  passou a morar onde é verificável: no interruptor
+  `GOVDOCS_EXIGIR_SUPABASE_AUTH`. Ligado, não há legado para tentar;
 - **conta sem vínculo em `usuarios` não entra.** Autenticar não é
   autorizar: sem linha vinculada não há tenant, secretaria nem papel.
 

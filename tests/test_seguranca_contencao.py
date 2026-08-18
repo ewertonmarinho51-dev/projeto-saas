@@ -3091,22 +3091,54 @@ def test_sair_apaga_o_token(monkeypatch, sem_sonda):
     assert db.sessao_do_usuario() is None
 
 
-def test_senha_errada_no_supabase_nao_cai_para_o_legado(monkeypatch,
-                                                        sem_sonda):
+def test_conta_ainda_nao_migrada_nao_tranca_o_usuario(monkeypatch,
+                                                     sem_sonda):
     """
-    O ponto mais delicado do caminho de transição. Se a conta EXISTE no
-    Supabase Auth e a senha não confere, cair para o legado daria ao
-    atacante uma segunda tentativa contra outro banco de senhas.
+    REGRESSÃO DE PRODUÇÃO — o login parou de funcionar por causa disto.
+
+    O GoTrue devolve "Invalid login credentials" tanto para senha errada
+    quanto para CONTA INEXISTENTE. É deliberado: distinguir as duas
+    permitiria enumerar usuários. A versão anterior deste código lia essa
+    mensagem como "a conta existe e a senha não confere" e recusava ali
+    mesmo, sem tentar o caminho legado.
+
+    Como ninguém foi migrado ainda, TODA conta é inexistente no Supabase
+    Auth — e todo mundo ficou trancado para fora, mesmo com a senha
+    correta.
+
+    Enquanto a porta legada estiver aberta, falha no Supabase Auth tem
+    de cair para ela. A regra de "sem segunda chance" é garantida pelo
+    INTERRUPTOR, não por adivinhar o motivo da recusa.
     """
     _auth_falso(monkeypatch, erro=Exception("Invalid login credentials"))
-    caiu = []
-    monkeypatch.setattr(auth, "_autenticar_legado",
-                        lambda *a: caiu.append(1))
     monkeypatch.setattr(db, "exigir_operacional", lambda: None)
+    monkeypatch.setattr(auth, "_autenticar_legado",
+                        lambda *a: {"id": "u1", "ativo": True})
+    monkeypatch.delenv(auth.FLAG_EXIGIR_SUPABASE_AUTH, raising=False)
+
+    usuario = auth.autenticar("alguem@example.com", "a-senha-legada-certa")
+    assert usuario["id"] == "u1", "usuário legítimo continua trancado"
+
+
+def test_com_a_flag_ligada_nao_ha_segunda_chance(monkeypatch, sem_sonda):
+    """
+    O outro lado da mesma regra. Depois do backfill, com
+    `GOVDOCS_EXIGIR_SUPABASE_AUTH=1`, a porta legada não existe — e aí
+    recusa do Supabase Auth é recusa, ponto final.
+
+    É aqui que mora a proteção contra "segunda chance contra outro banco
+    de senhas": no interruptor, que é um fato verificável, e não numa
+    leitura da mensagem de erro do GoTrue, que é adivinhação.
+    """
+    _auth_falso(monkeypatch, erro=Exception("Invalid login credentials"))
+    monkeypatch.setattr(db, "exigir_operacional", lambda: None)
+    caiu = []
+    monkeypatch.setattr(auth, "_autenticar_legado", lambda *a: caiu.append(1))
+    monkeypatch.setenv(auth.FLAG_EXIGIR_SUPABASE_AUTH, "1")
 
     with pytest.raises(auth.ErroAuth):
-        auth.autenticar("alguem@exemplo.invalid", "errada")
-    assert not caiu, "senha errada no Supabase caiu para o legado"
+        auth.autenticar("alguem@example.com", "errada")
+    assert not caiu, "com a flag ligada, o legado não pode ser consultado"
 
 
 def test_sem_supabase_auth_configurado_o_legado_atende(monkeypatch,

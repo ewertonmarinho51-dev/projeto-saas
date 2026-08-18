@@ -11,12 +11,15 @@ Autenticação e papéis de usuário.
 
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 
 import streamlit as st
 
 from . import db
+
+_log = logging.getLogger(__name__)
 
 PBKDF2_ITERACOES = 200_000
 
@@ -178,11 +181,30 @@ def _cliente_de_login():
 
 def autenticar_no_supabase(email: str, senha: str) -> tuple[str, str] | None:
     """
-    (access_token, auth_user_id) do Supabase Auth — None se não houver.
+    (access_token, auth_user_id) do Supabase Auth — None se não deu.
 
-    None significa "este caminho não está disponível", nunca "a senha
-    está errada": senha errada levanta, e confundir as duas coisas faria
-    uma credencial inválida cair no caminho legado.
+    `None` significa apenas "por aqui não entrou", SEM afirmar por quê,
+    e essa modéstia é a correção de um defeito que trancou o login em
+    produção.
+
+    A versão anterior tentava distinguir "senha errada" de "conta não
+    existe" lendo a mensagem do GoTrue, e recusava na primeira hipótese
+    para não dar "uma segunda chance contra outro banco de senhas". Só
+    que o GoTrue devolve `Invalid login credentials` para OS DOIS CASOS,
+    de propósito: distinguir permitiria enumerar usuários. A leitura era
+    adivinhação, e adivinhou errado.
+
+    O efeito: como ninguém tinha sido migrado ainda, TODA conta era
+    inexistente no Supabase Auth, toda tentativa caía no ramo
+    "senha errada" e todo mundo ficava trancado para fora — com a senha
+    certa.
+
+    A regra de "sem segunda chance" continua existindo, e agora mora
+    onde dá para verificá-la: em `GOVDOCS_EXIGIR_SUPABASE_AUTH`. Com o
+    interruptor ligado não há caminho legado nenhum para tentar. Com ele
+    desligado, estamos em transição e o legado é o que faz o app
+    funcionar — recusar ali seria trocar uma porta aberta por porta
+    nenhuma.
     """
     cliente = _cliente_de_login()
     if cliente is None:
@@ -191,12 +213,10 @@ def autenticar_no_supabase(email: str, senha: str) -> tuple[str, str] | None:
         sessao = cliente.auth.sign_in_with_password(
             {"email": email, "password": senha})
     except Exception as exc:  # noqa: BLE001
-        texto = str(exc).lower()
-        if "invalid login" in texto or "credentials" in texto:
-            # a conta EXISTE no Supabase Auth e a senha não confere.
-            # Cair para o legado aqui seria uma segunda chance que o
-            # usuário não deveria ter.
-            raise ErroAuth("Login ou senha incorretos.") from exc
+        # O motivo NÃO é interpretado. O registro é do servidor, e sai
+        # sanitizado — a mensagem do GoTrue pode carregar o endereço.
+        _log.info("supabase auth nao autenticou (ref %s)",
+                  db.registrar_incidente(exc, "auth: supabase"))
         return None
     token = getattr(getattr(sessao, "session", None), "access_token", "")
     usuario = getattr(sessao, "user", None)
