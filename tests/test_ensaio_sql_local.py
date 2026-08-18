@@ -606,6 +606,9 @@ def test_o_revoke_de_default_privileges_para_funcoes_nao_basta(banco):
     """
     with banco.transaction(force_rollback=True), banco.cursor() as c:
         voltar_a_ser_servidor(c)
+        # o gatilho precisa sair de cena para que a prova meça o que
+        # afirma medir: sem isso ela mediria o gatilho, não o default
+        c.execute("alter event trigger funcao_nasce_fechada disable")
         c.execute("alter default privileges in schema public "
                   "revoke execute on functions from public")
         c.execute("create function public.f_da_prova() returns int "
@@ -615,7 +618,8 @@ def test_o_revoke_de_default_privileges_para_funcoes_nao_basta(banco):
         ainda_aberta = c.fetchone()[0]
     assert ainda_aberta is True, (
         "o `alter default privileges` passou a fechar funções novas: "
-        "atualize o texto da 0019 e da 0020, que documentam o contrário")
+        "atualize o texto da 0019 e da 0020, que documentam o contrário, "
+        "e reavalie se o gatilho de evento ainda é necessário")
 
 
 # ---------------------------------------------------------------------------
@@ -637,3 +641,66 @@ def test_a_leitura_de_processo_respeita_a_secretaria(banco, cenario,
                   (cenario["processo"],))
         viu = c.fetchone()[0] == 1
     assert viu is visivel, f"{rotulo}: viu={viu}, esperado={visivel}"
+
+
+# ---------------------------------------------------------------------------
+# O gatilho que fecha a função NOVA
+#
+# `alter default privileges ... revoke execute on functions from public`
+# não impede a próxima função de nascer aberta — provado aqui e, ponta a
+# ponta, contra um Supabase de verdade, onde `anon` chamou pelo
+# PostgREST uma função criada depois da revogação e recebeu o resultado.
+#
+# O gatilho de evento age no momento da criação, em vez de depender de
+# um default que o PostgreSQL não aplica.
+# ---------------------------------------------------------------------------
+@requer_pg
+def test_a_funcao_nova_nasce_fechada_por_causa_do_gatilho(banco):
+    with banco.transaction(force_rollback=True), banco.cursor() as c:
+        voltar_a_ser_servidor(c)
+        c.execute("create function public.f_depois_do_gatilho() returns int "
+                  "language sql as $fn$ select 1 $fn$")
+        c.execute("select has_function_privilege('anon', "
+                  "'public.f_depois_do_gatilho()', 'execute')")
+        assert c.fetchone()[0] is False, (
+            "função nova nasceu executável por anon: o gatilho "
+            "`funcao_nasce_fechada` não está ativo")
+
+
+@requer_pg
+def test_o_gatilho_existe_e_cobre_create_e_alter(banco):
+    """
+    `ALTER FUNCTION` também precisa estar coberto: um `create or replace`
+    sobre função já existente entra como ALTER, e sem isso a substituição
+    reabriria o que a criação tinha fechado.
+    """
+    with banco.cursor() as c:
+        voltar_a_ser_servidor(c)
+        c.execute("select evtname, evtenabled, evttags from pg_event_trigger "
+                  "where evtname = 'funcao_nasce_fechada'")
+        linha = c.fetchone()
+    assert linha, "gatilho de evento ausente"
+    assert linha[1] != 'D', "gatilho desabilitado"
+    assert set(linha[2]) == {"CREATE FUNCTION", "ALTER FUNCTION"}, linha[2]
+
+
+@requer_pg
+def test_o_ajuste_de_default_privileges_tolera_recusa(banco):
+    """
+    No Supabase gerenciado, `alter default privileges for role
+    supabase_admin` devolve 42501 — e a 0019, sendo um bloco
+    `begin/commit`, ABORTAVA INTEIRA. O ensaio local não pegava: aqui o
+    `supabase_admin` é papel comum e o superusuário pode alterá-lo.
+
+    A prova é textual porque o comportamento só aparece com o papel
+    gerenciado: o que se garante é que cada tentativa está isolada.
+    """
+    sql = (Path(__file__).resolve().parent.parent
+           / "supabase/migrations/0019_emergencial_fecha_anon.sql.NAO_APLICAR"
+           ).read_text()
+    assert "insufficient_privilege" in sql, (
+        "as tentativas de default privileges não toleram recusa: uma "
+        "delas aborta a migração inteira no Supabase gerenciado")
+    assert "supabase_admin" in sql
+    # e o gatilho, que é o que realmente fecha
+    assert "create event trigger funcao_nasce_fechada" in sql

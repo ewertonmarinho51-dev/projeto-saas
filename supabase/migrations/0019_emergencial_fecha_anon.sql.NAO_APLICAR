@@ -150,19 +150,43 @@ end $$;
 -- Sem revogar isto, a próxima migração que criar uma tabela recria a
 -- vulnerabilidade inteira, e o passo 2 acima vira trabalho perdido.
 -- ---------------------------------------------------------------
-alter default privileges for role postgres in schema public
-  revoke all on tables from anon, authenticated;
-alter default privileges for role postgres in schema public
-  revoke all on sequences from anon, authenticated;
-alter default privileges for role postgres in schema public
-  revoke all on functions from anon, authenticated;
-
-alter default privileges for role supabase_admin in schema public
-  revoke all on tables from anon, authenticated;
-alter default privileges for role supabase_admin in schema public
-  revoke all on sequences from anon, authenticated;
-alter default privileges for role supabase_admin in schema public
-  revoke all on functions from anon, authenticated;
+-- CADA AJUSTE NUMA TENTATIVA PRÓPRIA — e isto foi descoberto rodando.
+--
+-- No Supabase GERENCIADO o papel que aplica migrações não é membro de
+-- `supabase_admin`, e `alter default privileges for role supabase_admin`
+-- devolve 42501. Como esta migração é um bloco `begin/commit`, a recusa
+-- ABORTAVA A MIGRAÇÃO INTEIRA: nada de RLS, nada de revoke, o banco
+-- seguia aberto e o operador via um erro de permissão que não parecia
+-- ter relação com o que ele tentava fazer.
+--
+-- O ensaio LOCAL não pegou isso — lá o `supabase_admin` é um papel
+-- comum e o superusuário pode alterá-lo. Só o projeto descartável de
+-- verdade revelou.
+--
+-- As tentativas ficam isoladas e a recusa é REGISTRADA, nunca engolida:
+-- um ajuste que não passou precisa aparecer no laudo.
+do $$
+declare
+  v_dono text; v_objeto text; v_falhas int := 0;
+begin
+  foreach v_dono in array array['postgres', 'supabase_admin'] loop
+    foreach v_objeto in array array['tables', 'sequences', 'functions'] loop
+      begin
+        execute format('alter default privileges for role %I in schema public '
+                       'revoke all on %s from anon, authenticated',
+                       v_dono, v_objeto);
+      exception when insufficient_privilege then
+        v_falhas := v_falhas + 1;
+        raise notice 'default privileges de % em % NAO aplicado (42501)',
+                     v_dono, v_objeto;
+      end;
+    end loop;
+  end loop;
+  if v_falhas > 0 then
+    raise notice '% ajuste(s) recusado(s) por privilegio — esperado no '
+                 'Supabase gerenciado para supabase_admin', v_falhas;
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------
 -- 5b. O EXECUTE que o Postgres concede a PUBLIC por CONTA PRÓPRIA
@@ -177,7 +201,16 @@ alter default privileges for role supabase_admin in schema public
 -- `buscar_chunks_textual` e `buscar_chunks_vetorial`: o `=` sem papel
 -- à esquerda É o PUBLIC.
 --
--- ATENÇÃO — ESTAS DUAS LINHAS NÃO RESOLVEM O FUTURO.
+-- ATENÇÃO — ESTE MECANISMO NÃO RESOLVE O FUTURO DAS FUNÇÕES.
+--
+-- Confirmado nos DOIS ambientes, e a confirmação no Supabase real foi
+-- ponta a ponta: `anon` chamou pelo PostgREST uma função criada depois
+-- da revogação e recebeu o resultado. Os Security Advisors do Supabase
+-- não acusam nada disso.
+--
+-- Quem fecha de verdade é o gatilho de evento `funcao_nasce_fechada`,
+-- mais abaixo. As linhas de default privileges ficam porque valem para
+-- TABELAS e SEQUENCES (isso funciona, também conferido).
 --
 -- Era o que esta migração afirmava, e o ENSAIO LOCAL desmentiu.
 -- Conferido em PostgreSQL 16.13, três vezes:
@@ -211,11 +244,58 @@ alter default privileges for role supabase_admin in schema public
 -- As duas linhas ficam: são inofensivas, documentam a intenção e
 -- passam a valer se o PostgreSQL mudar esse comportamento.
 -- ---------------------------------------------------------------
-alter default privileges for role postgres in schema public
-  revoke execute on functions from public;
+do $$
+declare v_dono text;
+begin
+  foreach v_dono in array array['postgres', 'supabase_admin'] loop
+    begin
+      execute format('alter default privileges for role %I in schema public '
+                     'revoke execute on functions from public', v_dono);
+    exception when insufficient_privilege then
+      raise notice 'revoke execute default de % NAO aplicado (42501)', v_dono;
+    end;
+  end loop;
+end $$;
 
-alter default privileges for role supabase_admin in schema public
-  revoke execute on functions from public;
+-- ---------------------------------------------------------------
+-- O QUE REALMENTE FECHA A FUNÇÃO NOVA: um gatilho de evento
+--
+-- Provado nos dois ambientes: `alter default privileges ... revoke
+-- execute on functions from public` NÃO impede a próxima função de
+-- nascer executável por `anon`. No Supabase real, `anon` chamou pelo
+-- PostgREST uma função criada DEPOIS da revogação e recebeu o
+-- resultado.
+--
+-- O gatilho de evento fecha de verdade, porque age no momento da
+-- criação em vez de depender de um default que o PostgreSQL não
+-- aplica. Conferido no projeto descartável: a função criada antes dele
+-- continua aberta, a criada depois nasce fechada.
+--
+-- `security definer` porque quem cria a função nem sempre é dono dela;
+-- `search_path` fixo pelo motivo de sempre.
+-- ---------------------------------------------------------------
+create or replace function public.trg_funcao_nasce_fechada()
+returns event_trigger language plpgsql security definer
+set search_path = ''
+as $$
+declare r record;
+begin
+  for r in select * from pg_event_trigger_ddl_commands()
+           where command_tag in ('CREATE FUNCTION', 'ALTER FUNCTION')
+  loop
+    if r.schema_name = 'public' then
+      execute format('revoke all on function %s from public, anon',
+                     r.object_identity);
+    end if;
+  end loop;
+end $$;
+
+revoke all on function public.trg_funcao_nasce_fechada() from public, anon;
+
+drop event trigger if exists funcao_nasce_fechada;
+create event trigger funcao_nasce_fechada on ddl_command_end
+  when tag in ('CREATE FUNCTION', 'ALTER FUNCTION')
+  execute function public.trg_funcao_nasce_fechada();
 
 -- A verificação ANTIGA era esta, e ela é inútil pelo motivo acima —
 -- devolve zero linhas tanto quando está fechado quanto quando nunca

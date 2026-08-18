@@ -19,6 +19,76 @@ Branch local `correcao-achados-ensaio-seguranca`. Data: 17/08/2026.
   Supabase, para apurar se existe projeto de ensaio descartável. Não
   existe: há **um** projeto, `govdocs-wizard`, o de produção.
 
+## Fases A e B — EXECUTADAS num projeto Supabase descartável
+
+Projeto `govdocs-ensaio-descartavel` (`uslaxaxomjawydqtbwkb`, sa-east-1,
+US$ 0/mês), criado só para isto. **Não é produção** — a produção
+continua sendo `govdocs-wizard`, intocada. O schema real do repositório
+foi aplicado, medido no estado vulnerável, e então contido com
+0018/0019/0020.
+
+### Fase A — anon, antes e depois
+
+| | ANTES | DEPOIS |
+|---|---|---|
+| anon LÊ | **26** de 28 | **0** |
+| anon NEGADO | 2 | **28** |
+| inconclusivo | 0 | 0 |
+| RPCs abertas a anon | — | 0 |
+| Storage | — | sem buckets (não aplicável) |
+
+O ANTES reproduz o diagnóstico com dados reais e pelo PostgREST de
+verdade: 26 tabelas legíveis por qualquer portador da chave publicável.
+Só os dois backups resistiam, porque a 0015/0016 já os havia fechado.
+
+### Fase B — isolamento, com GoTrue e PostgREST reais
+
+Nove identidades autenticadas de verdade, com `app_metadata` no JWT.
+**20 provas, 20 passaram:**
+
+- leitura de processo por secretaria: titular e colega veem, outra
+  secretaria e outro tenant não veem, admin vê o tenant;
+- **P2**, nos dois eventos (`aprovacao_registrada` e
+  `aprovacao_revogada`): revisor da secretaria 1 recusado na aprovação
+  da 2, revisor da 2 recusado na da 1, cada um permitido na própria, e
+  admin municipal alcançando as duas;
+- aprovação com `entidade_tipo` inventado: recusada até para o admin;
+- papel sem competência (titular, auditor): recusado;
+- `insert` direto na trilha por `authenticated`: negado;
+- `ator` do evento gravado == `auth.uid()` de quem chamou.
+
+### E o ensaio real achou mais dois defeitos
+
+**3. A 0019 abortava inteira no Supabase gerenciado.** O papel que
+aplica migrações não é membro de `supabase_admin`, e
+`alter default privileges for role supabase_admin` devolve 42501. Como
+a migração é um bloco `begin/commit`, a recusa derrubava tudo: nada de
+RLS, nada de revoke, o banco seguia aberto — e o erro não parecia ter
+relação com o que se tentava fazer. O ensaio local não pegava, porque
+lá `supabase_admin` é papel comum e o superusuário pode alterá-lo.
+Corrigido: cada tentativa isolada, recusa registrada com `raise notice`.
+
+**4. Confirmação ponta a ponta do defeito de `default privileges`.**
+`anon` chamou pelo PostgREST uma função criada DEPOIS da revogação e
+recebeu o resultado — não é artefato do Postgres local. Os Security
+Advisors do Supabase não acusam.
+
+A correção é um **gatilho de evento** (`funcao_nasce_fechada`) que
+revoga EXECUTE no momento da criação, em vez de depender de um default
+que o PostgreSQL não aplica. Conferido no projeto descartável: a função
+criada antes dele continua aberta, a criada depois nasce fechada, e o
+PostgREST confirma dos dois lados. Cobre `CREATE` e `ALTER FUNCTION`,
+porque `create or replace` sobre função existente entra como ALTER e
+reabriria o que a criação fechou.
+
+### Security Advisors no projeto de ensaio
+
+Nada crítico. Os dois `WARN` de `SECURITY DEFINER` executável por
+`authenticated` são **intencionais e documentados**: a RPC da trilha é
+o único caminho de escrita e confere autoridade por dentro. Os `INFO`
+de "RLS sem política" são `config_app` e os dois backups — fechados a
+`authenticated` de propósito.
+
 ## Os três impedimentos — resolvidos
 
 ### 1. 105 provas pulando → 47 provas EXECUTADAS
@@ -127,26 +197,33 @@ apenas excluído.
 
 ## Veredito
 
-> **A camada SQL está CONTIDA e VERIFICADA EM EXECUÇÃO.**
-> **A contenção completa ainda NÃO pode ser declarada.**
+> **A contenção está VERIFICADA EM EXECUÇÃO — banco, PostgREST e
+> GoTrue —, num projeto descartável.**
+> **Em PRODUÇÃO ela continua NÃO aplicada.**
 
 O que sustenta a primeira frase: 47 provas executadas contra um
 PostgreSQL real, com as três migrações aplicadas, cobrindo isolamento
 por tenant e por secretaria, autoridade por papel, resolução de escopo
 da aprovação, trilha append-only e GRANTs.
 
+O que sustenta a primeira frase: 47 provas no PostgreSQL local, mais
+Fase A (26 tabelas abertas → 0) e Fase B (20/20) num projeto Supabase
+descartável, com PostgREST e GoTrue reais.
+
 O que impede a segunda:
 
-1. **PostgREST e GoTrue não foram ensaiados.** Códigos `PGRST*`,
-   validação de assinatura de JWT e a garantia de que `app_metadata` só
-   é gravável por servidor vivem naquela camada. São 105 provas ainda
-   pulando, e elas precisam de um projeto descartável.
+1. **Nada disto foi aplicado em produção.** As três migrações continuam
+   `.NAO_APLICAR`. O que se sabe agora é que elas FUNCIONAM — inclusive
+   que a 0019, como estava, teria abortado.
 2. **O backfill não foi feito** e `GOVDOCS_EXIGIR_SUPABASE_AUTH`
    continua desligado. Até lá, quem entra pelo caminho legado opera sem
    JWT.
 3. **A maior parte de `db.py` ainda usa a credencial de servidor.** A
    trilha, a decisão de proposta e o registro de aprovação foram
    movidos; processos, revisões, gerações e o resto não.
+4. **O ensaio não cobriu `service_role`.** O MCP do Supabase não expõe
+   a chave secreta, então "o servidor continua operando" (item 3 da
+   fase A) não foi medido. É a única lacuna que resta no ensaio.
 
 ## Requisito → prova → resultado
 

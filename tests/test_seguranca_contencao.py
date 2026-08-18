@@ -1505,31 +1505,64 @@ def _sql_da_0019() -> str:
 
 def test_a_0019_revoga_o_default_execute_de_public():
     """
-    Regressão do achado: a 0019 revogava `execute` de `anon` e
-    `authenticated`, mas o padrão do PostgreSQL concede EXECUTE a
-    PUBLIC — que alcança `anon`. Revogar dos papéis nomeados sem
-    revogar de PUBLIC deixa a porta de trás aberta, e a próxima função
-    criada em `public` nasce executável por qualquer visitante.
+    O padrão do PostgreSQL concede EXECUTE a PUBLIC, que alcança `anon`.
+    Revogar dos papéis nomeados sem revogar de PUBLIC deixaria a porta
+    de trás aberta.
+
+    A tentativa continua aqui — mas hoje se sabe que ela NÃO basta, e o
+    teste seguinte cobra o que basta.
     """
     sql = _sql_da_0019().lower()
+    assert "revoke execute on functions from public" in sql
     for dono in ("postgres", "supabase_admin"):
-        alvo = (f"alter default privileges for role {dono} in schema public\n"
-                "  revoke execute on functions from public;")
-        assert alvo in sql, f"falta a revogação de default EXECUTE para {dono}"
+        assert dono in sql, f"dono {dono} fora do ajuste de default"
+
+
+def test_a_0019_fecha_a_funcao_nova_com_gatilho_de_evento():
+    """
+    O que REALMENTE fecha, e foi preciso rodar para descobrir.
+
+    `alter default privileges ... revoke execute on functions from
+    public` não impede a próxima função de nascer aberta — conferido em
+    PG 16.13 local e, ponta a ponta, num Supabase de verdade, onde
+    `anon` chamou pelo PostgREST uma função criada depois da revogação e
+    recebeu o resultado. Os Security Advisors não acusam nada disso.
+
+    O gatilho de evento age no momento da criação, em vez de depender de
+    um default que o PostgreSQL não aplica.
+    """
+    sql = _sql_da_0019().lower()
+    assert "create event trigger funcao_nasce_fechada" in sql
+    assert "ddl_command_end" in sql
+    # `create or replace` sobre função existente entra como ALTER: sem
+    # cobrir os dois, a substituição reabriria o que a criação fechou
+    assert "'create function'" in sql and "'alter function'" in sql
+    assert "revoke all on function %s from public, anon" in sql
+
+
+def test_a_0019_tolera_a_recusa_de_privilegio_sem_abortar():
+    """
+    No Supabase gerenciado, `alter default privileges for role
+    supabase_admin` devolve 42501 — e a 0019, como bloco `begin/commit`,
+    abortava INTEIRA: nada de RLS, nada de revoke, o banco seguia aberto
+    e o erro não parecia ter relação com o que se tentava fazer.
+
+    O ensaio local não pegava: lá o `supabase_admin` é papel comum.
+    """
+    sql = _sql_da_0019().lower()
+    assert "insufficient_privilege" in sql, (
+        "uma recusa de privilégio ainda aborta a migração inteira")
+    assert "raise notice" in sql, "recusa engolida não aparece no laudo"
 
 
 def test_a_0019_nao_confunde_public_com_anon():
     """
-    `revoke ... from anon, authenticated` e
-    `revoke ... from public` são revogações DIFERENTES. As duas
-    precisam existir para funções.
+    `revoke ... from anon, authenticated` e `revoke ... from public` são
+    revogações DIFERENTES. As duas precisam existir para funções.
     """
     sql = _sql_da_0019().lower()
-    defaults = [linha.strip() for linha in sql.splitlines()
-                if "revoke" in linha and "on functions" in linha]
-    assert any("from public" in linha for linha in defaults), defaults
-    assert any("from anon, authenticated" in linha for linha in defaults), \
-        defaults
+    assert "revoke all on %s from anon, authenticated" in sql
+    assert "revoke execute on functions from public" in sql
 
 
 def test_a_verificacao_da_0019_procura_o_public():
