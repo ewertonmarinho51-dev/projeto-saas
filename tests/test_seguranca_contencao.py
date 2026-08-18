@@ -3217,3 +3217,44 @@ def test_usuario_desativado_nao_entra_nem_pelo_supabase(monkeypatch,
     with pytest.raises(auth.ErroAuth) as erro:
         auth.autenticar("alguem@exemplo.invalid", "senha")
     assert "desativado" in str(erro.value)
+
+
+def test_nenhuma_falha_do_supabase_auth_derruba_o_login(monkeypatch,
+                                                        sem_sonda):
+    """
+    O caminho do Supabase Auth é OPCIONAL durante a transição, e
+    opcional quer dizer que a falha dele não pode ser fatal.
+
+    Foi assim que o login caiu: uma recusa naquele caminho virou recusa
+    do login inteiro. Aqui a cobertura é ampla de propósito — biblioteca
+    ausente, cliente que explode ao ser construído, e explosão no meio
+    da autenticação.
+    """
+    monkeypatch.setattr(db, "exigir_operacional", lambda: None)
+    monkeypatch.setattr(auth, "_autenticar_legado",
+                        lambda *a: {"id": "u1", "ativo": True})
+    monkeypatch.delenv(auth.FLAG_EXIGIR_SUPABASE_AUTH, raising=False)
+
+    def _explode():
+        raise RuntimeError("biblioteca ausente")
+
+    for quebra in (_explode, lambda: None):
+        monkeypatch.setattr(auth, "_cliente_de_login", quebra)
+        assert auth.autenticar("alguem", "senha")["id"] == "u1"
+
+    _auth_falso(monkeypatch, erro=RuntimeError("rede caiu no meio"))
+    assert auth.autenticar("alguem", "senha")["id"] == "u1"
+
+
+def test_falha_ao_registrar_o_incidente_nao_tranca_o_login(monkeypatch,
+                                                           sem_sonda):
+    """Nem a anotação da recusa pode virar motivo de recusa."""
+    monkeypatch.setattr(db, "exigir_operacional", lambda: None)
+    monkeypatch.setattr(auth, "_autenticar_legado",
+                        lambda *a: {"id": "u1", "ativo": True})
+    monkeypatch.delenv(auth.FLAG_EXIGIR_SUPABASE_AUTH, raising=False)
+    _auth_falso(monkeypatch, erro=Exception("Invalid login credentials"))
+    monkeypatch.setattr(db, "registrar_incidente",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("log")))
+
+    assert auth.autenticar("alguem", "senha")["id"] == "u1"

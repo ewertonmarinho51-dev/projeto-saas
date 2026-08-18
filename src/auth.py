@@ -170,13 +170,20 @@ def _cliente_de_login():
     apagaria a diferença entre "o servidor autenticou alguém" e "o
     servidor decidiu que estava tudo bem".
     """
-    from supabase import create_client
-
     url = db._segredo("SUPABASE_URL")            # noqa: SLF001
     publica = db._segredo(db.NOME_CHAVE_PUBLICA)  # noqa: SLF001
     if not (url and publica):
         return None
-    return create_client(url, publica)
+    try:
+        from supabase import create_client
+
+        return create_client(url, publica)
+    except Exception:  # noqa: BLE001
+        # Chave publicável mal formada, biblioteca ausente, URL torta:
+        # nada disso pode derrubar o LOGIN. O caminho do Supabase Auth
+        # é opcional durante a transição — quem não puder usá-lo cai
+        # para o legado, que é o que mantém o app de pé.
+        return None
 
 
 def autenticar_no_supabase(email: str, senha: str) -> tuple[str, str] | None:
@@ -206,17 +213,24 @@ def autenticar_no_supabase(email: str, senha: str) -> tuple[str, str] | None:
     funcionar — recusar ali seria trocar uma porta aberta por porta
     nenhuma.
     """
-    cliente = _cliente_de_login()
-    if cliente is None:
-        return None
     try:
+        cliente = _cliente_de_login()
+        if cliente is None:
+            return None
         sessao = cliente.auth.sign_in_with_password(
             {"email": email, "password": senha})
     except Exception as exc:  # noqa: BLE001
         # O motivo NÃO é interpretado. O registro é do servidor, e sai
         # sanitizado — a mensagem do GoTrue pode carregar o endereço.
-        _log.info("supabase auth nao autenticou (ref %s)",
-                  db.registrar_incidente(exc, "auth: supabase"))
+        #
+        # Até o registro é defensivo: uma falha ao ANOTAR a recusa não
+        # pode virar uma falha de login. Foi assim que este caminho
+        # trancou o app da última vez.
+        try:
+            _log.info("supabase auth nao autenticou (ref %s)",
+                      db.registrar_incidente(exc, "auth: supabase"))
+        except Exception:  # noqa: BLE001
+            _log.info("supabase auth nao autenticou")
         return None
     token = getattr(getattr(sessao, "session", None), "access_token", "")
     usuario = getattr(sessao, "user", None)
