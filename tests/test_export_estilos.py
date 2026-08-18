@@ -16,6 +16,13 @@ MD = (
 )
 
 
+# Margem institucional de 2 cm, em pontos (72 pt = 1 polegada). É a
+# margem da própria página, não um número escolhido até o teste passar:
+# fora dela ficam cabeçalho e rodapé, dentro dela fica o CORPO — a única
+# região sobre a qual a regra tipográfica institucional fala.
+MARGEM_EM_PONTOS = 2 / 2.54 * 72
+
+
 def _doc(md: str = MD) -> Document:
     return Document(io.BytesIO(export.gerar_docx("Termo de Referência", md)))
 
@@ -75,16 +82,42 @@ def test_pdf_via_libreoffice_quando_disponivel():
     pdf = export.gerar_pdf("Termo de Referência", MD)
     assert pdf.startswith(b"%PDF")
     if export.motor_pdf() == "libreoffice":
-        # PDF convertido do DOCX usa a família serifada (Times/Liberation),
-        # nunca Helvetica no corpo
+        # O CORPO usa a família serifada (Times/Liberation/Nimbus) — que
+        # é o que o comentário sempre disse e a asserção não dizia.
+        #
+        # A versão anterior recusava Helvetica em QUALQUER posição da
+        # página e falhava por causa do rodapé "Página 1/1", que é
+        # sans-serif de propósito. Falhava, portanto, por motivo
+        # diferente do declarado — e teste assim treina quem lê a suíte
+        # a ignorá-lo.
         import fitz
 
         doc = fitz.open(stream=pdf, filetype="pdf")
-        fontes = {s["font"] for b in doc[0].get_text("dict")["blocks"]
-                  for l in b.get("lines", []) for s in l.get("spans", [])}
-        assert any("Times" in f or "Liberation" in f or "Nimbus" in f
-                   for f in fontes), fontes
-        assert not any("Helvetica" in f for f in fontes)
+        pagina = doc[0]
+        limite_do_rodape = pagina.rect.height - MARGEM_EM_PONTOS
+        spans = [s for b in pagina.get_text("dict")["blocks"]
+                 for l in b.get("lines", []) for s in l.get("spans", [])]
+        corpo = [s for s in spans
+                 if MARGEM_EM_PONTOS < s["bbox"][1] < limite_do_rodape]
+        assert corpo, "nenhum texto no corpo da página"
+
+        def _serifada(fonte: str) -> bool:
+            return ("Times" in fonte or "Liberation" in fonte
+                    or "Nimbus" in fonte)
+
+        fontes = {s["font"] for s in corpo}
+        # mais forte que a asserção antiga: TODO o corpo é serifado, e
+        # não apenas "existe alguma serifada em algum lugar da página"
+        assert all(_serifada(f) for f in fontes), (
+            f"corpo com fonte não serifada: {fontes}")
+
+        # E o rodapé é FIXADO, não apenas ignorado: excluir uma região
+        # sem dizer o que se espera dela transforma a exclusão numa
+        # gaveta onde qualquer regressão futura cabe.
+        rodape = [s for s in spans if s["bbox"][1] >= limite_do_rodape]
+        assert rodape, "rodapé sumiu do PDF"
+        assert all("Página" in s["text"] or _serifada(s["font"])
+                   for s in rodape), [s["text"] for s in rodape]
 
 
 def test_pdf_consolidado_mesmo_conteudo_do_docx():

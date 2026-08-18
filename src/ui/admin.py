@@ -17,6 +17,11 @@ from . import revisao
 
 def render_admin() -> None:
     st.subheader("Administração")
+    # Avisos de credencial descrevem FORMATO e ORIGEM da chave em uso —
+    # nunca o valor. É aqui que a service_role legada aparece como
+    # pendência de migração para `sb_secret_…`.
+    for aviso in db.avisos_de_credencial():
+        st.warning(aviso)
     (aba_usuarios, aba_chaves, aba_identidade, aba_secretarias,
      aba_revisao, aba_qualidade) = st.tabs(
         ["Usuários", "Chaves de IA", "Identidade visual", "Secretarias",

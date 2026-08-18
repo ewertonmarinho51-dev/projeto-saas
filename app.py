@@ -23,7 +23,7 @@ COMO RODAR LOCALMENTE
 
 import streamlit as st
 
-from src import auth, state
+from src import auth, db, state
 from src.ui import admin, biblioteca, components, governanca_ui, login, steps
 
 # Configuração da página — deve ser a 1ª chamada Streamlit do script
@@ -37,6 +37,21 @@ st.set_page_config(
 # Estado persistente entre os passos (dados, documentos, aprovações)
 state.inicializar()
 components.aplicar_estilo()
+
+# ---------------------------------------------------------------------------
+# Manutenção — falha FECHADA, antes de qualquer outra porta
+#
+# Sem a credencial de servidor obrigatória, o app não abre em modo
+# degradado "sem persistência" nem cai para a chave publicável: para
+# tudo aqui, antes de login, wizard, exportação e administração. As
+# funções de negócio repetem a checagem (auth.autenticar,
+# state.aprovar_e_avancar, revisao.emissao_liberada, db._cliente) para
+# que a proteção não dependa desta ordem de renderização.
+# ---------------------------------------------------------------------------
+if db.em_manutencao():
+    components.render_cabecalho()
+    login.render_manutencao()
+    st.stop()
 
 # ---------------------------------------------------------------------------
 # Porta de entrada: configuração necessária → login → app

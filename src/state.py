@@ -46,6 +46,11 @@ def autosalvar() -> None:
     st.session_state["_save_status"] = "salvando"
     try:
         usuario = st.session_state.get("usuario") or {}
+        # `auth_user_id` sai do CONTEXTO INSTITUCIONAL, que deriva da
+        # sessão autenticada — nunca de campo do formulário. É ele que
+        # as políticas da 0020 comparam com `auth.uid()`; `usuarios.id`
+        # é outro identificador e não serve.
+        institucional = contexto.contexto_institucional()
         st.session_state.processo_id = db.salvar_processo(
             st.session_state.processo_id,
             st.session_state.dados,
@@ -54,6 +59,7 @@ def autosalvar() -> None:
             st.session_state.etapa,
             usuario_id=usuario.get("id"),
             secretaria_id=contexto.secretaria_para_processo(),
+            auth_user_id=institucional.get("auth_user_id"),
         )
         st.session_state["_save_status"] = "salvo"
     except db.ErroBanco as erro:
@@ -153,6 +159,14 @@ def navegar_pelo_stepper(etapa: int) -> None:
 
 def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
     """Salva a versão editada pelo usuário, marca como aprovado e avança."""
+    from . import db
+
+    if db.em_manutencao():
+        # Aprovação é ato de processo: não pode acontecer sem rastro
+        # persistido. Em manutenção nada avança.
+        st.error(db.motivo_de_manutencao())
+        return
+
     # V5 Fase 7 (flag_institutional_learning_capture): a edição humana
     # sobre o rascunho é um SINAL de aprendizado — capturada anonimizada,
     # por bloco, best-effort (jamais atrapalha a aprovação). Flag OFF: nada.

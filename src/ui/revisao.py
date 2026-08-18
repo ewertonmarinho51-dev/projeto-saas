@@ -357,7 +357,12 @@ def emissao_liberada(docs: dict[str, str]) -> tuple[bool, str]:
     ATUAL do bundle (editar qualquer documento invalida a aprovação — o
     hash muda e a revisão precisa rodar de novo). Com a flag desligada,
     vale o comportamento anterior (o gate é o validador da tela).
+
+    Manutenção bloqueia ANTES da flag: com o app em manutenção não há
+    emissão, com ou sem gate técnico ligado.
     """
+    if db.em_manutencao():
+        return False, db.motivo_de_manutencao()
     if not db.flag_ativa(FLAG_GATE):
         return True, ""
     cache = st.session_state.get("_ciclo_resultado") or {}

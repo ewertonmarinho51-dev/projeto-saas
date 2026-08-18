@@ -16,3 +16,8 @@ venv/
 .streamlit/secrets.toml.*
 !.streamlit/secrets.toml.example
 *.bak
+
+# cache do pytest — nunca deve ir para o repositório: guarda os IDs
+# dos testes, e os parametrizados carregam no nome os literais de
+# credencial falsa que a suíte monta em runtime
+.pytest_cache/

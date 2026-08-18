@@ -51,6 +51,11 @@ def contexto_institucional() -> dict:
     return {
         "tenant_id": db.tenant_atual(),
         "usuario_id": usuario.get("id"),
+        # Identidade no Supabase Auth — é ela que as políticas da 0020
+        # comparam com `auth.uid()`. Fica vazia enquanto a conta não
+        # tiver sido migrada; `usuarios.id` NÃO serve de substituto,
+        # são identificadores diferentes.
+        "auth_user_id": usuario.get("auth_user_id"),
         "secretaria_id": secretaria_id,
         "origem": "vinculo" if secretaria_id else "tenant_padrao",
     }

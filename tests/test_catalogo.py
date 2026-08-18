@@ -60,6 +60,9 @@ class _TabelaFake:
         return types.SimpleNamespace(data=filtrados)
 
 
+from tests.conftest import ligar_trilha_falsa  # noqa: E402
+
+
 @pytest.fixture
 def banco(monkeypatch):
     tabelas: dict[str, list] = {}
@@ -70,6 +73,7 @@ def banco(monkeypatch):
     cliente = types.SimpleNamespace(table=types.MethodType(table, object()))
     monkeypatch.setattr(db, "disponivel", lambda: True)
     monkeypatch.setattr(db, "_cliente", lambda: cliente)
+    ligar_trilha_falsa(monkeypatch, db, cliente, tabelas)
     # modo aberto = proprietario (todas as permissões)
     monkeypatch.setattr(auth, "modo_aberto", lambda: True)
     return tabelas
@@ -106,10 +110,19 @@ def test_fluxo_completo_ate_publicar_com_supersede(banco):
     versoes = {v["versao"]: v["status"]
                for v in banco["governanca_versoes"]}
     assert versoes == {1: "SUPERSEDED", 2: "PUBLISHED"}
-    # trilha de auditoria registrou tudo
+    # Trilha de auditoria registrou tudo — com o vocabulário FECHADO da
+    # 0020. Antes eram `clausula_published` e `clausula_versao_superada`:
+    # nomes montados a partir do `tipo_artefato`, que nenhuma matriz
+    # papel→evento consegue enumerar. O ato é o mesmo para cláusula e
+    # para política; o que muda vai no payload.
     eventos = [e["tipo_evento"] for e in banco["governanca_eventos"]]
-    assert "clausula_published" in eventos
-    assert "clausula_versao_superada" in eventos
+    assert "versao_publicada" in eventos, eventos
+    assert "versao_superada" in eventos, eventos
+    assert not [e for e in eventos if e.startswith("clausula")], eventos
+    publicado = next(e for e in banco["governanca_eventos"]
+                     if e["tipo_evento"] == "versao_publicada")
+    assert publicado["entidade_tipo"] == "versao"
+    assert publicado["payload"]["tipo_artefato"] == "clausula"
 
 
 def test_nao_ha_atalho_de_rascunho_para_publicada(banco):

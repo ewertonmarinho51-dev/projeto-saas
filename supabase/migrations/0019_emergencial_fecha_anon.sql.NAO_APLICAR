@@ -1,0 +1,337 @@
+-- ############################################################
+-- ##  NÃO APLICAR SEM APROVAÇÃO HUMANA — extensão .NAO_APLICAR
+-- ##  Achado P0 de 14/08/2026 — FASE EMERGENCIAL (contenção)
+-- ##
+-- ##  ORDEM OBRIGATÓRIA: esta migração é o passo (f) do runbook em
+-- ##  docs/seguranca-achado-p0.md. Os passos (a) a (e) vêm antes,
+-- ##  e o aplicativo NÃO pode ser reaberto entre (f) e (i).
+-- ##
+-- ##  PRÉ-REQUISITOS:
+-- ##   (a) aplicativo em MANUTENÇÃO / acesso privado;
+-- ##   (b) backup, políticas, grants e logs preservados;
+-- ##   (c) SUPABASE_SECRET_KEY criada e gravada nos Secrets;
+-- ##   (d) código com credencial de servidor + redação + falha
+-- ##       fechada JÁ EM PRODUÇÃO, com
+-- ##       GOVDOCS_EXIGIR_CREDENCIAL_SERVIDOR=1;
+-- ##   (e) chaves de OpenAI/Google removidas de config_app;
+-- ##   ensaio executado antes (scripts/ensaio_seguranca.py).
+-- ##
+-- ##  Sem o passo (d), esta migração DERRUBA o aplicativo: ele acessa
+-- ##  o banco como `anon` e perde tudo o que é revogado aqui.
+-- ############################################################
+
+-- Idempotente. NÃO toca em nenhuma LINHA: só políticas e privilégios.
+--
+-- Tudo é dirigido pelo CATÁLOGO, nunca por lista escrita à mão. A
+-- versão anterior desta migração enumerava nomes de política
+-- ('anon_select', 'anon_insert', …) e teria deixado passar
+-- `anon_select_geracoes`, `anon_insert_geracoes` e
+-- `anon_select_tenants`, que fogem do padrão; e enumerava tabelas,
+-- deixando de fora `chunks_referencia_bkp_20260811` e
+-- `documentos_referencia_bkp_20260811`.
+
+begin;
+
+-- ---------------------------------------------------------------
+-- 1. Políticas anônimas — TODAS, por enumeração do catálogo
+--
+-- As políticas herdadas da 0004 e seguintes são `using (true)` /
+-- `with check (true)` para o papel `anon`: autorização nenhuma. Em
+-- `usuarios` isso permite a qualquer portador da chave publicável ler,
+-- criar, alterar e apagar contas. PBKDF2 não protege contra isso: o
+-- ataque não INVERTE o hash, SUBSTITUI o hash por um de senha
+-- conhecida.
+-- ---------------------------------------------------------------
+do $$
+declare r record;
+begin
+  for r in
+    select schemaname, tablename, policyname
+    from pg_policies
+    where schemaname = 'public'
+      and (roles && array['anon','authenticated','public']::name[]
+           or roles = '{public}'::name[])
+  loop
+    execute format('drop policy if exists %I on %I.%I',
+                   r.policyname, r.schemaname, r.tablename);
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------
+-- 2. Privilégios de TABELA — revogados de anon/authenticated/public
+--    em todas as tabelas de `public`, inclusive as de backup
+--
+-- Com RLS ativo e NENHUMA política, todo papel sujeito a RLS lê zero
+-- linhas. A credencial de servidor (`sb_secret_…`) contorna o RLS por
+-- definição e passa a ser a única via. NÃO é a solução definitiva —
+-- ver 0020.
+-- ---------------------------------------------------------------
+do $$
+declare r record;
+begin
+  for r in select tablename from pg_tables where schemaname = 'public'
+  loop
+    execute format(
+      'revoke all privileges on table public.%I from anon, authenticated, public',
+      r.tablename);
+    execute format('alter table public.%I enable row level security',
+                   r.tablename);
+    execute format('alter table public.%I force row level security',
+                   r.tablename);
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------
+-- 3. SEQUENCES — ponto que a versão anterior ignorava por completo
+--
+-- `chunks_referencia_id_seq` e `governanca_publicacoes_numero_seq`
+-- concediam SELECT/UPDATE/USAGE a anon e authenticated. USAGE e
+-- UPDATE permitem `nextval`/`setval`: dá para adulterar a numeração
+-- de publicações da governança sem tocar em nenhuma tabela.
+-- ---------------------------------------------------------------
+do $$
+declare r record;
+begin
+  for r in
+    select c.relname
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind = 'S'
+  loop
+    execute format(
+      'revoke all privileges on sequence public.%I from anon, authenticated, public',
+      r.relname);
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------
+-- 4. FUNÇÕES e RPCs — EXECUTE concedido a PUBLIC
+--
+-- `buscar_chunks_textual` e `buscar_chunks_vetorial` estão com
+-- EXECUTE para PUBLIC (o `=X/postgres` do ACL), além de anon e
+-- authenticated. São SECURITY INVOKER, então o passo 2 já as esvazia
+-- na prática; revogar mesmo assim é defesa em profundidade — se um
+-- dia alguma virar SECURITY DEFINER, o EXECUTE aberto vira um
+-- contorno pronto do RLS.
+--
+-- As funções do pgvector também vivem em `public` e têm EXECUTE para
+-- PUBLIC. NÃO são revogadas: são operadores de tipo, e revogá-las
+-- quebra índices e comparações. Ficam de fora pelo dono
+-- (`supabase_admin`) e pela dependência de extensão.
+-- ---------------------------------------------------------------
+do $$
+declare r record;
+begin
+  for r in
+    select p.oid, p.proname,
+           pg_get_function_identity_arguments(p.oid) as args
+    from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and not exists (               -- nada que pertença a extensão
+        select 1 from pg_depend d
+        where d.objid = p.oid and d.deptype = 'e')
+  loop
+    execute format(
+      'revoke all privileges on function public.%I(%s) from anon, authenticated, public',
+      r.proname, r.args);
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------
+-- 5. DEFAULT PRIVILEGES — a causa da recorrência
+--
+-- Esta é a lacuna mais séria da versão anterior. Existem
+-- `alter default privileges` em `public`, para os donos `postgres` E
+-- `supabase_admin`, concedendo a anon e authenticated:
+--   * tabelas futuras  → arwdDxtm (TUDO);
+--   * funções futuras  → EXECUTE;
+--   * sequences futuras→ rwU.
+--
+-- Sem revogar isto, a próxima migração que criar uma tabela recria a
+-- vulnerabilidade inteira, e o passo 2 acima vira trabalho perdido.
+-- ---------------------------------------------------------------
+alter default privileges for role postgres in schema public
+  revoke all on tables from anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke all on sequences from anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke all on functions from anon, authenticated;
+
+alter default privileges for role supabase_admin in schema public
+  revoke all on tables from anon, authenticated;
+alter default privileges for role supabase_admin in schema public
+  revoke all on sequences from anon, authenticated;
+alter default privileges for role supabase_admin in schema public
+  revoke all on functions from anon, authenticated;
+
+-- ---------------------------------------------------------------
+-- 5b. O EXECUTE que o Postgres concede a PUBLIC por CONTA PRÓPRIA
+--
+-- As revogações acima miram `anon` e `authenticated` — os papéis que
+-- a gente conhece. Mas o padrão do PostgreSQL para FUNÇÃO é conceder
+-- EXECUTE a **PUBLIC**, e PUBLIC alcança todo papel presente e
+-- futuro, `anon` incluído. Revogar de `anon` sem revogar de PUBLIC
+-- não fecha nada: o privilégio continua chegando pela porta de trás.
+--
+-- É o mesmo `=X/postgres` que aparece hoje no ACL de
+-- `buscar_chunks_textual` e `buscar_chunks_vetorial`: o `=` sem papel
+-- à esquerda É o PUBLIC.
+--
+-- ATENÇÃO — ESTAS DUAS LINHAS NÃO RESOLVEM O FUTURO.
+--
+-- Era o que esta migração afirmava, e o ENSAIO LOCAL desmentiu.
+-- Conferido em PostgreSQL 16.13, três vezes:
+--
+--   1. `alter default privileges ... revoke execute on functions
+--      from public` roda sem erro e NÃO grava linha em
+--      `pg_default_acl`;
+--   2. a função criada em seguida nasce com `proacl` NULO — ACL nulo
+--      significa "usa o padrão embutido", e o padrão embutido para
+--      função é EXECUTE para PUBLIC;
+--   3. `has_function_privilege('anon', ..., 'execute')` devolve TRUE.
+--
+-- O motivo é que `alter default privileges` só materializa uma linha
+-- quando CONCEDE algo; revogar de PUBLIC um privilégio que nunca foi
+-- materializado é um no-op silencioso — o pior tipo, porque a
+-- migração roda limpa e a verificação por `pg_default_acl` devolve
+-- zero linhas, que é justamente o que ela esperava encontrar.
+--
+-- Para TABELAS e SEQUENCES o mecanismo FUNCIONA (também conferido): o
+-- padrão embutido não dá nada a PUBLIC, e revogar de `anon` remove o
+-- que a concessão anterior tinha dado.
+--
+-- A garantia para funções, portanto, é OUTRA e é manual: toda função
+-- criada em `public` precisa do seu próprio
+-- `revoke all on function ... from public, anon`. A 0020 faz isso em
+-- todas as suas, e a prova
+-- `test_nenhuma_funcao_da_aplicacao_e_executavel_por_anon`
+-- (tests/test_ensaio_sql_local.py) reprova a migração inteira se
+-- alguém esquecer da próxima.
+--
+-- As duas linhas ficam: são inofensivas, documentam a intenção e
+-- passam a valer se o PostgreSQL mudar esse comportamento.
+-- ---------------------------------------------------------------
+alter default privileges for role postgres in schema public
+  revoke execute on functions from public;
+
+alter default privileges for role supabase_admin in schema public
+  revoke execute on functions from public;
+
+-- A verificação ANTIGA era esta, e ela é inútil pelo motivo acima —
+-- devolve zero linhas tanto quando está fechado quanto quando nunca
+-- foi fechado:
+--   select pg_get_userbyid(defaclrole), defaclacl
+--   from pg_default_acl d join pg_namespace n on n.oid=d.defaclnamespace
+--   where n.nspname='public' and d.defaclobjtype='f'
+--     and array_to_string(defaclacl,';') ~ '(^|;)=X';
+--
+-- A verificação QUE VALE olha as funções de verdade, e tem de devolver
+-- ZERO linhas (as de extensão ficam de fora: revogar `vector_in` ou
+-- `gen_random_uuid` de PUBLIC quebraria o tipo e o default das
+-- colunas):
+--   select p.proname
+--   from pg_proc p
+--   join pg_namespace n on n.oid = p.pronamespace
+--   left join pg_depend d
+--     on d.objid = p.oid and d.deptype = 'e'
+--   where n.nspname = 'public'
+--     and d.objid is null
+--     and has_function_privilege('anon', p.oid, 'execute');
+
+-- ---------------------------------------------------------------
+-- 6. Schemas expostos pela Data API
+--
+-- `public` continua exposto — é por onde a credencial de servidor
+-- opera. Depois dos passos acima ele já não entrega nada a `anon`.
+--
+-- `graphql_public` também está exposto e concede a anon tudo em
+-- objetos futuros; a função `graphql_public.graphql()` executa
+-- consultas GraphQL sobre os MESMOS objetos de `public`. Como o
+-- resolvedor respeita RLS e os grants de tabela, o passo 2 já o
+-- fecha. Ainda assim, a recomendação operacional é DESMARCAR
+-- `graphql_public` em Settings → API → Exposed schemas, já que o
+-- aplicativo não usa GraphQL. Isso é configuração de painel, não SQL:
+-- está no passo (f) do runbook.
+--
+-- `storage`: 0 buckets neste projeto. Existem default privileges
+-- abertos no schema `storage`, mas ele é gerenciado pelo Supabase e
+-- não deve ser alterado por migração da aplicação. Se algum dia
+-- houver bucket, ele nasce com política própria e precisa de revisão
+-- específica.
+-- ---------------------------------------------------------------
+
+-- ---------------------------------------------------------------
+-- 7. Trilha append-only de fato (o código já a trata assim)
+-- ---------------------------------------------------------------
+revoke update, delete, truncate on table public.governanca_eventos
+  from anon, authenticated, public;
+
+comment on table public.usuarios is
+  'FASE EMERGENCIAL (0019): sem acesso anônimo. Autenticação só pelo '
+  'servidor, com credencial sb_secret_. Alvo definitivo: Supabase '
+  'Auth + RLS por auth.uid() (0020).';
+
+commit;
+
+-- ############################################################
+-- VERIFICAÇÃO (rodar DEPOIS, ainda com o app em manutenção)
+-- Todas as consultas devem devolver ZERO linhas.
+-- ############################################################
+-- -- 1) nenhuma política para anon/authenticated/public:
+-- select tablename, policyname, roles from pg_policies
+-- where schemaname='public'
+--   and roles && array['anon','authenticated','public']::name[];
+--
+-- -- 2) nenhum privilégio de tabela para anon/authenticated:
+-- select table_name, grantee, privilege_type
+-- from information_schema.role_table_grants
+-- where table_schema='public' and grantee in ('anon','authenticated','PUBLIC');
+--
+-- -- 3) nenhuma tabela sem RLS:
+-- select tablename from pg_tables
+-- where schemaname='public' and not rowsecurity;
+--
+-- -- 4) nenhuma sequence aberta:
+-- select c.relname, c.relacl from pg_class c
+-- join pg_namespace n on n.oid=c.relnamespace
+-- where n.nspname='public' and c.relkind='S'
+--   and array_to_string(c.relacl,';') ~ '(anon|authenticated)=';
+--
+-- -- 5) nenhum default privilege aberto — inclusive para PUBLIC.
+-- --    O `(^|;)=` casa o PUBLIC, que é o papel SEM nome à esquerda
+-- --    do `=` e o que o Postgres usa por padrão nas funções.
+-- select pg_get_userbyid(defaclrole), defaclobjtype, defaclacl
+-- from pg_default_acl d join pg_namespace n on n.oid=d.defaclnamespace
+-- where n.nspname='public'
+--   and array_to_string(defaclacl,';') ~ '(anon|authenticated)=|(^|;)=';
+
+-- ############################################################
+-- ROLLBACK — USO RESTRITO
+--
+-- Este rollback REABRE o banco para `anon`. Só pode ser executado com
+-- o aplicativo em MANUTENÇÃO e acesso público fechado; caso
+-- contrário, restaura exatamente a exposição que a contenção veio
+-- fechar, e a janela de exposição volta a correr.
+--
+-- Ele NÃO restaura dado algum: recria grants e políticas permissivas.
+-- A saída correta de um problema pós-0019 quase sempre é corrigir a
+-- credencial de servidor, não reabrir o `anon`.
+-- ############################################################
+-- begin;
+-- do $$
+-- declare r record;
+-- begin
+--   for r in select tablename from pg_tables where schemaname='public'
+--   loop
+--     execute format('grant select, insert, update, delete on public.%I to anon, authenticated', r.tablename);
+--     execute format('create policy "anon_select" on public.%I for select to anon using (true)', r.tablename);
+--     execute format('create policy "anon_insert" on public.%I for insert to anon with check (true)', r.tablename);
+--     execute format('create policy "anon_update" on public.%I for update to anon using (true) with check (true)', r.tablename);
+--     execute format('create policy "anon_delete" on public.%I for delete to anon using (true)', r.tablename);
+--     execute format('alter table public.%I no force row level security', r.tablename);
+--   end loop;
+-- end $$;
+-- grant usage, select, update on all sequences in schema public to anon, authenticated;
+-- grant execute on function public.buscar_chunks_textual(text, integer, uuid) to anon, authenticated;
+-- grant execute on function public.buscar_chunks_vetorial(vector, integer, uuid) to anon, authenticated;
+-- commit;

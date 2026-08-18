@@ -1,4 +1,5 @@
-"""Portas de entrada: login, bootstrap administrativo e configuração."""
+"""Portas de entrada: login, bootstrap administrativo, manutenção e
+configuração."""
 
 from __future__ import annotations
 
@@ -17,6 +18,29 @@ def _layout_porta_entrada(conteudo: Callable[[], None]) -> None:
     with painel_formulario:
         components.render_login_panel_marker()
         conteudo()
+
+
+def render_manutencao() -> None:
+    """
+    Falha FECHADA: sem a credencial de servidor obrigatória o app não
+    opera em modo degradado. Nada de login, persistência, aprovação,
+    geração oficial ou emissão — e nenhum fallback para a chave
+    publicável.
+
+    A tela é deliberadamente pobre em diagnóstico: quem precisa da
+    instrução técnica é o operador do servidor, que a encontra no
+    runbook (`docs/seguranca-achado-p0.md`), não o visitante.
+    """
+    st.subheader("Sistema em manutenção")
+    st.error(
+        "O GovDocs está temporariamente indisponível por manutenção "
+        "programada de segurança. Nenhum documento pode ser gerado, "
+        "aprovado ou emitido neste momento."
+    )
+    st.caption(
+        "Se você é o responsável técnico pelo servidor, consulte o "
+        "procedimento de contenção em `docs/seguranca-achado-p0.md`."
+    )
 
 
 def render_configuracao_necessaria() -> None:

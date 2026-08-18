@@ -35,14 +35,20 @@ from .prompts import formatar_dados_formulario, montar_prompt
 class ErroGeracaoIA(Exception):
     """Erro de geração já traduzido em mensagem amigável para a interface.
 
-    `detalhe` guarda o erro técnico bruto da API (motor + tipo + mensagem)
+    `detalhe` guarda o erro técnico da API (motor + tipo + mensagem)
     para exibição opcional na interface — é o que permite diagnosticar a
     causa real (401, 404, 429, região bloqueada etc.).
+
+    O detalhe é SANITIZADO na construção: exceções de 401 do OpenAI e do
+    Gemini ecoam a própria chave, e este texto vai tanto para a tela
+    quanto para a coluna de auditoria de `registrar_geracao`.
     """
 
     def __init__(self, mensagem: str, detalhe: str = ""):
-        super().__init__(mensagem)
-        self.detalhe = detalhe
+        from . import db   # import tardio: mesmo padrão do resto do módulo
+
+        super().__init__(db.redigir(mensagem))
+        self.detalhe = db.redigir(detalhe)
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +264,12 @@ def _traduzir_erro(exc: Exception, motor: str = "") -> str:
             f"Ajuste {var_modelo} para um modelo disponível "
             "(ex.: gpt-4o-mini / gemini-1.5-flash)."
         )
-    return f"{rotulo}: falha na comunicação — {type(exc).__name__}: {exc}"
+    from . import db   # import tardio: mesmo padrão do resto do módulo
+
+    # Categoria desconhecida: mensagem genérica com referência. O texto
+    # bruto da API costuma trazer a chave no cabeçalho ecoado.
+    return (f"{rotulo}: falha na comunicação. Referência: "
+            f"{db.registrar_incidente(exc, f'llm: {motor or rotulo}')}.")
 
 
 class _RespostaVazia(Exception):
@@ -623,10 +634,15 @@ def testar_conexao(motor: str) -> tuple[bool, str]:
         _chamar_gemini(system, user, chave)
         return True, f"Gemini respondeu. Modelos tentados: {', '.join(_modelos_gemini())}."
     except ErroGeracaoIA as erro:
+        # `detalhe` já sai sanitizado de ErroGeracaoIA.__init__
         detalhe = getattr(erro, "detalhe", "")
         return False, f"{erro}\n\n{detalhe}"
     except Exception as exc:  # noqa: BLE001
-        return False, f"{type(exc).__name__}: {exc}"
+        from . import db
+
+        return False, (
+            "Falha inesperada ao testar o motor. Referência: "
+            f"{db.registrar_incidente(exc, 'llm: teste de motor')}.")
 
 
 # ---------------------------------------------------------------------------

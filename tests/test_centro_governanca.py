@@ -233,6 +233,9 @@ class _TabelaFake:
         return types.SimpleNamespace(data=filtrados)
 
 
+from tests.conftest import ligar_trilha_falsa  # noqa: E402
+
+
 def _banco_fake(monkeypatch, permitir_update_em=("governanca_versoes",)):
     tabelas: dict[str, list] = {}
 
@@ -243,6 +246,7 @@ def _banco_fake(monkeypatch, permitir_update_em=("governanca_versoes",)):
     cliente = types.SimpleNamespace(table=types.MethodType(table, object()))
     monkeypatch.setattr(db, "disponivel", lambda: True)
     monkeypatch.setattr(db, "_cliente", lambda: cliente)
+    ligar_trilha_falsa(monkeypatch, db, cliente, tabelas)
     return tabelas
 
 
@@ -282,8 +286,11 @@ def test_obter_ou_criar_artefato_e_idempotente(monkeypatch):
 
 def test_trilha_de_eventos_e_append_only(monkeypatch):
     tabelas = _banco_fake(monkeypatch, permitir_update_em=())
+    # entidade é o TIPO LÓGICO (`versao`), não o nome da tabela: é o
+    # que a matriz da 0020 fala, e declarar a tabela fazia a chamada ser
+    # recusada por vocabulário mesmo com papel correto
     db.registrar_evento_governanca(
-        "versao_publicada", "governanca_versoes", None,
+        "versao_publicada", "versao", None,
         {"chave": "clausula.garantia", "versao": 2})
     evento = tabelas["governanca_eventos"][0]
     assert evento["tipo_evento"] == "versao_publicada"

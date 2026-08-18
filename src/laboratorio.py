@@ -24,7 +24,8 @@ Regras de publicação (09_LABORATORIO do pacote):
     exige APROVAÇÃO registrada por usuário DIFERENTE do autor.
 """
 
-from . import auth, catalogo, conhecimento, db, governanca, politicas
+from . import (auth, catalogo, conhecimento, db, governanca,
+               politicas, trilha)
 
 TIPOS_ALVO = (
     "formulario", "fato_obrigatorio", "validacao", "politica",
@@ -102,12 +103,23 @@ def decidir_proposta(proposta: dict, decisao: str,
             "mudança jurídica exige aprovador autorizado (publicador+).")
     campos = {"status": decisao}
     if db.disponivel() and proposta.get("id"):
+        # Decidir uma proposta é operação de USUÁRIO, não de servidor.
+        # Ia por `db._cliente()`, que carrega a credencial secreta e
+        # atravessa o RLS: a política de `melhoria_propostas` nunca era
+        # avaliada, e a checagem de papel acima era a única barreira —
+        # feita no cliente, onde a defesa não pode morar sozinha.
+        cliente = db.cliente_do_usuario()
+        if cliente is None:
+            raise ErroLaboratorio(
+                "Decidir proposta exige sessão autenticada. "
+                "(Requer a migração 0020 aplicada e login por Supabase "
+                "Auth.)")
         try:
-            db._cliente().table("melhoria_propostas").update(  # noqa: SLF001
+            cliente.table("melhoria_propostas").update(
                 campos).eq("id", proposta["id"]).execute()
             db.registrar_evento_governanca(
-                f"proposta_{decisao.lower()}", "melhoria_propostas",
-                proposta["id"], {"motivo": motivo})
+                trilha.EVENTO_DA_DECISAO[decisao], "proposta",
+                proposta["id"], {"motivo": motivo, "decisao": decisao})
         except Exception as exc:  # noqa: BLE001
             raise db._traduzir_erro(exc) from exc  # noqa: SLF001
     return {**proposta, **campos}
@@ -155,7 +167,17 @@ def registrar_aprovacao(versao: dict, decisao: str,
             "versão.")
     registro = {
         "tenant_id": db.tenant_atual(),
-        "entidade_tipo": "governanca_versoes",
+        # TIPO LÓGICO, não nome de tabela.
+        #
+        # Gravava `governanca_versoes`, e a resolução de escopo da 0020
+        # — que segue aprovação → versão → artefato para descobrir a
+        # secretaria — usa uma matriz FECHADA de tipo→tabela. Um tipo
+        # que a matriz não conhece é recusado, de propósito: aprovação
+        # que aponta para algo irresolúvel não tem escopo que se possa
+        # afirmar. Toda aprovação criada com o nome da tabela viraria,
+        # portanto, uma aprovação sobre a qual ninguém pode registrar
+        # evento.
+        "entidade_tipo": trilha.TIPO_DA_APROVACAO_DE_VERSAO,
         "entidade_id": versao["id"],
         "papel_exigido": "publicador",
         "aprovador": aprovador,
@@ -164,8 +186,13 @@ def registrar_aprovacao(versao: dict, decisao: str,
     }
     if not db.disponivel():
         return registro
+    cliente = db.cliente_do_usuario()
+    if cliente is None:
+        raise ErroLaboratorio(
+            "Registrar aprovação exige sessão autenticada. "
+            "(Requer a migração 0020 aplicada e login por Supabase Auth.)")
     try:
-        return db._cliente().table("governanca_aprovacoes").insert(  # noqa: SLF001
+        return cliente.table("governanca_aprovacoes").insert(
             registro).execute().data[0]
     except Exception as exc:  # noqa: BLE001
         raise db._traduzir_erro(exc) from exc  # noqa: SLF001

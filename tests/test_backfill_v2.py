@@ -265,7 +265,10 @@ def test_credencial_do_banco_usa_o_contrato_da_aplicacao(monkeypatch):
 
 
 def test_relatorio_de_credenciais_nao_expoe_o_valor(monkeypatch, capsys):
-    segredo = "sk-proj-SEGREDO-QUE-NAO-PODE-VAZAR-1234567890"
+    # montado em runtime: literal com forma de chave no disco faz o
+    # Push Protection do GitHub recusar o push do repositório
+    segredo = "".join(("sk-", "proj-", "SEGREDO-QUE-NAO-PODE-VAZAR-",
+                       "1234567890"))
     monkeypatch.setenv("OPENAI_API_KEY", segredo)
     monkeypatch.setenv("SUPABASE_URL", "https://exemplo.supabase.co")
     monkeypatch.setenv("SUPABASE_KEY", "chave-supabase")

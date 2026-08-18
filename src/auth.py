@@ -25,6 +25,19 @@ class ErroAuth(Exception):
     """Erro de autenticação com mensagem amigável."""
 
 
+def _falha(acao: str, exc: Exception) -> str:
+    """
+    Mensagem genérica + identificador de correlação.
+
+    Exceções do PostgREST carregam a credencial no cabeçalho e na URL;
+    repassá-las para a tela vazava o segredo. O detalhe sanitizado vai
+    para o log do servidor (ver db.registrar_incidente).
+    """
+    correlacao = db.registrar_incidente(exc, f"auth: {acao}")
+    return (f"Falha ao {acao}. O detalhe técnico ficou registrado no "
+            f"servidor. Referência: {correlacao}.")
+
+
 # ---------------------------------------------------------------------------
 # Hash de senha (stdlib, sem dependências)
 # ---------------------------------------------------------------------------
@@ -79,10 +92,14 @@ def tem_admin() -> bool:
         )
         return bool(resposta.data)
     except Exception as exc:  # noqa: BLE001
-        raise ErroAuth(f"Falha ao consultar usuários: {exc}") from exc
+        raise ErroAuth(_falha("consultar usuários", exc)) from exc
 
 
 def criar_usuario(nome: str, login: str, senha: str, papel: str) -> dict:
+    try:
+        db.exigir_operacional()   # manutenção fecha o bootstrap do admin
+    except db.ErroBanco as erro:
+        raise ErroAuth(str(erro)) from erro
     if papel not in ("admin", "usuario"):
         raise ErroAuth("Papel inválido.")
     if not nome.strip() or not login.strip():
@@ -104,11 +121,145 @@ def criar_usuario(nome: str, login: str, senha: str, papel: str) -> dict:
     except Exception as exc:  # noqa: BLE001
         if "duplicate" in str(exc).lower() or "unique" in str(exc).lower():
             raise ErroAuth(f"O login '{login}' já está em uso.") from exc
-        raise ErroAuth(f"Falha ao criar usuário: {exc}") from exc
+        raise ErroAuth(_falha("criar usuário", exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Supabase Auth — a peça que faltava para a Etapa E
+#
+# Enquanto a autenticação for a tabela `usuarios` com `senha_hash`
+# conferido aqui no Python, NÃO EXISTE JWT de usuário. Sem JWT, toda
+# requisição vai com a credencial de servidor, que atravessa o RLS: as
+# 28 políticas da 0020 nunca são avaliadas. É por isso que a Etapa E não
+# fechava — não por falta de vontade, por falta desta função.
+#
+# A transição tem duas pontas e elas não podem ser trocadas de uma vez:
+#
+#   * o BANCO precisa da 0020 aplicada (coluna `auth_user_id`,
+#     políticas, RPC);
+#   * as CONTAS precisam existir no Supabase Auth, com papel, tenant e
+#     secretaria em `app_metadata` — que só a Admin API grava.
+#
+# Enquanto as duas não estiverem prontas, `autenticar` tenta o Supabase
+# Auth e, se não houver conta lá, cai para o caminho legado. A queda NÃO
+# é silenciosa no que importa: sem JWT, a trilha de governança recusa
+# (ver db.registrar_evento_governanca). Dá para entrar e usar o app; não
+# dá para praticar ato de governança fingindo que foi registrado.
+#
+# `GOVDOCS_EXIGIR_SUPABASE_AUTH=1` fecha a porta legada. É o interruptor
+# final da Etapa E, e o runbook manda ligá-lo depois do backfill.
+# ---------------------------------------------------------------------------
+FLAG_EXIGIR_SUPABASE_AUTH = "GOVDOCS_EXIGIR_SUPABASE_AUTH"
+
+
+def exigir_supabase_auth() -> bool:
+    """Porta legada fechada? Produção deve fechar depois do backfill."""
+    return db._segredo(  # noqa: SLF001
+        FLAG_EXIGIR_SUPABASE_AUTH).lower() in ("1", "true", "on", "sim")
+
+
+def _cliente_de_login():
+    """
+    Cliente ANÔNIMO, só para trocar senha por token.
+
+    Anônimo de propósito: o login é a única operação que acontece antes
+    de existir identidade, e fazê-la com a credencial de servidor
+    apagaria a diferença entre "o servidor autenticou alguém" e "o
+    servidor decidiu que estava tudo bem".
+    """
+    from supabase import create_client
+
+    url = db._segredo("SUPABASE_URL")            # noqa: SLF001
+    publica = db._segredo(db.NOME_CHAVE_PUBLICA)  # noqa: SLF001
+    if not (url and publica):
+        return None
+    return create_client(url, publica)
+
+
+def autenticar_no_supabase(email: str, senha: str) -> tuple[str, str] | None:
+    """
+    (access_token, auth_user_id) do Supabase Auth — None se não houver.
+
+    None significa "este caminho não está disponível", nunca "a senha
+    está errada": senha errada levanta, e confundir as duas coisas faria
+    uma credencial inválida cair no caminho legado.
+    """
+    cliente = _cliente_de_login()
+    if cliente is None:
+        return None
+    try:
+        sessao = cliente.auth.sign_in_with_password(
+            {"email": email, "password": senha})
+    except Exception as exc:  # noqa: BLE001
+        texto = str(exc).lower()
+        if "invalid login" in texto or "credentials" in texto:
+            # a conta EXISTE no Supabase Auth e a senha não confere.
+            # Cair para o legado aqui seria uma segunda chance que o
+            # usuário não deveria ter.
+            raise ErroAuth("Login ou senha incorretos.") from exc
+        return None
+    token = getattr(getattr(sessao, "session", None), "access_token", "")
+    usuario = getattr(sessao, "user", None)
+    if not token or usuario is None:
+        return None
+    return token, str(usuario.id)
+
+
+def _usuario_por_auth_id(auth_user_id: str) -> dict | None:
+    """Linha de `usuarios` vinculada à conta do Auth."""
+    try:
+        resposta = (_tabela().select("*")
+                    .eq("auth_user_id", auth_user_id).limit(1).execute())
+    except Exception:  # noqa: BLE001
+        # coluna ausente = 0020 ainda não aplicada. É estado esperado
+        # durante a transição, e não é erro de autenticação.
+        return None
+    return resposta.data[0] if resposta.data else None
 
 
 def autenticar(login: str, senha: str) -> dict:
-    """Valida credenciais e retorna o usuário (sem o hash)."""
+    """
+    Valida credenciais e retorna o usuário (sem o hash).
+
+    Ordem: Supabase Auth primeiro, legado depois. O usuário devolvido
+    carrega `_token` quando veio pelo Supabase Auth — é o que `entrar()`
+    guarda na sessão e o que faz o RLS valer nas requisições seguintes.
+    """
+    try:
+        db.exigir_operacional()   # manutenção fecha o login
+    except db.ErroBanco as erro:
+        raise ErroAuth(str(erro)) from erro
+
+    sessao = autenticar_no_supabase(login.strip().lower(), senha)
+    if sessao is not None:
+        token, auth_user_id = sessao
+        usuario = _usuario_por_auth_id(auth_user_id)
+        if usuario is None:
+            raise ErroAuth(
+                "Conta autenticada, mas sem vínculo institucional neste "
+                "município. Procure o administrador.")
+        if not usuario.get("ativo", True):
+            raise ErroAuth("Usuário desativado. Procure o administrador.")
+        usuario.pop("senha_hash", None)
+        usuario["_token"] = token
+        return usuario
+
+    if exigir_supabase_auth():
+        raise ErroAuth(
+            "Este ambiente exige Supabase Auth e a conta não foi "
+            "encontrada lá. Procure o administrador.")
+
+    return _autenticar_legado(login, senha)
+
+
+def _autenticar_legado(login: str, senha: str) -> dict:
+    """
+    Caminho de TRANSIÇÃO: senha conferida aqui, contra `usuarios`.
+
+    Quem entra por aqui NÃO tem JWT, e portanto opera com a credencial
+    de servidor — o RLS não é exercido. É o estado que a Etapa E existe
+    para encerrar, e `GOVDOCS_EXIGIR_SUPABASE_AUTH=1` o encerra.
+    """
     # select("*") em vez de lista fixa: o dicionário do usuário carrega as
     # colunas de vínculo institucional (tenant_id/secretaria_id) quando as
     # migrações 0006/0007 estão aplicadas — e continua funcionando antes.
@@ -121,7 +272,7 @@ def autenticar(login: str, senha: str) -> dict:
             .execute()
         )
     except Exception as exc:  # noqa: BLE001
-        raise ErroAuth(f"Falha ao consultar o banco: {exc}") from exc
+        raise ErroAuth(_falha("consultar o banco", exc)) from exc
 
     usuario = resposta.data[0] if resposta.data else None
     if not usuario or not verificar_senha(senha, usuario["senha_hash"]):
@@ -141,7 +292,7 @@ def listar_usuarios() -> list[dict]:
             .execute()
         ).data or []
     except Exception as exc:  # noqa: BLE001
-        raise ErroAuth(f"Falha ao listar usuários: {exc}") from exc
+        raise ErroAuth(_falha("listar usuários", exc)) from exc
     for usuario in usuarios:
         usuario.pop("senha_hash", None)
     return usuarios
@@ -157,7 +308,7 @@ def atualizar_usuario(usuario_id: str, **campos) -> None:
     try:
         _tabela().update(campos).eq("id", usuario_id).execute()
     except Exception as exc:  # noqa: BLE001
-        raise ErroAuth(f"Falha ao atualizar usuário: {exc}") from exc
+        raise ErroAuth(_falha("atualizar usuário", exc)) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -168,10 +319,20 @@ def entrar(usuario: dict) -> None:
     Registra o usuário na sessão e deriva o contexto institucional do
     VÍNCULO dele (tenant; a secretaria fica no próprio dicionário) —
     nunca de um campo livre do frontend (Fase 2 da matriz).
+
+    Guarda também o access token do Supabase Auth, quando houve um: é
+    ele que `db.cliente_do_usuario()` anexa às requisições, e é o que
+    faz o RLS ser avaliado em vez de atravessado. O token sai do
+    dicionário do usuário — nada em `st.session_state.usuario` deve
+    carregar credencial, porque esse dicionário é lido pela interface
+    inteira.
     """
+    token = usuario.pop("_token", "")
     st.session_state.usuario = usuario
     if usuario.get("tenant_id"):
         st.session_state.tenant_id = usuario["tenant_id"]
+    if token:
+        st.session_state[db.CHAVE_DA_SESSAO] = token
 
 
 def usuario_logado() -> dict | None:
@@ -184,7 +345,14 @@ def modo_aberto() -> bool:
     e CI: exige a ausência de Supabase E a variável GOVDOCS_MODO_ABERTO=1.
     Em produção (deploy real), NUNCA cair em modo aberto silenciosamente —
     sem banco o app mostra a tela de configuração necessária.
+
+    Manutenção NUNCA vira modo aberto: sem a credencial de servidor
+    obrigatória, `disponivel()` é False, e sem esta guarda uma variável
+    de ambiente esquecida transformaria a falha fechada em "app inteiro
+    liberado sem login".
     """
+    if db.em_manutencao():
+        return False
     if db.disponivel():
         return False
     return os.getenv("GOVDOCS_MODO_ABERTO", "").strip() in ("1", "true", "True")
@@ -253,6 +421,9 @@ def somente_auditoria() -> bool:
 def sair() -> None:
     st.session_state.usuario = None
     st.session_state.tenant_id = None
+    # o token sai PRIMEIRO e sempre: uma sessão encerrada que deixasse
+    # o JWT para trás continuaria autorizando requisições
+    st.session_state[db.CHAVE_DA_SESSAO] = ""
     # limpa o processo em andamento da sessão anterior
     st.session_state.dados = {}
     st.session_state.documentos = {}

@@ -19,7 +19,7 @@ Regras aplicadas AQUI (a UI só chama):
     jamais publica sozinha (T14).
 """
 
-from . import auth, db, governanca, perfis
+from . import auth, db, governanca, perfis, trilha
 
 _COMPORTAMENTO_POR_FIXA = {"LOCKED": "FIXED_LOCKED",
                            "PARAMETERIZED": "FIXED_PARAMETERIZED"}
@@ -35,10 +35,22 @@ def _exigir(condicao: bool, mensagem: str) -> None:
 
 
 def _evento(tipo: str, entidade_id: str | None, payload: dict) -> None:
-    usuario = (auth.usuario_logado() or {})
-    db.registrar_evento_governanca(
-        tipo, "governanca_versoes", entidade_id, payload,
-        ator=usuario.get("id"))
+    """
+    Registra um ato na trilha.
+
+    Duas coisas deixaram de ser feitas aqui, e as duas eram defeito.
+
+    O `ator` NÃO é mais passado. Era `usuarios.id` — a chave da tabela
+    de usuários do app, que não é `auth.uid()` e que o chamador
+    escolhia. Agora sai de `auth.uid()` dentro da RPC, onde ninguém
+    daqui alcança.
+
+    A entidade declarada é `versao`, o TIPO LÓGICO, e não
+    `governanca_versoes`, o nome da tabela. A matriz da 0020 fala em
+    tipos lógicos; declarar o nome da tabela fazia toda chamada ser
+    recusada por vocabulário mesmo com o papel correto.
+    """
+    db.registrar_evento_governanca(tipo, "versao", entidade_id, payload)
 
 
 # ---------------------------------------------------------------------------
@@ -60,8 +72,11 @@ def criar_artefato(tipo_artefato: str, chave_estavel: str, payload: dict,
         tipo_artefato, chave_estavel, payload, versao=proxima)
     contrato["autor"] = (auth.usuario_logado() or {}).get("id")
     gravada = db.criar_versao_governanca(artefato["id"], contrato)
-    _evento(f"{tipo_artefato}_rascunho_criado", gravada.get("id"),
-            {"chave": chave_estavel, "versao": proxima})
+    # O ATO é "versão criada". O tipo de artefato é atributo do ato e
+    # vai no payload — vocabulário que depende do dado não fecha nunca.
+    _evento("versao_criada", gravada.get("id"),
+            {"tipo_artefato": tipo_artefato, "chave": chave_estavel,
+             "versao": proxima, "origem": "rascunho_criado"})
     return artefato, gravada
 
 
@@ -82,8 +97,9 @@ def editar_rascunho(versao: dict, chave_estavel: str, payload: dict,
     atualizada = db.atualizar_versao_governanca(
         versao["id"], payload=contrato["payload"],
         hash=contrato["hash"])
-    _evento(f"{tipo_artefato}_rascunho_editado", versao["id"],
-            {"chave": chave_estavel, "versao": versao["versao"]})
+    _evento("versao_alterada", versao["id"],
+            {"tipo_artefato": tipo_artefato, "chave": chave_estavel,
+             "versao": versao["versao"], "origem": "rascunho_editado"})
     return atualizada
 
 
@@ -99,9 +115,11 @@ def derivar_nova_versao(artefato: dict, versao: dict) -> dict:
         versao=proxima)
     contrato["autor"] = (auth.usuario_logado() or {}).get("id")
     gravada = db.criar_versao_governanca(artefato["id"], contrato)
-    _evento(f"{tipo}_versao_derivada", gravada.get("id"),
-            {"chave": artefato["chave_estavel"], "de": versao["versao"],
-             "para": proxima})
+    # derivar É criar uma versão; o que a distingue vai no payload
+    _evento("versao_criada", gravada.get("id"),
+            {"tipo_artefato": tipo, "chave": artefato["chave_estavel"],
+             "de": versao["versao"], "para": proxima,
+             "origem": "versao_derivada"})
     return gravada
 
 
@@ -140,13 +158,17 @@ def transicionar(artefato: dict, versao: dict, novo_status: str,
                     anterior["id"] != versao["id"]:
                 db.atualizar_versao_governanca(anterior["id"],
                                                status="SUPERSEDED")
-                _evento(f"{tipo}_versao_superada", anterior["id"],
-                        {"chave": artefato["chave_estavel"],
+                _evento("versao_superada", anterior["id"],
+                        {"tipo_artefato": tipo,
+                         "chave": artefato["chave_estavel"],
                          "versao": anterior["versao"]})
     atualizada = db.atualizar_versao_governanca(versao["id"], **campos)
-    _evento(f"{tipo}_{novo_status.lower()}", versao["id"],
-            {"chave": artefato["chave_estavel"],
-             "versao": versao["versao"]})
+    # `f"{tipo}_{novo_status.lower()}"` produzia `clausula_published`,
+    # `politica_revoked` — nomes em duas línguas, dependentes do dado e
+    # ausentes de qualquer matriz. A transição tem um ato nomeado.
+    _evento(trilha.evento_da_transicao(novo_status), versao["id"],
+            {"tipo_artefato": tipo, "chave": artefato["chave_estavel"],
+             "versao": versao["versao"], "status": novo_status})
     return atualizada
 
 

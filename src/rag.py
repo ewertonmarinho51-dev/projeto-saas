@@ -190,7 +190,25 @@ _TERMOS_DADOS_NO_PROCESSO = re.compile(
 
 
 class ErroRAG(Exception):
-    """Erro da base de conhecimento com mensagem amigável."""
+    """
+    Erro da base de conhecimento com mensagem amigável.
+
+    A mensagem é SANITIZADA na construção. Vários pontos deste módulo
+    levantam ErroRAG interpolando a exceção original, e essa string vai
+    para a tela (`st.warning`) e para o trace de RAG — que é persistido
+    junto da geração. Sanear no construtor fecha todos de uma vez, em
+    vez de depender de cada `raise` lembrar de fazê-lo.
+    """
+
+    def __init__(self, mensagem: str = ""):
+        super().__init__(db.redigir(mensagem))
+
+
+def _falha(acao: str, exc: Exception) -> str:
+    """Mensagem genérica + identificador de correlação (ver db)."""
+    correlacao = db.registrar_incidente(exc, f"rag: {acao}")
+    return (f"Falha ao {acao}. O detalhe técnico ficou registrado no "
+            f"servidor. Referência: {correlacao}.")
 
 
 # ---------------------------------------------------------------------------
@@ -334,7 +352,15 @@ def _gerar_embeddings(textos: list[str], para_consulta: bool) -> list[list[float
     except ErroRAG:
         raise
     except Exception as exc:  # noqa: BLE001
-        st.warning(f"Embeddings indisponíveis ({exc}); usando busca textual.")
+        # A exceção do provedor NUNCA chega à tela. Um 401 da OpenAI
+        # ecoa a própria chave no corpo do erro, e esta mensagem era
+        # exibida ao servidor que estivesse indexando — bastava um
+        # arquivo enviado com a chave errada para vazá-la.
+        correlacao = db.registrar_incidente(exc, "rag: embeddings")
+        st.warning(
+            "Embeddings indisponíveis; a busca segue em modo textual e "
+            "novas indexações ficam pendentes. O detalhe técnico ficou "
+            f"registrado no servidor. Referência: {correlacao}.")
         return None
 
 
@@ -399,7 +425,7 @@ def indexar_arquivo(nome_arquivo: str, titulo: str, categoria: str, dados: bytes
                 "disponível — até lá ele não aparece na busca semântica.")
         return len(chunks)
     except Exception as exc:  # noqa: BLE001
-        raise ErroRAG(f"Falha ao gravar na base de conhecimento: {exc}") from exc
+        raise ErroRAG(_falha("gravar na base de conhecimento", exc)) from exc
 
 
 def listar_referencias() -> list[dict]:
@@ -412,7 +438,7 @@ def listar_referencias() -> list[dict]:
             .execute()
         ).data or []
     except Exception as exc:  # noqa: BLE001
-        raise ErroRAG(f"Falha ao listar a base de conhecimento: {exc}") from exc
+        raise ErroRAG(_falha("listar a base de conhecimento", exc)) from exc
 
 
 def excluir_referencia(documento_id: str) -> None:
@@ -422,7 +448,7 @@ def excluir_referencia(documento_id: str) -> None:
             "id", documento_id
         ).execute()
     except Exception as exc:  # noqa: BLE001
-        raise ErroRAG(f"Falha ao excluir referência: {exc}") from exc
+        raise ErroRAG(_falha("excluir referência", exc)) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -445,7 +471,7 @@ def _executar_rpc(funcao: str, params: dict) -> list[dict]:
             resposta = cliente.rpc(funcao, params).execute()
         return resposta.data or []
     except Exception as exc:  # noqa: BLE001
-        raise ErroRAG(f"Falha na busca da base de conhecimento: {exc}") from exc
+        raise ErroRAG(_falha("buscar na base de conhecimento", exc)) from exc
 
 
 def buscar_referencias(consulta: str, qtd: int = RAG_TOP_K) -> list[dict]:

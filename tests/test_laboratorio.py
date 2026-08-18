@@ -17,6 +17,9 @@ from src import auth, catalogo, db, governanca, laboratorio, politicas
 from tests.test_catalogo import _TabelaFake  # noqa: E402
 
 
+from tests.conftest import ligar_trilha_falsa  # noqa: E402
+
+
 @pytest.fixture
 def banco(monkeypatch):
     tabelas: dict[str, list] = {}
@@ -27,6 +30,7 @@ def banco(monkeypatch):
     cliente = types.SimpleNamespace(table=types.MethodType(table, object()))
     monkeypatch.setattr(db, "disponivel", lambda: True)
     monkeypatch.setattr(db, "_cliente", lambda: cliente)
+    ligar_trilha_falsa(monkeypatch, db, cliente, tabelas)
     monkeypatch.setattr(db, "flag_ativa", lambda n: True)
     monkeypatch.setattr(auth, "modo_aberto", lambda: True)
     return tabelas
