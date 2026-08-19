@@ -521,9 +521,24 @@ def _lastro_da_sessao(documentos: dict[str, str]) -> dict[str, set]:
             for doc_key in documentos if doc_key in traces}
 
 
+def _dados_da_sessao() -> dict | None:
+    """
+    Formulário Matriz do processo em sessão — fonte da conferência da
+    tabela de itens e das identificações. Fora do Streamlit (testes
+    puros, jobs), devolve None e essas checagens não opinam.
+    """
+    try:
+        import streamlit as st
+
+        return st.session_state.get("dados") or None
+    except Exception:
+        return None
+
+
 def gerar_relatorio(documentos: dict[str, str],
                     processo_id: str | None = None,
-                    versao: int = 1) -> dict:
+                    versao: int = 1,
+                    dados: dict | None = None) -> dict:
     """
     Relatório de auditoria (audit-report) do bundle: roda o revisor
     determinístico existente e estrutura o resultado. Não altera nada.
@@ -531,7 +546,9 @@ def gerar_relatorio(documentos: dict[str, str],
     # P1: lastro das citações — artigos que o RAG realmente recuperou na
     # geração de cada documento (sem rastro, a checagem não opina).
     lastro_por_doc = _lastro_da_sessao(documentos)
-    brutos = validacao.validar_todos(documentos, lastro_por_doc)
+    brutos = validacao.validar_todos(
+        documentos, lastro_por_doc,
+        dados if dados is not None else _dados_da_sessao())
     findings = estruturar(brutos, documentos)
     # V5 Fase 5 (flag_process_consistency): consistência cruzada entre
     # fatos canônicos e documentos entra no MESMO relatório — o corretor

@@ -109,16 +109,35 @@ DOCUMENTOS = {
     "edital": {
         "etapa": 4,
         "sigla": "Edital",
-        "titulo": "Minuta de Edital / Ata de Registro de Preços",
+        "titulo": "Minuta de Edital",
         "base_legal": "art. 25 da Lei nº 14.133/2021",
         "descricao": (
             "Minuta com as cláusulas do certame — condições de "
-            "participação, julgamento, habilitação e sanções — e, quando "
-            "SRP, a minuta da Ata de Registro de Preços."
+            "participação, julgamento, habilitação, recursos e sanções."
+        ),
+        "usa_contexto_de": "tr",
+    },
+    # Instrumento PRÓPRIO, não um capítulo do edital: a Ata é montada
+    # deterministicamente na mesma etapa, quando o processo adota o
+    # Sistema de Registro de Preços.
+    "arp": {
+        "etapa": 4,
+        "sigla": "ARP",
+        "titulo": "Minuta da Ata de Registro de Preços",
+        "base_legal": "arts. 82 a 86 da Lei nº 14.133/2021",
+        "descricao": (
+            "Minuta da Ata — objeto e preços registrados, vigência "
+            "(art. 84), gerenciamento, cadastro de reserva, adesão "
+            "(art. 86) e cancelamento do registro."
         ),
         "usa_contexto_de": "tr",
     },
 }
+
+# Ordem de EXPORTAÇÃO do dossiê. Difere de SEQUENCIA_DOCUMENTOS porque a
+# ARP não é etapa do wizard: é emitida junto do edital, como instrumento
+# separado, quando há Sistema de Registro de Preços.
+DOCUMENTOS_EXPORTAVEIS = SEQUENCIA_DOCUMENTOS + ["arp"]
 
 # ---------------------------------------------------------------------------
 # Formulário Matriz — Passo 1

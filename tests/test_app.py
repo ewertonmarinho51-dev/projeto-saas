@@ -59,7 +59,15 @@ def _iniciar_com_formulario() -> AppTest:
 
 
 def _aprovar_documento(at: AppTest) -> None:
-    _botao(at, "com IA").click()
+    # O rótulo do botão varia por documento: DFD/ETP/TR são gerados por
+    # IA, Edital e ARP são montados por código a partir do catálogo
+    # ("Gerar minuta do …"). O teste segue o botão de geração, não o
+    # motor.
+    gerar = [b for b in at.button
+             if (b.label or "").startswith("Gerar ")
+             and "novamente" not in (b.label or "")]
+    assert gerar, [b.label for b in at.button]
+    gerar[0].click()
     at.run()
     assert not at.exception
     _botao(at, "Aprovar").click()
@@ -89,7 +97,11 @@ def test_fluxo_completo_ate_sucesso():
     assert at.session_state["aprovados"] == {"dfd", "etp", "tr", "edital"}
     # planilha consolidada: valor global = 100 × 4500 = 450000
     assert at.session_state["dados"]["valor_estimado"] == 450000.0
-    assert any("concluído" in s.value.lower() for s in at.subheader)
+    # Fase 1 do padrão ouro: o título da etapa final não afirma
+    # "concluído" enquanto houver pendência — a conclusão só é declarada
+    # quando a emissão é liberada (banner de sucesso, não o subheader).
+    assert any("emissão" in s.value.lower() for s in at.subheader)
+    assert not any("concluído" in s.value.lower() for s in at.subheader)
     # minutas demo contêm [PREENCHER] → a validação BLOQUEIA a emissão
     # (pendências ficam na revisão, nunca no PDF/DOCX final)
     assert any("bloqueada" in e.value.lower() for e in at.error)

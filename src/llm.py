@@ -29,6 +29,7 @@ from .config import (
     OPENAI_MODEL_PADRAO,
     OPENAI_MODELOS_FALLBACK,
 )
+from . import templates_gov
 from .prompts import formatar_dados_formulario, montar_prompt
 
 
@@ -452,6 +453,30 @@ def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str,
     )
 
 
+def gerar_instrumento_oficial(doc_key: str, dados: dict) -> str:
+    """
+    Edital / Ata de Registro de Preços montados DETERMINISTICAMENTE.
+
+    A redação jurídica destes instrumentos não é livre: vem do catálogo
+    de cláusulas versionado (templates_gov), com a tabela oficial de
+    itens injetada no lugar do marcador. Dado ausente aparece como
+    [PREENCHER: …] e bloqueia a emissão — jamais é preenchido por
+    plausibilidade, que foi como o edital auditado ganhou pregão fundado
+    no art. 109 e garantia sem base legal.
+    """
+    from . import planilha
+
+    inicio = time.time()
+    montado = templates_gov.montar_oficial(doc_key, dados)
+    texto = planilha.injetar_tabela(montado["texto"], dados.get("itens"))
+    registrar_geracao(doc_key, "template", inicio, "ok")
+    # instrumento determinístico não consulta a base de conhecimento: o
+    # rastro fica explicitamente vazio (e não herda o do documento anterior)
+    _associar_rag_trace(doc_key, {"modo": "template", "consultas": [],
+                                  "referencias": []}, texto)
+    return texto
+
+
 def gerar_documento(doc_key: str, dados: dict,
                     contexto_anterior: str | None,
                     instrucoes_extra: str = "") -> str:
@@ -463,8 +488,16 @@ def gerar_documento(doc_key: str, dados: dict,
     `instrucoes_extra` (V6): diretrizes adicionais da família de modelo
     resolvida — aditivas ao perfil institucional.
     Levanta ErroGeracaoIA com mensagem amigável em caso de falha.
+
+    EXCEÇÃO: `edital` e `arp` NÃO são gerados por IA. São instrumentos de
+    conteúdo obrigatório (art. 25 e arts. 82 a 86), montados por código a
+    partir do catálogo versionado de cláusulas — o que falta neles vira
+    [PREENCHER: …] visível, nunca texto plausível.
     """
     from . import planilha
+
+    if doc_key in templates_gov.TEMPLATES_OFICIAIS:
+        return gerar_instrumento_oficial(doc_key, dados)
 
     if st.session_state.get("modo_demo", False):
         # Fallback EXPLÍCITO (nunca silencioso): só ocorre com o toggle

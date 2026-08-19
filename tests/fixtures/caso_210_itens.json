@@ -1,0 +1,1477 @@
+{
+ "_fonte": "Planilha do processo real de referência (210 itens). Somente códigos, descrições, unidades, quantidades e preços — nenhum nome, matrícula, data, conclusão ou justificativa do processo.",
+ "objeto": "Aquisição de materiais de expediente",
+ "valor_estimado": 8024834.67,
+ "itens": [
+  {
+   "codigo": "572704",
+   "descricao": "ALFINETE PARA MURAL ESPECIFICAÇÃO: corpo em aço com tratamento anticorrosivo e cabeça plás tica colorida arredondada, caixa com 100 unidades.",
+   "unidade": "CAIXA",
+   "quantidade": 10.0,
+   "valor_unitario": 18.21
+  },
+  {
+   "codigo": "572705",
+   "descricao": "ALMOFADA PARA CARIMBO 12 x 9cm ESPECIFICAÇÃO: almofada para carimbo manual, estojo resistente, feltro ou espuma de alta absorção, tamanho aproximado mínimo de 12 x 9 cm, cor conforme nec essidade do setor.",
+   "unidade": "UNIDADE",
+   "quantidade": 487.0,
+   "valor_unitario": 15.75
+  },
+  {
+   "codigo": "572706",
+   "descricao": "APAGADOR PARA QUADRO BRANCO ESPECIFICAÇÃO: Corpo resistente, base com feltro substituível ou fixo, próprio para uso a seco.",
+   "unidade": "UNIDADE",
+   "quantidade": 2508.0,
+   "valor_unitario": 20.2
+  },
+  {
+   "codigo": "572707",
+   "descricao": "APONTADOR COM DEPÓSITO ESPECIFICAÇÃO: Corpo plástico resistente e lâmina em aço temperado.",
+   "unidade": "UNIDADE",
+   "quantidade": 2695.0,
+   "valor_unitario": 4.4
+  },
+  {
+   "codigo": "14089",
+   "descricao": "BALÕES PCT. C/ 50 UNID ESPECIFICAÇÃO: TAMANHO Nº 7 - LISO",
+   "unidade": "PACOTE",
+   "quantidade": 2450.0,
+   "valor_unitario": 13.9
+  },
+  {
+   "codigo": "572868",
+   "descricao": "BARBANTE CRU - 8 FIOS. ESPECIFICAÇÃO: Barbante cru, confeccionado em fibras 100% algodão recicla do ou misto de algodão e poliéster de alta qualidade, torcido em 8 fios. Rolo com 1kg.",
+   "unidade": "ROLO",
+   "quantidade": 340.0,
+   "valor_unitario": 26.99
+  },
+  {
+   "codigo": "572708",
+   "descricao": "BARBANTE CRU 250G ESPECIFICAÇÃO: Em algodão ou material equivalente, rolo com peso aproximado de 25 0 g e resistência compatível com uso em amarração de volumes e documento s.",
+   "unidade": "UNIDADE",
+   "quantidade": 274.0,
+   "valor_unitario": 12.7
+  },
+  {
+   "codigo": "826509",
+   "descricao": "BASTÃO DE COLA QUENTE FINA ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 31223.0,
+   "valor_unitario": 0.87
+  },
+  {
+   "codigo": "500058",
+   "descricao": "BASTÃO DE COLA QUENTE GROSSA ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 31113.0,
+   "valor_unitario": 1.81
+  },
+  {
+   "codigo": "572787",
+   "descricao": "BATERIA ALCALINA 9V ESPECIFICAÇÃO: tensão nominal padrão, embalagem individual.",
+   "unidade": "UNIDADE",
+   "quantidade": 377.0,
+   "valor_unitario": 29.95
+  },
+  {
+   "codigo": "512704",
+   "descricao": "BATERIA LITHIUM 3V CR2032 ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 4497.0,
+   "valor_unitario": 2.58
+  },
+  {
+   "codigo": "572709",
+   "descricao": "BLOCO AUTOADESIVO 38X50 ESPECIFICAÇÃO: Bloco de notas autoadesivas reposicionáveis, tamanho a proximado de 38 x 50 mm, mínimo de 100 folhas por bloco.",
+   "unidade": "UNIDADE",
+   "quantidade": 2138.0,
+   "valor_unitario": 4.13
+  },
+  {
+   "codigo": "572710",
+   "descricao": "BLOCO AUTOADESIVO 76X76 ESPECIFICAÇÃO: Bloco de notas autoadesivas reposicionáveis, tamanho a proximado de 76 x 76 mm, mínimo de 100 folhas por bloco.",
+   "unidade": "UNIDADE",
+   "quantidade": 275.0,
+   "valor_unitario": 8.9
+  },
+  {
+   "codigo": "572713",
+   "descricao": "BOBINA TÉRMICA 80X40 ESPECIFICAÇÃO: Papel térmico de boa legibilidade e compatível com impressoras tér micas utilizadas pela Administração.",
+   "unidade": "UNIDADE",
+   "quantidade": 1070.0,
+   "valor_unitario": 4.33
+  },
+  {
+   "codigo": "572714",
+   "descricao": "BORRACHA BRANCA.. ESPECIFICAÇÃO: Macia para escrita a lápis, livre de abrasivos agressivos, não tóx ica, dimensões compatíveis com uso escolar e administrativo.",
+   "unidade": "UNIDADE",
+   "quantidade": 1894.0,
+   "valor_unitario": 1.7
+  },
+  {
+   "codigo": "572869",
+   "descricao": "BORRACHA PONTEIRA. ESPECIFICAÇÃO: Cor branca. produzida em borracha sintética ou natural, a tóxica. livre de PVC tóxico e substâncias nocivas. compatível com lápis padrão nº 2.",
+   "unidade": "UNIDADE",
+   "quantidade": 25755.0,
+   "valor_unitario": 0.63
+  },
+  {
+   "codigo": "17710",
+   "descricao": "CADERNO BROCHURA 96 FLS - CAPA DURA PEQUENO ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 1815.0,
+   "valor_unitario": 8.9
+  },
+  {
+   "codigo": "588538",
+   "descricao": "CADERNO BROCHURA 96FLS - CAPA DURA GRANDE ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 6475.0,
+   "valor_unitario": 14.7
+  },
+  {
+   "codigo": "588422",
+   "descricao": "CADERNO CAPA DURA C/ 12 MAT. ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 625.0,
+   "valor_unitario": 34.9
+  },
+  {
+   "codigo": "374543",
+   "descricao": "CADERNO CAPA DURA C/ ARAME 96FLS ESPECIFICAÇÃO: C/ 1 MATÉRIA; FORMATO: 203X280MM.",
+   "unidade": "UNIDADE",
+   "quantidade": 760.0,
+   "valor_unitario": 14.2
+  },
+  {
+   "codigo": "572715",
+   "descricao": "CAIXA ARQUIVO MORTO ESPECIFICAÇÃO: Em polipropileno ou material plástico resistente, com tampa integr ada, visor para identificação e dimensões compatíveis com documentos A4 ou ofício.",
+   "unidade": "UNIDADE",
+   "quantidade": 15230.0,
+   "valor_unitario": 7.66
+  },
+  {
+   "codigo": "572870",
+   "descricao": "CAIXA ORGANIZADORA CRISTAL PARA 6 PASTA SUSPENSA ECOLÓGICAS. ESPECIFICAÇÃO: Material polipropileno, dimensões 425 x 145 x 270 mm.",
+   "unidade": "UNIDADE",
+   "quantidade": 95.0,
+   "valor_unitario": 36.7
+  },
+  {
+   "codigo": "572717",
+   "descricao": "CALCULADORA DE MESA 12D ESPECIFICAÇÃO: visor inclinado, mínimo de 12 dígitos, funções básic as, porcentagem, memória, raiz quadrada e desligamento automático.",
+   "unidade": "UNIDADE",
+   "quantidade": 1248.0,
+   "valor_unitario": 49.9
+  },
+  {
+   "codigo": "11246",
+   "descricao": "CANETA ESFEROGRAFICA ESPECIFICAÇÃO: corpo em resina termoplástica, ponta metálica com esfera de tungst ênio, escrita fina ou média, tinta de secagem rápida, cores azul, preta e vermel ha.",
+   "unidade": "UNIDADE",
+   "quantidade": 47575.0,
+   "valor_unitario": 0.94
+  },
+  {
+   "codigo": "245678",
+   "descricao": "CANETA HIDROCOR C/ 12 UNIDADES ESPECIFICAÇÃO:",
+   "unidade": "ESTOJO",
+   "quantidade": 4695.0,
+   "valor_unitario": 5.99
+  },
+  {
+   "codigo": "572799",
+   "descricao": "CAPA PARA ENCADERNAÇÃO. ESPECIFICAÇÃO: transparente, formato A4, em PVC ou material equivalente, espessura compatível.",
+   "unidade": "UNIDADE",
+   "quantidade": 65600.0,
+   "valor_unitario": 0.6
+  },
+  {
+   "codigo": "572719",
+   "descricao": "CLIPE N° 1/0 ESPECIFICAÇÃO: Em arame de aço galvanizado ou niquelado, caixa padrão de mercado.",
+   "unidade": "CAIXA",
+   "quantidade": 2360.0,
+   "valor_unitario": 3.75
+  },
+  {
+   "codigo": "572720",
+   "descricao": "CLIPE N° 2/0 ESPECIFICAÇÃO: Em arame de aço galvanizado ou niquelado, caixa padrão de mercado.",
+   "unidade": "CAIXA",
+   "quantidade": 4180.0,
+   "valor_unitario": 3.9
+  },
+  {
+   "codigo": "572721",
+   "descricao": "CLIPE N° 3/0 ESPECIFICAÇÃO: em arame de aço galvanizado ou niquelado, caixa padrão de mercado.",
+   "unidade": "CAIXA",
+   "quantidade": 3732.0,
+   "valor_unitario": 3.9
+  },
+  {
+   "codigo": "572722",
+   "descricao": "CLIPE N° 4/0 ESPECIFICAÇÃO: em arame de aço galvanizado ou niquelado, caixa padrão de mercado",
+   "unidade": "CAIXA",
+   "quantidade": 3363.0,
+   "valor_unitario": 3.5
+  },
+  {
+   "codigo": "572723",
+   "descricao": "CLIPE N° 6/0 ESPECIFICAÇÃO: Em arame de aço galvanizado ou niquelado, caixa padrão de mercado.",
+   "unidade": "CAIXA",
+   "quantidade": 3325.0,
+   "valor_unitario": 3.78
+  },
+  {
+   "codigo": "572724",
+   "descricao": "CLIPE N° 8/0 ESPECIFICAÇÃO: Em arame de aço galvanizado ou niquelado, caixa padrão de mercado.",
+   "unidade": "CAIXA",
+   "quantidade": 3430.0,
+   "valor_unitario": 3.9
+  },
+  {
+   "codigo": "572726",
+   "descricao": "COLA BASTÃO 8G. ESPECIFICAÇÃO: Não tóxica, secagem rápida, aplicação limpa, tubo com aproximadamente 8g.",
+   "unidade": "UNIDADE",
+   "quantidade": 80.0,
+   "valor_unitario": 2.4
+  },
+  {
+   "codigo": "828119",
+   "descricao": "COLA BRANCA (KG) ESPECIFICAÇÃO:",
+   "unidade": "QUILO",
+   "quantidade": 1804.0,
+   "valor_unitario": 45.0
+  },
+  {
+   "codigo": "572725",
+   "descricao": "COLA BRANCA 90G ESPECIFICAÇÃO: Líquida à base de PVA, não tóxica, lavável, indicada p ara papel e papelão, frasco com aproximadamente 90g.",
+   "unidade": "UNIDADE",
+   "quantidade": 11951.0,
+   "valor_unitario": 2.9
+  },
+  {
+   "codigo": "245680",
+   "descricao": "COLA COLORIDA CX C/ 06 UNIDADES ESPECIFICAÇÃO: 23G CADA",
+   "unidade": "CAIXA",
+   "quantidade": 65.0,
+   "valor_unitario": 14.92
+  },
+  {
+   "codigo": "243315",
+   "descricao": "COLA ISOPOR 1KG ESPECIFICAÇÃO:",
+   "unidade": "QUILO",
+   "quantidade": 1640.0,
+   "valor_unitario": 65.42
+  },
+  {
+   "codigo": "17723",
+   "descricao": "COLA P/ E.V.A 90 GR. ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 6385.0,
+   "valor_unitario": 5.6
+  },
+  {
+   "codigo": "775213",
+   "descricao": "COLA PARA ISOPOR 90g ESPECIFICAÇÃO: Embalagem com 90 ml, com dados de identificação do prod uto, marca do fabricante, data de fabricação e prazo de validade.",
+   "unidade": "UNIDADE",
+   "quantidade": 4370.0,
+   "valor_unitario": 8.0
+  },
+  {
+   "codigo": "572728",
+   "descricao": "COLCHETE BAILARINA N° 10 ESPECIFICAÇÃO: Em chapa metálica latonada, caixa com 72 unidades.",
+   "unidade": "CAIXA",
+   "quantidade": 45.0,
+   "valor_unitario": 12.9
+  },
+  {
+   "codigo": "572729",
+   "descricao": "COLCHETE BAILARINA N° 15 ESPECIFICAÇÃO: Em chapa metálica latonada, caixa com 72 unidades.",
+   "unidade": "CAIXA",
+   "quantidade": 35.0,
+   "valor_unitario": 34.99
+  },
+  {
+   "codigo": "572727",
+   "descricao": "COLCHETE BAILARINA N° 6 ESPECIFICAÇÃO: Em chapa metálica latonada, caixa com 72 unidades.",
+   "unidade": "CAIXA",
+   "quantidade": 20.0,
+   "valor_unitario": 8.36
+  },
+  {
+   "codigo": "572801",
+   "descricao": "CONTRACAPA PARA ENCADERNAÇÃO ESPECIFICAÇÃO: formato A4, em PVC opaco ou material equivalente.",
+   "unidade": "UNIDADE",
+   "quantidade": 65600.0,
+   "valor_unitario": 0.57
+  },
+  {
+   "codigo": "267466",
+   "descricao": "CORDÃO PARA CRACHA ESPECIFICAÇÃO: ROLO COM 100MT",
+   "unidade": "ROLO",
+   "quantidade": 131.0,
+   "valor_unitario": 70.0
+  },
+  {
+   "codigo": "572730",
+   "descricao": "CORRETIVO EM FITA ESPECIFICAÇÃO: largura aproximada de 5 mm, comprimento mínimo de 5 m, aplicação s eca e imediata.",
+   "unidade": "UNIDADE",
+   "quantidade": 629.0,
+   "valor_unitario": 7.9
+  },
+  {
+   "codigo": "572731",
+   "descricao": "CORRETIVO LÍQUIDO 18ML. ESPECIFICAÇÃO: à base d?água, secagem rápida e boa cobertura, frasco com aproximadamente 18 ml.",
+   "unidade": "UNIDADE",
+   "quantidade": 1838.0,
+   "valor_unitario": 4.9
+  },
+  {
+   "codigo": "572871",
+   "descricao": "ELÁSTICO Nº 18. ESPECIFICAÇÃO: Super elásticos resistentes, pacote com 500 unidades.",
+   "unidade": "PACOTE",
+   "quantidade": 310.0,
+   "valor_unitario": 19.99
+  },
+  {
+   "codigo": "370614",
+   "descricao": "ENVELOPE AMARELO 260MMX360MM ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 5755.0,
+   "valor_unitario": 0.75
+  },
+  {
+   "codigo": "572872",
+   "descricao": "ENVELOPE AMARELO MÉDIO. ESPECIFICAÇÃO: Formatos como Kraft 176x250mm, A5 ou envelope plástico de ofício.",
+   "unidade": "UNIDADE",
+   "quantidade": 680.0,
+   "valor_unitario": 0.35
+  },
+  {
+   "codigo": "18266",
+   "descricao": "ENVELOPE BRANCO 260MMX360MM ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 7445.0,
+   "valor_unitario": 1.06
+  },
+  {
+   "codigo": "572733",
+   "descricao": "ENVELOPE OFÍCIO/CARTA ESPECIFICAÇÃO: Aproximadamente 114 x 229 mm, em papel offset ou su lfite, para correspondência interna e externa.",
+   "unidade": "UNIDADE",
+   "quantidade": 1205.0,
+   "valor_unitario": 0.27
+  },
+  {
+   "codigo": "572873",
+   "descricao": "ENVELOPE OURO 162MMX229MM ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 2825.0,
+   "valor_unitario": 0.31
+  },
+  {
+   "codigo": "572874",
+   "descricao": "ENVELOPE PARA CONVITE. ESPECIFICAÇÃO: Cores diversas, medindo 162mm x 229mm.",
+   "unidade": "UNIDADE",
+   "quantidade": 4680.0,
+   "valor_unitario": 0.9
+  },
+  {
+   "codigo": "572734",
+   "descricao": "ENVELOPE SACO BRANCO 260X360 ESPECIFICAÇÃO: gramatura compatível com acondicionamento de documentos A4 sem dobras.",
+   "unidade": "UNIDADE",
+   "quantidade": 2970.0,
+   "valor_unitario": 0.83
+  },
+  {
+   "codigo": "572735",
+   "descricao": "ENVELOPE SACO KRAFT 260X360 ESPECIFICAÇÃO: gramatura compatível com acondicionamento de documentos A4 sem dobras.",
+   "unidade": "UNIDADE",
+   "quantidade": 2495.0,
+   "valor_unitario": 0.4
+  },
+  {
+   "codigo": "572804",
+   "descricao": "ESPIRAL PARA ENCADERNAÇÃO 12MM ESPECIFICAÇÃO: plástico, pacote padrão de mercado.",
+   "unidade": "PACOTE",
+   "quantidade": 852.0,
+   "valor_unitario": 23.15
+  },
+  {
+   "codigo": "572807",
+   "descricao": "ESPIRAL PARA ENCADERNAÇÃO 17MM ESPECIFICAÇÃO: plástico, pacote padrão de mercado.",
+   "unidade": "PACOTE",
+   "quantidade": 405.0,
+   "valor_unitario": 31.68
+  },
+  {
+   "codigo": "572808",
+   "descricao": "ESPIRAL PARA ENCADERNAÇÃO 20MM ESPECIFICAÇÃO: plástico, pacote padrão de mercado.",
+   "unidade": "PACOTE",
+   "quantidade": 255.0,
+   "valor_unitario": 31.68
+  },
+  {
+   "codigo": "572809",
+   "descricao": "ESPIRAL PARA ENCADERNAÇÃO 25MM ESPECIFICAÇÃO: plástico, pacote padrão de mercado.",
+   "unidade": "PACOTE",
+   "quantidade": 127.0,
+   "valor_unitario": 31.68
+  },
+  {
+   "codigo": "572810",
+   "descricao": "ESPIRAL PARA ENCADERNAÇÃO 33MM ESPECIFICAÇÃO: plástico, pacote padrão de mercado.",
+   "unidade": "PACOTE",
+   "quantidade": 30.0,
+   "valor_unitario": 31.68
+  },
+  {
+   "codigo": "572802",
+   "descricao": "ESPIRAL PARA ENCADERNAÇÃO 7MM ESPECIFICAÇÃO: plástico, pacote padrão de mercado.",
+   "unidade": "PACOTE",
+   "quantidade": 352.0,
+   "valor_unitario": 21.5
+  },
+  {
+   "codigo": "572803",
+   "descricao": "ESPIRAL PARA ENCADERNAÇÃO 9MM ESPECIFICAÇÃO: plástico, pacote padrão de mercado.",
+   "unidade": "PACOTE",
+   "quantidade": 832.0,
+   "valor_unitario": 18.29
+  },
+  {
+   "codigo": "572736",
+   "descricao": "ESTILETE ESTREITO 9MM ESPECIFICAÇÃO: Retrátil, corpo resistente, trava de segurança e compatível com lâ mina de 9 mm.",
+   "unidade": "UNIDADE",
+   "quantidade": 329.0,
+   "valor_unitario": 2.9
+  },
+  {
+   "codigo": "572737",
+   "descricao": "ESTILETE LARGO 18MM. ESPECIFICAÇÃO: Retrátil, corpo resistente, trava de segurança e compatível com lâ mina de 18 mm.",
+   "unidade": "UNIDADE",
+   "quantidade": 3775.0,
+   "valor_unitario": 4.9
+  },
+  {
+   "codigo": "572738",
+   "descricao": "ETIQUETA AUTOADESIVA A4 ESPECIFICAÇÃO: Compatível com impressora laser e jato de tinta, co m boa aderência e fácil destacamento.",
+   "unidade": "PACOTE",
+   "quantidade": 377.0,
+   "valor_unitario": 92.7
+  },
+  {
+   "codigo": "572875",
+   "descricao": "ETIQUETAS ADESIVAS PARA CONVITES FORMATO REDONDO. ESPECIFICAÇÃO: Medida 13mm, pacote com 420 unidades.",
+   "unidade": "PACOTE",
+   "quantidade": 124.0,
+   "valor_unitario": 5.65
+  },
+  {
+   "codigo": "825840",
+   "descricao": "EVA COLORIDO ESPECIFICAÇÃO: 40x50cm",
+   "unidade": "FOLHA",
+   "quantidade": 28995.0,
+   "valor_unitario": 2.0
+  },
+  {
+   "codigo": "966105",
+   "descricao": "EVA COM GLITER CORES VARIADAS ESPECIFICAÇÃO: tamanho 41cm x 50cm cores, branca, prateado, dourado, vermelho, verde, etc",
+   "unidade": "FOLHA",
+   "quantidade": 28370.0,
+   "valor_unitario": 6.5
+  },
+  {
+   "codigo": "572739",
+   "descricao": "EXTRATOR DE GRAMPO ALAVANCA ESPECIFICAÇÃO: Em aço inox ou aço com tratamento anticorrosivo.",
+   "unidade": "UNIDADE",
+   "quantidade": 1028.0,
+   "valor_unitario": 6.9
+  },
+  {
+   "codigo": "572740",
+   "descricao": "EXTRATOR DE GRAMPO PIRANHA ESPECIFICAÇÃO: corpo resistente, acabamento regular e boa ergonomia.",
+   "unidade": "UNIDADE",
+   "quantidade": 392.0,
+   "valor_unitario": 5.9
+  },
+  {
+   "codigo": "24520",
+   "descricao": "FITA ADESIVA 12X40 ESPECIFICAÇÃO: 12X40MM CORES DIVERSAS",
+   "unidade": "UNIDADE",
+   "quantidade": 1220.0,
+   "valor_unitario": 11.26
+  },
+  {
+   "codigo": "572741",
+   "descricao": "FITA ADESIVA 12X40. ESPECIFICAÇÃO: transparente, em filme plástico resistente e adesivo uniforme.",
+   "unidade": "UNIDADE",
+   "quantidade": 6469.0,
+   "valor_unitario": 4.9
+  },
+  {
+   "codigo": "572742",
+   "descricao": "FITA ADESIVA 19X50 ESPECIFICAÇÃO: transparente, em filme plástico resistente e adesivo uniforme.",
+   "unidade": "UNIDADE",
+   "quantidade": 586.0,
+   "valor_unitario": 2.71
+  },
+  {
+   "codigo": "572743",
+   "descricao": "FITA ADESIVA 45X50. ESPECIFICAÇÃO: Transparente, em filme plástico resistente e adesivo uniforme.",
+   "unidade": "UNIDADE",
+   "quantidade": 8273.0,
+   "valor_unitario": 7.13
+  },
+  {
+   "codigo": "3810",
+   "descricao": "FITA ADESIVA DUPLA FACE ESPECIFICAÇÃO: 18mm X 30m de papel",
+   "unidade": "UNIDADE",
+   "quantidade": 10.0,
+   "valor_unitario": 9.2
+  },
+  {
+   "codigo": "372860",
+   "descricao": "FITA ADESIVA, TRANSPARENTE, DIMENSÃO 50MM X 50M ESPECIFICAÇÃO: Fita adesiva, transparente, fabricada em celulose, ade sivo em resina de borracha natural, rolo com dimensão 50 mm x 50 m. Embalagem: un idades separadas com material anti-adesivo, contendo a marca do fabricante.",
+   "unidade": "UNIDADE",
+   "quantidade": 10.0,
+   "valor_unitario": 9.9
+  },
+  {
+   "codigo": "572745",
+   "descricao": "FITA CREPE 18X50. ESPECIFICAÇÃO: adesão adequada e remoção compatível com uso em escritório.",
+   "unidade": "ROLO",
+   "quantidade": 4295.0,
+   "valor_unitario": 7.2
+  },
+  {
+   "codigo": "572748",
+   "descricao": "FITA CREPE 25X50 ESPECIFICAÇÃO: adesão adequada e remoção compatível com uso em escritório.",
+   "unidade": "ROLO",
+   "quantidade": 255.0,
+   "valor_unitario": 10.4
+  },
+  {
+   "codigo": "572749",
+   "descricao": "FITA CREPE 48X50 ESPECIFICAÇÃO: adesão adequada e remoção compatível com uso em escritório.",
+   "unidade": "ROLO",
+   "quantidade": 6620.0,
+   "valor_unitario": 16.7
+  },
+  {
+   "codigo": "269395",
+   "descricao": "FITA DE CETIM 2CM CORES VARIADAS ESPECIFICAÇÃO: peça com 10mts",
+   "unidade": "PEÇA",
+   "quantidade": 545.0,
+   "valor_unitario": 14.7
+  },
+  {
+   "codigo": "572744",
+   "descricao": "FITA DUPLA FACE 18X30 ESPECIFICAÇÃO: largura aproximada de 18 mm e comprimento aproximado de 30m.",
+   "unidade": "UNIDADE",
+   "quantidade": 6633.0,
+   "valor_unitario": 12.9
+  },
+  {
+   "codigo": "572876",
+   "descricao": "FITA DUPLA FACE MASSA ADESIVA 19MM X 1.5M. ESPECIFICAÇÃO: Fita adesiva dupla face com base em massa adesiva acrílica de alta performance.",
+   "unidade": "UNIDADE",
+   "quantidade": 343.0,
+   "valor_unitario": 16.98
+  },
+  {
+   "codigo": "572750",
+   "descricao": "FITA GOMADA 50X50 ESPECIFICAÇÃO: em papel, para fechamento de caixas e pacotes.",
+   "unidade": "UNIDADE",
+   "quantidade": 55.0,
+   "valor_unitario": 30.85
+  },
+  {
+   "codigo": "43583",
+   "descricao": "FITA MÉTRICA - 150CM ESPECIFICAÇÃO: EM POLIESTER",
+   "unidade": "UNIDADE",
+   "quantidade": 636.0,
+   "valor_unitario": 8.2
+  },
+  {
+   "codigo": "572877",
+   "descricao": "FITA MÉTRICA FLEXÍVEL FORTE E PRECISA. ESPECIFICAÇÃO: Comumente possui 150 cm de comprimento, com marcações em centímetr os e milímetros.",
+   "unidade": "UNIDADE",
+   "quantidade": 343.0,
+   "valor_unitario": 3.3
+  },
+  {
+   "codigo": "998990",
+   "descricao": "FITA ZEBRADA 70MMX200M ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 241.0,
+   "valor_unitario": 35.9
+  },
+  {
+   "codigo": "376862",
+   "descricao": "FITA ZEBRADA. ESPECIFICAÇÃO: fita zebrada na cor laranja 70mm x 200m.",
+   "unidade": "UNIDADE",
+   "quantidade": 250.0,
+   "valor_unitario": 28.2
+  },
+  {
+   "codigo": "572878",
+   "descricao": "FITILHO PLÁSTICO - ROLO 1KG. ESPECIFICAÇÃO: Fitilho plástico tipo F10, produzido em polipropileno, rolo com 1kg.",
+   "unidade": "ROLO",
+   "quantidade": 255.0,
+   "valor_unitario": 21.0
+  },
+  {
+   "codigo": "825842",
+   "descricao": "GIZ DE CERA C/ 12 ESPECIFICAÇÃO: de 95g colorido",
+   "unidade": "CAIXA",
+   "quantidade": 13345.0,
+   "valor_unitario": 8.9
+  },
+  {
+   "codigo": "850472",
+   "descricao": "GIZ DE CERA ESTACA AZUL ESPECIFICAÇÃO: caixa com 12 unidades",
+   "unidade": "CAIXA",
+   "quantidade": 340.0,
+   "valor_unitario": 6.9
+  },
+  {
+   "codigo": "588430",
+   "descricao": "GRAMPEADOR DE MESA 23/8 100FLS ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 155.0,
+   "valor_unitario": 99.9
+  },
+  {
+   "codigo": "572753",
+   "descricao": "GRAMPEADOR DE MESA ESPECIFICAÇÃO: base antiderrapante, estrutura resistente, capacidade mínima compa tível com uso administrativo comum e compatível com grampo 26/6.",
+   "unidade": "UNIDADE",
+   "quantidade": 577.0,
+   "valor_unitario": 32.9
+  },
+  {
+   "codigo": "242863",
+   "descricao": "GRAMPEADOR DE PRESSÃO 106/06 ESPECIFICAÇÃO: Capacidade 240 folhas",
+   "unidade": "UNIDADE",
+   "quantidade": 2178.0,
+   "valor_unitario": 116.9
+  },
+  {
+   "codigo": "572754",
+   "descricao": "GRAMPEADOR GRANDE CAPACIDADE ESPECIFICAÇÃO: estrutura metálica, para no mínimo 60 a 100 folhas, conforme padrã o do item, compatível com grampo específico.",
+   "unidade": "UNIDADE",
+   "quantidade": 136.0,
+   "valor_unitario": 149.9
+  },
+  {
+   "codigo": "828021",
+   "descricao": "GRAMPEADOR PARA PAPEL ESPECIFICAÇÃO: base 17cm, capacidade de no minimo 25 folhas, grampo compativel 24/6 e 26/6 com base plástica.",
+   "unidade": "UNIDADE",
+   "quantidade": 13.0,
+   "valor_unitario": 44.9
+  },
+  {
+   "codigo": "572752",
+   "descricao": "GRAMPEADOR TIPO ALICATE ESPECIFICAÇÃO: estrutura metálica ou metal/plástico de alta resistência, compatível com grampo 26/6.",
+   "unidade": "UNIDADE",
+   "quantidade": 2550.0,
+   "valor_unitario": 49.9
+  },
+  {
+   "codigo": "572757",
+   "descricao": "GRAMPO 23/13 ESPECIFICAÇÃO: galvanizado, caixa padrão de mercado.",
+   "unidade": "CAIXA",
+   "quantidade": 216.0,
+   "valor_unitario": 36.9
+  },
+  {
+   "codigo": "572756",
+   "descricao": "GRAMPO 23/8 ESPECIFICAÇÃO: galvanizado, caixa padrão de mercado.",
+   "unidade": "CAIXA",
+   "quantidade": 548.0,
+   "valor_unitario": 33.9
+  },
+  {
+   "codigo": "572758",
+   "descricao": "GRAMPO 24/10 ESPECIFICAÇÃO: galvanizado, caixa padrão de mercado.",
+   "unidade": "CAIXA",
+   "quantidade": 206.0,
+   "valor_unitario": 9.9
+  },
+  {
+   "codigo": "572755",
+   "descricao": "GRAMPO 26/6. ESPECIFICAÇÃO: galvanizado, caixa padrão de mercado, compatível com gra mpeadores comuns de escritório.",
+   "unidade": "CAIXA",
+   "quantidade": 2855.0,
+   "valor_unitario": 9.9
+  },
+  {
+   "codigo": "775839",
+   "descricao": "GRAMPO PARA GRAMPEADOR 106/6 CX C/ 3500 ESPECIFICAÇÃO:",
+   "unidade": "CAIXA",
+   "quantidade": 1891.0,
+   "valor_unitario": 21.9
+  },
+  {
+   "codigo": "131184",
+   "descricao": "GRAMPO PARA GRAMPEADOR 24/10 CX COM 5000 ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 10.0,
+   "valor_unitario": 28.9
+  },
+  {
+   "codigo": "572751",
+   "descricao": "GRAMPO TRILHO PLÁSTICO ESPECIFICAÇÃO: estendido para documentos perfurados, pacote padrão de mercado.",
+   "unidade": "PACOTE",
+   "quantidade": 1483.0,
+   "valor_unitario": 15.5
+  },
+  {
+   "codigo": "558238",
+   "descricao": "LANTERNA DE MÃO PEQUENA - PILHA 3A ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 88.0,
+   "valor_unitario": 69.0
+  },
+  {
+   "codigo": "148273",
+   "descricao": "LAPIS PRETO Nº 02 ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 55675.0,
+   "valor_unitario": 1.19
+  },
+  {
+   "codigo": "572811",
+   "descricao": "LIGA ELÁSTICA 100G ESPECIFICAÇÃO: de látex ou material equivalente, pacote com aproximadamente 100g.",
+   "unidade": "PACOTE",
+   "quantidade": 749.0,
+   "valor_unitario": 5.32
+  },
+  {
+   "codigo": "572760",
+   "descricao": "LIVRO ATA 100 FLS ESPECIFICAÇÃO: capa dura e folhas internas apropriadas para registros permanentes.",
+   "unidade": "UNIDADE",
+   "quantidade": 2243.0,
+   "valor_unitario": 16.9
+  },
+  {
+   "codigo": "572761",
+   "descricao": "LIVRO ATA 200 FLS ESPECIFICAÇÃO: capa dura e folhas internas apropriadas para registros permanentes.",
+   "unidade": "UNIDADE",
+   "quantidade": 440.0,
+   "valor_unitario": 31.9
+  },
+  {
+   "codigo": "176396",
+   "descricao": "LIVRO ATA 50FLS ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 740.0,
+   "valor_unitario": 12.9
+  },
+  {
+   "codigo": "572762",
+   "descricao": "LIVRO PROTOCOLO 100 FLS ESPECIFICAÇÃO: Capa dura, folhas numeradas sequencialmente quando aplicável.",
+   "unidade": "UNIDADE",
+   "quantidade": 1201.0,
+   "valor_unitario": 21.5
+  },
+  {
+   "codigo": "572879",
+   "descricao": "LÁPIS BORRACHA ESPECIFICAÇÃO: Apagador em formato de lápis.",
+   "unidade": "UNIDADE",
+   "quantidade": 285.0,
+   "valor_unitario": 6.0
+  },
+  {
+   "codigo": "245064",
+   "descricao": "LÁPIS DE COR GRANDE CX C/ 12 UNIDADES ESPECIFICAÇÃO:",
+   "unidade": "CAIXA",
+   "quantidade": 16525.0,
+   "valor_unitario": 44.5
+  },
+  {
+   "codigo": "572763",
+   "descricao": "MALETA ARQUIVO ESPECIFICAÇÃO: em polipropileno resistente, com alça, fechamento s eguro e capacidade para aproximadamente 10 pastas suspensas.",
+   "unidade": "UNIDADE",
+   "quantidade": 53.0,
+   "valor_unitario": 96.8
+  },
+  {
+   "codigo": "249002",
+   "descricao": "MARCA TEXTO PONTA CHATA (CORES DIVERSAS) A BASE DE AGUA SECAGEM RAPIDA ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 20.0,
+   "valor_unitario": 1.99
+  },
+  {
+   "codigo": "572764",
+   "descricao": "MARCADOR DE TEXTO. ESPECIFICAÇÃO: ponta chanfrada, traço aproximado entre 1 mm e 5 mm, ti nta fluorescente à base d? água.",
+   "unidade": "UNIDADE",
+   "quantidade": 9521.0,
+   "valor_unitario": 4.8
+  },
+  {
+   "codigo": "572765",
+   "descricao": "MARCADOR PARA QUADRO BRANCO. ESPECIFICAÇÃO: ponta redonda ou cônica, tinta apagável a seco, baixo odor, cores variadas.",
+   "unidade": "UNIDADE",
+   "quantidade": 415.0,
+   "valor_unitario": 5.22
+  },
+  {
+   "codigo": "775834",
+   "descricao": "MARCADOR PERMANENTE-CORES VARIADAS ESPECIFICAÇÃO: Ponta chanfrada em fibra, c/ escrita de 1mm a 6mm. Baixo odor e secagem rápida",
+   "unidade": "UNIDADE",
+   "quantidade": 20353.0,
+   "valor_unitario": 4.88
+  },
+  {
+   "codigo": "11247",
+   "descricao": "MASSA DE MODELAR GRANDE C/12 ESPECIFICAÇÃO: NO MINIMO 180G.",
+   "unidade": "CAIXA",
+   "quantidade": 9403.0,
+   "valor_unitario": 6.7
+  },
+  {
+   "codigo": "572766",
+   "descricao": "MOLHA-DEDO ESPECIFICAÇÃO: em pasta, não tóxico, não mancha, embalagem padrão de mercado.",
+   "unidade": "UNIDADE",
+   "quantidade": 1118.0,
+   "valor_unitario": 4.5
+  },
+  {
+   "codigo": "572788",
+   "descricao": "ORGANIZADOR DE MESA ESPECIFICAÇÃO: porta-canetas, clips e lembretes, em acrílico, poliestireno ou material equivalente.",
+   "unidade": "UNIDADE",
+   "quantidade": 440.0,
+   "valor_unitario": 18.9
+  },
+  {
+   "codigo": "572716",
+   "descricao": "ORGANIZADOR TRIPLO PARA CORRESPONDÊNCIA ESPECIFICAÇÃO: tipo caixa para correspondência com 3 bandejas, em poliestireno, a crílico ou material equivalente resistente, compatível com papel A4 ou ofício .",
+   "unidade": "UNIDADE",
+   "quantidade": 940.0,
+   "valor_unitario": 76.9
+  },
+  {
+   "codigo": "825888",
+   "descricao": "PAPEL 40 KG ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 17790.0,
+   "valor_unitario": 2.5
+  },
+  {
+   "codigo": "572880",
+   "descricao": "PAPEL A4 COLORIDO - GRAMATURA 180G ESPECIFICAÇÃO: PACOTE COM 50 FOLHAS",
+   "unidade": "PACOTE",
+   "quantidade": 380.0,
+   "valor_unitario": 49.9
+  },
+  {
+   "codigo": "516210",
+   "descricao": "PAPEL CARBONO A4 CX C/100 ESPECIFICAÇÃO:",
+   "unidade": "CAIXA",
+   "quantidade": 401.0,
+   "valor_unitario": 48.5
+  },
+  {
+   "codigo": "825832",
+   "descricao": "PAPEL CARMIM - CORES VARIADAS ESPECIFICAÇÃO: MARROM, PRETO, LARANJA, LILAS, VERDE, AMARELO, AZUL, BRANCO, VERMELHO, ETC.",
+   "unidade": "UNIDADE",
+   "quantidade": 17850.0,
+   "valor_unitario": 4.45
+  },
+  {
+   "codigo": "512032",
+   "descricao": "PAPEL CARTOLINA CORES VARIADAS ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 18730.0,
+   "valor_unitario": 1.32
+  },
+  {
+   "codigo": "130988",
+   "descricao": "PAPEL CARTÃO COM BRILHO ESPECIFICAÇÃO: CORES DIVERSAS",
+   "unidade": "FOLHA",
+   "quantidade": 17680.0,
+   "valor_unitario": 8.48
+  },
+  {
+   "codigo": "2342",
+   "descricao": "PAPEL CARTÃO CORES VARIADAS ESPECIFICAÇÃO: cor, preto, vermelho, verde bandeira, branco, azul royal, azul tur queza, rosa, lilá, marrom, amarelo, etc.",
+   "unidade": "UNIDADE",
+   "quantidade": 18385.0,
+   "valor_unitario": 2.49
+  },
+  {
+   "codigo": "572881",
+   "descricao": "PAPEL CONTACT CORES DIVERSAS - ROLO COM 25MT ESPECIFICAÇÃO:",
+   "unidade": "ROLO",
+   "quantidade": 57.0,
+   "valor_unitario": 199.75
+  },
+  {
+   "codigo": "775848",
+   "descricao": "PAPEL CONTACT CORES DIVERSAS ESPECIFICAÇÃO:",
+   "unidade": "METRO",
+   "quantidade": 380.0,
+   "valor_unitario": 9.45
+  },
+  {
+   "codigo": "763",
+   "descricao": "PAPEL CONTACT TRANSPARENTE (MT) ESPECIFICAÇÃO:",
+   "unidade": "METRO",
+   "quantidade": 12320.0,
+   "valor_unitario": 4.4
+  },
+  {
+   "codigo": "245072",
+   "descricao": "PAPEL CREPOM_CORES VARIADAS ESPECIFICAÇÃO: rolo 48cm x 2metros",
+   "unidade": "FOLHA",
+   "quantidade": 1130.0,
+   "valor_unitario": 3.0
+  },
+  {
+   "codigo": "572882",
+   "descricao": "PAPEL FOTOGRÁFICO GLOSSY. ESPECIFICAÇÃO: Tamanho A4, cor branca, pacote com 50 folhas.",
+   "unidade": "PACOTE",
+   "quantidade": 690.0,
+   "valor_unitario": 42.9
+  },
+  {
+   "codigo": "790",
+   "descricao": "PAPEL MADEIRA ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 18285.0,
+   "valor_unitario": 1.4
+  },
+  {
+   "codigo": "572770",
+   "descricao": "PAPEL OFÍCIO 2. ESPECIFICAÇÃO: aproximadamente 216 x 330 mm, gramatura 75 g/m², resma com 500 folhas.",
+   "unidade": "RESMA",
+   "quantidade": 200.0,
+   "valor_unitario": 44.4
+  },
+  {
+   "codigo": "512031",
+   "descricao": "PAPEL PARANÁ ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 17380.0,
+   "valor_unitario": 12.58
+  },
+  {
+   "codigo": "130219",
+   "descricao": "PAPEL PLOTTER 075G L 610 ESPECIFICAÇÃO: rolo com 50 metros.",
+   "unidade": "ROLO",
+   "quantidade": 10.0,
+   "valor_unitario": 59.6
+  },
+  {
+   "codigo": "572769",
+   "descricao": "PAPEL SULFITE A3 ESPECIFICAÇÃO: branco, 297 x 420 mm, gramatura 75 g/m², resma com 500 folhas.",
+   "unidade": "RESMA",
+   "quantidade": 130.0,
+   "valor_unitario": 77.0
+  },
+  {
+   "codigo": "130434",
+   "descricao": "PAPEL SULFITE A4 - PACOTE COM 100 FOLHAS ESPECIFICAÇÃO: CORES DIVERSAS",
+   "unidade": "PACOTE",
+   "quantidade": 17115.0,
+   "valor_unitario": 12.4
+  },
+  {
+   "codigo": "572767",
+   "descricao": "PAPEL SULFITE A4 ESPECIFICAÇÃO: branco, 210 x 297 mm, gramatura 75 g/m², alcalino, alta alvura, re sma com 500 folhas.",
+   "unidade": "RESMA",
+   "quantidade": 9595.0,
+   "valor_unitario": 34.5
+  },
+  {
+   "codigo": "572771",
+   "descricao": "PAPEL SULFITE COLORIDO A4 ESPECIFICAÇÃO: gramatura mínima compatível com impressão e escrita, pacote padrão de mercado.",
+   "unidade": "PACOTE",
+   "quantidade": 50.0,
+   "valor_unitario": 12.4
+  },
+  {
+   "codigo": "133975",
+   "descricao": "PAPEL VERGÊ (CORES VARIADAS) ESPECIFICAÇÃO: PACOTE COM 50 UNIDADES.",
+   "unidade": "PACOTE",
+   "quantidade": 8758.0,
+   "valor_unitario": 12.9
+  },
+  {
+   "codigo": "774802",
+   "descricao": "PASTA ABA ELASTICO OFICIO CRISTAL 335X245X40mm ESPECIFICAÇÃO: medida: 335x245mm, dorso 40mm, cor cristal, tamanho: oficio",
+   "unidade": "UNIDADE",
+   "quantidade": 100.0,
+   "valor_unitario": 9.5
+  },
+  {
+   "codigo": "572776",
+   "descricao": "PASTA ABA ELÁSTICO FINA ESPECIFICAÇÃO: em polipropileno ou cartão plastificado, formato A4 ou ofício.",
+   "unidade": "UNIDADE",
+   "quantidade": 2815.0,
+   "valor_unitario": 5.4
+  },
+  {
+   "codigo": "572777",
+   "descricao": "PASTA ABA ELÁSTICO LARGA ESPECIFICAÇÃO: dorso largo aproximado de 40 mm, em polipropileno ou material equi valente, formato A4 ou ofício.",
+   "unidade": "UNIDADE",
+   "quantidade": 715.0,
+   "valor_unitario": 8.0
+  },
+  {
+   "codigo": "572772",
+   "descricao": "PASTA AZ LOMBO FINO. ESPECIFICAÇÃO: em cartão rígido revestido, ferragem niquelada, visor e olhal metá lico.",
+   "unidade": "UNIDADE",
+   "quantidade": 2262.0,
+   "valor_unitario": 26.8
+  },
+  {
+   "codigo": "572773",
+   "descricao": "PASTA AZ LOMBO LARGO: ESPECIFICAÇÃO: em cartão rígido revestido, ferragem niquelada, visor e olhal metá lico.",
+   "unidade": "UNIDADE",
+   "quantidade": 2461.0,
+   "valor_unitario": 26.9
+  },
+  {
+   "codigo": "572775",
+   "descricao": "PASTA CATÁLOGO 100 ENVS ESPECIFICAÇÃO: formato A4 ou ofício, capa resistente com visor de ident ificação e 100 envelopes plásticos.",
+   "unidade": "UNIDADE",
+   "quantidade": 1640.0,
+   "valor_unitario": 45.9
+  },
+  {
+   "codigo": "572774",
+   "descricao": "PASTA CATÁLOGO 50 ENVS ESPECIFICAÇÃO: formato A4 ou ofício, capa resistente com visor de ident ificação e 50 envelopes plásticos",
+   "unidade": "UNIDADE",
+   "quantidade": 1408.0,
+   "valor_unitario": 24.9
+  },
+  {
+   "codigo": "572883",
+   "descricao": "PASTA CATÁLOGO TIPO YES. ESPECIFICAÇÃO: Com 50 folhas, tamanho A4, cor cristal.",
+   "unidade": "UNIDADE",
+   "quantidade": 145.0,
+   "valor_unitario": 18.9
+  },
+  {
+   "codigo": "7006",
+   "descricao": "PASTA COM ABA E ELASTICO PLASTICO TRANSPARENTE ESPECIFICAÇÃO: Material : Plástico semi transparente colorido Medidas : 33cm x 24 cm (C X L) Altura : 5.5cm Fechamento com elástico",
+   "unidade": "UNIDADE",
+   "quantidade": 1205.0,
+   "valor_unitario": 17.5
+  },
+  {
+   "codigo": "775550",
+   "descricao": "PASTA COM ELÁSTICO ESPECIFICAÇÃO: Características: material: cartolina plastificada, tip o: com abas, largura: 235 mm, altura: 340 mm, cor: variada. Características adicionais: com elástico.",
+   "unidade": "UNIDADE",
+   "quantidade": 14440.0,
+   "valor_unitario": 5.0
+  },
+  {
+   "codigo": "572781",
+   "descricao": "PASTA COM GRAMPO TRILHO ESPECIFICAÇÃO: em cartão ou polipropileno, formato A4 ou ofício.",
+   "unidade": "UNIDADE",
+   "quantidade": 1412.0,
+   "valor_unitario": 2.95
+  },
+  {
+   "codigo": "572778",
+   "descricao": "PASTA EM L ESPECIFICAÇÃO: transparente, formato A4 ou ofício, em PVC ou polipropileno.",
+   "unidade": "UNIDADE",
+   "quantidade": 1175.0,
+   "valor_unitario": 0.99
+  },
+  {
+   "codigo": "572884",
+   "descricao": "PASTA ENVELOPE COM BOTÃO. ESPECIFICAÇÃO: Transparente, em polipropileno, para armazenar documentos A4 ou ofício.",
+   "unidade": "UNIDADE",
+   "quantidade": 108.0,
+   "valor_unitario": 9.0
+  },
+  {
+   "codigo": "572885",
+   "descricao": "PASTA L ESPECIFICAÇÃO: PASTA TRANSPARENTE SEM DIVISÓRIA, FECHADA EM BAIXO",
+   "unidade": "UNIDADE",
+   "quantidade": 397.0,
+   "valor_unitario": 0.99
+  },
+  {
+   "codigo": "572780",
+   "descricao": "PASTA SANFONADA 12 DIV. ESPECIFICAÇÃO: formato A4 ou ofício, com 12 divisórias internas, fechamento em el ástico e identificação.",
+   "unidade": "UNIDADE",
+   "quantidade": 173.0,
+   "valor_unitario": 25.9
+  },
+  {
+   "codigo": "572779",
+   "descricao": "PASTA SUSPENSA: ESPECIFICAÇÃO: em cartão resistente, com hastes, visor, etiqueta e grampo trilho interno",
+   "unidade": "UNIDADE",
+   "quantidade": 90480.0,
+   "valor_unitario": 3.07
+  },
+  {
+   "codigo": "572782",
+   "descricao": "PERCEVEJO LATONADO ESPECIFICAÇÃO: em aço com tratamento anticorrosivo, caixa com 100 unidades.",
+   "unidade": "CAIXA",
+   "quantidade": 331.0,
+   "valor_unitario": 9.9
+  },
+  {
+   "codigo": "572783",
+   "descricao": "PERFURADOR 2 FUROS 25 FLS ESPECIFICAÇÃO: metálico, com base antiderrapante e capacidade mínima para 25 folh as",
+   "unidade": "UNIDADE",
+   "quantidade": 603.0,
+   "valor_unitario": 49.9
+  },
+  {
+   "codigo": "572784",
+   "descricao": "PERFURADOR 2 FUROS 60/70 FLS ESPECIFICAÇÃO: metálico, com base antiderrapante e capacidade aproximada de 60 a 70 folhas.",
+   "unidade": "UNIDADE",
+   "quantidade": 154.0,
+   "valor_unitario": 139.9
+  },
+  {
+   "codigo": "775849",
+   "descricao": "PERFURADOR DE PAPEL 2 FUROS P/100 FOLHAS ESPECIFICAÇÃO: FERRO FUNDIDO",
+   "unidade": "UNIDADE",
+   "quantidade": 134.0,
+   "valor_unitario": 250.6
+  },
+  {
+   "codigo": "572785",
+   "descricao": "PILHA ALCALINA AA ESPECIFICAÇÃO: embalagem com 2 unidades e tensão nominal padrão.",
+   "unidade": "CARTELA",
+   "quantidade": 2545.0,
+   "valor_unitario": 4.9
+  },
+  {
+   "codigo": "572786",
+   "descricao": "PILHA ALCALINA AAA ESPECIFICAÇÃO: embalagem com 2 unidades e tensão nominal padrão.",
+   "unidade": "CARTELA",
+   "quantidade": 11178.0,
+   "valor_unitario": 4.9
+  },
+  {
+   "codigo": "249635",
+   "descricao": "PILHA GRANDE ALCALINA ESPECIFICAÇÃO: EMBALAGEM COM 02 UNIDADES",
+   "unidade": "EMBALAGEM",
+   "quantidade": 520.0,
+   "valor_unitario": 44.9
+  },
+  {
+   "codigo": "243108",
+   "descricao": "PINCEL ATOMICO - CORES CX 12X1 ESPECIFICAÇÃO:",
+   "unidade": "CAIXA",
+   "quantidade": 255.0,
+   "valor_unitario": 58.9
+  },
+  {
+   "codigo": "775853",
+   "descricao": "PINCEL CHATO ARTISTICO Nº 00 ESPECIFICAÇÃO: Cerdas: Natural, Indicado para: Tinta Acrílica, Artesanato, Cerâmi ca, Tecido, Tela/ Acrílica, Tela/ Óleo, Tintas à base de água, Tintas diversas, Pintura escolar.",
+   "unidade": "UNIDADE",
+   "quantidade": 810.0,
+   "valor_unitario": 3.4
+  },
+  {
+   "codigo": "775854",
+   "descricao": "PINCEL CHATO ARTISTICO Nº 02 ESPECIFICAÇÃO: Cerdas: Natural, Indicado para: Tinta Acrílica, Artesanato, Cerâmi ca, Tecido, Tela/ Acrílica, Tela/ Óleo, Tintas à base de água, Tintas diversas, Pintura escolar.",
+   "unidade": "UNIDADE",
+   "quantidade": 810.0,
+   "valor_unitario": 3.8
+  },
+  {
+   "codigo": "775855",
+   "descricao": "PINCEL CHATO ARTISTICO Nº 04 ESPECIFICAÇÃO: Cerdas: Natural, Indicado para: Tinta Acrílica, Artesanato, Cerâmi ca, Tecido, Tela/ Acrílica, Tela/ Óleo, Tintas à base de água, Tintas diversas, Pintura escolar.",
+   "unidade": "UNIDADE",
+   "quantidade": 810.0,
+   "valor_unitario": 4.0
+  },
+  {
+   "codigo": "775856",
+   "descricao": "PINCEL CHATO ARTISTICO Nº 06 ESPECIFICAÇÃO: Cerdas: Natural, Indicado para: Tinta Acrílica, Artesanato, Cerâmi ca, Tecido, Tela/ Acrílica, Tela/ Óleo, Tintas à base de água, Tintas diversas, Pintura escolar.",
+   "unidade": "UNIDADE",
+   "quantidade": 810.0,
+   "valor_unitario": 4.2
+  },
+  {
+   "codigo": "775857",
+   "descricao": "PINCEL CHATO ARTISTICO Nº 08 ESPECIFICAÇÃO: Cerdas: Natural, Indicado para: Tinta Acrílica, Artesanato, Cerâmi ca, Tecido, Tela/ Acrílica, Tela/ Óleo, Tintas à base de água, Tintas diversas, Pintura escolar.",
+   "unidade": "UNIDADE",
+   "quantidade": 810.0,
+   "valor_unitario": 4.5
+  },
+  {
+   "codigo": "775858",
+   "descricao": "PINCEL CHATO ARTISTICO Nº 10 ESPECIFICAÇÃO: Cerdas: Natural, Indicado para: Tinta Acrílica, Artesanato, Cerâmi ca, Tecido, Tela/ Acrílica, Tela/ Óleo, Tintas à base de água, Tintas diversas, Pintura escolar.",
+   "unidade": "UNIDADE",
+   "quantidade": 810.0,
+   "valor_unitario": 5.3
+  },
+  {
+   "codigo": "775859",
+   "descricao": "PINCEL CHATO ARTISTICO Nº 12 ESPECIFICAÇÃO: Cerdas: Natural, Indicado para: Tinta Acrílica, Artesanato, Cerâmi ca, Tecido, Tela/ Acrílica, Tela/ Óleo, Tintas à base de água, Tintas diversas, Pintura escolar.",
+   "unidade": "UNIDADE",
+   "quantidade": 815.0,
+   "valor_unitario": 6.0
+  },
+  {
+   "codigo": "775860",
+   "descricao": "PINCEL CHATO ARTISTICO Nº 14 ESPECIFICAÇÃO: Cerdas: Natural, Indicado para: Tinta Acrílica, Artesanato, Cerâmi ca, Tecido, Tela/ Acrílica, Tela/ Óleo, Tintas à base de água, Tintas diversas, Pintura escolar.",
+   "unidade": "UNIDADE",
+   "quantidade": 815.0,
+   "valor_unitario": 6.6
+  },
+  {
+   "codigo": "775861",
+   "descricao": "PINCEL CHATO ARTISTICO Nº 16 ESPECIFICAÇÃO: Cerdas: Natural, Indicado para: Tinta Acrílica, Artesanato, Cerâmi ca, Tecido, Tela/ Acrílica, Tela/ Óleo, Tintas à base de água, Tintas diversas, Pintura escolar.",
+   "unidade": "UNIDADE",
+   "quantidade": 863.0,
+   "valor_unitario": 7.8
+  },
+  {
+   "codigo": "775862",
+   "descricao": "PINCEL CHATO ARTISTICO Nº 18 ESPECIFICAÇÃO: Cerdas: Natural, Indicado para: Tinta Acrílica, Artesanato, Cerâmi ca, Tecido, Tela/ Acrílica, Tela/ Óleo, Tintas à base de água, Tintas diversas, Pintura escolar.",
+   "unidade": "UNIDADE",
+   "quantidade": 815.0,
+   "valor_unitario": 12.9
+  },
+  {
+   "codigo": "775865",
+   "descricao": "PINCEL CHATO ARTISTICO Nº 24 ESPECIFICAÇÃO: Cerdas: Natural, Indicado para: Tinta Acrílica, Artesanato, Cerâmi ca, Tecido, Tela/ Acrílica, Tela/ Óleo, Tintas à base de água, Tintas diversas, Pintura escolar.",
+   "unidade": "UNIDADE",
+   "quantidade": 815.0,
+   "valor_unitario": 14.9
+  },
+  {
+   "codigo": "775835",
+   "descricao": "PINCEL P/ QUADRO MAGNÉTICO CORES VARIADAS ESPECIFICAÇÃO: Sistema de recarga simples sem desperdício com abertura na tampa t raseiro do pincel.",
+   "unidade": "UNIDADE",
+   "quantidade": 17271.0,
+   "valor_unitario": 18.0
+  },
+  {
+   "codigo": "370875",
+   "descricao": "PISTOLA PARA COLA QUENTE FINA ESPECIFICAÇÃO: Caracteristica: Pistola p/ cola quente de resina plástica, p/ refi s de cola fino: 0,75 cm de diâmetro e 30cm de comprimento , Bivolt 110x220 volts",
+   "unidade": "UNIDADE",
+   "quantidade": 1356.0,
+   "valor_unitario": 28.9
+  },
+  {
+   "codigo": "370874",
+   "descricao": "PISTOLA PARA COLA QUENTE GROSSA ESPECIFICAÇÃO: Caracteristica: Pistola p/ cola quente de resina plástica, p/ refi s de cola grossa: 11,5 cm de diâmetro e 30cm de comprimento , Bivolt 110x220 volts",
+   "unidade": "UNIDADE",
+   "quantidade": 1326.0,
+   "valor_unitario": 42.9
+  },
+  {
+   "codigo": "572886",
+   "descricao": "POUCH PLÁSTICO PARA PLASTIFICAÇÃO A3 - 303X426 0,05MM. ESPECIFICAÇÃO: Pacote com 100 unidades.",
+   "unidade": "PACOTE",
+   "quantidade": 50.0,
+   "valor_unitario": 214.8
+  },
+  {
+   "codigo": "572887",
+   "descricao": "POUCH PLÁSTICO PARA PLASTIFICAÇÃO A4 - 220X307 0,03175 MIC. ESPECIFICAÇÃO: Pacote com 100 unidades.",
+   "unidade": "PACOTE",
+   "quantidade": 90.0,
+   "valor_unitario": 48.99
+  },
+  {
+   "codigo": "572789",
+   "descricao": "PRANCHETA A4/OFÍCIO ESPECIFICAÇÃO: em acrílico, poliestireno ou MDF, com presilha metálica resistente.",
+   "unidade": "UNIDADE",
+   "quantidade": 1556.0,
+   "valor_unitario": 23.7
+  },
+  {
+   "codigo": "572888",
+   "descricao": "PRENDEDOR DE PAPEL (GRAMPOMOL) 25mm. ESPECIFICAÇÃO: Tamanho 25mm, caixa com 12 unidades.",
+   "unidade": "CAIXA",
+   "quantidade": 256.0,
+   "valor_unitario": 14.9
+  },
+  {
+   "codigo": "572889",
+   "descricao": "PRENDEDOR DE PAPEL (GRAMPOMOL) 35mm. ESPECIFICAÇÃO: Tamanho 32mm, caixa com 12 unidades.",
+   "unidade": "CAIXA",
+   "quantidade": 251.0,
+   "valor_unitario": 13.0
+  },
+  {
+   "codigo": "572790",
+   "descricao": "PRENDEDOR TIPO BINDER ESPECIFICAÇÃO: corpo metálico com abas móveis, tamanhos compatíveis com uso em es critório.",
+   "unidade": "CAIXA",
+   "quantidade": 175.0,
+   "valor_unitario": 42.9
+  },
+  {
+   "codigo": "44607",
+   "descricao": "QUADRO BRANCO MAGNÉTICO MOLDURA ALUMÍNIO 120 X 90CM ESPECIFICAÇÃO:",
+   "unidade": "UNIDADE",
+   "quantidade": 155.0,
+   "valor_unitario": 329.0
+  },
+  {
+   "codigo": "43863",
+   "descricao": "QUADRO DE AVISO FELTRO 100X80 ESPECIFICAÇÃO: Quadro feltro standart, chapa de fibra de madeira reflorestada. Ch apa de fibra PO triplex e veltron verde. Moldura aluminio natunal frizado 100 x 80 , cantos retos, orifício na moldura para fixação na parede.",
+   "unidade": "UNIDADE",
+   "quantidade": 194.0,
+   "valor_unitario": 185.0
+  },
+  {
+   "codigo": "572794",
+   "descricao": "REFIL PARA ESTILETE 18MM ESPECIFICAÇÃO: lâmina segmentada, caixa padrão de mercado.",
+   "unidade": "CAIXA",
+   "quantidade": 110.0,
+   "valor_unitario": 5.9
+  },
+  {
+   "codigo": "572793",
+   "descricao": "REFIL PARA ESTILETE 9MM ESPECIFICAÇÃO: lâmina segmentada, caixa padrão de mercado.",
+   "unidade": "CAIXA",
+   "quantidade": 79.0,
+   "valor_unitario": 9.31
+  },
+  {
+   "codigo": "572791",
+   "descricao": "RÉGUA 30CM: ESPECIFICAÇÃO: em plástico resistente, graduação em mm e cm.",
+   "unidade": "UNIDADE",
+   "quantidade": 4715.0,
+   "valor_unitario": 2.8
+  },
+  {
+   "codigo": "572792",
+   "descricao": "RÉGUA 50CM: ESPECIFICAÇÃO: em plástico resistente, graduação em mm e cm.",
+   "unidade": "UNIDADE",
+   "quantidade": 936.0,
+   "valor_unitario": 6.9
+  },
+  {
+   "codigo": "572890",
+   "descricao": "RÉGUA COLORIDA. ESPECIFICAÇÃO: Corpo flexível inquebrável, escala em centímetro, 30 cm, espessura 2,3mm.",
+   "unidade": "UNIDADE",
+   "quantidade": 1471.0,
+   "valor_unitario": 3.8
+  },
+  {
+   "codigo": "775553",
+   "descricao": "RÉGUA EM PLÁSTICO INCOLOR 30 CM ESPECIFICAÇÃO: Graduada, medindo 30 cm, subdivisão em mm.",
+   "unidade": "UNIDADE",
+   "quantidade": 15.0,
+   "valor_unitario": 2.8
+  },
+  {
+   "codigo": "516799",
+   "descricao": "TELA DE NYLON FINA ESPECIFICAÇÃO:",
+   "unidade": "METRO",
+   "quantidade": 3750.0,
+   "valor_unitario": 7.0
+  },
+  {
+   "codigo": "572795",
+   "descricao": "TESOURA DE ESCRITÓRIO 21CM ESPECIFICAÇÃO: em aço inox, cabo anatômico em polipropileno ou equivalente.",
+   "unidade": "UNIDADE",
+   "quantidade": 1669.0,
+   "valor_unitario": 20.57
+  },
+  {
+   "codigo": "15341",
+   "descricao": "TESOURA DE PICOTAR 21 CM ESPECIFICAÇÃO: com lamina em aço inox, cabo em polietileno.",
+   "unidade": "UNIDADE",
+   "quantidade": 759.0,
+   "valor_unitario": 93.0
+  },
+  {
+   "codigo": "342634",
+   "descricao": "TESOURA ESCOLAR ESPECIFICAÇÃO: em lâmina de aço inox, com cabo plástico resistente, pontas arredondadas.",
+   "unidade": "UNIDADE",
+   "quantidade": 17467.0,
+   "valor_unitario": 4.9
+  },
+  {
+   "codigo": "825874",
+   "descricao": "TINTA GUACHE CX C/ 06 UND ESPECIFICAÇÃO: no mínimo 15ml cada",
+   "unidade": "CAIXA",
+   "quantidade": 12560.0,
+   "valor_unitario": 5.9
+  },
+  {
+   "codigo": "572796",
+   "descricao": "TINTA PARA CARIMBO 40ML ESPECIFICAÇÃO: cores conforme necessidade, compatível com almofadas e carimbos comuns.",
+   "unidade": "UNIDADE",
+   "quantidade": 710.0,
+   "valor_unitario": 6.9
+  },
+  {
+   "codigo": "24445",
+   "descricao": "TINTA PARA TECIDO (250 ML) ESPECIFICAÇÃO: CORES VARIADAS amarelo, azul, vermelho, verde, lilas, branco, etc.",
+   "unidade": "UNIDADE",
+   "quantidade": 800.0,
+   "valor_unitario": 24.9
+  },
+  {
+   "codigo": "775901",
+   "descricao": "TINTA REABASTECEDOR P/ PINCEL P/ QUADRO BRANCO 500ml ESPECIFICAÇÃO: CORES VARIADAS",
+   "unidade": "UNIDADE",
+   "quantidade": 843.0,
+   "valor_unitario": 169.9
+  },
+  {
+   "codigo": "2219",
+   "descricao": "TNT CORES DIVERSAS ESPECIFICAÇÃO:",
+   "unidade": "METRO",
+   "quantidade": 28800.0,
+   "valor_unitario": 3.29
+  },
+  {
+   "codigo": "24434",
+   "descricao": "FITA ADESIVA LARGA 50X50MM",
+   "unidade": "UNIDADE",
+   "quantidade": 10.0,
+   "valor_unitario": 6.99
+  },
+  {
+   "codigo": "572759",
+   "descricao": "GRAMPO 9/14",
+   "unidade": "CAIXA",
+   "quantidade": 8.0,
+   "valor_unitario": 39.9
+  },
+  {
+   "codigo": "572768",
+   "descricao": "PAPEL A4 RECICLADO:",
+   "unidade": "RESMA",
+   "quantidade": 33740.0,
+   "valor_unitario": 23.14
+  },
+  {
+   "codigo": "572797",
+   "descricao": "VISOR COM ETIQUETA PARA PASTA",
+   "unidade": "CAIXA",
+   "quantidade": 30.0,
+   "valor_unitario": 16.15
+  },
+  {
+   "codigo": "572798",
+   "descricao": "DIVISÓRIA PARA FICHÁRIO",
+   "unidade": "JOGO",
+   "quantidade": 10.0,
+   "valor_unitario": 14.9
+  },
+  {
+   "codigo": "572806",
+   "descricao": "ESPIRAL PARA ENCADERNAÇÃO 14MM",
+   "unidade": "PACOTE",
+   "quantidade": 2.0,
+   "valor_unitario": 18.69
+  },
+  {
+   "codigo": "825824",
+   "descricao": "BORRACHA PONTEIRA (UND)",
+   "unidade": "UNIDADE",
+   "quantidade": 7450.0,
+   "valor_unitario": 0.4
+  }
+ ]
+}
