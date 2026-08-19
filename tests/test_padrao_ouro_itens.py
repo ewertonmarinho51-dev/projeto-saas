@@ -121,6 +121,38 @@ def test_item_estranho_e_reprovado(itens):
     assert any("não existem na planilha" in p for p in problemas)
 
 
+def test_total_da_linha_adulterado_e_reprovado(itens):
+    """
+    Quantidade e unitário conferem, mas o produto escrito na linha não.
+    Sem esta conferência a aritmética errada atravessa a validação linha
+    a linha, e o documento afirma um total que a planilha não sustenta.
+    """
+    completa = planilha.para_markdown(itens, 8024834.67)
+    codigo = str(itens[0]["codigo"])
+    total = planilha.formatar_moeda(
+        itens[0]["quantidade"] * itens[0]["valor_unitario"])
+    adulterada = completa.replace(f"| {total} |", "| R$ 0,01 |", 1)
+    assert adulterada != completa
+    problemas = planilha.conferir_tabela(adulterada, itens)
+    assert any("valor divergente" in p and codigo in p
+               for p in problemas), problemas
+
+
+def test_codigos_conferidos_por_valor_e_nao_por_quantidade_de_digitos(itens):
+    """
+    O caso real mistura códigos de 3 a 6 dígitos. Uma conferência que
+    exigisse comprimento fixo daria por perdidos os itens curtos — foi
+    exatamente esse o erro de medição do diagnóstico anterior.
+    """
+    comprimentos = {len(str(i["codigo"])) for i in itens}
+    assert len(comprimentos) > 1, comprimentos
+    completa = planilha.para_markdown(itens, 8024834.67)
+    lidos = {planilha._celulas(ln)[0]
+             for ln in planilha.linhas_de_itens_do_texto(completa)}
+    assert lidos == {str(i["codigo"]) for i in itens}
+    assert planilha.conferir_tabela(completa, itens) == []
+
+
 def test_valor_global_ausente_e_reprovado(itens):
     sem_global = planilha.para_markdown(itens, 8024834.67,
                                         incluir_global=False)

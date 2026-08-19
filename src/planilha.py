@@ -446,11 +446,19 @@ def para_markdown(itens: list[dict], valor_global: float,
     ]
     for it in itens:
         qtd = f"{it['quantidade']:g}"
+        # Item ainda não passado por calcular() não traz 'valor_total'; o
+        # produto é derivado aqui em vez de sair R$ 0,00 na coluna. A
+        # tabela é determinística: nenhuma célula pode ser um vazio
+        # formatado como dinheiro.
+        total = it.get("valor_total")
+        if total is None:
+            total = round(_num(it.get("quantidade"))
+                          * _num(it.get("valor_unitario")), 2)
         celulas = [
             it.get("codigo") or "-", it.get("descricao") or "",
             it.get("unidade") or "-", qtd,
             formatar_moeda(it.get("valor_unitario")),
-            formatar_moeda(it.get("valor_total")),
+            formatar_moeda(total),
         ]
         for e in extras:
             celulas.append(para_link_markdown(it.get(e, "")) or "-")
@@ -796,13 +804,19 @@ def conferir_tabela(texto: str, itens_brutos: list[dict] | None) -> list[str]:
         cel = no_doc.get(codigo)
         if not cel or len(cel) < 6:
             continue
-        _, _, unidade, qtd, unitario, _ = cel[:6]
+        _, _, unidade, qtd, unitario, total = cel[:6]
         if unidade != (item.get("unidade") or "-"):
             divergentes.append(f"{codigo} (unidade)")
         elif qtd != f"{item['quantidade']:g}":
             divergentes.append(f"{codigo} (quantidade)")
         elif unitario != formatar_moeda(item.get("valor_unitario")):
             divergentes.append(f"{codigo} (valor unitário)")
+        elif total != formatar_moeda(item.get("valor_total")):
+            # Quantidade e unitário conferem, mas o total escrito na linha
+            # não é o produto dos dois. Sem esta conferência, um documento
+            # com aritmética errada passa linha a linha e só destoa na
+            # soma — se destoar.
+            divergentes.append(f"{codigo} (valor total)")
     if divergentes:
         problemas.append(
             f"{len(divergentes)} item(ns) com valor divergente da planilha "
