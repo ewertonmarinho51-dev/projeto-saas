@@ -30,6 +30,55 @@ def test_versao_do_auditor_e_sha256_estavel():
     assert len(v1) == 64 and all(c in "0123456789abcdef" for c in v1)
 
 
+def test_identidade_cobre_as_dependencias_deterministicas_do_auditor():
+    """
+    O auditor não é só `validacao.py`. `conferir_tabela` decide bloqueio
+    de integridade, a natureza do objeto decide se repactuação é aviso ou
+    bloqueio, e a norma citada decide se o fundamento tem lastro — tudo
+    fora de `validacao.py`. Se um desses mudar sem mudar a identidade, um
+    APPROVED antigo sobrevive a uma regra nova.
+    """
+    esperados = {"validacao.py", "achados.py", "consistencia.py",
+                 "perfis.py", "planilha.py", "fatos.py", "normas.py",
+                 "prompts.py", "blocos.py"}
+    assert set(validacao._ARQUIVOS_DO_AUDITOR) == esperados
+    # sem duplicatas: um arquivo hasheado duas vezes esconde a lista real
+    assert len(validacao._ARQUIVOS_DO_AUDITOR) == len(esperados)
+
+
+def test_mudanca_em_dependencia_relevante_muda_a_identidade():
+    """
+    Provado com fontes SIMULADAS — a suíte não escreve em arquivo real
+    nenhum. Cada dependência é alterada isoladamente e precisa mover a
+    impressão digital.
+    """
+    fontes = {nome: b"conteudo-original"
+              for nome in validacao._ARQUIVOS_DO_AUDITOR}
+    base = validacao._impressao_digital(
+        validacao._ARQUIVOS_DO_AUDITOR, fontes.__getitem__)
+
+    for alvo in validacao._ARQUIVOS_DO_AUDITOR:
+        mudado = {**fontes, alvo: b"regra alterada"}
+        assert validacao._impressao_digital(
+            validacao._ARQUIVOS_DO_AUDITOR, mudado.__getitem__) != base, alvo
+
+    # a própria LISTA faz parte da identidade: tirar um arquivo dela muda
+    # a impressão digital mesmo com o conteúdo dos demais idêntico
+    reduzida = validacao._ARQUIVOS_DO_AUDITOR[:-1]
+    assert validacao._impressao_digital(
+        reduzida, fontes.__getitem__) != base
+
+
+def test_fonte_ilegivel_nao_derruba_a_identidade():
+    """Empacotamento exótico: degrada para o nome, não para exceção."""
+    def recusa(_nome):
+        raise OSError("fonte indisponível")
+
+    digest = validacao._impressao_digital(
+        validacao._ARQUIVOS_DO_AUDITOR, recusa)
+    assert len(digest) == 64
+
+
 def test_chave_de_idempotencia_amarra_bundle_e_auditor(monkeypatch):
     chaves = []
     monkeypatch.setattr(db, "disponivel", lambda: True)

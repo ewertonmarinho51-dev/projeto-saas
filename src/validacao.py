@@ -251,28 +251,76 @@ def _norm(texto: str) -> str:
 # muda a chave, e o bundle é reauditado (barato e determinístico) em vez
 # de herdar um veredito obsoleto.
 # ---------------------------------------------------------------------------
+# A identidade tem de cobrir TODA regra determinística capaz de mudar um
+# achado — não só os módulos onde as regras estão escritas, mas aqueles de
+# onde elas são consultadas. Hashear apenas `validacao.py` deixaria uma
+# porta aberta: `planilha.conferir_tabela` pode passar a reprovar uma
+# tabela que ontem aprovava sem que uma linha de `validacao.py` mude, e o
+# veredito antigo seguiria válido. Cada entrada abaixo responde à
+# pergunta "mudar este arquivo pode mudar um achado?".
+#
+#   validacao.py     as regras em si
+#   achados.py       gravidade e escopo do finding estruturado
+#   consistencia.py  regras transversais entre documentos
+#   perfis.py        metas estruturais por documento
+#   planilha.py      conferir_tabela — decide BLOQUEIO de integridade
+#   fatos.py         natureza do objeto — vira repactuação de aviso em
+#                    bloqueio (é o classificador REUTILIZADO, não um novo)
+#   normas.py        identificação da norma citada — decide "sem lastro"
+#   prompts.py       DISPOSITIVOS_CANONICOS — mesma decisão de lastro
+#   blocos.py        segmentação que define o escopo autorizado do achado
+#
+# Fora da lista, de propósito: `db.py` e `governanca.py` (estado de
+# execução e nome de flag, não regra), `config.py` (rótulo e ordem, não
+# veredito) e tudo que é apresentação. O erro caro aqui é o de FALTA —
+# incluir um arquivo a mais custa uma reauditoria determinística; incluir
+# um a menos deixa um APPROVED obsoleto vivo para sempre. `prompts.py`
+# entra por esse critério, ainda que a maior parte dele seja texto de
+# prompt: ele guarda uma constante que altera achado.
 _ARQUIVOS_DO_AUDITOR = ("validacao.py", "achados.py", "consistencia.py",
-                        "perfis.py")
+                        "perfis.py", "planilha.py", "fatos.py", "normas.py",
+                        "prompts.py", "blocos.py")
 _VERSAO_AUDITOR: str | None = None
+
+
+def _ler_fonte(nome: str) -> bytes:
+    """Conteúdo de um módulo do pacote. Levanta OSError se indisponível."""
+    from pathlib import Path
+
+    return (Path(__file__).resolve().parent / nome).read_bytes()
+
+
+def _impressao_digital(nomes, ler=None) -> str:
+    """
+    sha256 do conjunto (nome, conteúdo) das fontes do auditor.
+
+    O NOME entra no resumo antes do conteúdo: acrescentar ou remover um
+    arquivo da lista muda a identidade mesmo que o conteúdo dos demais
+    seja idêntico. Fonte ilegível (empacotamento exótico) degrada para
+    só o nome — a chave permanece estável dentro da instalação.
+
+    Recebe o leitor por parâmetro para que a suíte possa provar a regra
+    com fontes simuladas, sem escrever em arquivo real nenhum.
+    """
+    import hashlib
+
+    ler = ler or _ler_fonte
+    resumo = hashlib.sha256()
+    for nome in nomes:
+        resumo.update(nome.encode())
+        resumo.update(b"\0")
+        try:
+            resumo.update(ler(nome))
+        except OSError:
+            pass
+    return resumo.hexdigest()
 
 
 def versao_do_auditor() -> str:
     """Impressão digital (sha256) do conjunto de regras determinísticas."""
     global _VERSAO_AUDITOR
     if _VERSAO_AUDITOR is None:
-        import hashlib
-        from pathlib import Path
-
-        base = Path(__file__).resolve().parent
-        resumo = hashlib.sha256()
-        for nome in _ARQUIVOS_DO_AUDITOR:
-            try:
-                resumo.update((base / nome).read_bytes())
-            except OSError:
-                # fonte indisponível (empacotamento exótico): o nome ao
-                # menos mantém a chave estável dentro da mesma instalação
-                resumo.update(nome.encode())
-        _VERSAO_AUDITOR = resumo.hexdigest()
+        _VERSAO_AUDITOR = _impressao_digital(_ARQUIVOS_DO_AUDITOR)
     return _VERSAO_AUDITOR
 
 
