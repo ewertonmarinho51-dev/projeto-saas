@@ -101,12 +101,29 @@ def test_resumo_semantico_nao_tem_codigo_preco_nem_url(itens):
         assert str(item["codigo"]) not in resumo
 
 
-def test_valor_global_continua_no_prompt_mas_nada_por_item(itens):
-    """A modalidade e a estimativa dependem do total; o item, não."""
+def test_valor_global_e_o_unico_valor_monetario_do_prompt(itens):
+    """
+    A modalidade e a estimativa dependem do total; o item, não.
+
+    Os extremos de preço unitário saíram por decisão de auditoria: não
+    são necessários a DFD, ETP ou TR e estimulam inferência econômica que
+    o processo não sustenta. Qualquer outro valor monetário no bloco da
+    planilha precisa de origem independente e justificativa explícita —
+    e então este teste é o lugar de registrá-la.
+    """
     bloco = _bloco_do_prompt(itens)
     assert "R$ 8.024.834,67" in bloco
-    precos = re.findall(r"R\$\s*[\d.,]+", bloco)
-    assert len(precos) <= 3, precos   # global e faixa mín/máx, nada além
+    precos = [p.rstrip(".,") for p in re.findall(r"R\$\s*[\d.,]+", bloco)]
+    assert precos == ["R$ 8.024.834,67"], precos
+
+
+def test_extremos_de_preco_unitario_nao_vao_para_a_ia(itens):
+    """Menor e maior preço unitário do caso real não podem aparecer."""
+    resumo = planilha.resumo_para_prompt(*planilha.calcular(itens))
+    unitarios = [i["valor_unitario"] for i in planilha.calcular(itens)[0]]
+    for extremo in (min(unitarios), max(unitarios)):
+        assert planilha.formatar_moeda(extremo) not in resumo
+    assert "Preços unitários entre" not in resumo
 
 
 # ---------------------------------------------------------------------------

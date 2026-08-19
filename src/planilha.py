@@ -590,20 +590,23 @@ def resumo_para_prompt(itens: list[dict], valor_global: float) -> str:
     Nenhum código, descrição, quantidade, preço ou link real entra no
     prompt — não há o que copiar. A tabela completa é inserida depois,
     por código, no lugar da marca.
+
+    O ÚNICO valor monetário aqui é o VALOR GLOBAL, porque dele dependem
+    a modalidade e a estimativa da contratação. Os extremos de preço
+    unitário saíram por decisão de auditoria: não são necessários a DFD,
+    ETP ou TR e estimulam inferência econômica que o processo não
+    sustenta.
     """
     n = len(itens)
     unidades = sorted({(it.get("unidade") or "").strip()
                        for it in itens if (it.get("unidade") or "").strip()})
-    valores = [it.get("valor_unitario") or 0 for it in itens]
-    faixa = (f" Preços unitários entre {formatar_moeda(min(valores))} e "
-             f"{formatar_moeda(max(valores))}." if valores else "")
     return (
         f"A planilha orçamentária do processo possui {n} item(ns). "
         f"VALOR GLOBAL (estimativa total da contratação) = "
         f"{formatar_moeda(valor_global)}."
         + (f" Unidades de fornecimento: {', '.join(unidades[:12])}."
            if unidades else "")
-        + faixa + "\n"
+        + "\n"
         f"PROIBIDO escrever a lista de itens, ainda que parcialmente: nada "
         f"de códigos, descrições, quantidades, preços, links ou linhas de "
         f"tabela — nem a partir do memorando ou dos anexos (se eles "
