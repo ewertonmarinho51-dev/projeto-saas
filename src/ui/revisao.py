@@ -217,13 +217,15 @@ def render_minuta_nao_aprovada(documentos: dict[str, str]) -> None:
     col_pdf, col_docx = st.columns(2)
     col_pdf.download_button(
         "Baixar MINUTA em PDF (não aprovada)",
-        data=export.gerar_pdf_consolidado(minuta, None),
+        data=export.gerar_pdf_consolidado(minuta, None,
+                                          st.session_state.get("dados")),
         file_name=f"{_prefixo_arquivo()}-MINUTA-NAO-APROVADA.pdf",
         mime="application/pdf", use_container_width=True,
     )
     col_docx.download_button(
         "Baixar MINUTA em DOCX (não aprovada)",
-        data=export.gerar_docx_consolidado(minuta, None),
+        data=export.gerar_docx_consolidado(minuta, None,
+                                           st.session_state.get("dados")),
         file_name=f"{_prefixo_arquivo()}-MINUTA-NAO-APROVADA.docx",
         mime=("application/vnd.openxmlformats-officedocument"
               ".wordprocessingml.document"),

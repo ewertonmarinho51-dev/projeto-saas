@@ -11,7 +11,7 @@ from .. import (achados, auth, conhecimento, contexto, corretor, db,
                 explicacoes, export, familias, fatos, planilha,
                 qualidade, rag, state)
 from . import components, revisao
-from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, DOCUMENTOS_EXPORTAVEIS
+from ..config import CAMPOS_FORMULARIO, DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
 
@@ -766,9 +766,12 @@ def render_sucesso() -> None:
 
     # O dossiê acompanha o que será REALMENTE empacotado: 4 documentos sem
     # Sistema de Registro de Preços, 5 quando a Ata entra como instrumento
-    # próprio. A ordem é a de exportação, não a do wizard.
-    exportaveis = [k for k in DOCUMENTOS_EXPORTAVEIS if k in docs]
+    # próprio. A ordem é a de exportação, não a do wizard. Quem decide é
+    # o formulário do processo — chave 'arp' residual de uma modelagem
+    # anterior não vira arquivo nem aparece na tela.
+    exportaveis = state.exportaveis()
     n_exportaveis = len(exportaveis)
+    dados_do_processo = st.session_state.dados
 
     coluna_arquivos, coluna_trilha = st.columns([1.04, 1], gap="medium")
     with coluna_arquivos:
@@ -780,14 +783,16 @@ def render_sucesso() -> None:
             col_pdf, col_docx = st.columns(2)
             col_pdf.download_button(
                 "Baixar todos em PDF",
-                data=export.gerar_pdf_consolidado(docs, branding),
+                data=export.gerar_pdf_consolidado(docs, branding,
+                                                  dados_do_processo),
                 file_name=f"{prefixo}-fase-preparatoria.pdf",
                 mime="application/pdf",
                 type="primary", use_container_width=True,
             )
             col_docx.download_button(
                 "Baixar todos em DOCX",
-                data=export.gerar_docx_consolidado(docs, branding),
+                data=export.gerar_docx_consolidado(docs, branding,
+                                                   dados_do_processo),
                 file_name=f"{prefixo}-fase-preparatoria.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 use_container_width=True,
@@ -795,13 +800,15 @@ def render_sucesso() -> None:
             col_zip_pdf, col_zip_docx = st.columns(2)
             col_zip_pdf.download_button(
                 f"ZIP com os {n_exportaveis} PDFs",
-                data=export.gerar_zip(docs, "pdf", branding),
+                data=export.gerar_zip(docs, "pdf", branding,
+                                      dados_do_processo),
                 file_name=f"{prefixo}-documentos-pdf.zip",
                 mime="application/zip", use_container_width=True,
             )
             col_zip_docx.download_button(
                 f"ZIP com os {n_exportaveis} DOCX",
-                data=export.gerar_zip(docs, "docx", branding),
+                data=export.gerar_zip(docs, "docx", branding,
+                                      dados_do_processo),
                 file_name=f"{prefixo}-documentos-docx.zip",
                 mime="application/zip", use_container_width=True,
             )

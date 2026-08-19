@@ -139,6 +139,43 @@ DOCUMENTOS = {
 # separado, quando há Sistema de Registro de Preços.
 DOCUMENTOS_EXPORTAVEIS = SEQUENCIA_DOCUMENTOS + ["arp"]
 
+# Instrumentos emitidos JUNTO de um documento do wizard, e não como etapa
+# própria. Quem invalida o documento-âncora invalida o instrumento: a Ata
+# nasce do edital e da modelagem declarada no formulário, então nenhuma
+# Ata pode sobreviver à regeneração daquilo que a fundamenta.
+INSTRUMENTOS_DERIVADOS = {"edital": ("arp",)}
+
+
+def adota_srp(dados: dict | None) -> bool:
+    """
+    O processo adota Sistema de Registro de Preços?
+
+    Critério ÚNICO e explícito: o modelo de execução informado no
+    Formulário Matriz. Não se deduz SRP de objeto, quantidade ou
+    parcelamento — adotar SRP é decisão do estudo, não inferência.
+
+    Vive aqui, e não em `state`, porque a camada de exportação precisa
+    do mesmo critério sem depender do estado da sessão do Streamlit.
+    """
+    return "registro de preços" in ((dados or {}).get("modelo_execucao")
+                                    or "").lower()
+
+
+def exportaveis_do_processo(dados: dict | None,
+                            documentos: dict | None) -> list[str]:
+    """
+    Chaves realmente exportáveis, na ordem do dossiê.
+
+    Segunda linha de defesa contra Ata obsoleta: um processo que NÃO
+    adota SRP nunca exporta ARP, ainda que uma chave 'arp' residual de
+    uma modelagem anterior tenha sobrado em `documentos`. A limpeza de
+    estado é a primeira linha; esta função é a que decide o arquivo.
+    """
+    documentos = documentos or {}
+    ordem = (DOCUMENTOS_EXPORTAVEIS if adota_srp(dados)
+             else SEQUENCIA_DOCUMENTOS)
+    return [k for k in ordem if k in documentos]
+
 # ---------------------------------------------------------------------------
 # Formulário Matriz — Passo 1
 # ---------------------------------------------------------------------------

@@ -9,7 +9,8 @@ aprovações) vive em st.session_state, inicializado aqui.
 import streamlit as st
 
 from . import contexto, db
-from .config import SEQUENCIA_DOCUMENTOS
+from .config import (INSTRUMENTOS_DERIVADOS, SEQUENCIA_DOCUMENTOS, adota_srp,
+                     exportaveis_do_processo)
 
 
 def inicializar() -> None:
@@ -185,22 +186,39 @@ def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
 
 
 def descartar_documento(doc_key: str) -> None:
-    """Remove o documento gerado (usado no 'Gerar novamente')."""
+    """
+    Remove o documento gerado (usado no 'Gerar novamente').
+
+    Leva junto os instrumentos DERIVADOS dele — a Ata é emitida com o
+    edital, então um edital descartado não pode deixar para trás uma Ata
+    que já não corresponde a nada. Reaproveitamento silencioso de Ata
+    antiga é o defeito que esta cascata existe para impedir.
+    """
     st.session_state.documentos.pop(doc_key, None)
     st.session_state.setdefault("edicoes_pendentes", {}).pop(doc_key, None)
     st.session_state.aprovados.discard(doc_key)
+    for derivado in INSTRUMENTOS_DERIVADOS.get(doc_key, ()):
+        st.session_state.documentos.pop(derivado, None)
+        st.session_state.setdefault("edicoes_pendentes", {}).pop(derivado, None)
+        st.session_state.aprovados.discard(derivado)
 
 
 def invalidar_a_partir_de(doc_key: str) -> None:
     """
     Ao voltar e alterar um documento (ou o formulário), os documentos
     seguintes ficam desatualizados — remove-os para forçar nova geração.
+
+    O próprio documento alterado não é removido (ele acabou de ser
+    editado), mas os instrumentos derivados DELE são: mudar o edital
+    torna a Ata que saiu com ele obsoleta.
     """
     if doc_key == "formulario":
-        posteriores = SEQUENCIA_DOCUMENTOS
+        posteriores = list(SEQUENCIA_DOCUMENTOS)
     else:
         idx = SEQUENCIA_DOCUMENTOS.index(doc_key)
-        posteriores = SEQUENCIA_DOCUMENTOS[idx + 1 :]
+        posteriores = SEQUENCIA_DOCUMENTOS[idx + 1:]
+        for derivado in INSTRUMENTOS_DERIVADOS.get(doc_key, ()):
+            descartar_documento(derivado)
     for chave in posteriores:
         descartar_documento(chave)
 
@@ -262,5 +280,15 @@ def usa_srp(dados: dict) -> bool:
     Critério ÚNICO e explícito: o modelo de execução informado no
     Formulário Matriz. Não se deduz SRP de objeto, quantidade ou
     parcelamento — adotar SRP é decisão do estudo, não inferência.
+
+    A regra mora em `config.adota_srp`: a exportação precisa do MESMO
+    critério sem depender da sessão, e dois critérios com o mesmo nome
+    seriam a maneira de eles divergirem.
     """
-    return "registro de preços" in (dados.get("modelo_execucao") or "").lower()
+    return adota_srp(dados)
+
+
+def exportaveis() -> list[str]:
+    """Chaves exportáveis do processo ATUAL, na ordem do dossiê."""
+    return exportaveis_do_processo(st.session_state.get("dados"),
+                                   st.session_state.get("documentos"))

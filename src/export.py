@@ -18,7 +18,24 @@ import shutil
 import zipfile
 from datetime import date
 
-from .config import DOCUMENTOS, DOCUMENTOS_EXPORTAVEIS
+from .config import DOCUMENTOS, DOCUMENTOS_EXPORTAVEIS, exportaveis_do_processo
+
+
+def _ordem_de_exportacao(documentos: dict[str, str],
+                         dados: dict | None) -> list[str]:
+    """
+    Quais documentos entram no arquivo, e em que ordem.
+
+    Com o formulário do processo em mãos, quem decide é
+    `config.exportaveis_do_processo` — e um processo sem Sistema de
+    Registro de Preços não exporta ARP nem que exista uma chave 'arp'
+    residual de uma modelagem anterior. Sem o formulário (minuta de
+    trabalho, bundle avulso), exporta-se o que veio: aqui não há como
+    saber se a Ata cabe, e inventar a resposta seria pior.
+    """
+    if dados is None:
+        return [k for k in DOCUMENTOS_EXPORTAVEIS if k in documentos]
+    return exportaveis_do_processo(dados, documentos)
 
 # Padrão institucional (medido nos documentos manuais aprovados)
 FONTE_CORPO = "Times New Roman"
@@ -516,16 +533,16 @@ def gerar_docx(titulo: str, texto_md: str, branding: dict | None = None) -> byte
     return buffer.getvalue()
 
 
-def gerar_docx_consolidado(documentos: dict[str, str], branding: dict | None = None) -> bytes:
+def gerar_docx_consolidado(documentos: dict[str, str],
+                           branding: dict | None = None,
+                           dados: dict | None = None) -> bytes:
     doc = _docx_novo()
     _docx_aplicar_branding(doc, branding)
     doc.add_paragraph("DOCUMENTOS DA FASE PREPARATÓRIA — LEI Nº 14.133/2021",
                       style="GovDocs Titulo")
     doc.add_paragraph(f"Dossiê gerado em {date.today().strftime('%d/%m/%Y')}.",
                       style="GovDocs Nota")
-    for doc_key in DOCUMENTOS_EXPORTAVEIS:
-        if doc_key not in documentos:
-            continue
+    for doc_key in _ordem_de_exportacao(documentos, dados):
         doc.add_page_break()
         doc.add_paragraph(DOCUMENTOS[doc_key]["titulo"].upper(),
                           style="GovDocs Titulo")
@@ -862,8 +879,11 @@ def gerar_pdf(titulo: str, texto_md: str, branding: dict | None = None) -> bytes
     return _pdf_bytes(pdf)
 
 
-def gerar_pdf_consolidado(documentos: dict[str, str], branding: dict | None = None) -> bytes:
-    convertido = _docx_em_pdf(gerar_docx_consolidado(documentos, branding))
+def gerar_pdf_consolidado(documentos: dict[str, str],
+                          branding: dict | None = None,
+                          dados: dict | None = None) -> bytes:
+    convertido = _docx_em_pdf(
+        gerar_docx_consolidado(documentos, branding, dados))
     if convertido:
         return _pdf_aplicar_marca(convertido, branding)
 
@@ -879,9 +899,7 @@ def gerar_pdf_consolidado(documentos: dict[str, str], branding: dict | None = No
     pdf.set_font("Times", "", 10)
     pdf.multi_cell(largura, 6, f"Dossiê gerado em {date.today().strftime('%d/%m/%Y')}.",
                    new_x="LMARGIN", new_y="NEXT")
-    for doc_key in DOCUMENTOS_EXPORTAVEIS:
-        if doc_key not in documentos:
-            continue
+    for doc_key in _ordem_de_exportacao(documentos, dados):
         pdf.add_page()
         pdf.set_font("Times", "B", 13)
         pdf.multi_cell(largura, 8, _latin1_seguro(DOCUMENTOS[doc_key]["titulo"].upper()),
@@ -894,16 +912,20 @@ def gerar_pdf_consolidado(documentos: dict[str, str], branding: dict | None = No
 # ---------------------------------------------------------------------------
 # Pacote ZIP com todos os arquivos individuais
 # ---------------------------------------------------------------------------
-def gerar_zip(documentos: dict[str, str], formato: str, branding: dict | None = None) -> bytes:
+def gerar_zip(documentos: dict[str, str], formato: str,
+              branding: dict | None = None,
+              dados: dict | None = None) -> bytes:
     """`formato`: 'docx' ou 'pdf'. Zipa um arquivo por documento aprovado."""
     def gerador(titulo, texto):
         fn = gerar_docx if formato == "docx" else gerar_pdf
         return fn(titulo, texto, branding)
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for i, doc_key in enumerate(DOCUMENTOS_EXPORTAVEIS, start=1):
-            if doc_key not in documentos:
-                continue
+        for doc_key in _ordem_de_exportacao(documentos, dados):
+            # O número do arquivo é POSICIONAL na ordem canônica do
+            # dossiê, não sequencial: o Edital é sempre 04, ainda que o
+            # pacote saia incompleto.
+            i = DOCUMENTOS_EXPORTAVEIS.index(doc_key) + 1
             meta = DOCUMENTOS[doc_key]
             nome = f"{i:02d}-{meta['sigla'].replace('/', '-')}.{formato}"
             zf.writestr(nome, gerador(meta["titulo"], documentos[doc_key]))
