@@ -121,6 +121,15 @@ Cada linha foi verificada **executando o código**, não lendo o diff.
 `ciclo-{processo}-{hash}-r{versao_do_auditor()[:12]}`, em `ciclo.py:469` e
 `ui/revisao.py:180`. Auditor mudou ⇒ chave nova ⇒ reauditoria.
 
+*Ajuste pós-auditoria:* a identidade cobria só
+`validacao/achados/consistencia/perfis` e deixava de fora regras que o
+auditor **consulta**. Entraram `planilha.py` (`conferir_tabela` decide
+bloqueio de integridade), `fatos.py` (natureza do objeto: vira
+repactuação de aviso em bloqueio), `normas.py` e `prompts.py` (decidem
+"fundamento sem lastro") e `blocos.py` (escopo autorizado do achado).
+Fora, com o motivo escrito no código: `db.py` e `governanca.py` (estado
+de execução e nome de flag), `config.py` (rótulo e ordem) e apresentação.
+
 **2. Gate final de emissão — SIM.**
 `revisao.render_correcao_automatica()` só devolve `"aprovado"` depois de
 rodar `validacao.bloqueios(validacao.validar_todos(resultado["documentos"], …))`
@@ -205,16 +214,27 @@ exportável de forma independente (DOCX próprio de 54.639 bytes no ensaio)
 e entra no dossiê: o ZIP saiu com
 `['01-DFD.docx','02-ETP.docx','03-TR.docx','04-Edital.docx','05-ARP.docx']`.
 
+*Ajuste pós-auditoria:* estar fora de `SEQUENCIA_DOCUMENTOS` e dentro de
+`DOCUMENTOS_EXPORTAVEIS` abria uma trajetória de Ata obsoleta — a
+invalidação de estado percorria só a sequência, então mudar a modelagem
+de SRP para não-SRP derrubava os quatro documentos e deixava a Ata para
+trás, exportável. Fechado com duas linhas de defesa:
+`config.INSTRUMENTOS_DERIVADOS` faz a Ata cair junto com o edital que a
+funda, e `config.exportaveis_do_processo` impede que um processo sem SRP
+exporte ARP ainda que a chave residual exista.
+
 **8. Resumo semântico dos itens — SIM.** `resumo_semantico()` entrega
 famílias e **distribuição percentual por contagem**. Não entrega códigos,
 descrições, quantidades, links nem linhas de tabela.
-*Desvio bounded, registrado para decisão do auditor:* o resumo inclui a
-lista de unidades de fornecimento e a **faixa mínima e máxima** de preço
-unitário (`R$ 0,27` e `R$ 329,00` no caso real) — dois extremos
-agregados, não preços item a item. É decisão deliberada e **testada** da
-branch do padrão ouro (`test_padrao_ouro_ajustes.py:109` limita o prompt a
-no máximo 3 valores monetários). Não alterei comportamento testado sem
-mandado; fica aqui explicitado.
+
+*Ajuste pós-auditoria:* a faixa mínima/máxima de preço unitário
+(`R$ 0,27` e `R$ 329,00` no caso real) **saiu** do prompt por decisão de
+auditoria — não é necessária a DFD, ETP ou TR e estimula inferência
+econômica que o processo não sustenta. O bloco da planilha enviado à IA
+ficou com: número de itens, **valor global como único valor monetário**,
+unidades de fornecimento, composição funcional por famílias e o marcador
+determinístico da tabela. O teste que aceitava até três valores
+monetários passou a exigir exatamente um.
 
 ## F. TESTES — uma única suíte do código combinado
 
@@ -224,7 +244,8 @@ conjuntos se sobrepõem e a soma seria ficção.
 | | coletados | passaram | falharam | pulados |
 |---|---|---|---|---|
 | `main` em `7953a35` (linha de base) | 1007 | 852 | 0 | 155 |
-| **integrada (HEAD)** | **1089** | **934** | **0** | **155** |
+| integrada (merge + total da linha) | 1089 | 934 | 0 | 155 |
+| **após os três ajustes de auditoria (HEAD)** | **1106** | **951** | **0** | **155** |
 
 Motivo de **cada** skip (os mesmos 155 da `main`, nenhum novo):
 
@@ -318,17 +339,19 @@ o código não faz** — continua aberta; é item da Fase 2.
 
 ## I. DIFF
 
-25 arquivos, **+4.420 / −124**, em dois commits:
-
 ```
 222d7c0  merge: integra o padrão-ouro documental na arquitetura atual da main
 4c1499c  fix(planilha): confere o total de cada linha e nunca escreve R$ 0,00
+2ffed0e  docs: relatório da Fase 1 de integração do padrão ouro
+—— ajustes pedidos pela auditoria independente ——
+35c8213  fix: Ata de Registro de Preços obsoleta não sobrevive à mudança de modelagem
+5b5d564  fix: identidade do auditor cobre as dependências que decidem o veredito
+e97afd9  fix: só o valor global vai para a IA; extremos de preço unitário saem
 ```
 
-O segundo commit é a **única** alteração de comportamento que escrevi
-além da resolução do conflito, e existe porque a capacidade 3 a exigia
-nominalmente ("total incorreto"). Está isolado, é determinístico e vem
-com duas provas.
+`4c1499c` é a única alteração de comportamento escrita além da resolução
+do conflito e dos ajustes pedidos, e existe porque a capacidade 3 a
+exigia nominalmente ("total incorreto").
 
 Arquivos com diff vazio contra a `main`, por decisão: `src/auth.py`,
 `src/db.py`, `src/trilha.py`, `supabase/**`, `scripts/**`.
@@ -340,19 +363,26 @@ Arquivos com diff vazio contra a `main`, por decisão: `src/auth.py`,
 Sustenta-se em: base correta e verificada; conflito único resolvido com a
 UX da `main` intacta e comprovada componente a componente; P0/P1
 preservados por contagem; segurança com diff vazio; as 8 capacidades
-verificadas **por execução**; suíte única com 934 passando, 0 falhando e
+verificadas **por execução**; suíte única com 951 passando, 0 falhando e
 os mesmos 155 skips da linha de base, todos com motivo nomeado; fixture
-de 210 itens conferida por código, 210/210, R$ 8.024.834,67; e o defeito
-da Fase 2 confirmado como ainda reproduzível, sem disfarce.
+de 210 itens conferida por código, 210/210, R$ 8.024.834,67, tabela
+única; e o defeito da Fase 2 confirmado como ainda reproduzível, sem
+disfarce.
 
-Duas coisas que um auditor deve olhar antes de qualquer decisão de merge:
+### Os três ajustes da auditoria independente — fechados
 
-1. **a faixa mín/máx de preço unitário no prompt** (capacidade 8) — desvio
-   deliberado e testado da branch do padrão ouro que eu não alterei por
-   conta própria;
-2. **a substituição dos quatro testes de `test_planilha.py`** — é inversão
-   intencional de comportamento, e merece confirmação de quem manda no
-   produto.
+1. **ARP obsoleta** — conflito semântico que os testes não cobriam,
+   fechado com invalidação em cascata (estado) e decisão por formulário
+   (exportação), com as duas transições SRP ↔ não-SRP provadas;
+2. **identidade do auditor incompleta** — cinco dependências que decidem
+   veredito entraram no hash, e a regra passou a ser provável com fontes
+   simuladas;
+3. **extremos de preço unitário no prompt** — removidos; o valor global
+   é agora o único valor monetário do bloco da planilha.
+
+Permanece para confirmação de quem manda no produto: **a substituição dos
+quatro testes de `test_planilha.py`** — inversão intencional de
+comportamento (o prompt deixou de levar amostra de linhas reais).
 
 Nada aqui autoriza merge, PR ou implantação. **Fase 2 não foi iniciada.**
 
