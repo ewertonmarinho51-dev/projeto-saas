@@ -88,15 +88,11 @@ def _spans_fora_da_folha(pdf_bytes: bytes) -> tuple[int, float, float, list]:
     return doc.page_count, largura, maior, fora
 
 
-def _sem_libreoffice():
-    return export.motor_pdf() != "libreoffice"
-
-
-sem_lo = pytest.mark.skipif(
-    _sem_libreoffice(),
-    reason=("motor de PDF efetivo não é o LibreOffice neste ambiente "
-            "(a conversão DOCX→PDF não roda); a prova sobre o PDF "
-            "institucional real não pode ser executada"))
+# As provas do PDF REAL passam pelo portão único de `conftest`: skip
+# explícito na máquina de quem desenvolve, FALHA em CI/release (com
+# GOVDOCS_EXIGIR_LIBREOFFICE=1). O que não pode voltar a acontecer é
+# ficarem invisíveis.
+sem_lo = pytest.mark.usefixtures("motor_institucional")
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +234,63 @@ def test_tabela_permanece_integra_no_documento(documentos, dados):
     assert texto.count("| Código | Descrição") == 1
     assert planilha.conferir_tabela(texto, dados["itens"]) == []
     assert "R$ 8.024.834,67" in texto
+
+
+def _codigos_por_celula(pdf_bytes: bytes) -> "Counter":
+    """
+    Conta cada código como CÉLULA INTEIRA do texto extraído.
+
+    Nem substring — '763' casaria dentro de '572763' e inventaria
+    duplicata — nem texto com as linhas coladas, que destrói a fronteira
+    do número ('10' de uma quantidade + '572705' da linha seguinte). O
+    caso real mistura códigos de 3 a 6 dígitos, e foi exatamente aí que
+    duas medições minhas erraram antes.
+    """
+    from collections import Counter
+
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    texto = "\n".join(p.get_text() for p in doc)
+    return Counter(l.strip() for l in texto.splitlines() if l.strip())
+
+
+def test_o_metodo_de_contagem_e_valido_na_propria_fonte(dados):
+    """Antes de medir o PDF, a medição precisa acertar no que já se sabe."""
+    from collections import Counter
+
+    texto = planilha.injetar_tabela(
+        llm._gerar_demo("dfd", dados), dados["itens"])
+    celulas = Counter(
+        c.strip() for linha in planilha.linhas_de_itens_do_texto(texto)
+        for c in linha.strip("|").split("|"))
+    codigos = [str(i["codigo"]) for i in dados["itens"]]
+    assert all(celulas.get(c) == 1 for c in codigos)
+    assert len({len(c) for c in codigos}) > 1, "o caso deveria misturar tamanhos"
+
+
+@pytest.mark.parametrize("motor", ["libreoffice", "fpdf2"])
+def test_os_210_codigos_saem_uma_unica_vez_no_pdf(motor, documentos, dados,
+                                                  monkeypatch, request):
+    """
+    A prova de ponta: no PDF REAL, cada um dos 210 códigos aparece uma
+    vez e uma só. Cobre de uma vez a integralidade da tabela (nenhum
+    código partido ou perdido na conversão) e a atomicidade do retry
+    (nenhum código repetido por tentativa fracassada).
+    """
+    if motor == "libreoffice":
+        request.getfixturevalue("motor_institucional")
+    else:
+        monkeypatch.setattr(export, "_docx_em_pdf", lambda _b: None)
+
+    celulas = _codigos_por_celula(
+        export.gerar_pdf("Documento de Formalização da Demanda",
+                         documentos["dfd"], None))
+    contagem = {str(i["codigo"]): celulas.get(str(i["codigo"]), 0)
+                for i in dados["itens"]}
+    ausentes = [c for c, n in contagem.items() if n == 0]
+    repetidos = {c: n for c, n in contagem.items() if n > 1}
+    assert not ausentes, f"{len(ausentes)} código(s) ausentes: {ausentes[:5]}"
+    assert not repetidos, f"código(s) repetidos: {list(repetidos.items())[:5]}"
+    assert len(contagem) == 210
 
 
 @sem_lo

@@ -78,7 +78,11 @@ def test_tabela_com_cabecalho_repetido_e_linha_indivisivel():
     assert "cantSplit" in xml     # linha não divide entre páginas
 
 
-def test_pdf_via_libreoffice_quando_disponivel():
+def test_pdf_via_libreoffice_quando_disponivel(motor_institucional):
+    # A fixture `motor_institucional` decide o que fazer quando o motor
+    # não é o LibreOffice: skip explícito na máquina de quem desenvolve,
+    # FALHA em CI/release. Antes o `if` abaixo simplesmente não entrava, e
+    # o teste passava sem medir nada — silêncio que já custou caro.
     pdf = export.gerar_pdf("Termo de Referência", MD)
     assert pdf.startswith(b"%PDF")
     if export.motor_pdf() == "libreoffice":
