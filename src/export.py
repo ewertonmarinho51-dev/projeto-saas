@@ -845,6 +845,30 @@ def _pdf_novo(branding: dict | None = None):
     return pdf
 
 
+def _ponto_de_retorno(pdf):
+    """
+    Fotografa o PDF para que uma tentativa fracassada possa ser desfeita.
+
+    Usa o `FPDFRecorder` do próprio fpdf2 — o mesmo mecanismo por trás de
+    `FPDF.unbreakable()`. Ele guarda uma cópia profunda do estado (páginas
+    já emitidas, buffer de conteúdo, cursor) e `rewind()` a restaura.
+
+    Devolve `None` se o mecanismo não estiver disponível na versão
+    instalada. Nesse caso quem chama NÃO tenta renderizar sem rede: vai
+    direto ao caminho degradado, que é seguro. Uma tabela em parágrafos é
+    feia; uma tabela com linhas repetidas é um ato administrativo que
+    afirma item que o processo não tem.
+    """
+    try:
+        from fpdf.recorder import FPDFRecorder
+    except ImportError:      # pragma: no cover - fpdf2 sem o recorder
+        return None
+    try:
+        return FPDFRecorder(pdf)
+    except Exception:        # pragma: no cover - estado não copiável
+        return None
+
+
 def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
     """
     Renderiza uma tabela Markdown como tabela real do fpdf2 (com links).
@@ -874,13 +898,17 @@ def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
     pesos = _pesos_das_colunas(linhas)
 
     for fonte_pt, altura_linha in ((9, 5), (7, 3.5), (6, 3)):
+        # Cada tentativa é uma TRANSAÇÃO: ou a tabela inteira entra, ou o
+        # PDF volta a ser exatamente o que era antes dela. O fpdf2 levanta
+        # o ValueError NO MEIO do laço de linhas, com as anteriores já
+        # desenhadas; sem desfazer, a tentativa seguinte as redesenhava e
+        # o dossiê saía com item repetido — 20 linhas duas vezes com uma
+        # queda, quatro vezes com três. Restaurar a posição do cursor não
+        # resolvia: apaga o sintoma, não o conteúdo já emitido.
+        retorno = _ponto_de_retorno(pdf)
+        if retorno is None:
+            break        # sem como desfazer, vai direto ao caminho seguro
         try:
-            # Cada tentativa começa NA MARGEM. Uma tentativa anterior que
-            # levantou ValueError já pode ter emitido linhas e deixado o
-            # cursor onde parou; recomeçar dali desenharia a tabela a
-            # partir da borda direita e jogaria as células para fora da
-            # folha — é a mesma mecânica de cursor que punha parágrafos
-            # em 598 pt numa página de 595,3 pt.
             pdf.set_x(pdf.l_margin)
             pdf.set_font("Times", "", fonte_pt)
             with pdf.table(markdown=True,
@@ -898,7 +926,8 @@ def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
             pdf.ln(2)
             return
         except ValueError:
-            continue  # linha alta demais até para esta fonte — reduz e tenta
+            # linha alta demais até para esta fonte — desfaz e tenta menor
+            retorno.rewind()
 
     # Último recurso: conteúdo em parágrafos (nunca perde dados nem quebra)
     pdf.set_x(pdf.l_margin)
