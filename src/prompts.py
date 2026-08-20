@@ -233,13 +233,24 @@ def _instrucoes(doc_key: str, dados: dict) -> str:
     return _ABERTURAS[doc_key] + "\n\n" + perfis.estrutura_para_prompt(doc_key, srp=srp)
 
 
-def formatar_dados_formulario(dados: dict, doc_key: str = "") -> str:
-    """
-    Converte o Formulário Matriz em um bloco de texto legível para a IA.
-
-    No ETP o modelo de execução é apresentado como PREFERÊNCIA do
-    requisitante — é justamente o estudo que decide a modelagem (P1).
-    """
+# ---------------------------------------------------------------------------
+# Duas representações do MESMO formulário
+#
+# Causa-raiz do vazamento de mecânica interna nos documentos: havia uma
+# única representação, escrita para o MODELO, e o Modo Demonstração a
+# colava no corpo do documento. Frases como "PROIBIDO escrever a lista de
+# itens" ou "para você compreender o que se contrata" são legítimas num
+# prompt e ilegítimas num ato administrativo — um documento oficial não
+# dá ordens a quem o redige.
+#
+# A separação é de DESTINO, não de dados: o percurso dos campos é um só,
+# o cálculo da planilha é um só (`planilha.calcular`), e a diferença fica
+# restrita a como o bloco da planilha é renderizado e ao enquadramento do
+# modelo de execução no ETP — que também é fala dirigida ao modelo.
+# ---------------------------------------------------------------------------
+def _bloco_do_formulario(dados: dict, doc_key: str, *,
+                         para_modelo: bool) -> str:
+    """Percurso ÚNICO dos campos; só o destino do texto muda."""
     linhas = []
     for chave, meta in CAMPOS_FORMULARIO.items():
         if chave == "memorando":
@@ -251,15 +262,15 @@ def formatar_dados_formulario(dados: dict, doc_key: str = "") -> str:
             # linhas reais iam no prompt, elas voltavam copiadas e
             # parciais no documento (edital com 53 de 210 códigos).
             itens, valor_global = planilha.calcular(dados.get("itens") or [])
-            linhas.append(
-                f"- {meta['rotulo']}:\n"
-                + planilha.resumo_para_prompt(itens, valor_global)
-            )
+            resumo = (planilha.resumo_para_prompt if para_modelo
+                      else planilha.resumo_objetivo)
+            linhas.append(f"- {meta['rotulo']}:\n"
+                          + resumo(itens, valor_global))
             continue
         valor = dados.get(chave)
         if valor in (None, "", 0):
             valor = "(não informado)"
-        if chave == "modelo_execucao" and doc_key == "etp":
+        if chave == "modelo_execucao" and doc_key == "etp" and para_modelo:
             linhas.append(
                 f"- {meta['rotulo']} — PREFERÊNCIA DE MODELAGEM indicada "
                 f"pelo requisitante, a ser CONFIRMADA OU AFASTADA pelo "
@@ -267,6 +278,32 @@ def formatar_dados_formulario(dados: dict, doc_key: str = "") -> str:
             continue
         linhas.append(f"- {meta['rotulo']}: {valor}")
     return "\n".join(linhas)
+
+
+def formatar_dados_formulario(dados: dict, doc_key: str = "") -> str:
+    """
+    O Formulário Matriz como bloco de texto PARA A IA.
+
+    Contém instrução endereçada ao modelo (proibições sobre a lista de
+    itens, o marcador da tabela, a composição funcional do objeto). Por
+    isso **não pode ir para o corpo de documento nenhum** — para esse uso
+    existe `dados_objetivos_do_formulario`.
+
+    No ETP o modelo de execução é apresentado como PREFERÊNCIA do
+    requisitante — é justamente o estudo que decide a modelagem (P1).
+    """
+    return _bloco_do_formulario(dados, doc_key, para_modelo=True)
+
+
+def dados_objetivos_do_formulario(dados: dict) -> str:
+    """
+    O Formulário Matriz como bloco de texto PARA O DOCUMENTO.
+
+    Mesmos campos, mesmos números, mesma planilha calculada — sem uma
+    linha dirigida ao modelo. É o que o Modo Demonstração pode escrever
+    no corpo de uma minuta.
+    """
+    return _bloco_do_formulario(dados, "", para_modelo=False)
 
 
 def montar_prompt(doc_key: str, dados: dict, contexto_anterior: str | None) -> tuple[str, str]:

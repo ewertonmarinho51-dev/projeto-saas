@@ -583,6 +583,38 @@ def resumo_semantico(itens: list[dict]) -> str:
     )
 
 
+def _unidades_de_fornecimento(itens: list[dict]) -> list[str]:
+    """Unidades distintas, ordenadas. Fato objetivo da planilha."""
+    return sorted({(it.get("unidade") or "").strip()
+                   for it in itens if (it.get("unidade") or "").strip()})
+
+
+def resumo_objetivo(itens: list[dict], valor_global: float) -> str:
+    """
+    O que vai para o CORPO DO DOCUMENTO sobre a planilha: fatos e mais
+    nada.
+
+    Contrapartida documental de `resumo_para_prompt`. As duas leem os
+    MESMOS itens já calculados e descrevem os MESMOS fatos — número de
+    itens, valor global, unidades de fornecimento —, mas só a versão do
+    prompt carrega instrução endereçada ao modelo. Esta aqui não pode
+    conter proibição, explicação de mecânica nem qualquer frase dirigida
+    a quem redige: um ato administrativo não dá ordens ao seu redator.
+
+    O marcador da tabela permanece porque é o ponto de injeção
+    determinístico — `injetar_tabela` o substitui pela planilha oficial,
+    e ele nunca sobrevive ao documento final.
+    """
+    unidades = _unidades_de_fornecimento(itens)
+    return (
+        f"Quantidade de itens: {len(itens)}.\n"
+        f"Valor global estimado: {formatar_moeda(valor_global)}.\n"
+        + (f"Unidades de fornecimento: {', '.join(unidades[:12])}.\n"
+           if unidades else "")
+        + f"\n{MARCADOR_TABELA}\n"
+    )
+
+
 def resumo_para_prompt(itens: list[dict], valor_global: float) -> str:
     """
     O que a IA recebe sobre a planilha: SOMENTE estatística e o marcador.
@@ -596,10 +628,12 @@ def resumo_para_prompt(itens: list[dict], valor_global: float) -> str:
     unitário saíram por decisão de auditoria: não são necessários a DFD,
     ETP ou TR e estimulam inferência econômica que o processo não
     sustenta.
+
+    Este texto é ENDEREÇADO AO MODELO e por isso jamais pode ir para o
+    corpo de um documento — para esse uso existe `resumo_objetivo`.
     """
     n = len(itens)
-    unidades = sorted({(it.get("unidade") or "").strip()
-                       for it in itens if (it.get("unidade") or "").strip()})
+    unidades = _unidades_de_fornecimento(itens)
     return (
         f"A planilha orçamentária do processo possui {n} item(ns). "
         f"VALOR GLOBAL (estimativa total da contratação) = "
