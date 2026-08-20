@@ -46,6 +46,48 @@ _BLOQUEANTES = [
      "etiqueta de origem interna ('(fonte: formulário)') no texto"),
     (re.compile(r"\bconforme\s+(o\s+)?formul[áa]rio\b", re.IGNORECASE),
      "referência à mecânica interna ('conforme o formulário')"),
+
+    # ----------------------------------------------------------------
+    # Linguagem de PROMPT no corpo do ato (Fase 2)
+    #
+    # A causa foi corrigida na origem — o Modo Demonstração não reutiliza
+    # mais o bloco destinado ao modelo. Estas regras são a segunda
+    # barreira: se a IA devolver a instrução que recebeu, ou se um
+    # caminho futuro voltar a misturar as duas representações, o
+    # documento não é emitido.
+    #
+    # Todas miram FRASES INEQUÍVOCAS de mecânica interna, nunca palavras
+    # isoladas: "análise", "automaticamente", "amostra" e "reproduza"
+    # aparecem legitimamente em ato administrativo e continuam livres.
+    # ----------------------------------------------------------------
+    (re.compile(r"PROIBIDO\s+escrever\s+a\s+lista\s+de\s+itens",
+                re.IGNORECASE),
+     "instrução de prompt no corpo ('PROIBIDO escrever a lista de itens')"),
+    (re.compile(r"\bEXATAMENTE\s+UMA\s+VEZ\b,?\s*SOZINH[AO]", re.IGNORECASE),
+     "instrução de prompt no corpo ('EXATAMENTE UMA VEZ, SOZINHA')"),
+    (re.compile(r"n[ãa]o\s+reproduza\s+est[ae]\s+(an[áa]lise|lista|tabela|"
+                r"amostra)", re.IGNORECASE),
+     "instrução de prompt no corpo ('não reproduza esta análise')"),
+    (re.compile(r"amostra\s+(apenas\s+)?ilustrativa", re.IGNORECASE),
+     "instrução de prompt no corpo ('amostra ilustrativa')"),
+    # "para você compreender" é 2ª pessoa dirigida a quem redige — um ato
+    # administrativo não conversa com o seu redator.
+    (re.compile(r"para\s+voc[êe]\s+(compreender|entender|saber|usar)",
+                re.IGNORECASE),
+     "instrução de prompt no corpo (fala dirigida a quem redige)"),
+    # A frase só é vazamento quando explica a MECÂNICA da injeção: a
+    # tabela/planilha sendo inserida automaticamente "no lugar da marca".
+    # "Os valores serão atualizados automaticamente pelo sistema" — frase
+    # administrativa legítima — não casa.
+    (re.compile(r"(tabela|planilha)[^.\n]{0,80}\b(ser[áa]\s+inserid[ao]|"
+                r"[ée]\s+inserid[ao])\b[^.\n]{0,80}"
+                r"(automaticamente|no lugar da marca)", re.IGNORECASE),
+     "explicação de mecânica interna de injeção da tabela"),
+    (re.compile(r"no\s+lugar\s+da\s+marca\b", re.IGNORECASE),
+     "menção ao ponto de injeção interno ('no lugar da marca')"),
+    (re.compile(r"COMPOSI[ÇC][ÃA]O\s+FUNCIONAL\s+DO\s+OBJETO\s*\(",
+                re.IGNORECASE),
+     "bloco de contexto do prompt no corpo ('COMPOSIÇÃO FUNCIONAL DO OBJETO (…)')"),
 ]
 
 # ---------------------------------------------------------------------------
