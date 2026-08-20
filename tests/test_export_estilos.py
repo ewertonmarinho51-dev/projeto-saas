@@ -111,13 +111,31 @@ def test_pdf_via_libreoffice_quando_disponivel():
         assert all(_serifada(f) for f in fontes), (
             f"corpo com fonte não serifada: {fontes}")
 
-        # E o rodapé é FIXADO, não apenas ignorado: excluir uma região
-        # sem dizer o que se espera dela transforma a exclusão numa
-        # gaveta onde qualquer regressão futura cabe.
+        # E a faixa de rodapé é FIXADA, não apenas ignorada: excluir uma
+        # região sem dizer o que se espera dela transforma a exclusão
+        # numa gaveta onde qualquer regressão futura cabe.
+        #
+        # O que se espera dela depende do caminho. A numeração "Página
+        # 1/1" é desenhada pelo RENDERIZADOR fpdf2; o DOCX convertido só
+        # tem rodapé quando há timbrado, e aí ele é o texto institucional
+        # do órgão. Sem timbrado, a faixa vazia é o comportamento certo —
+        # exigir numeração aqui reprovaria o caminho institucional por
+        # uma característica que ele nunca teve.
         rodape = [s for s in spans if s["bbox"][1] >= limite_do_rodape]
-        assert rodape, "rodapé sumiu do PDF"
-        assert all("Página" in s["text"] or _serifada(s["font"])
-                   for s in rodape), [s["text"] for s in rodape]
+        assert all(_serifada(s["font"]) for s in rodape), \
+            [(s["text"], s["font"]) for s in rodape]
+
+        # com timbrado, o rodapé institucional aparece de fato
+        marca = {"orgao": "Prefeitura de Ensaio",
+                 "rodape": "Rua das Palmeiras, 1000 — Centro"}
+        com_marca = fitz.open(
+            stream=export.gerar_pdf("Termo de Referência", MD, marca),
+            filetype="pdf")
+        faixa = [s for b in com_marca[0].get_text("dict")["blocks"]
+                 for l in b.get("lines", []) for s in l.get("spans", [])
+                 if s["bbox"][1] >= limite_do_rodape]
+        assert any("Palmeiras" in s["text"] for s in faixa), \
+            [s["text"] for s in faixa]
 
 
 def test_pdf_consolidado_mesmo_conteudo_do_docx():

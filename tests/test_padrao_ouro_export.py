@@ -70,7 +70,7 @@ def test_coluna_totalmente_vazia_e_descartada():
 # ---------------------------------------------------------------------------
 # Resultado no PDF renderizado
 # ---------------------------------------------------------------------------
-def test_pdf_nao_quebra_palavras_a_cada_poucos_caracteres(dossie):
+def test_pdf_nao_quebra_palavras_a_cada_poucos_caracteres(dossie, itens):
     texto = "\n".join(p.get_text() for p in dossie)
     # Linha com 1-3 letras: no dossiê auditado eram 455 (palavras
     # partidas pela coluna estreita). Restam apenas palavras curtas
@@ -82,7 +82,18 @@ def test_pdf_nao_quebra_palavras_a_cada_poucos_caracteres(dossie):
                                      "na", "com", "por", "a", "o", "ou",
                                      "os", "as", "um", "ao"}]
     assert not partidas, partidas
-    for quebrada in ("ESPECIFICA ÇÃO", "SANFONAD A", "el ástico"):
+
+    # A quebra que interessa é a que a RENDERIZAÇÃO produz. O caso real
+    # nasceu de uma extração de PDF e já traz palavras partidas na
+    # própria fonte ("fechamento em el ástico", "tampa integr ada",
+    # "visor de ident ificação"): reprovar por elas seria testar o
+    # fixture, não o exportador — e esconderia o defeito verdadeiro atrás
+    # de um ruído que o exportador não causou nem pode corrigir.
+    fonte = " ".join((i.get("descricao") or "") for i in itens)
+    for quebrada in ("ESPECIFICA ÇÃO", "SANFONAD A", "el ástico",
+                     "integr ada", "ident ificação"):
+        if quebrada in fonte:
+            continue
         assert quebrada not in texto, quebrada
 
 

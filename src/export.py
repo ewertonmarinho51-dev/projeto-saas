@@ -285,11 +285,93 @@ _LARGURA_UTIL_CM = 21.0 - MARGEM_ESQ_CM - MARGEM_DIR_CM
 # caracteres; acima do teto uma coluna sozinha come a linha inteira.
 _COL_MIN_CM = 1.4
 _COL_MAX_CM = 9.5
+# Corpo da tabela no DOCX (ver _docx_formatar_tabela)
+_TABELA_PT = 10
+# Margem interna da célula, explícita: o padrão do Word é 0,19 cm de cada
+# lado, e a largura DECLARADA de uma coluna não é a largura utilizável.
+# Era essa diferença que fazia "572704" caber na conta e não caber na
+# página. Reduzida ao mínimo legível e descontada do cálculo.
+_PADDING_CELULA_CM = 0.08
 
 
 def _texto_renderizado(celula: str) -> str:
     """Texto como sai na página: link Markdown vale pelo seu rótulo."""
     return _limpar_inline(_RE_LINK.sub(r"\1", celula or "")).strip()
+
+
+def _largura_de_texto_cm(texto: str, pt: float = _TABELA_PT,
+                         negrito: bool = False) -> float:
+    """
+    Largura real de um texto em cm, pelas métricas da fonte Times.
+
+    Medida, não estimada: o fpdf2 já embarca as métricas do Times e é
+    dependência do projeto. Uma constante de "largura média de caractere"
+    erraria justamente onde importa — dígitos e maiúsculas são mais
+    largos que a média, e é neles que a coluna estoura.
+    """
+    from fpdf import FPDF
+
+    global _medidor
+    if _medidor is None:
+        _medidor = FPDF(unit="pt")
+        _medidor.add_page()
+    _medidor.set_font("Times", "B" if negrito else "", pt)
+    return _medidor.get_string_width(texto or "") / 72 * 2.54
+
+
+_medidor = None
+
+
+def _piso_das_colunas_cm(linhas: list[list[str]]) -> list[float]:
+    """
+    Largura mínima de cada coluna: a do seu maior TOKEN INDIVISÍVEL.
+
+    Uma palavra sem espaço não quebra em lugar nenhum — ou a coluna a
+    comporta, ou o conversor a parte no meio. Foi o que aconteceu no PDF
+    real: o código '572704' saiu como '57270' + '4' e o cabeçalho
+    'Quantidade' como 'Quanti' + 'dade', porque o piso era um número fixo
+    (1,4 cm) que não olhava para o texto.
+    """
+    if not linhas:
+        return []
+    pisos = []
+    for j in range(len(linhas[0])):
+        maior = 0.0
+        for i, linha in enumerate(linhas):
+            # a 1ª linha é medida em NEGRITO mesmo quando não é cabeçalho:
+            # negrito é mais largo, e errar para o lado largo só custa
+            # alguns milímetros — errar para o estreito parte a palavra
+            for token in _texto_renderizado(linha[j]).split():
+                maior = max(maior,
+                            _largura_de_texto_cm(token, negrito=(i == 0)))
+        pisos.append(max(maior, 0.0) + 2 * _PADDING_CELULA_CM)
+    return pisos
+
+
+def _acomodar_na_largura_util(larguras: list[float],
+                              pisos: list[float]) -> list[float]:
+    """
+    Ajusta as larguras à largura útil sem espremer coluna abaixo do piso.
+
+    O excedente sai das colunas FOLGADAS, proporcionalmente à folga que
+    cada uma tem sobre o próprio piso — a Descrição cede, o Código não.
+    Se nem os pisos couberem (tabela larga demais para A4), tudo é
+    reduzido junto: aí não há solução sem quebrar texto, e reduzir de
+    forma uniforme ao menos não escolhe uma vítima.
+    """
+    if not larguras:
+        return larguras
+    larguras = [max(l, p) for l, p in zip(larguras, pisos)]
+    excesso = sum(larguras) - _LARGURA_UTIL_CM
+    if excesso <= 0:
+        return larguras
+    folga_total = sum(l - p for l, p in zip(larguras, pisos))
+    if folga_total <= 0:
+        fator = _LARGURA_UTIL_CM / sum(larguras)
+        return [l * fator for l in larguras]
+    corte = min(excesso, folga_total)
+    return [l - (l - p) / folga_total * corte
+            for l, p in zip(larguras, pisos)]
 
 
 def _remover_colunas_vazias(linhas: list[list[str]]) -> list[list[str]]:
@@ -328,10 +410,11 @@ def _pesos_das_colunas(linhas: list[list[str]]) -> tuple[float, ...]:
                     default=1)
         pesos.append(max(maior, 1) ** 0.5)
     total = sum(pesos) or 1
-    # normaliza para a largura útil e aplica piso/teto em centímetros
-    cm = [min(max(_LARGURA_UTIL_CM * p / total, _COL_MIN_CM), _COL_MAX_CM)
-          for p in pesos]
-    return tuple(round(c, 2) for c in cm)
+    # normaliza para a largura útil e aplica teto em centímetros
+    cm = [min(_LARGURA_UTIL_CM * p / total, _COL_MAX_CM) for p in pesos]
+    # o piso é o do MAIOR TOKEN de cada coluna — nunca um número fixo
+    pisos = [max(p, _COL_MIN_CM) for p in _piso_das_colunas_cm(linhas)]
+    return tuple(round(c, 2) for c in _acomodar_na_largura_util(cm, pisos))
 
 
 def _docx_larguras_proporcionais(tabela, linhas: list[list[str]]) -> None:
@@ -360,11 +443,13 @@ def _docx_larguras_proporcionais(tabela, linhas: list[list[str]]) -> None:
         pesos.append(max(maior, 1) ** 0.5)
 
     total = sum(pesos) or 1
-    larguras = [_LARGURA_UTIL_CM * p / total for p in pesos]
-    # aplica piso/teto e redistribui o que sobrar proporcionalmente
-    larguras = [min(max(l, _COL_MIN_CM), _COL_MAX_CM) for l in larguras]
-    fator = _LARGURA_UTIL_CM / (sum(larguras) or 1)
-    larguras = [l * fator for l in larguras]
+    larguras = [min(_LARGURA_UTIL_CM * p / total, _COL_MAX_CM) for p in pesos]
+    # Piso pelo maior TOKEN de cada coluna, e não por um número fixo: era
+    # o piso fixo de 1,4 cm que partia '572704' em '57270' + '4'. O que
+    # exceder a largura útil sai das colunas com folga sobre o próprio
+    # piso — a Descrição cede, o Código não.
+    pisos = [max(p, _COL_MIN_CM) for p in _piso_das_colunas_cm(linhas)]
+    larguras = _acomodar_na_largura_util(larguras, pisos)
 
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
@@ -407,7 +492,23 @@ def _docx_formatar_tabela(tabela, com_cabecalho: bool = True) -> None:
     quebra de página permitida nas linhas longas."""
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
-    from docx.shared import Pt
+    from docx.shared import Cm, Pt
+
+    # Margem interna EXPLÍCITA. O padrão do Word é 0,19 cm de cada lado, e
+    # o cálculo de largura não a enxergava: a coluna do Código recebia
+    # 1,4 cm, sobravam 1,02 cm de texto útil, e '572704' (1,06 cm em
+    # Times 10) saía partido como '57270' + '4' no PDF convertido.
+    tbl_pr = tabela._tbl.tblPr
+    for antiga in tbl_pr.findall(qn("w:tblCellMar")):
+        tbl_pr.remove(antiga)
+    margens = OxmlElement("w:tblCellMar")
+    for lado, cm in (("top", 0.03), ("left", _PADDING_CELULA_CM),
+                     ("bottom", 0.03), ("right", _PADDING_CELULA_CM)):
+        elemento = OxmlElement(f"w:{lado}")
+        elemento.set(qn("w:w"), str(int(Cm(cm).twips)))
+        elemento.set(qn("w:type"), "dxa")
+        margens.append(elemento)
+    tbl_pr.append(margens)
 
     for i, linha in enumerate(tabela.rows):
         tr_pr = linha._tr.get_or_add_trPr()
@@ -774,6 +875,13 @@ def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
 
     for fonte_pt, altura_linha in ((9, 5), (7, 3.5), (6, 3)):
         try:
+            # Cada tentativa começa NA MARGEM. Uma tentativa anterior que
+            # levantou ValueError já pode ter emitido linhas e deixado o
+            # cursor onde parou; recomeçar dali desenharia a tabela a
+            # partir da borda direita e jogaria as células para fora da
+            # folha — é a mesma mecânica de cursor que punha parágrafos
+            # em 598 pt numa página de 595,3 pt.
+            pdf.set_x(pdf.l_margin)
             pdf.set_font("Times", "", fonte_pt)
             with pdf.table(markdown=True,
                            first_row_as_headings=com_cabecalho,
@@ -793,6 +901,7 @@ def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
             continue  # linha alta demais até para esta fonte — reduz e tenta
 
     # Último recurso: conteúdo em parágrafos (nunca perde dados nem quebra)
+    pdf.set_x(pdf.l_margin)
     cabecalho = linhas[0] if com_cabecalho else [""] * n
     pdf.set_font("Times", "", 10)
     for linha in (linhas[1:] if com_cabecalho else linhas):
