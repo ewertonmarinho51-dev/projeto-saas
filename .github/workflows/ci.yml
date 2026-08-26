@@ -19,10 +19,26 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      # O PDF oficial nasce de DOCX → LibreOffice → PDF. Sem o Writer
+      # nenhum filtro de documento carrega, export.motor_pdf() responde
+      # 'fpdf2' e TODAS as provas do PDF real pulam — foi assim que os
+      # 210 códigos da planilha saíram partidos no PDF sem ninguém ver.
+      # `libreoffice-writer` puxa o core; é o mínimo para converter.
+      - name: Instalar o motor institucional de PDF
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-writer
+
       - name: Instalar dependências
         run: |
           pip install -r requirements.txt
           pip install pytest
 
+      # GOVDOCS_EXIGIR_LIBREOFFICE=1: aqui a ausência do motor
+      # institucional é FALHA DE AMBIENTE, não skip. Instalar sem exigir
+      # deixaria a porta aberta para o silêncio voltar na primeira vez
+      # que a instalação falhasse.
       - name: Rodar testes
+        env:
+          GOVDOCS_EXIGIR_LIBREOFFICE: "1"
         run: python -m pytest -q

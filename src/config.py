@@ -109,16 +109,72 @@ DOCUMENTOS = {
     "edital": {
         "etapa": 4,
         "sigla": "Edital",
-        "titulo": "Minuta de Edital / Ata de Registro de Preços",
+        "titulo": "Minuta de Edital",
         "base_legal": "art. 25 da Lei nº 14.133/2021",
         "descricao": (
             "Minuta com as cláusulas do certame — condições de "
-            "participação, julgamento, habilitação e sanções — e, quando "
-            "SRP, a minuta da Ata de Registro de Preços."
+            "participação, julgamento, habilitação, recursos e sanções."
+        ),
+        "usa_contexto_de": "tr",
+    },
+    # Instrumento PRÓPRIO, não um capítulo do edital: a Ata é montada
+    # deterministicamente na mesma etapa, quando o processo adota o
+    # Sistema de Registro de Preços.
+    "arp": {
+        "etapa": 4,
+        "sigla": "ARP",
+        "titulo": "Minuta da Ata de Registro de Preços",
+        "base_legal": "arts. 82 a 86 da Lei nº 14.133/2021",
+        "descricao": (
+            "Minuta da Ata — objeto e preços registrados, vigência "
+            "(art. 84), gerenciamento, cadastro de reserva, adesão "
+            "(art. 86) e cancelamento do registro."
         ),
         "usa_contexto_de": "tr",
     },
 }
+
+# Ordem de EXPORTAÇÃO do dossiê. Difere de SEQUENCIA_DOCUMENTOS porque a
+# ARP não é etapa do wizard: é emitida junto do edital, como instrumento
+# separado, quando há Sistema de Registro de Preços.
+DOCUMENTOS_EXPORTAVEIS = SEQUENCIA_DOCUMENTOS + ["arp"]
+
+# Instrumentos emitidos JUNTO de um documento do wizard, e não como etapa
+# própria. Quem invalida o documento-âncora invalida o instrumento: a Ata
+# nasce do edital e da modelagem declarada no formulário, então nenhuma
+# Ata pode sobreviver à regeneração daquilo que a fundamenta.
+INSTRUMENTOS_DERIVADOS = {"edital": ("arp",)}
+
+
+def adota_srp(dados: dict | None) -> bool:
+    """
+    O processo adota Sistema de Registro de Preços?
+
+    Critério ÚNICO e explícito: o modelo de execução informado no
+    Formulário Matriz. Não se deduz SRP de objeto, quantidade ou
+    parcelamento — adotar SRP é decisão do estudo, não inferência.
+
+    Vive aqui, e não em `state`, porque a camada de exportação precisa
+    do mesmo critério sem depender do estado da sessão do Streamlit.
+    """
+    return "registro de preços" in ((dados or {}).get("modelo_execucao")
+                                    or "").lower()
+
+
+def exportaveis_do_processo(dados: dict | None,
+                            documentos: dict | None) -> list[str]:
+    """
+    Chaves realmente exportáveis, na ordem do dossiê.
+
+    Segunda linha de defesa contra Ata obsoleta: um processo que NÃO
+    adota SRP nunca exporta ARP, ainda que uma chave 'arp' residual de
+    uma modelagem anterior tenha sobrado em `documentos`. A limpeza de
+    estado é a primeira linha; esta função é a que decide o arquivo.
+    """
+    documentos = documentos or {}
+    ordem = (DOCUMENTOS_EXPORTAVEIS if adota_srp(dados)
+             else SEQUENCIA_DOCUMENTOS)
+    return [k for k in ordem if k in documentos]
 
 # ---------------------------------------------------------------------------
 # Formulário Matriz — Passo 1

@@ -29,7 +29,8 @@ from .config import (
     OPENAI_MODEL_PADRAO,
     OPENAI_MODELOS_FALLBACK,
 )
-from .prompts import formatar_dados_formulario, montar_prompt
+from . import templates_gov
+from .prompts import dados_objetivos_do_formulario, montar_prompt
 
 
 class ErroGeracaoIA(Exception):
@@ -452,19 +453,61 @@ def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str,
     )
 
 
+def gerar_instrumento_oficial(doc_key: str, dados: dict) -> str:
+    """
+    Edital / Ata de Registro de Preços montados DETERMINISTICAMENTE.
+
+    A redação jurídica destes instrumentos não é livre: vem do catálogo
+    de cláusulas versionado (templates_gov), com a tabela oficial de
+    itens injetada no lugar do marcador. Dado ausente aparece como
+    [PREENCHER: …] e bloqueia a emissão — jamais é preenchido por
+    plausibilidade, que foi como o edital auditado ganhou pregão fundado
+    no art. 109 e garantia sem base legal.
+    """
+    from . import planilha
+
+    inicio = time.time()
+    montado = templates_gov.montar_oficial(doc_key, dados)
+    texto = planilha.injetar_tabela(montado["texto"], dados.get("itens"))
+    registrar_geracao(doc_key, "template", inicio, "ok")
+    # instrumento determinístico não consulta a base de conhecimento: o
+    # rastro fica explicitamente vazio (e não herda o do documento anterior)
+    _associar_rag_trace(doc_key, {"modo": "template", "consultas": [],
+                                  "referencias": []}, texto)
+    return texto
+
+
 def gerar_documento(doc_key: str, dados: dict,
                     contexto_anterior: str | None,
                     instrucoes_extra: str = "") -> str:
     """
-    Gera o documento `doc_key` ('dfd' | 'etp' | 'tr' | 'edital').
+    Gera o documento `doc_key` ('dfd' | 'etp' | 'tr' | 'edital' | 'arp').
 
-    Com chave de API configurada, usa o Gemini; sem chave (ou com o modo
-    demonstração ativado), devolve uma minuta-esqueleto offline.
+    Três caminhos, nesta ordem:
+
+    1. **`edital` e `arp` nunca passam por IA.** São instrumentos de
+       conteúdo obrigatório (art. 25 e arts. 82 a 86), montados por
+       código a partir do catálogo versionado de cláusulas — o que falta
+       neles vira [PREENCHER: …] visível, nunca texto plausível;
+    2. **Modo Demonstração ligado** (toggle explícito do administrador):
+       devolve a minuta-esqueleto offline de `_gerar_demo`, com os dados
+       objetivos do formulário e a tabela oficial;
+    3. **caso contrário**: OpenAI como motor principal, Gemini como
+       fallback avisado.
+
+    **Sem chave de API e sem Modo Demonstração, levanta `ErroGeracaoIA`**
+    — não existe queda silenciosa para o esqueleto offline. Um documento
+    de fase preparatória produzido sem IA, sem que ninguém tenha pedido,
+    seria entregue como se fosse a redação encomendada.
+
     `instrucoes_extra` (V6): diretrizes adicionais da família de modelo
-    resolvida — aditivas ao perfil institucional.
-    Levanta ErroGeracaoIA com mensagem amigável em caso de falha.
+    resolvida — aditivas ao perfil institucional. Qualquer falha de
+    geração vira `ErroGeracaoIA` com mensagem amigável.
     """
     from . import planilha
+
+    if doc_key in templates_gov.TEMPLATES_OFICIAIS:
+        return gerar_instrumento_oficial(doc_key, dados)
 
     if st.session_state.get("modo_demo", False):
         # Fallback EXPLÍCITO (nunca silencioso): só ocorre com o toggle
@@ -649,8 +692,16 @@ def testar_conexao(motor: str) -> tuple[bool, str]:
 # Modo demonstração (offline) — minutas-esqueleto a partir do formulário
 # ---------------------------------------------------------------------------
 def _gerar_demo(doc_key: str, dados: dict) -> str:
+    """
+    Minuta-esqueleto offline do Modo Demonstração.
+
+    Escreve apenas DADOS OBJETIVOS do formulário e a tabela oficial. Não
+    reutiliza o bloco destinado ao modelo: era daí que "PROIBIDO escrever
+    a lista de itens", "EXATAMENTE UMA VEZ" e "para você compreender o
+    que se contrata" chegavam ao corpo de um documento administrativo.
+    """
     doc = DOCUMENTOS[doc_key]
-    dados_fmt = formatar_dados_formulario(dados)
+    dados_fmt = dados_objetivos_do_formulario(dados)
     cabecalho = (
         f"# {doc['titulo'].upper()}\n\n"
         f"*Minuta-esqueleto gerada em Modo Demonstração (sem IA) — "

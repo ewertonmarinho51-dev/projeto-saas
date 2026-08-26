@@ -18,7 +18,24 @@ import shutil
 import zipfile
 from datetime import date
 
-from .config import DOCUMENTOS, SEQUENCIA_DOCUMENTOS
+from .config import DOCUMENTOS, DOCUMENTOS_EXPORTAVEIS, exportaveis_do_processo
+
+
+def _ordem_de_exportacao(documentos: dict[str, str],
+                         dados: dict | None) -> list[str]:
+    """
+    Quais documentos entram no arquivo, e em que ordem.
+
+    Com o formulário do processo em mãos, quem decide é
+    `config.exportaveis_do_processo` — e um processo sem Sistema de
+    Registro de Preços não exporta ARP nem que exista uma chave 'arp'
+    residual de uma modelagem anterior. Sem o formulário (minuta de
+    trabalho, bundle avulso), exporta-se o que veio: aqui não há como
+    saber se a Ata cabe, e inventar a resposta seria pior.
+    """
+    if dados is None:
+        return [k for k in DOCUMENTOS_EXPORTAVEIS if k in documentos]
+    return exportaveis_do_processo(dados, documentos)
 
 # Padrão institucional (medido nos documentos manuais aprovados)
 FONTE_CORPO = "Times New Roman"
@@ -262,12 +279,236 @@ def _tem_cabecalho(tabela_buffer: list[str]) -> bool:
         _RE_SEPARADOR_TABELA.match(tabela_buffer[1].strip()))
 
 
+# Largura útil da página (A4 21 cm menos as margens laterais)
+_LARGURA_UTIL_CM = 21.0 - MARGEM_ESQ_CM - MARGEM_DIR_CM
+# Piso e teto por coluna: abaixo do piso o texto quebra a cada poucos
+# caracteres; acima do teto uma coluna sozinha come a linha inteira.
+_COL_MIN_CM = 1.4
+_COL_MAX_CM = 9.5
+# Corpo da tabela no DOCX (ver _docx_formatar_tabela)
+_TABELA_PT = 10
+# Margem interna da célula, explícita: o padrão do Word é 0,19 cm de cada
+# lado, e a largura DECLARADA de uma coluna não é a largura utilizável.
+# Era essa diferença que fazia "572704" caber na conta e não caber na
+# página. Reduzida ao mínimo legível e descontada do cálculo.
+_PADDING_CELULA_CM = 0.08
+
+
+def _texto_renderizado(celula: str) -> str:
+    """Texto como sai na página: link Markdown vale pelo seu rótulo."""
+    return _limpar_inline(_RE_LINK.sub(r"\1", celula or "")).strip()
+
+
+def _largura_de_texto_cm(texto: str, pt: float = _TABELA_PT,
+                         negrito: bool = False) -> float:
+    """
+    Largura real de um texto em cm, pelas métricas da fonte Times.
+
+    Medida, não estimada: o fpdf2 já embarca as métricas do Times e é
+    dependência do projeto. Uma constante de "largura média de caractere"
+    erraria justamente onde importa — dígitos e maiúsculas são mais
+    largos que a média, e é neles que a coluna estoura.
+    """
+    from fpdf import FPDF
+
+    global _medidor
+    if _medidor is None:
+        _medidor = FPDF(unit="pt")
+        _medidor.add_page()
+    _medidor.set_font("Times", "B" if negrito else "", pt)
+    return _medidor.get_string_width(texto or "") / 72 * 2.54
+
+
+_medidor = None
+
+
+def _piso_das_colunas_cm(linhas: list[list[str]]) -> list[float]:
+    """
+    Largura mínima de cada coluna: a do seu maior TOKEN INDIVISÍVEL.
+
+    Uma palavra sem espaço não quebra em lugar nenhum — ou a coluna a
+    comporta, ou o conversor a parte no meio. Foi o que aconteceu no PDF
+    real: o código '572704' saiu como '57270' + '4' e o cabeçalho
+    'Quantidade' como 'Quanti' + 'dade', porque o piso era um número fixo
+    (1,4 cm) que não olhava para o texto.
+    """
+    if not linhas:
+        return []
+    pisos = []
+    for j in range(len(linhas[0])):
+        maior = 0.0
+        for i, linha in enumerate(linhas):
+            # a 1ª linha é medida em NEGRITO mesmo quando não é cabeçalho:
+            # negrito é mais largo, e errar para o lado largo só custa
+            # alguns milímetros — errar para o estreito parte a palavra
+            for token in _texto_renderizado(linha[j]).split():
+                maior = max(maior,
+                            _largura_de_texto_cm(token, negrito=(i == 0)))
+        pisos.append(max(maior, 0.0) + 2 * _PADDING_CELULA_CM)
+    return pisos
+
+
+def _acomodar_na_largura_util(larguras: list[float],
+                              pisos: list[float]) -> list[float]:
+    """
+    Ajusta as larguras à largura útil sem espremer coluna abaixo do piso.
+
+    O excedente sai das colunas FOLGADAS, proporcionalmente à folga que
+    cada uma tem sobre o próprio piso — a Descrição cede, o Código não.
+    Se nem os pisos couberem (tabela larga demais para A4), tudo é
+    reduzido junto: aí não há solução sem quebrar texto, e reduzir de
+    forma uniforme ao menos não escolhe uma vítima.
+    """
+    if not larguras:
+        return larguras
+    larguras = [max(l, p) for l, p in zip(larguras, pisos)]
+    excesso = sum(larguras) - _LARGURA_UTIL_CM
+    if excesso <= 0:
+        return larguras
+    folga_total = sum(l - p for l, p in zip(larguras, pisos))
+    if folga_total <= 0:
+        fator = _LARGURA_UTIL_CM / sum(larguras)
+        return [l * fator for l in larguras]
+    corte = min(excesso, folga_total)
+    return [l - (l - p) / folga_total * corte
+            for l, p in zip(larguras, pisos)]
+
+
+def _remover_colunas_vazias(linhas: list[list[str]]) -> list[list[str]]:
+    """
+    Descarta colunas sem nenhum conteúdo.
+
+    O Markdown de tabela costuma gerar uma coluna extra vazia (linha
+    terminada em '|'), e no PDF auditado ela aparecia como uma faixa em
+    branco em todas as ~150 páginas de tabela, roubando largura das
+    colunas que tinham texto.
+    """
+    if not linhas:
+        return linhas
+    manter = [j for j in range(len(linhas[0]))
+              if any((linha[j] or "").strip() for linha in linhas)]
+    if not manter or len(manter) == len(linhas[0]):
+        return linhas
+    return [[linha[j] for j in manter] for linha in linhas]
+
+
+def _pesos_das_colunas(linhas: list[list[str]]) -> tuple[float, ...]:
+    """
+    Peso relativo de cada coluna: raiz da maior célula RENDERIZADA.
+
+    A raiz amortece — uma descrição de 200 caracteres fica larga sem
+    espremer as demais a zero. Os pesos são limitados pela mesma razão
+    mínimo/máximo usada no DOCX, para que os dois formatos saiam com a
+    mesma proporção.
+    """
+    if not linhas:
+        return ()
+    n_cols = len(linhas[0])
+    pesos = []
+    for j in range(n_cols):
+        maior = max((len(_texto_renderizado(linha[j])) for linha in linhas),
+                    default=1)
+        pesos.append(max(maior, 1) ** 0.5)
+    total = sum(pesos) or 1
+    # normaliza para a largura útil e aplica teto em centímetros
+    cm = [min(_LARGURA_UTIL_CM * p / total, _COL_MAX_CM) for p in pesos]
+    # o piso é o do MAIOR TOKEN de cada coluna — nunca um número fixo
+    pisos = [max(p, _COL_MIN_CM) for p in _piso_das_colunas_cm(linhas)]
+    return tuple(round(c, 2) for c in _acomodar_na_largura_util(cm, pisos))
+
+
+def _docx_larguras_proporcionais(tabela, linhas: list[list[str]]) -> None:
+    """
+    Distribui a largura entre as colunas conforme o texto que cada uma
+    carrega, em vez de reparti-la em partes iguais.
+
+    Sem isto, a Descrição do item (às vezes 200 caracteres) recebia a
+    mesma largura de 'Unidade' e o conversor quebrava palavra a cada
+    poucos caracteres ("ESPECIFICA ÇÃO", "PASTA SANFONAD A"): no PDF
+    auditado eram 455 fragmentos de 1 a 3 letras, e o texto extraído
+    ficava sem nem poder ser pesquisado.
+    """
+    from docx.shared import Cm
+
+    n_cols = len(linhas[0])
+    if not n_cols:
+        return
+    # peso = maior célula da coluna, amortecida (raiz) para que uma
+    # descrição muito longa não zere as demais. Mede o texto RENDERIZADO:
+    # "[link](https://…60 caracteres…)" ocupa 4 caracteres na página.
+    pesos = []
+    for j in range(n_cols):
+        maior = max((len(_texto_renderizado(linha[j])) for linha in linhas),
+                    default=1)
+        pesos.append(max(maior, 1) ** 0.5)
+
+    total = sum(pesos) or 1
+    larguras = [min(_LARGURA_UTIL_CM * p / total, _COL_MAX_CM) for p in pesos]
+    # Piso pelo maior TOKEN de cada coluna, e não por um número fixo: era
+    # o piso fixo de 1,4 cm que partia '572704' em '57270' + '4'. O que
+    # exceder a largura útil sai das colunas com folga sobre o próprio
+    # piso — a Descrição cede, o Código não.
+    pisos = [max(p, _COL_MIN_CM) for p in _piso_das_colunas_cm(linhas)]
+    larguras = _acomodar_na_largura_util(larguras, pisos)
+
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    tabela.autofit = False
+    for j, largura in enumerate(larguras):
+        for linha in tabela.rows:
+            linha.cells[j].width = Cm(round(largura, 2))
+
+    # A GRADE da tabela (w:tblGrid) é o que o conversor usa para repartir
+    # a largura; sem atualizá-la, as larguras de célula são ignoradas.
+    grid = tabela._tbl.find(qn("w:tblGrid"))
+    if grid is not None:
+        for col, largura in zip(grid.findall(qn("w:gridCol")), larguras):
+            col.set(qn("w:w"), str(int(Cm(round(largura, 2)).twips)))
+
+    # …e a LARGURA TOTAL (w:tblW) precisa ser explícita: com ela ausente
+    # o LibreOffice recalcula a tabela do zero e volta a distribuir as
+    # colunas em partes iguais, desfazendo a grade acima.
+    #
+    # A POSIÇÃO importa: o OOXML fixa a ordem dos filhos de <w:tblPr> e
+    # <w:tblW> vem ANTES de <w:tblLayout>. Anexado ao fim, o elemento é
+    # descartado silenciosamente pelo conversor — foi o que aconteceu na
+    # primeira tentativa desta correção.
+    tbl_pr = tabela._tbl.tblPr
+    for antigo in tbl_pr.findall(qn("w:tblW")):
+        tbl_pr.remove(antigo)
+    largura_total = OxmlElement("w:tblW")
+    largura_total.set(qn("w:type"), "dxa")
+    largura_total.set(qn("w:w"), str(int(Cm(_LARGURA_UTIL_CM).twips)))
+    layout = tbl_pr.find(qn("w:tblLayout"))
+    if layout is not None:
+        layout.addprevious(largura_total)
+    else:
+        tbl_pr.append(largura_total)
+
+
 def _docx_formatar_tabela(tabela, com_cabecalho: bool = True) -> None:
     """Cabeçalho repetido por página (quando existe), fonte do padrão e
     quebra de página permitida nas linhas longas."""
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
-    from docx.shared import Pt
+    from docx.shared import Cm, Pt
+
+    # Margem interna EXPLÍCITA. O padrão do Word é 0,19 cm de cada lado, e
+    # o cálculo de largura não a enxergava: a coluna do Código recebia
+    # 1,4 cm, sobravam 1,02 cm de texto útil, e '572704' (1,06 cm em
+    # Times 10) saía partido como '57270' + '4' no PDF convertido.
+    tbl_pr = tabela._tbl.tblPr
+    for antiga in tbl_pr.findall(qn("w:tblCellMar")):
+        tbl_pr.remove(antiga)
+    margens = OxmlElement("w:tblCellMar")
+    for lado, cm in (("top", 0.03), ("left", _PADDING_CELULA_CM),
+                     ("bottom", 0.03), ("right", _PADDING_CELULA_CM)):
+        elemento = OxmlElement(f"w:{lado}")
+        elemento.set(qn("w:w"), str(int(Cm(cm).twips)))
+        elemento.set(qn("w:type"), "dxa")
+        margens.append(elemento)
+    tbl_pr.append(margens)
 
     for i, linha in enumerate(tabela.rows):
         tr_pr = linha._tr.get_or_add_trPr()
@@ -308,6 +549,8 @@ def _docx_inserir_markdown(doc, texto_md: str) -> None:
         if linhas_tab:
             n_cols = max(len(l) for l in linhas_tab)
             linhas_tab = [l + [""] * (n_cols - len(l)) for l in linhas_tab]
+            linhas_tab = _remover_colunas_vazias(linhas_tab)
+            n_cols = len(linhas_tab[0])
             tabela = doc.add_table(rows=len(linhas_tab), cols=n_cols)
             tabela.style = "Table Grid"
             for i, linha in enumerate(linhas_tab):
@@ -317,6 +560,7 @@ def _docx_inserir_markdown(doc, texto_md: str) -> None:
                         par.add_run(_limpar_inline(celula)).bold = True
                     else:
                         _docx_runs_ricos(par, celula)
+            _docx_larguras_proporcionais(tabela, linhas_tab)
             _docx_formatar_tabela(tabela, com_cabecalho)
         tabela_buffer.clear()
 
@@ -390,16 +634,16 @@ def gerar_docx(titulo: str, texto_md: str, branding: dict | None = None) -> byte
     return buffer.getvalue()
 
 
-def gerar_docx_consolidado(documentos: dict[str, str], branding: dict | None = None) -> bytes:
+def gerar_docx_consolidado(documentos: dict[str, str],
+                           branding: dict | None = None,
+                           dados: dict | None = None) -> bytes:
     doc = _docx_novo()
     _docx_aplicar_branding(doc, branding)
     doc.add_paragraph("DOCUMENTOS DA FASE PREPARATÓRIA — LEI Nº 14.133/2021",
                       style="GovDocs Titulo")
     doc.add_paragraph(f"Dossiê gerado em {date.today().strftime('%d/%m/%Y')}.",
                       style="GovDocs Nota")
-    for doc_key in SEQUENCIA_DOCUMENTOS:
-        if doc_key not in documentos:
-            continue
+    for doc_key in _ordem_de_exportacao(documentos, dados):
         doc.add_page_break()
         doc.add_paragraph(DOCUMENTOS[doc_key]["titulo"].upper(),
                           style="GovDocs Titulo")
@@ -412,11 +656,37 @@ def gerar_docx_consolidado(documentos: dict[str, str], branding: dict | None = N
 # ---------------------------------------------------------------------------
 # PDF — caminho principal: DOCX estilizado -> LibreOffice -> PDF
 # ---------------------------------------------------------------------------
+_motor_pdf_efetivo: str | None = None
+
+
 def motor_pdf() -> str:
-    """'libreoffice' (DOCX convertido — padrão institucional fiel) ou
-    'fpdf2' (fallback quando o LibreOffice não está no ambiente)."""
-    return "libreoffice" if (shutil.which("soffice") or
-                             shutil.which("libreoffice")) else "fpdf2"
+    """
+    Motor que REALMENTE será usado: 'libreoffice' (DOCX convertido —
+    padrão institucional fiel) ou 'fpdf2' (renderizador próprio).
+
+    Antes bastava o binário existir no PATH para o sistema anunciar
+    'libreoffice' na tela de auditoria. Quando a conversão falhava em
+    tempo de execução — o que acontece neste ambiente — o dossiê saía
+    pelo fpdf2 e a interface seguia informando o motor errado, jogando
+    para o vazio qualquer diagnóstico de formatação. Agora a resposta
+    vem de uma conversão real de teste (feita uma vez por processo).
+    """
+    global _motor_pdf_efetivo
+    if _motor_pdf_efetivo is not None:
+        return _motor_pdf_efetivo
+    if not (shutil.which("soffice") or shutil.which("libreoffice")):
+        _motor_pdf_efetivo = "fpdf2"
+        return _motor_pdf_efetivo
+    try:
+        sonda = _docx_novo()
+        sonda.add_paragraph("sonda")
+        buffer = io.BytesIO()
+        sonda.save(buffer)
+        convertido = _docx_em_pdf(buffer.getvalue())
+    except Exception:
+        convertido = None
+    _motor_pdf_efetivo = "libreoffice" if convertido else "fpdf2"
+    return _motor_pdf_efetivo
 
 
 def _docx_em_pdf(docx_bytes: bytes) -> bytes | None:
@@ -575,6 +845,30 @@ def _pdf_novo(branding: dict | None = None):
     return pdf
 
 
+def _ponto_de_retorno(pdf):
+    """
+    Fotografa o PDF para que uma tentativa fracassada possa ser desfeita.
+
+    Usa o `FPDFRecorder` do próprio fpdf2 — o mesmo mecanismo por trás de
+    `FPDF.unbreakable()`. Ele guarda uma cópia profunda do estado (páginas
+    já emitidas, buffer de conteúdo, cursor) e `rewind()` a restaura.
+
+    Devolve `None` se o mecanismo não estiver disponível na versão
+    instalada. Nesse caso quem chama NÃO tenta renderizar sem rede: vai
+    direto ao caminho degradado, que é seguro. Uma tabela em parágrafos é
+    feia; uma tabela com linhas repetidas é um ato administrativo que
+    afirma item que o processo não tem.
+    """
+    try:
+        from fpdf.recorder import FPDFRecorder
+    except ImportError:      # pragma: no cover - fpdf2 sem o recorder
+        return None
+    try:
+        return FPDFRecorder(pdf)
+    except Exception:        # pragma: no cover - estado não copiável
+        return None
+
+
 def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
     """
     Renderiza uma tabela Markdown como tabela real do fpdf2 (com links).
@@ -595,24 +889,48 @@ def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
         return
     n = max(len(l) for l in linhas)
     linhas = [l + [""] * (n - len(l)) for l in linhas]
+    linhas = _remover_colunas_vazias(linhas)
+    n = len(linhas[0])
     largura = pdf.w - pdf.l_margin - pdf.r_margin
+    # Colunas proporcionais ao texto RENDERIZADO: sem isto a Descrição do
+    # item recebe a mesma fatia de 'Unidade' e o texto quebra a cada
+    # poucos caracteres ("ESPECIFICA ÇÃO", "PASTA SANFONAD A").
+    pesos = _pesos_das_colunas(linhas)
 
     for fonte_pt, altura_linha in ((9, 5), (7, 3.5), (6, 3)):
+        # Cada tentativa é uma TRANSAÇÃO: ou a tabela inteira entra, ou o
+        # PDF volta a ser exatamente o que era antes dela. O fpdf2 levanta
+        # o ValueError NO MEIO do laço de linhas, com as anteriores já
+        # desenhadas; sem desfazer, a tentativa seguinte as redesenhava e
+        # o dossiê saía com item repetido — 20 linhas duas vezes com uma
+        # queda, quatro vezes com três. Restaurar a posição do cursor não
+        # resolvia: apaga o sintoma, não o conteúdo já emitido.
+        retorno = _ponto_de_retorno(pdf)
+        if retorno is None:
+            break        # sem como desfazer, vai direto ao caminho seguro
         try:
+            pdf.set_x(pdf.l_margin)
             pdf.set_font("Times", "", fonte_pt)
             with pdf.table(markdown=True,
                            first_row_as_headings=com_cabecalho,
+                           col_widths=pesos,
                            line_height=altura_linha, width=largura) as tabela:
                 for linha in linhas:
                     fpdf_linha = tabela.row()
                     for celula in linha:
                         fpdf_linha.cell(celula)
+            # Com colunas de larguras diferentes, o cursor não retorna à
+            # margem ao fim da tabela: o parágrafo seguinte começaria na
+            # borda direita e sairia cortado da página.
+            pdf.set_x(pdf.l_margin)
             pdf.ln(2)
             return
         except ValueError:
-            continue  # linha alta demais até para esta fonte — reduz e tenta
+            # linha alta demais até para esta fonte — desfaz e tenta menor
+            retorno.rewind()
 
     # Último recurso: conteúdo em parágrafos (nunca perde dados nem quebra)
+    pdf.set_x(pdf.l_margin)
     cabecalho = linhas[0] if com_cabecalho else [""] * n
     pdf.set_font("Times", "", 10)
     for linha in (linhas[1:] if com_cabecalho else linhas):
@@ -644,25 +962,32 @@ def _pdf_inserir_markdown(pdf, texto_md: str) -> None:
         # links [texto](url) clicáveis e compactos)
         limpo = _latin1_seguro(_limpar_inline(conteudo))
         rico = _latin1_seguro(conteudo)
+        # new_x/new_y explícitos: por padrão o fpdf2 deixa o cursor à
+        # DIREITA da célula, na mesma linha. Dois parágrafos seguidos sem
+        # linha em branco entre eles (1.1. e 1.2.) faziam o segundo
+        # começar na borda direita e sair cortado da página — eram 203
+        # blocos fora da margem no dossiê auditado.
+        quebra = {"new_x": "LMARGIN", "new_y": "NEXT"}
         if tipo == "vazio":
             pdf.ln(3)
         elif tipo == "h1":
             pdf.set_font("Times", "B", 13)
-            pdf.multi_cell(largura, 7, limpo)
+            pdf.multi_cell(largura, 7, limpo, **quebra)
             pdf.ln(1)
         elif tipo == "h2":
             pdf.set_font("Times", "B", 12)
-            pdf.multi_cell(largura, 6, limpo)
+            pdf.multi_cell(largura, 6, limpo, **quebra)
             pdf.ln(1)
         elif tipo == "h3":
             pdf.set_font("Times", "B", 12)
-            pdf.multi_cell(largura, 6, limpo)
+            pdf.multi_cell(largura, 6, limpo, **quebra)
         elif tipo == "item":
             pdf.set_font("Times", "", 12)
-            pdf.multi_cell(largura, 6.5, "  -  " + rico, markdown=True)
+            pdf.multi_cell(largura, 6.5, "  -  " + rico, markdown=True,
+                           **quebra)
         else:
             pdf.set_font("Times", "", 12)
-            pdf.multi_cell(largura, 6.5, rico, markdown=True)
+            pdf.multi_cell(largura, 6.5, rico, markdown=True, **quebra)
     flush_tabela()
 
 
@@ -692,8 +1017,11 @@ def gerar_pdf(titulo: str, texto_md: str, branding: dict | None = None) -> bytes
     return _pdf_bytes(pdf)
 
 
-def gerar_pdf_consolidado(documentos: dict[str, str], branding: dict | None = None) -> bytes:
-    convertido = _docx_em_pdf(gerar_docx_consolidado(documentos, branding))
+def gerar_pdf_consolidado(documentos: dict[str, str],
+                          branding: dict | None = None,
+                          dados: dict | None = None) -> bytes:
+    convertido = _docx_em_pdf(
+        gerar_docx_consolidado(documentos, branding, dados))
     if convertido:
         return _pdf_aplicar_marca(convertido, branding)
 
@@ -709,9 +1037,7 @@ def gerar_pdf_consolidado(documentos: dict[str, str], branding: dict | None = No
     pdf.set_font("Times", "", 10)
     pdf.multi_cell(largura, 6, f"Dossiê gerado em {date.today().strftime('%d/%m/%Y')}.",
                    new_x="LMARGIN", new_y="NEXT")
-    for doc_key in SEQUENCIA_DOCUMENTOS:
-        if doc_key not in documentos:
-            continue
+    for doc_key in _ordem_de_exportacao(documentos, dados):
         pdf.add_page()
         pdf.set_font("Times", "B", 13)
         pdf.multi_cell(largura, 8, _latin1_seguro(DOCUMENTOS[doc_key]["titulo"].upper()),
@@ -724,16 +1050,20 @@ def gerar_pdf_consolidado(documentos: dict[str, str], branding: dict | None = No
 # ---------------------------------------------------------------------------
 # Pacote ZIP com todos os arquivos individuais
 # ---------------------------------------------------------------------------
-def gerar_zip(documentos: dict[str, str], formato: str, branding: dict | None = None) -> bytes:
+def gerar_zip(documentos: dict[str, str], formato: str,
+              branding: dict | None = None,
+              dados: dict | None = None) -> bytes:
     """`formato`: 'docx' ou 'pdf'. Zipa um arquivo por documento aprovado."""
     def gerador(titulo, texto):
         fn = gerar_docx if formato == "docx" else gerar_pdf
         return fn(titulo, texto, branding)
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for i, doc_key in enumerate(SEQUENCIA_DOCUMENTOS, start=1):
-            if doc_key not in documentos:
-                continue
+        for doc_key in _ordem_de_exportacao(documentos, dados):
+            # O número do arquivo é POSICIONAL na ordem canônica do
+            # dossiê, não sequencial: o Edital é sempre 04, ainda que o
+            # pacote saia incompleto.
+            i = DOCUMENTOS_EXPORTAVEIS.index(doc_key) + 1
             meta = DOCUMENTOS[doc_key]
             nome = f"{i:02d}-{meta['sigla'].replace('/', '-')}.{formato}"
             zf.writestr(nome, gerador(meta["titulo"], documentos[doc_key]))

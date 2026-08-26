@@ -11,9 +11,22 @@ from .. import (achados, auth, conhecimento, contexto, corretor, db,
                 explicacoes, export, familias, fatos, planilha,
                 qualidade, rag, state)
 from . import components, revisao
-from ..config import CAMPOS_FORMULARIO, DOCUMENTOS, SEQUENCIA_DOCUMENTOS
+from ..config import CAMPOS_FORMULARIO, DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
+
+
+def _rotulo_do_botao(doc_key: str, meta: dict) -> str:
+    """
+    O rótulo diz como o documento é produzido. Edital e ARP são montados
+    por CÓDIGO, a partir do catálogo de cláusulas versionado — anunciar
+    "com IA" ali seria descrever errado o que o botão faz.
+    """
+    from .. import templates_gov
+
+    if doc_key in templates_gov.TEMPLATES_OFICIAIS:
+        return f"Gerar minuta do {meta['sigla']}"
+    return f"Gerar {meta['sigla']} com IA"
 
 
 def _render_planilha(dados: dict, meta: dict) -> list[dict]:
@@ -308,7 +321,7 @@ def render_etapa_documento(doc_key: str) -> None:
                     resolucao["payload"])
 
         if st.button(
-            f"Gerar {meta['sigla']} com IA", type="primary",
+            _rotulo_do_botao(doc_key, meta), type="primary",
             use_container_width=True,
         ):
             carregamento = st.empty()
@@ -318,6 +331,12 @@ def render_etapa_documento(doc_key: str) -> None:
                                         contexto,
                                         instrucoes_extra=bloco_familia)
                 st.session_state.documentos[doc_key] = texto
+                # SRP: a Ata é instrumento PRÓPRIO e sai junto do
+                # edital — determinística, nunca por prosa livre.
+                if doc_key == "edital" and state.usa_srp(
+                        st.session_state.dados):
+                    st.session_state.documentos["arp"] = gerar_documento(
+                        "arp", st.session_state.dados, contexto)
                 st.rerun()
             except ErroGeracaoIA as erro:
                 carregamento.empty()
@@ -564,10 +583,14 @@ def _render_trilha_final(
 def render_sucesso() -> None:
     from .. import validacao
 
+    # Identidade GovConnect da `main` (cabeçalho semântico + stepper) com a
+    # semântica do padrão ouro: "concluído" só quando a emissão é de fato
+    # liberada. Aqui, no topo da tela, isso ainda não se sabe — o anúncio de
+    # conclusão fica no banner de sucesso, dentro do caminho liberado.
     components.render_page_header(
-        "Processo concluído",
-        "Documentos revisados e prontos para emissão.",
-        legacy_subheader="Processo concluído",
+        "Emissão dos documentos",
+        "Revisão final do dossiê antes da emissão.",
+        legacy_subheader="Emissão dos documentos",
     )
     components.render_stepper(st.session_state.etapa)
 
@@ -593,7 +616,8 @@ def render_sucesso() -> None:
         # internos etc.) BLOQUEIAM o download — devem ser resolvidas na
         # revisão, nunca aparecer no PDF/DOCX definitivo.
         # --------------------------------------------------------------
-        achados_brutos = validacao.validar_todos(docs)
+        achados_brutos = validacao.validar_todos(
+            docs, None, st.session_state.dados)
         bloqueios = validacao.bloqueios(achados_brutos)
         avisos = validacao.avisos(achados_brutos)
 
@@ -613,6 +637,7 @@ def render_sucesso() -> None:
                 "Ir para o primeiro documento com pendência", type="primary",
             ):
                 state.ir_para(etapas_com_pendencia[0])
+            revisao.render_minuta_nao_aprovada(docs)
         if avisos:
             with st.expander(f"Avisos de qualidade ({len(avisos)}) — não bloqueiam"):
                 for a in avisos:
@@ -690,6 +715,14 @@ def render_sucesso() -> None:
         )
     components.render_success_banner()
     components.render_summary_strip(len(docs), pendentes_fatos)
+    # Só aqui — passados todos os gates, inclusive a revalidação do pacote
+    # exato a exportar — o processo pode ser anunciado como concluído.
+    st.success(
+        "**Processo concluído.** Os documentos da fase preparatória foram "
+        "elaborados, aprovados e validados — a revisão aprovou exatamente o "
+        "conteúdo que será exportado. Baixe o dossiê completo ou os "
+        "arquivos individuais."
+    )
 
     # Identidade visual (cabeçalho/rodapé/marca d'água). Com a flag da
     # Fase 2 ligada, ela é resolvida pelo VÍNCULO do usuário (secretaria >
@@ -731,6 +764,15 @@ def render_sucesso() -> None:
                 if escolha != "Sem identidade visual":
                     branding = rotulos[escolha]
 
+    # O dossiê acompanha o que será REALMENTE empacotado: 4 documentos sem
+    # Sistema de Registro de Preços, 5 quando a Ata entra como instrumento
+    # próprio. A ordem é a de exportação, não a do wizard. Quem decide é
+    # o formulário do processo — chave 'arp' residual de uma modelagem
+    # anterior não vira arquivo nem aparece na tela.
+    exportaveis = state.exportaveis()
+    n_exportaveis = len(exportaveis)
+    dados_do_processo = st.session_state.dados
+
     coluna_arquivos, coluna_trilha = st.columns([1.04, 1], gap="medium")
     with coluna_arquivos:
         with st.container(border=True):
@@ -741,28 +783,32 @@ def render_sucesso() -> None:
             col_pdf, col_docx = st.columns(2)
             col_pdf.download_button(
                 "Baixar todos em PDF",
-                data=export.gerar_pdf_consolidado(docs, branding),
+                data=export.gerar_pdf_consolidado(docs, branding,
+                                                  dados_do_processo),
                 file_name=f"{prefixo}-fase-preparatoria.pdf",
                 mime="application/pdf",
                 type="primary", use_container_width=True,
             )
             col_docx.download_button(
                 "Baixar todos em DOCX",
-                data=export.gerar_docx_consolidado(docs, branding),
+                data=export.gerar_docx_consolidado(docs, branding,
+                                                   dados_do_processo),
                 file_name=f"{prefixo}-fase-preparatoria.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 use_container_width=True,
             )
             col_zip_pdf, col_zip_docx = st.columns(2)
             col_zip_pdf.download_button(
-                "ZIP com os 4 PDFs",
-                data=export.gerar_zip(docs, "pdf", branding),
+                f"ZIP com os {n_exportaveis} PDFs",
+                data=export.gerar_zip(docs, "pdf", branding,
+                                      dados_do_processo),
                 file_name=f"{prefixo}-documentos-pdf.zip",
                 mime="application/zip", use_container_width=True,
             )
             col_zip_docx.download_button(
-                "ZIP com os 4 DOCX",
-                data=export.gerar_zip(docs, "docx", branding),
+                f"ZIP com os {n_exportaveis} DOCX",
+                data=export.gerar_zip(docs, "docx", branding,
+                                      dados_do_processo),
                 file_name=f"{prefixo}-documentos-docx.zip",
                 mime="application/zip", use_container_width=True,
             )
@@ -772,7 +818,7 @@ def render_sucesso() -> None:
                 "Arquivos individuais",
                 "Baixe os documentos validados individualmente.",
             )
-            for doc_key in [k for k in SEQUENCIA_DOCUMENTOS if k in docs]:
+            for doc_key in exportaveis:
                 meta_doc = DOCUMENTOS[doc_key]
                 nome_arquivo = meta_doc["sigla"].lower().replace(" ", "-")
                 rotulo, acao = st.columns([3, 2])
@@ -800,9 +846,8 @@ def render_sucesso() -> None:
                 resultado_fatos, decisao_conhecimento, score_qualidade, registro
             )
             with st.expander("Conferir documentos aprovados"):
-                chaves = [k for k in SEQUENCIA_DOCUMENTOS if k in docs]
-                abas = st.tabs([DOCUMENTOS[k]["sigla"] for k in chaves])
-                for aba, doc_key in zip(abas, chaves):
+                abas = st.tabs([DOCUMENTOS[k]["sigla"] for k in exportaveis])
+                for aba, doc_key in zip(abas, exportaveis):
                     with aba:
                         st.markdown(docs[doc_key])
 

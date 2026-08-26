@@ -446,11 +446,19 @@ def para_markdown(itens: list[dict], valor_global: float,
     ]
     for it in itens:
         qtd = f"{it['quantidade']:g}"
+        # Item ainda não passado por calcular() não traz 'valor_total'; o
+        # produto é derivado aqui em vez de sair R$ 0,00 na coluna. A
+        # tabela é determinística: nenhuma célula pode ser um vazio
+        # formatado como dinheiro.
+        total = it.get("valor_total")
+        if total is None:
+            total = round(_num(it.get("quantidade"))
+                          * _num(it.get("valor_unitario")), 2)
         celulas = [
             it.get("codigo") or "-", it.get("descricao") or "",
             it.get("unidade") or "-", qtd,
             formatar_moeda(it.get("valor_unitario")),
-            formatar_moeda(it.get("valor_total")),
+            formatar_moeda(total),
         ]
         for e in extras:
             celulas.append(para_link_markdown(it.get(e, "")) or "-")
@@ -462,54 +470,312 @@ def para_markdown(itens: list[dict], valor_global: float,
     return "\n".join(linhas)
 
 
-# Acima deste nº de itens, não pedimos à IA para redigitar a planilha: enviamos
-# um resumo no prompt e injetamos a tabela real (exata) no documento gerado.
-LIMITE_ITENS_INLINE = 12
+# A tabela de itens é DETERMINÍSTICA: nasce da planilha do processo e é
+# injetada por código, em QUALQUER tamanho. O modelo nunca escreve linha
+# de item — nem quando são poucos. (Antes, até 12 itens o prompt mandava
+# a IA reproduzir a planilha inteira, e acima disso ainda levava 6 linhas
+# REAIS como "amostra ilustrativa": material pronto para ser copiado. Foi
+# essa amostra que reapareceu como tabela parcial no edital do caso
+# auditado — 53 dos 210 códigos, em 3 fragmentos soltos.)
 MARCADOR_TABELA = "[[TABELA_ITENS]]"
+
+# Mantido por compatibilidade: nenhum caminho pede mais a tabela à IA,
+# então a contagem não decide nada.
+LIMITE_ITENS_INLINE = 12
+
+
+# ---------------------------------------------------------------------------
+# Resumo SEMÂNTICO da planilha
+#
+# Retirar a planilha do prompt resolveu a cópia, mas criou outro problema:
+# sem saber O QUE se compra, o modelo escreve DFD, ETP e TR genéricos —
+# não há como justificar a necessidade, definir requisitos ou fixar
+# critérios de recebimento para "210 itens" abstratos.
+#
+# A saída é dar COMPOSIÇÃO FUNCIONAL sem dar CONTEÚDO REPRODUZÍVEL: em
+# que famílias os itens se agrupam e com que peso, sem um único código,
+# preço, quantidade, link ou descrição literal. O modelo entende o objeto;
+# não consegue remontar a planilha.
+# ---------------------------------------------------------------------------
+FAMILIAS_ITENS: dict[str, tuple[str, ...]] = {
+    "Papelaria e expediente": (
+        "papel", "caneta", "lapis", "borracha", "caderno", "envelope",
+        "grampeador", "grampo", "clipe", "cola", "tesoura", "regua",
+        "marcador", "pincel atomico", "corretivo", "apontador",
+        "almofada para carimbo", "carimbo", "percevejo", "alfinete"),
+    "Arquivo e organização de documentos": (
+        "pasta", "arquivo morto", "caixa arquivo", "fichario",
+        "porta-documento", "classificador", "divisoria", "etiqueta"),
+    "Impressão e suprimentos de informática": (
+        "toner", "cartucho", "tinta para impressora", "pen drive",
+        "mouse", "teclado", "cabo", "midia", "dvd", "cd"),
+    "Limpeza e higienização": (
+        "detergente", "desinfetante", "agua sanitaria", "sabao",
+        "papel higienico", "papel toalha", "alcool", "vassoura", "rodo",
+        "pano de chao", "saco de lixo", "luva de latex"),
+    "Copa e cozinha": (
+        "copo descartavel", "cafe", "acucar", "adocante", "filtro de cafe",
+        "guardanapo", "colher descartavel"),
+    "Mobiliário e utensílios": (
+        "cadeira", "mesa", "armario", "estante", "quadro branco",
+        "gaveteiro", "suporte"),
+}
+_FAMILIA_OUTROS = "Outros materiais do objeto"
+
+# Abaixo deste percentual a família não é citada isoladamente: entra no
+# agregado, para que o resumo descreva a composição e não a lista.
+_PISO_FAMILIA_PCT = 3.0
+
+
+def _familia_do_item(descricao: str) -> str:
+    texto = _normalizar(descricao or "")
+    for familia, termos in FAMILIAS_ITENS.items():
+        if any(t in texto for t in termos):
+            return familia
+    return _FAMILIA_OUTROS
+
+
+def composicao_por_familia(itens: list[dict]) -> list[tuple[str, int, float]]:
+    """
+    (família, nº de itens, % do total de itens), da maior para a menor.
+
+    Conta ITENS, nunca valores: percentual financeiro permitiria estimar
+    preços por engenharia reversa, e o modelo não precisa disso para
+    entender a composição funcional do objeto.
+    """
+    if not itens:
+        return []
+    contagem: dict[str, int] = {}
+    for item in itens:
+        familia = _familia_do_item(item.get("descricao"))
+        contagem[familia] = contagem.get(familia, 0) + 1
+    total = len(itens)
+    return sorted(
+        ((f, n, round(100.0 * n / total, 1)) for f, n in contagem.items()),
+        key=lambda linha: (-linha[1], linha[0]))
+
+
+def resumo_semantico(itens: list[dict]) -> str:
+    """
+    Composição funcional do objeto em prosa, sem nada reproduzível.
+
+    NÃO contém: código, descrição literal, quantidade, preço, unidade
+    monetária, link, nem linha de tabela. Contém: em que famílias os
+    itens se agrupam e o peso relativo de cada uma.
+    """
+    composicao = composicao_por_familia(itens)
+    if not composicao:
+        return ""
+    principais = [c for c in composicao if c[2] >= _PISO_FAMILIA_PCT]
+    resto = [c for c in composicao if c[2] < _PISO_FAMILIA_PCT]
+    partes = [f"{familia} ({pct:g}% dos itens)"
+              for familia, _, pct in principais]
+    if resto:
+        pct_resto = round(sum(c[2] for c in resto), 1)
+        partes.append(f"outras famílias de menor expressão ({pct_resto:g}%)")
+    return (
+        "COMPOSIÇÃO FUNCIONAL DO OBJETO (para você compreender o que se "
+        "contrata; NÃO reproduza esta análise como lista): "
+        + "; ".join(partes) + ". "
+        "Use isso para fundamentar a necessidade, os requisitos, o modelo "
+        "de execução, a fiscalização e os critérios de recebimento de "
+        "forma pertinente a ESTAS famílias — e não em termos genéricos."
+    )
+
+
+def _unidades_de_fornecimento(itens: list[dict]) -> list[str]:
+    """Unidades distintas, ordenadas. Fato objetivo da planilha."""
+    return sorted({(it.get("unidade") or "").strip()
+                   for it in itens if (it.get("unidade") or "").strip()})
+
+
+def resumo_objetivo(itens: list[dict], valor_global: float) -> str:
+    """
+    O que vai para o CORPO DO DOCUMENTO sobre a planilha: fatos e mais
+    nada.
+
+    Contrapartida documental de `resumo_para_prompt`. As duas leem os
+    MESMOS itens já calculados e descrevem os MESMOS fatos — número de
+    itens, valor global, unidades de fornecimento —, mas só a versão do
+    prompt carrega instrução endereçada ao modelo. Esta aqui não pode
+    conter proibição, explicação de mecânica nem qualquer frase dirigida
+    a quem redige: um ato administrativo não dá ordens ao seu redator.
+
+    O marcador da tabela permanece porque é o ponto de injeção
+    determinístico — `injetar_tabela` o substitui pela planilha oficial,
+    e ele nunca sobrevive ao documento final.
+    """
+    unidades = _unidades_de_fornecimento(itens)
+    return (
+        f"Quantidade de itens: {len(itens)}.\n"
+        f"Valor global estimado: {formatar_moeda(valor_global)}.\n"
+        + (f"Unidades de fornecimento: {', '.join(unidades[:12])}.\n"
+           if unidades else "")
+        + f"\n{MARCADOR_TABELA}\n"
+    )
 
 
 def resumo_para_prompt(itens: list[dict], valor_global: float) -> str:
     """
-    Resumo compacto da planilha para tabelas grandes: contagem, valor global
-    e uma amostra dos primeiros itens. Instrui a IA a NÃO redigitar a lista
-    (a tabela completa é injetada depois, sem erros e sem gastar tokens).
+    O que a IA recebe sobre a planilha: SOMENTE estatística e o marcador.
+
+    Nenhum código, descrição, quantidade, preço ou link real entra no
+    prompt — não há o que copiar. A tabela completa é inserida depois,
+    por código, no lugar da marca.
+
+    O ÚNICO valor monetário aqui é o VALOR GLOBAL, porque dele dependem
+    a modalidade e a estimativa da contratação. Os extremos de preço
+    unitário saíram por decisão de auditoria: não são necessários a DFD,
+    ETP ou TR e estimulam inferência econômica que o processo não
+    sustenta.
+
+    Este texto é ENDEREÇADO AO MODELO e por isso jamais pode ir para o
+    corpo de um documento — para esse uso existe `resumo_objetivo`.
     """
     n = len(itens)
-    amostra = para_markdown(itens[:6], valor_global, incluir_global=False)
+    unidades = _unidades_de_fornecimento(itens)
     return (
-        f"A planilha orçamentária possui {n} itens. VALOR GLOBAL (estimativa "
-        f"total da contratação) = {formatar_moeda(valor_global)}.\n"
-        f"IMPORTANTE: NÃO redija a lista de itens um a um — nem a partir desta "
-        f"amostra, nem a partir do memorando/anexos (se eles contiverem a "
-        f"lista de itens, ignore-a: a tabela oficial vem da planilha do "
-        f"sistema). A TABELA COMPLETA já formatada (com todas as colunas e o "
-        f"valor global) será inserida AUTOMATICAMENTE no documento no lugar "
-        f"da marca {MARCADOR_TABELA}. Escreva o texto da seção de estimativa "
-        f"de valor e coloque a marca {MARCADOR_TABELA} EXATAMENTE UMA VEZ, "
-        f"SOZINHA em uma linha própria, na cláusula de estimativa de valor.\n"
-        f"Amostra apenas ilustrativa dos primeiros itens (não a reproduza):\n"
-        + amostra
+        f"A planilha orçamentária do processo possui {n} item(ns). "
+        f"VALOR GLOBAL (estimativa total da contratação) = "
+        f"{formatar_moeda(valor_global)}."
+        + (f" Unidades de fornecimento: {', '.join(unidades[:12])}."
+           if unidades else "")
+        + "\n"
+        f"PROIBIDO escrever a lista de itens, ainda que parcialmente: nada "
+        f"de códigos, descrições, quantidades, preços, links ou linhas de "
+        f"tabela — nem a partir do memorando ou dos anexos (se eles "
+        f"contiverem a lista, ignore-a: a tabela oficial vem da planilha do "
+        f"sistema). A TABELA COMPLETA, com todas as colunas e o valor "
+        f"global, é inserida AUTOMATICAMENTE no lugar da marca "
+        f"{MARCADOR_TABELA}.\n"
+        f"Escreva o texto da cláusula de estimativa de valor (metodologia, "
+        f"fundamento e conclusão) e coloque a marca {MARCADOR_TABELA} "
+        f"EXATAMENTE UMA VEZ, SOZINHA em uma linha própria, dentro dessa "
+        f"cláusula.\n"
+        + resumo_semantico(itens)
     )
+
+
+_RE_CABECALHO_ITENS = re.compile(
+    r"^\s*\|\s*C[óo]digo\s*\|", re.IGNORECASE | re.MULTILINE)
+_RE_SEPARADOR = re.compile(r"^\s*\|[\s:|-]+\|?\s*$")
+_RE_LINHA_TABELA = re.compile(r"^\s*\|")
+# linha do VALOR GLOBAL (rodapé da tabela, sem código na 1ª célula)
+_RE_LINHA_GLOBAL = re.compile(r"VALOR\s+GLOBAL", re.IGNORECASE)
+
+# Tabela sem o cabeçalho canônico ainda é lista de itens quando tem
+# porte de planilha e a primeira coluna é sistematicamente um código.
+_MINIMO_LINHAS_PLANILHA = 5
+_PROPORCAO_CODIGOS = 0.8
+
+
+def _celulas(linha: str) -> list[str]:
+    return [c.strip() for c in linha.strip().strip("|").split("|")]
+
+
+def _blocos_de_tabela(linhas: list[str]) -> list[tuple[int, int]]:
+    """Intervalos [ini, fim) de linhas consecutivas de tabela Markdown."""
+    blocos, ini = [], None
+    for i, linha in enumerate(linhas):
+        if _RE_LINHA_TABELA.match(linha):
+            ini = i if ini is None else ini
+            continue
+        if ini is not None:
+            blocos.append((ini, i))
+            ini = None
+    if ini is not None:
+        blocos.append((ini, len(linhas)))
+    return blocos
+
+
+def _linhas_de_item(bloco: list[str]) -> list[str]:
+    """Linhas de dados do bloco (sem cabeçalho, separador e VALOR GLOBAL)."""
+    return [ln for ln in bloco
+            if not _RE_SEPARADOR.match(ln)
+            and not _RE_CABECALHO_ITENS.match(ln)
+            and not _RE_LINHA_GLOBAL.search(ln)]
+
+
+def _e_tabela_de_itens(bloco: list[str]) -> bool:
+    """
+    O bloco é a planilha orçamentária?
+
+    Vale o cabeçalho canônico ("| Código | Descrição |", que a injeção
+    escreve) OU o formato: muitas linhas cuja primeira célula é um código
+    numérico. O segundo critério pega cópias do modelo com cabeçalho
+    renomeado, sem confundir a matriz de riscos ou o cronograma — que têm
+    poucas linhas e primeira coluna textual. O código NÃO é reconhecido
+    por quantidade de dígitos: a planilha real mistura 3 e 6 dígitos.
+    """
+    if any(_RE_CABECALHO_ITENS.match(ln) for ln in bloco):
+        return True
+    dados = _linhas_de_item(bloco)
+    if len(dados) < _MINIMO_LINHAS_PLANILHA:
+        return False
+    numericas = sum(1 for ln in dados
+                    if (_celulas(ln) or [""])[0].isdigit())
+    return numericas >= _PROPORCAO_CODIGOS * len(dados)
+
+
+def linhas_de_itens_do_texto(texto: str) -> list[str]:
+    """Todas as linhas de item das tabelas de planilha do documento."""
+    linhas = (texto or "").splitlines()
+    achadas: list[str] = []
+    for ini, fim in _blocos_de_tabela(linhas):
+        bloco = linhas[ini:fim]
+        if _e_tabela_de_itens(bloco):
+            achadas.extend(_linhas_de_item(bloco))
+    return achadas
+
+
+def remover_tabelas_da_ia(texto: str) -> tuple[str, int]:
+    """
+    Remove os blocos de tabela de itens que o MODELO escreveu.
+
+    A planilha é dado determinístico do processo: a única tabela legítima
+    é a injetada por código. Qualquer outra é cópia (da amostra antiga do
+    prompt, do memorando ou de um anexo) — e vinha parcial, fora de ordem
+    e sem conferência, como no edital auditado. Tabelas de prosa (riscos,
+    cronograma) são preservadas. Devolve o texto limpo e quantas linhas
+    foram removidas.
+    """
+    linhas = (texto or "").splitlines()
+    remover: set[int] = set()
+    removidas = 0
+    for ini, fim in _blocos_de_tabela(linhas):
+        if _e_tabela_de_itens(linhas[ini:fim]):
+            remover.update(range(ini, fim))
+            removidas += fim - ini
+    if not remover:
+        return (texto or "").strip(), 0
+    saida = [ln for i, ln in enumerate(linhas) if i not in remover]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(saida)).strip(), removidas
 
 
 def injetar_tabela(texto: str, itens_brutos: list[dict] | None) -> str:
     """
-    Substitui a marca [[TABELA_ITENS]] pela tabela real; se a planilha for
-    grande e a marca não vier (a IA esqueceu), acrescenta a tabela ao final.
-    Em tabelas pequenas (fluxo inline) não há marca e nada muda.
+    Deixa no documento UMA tabela de itens: a da planilha do processo.
 
-    Robustez (defeitos observados em documentos reais):
-      - a tabela entra SOMENTE UMA vez — se a IA escrever a marca em mais
-        de um lugar, as ocorrências extras são removidas (uma planilha de
-        centenas de itens duplicada inviabiliza o documento);
-      - a tabela sempre ocupa um BLOCO próprio (linhas em branco antes e
-        depois): se a marca vier no meio de uma frase, a linha de
-        cabeçalho Markdown ficaria colada na prosa e o conversor DOCX
-        promoveria o PRIMEIRO ITEM a cabeçalho — repetido em toda página.
+    Ordem das operações (todas determinísticas):
+      1. tabelas escritas pelo modelo são REMOVIDAS — sempre, mesmo com
+         o marcador presente. Sem isto, o documento saía com a cópia
+         parcial da IA e a tabela oficial (defeito real: DFD com a
+         planilha duplicada, edital com 53 de 210 códigos);
+      2. a tabela oficial entra no lugar do marcador; se o modelo
+         esqueceu o marcador, entra ao final, em qualquer tamanho —
+         nenhum documento pode ficar sem a planilha;
+      3. marcadores extras são apagados (uma planilha de centenas de
+         linhas duplicada inviabiliza o documento);
+      4. a tabela ocupa um BLOCO próprio: colada na prosa, o conversor
+         DOCX promove o primeiro item a cabeçalho e o repete em toda
+         página.
     """
     itens, glob = calcular(itens_brutos or [])
+    texto = texto or ""
     if not itens:
         return texto.replace(MARCADOR_TABELA, "").strip()
+
+    texto, _ = remover_tabelas_da_ia(texto)
     tabela = para_markdown(itens, glob)
     if MARCADOR_TABELA in texto:
         antes, _, depois = texto.partition(MARCADOR_TABELA)
@@ -517,6 +783,84 @@ def injetar_tabela(texto: str, itens_brutos: list[dict] | None) -> str:
         return (
             antes.rstrip() + "\n\n" + tabela + "\n\n" + depois.lstrip()
         ).strip()
-    if len(itens) > LIMITE_ITENS_INLINE:
-        return texto.rstrip() + "\n\n" + tabela
-    return texto
+    return (texto.rstrip() + "\n\n" + tabela).strip()
+
+
+# ---------------------------------------------------------------------------
+# Conferência da tabela emitida CONTRA A FONTE (validação determinística)
+# ---------------------------------------------------------------------------
+def conferir_tabela(texto: str, itens_brutos: list[dict] | None) -> list[str]:
+    """
+    Divergências entre a tabela do documento e a planilha do processo.
+
+    Confere o CONJUNTO INTEGRAL: uma única tabela, todos os códigos
+    (nenhum faltando, nenhum estranho, nenhum repetido), quantidade,
+    unidade e preço unitário de cada item, e o valor global. Devolve
+    lista vazia quando a tabela reproduz a fonte exatamente.
+    """
+    itens, glob = calcular(itens_brutos or [])
+    if not itens:
+        return []
+    texto = texto or ""
+    problemas: list[str] = []
+
+    linhas_doc = texto.splitlines()
+    tabelas = [(i, f) for i, f in _blocos_de_tabela(linhas_doc)
+               if _e_tabela_de_itens(linhas_doc[i:f])]
+    if not tabelas:
+        return [f"tabela de itens ausente do documento "
+                f"({len(itens)} item(ns) na planilha do processo)"]
+    if len(tabelas) > 1:
+        problemas.append(
+            f"tabela de itens aparece {len(tabelas)} vezes no documento "
+            "(a planilha oficial é única)")
+
+    linhas = linhas_de_itens_do_texto(texto)
+    no_doc: dict[str, list[str]] = {}
+    for ln in linhas:
+        cel = _celulas(ln)
+        no_doc.setdefault(cel[0], cel)
+
+    esperados = {str(it.get("codigo") or "").strip(): it for it in itens}
+    faltando = [c for c in esperados if c not in no_doc]
+    estranhos = [c for c in no_doc if c not in esperados]
+    repetidos = len(linhas) - len(no_doc)
+    if faltando:
+        problemas.append(
+            f"{len(faltando)} item(ns) da planilha não constam da tabela "
+            f"(ex.: {', '.join(sorted(faltando)[:5])})")
+    if estranhos:
+        problemas.append(
+            f"{len(estranhos)} item(ns) na tabela não existem na planilha "
+            f"(ex.: {', '.join(sorted(estranhos)[:5])})")
+    if repetidos:
+        problemas.append(f"{repetidos} linha(s) de item repetida(s)")
+
+    divergentes = []
+    for codigo, item in esperados.items():
+        cel = no_doc.get(codigo)
+        if not cel or len(cel) < 6:
+            continue
+        _, _, unidade, qtd, unitario, total = cel[:6]
+        if unidade != (item.get("unidade") or "-"):
+            divergentes.append(f"{codigo} (unidade)")
+        elif qtd != f"{item['quantidade']:g}":
+            divergentes.append(f"{codigo} (quantidade)")
+        elif unitario != formatar_moeda(item.get("valor_unitario")):
+            divergentes.append(f"{codigo} (valor unitário)")
+        elif total != formatar_moeda(item.get("valor_total")):
+            # Quantidade e unitário conferem, mas o total escrito na linha
+            # não é o produto dos dois. Sem esta conferência, um documento
+            # com aritmética errada passa linha a linha e só destoa na
+            # soma — se destoar.
+            divergentes.append(f"{codigo} (valor total)")
+    if divergentes:
+        problemas.append(
+            f"{len(divergentes)} item(ns) com valor divergente da planilha "
+            f"(ex.: {', '.join(divergentes[:5])})")
+
+    if formatar_moeda(glob) not in texto:
+        problemas.append(
+            f"valor global da planilha ({formatar_moeda(glob)}) não consta "
+            "do documento")
+    return problemas

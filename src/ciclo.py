@@ -172,7 +172,8 @@ def _decisoes_requeridas(relatorio: dict) -> list[dict]:
     return decisoes
 
 
-def _estado_sem_corrigiveis(relatorio: dict, documentos: dict) -> str:
+def _estado_sem_corrigiveis(relatorio: dict, documentos: dict,
+                            dados: dict | None = None) -> str:
     """Nada mais é corrigível automaticamente: aprovar ou pedir ajuda."""
     if any(f.get("blockingReason") == achados.MOTIVO_DADO_AUSENTE
            for f in relatorio["findings"]):
@@ -181,7 +182,7 @@ def _estado_sem_corrigiveis(relatorio: dict, documentos: dict) -> str:
         return "BLOCKED_BY_CONFLICT"
     # restam apenas achados que o validador legado classifica como aviso
     # (não impedem a emissão) — mesmo critério da tela anterior
-    if validacao.bloqueios(validacao.validar_todos(documentos)):
+    if validacao.bloqueios(validacao.validar_todos(documentos, None, dados)):
         return "BLOCKED_BY_CONFLICT"
     return "APPROVED"
 
@@ -198,6 +199,40 @@ Devolva EXCLUSIVAMENTE JSON:
 Sem problemas: {"findings": []}. Use CRITICAL apenas para vício que impeça a emissão."""
 
 
+# Acima deste nº de linhas consecutivas de tabela, o bloco é tratado
+# como tabela DETERMINÍSTICA (planilha injetada) e sai do corpo enviado
+# ao auditor semântico: a tabela é conferida por código, e centenas de
+# linhas dela consumiam o orçamento de contexto deixando a prosa final
+# (a parte que só a auditoria semântica cobre) fora da análise.
+_LIMITE_TABELA_AUDITOR = 8
+
+
+def _texto_para_auditor(texto: str) -> str:
+    """Prosa do documento com as tabelas determinísticas resumidas."""
+    linhas = (texto or "").splitlines()
+    saida: list[str] = []
+    bloco: list[str] = []
+
+    def descarrega():
+        if len(bloco) > _LIMITE_TABELA_AUDITOR:
+            saida.append(
+                f"[TABELA DETERMINÍSTICA DE {len(bloco)} LINHAS OMITIDA "
+                "DESTA AUDITORIA — o conteúdo dela é conferido por "
+                "validação determinística contra a planilha-fonte]")
+        else:
+            saida.extend(bloco)
+        bloco.clear()
+
+    for linha in linhas:
+        if linha.lstrip().startswith("|"):
+            bloco.append(linha)
+            continue
+        descarrega()
+        saida.append(linha)
+    descarrega()
+    return "\n".join(saida)
+
+
 def auditoria_semantica(documentos: dict[str, str], chamar=None) -> list[dict]:
     """
     Findings semânticos (IA) no mesmo formato dos determinísticos —
@@ -210,7 +245,7 @@ def auditoria_semantica(documentos: dict[str, str], chamar=None) -> list[dict]:
                 system, user, finalidade=finalidade,
                 timeout=TIMEOUT_AUDITORIA_SEGUNDOS, tentativas=1)
     corpo = json.dumps(
-        {k: (v or "")[:20000] for k, v in documentos.items()},
+        {k: _texto_para_auditor(v)[:20000] for k, v in documentos.items()},
         ensure_ascii=False)
     bruto = chamar(_SYSTEM_AUDITOR, corpo, finalidade="auditor")
     resposta = corretor.extrair_json(bruto)
@@ -239,7 +274,8 @@ def auditoria_semantica(documentos: dict[str, str], chamar=None) -> list[dict]:
 
 
 def _auditar(documentos: dict[str, str], processo_id: str | None,
-             versao: int, semantica: bool, chamar) -> dict:
+             versao: int, semantica: bool, chamar,
+             dados: dict | None = None) -> dict:
     """
     Auditoria determinística (obrigatória) + semântica (OPCIONAL).
 
@@ -250,7 +286,8 @@ def _auditar(documentos: dict[str, str], processo_id: str | None,
     inteiro: sem isto, uma lentidão da IA virava um falso "auditoria
     indisponível" e descartava o trabalho determinístico.
     """
-    relatorio = achados.gerar_relatorio(documentos, processo_id, versao)
+    relatorio = achados.gerar_relatorio(documentos, processo_id, versao,
+                                        dados)
     if not semantica:
         return relatorio
     try:
@@ -304,7 +341,7 @@ def executar_ciclo(documentos: dict[str, str], dados: dict,
     progresso("analisando")
     try:
         relatorio = _auditar(docs, processo_id, versao,
-                             reauditoria_semantica, chamar)
+                             reauditoria_semantica, chamar, dados)
     except (corretor.ErroCorrecao, llm.ErroGeracaoIA) as erro:
         estado = _evento(eventos, estado, "REVIEW_FAILED", str(erro), versao)
         return _resultado(estado, docs, versao, 0, relatorios, planos,
@@ -325,7 +362,7 @@ def executar_ciclo(documentos: dict[str, str], dados: dict,
             if not aplicar_patches and corrigiveis:
                 # aplicação automática desligada: comportamento antigo
                 break
-            final = _estado_sem_corrigiveis(relatorio, docs)
+            final = _estado_sem_corrigiveis(relatorio, docs, dados)
             estado = _evento(eventos, estado, final,
                              "sem correções automáticas restantes", versao)
             break
@@ -347,7 +384,7 @@ def executar_ciclo(documentos: dict[str, str], dados: dict,
             break
         planos.append(plano)
         if not plano["operations"]:
-            final = _estado_sem_corrigiveis(relatorio, docs)
+            final = _estado_sem_corrigiveis(relatorio, docs, dados)
             estado = _evento(eventos, estado, final,
                              "corretor não propôs operações", versao)
             break
@@ -371,7 +408,7 @@ def executar_ciclo(documentos: dict[str, str], dados: dict,
                          "nova auditoria obrigatória", versao)
         try:
             relatorio = _auditar(docs, processo_id, versao,
-                                 reauditoria_semantica, chamar)
+                                 reauditoria_semantica, chamar, dados)
         except (corretor.ErroCorrecao, llm.ErroGeracaoIA) as erro:
             estado = _evento(eventos, estado, "REVIEW_FAILED",
                              str(erro), versao)
@@ -425,7 +462,11 @@ def executar_com_persistencia(documentos: dict[str, str], dados: dict,
         return executar_ciclo(documentos, dados, processo_id, chamar,
                               ao_progresso)
 
-    chave = f"ciclo-{processo_id}-{blocos.hash_bundle(documentos)}"
+    # A chave amarra o veredito ao BUNDLE e às REGRAS que o auditaram:
+    # um APPROVED emitido por um auditor antigo não é reaproveitado
+    # depois que os validadores mudam — o job novo reaudita do zero.
+    chave = (f"ciclo-{processo_id}-{blocos.hash_bundle(documentos)}"
+             f"-r{validacao.versao_do_auditor()[:12]}")
     snapshot = blocos.snapshot_bundle(documentos, versao=1)
     revisao = revisao_do_tenant(db.obter_revisao_por_chave(chave))
     if revisao and revisao.get("status") not in ("REVIEW_QUEUED",

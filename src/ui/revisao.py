@@ -24,7 +24,7 @@ import re
 
 import streamlit as st
 
-from .. import blocos, ciclo, db, state
+from .. import blocos, ciclo, db, export, state, validacao
 from ..config import DOCUMENTOS
 
 FLAG_TELA = "tela_progresso"
@@ -176,13 +176,86 @@ def _liberar_nova_tentativa(docs: dict[str, str]) -> None:
     if not db.disponivel():
         return
     processo = st.session_state.get("processo_id") or "sessao-local"
-    chave = f"ciclo-{processo}-{blocos.hash_bundle(docs)}"
+    chave = (f"ciclo-{processo}-{blocos.hash_bundle(docs)}"
+             f"-r{validacao.versao_do_auditor()[:12]}")
     try:
         revisao = db.obter_revisao_por_chave(chave)
         if revisao:
             db.atualizar_revisao(revisao["id"], status="REVIEW_QUEUED")
     except db.ErroBanco:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Minuta NÃO aprovada: continua baixável, mas marcada — nunca silenciosa
+# ---------------------------------------------------------------------------
+AVISO_MINUTA = (
+    "> **MINUTA NÃO APROVADA PARA EMISSÃO** — documento de trabalho com "
+    "pendências em aberto na revisão. Não utilize como versão oficial nem "
+    "publique.\n\n"
+)
+
+
+def docs_como_minuta(documentos: dict[str, str]) -> dict[str, str]:
+    """Cópia do bundle com a marca de minuta no topo de cada documento."""
+    return {k: AVISO_MINUTA + (v or "") for k, v in documentos.items()}
+
+
+def _prefixo_arquivo() -> str:
+    orgao = (st.session_state.get("dados", {}).get("orgao") or "orgao").strip()
+    limpo = "".join(c if c.isalnum() else "-" for c in orgao)[:40].strip("-")
+    return limpo or "dossie"
+
+
+def render_minuta_nao_aprovada(documentos: dict[str, str]) -> None:
+    """Downloads da MINUTA marcada — a emissão oficial segue bloqueada."""
+    minuta = docs_como_minuta(documentos)
+    st.caption(
+        "Se precisar trabalhar fora do sistema, baixe a **minuta** — cada "
+        "documento sai marcado como *não aprovado para emissão*."
+    )
+    col_pdf, col_docx = st.columns(2)
+    col_pdf.download_button(
+        "Baixar MINUTA em PDF (não aprovada)",
+        data=export.gerar_pdf_consolidado(minuta, None,
+                                          st.session_state.get("dados")),
+        file_name=f"{_prefixo_arquivo()}-MINUTA-NAO-APROVADA.pdf",
+        mime="application/pdf", use_container_width=True,
+    )
+    col_docx.download_button(
+        "Baixar MINUTA em DOCX (não aprovada)",
+        data=export.gerar_docx_consolidado(minuta, None,
+                                           st.session_state.get("dados")),
+        file_name=f"{_prefixo_arquivo()}-MINUTA-NAO-APROVADA.docx",
+        mime=("application/vnd.openxmlformats-officedocument"
+              ".wordprocessingml.document"),
+        use_container_width=True,
+    )
+
+
+def _render_reprovado_na_revalidacao(bloqueios_atuais: list[dict],
+                                     resultado: dict,
+                                     docs: dict[str, str]) -> None:
+    """
+    O job persistido diz APPROVED, mas o auditor ATUAL encontra bloqueio
+    no pacote final. A aprovação antiga não vale para regras novas — a
+    emissão fica retida e o usuário é levado à nova revisão.
+    """
+    st.error(
+        f"**Emissão retida: a revalidação encontrou "
+        f"{len(bloqueios_atuais)} pendência(s) bloqueante(s) no conteúdo "
+        "final.** A aprovação anterior foi dada por uma versão anterior "
+        "das regras de revisão; o conteúdo precisa passar pela revisão "
+        "novamente antes de ser emitido."
+    )
+    for a in bloqueios_atuais[:12]:
+        st.markdown(f"- **{a['documento']}** — {a['mensagem']}  \n"
+                    f"  `…{a['trecho']}…`")
+    if st.button("Executar a revisão novamente", type="primary",
+                 use_container_width=True):
+        _liberar_nova_tentativa(docs)
+        st.rerun()
+    render_minuta_nao_aprovada(resultado["documentos"])
 
 
 # ---------------------------------------------------------------------------
@@ -346,6 +419,7 @@ def _render_bloqueado(resultado: dict, docs: dict[str, str]) -> None:
                          use_container_width=True):
         st.session_state["_ciclo_manual"] = True
         st.rerun()
+    render_minuta_nao_aprovada(resultado.get("documentos") or docs)
 
 
 # ---------------------------------------------------------------------------
@@ -401,6 +475,17 @@ def render_correcao_automatica() -> str | None:
         # antiga (bloqueios/avisos) continua sendo o comportamento
         return None
     if status == "APPROVED":
+        # Gate do artefato final: o veredito persistido só vale se o
+        # auditor ATUAL aprovar o conteúdo exatamente como será
+        # exportado. Sem isto, uma aprovação antiga (regras antigas)
+        # liberava download de documento que o código de hoje bloqueia.
+        bloqueios_atuais = validacao.bloqueios(validacao.validar_todos(
+            resultado["documentos"], None,
+            st.session_state.get("dados") or None))
+        if bloqueios_atuais:
+            _render_reprovado_na_revalidacao(bloqueios_atuais, resultado,
+                                             docs)
+            return "pendente"
         _render_aprovado(resultado, docs)
         return "aprovado"
     if status == "WAITING_REQUIRED_DATA":

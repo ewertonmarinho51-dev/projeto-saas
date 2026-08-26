@@ -15,7 +15,7 @@ padrão dos documentos aprovados (perfis.py).
 import re
 import unicodedata
 
-from . import perfis
+from . import perfis, planilha
 from .config import DOCUMENTOS
 
 # Marcador de dado pendente. Fica FORA de _BLOQUEANTES porque é o único
@@ -46,6 +46,48 @@ _BLOQUEANTES = [
      "etiqueta de origem interna ('(fonte: formulário)') no texto"),
     (re.compile(r"\bconforme\s+(o\s+)?formul[áa]rio\b", re.IGNORECASE),
      "referência à mecânica interna ('conforme o formulário')"),
+
+    # ----------------------------------------------------------------
+    # Linguagem de PROMPT no corpo do ato (Fase 2)
+    #
+    # A causa foi corrigida na origem — o Modo Demonstração não reutiliza
+    # mais o bloco destinado ao modelo. Estas regras são a segunda
+    # barreira: se a IA devolver a instrução que recebeu, ou se um
+    # caminho futuro voltar a misturar as duas representações, o
+    # documento não é emitido.
+    #
+    # Todas miram FRASES INEQUÍVOCAS de mecânica interna, nunca palavras
+    # isoladas: "análise", "automaticamente", "amostra" e "reproduza"
+    # aparecem legitimamente em ato administrativo e continuam livres.
+    # ----------------------------------------------------------------
+    (re.compile(r"PROIBIDO\s+escrever\s+a\s+lista\s+de\s+itens",
+                re.IGNORECASE),
+     "instrução de prompt no corpo ('PROIBIDO escrever a lista de itens')"),
+    (re.compile(r"\bEXATAMENTE\s+UMA\s+VEZ\b,?\s*SOZINH[AO]", re.IGNORECASE),
+     "instrução de prompt no corpo ('EXATAMENTE UMA VEZ, SOZINHA')"),
+    (re.compile(r"n[ãa]o\s+reproduza\s+est[ae]\s+(an[áa]lise|lista|tabela|"
+                r"amostra)", re.IGNORECASE),
+     "instrução de prompt no corpo ('não reproduza esta análise')"),
+    (re.compile(r"amostra\s+(apenas\s+)?ilustrativa", re.IGNORECASE),
+     "instrução de prompt no corpo ('amostra ilustrativa')"),
+    # "para você compreender" é 2ª pessoa dirigida a quem redige — um ato
+    # administrativo não conversa com o seu redator.
+    (re.compile(r"para\s+voc[êe]\s+(compreender|entender|saber|usar)",
+                re.IGNORECASE),
+     "instrução de prompt no corpo (fala dirigida a quem redige)"),
+    # A frase só é vazamento quando explica a MECÂNICA da injeção: a
+    # tabela/planilha sendo inserida automaticamente "no lugar da marca".
+    # "Os valores serão atualizados automaticamente pelo sistema" — frase
+    # administrativa legítima — não casa.
+    (re.compile(r"(tabela|planilha)[^.\n]{0,80}\b(ser[áa]\s+inserid[ao]|"
+                r"[ée]\s+inserid[ao])\b[^.\n]{0,80}"
+                r"(automaticamente|no lugar da marca)", re.IGNORECASE),
+     "explicação de mecânica interna de injeção da tabela"),
+    (re.compile(r"no\s+lugar\s+da\s+marca\b", re.IGNORECASE),
+     "menção ao ponto de injeção interno ('no lugar da marca')"),
+    (re.compile(r"COMPOSI[ÇC][ÃA]O\s+FUNCIONAL\s+DO\s+OBJETO\s*\(",
+                re.IGNORECASE),
+     "bloco de contexto do prompt no corpo ('COMPOSIÇÃO FUNCIONAL DO OBJETO (…)')"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -76,6 +118,34 @@ _RE_CARGO_INVALIDO = re.compile(
 _RE_MATRICULA = re.compile(
     r"matr[íi]cula\s*(?:n?[ºo°]?\.?\s*)?[:\-]?\s*(\d{1,8})", re.IGNORECASE)
 
+# ---------------------------------------------------------------------------
+# Identificação funcional SEM o rótulo "matrícula"
+#
+# O documento auditado trazia "Luan Jardel de Moura Santos — matrícula:999999"
+# (pego pela regra acima), mas o mesmo improviso aparece sem rótulo:
+# "servidor João da Silva, nº funcional 999999" ou um nome próprio
+# designado para função sem nenhum dado de origem. Nome de agente público
+# e número funcional são DETERMINÍSTICOS: vêm do processo ou viram
+# [PREENCHER] — nunca são inventados para completar a frase.
+# ---------------------------------------------------------------------------
+_RE_NUMERO_FUNCIONAL = re.compile(
+    r"\b(?:n[ºo°]?\.?\s*funcional|registro\s+funcional|SIAPE|"
+    r"n[ºo°]?\.?\s*de\s+registro)\s*[:\-]?\s*(\d{1,10})", re.IGNORECASE)
+
+# Nome próprio (2+ palavras capitalizadas, com conectivos) designado para
+# função — a captura exige o rótulo do cargo ANTES, para não pegar nome de
+# órgão, de norma ou de localidade.
+# O rótulo do cargo é case-insensitive (vem em "Gestor", "GESTOR" ou
+# "gestor"); o NOME não pode ser — é reconhecido pelas iniciais
+# maiúsculas, então IGNORECASE fica restrito ao rótulo por grupo inline.
+_RE_NOME_DESIGNADO = re.compile(
+    r"(?i:\b(?:gestor|gestora|fiscal|respons[áa]vel|representante|"
+    r"pregoeiro|pregoeira|agente\s+de\s+contrata[çc][ãa]o|"
+    r"autoridade\s+competente)\b[^:\n]{0,60}:)\s*"
+    r"((?:[A-ZÀ-Þ][a-zà-ÿ']+\s+)(?:(?:d[aeo]s?|e)\s+)?"
+    r"(?:[A-ZÀ-Þ][a-zà-ÿ']+\s*){1,4})",
+    re.MULTILINE)
+
 # Cabeçalho da tabela de itens gerada pelo sistema (planilha.para_markdown)
 _RE_CABECALHO_ITENS = re.compile(
     r"^\|\s*C[óo]digo\s*\|\s*Descri[çc][ãa]o\s*\|", re.IGNORECASE | re.MULTILINE)
@@ -87,6 +157,30 @@ _RE_GARANTIA_SECA = re.compile(
 
 # CNPJ no formato brasileiro (com ou sem pontuação)
 _RE_CNPJ = re.compile(r"\b(\d{2})\.?(\d{3})\.?(\d{3})/(\d{4})-?(\d{2})\b")
+
+# Número apresentado COMO CNPJ, em qualquer formatação. O CNPJ tem 14
+# dígitos: um número rotulado com outra quantidade não é CNPJ mal
+# formatado, é número inventado — na ARP auditada constava
+# "CNPJ sob o nº 541984981984984" (15 dígitos), que escapava da regra
+# acima justamente por não ter o formato de CNPJ.
+# O separador entre o rótulo e o número PODE conter quebra de linha: na
+# extração do PDF o par vem como "CNPJ\nsob o nº 541984981984984", e um
+# padrão que barrasse \n deixava passar exatamente o caso que motivou a
+# regra. O número em si também pode vir quebrado entre linhas.
+_RE_CNPJ_ROTULADO = re.compile(
+    r"CNPJ[^\d]{0,30}?([\d][\d./\-\s]{8,28}\d)", re.IGNORECASE)
+_DIGITOS_CNPJ = 14
+
+# Fornecedor "preenchido" com uma categoria em vez de uma empresa: na
+# ARP auditada, a parte contratada era literalmente "licitantes". Quem
+# assina a Ata é a empresa adjudicatária identificada — sem ela, o
+# instrumento não pode ser emitido.
+_RE_FORNECEDOR_GENERICO = re.compile(
+    r"(?i:\b(?:fornecedor|contratada|adjudicat[áa]ri[ao]|"
+    r"benefici[áa]ri[ao]|detentor[a]?\s+da\s+ata)\b[^:\n]{0,60}:)\s*"
+    r"(licitantes?|adjudicat[áa]ri[ao]s?|vencedor(?:es|a|as)?|"
+    r"empresa\s+vencedora|a\s+definir|a\s+ser\s+definid[ao]|"
+    r"contratad[ao]s?)\b")
 
 # ---------------------------------------------------------------------------
 # Fundamentos legais — confusões recorrentes com a Lei nº 14.133/2021.
@@ -120,7 +214,10 @@ _FUNDAMENTOS_LEGAIS = [
 
 # Repactuação pressupõe serviço contínuo com dedicação de mão de obra
 # (art. 135); para bens/materiais o instituto é o reajuste (art. 92, §3º)
-_RE_REPACTUACAO = re.compile(r"repactua[çc]", re.IGNORECASE)
+# Cobre repactuação, repactuar, repactuados, repactuado… — a forma
+# verbal ("os preços serão repactuados") escapava do padrão anterior,
+# que exigia 'repactuaç/repactuac'.
+_RE_REPACTUACAO = re.compile(r"repactua", re.IGNORECASE)
 _RE_MAO_DE_OBRA = re.compile(
     r"m[ãa]o\s+de\s+obra|dedica[çc][ãa]o\s+exclusiva", re.IGNORECASE)
 
@@ -154,6 +251,22 @@ _TITULO_NECESSIDADE = ("NECESSIDADE",)
 _TITULO_LEVANTAMENTO = ("LEVANTAMENTO",)
 _TITULO_SOLUCAO = ("DESCRIÇÃO DA SOLUÇÃO", "DESCRICAO DA SOLUCAO")
 
+# ---------------------------------------------------------------------------
+# Referência de numeração interna de OUTRO documento ("ETP, item 4.3").
+#
+# O TR é autossuficiente: ele HERDA as decisões do ETP e as expressa como
+# conteúdo próprio. Remeter à numeração interna de outro artefato obriga o
+# leitor do ato a ter o outro documento em mãos, e a numeração citada nem
+# sempre corresponde à do ETP efetivamente aprovado (no TR auditado havia
+# 12 remissões desse tipo). Citar o documento SEM o número do item
+# ("conforme o Estudo Técnico Preliminar") continua legítimo.
+# ---------------------------------------------------------------------------
+_RE_REFERENCIA_INTERNA = re.compile(
+    r"\b(ETP|DFD|TR|Termo\s+de\s+Refer[êe]ncia|Estudo\s+T[ée]cnico\s+"
+    r"Preliminar)\s*,?\s*(?:item|itens|cl[áa]usula|subitem)\s*"
+    r"n?[ºo°]?\.?\s*\d+(?:\.\d+)*",
+    re.IGNORECASE)
+
 # Absolutismo sem evidência: a conclusão do estudo deve ter a firmeza que
 # a análise sustenta — nem mais, nem menos.
 _RE_ABSOLUTISMO = re.compile(
@@ -167,6 +280,90 @@ def _norm(texto: str) -> str:
     t = unicodedata.normalize("NFKD", texto or "")
     t = "".join(c for c in t if not unicodedata.combining(c))
     return re.sub(r"[^A-Z0-9 ]", " ", t.upper()).strip()
+
+
+# ---------------------------------------------------------------------------
+# Identidade do auditor determinístico
+#
+# Um veredito de aprovação só vale para o CONJUNTO DE REGRAS que o
+# emitiu. Defeito observado em produção: um bundle aprovado em 08/08 por
+# regras antigas continuou sendo reproduzido como APPROVED depois de os
+# validadores mudarem — os novos nunca rodaram sobre ele. A impressão
+# digital abaixo entra na chave de idempotência do ciclo: mudou regra,
+# muda a chave, e o bundle é reauditado (barato e determinístico) em vez
+# de herdar um veredito obsoleto.
+# ---------------------------------------------------------------------------
+# A identidade tem de cobrir TODA regra determinística capaz de mudar um
+# achado — não só os módulos onde as regras estão escritas, mas aqueles de
+# onde elas são consultadas. Hashear apenas `validacao.py` deixaria uma
+# porta aberta: `planilha.conferir_tabela` pode passar a reprovar uma
+# tabela que ontem aprovava sem que uma linha de `validacao.py` mude, e o
+# veredito antigo seguiria válido. Cada entrada abaixo responde à
+# pergunta "mudar este arquivo pode mudar um achado?".
+#
+#   validacao.py     as regras em si
+#   achados.py       gravidade e escopo do finding estruturado
+#   consistencia.py  regras transversais entre documentos
+#   perfis.py        metas estruturais por documento
+#   planilha.py      conferir_tabela — decide BLOQUEIO de integridade
+#   fatos.py         natureza do objeto — vira repactuação de aviso em
+#                    bloqueio (é o classificador REUTILIZADO, não um novo)
+#   normas.py        identificação da norma citada — decide "sem lastro"
+#   prompts.py       DISPOSITIVOS_CANONICOS — mesma decisão de lastro
+#   blocos.py        segmentação que define o escopo autorizado do achado
+#
+# Fora da lista, de propósito: `db.py` e `governanca.py` (estado de
+# execução e nome de flag, não regra), `config.py` (rótulo e ordem, não
+# veredito) e tudo que é apresentação. O erro caro aqui é o de FALTA —
+# incluir um arquivo a mais custa uma reauditoria determinística; incluir
+# um a menos deixa um APPROVED obsoleto vivo para sempre. `prompts.py`
+# entra por esse critério, ainda que a maior parte dele seja texto de
+# prompt: ele guarda uma constante que altera achado.
+_ARQUIVOS_DO_AUDITOR = ("validacao.py", "achados.py", "consistencia.py",
+                        "perfis.py", "planilha.py", "fatos.py", "normas.py",
+                        "prompts.py", "blocos.py")
+_VERSAO_AUDITOR: str | None = None
+
+
+def _ler_fonte(nome: str) -> bytes:
+    """Conteúdo de um módulo do pacote. Levanta OSError se indisponível."""
+    from pathlib import Path
+
+    return (Path(__file__).resolve().parent / nome).read_bytes()
+
+
+def _impressao_digital(nomes, ler=None) -> str:
+    """
+    sha256 do conjunto (nome, conteúdo) das fontes do auditor.
+
+    O NOME entra no resumo antes do conteúdo: acrescentar ou remover um
+    arquivo da lista muda a identidade mesmo que o conteúdo dos demais
+    seja idêntico. Fonte ilegível (empacotamento exótico) degrada para
+    só o nome — a chave permanece estável dentro da instalação.
+
+    Recebe o leitor por parâmetro para que a suíte possa provar a regra
+    com fontes simuladas, sem escrever em arquivo real nenhum.
+    """
+    import hashlib
+
+    ler = ler or _ler_fonte
+    resumo = hashlib.sha256()
+    for nome in nomes:
+        resumo.update(nome.encode())
+        resumo.update(b"\0")
+        try:
+            resumo.update(ler(nome))
+        except OSError:
+            pass
+    return resumo.hexdigest()
+
+
+def versao_do_auditor() -> str:
+    """Impressão digital (sha256) do conjunto de regras determinísticas."""
+    global _VERSAO_AUDITOR
+    if _VERSAO_AUDITOR is None:
+        _VERSAO_AUDITOR = _impressao_digital(_ARQUIVOS_DO_AUDITOR)
+    return _VERSAO_AUDITOR
 
 
 def _achado(doc_key: str, gravidade: str, mensagem: str, trecho: str = "") -> dict:
@@ -601,6 +798,51 @@ def _validar_dados_improvisados(doc_key: str, texto: str) -> list[dict]:
             "matrícula do agente responsável")
         achados.append(achado)
 
+    # Mesma regra sem o rótulo "matrícula": número funcional/SIAPE
+    # improvisado (dígitos repetidos ou curtíssimo) é dado inventado.
+    for m in _RE_NUMERO_FUNCIONAL.finditer(texto):
+        numero = m.group(1)
+        if len(set(numero)) != 1 and len(numero) > 2:
+            continue
+        achado = _achado(
+            doc_key, "aviso",
+            f"número funcional com aparência de improviso ({numero}) — "
+            "identificação de agente público vem do processo ou fica "
+            "[PREENCHER: número funcional]", m.group(0))
+        achado["pendencia"] = pendencia_de_valor(
+            texto, m.start(), m.end(), numero,
+            "número funcional do agente responsável")
+        achados.append(achado)
+
+    # CNPJ com quantidade de dígitos errada: não é formatação ruim, é
+    # número inventado. A checagem por dígito verificador (abaixo) só
+    # alcança quem TEM 14 dígitos — as duas regras se completam.
+    for m in _RE_CNPJ_ROTULADO.finditer(texto):
+        bruto = m.group(1)
+        digitos = re.sub(r"\D", "", bruto)
+        if len(digitos) == _DIGITOS_CNPJ:
+            continue
+        achado = _achado(
+            doc_key, "bloqueia",
+            f"CNPJ com {len(digitos)} dígitos ({bruto.strip()}) — o CNPJ "
+            "tem 14; use o CNPJ real ou [PREENCHER: CNPJ]", m.group(0))
+        achado["pendencia"] = pendencia_de_valor(
+            texto, m.start(1), m.end(1), bruto,
+            "CNPJ (14 dígitos, com dígitos verificadores válidos)")
+        achados.append(achado)
+
+    for m in _RE_FORNECEDOR_GENERICO.finditer(texto):
+        achado = _achado(
+            doc_key, "bloqueia",
+            f"parte contratada identificada por categoria, não por empresa "
+            f"('{m.group(1)}') — quem assina o instrumento é a pessoa "
+            "jurídica adjudicatária; use a razão social real ou "
+            "[PREENCHER: razão social do fornecedor]", m.group(0))
+        achado["pendencia"] = pendencia_de_valor(
+            texto, m.start(1), m.end(1), m.group(1),
+            "razão social do fornecedor adjudicatário")
+        achados.append(achado)
+
     cnpjs_invalidos = [
         m for m in _RE_CNPJ.finditer(texto)
         if not _cnpj_valido("".join(m.groups()))
@@ -623,7 +865,112 @@ def _validar_dados_improvisados(doc_key: str, texto: str) -> list[dict]:
     return achados
 
 
-def _validar_fundamentos_legais(doc_key: str, texto: str) -> list[dict]:
+# Designar uma UNIDADE ("Gestora: Secretaria Municipal de Saúde") é
+# legítimo e comum; o que não pode ser inventado é a PESSOA. Um "nome"
+# que começa por substantivo institucional é órgão, não servidor.
+_INSTITUCIONAIS = (
+    "SECRETARIA", "PREFEITURA", "MUNICIPIO", "DEPARTAMENTO", "DIRETORIA",
+    "COORDENADORIA", "COORDENACAO", "SETOR", "COMISSAO", "EQUIPE",
+    "NUCLEO", "GABINETE", "FUNDO", "AUTARQUIA", "AGENCIA", "SUPERINTENDENCIA",
+    "PROCURADORIA", "CONTROLADORIA", "ASSESSORIA", "UNIDADE", "ORGAO",
+    "EMPRESA", "CONTRATADA", "CONTRATANTE", "ADMINISTRACAO",
+)
+
+
+def _e_unidade_administrativa(nome: str) -> bool:
+    primeira = _norm(nome).split()
+    return bool(primeira) and primeira[0] in _INSTITUCIONAIS
+
+
+def _nomes_do_processo(dados: dict | None) -> set[str]:
+    """Nomes que o PROCESSO conhece (formulário) — em forma comparável."""
+    conhecidos: set[str] = set()
+    for chave in ("responsavel", "orgao"):
+        valor = (dados or {}).get(chave) or ""
+        if valor.strip():
+            conhecidos.add(_norm(valor))
+    return conhecidos
+
+
+def _validar_identificacoes(doc_key: str, texto: str,
+                            dados: dict | None) -> list[dict]:
+    """
+    Nome de agente público designado para função tem de vir do processo.
+
+    Sem o formulário (documento importado/revisado fora do fluxo) a
+    checagem não opina. Com ele, um nome que não consta do processo é
+    identificação sem vínculo: o sistema não sabe quem é essa pessoa e
+    não pode designá-la em ato administrativo.
+    """
+    if not dados:
+        return []
+    conhecidos = _nomes_do_processo(dados)
+    achados: list[dict] = []
+    vistos: set[str] = set()
+    for m in _RE_NOME_DESIGNADO.finditer(texto):
+        nome = m.group(1).strip(" .;,")
+        alvo = _norm(nome)
+        if not alvo or alvo in vistos or _e_unidade_administrativa(nome):
+            continue
+        # o nome consta do processo (íntegra ou contido no campo)?
+        if any(alvo in conhecido or conhecido in alvo
+               for conhecido in conhecidos):
+            continue
+        vistos.add(alvo)
+        achado = _achado(
+            doc_key, "bloqueia",
+            f"agente público designado sem vínculo no processo "
+            f"({nome}) — nome de servidor vem do processo ou fica "
+            "[PREENCHER: nome do agente]", m.group(0))
+        achado["pendencia"] = pendencia_de_valor(
+            texto, m.start(1), m.end(1), nome,
+            "nome do agente público designado")
+        achados.append(achado)
+    return achados
+
+
+def _validar_tabela_de_itens(doc_key: str, texto: str,
+                             itens: list[dict] | None) -> list[dict]:
+    """
+    Conferência da tabela emitida CONTRA A PLANILHA DO PROCESSO.
+
+    A planilha é dado determinístico: o documento tem de reproduzi-la
+    integralmente — todos os códigos, nas quantidades, unidades e preços
+    da fonte, uma única vez, com o valor global. Divergência aqui não é
+    questão de estilo: é o ato administrativo dizendo número que o
+    processo não tem. Sem planilha na sessão (documento importado ou
+    revisado fora do fluxo), a checagem não opina.
+    """
+    if not itens:
+        return []
+    return [
+        _achado(doc_key, "bloqueia", f"tabela de itens divergente da "
+                f"planilha do processo: {problema}")
+        for problema in planilha.conferir_tabela(texto, itens)
+    ]
+
+
+def _natureza_do_objeto(dados: dict | None) -> str:
+    """
+    BENS / SERVICOS / OBRAS_ENGENHARIA a partir do processo, reutilizando
+    o classificador de fatos canônicos (fatos.py) — sem segundo motor.
+    Devolve "" quando o processo não permite concluir: 'não sei' nunca
+    vira 'BENS'.
+    """
+    if not dados:
+        return ""
+    from . import fatos
+
+    execucao = (dados.get("modelo_execucao") or "").strip()
+    natureza = fatos.NATUREZA_POR_EXECUCAO.get(execucao)
+    if natureza:
+        return natureza
+    categoria, _ = fatos.categoria_do_objeto(dados)
+    return fatos.NATUREZA_POR_CATEGORIA.get(categoria, "")
+
+
+def _validar_fundamentos_legais(doc_key: str, texto: str,
+                                dados: dict | None = None) -> list[dict]:
     """
     Confusões recorrentes de fundamentação na Lei nº 14.133/2021,
     verificadas POR PARÁGRAFO (tema + artigo incompatível no mesmo
@@ -644,13 +991,24 @@ def _validar_fundamentos_legais(doc_key: str, texto: str) -> list[dict]:
     if _RE_REPACTUACAO.search(texto) and not _RE_MAO_DE_OBRA.search(texto):
         m = _RE_REPACTUACAO.search(texto)
         ini = max(0, m.start() - 60)
+        # Sem saber a natureza do objeto, o instituto é DUVIDOSO (aviso):
+        # o revisor decide. Quando o processo declara aquisição de BENS,
+        # repactuação é simplesmente incabível — art. 135 exige serviço
+        # contínuo com dedicação de mão de obra — e a emissão trava.
+        de_bens = _natureza_do_objeto(dados) == "BENS"
         achados.append(_achado(
-            doc_key, "aviso",
-            "instituto possivelmente inadequado: 'repactuação' prevista sem "
-            "regime de dedicação de mão de obra — para bens/materiais o "
-            "instituto é o reajuste (art. 92, §3º); repactuação restringe-se "
-            "a serviços contínuos com dedicação de mão de obra (art. 135 da "
-            "Lei nº 14.133/2021)",
+            doc_key, "bloqueia" if de_bens else "aviso",
+            ("instituto incabível: 'repactuação' em aquisição de BENS — o "
+             "reajuste de preços de bens segue o art. 92, §3º (ou o "
+             "reequilíbrio do art. 124, II, 'd'); a repactuação do art. 135 "
+             "da Lei nº 14.133/2021 pressupõe serviço contínuo com "
+             "dedicação exclusiva de mão de obra"
+             if de_bens else
+             "instituto possivelmente inadequado: 'repactuação' prevista sem "
+             "regime de dedicação de mão de obra — para bens/materiais o "
+             "instituto é o reajuste (art. 92, §3º); repactuação restringe-se "
+             "a serviços contínuos com dedicação de mão de obra (art. 135 da "
+             "Lei nº 14.133/2021)"),
             texto[ini:m.end() + 60].replace("\n", " ")))
 
     if _RE_GARANTIA_SECA.search(texto):
@@ -672,6 +1030,29 @@ def _corpo_da_clausula(texto: str, titulos: tuple[str, ...]) -> tuple[int, str]:
             fim = clausulas[i + 1].start() if i + 1 < len(clausulas) else len(texto)
             return i, texto[m.end():fim]
     return -1, ""
+
+
+def _validar_referencias_internas(doc_key: str, texto: str) -> list[dict]:
+    """
+    Remissão à numeração interna de outro documento do dossiê.
+
+    O ato tem de se sustentar sozinho: a decisão herdada do ETP aparece
+    como conteúdo do TR, não como ponteiro ("conforme ETP, item 4.3")
+    que obriga o leitor a consultar outro artefato — e que aponta para
+    uma numeração que pode nem existir no ETP aprovado.
+    """
+    ocorrencias = list(_RE_REFERENCIA_INTERNA.finditer(texto))
+    if not ocorrencias:
+        return []
+    m = ocorrencias[0]
+    ini = max(0, m.start() - 60)
+    return [_achado(
+        doc_key, "aviso",
+        f"remissão à numeração interna de outro documento "
+        f"({len(ocorrencias)} ocorrência(s): '{m.group(0)}') — o ato deve "
+        "trazer a decisão herdada como conteúdo próprio; cite o documento "
+        "sem o número do item",
+        texto[ini:m.end() + 40].replace("\n", " "))]
 
 
 def _validar_raciocinio_etp(doc_key: str, texto: str) -> list[dict]:
@@ -803,21 +1184,31 @@ def _validar_tabelas(doc_key: str, texto: str) -> list[dict]:
 
 
 def validar_documento(doc_key: str, texto: str,
-                      lastro: set[str] | None = None) -> list[dict]:
+                      lastro: set[str] | None = None,
+                      dados: dict | None = None) -> list[dict]:
     """
     Valida um documento; retorna a lista de achados (pode ser vazia).
 
     `lastro`: números de artigo recuperados pelo RAG na geração deste
     documento. Quando informado, habilita a checagem de fundamento sem
     lastro; quando None (sem rastro disponível), a checagem é omitida.
+
+    `dados`: Formulário Matriz do processo (planilha, responsável…).
+    Quando informado, a tabela emitida é conferida item a item contra a
+    planilha e nomes/identificações são checados contra o processo;
+    quando None, essas checagens são omitidas.
     """
     texto = texto or ""
     return (
         _validar_bloqueantes(doc_key, texto)
+        + _validar_tabela_de_itens(doc_key, texto,
+                                   (dados or {}).get("itens"))
+        + _validar_identificacoes(doc_key, texto, dados)
         + _validar_dados_improvisados(doc_key, texto)
-        + _validar_fundamentos_legais(doc_key, texto)
+        + _validar_fundamentos_legais(doc_key, texto, dados)
         + _validar_lastro_das_citacoes(doc_key, texto, lastro)
         + _validar_raciocinio_etp(doc_key, texto)
+        + _validar_referencias_internas(doc_key, texto)
         + _validar_absolutismo(doc_key, texto)
         + _validar_estrutura(doc_key, texto)
         + _validar_tabelas(doc_key, texto)
@@ -825,11 +1216,12 @@ def validar_documento(doc_key: str, texto: str,
 
 
 def validar_todos(documentos: dict[str, str],
-                  lastro_por_doc: dict[str, set[str]] | None = None) -> list[dict]:
+                  lastro_por_doc: dict[str, set[str]] | None = None,
+                  dados: dict | None = None) -> list[dict]:
     achados: list[dict] = []
     for doc_key, texto in documentos.items():
         achados.extend(validar_documento(
-            doc_key, texto, (lastro_por_doc or {}).get(doc_key)))
+            doc_key, texto, (lastro_por_doc or {}).get(doc_key), dados))
     return achados
 
 
