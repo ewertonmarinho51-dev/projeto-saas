@@ -10,7 +10,7 @@ Página "Administração" (exclusiva do papel admin):
 import streamlit as st
 
 from .. import (achados, auth, branding, ciclo, contexto, corretor, db,
-                governanca, llm, patches)
+                governanca, govbot, llm, patches)
 from ..llm import motor_ativo
 from . import revisao
 
@@ -542,6 +542,22 @@ def _render_revisao() -> None:
          "ligada. Desligada: a emissão segue as regras da tela em uso."),
     ]
     _render_toggles_de_flags(flags)
+    st.divider()
+    st.markdown("##### GovBot contextual")
+    st.caption(
+        "O agente fica desligado por padrão e não persiste conversas. "
+        "Ative somente em ambiente autorizado; a produção continua "
+        "bloqueada até a revisão independente de autenticação e RLS."
+    )
+    _render_toggles_de_flags([
+        (
+            govbot.FLAG_GOVBOT,
+            "GovBot contextual (piloto controlado)",
+            "Ligada: exibe orientação contextual, chat e alterações "
+            "reversíveis no processo atual. Desligada: nenhum componente, "
+            "estado ou chamada de IA do GovBot é iniciado.",
+        ),
+    ])
 
 
 # ---------------------------------------------------------------------------

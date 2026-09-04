@@ -1022,6 +1022,15 @@ div[data-testid="stHorizontalBlock"]:has(.gc-step-marker)
     }
 }
 
+/* O GovBot só reserva espaço quando o componente marca o painel aberto. */
+@media (min-width: 1025px) {
+    body[data-govbot="open"] .stMainBlockContainer,
+    body[data-govbot="open"] .block-container {
+        padding-right: 348px;
+        transition: padding-right 160ms ease;
+    }
+}
+
 @media (max-width: 1024px) {
     .stMainBlockContainer,
     .block-container {

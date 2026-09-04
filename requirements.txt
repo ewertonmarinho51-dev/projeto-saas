@@ -7,7 +7,7 @@
 # ============================================================
 
 # Interface web (frontend + backend integrados)
-streamlit>=1.35.0
+streamlit>=1.62.0
 
 # Integração com a IA — motor principal: OpenAI
 openai>=1.40.0

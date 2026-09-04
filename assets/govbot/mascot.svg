@@ -1,0 +1,114 @@
+<svg
+  id="govbot-mascot"
+  class="govbot-mascot"
+  data-state="IDLE"
+  data-left-eye="normal"
+  data-right-eye="normal"
+  viewBox="0 0 180 160"
+  role="img"
+  aria-labelledby="govbot-mascot-title govbot-mascot-description"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <title id="govbot-mascot-title">GovBot</title>
+  <desc id="govbot-mascot-description">
+    Assistente virtual do GovDocs com expressão correspondente ao estado atual.
+  </desc>
+
+  <defs>
+    <linearGradient id="govbot-shell-gradient" x1="42" y1="34" x2="136" y2="145" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" />
+      <stop offset=".62" stop-color="#F1F4F7" />
+      <stop offset="1" stop-color="#CBD2D9" />
+    </linearGradient>
+    <linearGradient id="govbot-face-gradient" x1="54" y1="53" x2="130" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#17263A" />
+      <stop offset=".56" stop-color="#07111E" />
+      <stop offset="1" stop-color="#020711" />
+    </linearGradient>
+    <filter id="govbot-shadow" x="-25%" y="-25%" width="150%" height="170%">
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#0B1F33" flood-opacity=".18" />
+    </filter>
+  </defs>
+
+  <g id="govbot-confetti" class="govbot-confetti" aria-hidden="true">
+    <path d="M21 42l8-5" />
+    <path d="M150 33l7 6" />
+    <path d="M24 96l-9 2" />
+    <path d="M155 91l10-2" />
+    <circle cx="36" cy="22" r="3" />
+    <circle cx="145" cy="19" r="3" />
+  </g>
+
+  <g id="govbot-body" class="govbot-body" filter="url(#govbot-shadow)">
+    <g id="govbot-antenna" class="govbot-antenna" aria-hidden="true">
+      <path d="M90 37V23" />
+      <circle class="govbot-antenna-light" cx="90" cy="17" r="7" />
+      <circle class="govbot-antenna-core" cx="90" cy="17" r="3" />
+    </g>
+
+    <path
+      id="govbot-shell"
+      class="govbot-shell"
+      d="M30 83c0-35 25-58 60-58s60 23 60 58c0 39-24 62-60 62s-60-23-60-62Z"
+      fill="url(#govbot-shell-gradient)"
+    />
+    <path
+      id="govbot-face"
+      class="govbot-face"
+      d="M44 70c0-20 16-34 36-34h20c20 0 36 14 36 34v17c0 22-16 37-37 37H81c-21 0-37-15-37-37V70Z"
+      fill="url(#govbot-face-gradient)"
+    />
+
+    <g id="govbot-left-ear" class="govbot-ear govbot-ear-left" aria-hidden="true">
+      <ellipse cx="31" cy="84" rx="8" ry="16" />
+      <path d="M29 77v14" />
+    </g>
+    <g id="govbot-right-ear" class="govbot-ear govbot-ear-right" aria-hidden="true">
+      <circle cx="147" cy="84" r="17" />
+      <path d="m139 84 6 6 10-15" />
+    </g>
+
+    <g id="govbot-eyes" class="govbot-eyes" aria-hidden="true">
+      <g id="govbot-left-eye" class="govbot-eye govbot-eye-left">
+        <ellipse class="govbot-eye-white" cx="70" cy="79" rx="10" ry="12" />
+        <circle class="govbot-pupil govbot-pupil-left" cx="70" cy="79" r="4" />
+        <circle class="govbot-eye-glint govbot-eye-glint-left" cx="68" cy="76" r="1.5" />
+        <path class="govbot-eyelid govbot-eyelid-left" d="M60 82c4-12 16-12 20 0" />
+      </g>
+      <g id="govbot-right-eye" class="govbot-eye govbot-eye-right">
+        <ellipse class="govbot-eye-white" cx="110" cy="79" rx="10" ry="12" />
+        <circle class="govbot-pupil govbot-pupil-right" cx="110" cy="79" r="4" />
+        <circle class="govbot-eye-glint govbot-eye-glint-right" cx="108" cy="76" r="1.5" />
+        <path class="govbot-eyelid govbot-eyelid-right" d="M100 82c4-12 16-12 20 0" />
+      </g>
+    </g>
+
+    <path id="govbot-mouth-neutral" class="govbot-mouth govbot-mouth-neutral" d="M86 132h8" />
+    <path id="govbot-mouth-smile" class="govbot-mouth govbot-mouth-smile" d="M80 101c5 8 15 8 20 0" />
+    <path id="govbot-mouth-error" class="govbot-mouth govbot-mouth-error" d="M81 108c5-7 13-7 18 0" />
+
+    <g id="govbot-progress" class="govbot-progress" aria-hidden="true">
+      <circle cx="90" cy="133" r="5" />
+      <path d="M90 128a5 5 0 0 1 5 5" />
+    </g>
+  </g>
+
+  <g id="govbot-state-symbols" class="govbot-state-symbols" aria-hidden="true">
+    <g id="govbot-symbol-suggestion" class="govbot-symbol govbot-symbol-suggestion">
+      <circle cx="145" cy="49" r="14" />
+      <path d="M140 48a5 5 0 1 1 10 0c0 3-3 3-3 7h-4c0-4-3-4-3-7Zm3 12h4" />
+    </g>
+    <g id="govbot-symbol-success" class="govbot-symbol govbot-symbol-success">
+      <circle cx="145" cy="49" r="14" />
+      <path d="m138 49 5 5 9-11" />
+    </g>
+    <g id="govbot-symbol-attention" class="govbot-symbol govbot-symbol-attention">
+      <path d="m145 34 16 29h-32l16-29Z" />
+      <path d="M145 43v9m0 5v1" />
+    </g>
+    <g id="govbot-symbol-error" class="govbot-symbol govbot-symbol-error">
+      <circle cx="145" cy="49" r="14" />
+      <path d="m139 43 12 12m0-12-12 12" />
+    </g>
+  </g>
+</svg>
