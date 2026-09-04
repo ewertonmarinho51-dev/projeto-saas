@@ -194,6 +194,7 @@ class GovBotContext:
     referencias_rag: tuple[Mapping[str, Any], ...] = ()
     pendencias_obrigatorias: tuple[str, ...] = ()
     comparacao_anterior: Mapping[str, Any] = field(default_factory=dict)
+    campos_em_rascunho: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return _json_seguro(asdict(self))
@@ -833,16 +834,30 @@ def montar_contexto_minimo(
     achados: Sequence[Mapping[str, Any]] = (),
     referencias_rag: Sequence[Mapping[str, Any]] = (),
     documento: str | None = None,
+    rascunhos_visiveis: Mapping[str, str] | None = None,
 ) -> GovBotContext:
-    """Monta apenas campo/bloco e evidências relacionadas ao foco."""
-    dados = dados or {}
+    """Recorta o contexto usando uma sobreposição efêmera, nunca fatos novos.
+
+    A presença da chave no draft prevalece inclusive quando o usuário apagou
+    o campo. Fatos/decisões continuam sendo fornecidos separadamente, a partir
+    da origem canônica. A cópia não é devolvida ao estado nem ao autosave.
+    """
+    rascunhos = {
+        chave: valor for chave, valor in _validar_rascunho(rascunhos_visiveis).items()
+        if chave in CAMPOS_ESCALARES
+    }
+    dados = {**(dados or {}), **rascunhos}
     documentos = documentos or {}
     foco_normalizado = normalizar_foco(foco)
     doc = documento or _documento_da_etapa(int(etapa))
     campo: str | None = None
     bloco: str | None = None
     valor: Any = None
-    relevantes: dict[str, Any] = {}
+    # Todos os campos visíveis contribuem, sem enviar áreas extensas inteiras.
+    # O valor em foco continua integral, pois ancora o hash de uma proposta.
+    relevantes: dict[str, Any] = {
+        chave: valor[:1_000] for chave, valor in rascunhos.items()
+    }
     pendencias: list[str] = []
     for chave, meta in CAMPOS_FORMULARIO.items():
         if not meta.get("obrigatorio"):
@@ -929,6 +944,7 @@ def montar_contexto_minimo(
         referencias_rag=_recortar_referencias(referencias_rag, doc),
         pendencias_obrigatorias=tuple(pendencias),
         comparacao_anterior=_json_seguro(comparacao),
+        campos_em_rascunho=tuple(sorted(rascunhos)),
     )
 
 
@@ -1280,8 +1296,12 @@ def montar_prompt(
         ],
         "pedido": str(pedido or "")[:MAX_TEXTO_EVENTO],
     }
-    return _SYSTEM_GOVBOT, json.dumps(payload, ensure_ascii=False,
-                                      sort_keys=True)
+    system = _SYSTEM_GOVBOT + (
+        " Campos listados em campos_em_rascunho descrevem apenas a tela atual, "
+        "inclusive valores apagados; não são fatos canônicos nem decisões "
+        "confirmadas. Não apresente rascunhos como dados salvos."
+    )
+    return system, json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
 
 def _sem_acento(texto: str) -> str:

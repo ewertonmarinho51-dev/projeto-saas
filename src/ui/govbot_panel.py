@@ -268,9 +268,6 @@ def _montar_contexto(
     documentos = copy.deepcopy(dict(sessao.get("documentos") or {}))
 
     foco_normalizado = govbot.normalizar_foco(foco)
-    if foco_normalizado in govbot.CAMPOS_ESCALARES \
-            and foco_normalizado in rascunho:
-        dados[foco_normalizado] = rascunho[foco_normalizado]
     if foco_normalizado and foco_normalizado.startswith("editor_") \
             and foco_normalizado in rascunho:
         documentos[foco_normalizado.removeprefix("editor_")] = \
@@ -298,6 +295,10 @@ def _montar_contexto(
         referencias_rag=(
             _referencias_da_sessao(sessao, documento) if evidencias else ()),
         documento=documento,
+        rascunhos_visiveis={
+            chave: valor for chave, valor in rascunho.items()
+            if chave in _focos_da_tela(sessao)
+        },
     )
 
 
