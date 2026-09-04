@@ -18,9 +18,15 @@ das outras fases:
 """
 
 from .compras_gov import ComprasGovAdapter
+from .estatistica import (Anomalia, Cesta, Estatisticas, Estimativa, calcular,
+                          detectar_anomalias, estimar, mediana,
+                          selecionar_cesta)
 from .fontes import Consulta, ErroFonte, FontePesquisaPreco, ResultadoBusca
+from .matching import (Comparabilidade, Fator, comparar,
+                       ordenar_por_comparabilidade)
 from .modelo import (Fonte, Referencia, StatusReferencia, deduplicar,
                      para_decimal)
+from .perfil import IN_65_2021, LEI_14133, PerfilNormativo
 from .pncp import PNCPAdapter
 from .unidades import canonizar, comparavel, fator_de_conversao, normalizar
 
@@ -29,6 +35,10 @@ __all__ = [
     "Consulta", "ResultadoBusca", "FontePesquisaPreco", "ErroFonte",
     "Referencia", "Fonte", "StatusReferencia", "deduplicar", "para_decimal",
     "canonizar", "fator_de_conversao", "normalizar", "comparavel",
+    "Comparabilidade", "Fator", "comparar", "ordenar_por_comparabilidade",
+    "Estatisticas", "Estimativa", "Cesta", "Anomalia", "calcular", "mediana",
+    "detectar_anomalias", "selecionar_cesta", "estimar",
+    "PerfilNormativo", "LEI_14133", "IN_65_2021",
 ]
 
 

@@ -555,3 +555,110 @@ Suíte completa do projeto: **1429 passaram, 0 falharam, 158 pularam**
 ## Veredito da Fase 1
 
 `APTO PARA AUDITORIA`
+
+---
+
+# FASE 2 — matching, estatística, anomalias e cesta (entregue)
+
+Escopo: classificação, ranking, comparabilidade, cálculo, anomalias e
+testes. **Sem** persistência, UI, integração com o processo ou IA.
+
+```
+src/precos/
+  perfil.py       PerfilNormativo — Lei 14.133 (base) e IN 65/2021
+  matching.py     comparabilidade explicável por fatores
+  estatistica.py  cálculo Decimal, anomalias, cesta e estimativa
+tests/test_precos_fase2.py   48 provas
+```
+
+## O defeito que os testes pegaram — e mudou o desenho
+
+A primeira versão somava sete fatores numa média ponderada única. O teste
+`test_cesta_nao_e_a_dos_tres_mais_baratos` reprovou: um **GRAMPEADOR**
+entrava na cesta de uma **PASTA CATÁLOGO** com 55% de comparabilidade,
+porque unidade, data, quantidade, estado e critério estavam todos
+corretos — e juntos superavam o peso da descrição.
+
+Circunstância impecável não transforma um produto em outro. O modelo
+passou a responder **duas perguntas separadas**:
+
+```
+identidade      = é o mesmo produto?     (descrição, catálogo)
+circunstancias  = a contratação é comparável?  (unidade, data,
+                  quantidade, geografia, condições — média ponderada)
+
+score = identidade × circunstancias
+```
+
+Multiplicação, não peso: produto diferente zera o total por melhor que
+seja o resto. O grampeador agora tem circunstâncias 0,88 e identidade
+0,05 — score 0,04, longe do piso.
+
+Guardar as duas parcelas separadas tem valor próprio no relatório: "é o
+produto certo, mas a contratação é velha" e "a contratação é perfeita,
+mas é outro produto" dão notas parecidas e exigem decisões opostas.
+
+Na descrição, a semelhança é a média de **Jaccard** e **sobreposição** —
+Jaccard sozinho pune a fonte oficial por descrever o mesmo item com mais
+detalhe; sobreposição sozinha aceita "PASTA" como igual a "PASTA CATÁLOGO
+100 ENVELOPES". Código de catálogo idêntico prevalece sobre a redação;
+código diferente derruba a identidade.
+
+## As fronteiras que a Fase 2 impõe
+
+- **cesta por comparabilidade e prioridade de fonte, nunca por preço**
+  (§12). Sistema oficial antes de contratação similar;
+- **outlier estatístico ≠ preço inexequível** (§10). IQR e MAD sinalizam
+  e explicam a distância da mediana; há teste que proíbe as palavras
+  "inexequível", "ilegal", "irregular" e "sobrepreço" no texto gerado;
+- **exclusão não apaga** — o descartado fica na série com status e
+  motivo; abaixo do piso vira `REVISAO_MANUAL`, disponível para inclusão
+  humana;
+- **a regra dos três não se cumpre fabricando referência** (§11, §53).
+  Duas referências ⇒ `INCOMPLETO`, com o caminho de saída escrito;
+- **série pequena (< 4) não gera alarme** — com três pontos qualquer um
+  parece distante.
+
+## Perfil normativo (§3, §22)
+
+`Lei 14.133` é a base; `IN 65/2021` **não** é norma municipal automática
+e por isso é um perfil próprio. A diferença material está implementada e
+testada: com estimativa apoiada **exclusivamente** em sistema oficial, a
+IN 65 limita o valor à mediana da amostra — média de 33,33 é ajustada
+para 30,00; com uma fonte de outro tipo na cesta, a restrição não se
+aplica.
+
+## Ensaio ponta a ponta sobre dados REAIS
+
+CATMAT 236168, 30 referências vindas da API oficial:
+
+```
+top por COMPARABILIDADE   83%  R$ 4.334,31  SP   (não é o mais barato)
+                          79%  R$ 1.980,00  CE
+                          77%  R$ 7.999,88  PA
+n=30  menor R$ 490,00  maior R$ 7.999,88
+média R$ 2.629,85   mediana R$ 2.244,94   CV 0,57   IQR 805,13
+método automático: MEDIANA (série dispersa)
+PREÇO ESTIMADO: R$ 2.244,94      total p/ 12 un: R$ 26.939,28
+5 candidatos discrepantes sinalizados — nenhum excluído
+```
+
+Duas coisas que o revisor precisa ver aqui:
+
+1. **a mais comparável (83%) é também a segunda mais cara**, e está entre
+   as sinalizadas como discrepante. Não é contradição: comparabilidade e
+   dispersão de preço são perguntas diferentes. É exatamente o caso em
+   que o julgamento humano decide, e é por isso que o sistema mostra as
+   duas informações em vez de resolver sozinho;
+2. **CV de 0,57 no mesmo CATMAT** — R$ 490 a R$ 7.999 pelo mesmo item de
+   catálogo. É o material real que torna "os três menores preços" uma
+   cesta indefensável.
+
+## Testes
+
+48 provas novas, todas sem rede e sem IA. Suíte completa do projeto:
+**1477 passaram, 0 falharam, 158 pularam**. `git diff --check` limpo.
+
+## Veredito da Fase 2
+
+`APTO PARA AUDITORIA`
