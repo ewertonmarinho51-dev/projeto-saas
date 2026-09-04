@@ -16,6 +16,7 @@ import copy
 import hashlib
 import json
 import logging
+import math
 import re
 import time
 import unicodedata
@@ -194,6 +195,8 @@ class GovBotContext:
     referencias_rag: tuple[Mapping[str, Any], ...] = ()
     pendencias_obrigatorias: tuple[str, ...] = ()
     comparacao_anterior: Mapping[str, Any] = field(default_factory=dict)
+    campos_em_rascunho: tuple[str, ...] = ()
+    recuperacao_rag: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return _json_seguro(asdict(self))
@@ -799,26 +802,62 @@ def _recortar_decisoes(
 def _recortar_referencias(
     lista: Sequence[Mapping[str, Any]], documento: str | None,
 ) -> tuple[Mapping[str, Any], ...]:
+    from . import rag
+
     saida = []
+    vistos: set[str] = set()
+    posicoes: set[tuple[str, str]] = set()
     for ref in lista:
+        if not isinstance(ref, Mapping):
+            continue
         doc = ref.get("documento") or ref.get("documentId")
         if documento and doc and doc != documento:
             continue
         # Só o recorte necessário à resposta; um chunk inteiro não entra por
         # acidente no contexto mínimo.
         compacto = {
-            k: ref[k] for k in (
-                "source_id", "documento_id", "ordem", "titulo", "categoria",
-                "score", "tema", "dispositivos", "trecho",
-            ) if k in ref
+            k: str(ref[k])[:200] for k in (
+                "documento_id", "ordem", "titulo", "categoria", "tema",
+            ) if ref.get(k) is not None and isinstance(ref[k], (str, int))
         }
-        if "source_id" not in compacto and ref.get("documento_id") is not None \
+        trecho = ref.get("trecho", ref.get("conteudo", ""))
+        compacto["trecho"] = trecho[:1_000] if isinstance(trecho, str) else ""
+        source_id = str(ref.get("source_id") or "")
+        if re.fullmatch(r"rag:[A-Za-z0-9_.:-]{1,120}", source_id):
+            compacto["source_id"] = source_id
+        elif ref.get("documento_id") is not None \
                 and ref.get("ordem") is not None:
             compacto["source_id"] = (
                 f"rag:{ref['documento_id']}:{ref['ordem']}")
-        if "trecho" not in compacto and ref.get("conteudo"):
-            compacto["trecho"] = str(ref["conteudo"])[:500]
+        elif re.fullmatch(r"[A-Za-z0-9_.:-]{1,120}", str(ref.get("id") or "")):
+            compacto["source_id"] = f"rag:{ref['id']}"
+        else:
+            compacto["source_id"] = "rag:" + hash_canonico(compacto)[:32]
+        if not re.fullmatch(r"rag:[A-Za-z0-9_.:-]{1,120}", compacto["source_id"]):
+            compacto["source_id"] = "rag:" + hash_canonico(compacto)[:32]
+        dispositivos = ref.get("dispositivos")
+        compacto["dispositivos"] = (
+            [d[:80] for d in dispositivos[:20] if isinstance(d, str)]
+            if isinstance(dispositivos, (list, tuple))
+            else rag.dispositivos_do_trecho(compacto["trecho"], compacto.get("titulo", ""))
+        )
+        for chave in ("score", "similaridade"):
+            try:
+                score = float(ref[chave])
+                if math.isfinite(score):
+                    compacto[chave] = score
+            except (KeyError, TypeError, ValueError):
+                pass
+        identidade = compacto["source_id"]
+        posicao = (compacto.get("documento_id", ""), compacto.get("ordem", ""))
+        if identidade in vistos or (all(posicao) and posicao in posicoes):
+            continue
+        vistos.add(identidade)
+        if all(posicao):
+            posicoes.add(posicao)
         saida.append(compacto)
+        if len(saida) == 6:
+            break
     return tuple(_json_seguro(r) for r in saida[:6])
 
 
@@ -833,16 +872,30 @@ def montar_contexto_minimo(
     achados: Sequence[Mapping[str, Any]] = (),
     referencias_rag: Sequence[Mapping[str, Any]] = (),
     documento: str | None = None,
+    rascunhos_visiveis: Mapping[str, str] | None = None,
 ) -> GovBotContext:
-    """Monta apenas campo/bloco e evidências relacionadas ao foco."""
-    dados = dados or {}
+    """Recorta o contexto usando uma sobreposição efêmera, nunca fatos novos.
+
+    A presença da chave no draft prevalece inclusive quando o usuário apagou
+    o campo. Fatos/decisões continuam sendo fornecidos separadamente, a partir
+    da origem canônica. A cópia não é devolvida ao estado nem ao autosave.
+    """
+    rascunhos = {
+        chave: valor for chave, valor in _validar_rascunho(rascunhos_visiveis).items()
+        if chave in CAMPOS_ESCALARES
+    }
+    dados = {**(dados or {}), **rascunhos}
     documentos = documentos or {}
     foco_normalizado = normalizar_foco(foco)
     doc = documento or _documento_da_etapa(int(etapa))
     campo: str | None = None
     bloco: str | None = None
     valor: Any = None
-    relevantes: dict[str, Any] = {}
+    # Todos os campos visíveis contribuem, sem enviar áreas extensas inteiras.
+    # O valor em foco continua integral, pois ancora o hash de uma proposta.
+    relevantes: dict[str, Any] = {
+        chave: valor[:1_000] for chave, valor in rascunhos.items()
+    }
     pendencias: list[str] = []
     for chave, meta in CAMPOS_FORMULARIO.items():
         if not meta.get("obrigatorio"):
@@ -929,6 +982,7 @@ def montar_contexto_minimo(
         referencias_rag=_recortar_referencias(referencias_rag, doc),
         pendencias_obrigatorias=tuple(pendencias),
         comparacao_anterior=_json_seguro(comparacao),
+        campos_em_rascunho=tuple(sorted(rascunhos)),
     )
 
 
@@ -1280,13 +1334,125 @@ def montar_prompt(
         ],
         "pedido": str(pedido or "")[:MAX_TEXTO_EVENTO],
     }
-    return _SYSTEM_GOVBOT, json.dumps(payload, ensure_ascii=False,
-                                      sort_keys=True)
+    system = _SYSTEM_GOVBOT + (
+        " Campos listados em campos_em_rascunho descrevem apenas a tela atual, "
+        "inclusive valores apagados; não são fatos canônicos nem decisões "
+        "confirmadas. Não apresente rascunhos como dados salvos."
+    )
+    if contexto.recuperacao_rag:
+        from . import rag
+
+        system += (
+            " A pergunta exige a Base de Conhecimento: cite os source_ids dos "
+            "trechos que sustentam a resposta. Não deduza artigos, prazos ou "
+            "decisões do simples fato de uma fonte existir. Uma referência "
+            "sobre vigência de ata não estabelece prazo de entrega. Se faltar "
+            "evidência para a conclusão, informe a limitação. Edital e ARP "
+            "continuam determinísticos: explique ou direcione a correção à origem. "
+            + rag._HIERARQUIA_FONTES
+        )
+    return system, json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
 
 def _sem_acento(texto: str) -> str:
     valor = unicodedata.normalize("NFKD", str(texto or ""))
     return "".join(c for c in valor if not unicodedata.combining(c)).lower()
+
+
+def planejar_consulta_rag(
+    contexto: GovBotContext, pedido: str, *, objeto: str = "",
+) -> tuple[str, str]:
+    """Roteamento local, sem IA: (consulta mínima, motivo).
+
+    Só termos do vocabulário jurídico/objetos já existente podem sair na
+    consulta. Nomes, identificações, contatos, URLs, credenciais e texto
+    arbitrário não são repassados. O resumo lexical não vira fato/decisão.
+    Uma coincidência de tema isolada não declara o trace suficiente.
+    """
+    from . import fatos, rag
+
+    texto = _sem_acento(pedido).strip()
+    if re.fullmatch(r"(?:ola(?: govbot)?|oi|obrigad[oa]|que legal|ok|confirmo)[.! ]*", texto):
+        return "", "dispensada"
+    explicito = re.search(
+        r"\b(?:fundament\w*|legislacao|legal|juridic\w*|leis?|norma\w*|"
+        r"regulament\w*|tcu|tce|acordao|jurisprudencia|exigencia|"
+        r"nossa base|base de conhecimento|padrao|institucional)\b", texto)
+    if not explicito:
+        if orientacao_local(contexto, pedido) is not None:
+            return "", "dispensada"
+        if contexto.valor_atual and re.match(
+                r"^(?:por favor[, ]+)?(?:melhore|reescreva|revise|corrija)\b", texto):
+            return "", "dispensada"
+        if not re.search(r"\b(?:srp|sistema de registro de precos)\b", texto):
+            return "", "dispensada"
+
+    # Não usar extração de fatos aqui: rascunho serve apenas à busca.
+    vocabulario = " ".join(
+        termos for _rotulo, termos, _gatilho in rag.TEMAS_JURIDICOS.values())
+    vocabulario += (
+        " fundamento fundamentacao legal legislacao norma clausula srp tcu tce "
+        "recomendado adequado utilizar adocao duracao prorrogacao validade "
+        "padrao institucional base exigencia art artigo"
+    )
+    permitidas = set(re.findall(r"[a-z]{3,}", _sem_acento(vocabulario)))
+    ignoradas = {
+        "para", "pela", "pelo", "com", "sem", "sobre", "que", "dos", "das",
+        "uma", "esse", "essa", "esta", "este", "desta", "deste", "nossa",
+    }
+
+    def termos(texto_fonte: str, vocab: set[str], limite: int) -> list[str]:
+        saida: list[str] = []
+        for palavra in re.findall(r"[a-z]{3,}", _sem_acento(texto_fonte)):
+            if palavra not in vocab and palavra.endswith("s") and palavra[:-1] in vocab:
+                palavra = palavra[:-1]
+            if palavra in vocab and palavra not in ignoradas and palavra not in saida:
+                saida.append(palavra)
+            if len(saida) >= limite:
+                break
+        return saida
+
+    pergunta = termos(pedido, permitidas, 16)
+    genericas = {"fundamento", "fundamentacao", "legal", "legislacao", "norma",
+                 "clausula", "base", "padrao", "institucional", "exigencia"}
+    assunto = set(pergunta) - genericas
+    artigos = re.findall(r"\bart(?:igo)?\.?\s*(\d{1,3})\b", texto)
+    for ref in contexto.referencias_rag:
+        trecho = _sem_acento(str(ref.get("trecho") or ""))
+        presentes = set(re.findall(r"[a-z]{3,}", trecho))
+        if ref.get("source_id") and len(assunto) >= 2 and assunto <= presentes \
+                and all(re.search(rf"\bart(?:igo)?\.?\s*{n}\b", trecho) for n in artigos):
+            return "", "suficiente"
+
+    objeto_vocab = set(re.findall(r"[a-z]{3,}", " ".join(
+        termo for categoria in fatos.CATEGORIAS_OBJETO.values() for termo in categoria)))
+    objeto_vocab.update(("aquisicao", "material", "materiais", "servico", "cadeira",
+                         "mobiliario", "expediente", "equipamento"))
+    resumo_objeto = termos(objeto, objeto_vocab, 8)
+    # Bloco em foco contribui apenas com termos jurídicos, nunca prosa inteira.
+    topico = termos(str(contexto.valor_atual or ""), permitidas, 8)
+    partes = [" ".join(pergunta), " ".join(f"art {n}" for n in artigos[:3]),
+              " ".join(resumo_objeto), contexto.documento or "formulario",
+              contexto.campo_em_foco or contexto.bloco_em_foco or "",
+              " ".join(topico)]
+    return " | ".join(p for p in partes if p)[:500], "necessaria"
+
+
+def _validar_resposta_fundamentada(
+    intent: GovBotIntent, contexto: GovBotContext, pedido: str,
+) -> None:
+    if contexto.recuperacao_rag not in ("recuperado", "suficiente"):
+        return
+    valores = [
+        str(ref["trecho"]) for ref in contexto.referencias_rag
+        if ref.get("source_id") in intent.sources and ref.get("trecho")
+    ]
+    if not valores:
+        raise ErroRespostaModelo("resposta sobre a base exige fonte recuperada citada")
+    # Citar uma fonte real não libera números/artigos/prazos estranhos a ela.
+    validar_valores_materiais(
+        intent.response, pedido=pedido, fatos=contexto.fatos_relevantes,
+        valores_fontes=valores)
 
 
 def orientacao_local(
@@ -1387,7 +1553,14 @@ def consultar_ia(
     modelo: str = "",
 ) -> GovBotIntent:
     """Consulta o motor existente; JSON inválido recebe uma correção só."""
-    local = orientacao_local(contexto, pedido)
+    if contexto.recuperacao_rag in ("falha", "sem_referencias"):
+        return GovBotIntent(
+            "explain_current",
+            "Não foi possível obter uma referência válida da Base de Conhecimento "
+            "para esta pergunta. Não vou afirmar um fundamento nem executar "
+            "alterações sem essa evidência. A orientação local e o desfazer continuam disponíveis.")
+    local = (orientacao_local(contexto, pedido)
+             if not contexto.recuperacao_rag else None)
     if local is not None:
         return local
     if chamar is None:
@@ -1413,7 +1586,8 @@ def consultar_ia(
             intent = parsear_resposta_modelo(
                 primeira, alvos_permitidos=alvos,
                 fontes_permitidas=fontes)
-        except ErroRespostaModelo as erro:
+            _validar_resposta_fundamentada(intent, contexto, pedido)
+        except (ErroRespostaModelo, ErroValorMaterial) as erro:
             correcao = (
                 user + "\n\nSua resposta anterior foi rejeitada pelo "
                 f"validador ({erro}). Corrija o formato uma única vez e "
@@ -1423,6 +1597,7 @@ def consultar_ia(
             intent = parsear_resposta_modelo(
                 segunda, alvos_permitidos=alvos,
                 fontes_permitidas=fontes)
+            _validar_resposta_fundamentada(intent, contexto, pedido)
         _log.info(
             "govbot finalidade=resposta duracao_ms=%d modelo=%s acao=%s alvo=%s resultado=ok",
             int((time.monotonic() - inicio) * 1000), rotulo_modelo, intent.action,

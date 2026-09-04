@@ -3,12 +3,103 @@
 from __future__ import annotations
 
 import ast
+import copy
 from pathlib import Path
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
 from src import govbot
 from src.ui import govbot_panel
+
+
+_DRAFT_MULTIPLO = {
+    "orgao": "Prefeitura Municipal de Paragominas",
+    "responsavel": "Secretaria Municipal de Administração",
+    "objeto": "Aquisição de materiais de expediente",
+}
+
+
+@pytest.mark.parametrize("foco", [None, "orgao", "responsavel", "objeto"])
+def test_contexto_considera_todos_os_rascunhos_sem_promover_a_dados(
+    monkeypatch, foco,
+):
+    sessao = _sessao(dados={})
+    bucket = govbot.obter_bucket(sessao)
+
+    def proibido(*_args, **_kwargs):
+        pytest.fail("leitura de draft tentou salvar ou invalidar")
+
+    monkeypatch.setattr(govbot_panel.state, "autosalvar", proibido)
+    monkeypatch.setattr(govbot_panel.state, "invalidar_a_partir_de", proibido)
+    antes = copy.deepcopy(sessao["dados"])
+    evento = {
+        "request_id": "contexto-rascunhos-001", "event_type": "message",
+        "text": "O que está faltando?", "focus": foco,
+        "proposal_id": None, "draft": _DRAFT_MULTIPLO,
+    }
+    assert govbot_panel._processar_evento(sessao, bucket, evento) is False
+    contexto = govbot_panel._montar_contexto(sessao, foco)
+    assert not set(_DRAFT_MULTIPLO) & set(contexto.pendencias_obrigatorias)
+    assert "justificativa" in contexto.pendencias_obrigatorias
+    assert contexto.dados_relevantes == _DRAFT_MULTIPLO
+    assert set(contexto.campos_em_rascunho) == set(_DRAFT_MULTIPLO)
+    assert contexto.fatos_relevantes == ()
+    assert contexto.decisoes_conhecimento == ()
+    assert govbot.fontes_validadas_do_contexto(contexto) == ()
+    for campo in _DRAFT_MULTIPLO:
+        assert campo not in bucket["messages"][-1]["text"]
+    assert sessao["dados"] == antes
+    assert bucket["changes"] == []
+
+
+@pytest.mark.parametrize("draft,ausente", [({}, False), ({"orgao": ""}, True)])
+def test_draft_vazio_e_campo_apagado_tem_semanticas_distintas(draft, ausente):
+    sessao = _sessao(dados={"orgao": "Órgão canônico"})
+    govbot.obter_bucket(sessao)
+    govbot.guardar_rascunho(sessao, draft)
+    contexto = govbot_panel._montar_contexto(sessao, "objeto")
+    assert ("orgao" in contexto.pendencias_obrigatorias) is ausente
+    assert sessao["dados"] == {"orgao": "Órgão canônico"}
+
+
+def test_rascunhos_multiplos_sobrevivem_rerun_e_submit_posterior(monkeypatch):
+    sessao = _sessao(dados={})
+    bucket = govbot.obter_bucket(sessao)
+    govbot.guardar_rascunho(sessao, _DRAFT_MULTIPLO)
+    monkeypatch.setattr(govbot_panel, "_sessao", lambda: sessao)
+    monkeypatch.setattr(govbot, "ativo", lambda: True)
+    for _ in range(2):
+        govbot_panel.preparar_sessao()
+        contexto = govbot_panel._montar_contexto(sessao, "objeto")
+        assert contexto.dados_relevantes == _DRAFT_MULTIPLO
+        assert sessao["dados"] == {}
+    # Somente o submit explícito escreve os valores canônicos.
+    sessao["dados"] = {**_DRAFT_MULTIPLO, "orgao": "Órgão submetido mais novo"}
+    govbot_panel.confirmar_formulario()
+    govbot_panel.preparar_sessao()
+    contexto = govbot_panel._montar_contexto(sessao, "orgao")
+    assert contexto.valor_atual == "Órgão submetido mais novo"
+    assert contexto.campos_em_rascunho == ()
+    assert bucket["form_draft"] == {}
+
+
+def test_rascunhos_multiplos_isolados_por_processo_e_identidade(monkeypatch):
+    sessao = _sessao(dados={}, processo_id="processo-a", usuario={"id": "a"})
+    monkeypatch.setattr(govbot_panel, "_sessao", lambda: sessao)
+    monkeypatch.setattr(govbot, "ativo", lambda: True)
+    govbot_panel.preparar_sessao()
+    govbot.guardar_rascunho(sessao, _DRAFT_MULTIPLO)
+    sessao["processo_id"] = "processo-b"
+    govbot_panel.preparar_sessao()
+    assert "orgao" in govbot_panel._montar_contexto(sessao, None).pendencias_obrigatorias
+    sessao["processo_id"] = "processo-a"
+    govbot_panel.preparar_sessao()
+    assert govbot_panel._montar_contexto(sessao, None).dados_relevantes == _DRAFT_MULTIPLO
+    sessao["usuario"] = {"id": "b"}
+    govbot_panel.preparar_sessao()
+    assert govbot_panel._montar_contexto(sessao, None).campos_em_rascunho == ()
+    assert sessao["dados"] == {}
 
 
 def _sessao(**mudancas):
