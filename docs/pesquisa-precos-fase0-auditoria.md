@@ -472,3 +472,86 @@ trazem o preço**. O mesmo dado serve para resolver e para cotar.
 
 **M-1 encerrado.** Não há mais decisão arquitetural pendente para iniciar
 a implementação.
+
+---
+
+# FASE 1 — domínio, normalização e adapters (entregue)
+
+Escopo do prompt: modelos, normalização, Compras.gov, PNCP, fixtures,
+testes. **Sem** matching ranqueado, estatística, persistência, UI ou
+integração com o processo — cada uma tem fase própria.
+
+## O que foi criado
+
+```
+src/precos/
+  modelo.py       Referencia, Fonte, StatusReferencia, Decimal, hash do bruto
+  unidades.py     dicionário determinístico + regra que RECUSA converter
+  fontes.py       Consulta, ResultadoBusca, FontePesquisaPreco
+  compras_gov.py  adapter com os DOIS caminhos (com e sem código)
+  pncp.py         adapter de comprovação + link oficial
+tests/test_precos_fase1.py          58 provas
+tests/fixtures/precos/*.json        payloads REAIS recortados
+```
+
+## As quatro garantias que a Fase 1 já entrega
+
+1. **unidade só converte com prova.** `capacidadeUnidadeFornecimento`
+   vem `0.0` quando a fonte não informa; tratar esse zero como fator 1
+   transformaria "R$ 18,00 a caixa" em "R$ 18,00 a unidade". A referência
+   não é convertida **nem descartada** — chega ao revisor na unidade
+   original, com o motivo escrito;
+2. **CATMAT aceito, nunca exigido** — virou teste: com código o adapter
+   usa `1_consultarMaterial`; sem código ele **não chama** o endpoint que
+   o exige e vai pelo caminho de contratações;
+3. **preço é `Decimal`**, o payload bruto é preservado ao lado do
+   normalizado, e "não informado" é `None`, nunca zero;
+4. **falha de fonte vira ocorrência**, não exceção na tela: timeout e
+   resposta não-JSON (que a API devolve em erro de validação) são
+   retentados com recuo e registrados.
+
+## Ensaio contra a API oficial
+
+Executado de verdade, não simulado:
+
+| | resultado |
+|---|---|
+| healthcheck Compras.gov / PNCP | ambos OK |
+| busca **sem** código ("CADEIRA ESCRITORIO GIRATORIA") | 2 referências, CATMAT 373771 resolvido pela própria fonte, preços normalizados |
+| busca **com** código (CATMAT 236168) | 30 referências: R$ 1.240,67 / R$ 1.980,00 / R$ 4.334,31, com órgão, UF, data e marca |
+| link oficial de evidência | `00444232000139-1-000437/2025` → `https://pncp.gov.br/app/editais/00444232000139/2025/437` |
+
+A dispersão do CATMAT 236168 (1.240 a 4.334 para o mesmo item) é o
+material que a Fase 2 terá de tratar — e mostra por que "os três menores
+preços" seria uma cesta falsa.
+
+> Registro de um susto útil: no primeiro ensaio o caminho com código
+> devolveu **zero**. Não era defeito — a janela de datas que passei
+> (01–07/08) excluía o dado real, que é de 24/07. Verifiquei antes de
+> concluir; a prova de contrato hoje roda sem janela, com o motivo
+> comentado, para que ninguém leia esse zero como adapter quebrado.
+
+## Testes
+
+58 provas no arquivo novo: **55 rodam sem rede** (fixtures reais
+injetados) e **3 são de contrato** contra a API oficial, atrás de
+`GOVDOCS_ENSAIO_APIS_PRECOS=1` — a suíte inteira não depende da internet
+(§48). Com a flag ligada, as 58 passam.
+
+Suíte completa do projeto: **1429 passaram, 0 falharam, 158 pularam**
+(155 de sempre + as 3 de contrato). `git diff --check` limpo.
+
+## O que a Fase 1 NÃO faz — e é proposital
+
+- não ranqueia candidatos (Fase 2);
+- não calcula média/mediana/cesta (Fase 2);
+- não persiste nada (Fase 3);
+- não tem tela (Fase 4);
+- não toca no processo (Fase 5);
+- **não chama IA** — o filtro por descrição é determinístico (tokens
+  significativos, ruído de catálogo descartado). O refinamento semântico
+  é da Fase 7 e depende de credencial.
+
+## Veredito da Fase 1
+
+`APTO PARA AUDITORIA`
