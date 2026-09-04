@@ -662,3 +662,280 @@ Duas coisas que o revisor precisa ver aqui:
 ## Veredito da Fase 2
 
 `APTO PARA AUDITORIA`
+
+---
+
+# FASE 3 — persistência: schema, migration, RLS, repositório, versionamento (entregue)
+
+Branch `feature/pesquisa-precos`. **Nenhuma migração foi aplicada em
+produção.** A 0021 nasce com a extensão `.NAO_APLICAR`, e a razão é
+técnica antes de ser cautelar: ela *chama* as funções de contexto da
+0020 nas suas políticas. Sem a 0020 aplicada, as políticas não podem
+sequer ser criadas — e, se pudessem, as tabelas novas nasceriam no mundo
+pré-0019, onde `anon` ainda tem grant amplo. Seria criar exposição nova
+para hospedar preço de contratação.
+
+Ordem do runbook: **0018 → 0019 → 0020 → 0021**.
+
+## O que foi criado
+
+| arquivo | o que faz |
+|---|---|
+| `src/precos/estados.py` | máquina de estados formal da pesquisa (9) e do item (7), com transições declaradas uma a uma |
+| `supabase/migrations/0021_pesquisa_precos.sql.NAO_APLICAR` | 4 tabelas, RLS na primeira linha, 11 políticas, 4 gatilhos, 1 RPC de revisão, flag desligada |
+| `src/precos/repositorio.py` | persistência pelo JWT do usuário, com idempotência e versionamento |
+| `tests/test_precos_fase3.py` | 42 provas de lógica (sem banco) |
+| `tests/test_precos_fase3_rls.py` | 44 provas de isolamento **executadas** contra PostgreSQL |
+
+## Por que quatro tabelas, e não menos
+
+O §41 manda auditar o schema antes de criar e proíbe tabela criada só
+porque o nome apareceu no enunciado. As 28 tabelas existentes foram
+examinadas:
+
+- **`processos.dados` é jsonb.** 210 itens × ~30 referências ≈ 6.300
+  linhas; dentro de um jsonb elas não são filtráveis nem indexáveis por
+  fonte/data, e uma exclusão manual vira reescrita do documento inteiro,
+  sem trilha do que mudou;
+- **`geracoes`** é registro técnico de geração de documento (motor,
+  tokens, duração). Não tem onde pôr preço, fonte nem score;
+- **`governanca_eventos`** foi seriamente considerada como trilha, e a
+  Fase 0 chegou a sugeri-la. **Não serve**, por um motivo verificável e
+  não por preferência: a escrita passa por
+  `registrar_evento_governanca`, que autoriza pela matriz
+  `eventos_permitidos_ao_papel(papel_governanca)`. Um servidor comum tem
+  `papel_governanca` NULO e recebe `array[]::text[]` — nenhum evento.
+  Ou seja: **o servidor que exclui uma referência da cesta não
+  conseguiria registrar que excluiu.** Trilha que recusa o ato que
+  precisa registrar não é trilha. Isso está provado em
+  `test_servidor_comum_registra_o_proprio_ato`.
+
+## O que o ensaio mediu — e o que ele mudou no desenho
+
+O ensaio SQL local não foi conferência de fim de tarefa: ele **mudou
+duas decisões** antes de o código ficar pronto.
+
+### 1. `service_role` não tem grant nenhum
+
+Consultado o catálogo depois de 0018→0020, as tabelas existentes
+(`processos`, `geracoes`) concedem só a `authenticated`. As novas
+seguem a mesma regra. A consequência é direta e não era óbvia: **o
+repositório não pode usar `db._cliente()`**, a credencial de servidor.
+Ele usa `db.cliente_do_usuario()` e, sem sessão do Supabase Auth,
+**recusa** com `SemSessao` em vez de cair para o servidor.
+
+Cair seria transformar a matriz de políticas em decoração: a credencial
+de servidor atravessa o RLS por definição, e política que nunca é
+avaliada não protege — apenas *parece* proteger, que é pior. É a mesma
+regra que a Etapa E fixou para o resto do app, e há um teste que falha
+se alguém tentar (`_proibido` no lugar de `db._cliente`).
+
+### 2. O predicado de leitura precisou divergir do de processo
+
+A 0020 tem `pode_ler_processo(tenant, secretaria)` e argumenta — com
+razão — que repetir o predicado abre espaço para divergirem. Aqui ele
+**não** foi reusado tal e qual, e a divergência está escrita na migração
+para ser contestada:
+
+`pode_ler_processo` exige, para o não-admin, que a secretaria da linha
+seja a do JWT. Aplicado a esta tabela, isso trancaria o autor para fora
+da própria pesquisa em dois casos reais:
+
+1. **pesquisa autônoma** (§17-B), que nasce sem processo e pode nascer
+   sem secretaria;
+2. **servidor sem vínculo de secretaria** — `usuarios.secretaria_id` é
+   NULLABLE desde a 0007, e a própria 0020 registrou que o legado sem
+   secretaria fica invisível.
+
+Numa tabela que existe desde hoje dá para evitar o problema em vez de
+herdá-lo: `pode_ler_pesquisa_preco(tenant, secretaria, dono)` soma o
+**dono**. O resultado é mais estreito, não mais largo, do que "todo
+autenticado do tenant": lê quem é admin do município, quem é da mesma
+secretaria, ou quem fez a pesquisa. Provado em
+`test_pesquisa_autonoma_e_legivel_pelo_dono_sem_secretaria`.
+
+## As fronteiras, medidas
+
+44 provas rodam contra um PostgreSQL descartável com o schema REAL e as
+migrações 0018→0021 aplicadas. O JWT é injetado em
+`request.jwt.claims`, que é exatamente o que o PostgREST faz.
+
+| fronteira | resultado |
+|---|---|
+| `anon` sem grant nenhum (catálogo) | nenhuma linha de privilégio |
+| `anon` tentando ler (executado) | `42501` |
+| titular lê a própria pesquisa | 1 |
+| colega da mesma secretaria lê | 1 |
+| **outra secretaria do mesmo município** | **0** |
+| **admin de outro município** | **0** |
+| admin do município lê o tenant inteiro | 1 |
+| colega tenta editar | 0 linhas afetadas, valor intacto |
+| tenant forjado no insert | `42501` |
+| pesquisa em nome de outro | `42501` |
+| vínculo a processo de outra secretaria | `42501` |
+| item/referência com tenant divergente do pai | `42501` |
+| evento com ator forjado | `42501` (gatilho) |
+| DELETE para papel do Supabase | não existe em nenhuma das 4 tabelas |
+
+Duas provas merecem destaque porque medem o que política de RLS **não**
+alcança:
+
+**A trilha é append-only até para quem atravessa o RLS.** Grants e
+políticas param `authenticated`; quem opera hoje é a credencial de
+servidor, que ignora RLS por definição. Um gatilho recusa `UPDATE` e
+`DELETE` em `pesquisa_preco_eventos` mesmo para a conexão de
+superusuário. É o que separa "append-only" de "append-only de mentira".
+
+**Pesquisa inexistente e pesquisa alheia respondem igual.** Mensagens
+diferentes fariam da RPC de revisão uma sonda: bastaria comparar a
+resposta para descobrir quais pesquisas existem nas outras pastas.
+
+## Idempotência (§43) — a garantia é do banco
+
+Reexecutar não duplica **referências, eventos, pesquisas nem revisões**,
+e a garantia está em índices únicos, não em Python:
+
+- `(item_id, fonte_id, id_externo)` — pesquisar o mesmo item de novo não
+  dobra a amostra e, com ela, a estatística;
+- `(pesquisa_id, idempotency_key)` **parcial** — a chave vazia é o caso
+  normal e não colide com nada;
+- `(tenant_id, idempotency_key)` **parcial** — idempotência é por
+  município, nunca global;
+- `(coalesce(raiz_id, id), versao)` — duas revisões simultâneas disputam
+  o número; quem perde leva `23505`, e a corrida termina numa recusa em
+  vez de duas revisões com o mesmo número.
+
+O repositório apenas os usa direito: `upsert` com `on_conflict` onde
+repetir é normal, e releitura da linha existente onde a chave já foi
+gasta. Idempotência implementada só em Python seria idempotência até a
+primeira corrida entre duas abas — e há um teste que simula exatamente
+essa janela.
+
+Na segunda coleta, o `upsert` **reclassifica** (status, score, valor
+normalizado) e **preserva a evidência** (`bruto`, `raw_hash`,
+`coletado_em`). A fonte pode ser reinterpretada; o que ela devolveu na
+primeira coleta, não.
+
+## Versionamento (§44) — cópia dentro do banco
+
+Alterar cesta, metodologia, filtros, preço estimado ou perfil normativo
+cria revisão nova. A lista vive em `CAMPOS_QUE_VERSIONAM`, e
+`atualizar_pesquisa` **recusa** esses campos apontando o caminho certo:
+corrigir a grafia do nome não é revisão; trocar o método é, porque muda
+o valor que vai para o processo.
+
+A revisão é cópia **completa** — cabeçalho, itens e referências. Meia
+cópia não serviria: se as referências ficassem só na revisão antiga, a
+cesta anterior sumiria assim que alguém mudasse um status, que é
+exatamente o histórico que o §44 manda preservar.
+
+A cópia é uma **RPC**, `revisar_pesquisa_preco`, e não um laço no
+aplicativo. Trazer ~6.300 referências pelo PostgREST e reescrevê-las
+seria lento e, pior, **não atômico**: uma queda no meio deixaria uma
+revisão pela metade. São três `insert … select` numa transação só.
+
+É `SECURITY DEFINER` pelo mesmo motivo do `registrar_evento_governanca`
+da 0020: a política de INSERT exige `auth_user_id = auth.uid()`, e a
+revisão precisa **preservar o autor original** — senão revisar a
+pesquisa de um colega a transferiria para o nome de quem revisou e, numa
+pesquisa autônoma, trancaria o autor para fora do próprio trabalho.
+Definer sem checagem seria um buraco; a autorização é a primeira coisa
+que a função faz, com o mesmo predicado das políticas. Quem lê mas não
+escreve (o colega da mesma secretaria) é recusado — provado.
+
+## Os dois defeitos que esta fase pegou
+
+### 1. O motor concluía o item sem passar pela revisão
+
+`test_o_preco_e_o_estado_vao_na_mesma_escrita` falhou com
+`item: 'matching' não vai para 'complete'`. A máquina de estados estava
+certa e o **repositório estava errado**: `concluir_item` levava o item
+do cálculo direto a concluído, pulando a revisão humana.
+
+Isso contraria a jornada do próprio prompt (§20, e o fluxo
+`MOTOR DETERMINÍSTICO → REVISÃO → RELATÓRIO`) e produziria pesquisa
+"concluída" que ninguém leu. A função foi partida em duas:
+
+- `registrar_estimativa` — o motor grava preço, método, memória de
+  cálculo e leva o item a **REVISÃO** (ou a INCOMPLETO, quando a cesta
+  não fecha a regra dos três);
+- `confirmar_item` — o ato humano, REVISÃO → COMPLETO.
+
+Quem decide entre revisão e incompleto é a `Estimativa`, não quem chama:
+deixar o chamador escolher permitiria apresentar para aprovação um item
+sem preço nenhum.
+
+### 2. O gatilho do ator recusaria todo evento automático
+
+Encontrado na releitura da migração, não pelos testes — e por isso a
+prova foi escrita depois, junto com a correção.
+
+O gatilho conferia `new.ator is distinct from auth.uid()`. Em SQL,
+`NULL is distinct from <uuid>` é **verdadeiro**. O motor roda dentro da
+sessão do usuário e não assina nada, então todo evento automático
+(`busca_iniciada`, `busca_concluida`) chegaria com `ator` nulo e levaria
+`42501` — a busca quebraria exatamente ao registrar que terminou.
+
+Medido antes e depois, num banco descartável, com as duas versões da
+função:
+
+```
+gatilho NOVO:   ACEITO, ator=6ea5b9f6-660f-460d-ae85-a188dd2861a3
+gatilho ANTIGO: RECUSADO 42501 ator do evento não confere com o
+                usuário autenticado
+```
+
+Aceitar o nulo também não serviria: trilha sem ator não diz quem estava
+operando, e "alterações humanas" é item do §34. O gatilho passou a
+**carimbar** quando o ator vem vazio e a **recusar** só quando vem
+outro. Quem dispara a busca responde por ela; `automatico` registra que
+a decisão foi do motor, não que não havia ninguém.
+
+## O que a Fase 3 NÃO faz — e é proposital
+
+- **não ativa nada.** `flag_pesquisa_precos` entra como `off`, e o
+  `on conflict do nothing` garante que reaplicar a migração jamais
+  reative uma flag que alguém desligou de propósito;
+- **não tem UI** — é a Fase 4;
+- **não aplica preço a processo** — é a Fase 5;
+- **não resolve a dependência da 0020.** O isolamento deste módulo está
+  provado; o da plataforma continua sendo um débito que não é dele.
+
+## Visibilidade em CI — a mesma armadilha, fechada de novo
+
+Antes desta fase, as provas de autorização **pulavam em toda PR**: a CI
+não subia PostgreSQL. Uma saída cheia de `s` é indistinguível de uma
+cheia de `.` para quem lê rápido — foi assim que os 210 códigos saíram
+partidos no PDF sem ninguém ver, e foi por isso que a Fase 2.1 criou
+`GOVDOCS_EXIGIR_LIBREOFFICE`.
+
+A CI passou a subir `postgres:16` como serviço e a declarar
+`GOVDOCS_EXIGIR_ENSAIO_SQL=1`: ali a ausência do banco de ensaio é
+**falha de ambiente, não skip**. As 94 provas de autorização (50 da
+0020 + 44 da 0021) passam a rodar em toda PR. O portão foi exercitado
+nos três estados: sem DSN e desligado → pula; sem DSN e ligado → falha;
+com DSN → 94 passam.
+
+O vocabulário do veredito (`PERMITIDO`/`NEGADO`/`INCONCLUSIVO` e o
+classificador por `sqlstate`) saiu de dentro do arquivo de teste e foi
+para `scripts/ensaio_local.py`: com dois arquivos de prova usando o
+mesmo classificador, duas cópias de um veredito de segurança são
+exatamente o tipo de coisa que diverge sem ninguém notar.
+
+## Testes
+
+86 provas novas — 42 de lógica e 44 de isolamento executado. Suíte
+completa do projeto, com os dois portões ligados:
+**1613 passaram, 0 falharam, 108 pularam**. Conferido com `-rs`: as 108
+que pulam são, todas, de `test_seguranca_contencao.py`, que exige um
+projeto Supabase REMOTO descartável — e pulam de propósito.
+`git diff --check` limpo.
+
+## Veredito da Fase 3
+
+`APTO PARA AUDITORIA`
+
+Com a ressalva registrada desde a Fase 0, que continua sendo o limite
+real: o módulo **não deve ser ativado em produção** enquanto a 0020 não
+estiver aplicada. O isolamento das tabelas de pesquisa de preços está
+provado; o da plataforma, não.

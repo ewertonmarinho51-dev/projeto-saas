@@ -61,6 +61,12 @@ SEQUENCIA_EM_ENSAIO = (
     "0018_rls_config_app_e_processos.sql.NAO_APLICAR",
     "0019_emergencial_fecha_anon.sql.NAO_APLICAR",
     "0020_definitiva_supabase_auth_rls.sql.NAO_APLICAR",
+    # A 0021 entra na sequência, e não entre as migrações de schema,
+    # porque DEPENDE da 0020: suas políticas chamam `tenant_do_jwt`,
+    # `secretaria_do_jwt` e `e_admin`. Aplicada antes, nem seria
+    # criada — e, se fosse, as tabelas de pesquisa de preços nasceriam
+    # no mundo pré-0019, onde `anon` ainda tem grant amplo.
+    "0021_pesquisa_precos.sql.NAO_APLICAR",
 )
 
 
@@ -307,6 +313,35 @@ def voltar_a_ser_servidor(cursor) -> None:
 
 def novo_id() -> str:
     return str(uuid.uuid4())
+
+
+# ---------------------------------------------------------------------------
+# Vocabulário do veredito
+#
+# Três estados, os mesmos do ensaio remoto — e três, não dois, porque
+# "não consegui" não é "foi negado". Um erro de schema, de sintaxe ou
+# de tipo não mede autorização nenhuma; contá-lo como negação faz um
+# banco quebrado parecer um banco contido.
+#
+# Vivia duplicado em `tests/test_ensaio_sql_local.py`. Com a Fase 3 da
+# pesquisa de preços passaram a ser dois arquivos de prova usando o
+# mesmo classificador, e duas cópias de um veredito de segurança são
+# exatamente o tipo de coisa que diverge sem ninguém notar.
+# ---------------------------------------------------------------------------
+PERMITIDO = "PERMITIDO"
+NEGADO = "NEGADO"
+INCONCLUSIVO = "INCONCLUSIVO"
+
+# `42501` é insufficient_privilege: a negação inequívoca. `42P17`
+# (recursão de política) NÃO entra aqui — é defeito, não decisão.
+SQLSTATE_DE_NEGACAO = "42501"
+
+
+def classificar_sql(erro: Exception) -> str:
+    """NEGADO só com `42501`. Todo o resto é INCONCLUSIVO."""
+    if getattr(erro, "sqlstate", None) == SQLSTATE_DE_NEGACAO:
+        return NEGADO
+    return INCONCLUSIVO
 
 
 def main() -> int:

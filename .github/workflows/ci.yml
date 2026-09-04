@@ -11,6 +11,33 @@ on:
 jobs:
   testes:
     runs-on: ubuntu-latest
+
+    # PostgreSQL descartável para o ENSAIO SQL.
+    #
+    # As provas de autorização — a matriz da 0020 e o isolamento das
+    # tabelas de pesquisa de preços da 0021 — aplicam o schema real num
+    # cluster local e exercem as políticas com o JWT injetado em
+    # `request.jwt.claims`, que é o que o PostgREST faz. Sem o serviço
+    # aqui, 93 provas de segurança PULAM em toda PR, e uma regressão de
+    # RLS entraria sem ninguém ver.
+    #
+    # É um cluster efêmero do runner: as migrações `.NAO_APLICAR` são
+    # aplicadas nele e em lugar nenhum mais — `exigir_dsn_local` recusa
+    # DSN que não seja local, e recusa explicitamente qualquer DSN de
+    # Supabase.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -29,16 +56,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libreoffice-writer
 
+      # `psycopg` é dependência de TESTE, não do app: fica fora de
+      # requirements.txt para não embarcar um driver de Postgres no
+      # deploy do Streamlit, que fala com o Supabase por HTTP.
       - name: Instalar dependências
         run: |
           pip install -r requirements.txt
-          pip install pytest
+          pip install pytest "psycopg[binary]"
 
-      # GOVDOCS_EXIGIR_LIBREOFFICE=1: aqui a ausência do motor
-      # institucional é FALHA DE AMBIENTE, não skip. Instalar sem exigir
-      # deixaria a porta aberta para o silêncio voltar na primeira vez
-      # que a instalação falhasse.
+      # Os dois interruptores existem pela mesma razão: aqui a ausência
+      # de um requisito é FALHA DE AMBIENTE, não skip. Instalar e subir
+      # sem exigir deixaria a porta aberta para o silêncio voltar na
+      # primeira vez que a instalação ou o serviço falhasse — e um
+      # relatório cheio de "pulou" é indistinguível de um cheio de
+      # "passou" para quem lê rápido.
       - name: Rodar testes
         env:
           GOVDOCS_EXIGIR_LIBREOFFICE: "1"
+          GOVDOCS_EXIGIR_ENSAIO_SQL: "1"
+          GOVDOCS_ENSAIO_PG_DSN: >-
+            postgresql://postgres:postgres@localhost:5432/postgres
         run: python -m pytest -q

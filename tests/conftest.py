@@ -124,3 +124,62 @@ def exigir_motor_institucional() -> None:
 def motor_institucional():
     """Provas que exigem o PDF real pedem esta fixture."""
     exigir_motor_institucional()
+
+
+# ---------------------------------------------------------------------------
+# Ensaio SQL local (PostgreSQL descartável)
+#
+# Mesma armadilha, outro assunto. As provas de autorização — a matriz da
+# 0020 e, agora, o isolamento das tabelas de pesquisa de preços da 0021 —
+# só rodam com um PostgreSQL local. Sem ele PULAM, e uma saída cheia de
+# "s" é indistinguível de uma cheia de "." para quem lê rápido.
+#
+# Pular é aceitável na máquina de quem desenvolve, onde nem sempre há um
+# cluster à mão. Em CI/release não é: ali a ausência do banco de ensaio é
+# FALHA DE AMBIENTE, e o interruptor abaixo torna a diferença explícita —
+# do mesmo jeito que `GOVDOCS_EXIGIR_LIBREOFFICE` fez com o motor de PDF,
+# depois que um defeito grave ficou invisível porque a prova que o
+# pegaria nunca rodava.
+# ---------------------------------------------------------------------------
+VARIAVEL_ENSAIO_SQL = "GOVDOCS_ENSAIO_PG_DSN"
+VARIAVEL_ENSAIO_SQL_OBRIGATORIO = "GOVDOCS_EXIGIR_ENSAIO_SQL"
+
+
+def ensaio_sql_obrigatorio() -> bool:
+    """O ambiente declara que o ensaio SQL é requisito, não conveniência?"""
+    import os
+
+    valor = (os.environ.get(VARIAVEL_ENSAIO_SQL_OBRIGATORIO) or "")
+    return valor.strip().lower() not in ("", "0", "false", "nao", "não", "off")
+
+
+def exigir_ensaio_sql() -> None:
+    """
+    Falha (CI/release) ou pula (local) quando não há PostgreSQL de ensaio.
+
+    Nunca silencia: ou as provas de autorização rodam, ou o motivo
+    aparece nomeado na saída.
+    """
+    import os
+
+    if (os.environ.get(VARIAVEL_ENSAIO_SQL) or "").strip():
+        return
+    recado = (
+        f"{VARIAVEL_ENSAIO_SQL} não está definida: não há PostgreSQL local "
+        "descartável para aplicar o schema e exercer as políticas de RLS. "
+        "As provas de autorização não podem ser executadas "
+        "(ver scripts/ensaio_local.py)."
+    )
+    if ensaio_sql_obrigatorio():
+        pytest.fail(
+            f"{recado} Este ambiente declarou "
+            f"{VARIAVEL_ENSAIO_SQL_OBRIGATORIO}=1: aqui a ausência do banco "
+            "de ensaio é falha, não skip."
+        )
+    pytest.skip(recado)
+
+
+@pytest.fixture
+def ensaio_sql():
+    """Provas que exigem o banco de ensaio pedem esta fixture."""
+    exigir_ensaio_sql()

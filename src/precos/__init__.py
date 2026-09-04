@@ -1,9 +1,10 @@
 """
 Pesquisa de preços — domínio e fontes oficiais.
 
-Fase 1 do módulo: modelo normalizado, normalização de unidade e adapters
-das fontes. Ainda NÃO há matching ranqueado, estatística, persistência,
-UI nem integração com o processo — cada uma tem fase própria.
+Fases 1 a 3 do módulo: modelo normalizado, normalização de unidade,
+adapters das fontes, matching explicável, estatística e persistência.
+Ainda NÃO há UI, integração com o processo, relatórios nem camada
+semântica — cada uma tem fase própria.
 
 O que este pacote garante desde já, e que é a razão de ele existir antes
 das outras fases:
@@ -18,6 +19,9 @@ das outras fases:
 """
 
 from .compras_gov import ComprasGovAdapter
+from .estados import (EstadoItem, EstadoPesquisa, TransicaoInvalida,
+                      estado_derivado, exige_nova_revisao, transitar_item,
+                      transitar_pesquisa)
 from .estatistica import (Anomalia, Cesta, Estatisticas, Estimativa, calcular,
                           detectar_anomalias, estimar, mediana,
                           selecionar_cesta)
@@ -39,7 +43,14 @@ __all__ = [
     "Estatisticas", "Estimativa", "Cesta", "Anomalia", "calcular", "mediana",
     "detectar_anomalias", "selecionar_cesta", "estimar",
     "PerfilNormativo", "LEI_14133", "IN_65_2021",
+    "EstadoPesquisa", "EstadoItem", "TransicaoInvalida", "transitar_pesquisa",
+    "transitar_item", "estado_derivado", "exige_nova_revisao",
 ]
+
+# `repositorio` NÃO é reexportado aqui de propósito: ele importa `src.db`,
+# que importa Streamlit. Como está, `import src.precos` carrega o domínio
+# puro — adapters, normalização, matching e estatística rodam sem app.
+# Quem precisa de persistência escreve `from src.precos import repositorio`.
 
 
 def fontes_padrao() -> list[FontePesquisaPreco]:

@@ -37,8 +37,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from ensaio_local import (  # noqa: E402
+    NEGADO,
+    PERMITIDO,
     EnsaioLocal,
     claims,
+    classificar_sql,
     como,
     criar_banco_descartavel,
     descartar_banco,
@@ -47,35 +50,18 @@ from ensaio_local import (  # noqa: E402
     voltar_a_ser_servidor,
 )
 
+from tests.conftest import exigir_ensaio_sql  # noqa: E402
+
 DSN = os.getenv("GOVDOCS_ENSAIO_PG_DSN", "")
 
-requer_pg = pytest.mark.skipif(
-    not DSN,
-    reason="ensaio SQL: defina GOVDOCS_ENSAIO_PG_DSN apontando para um "
-           "PostgreSQL LOCAL descartável (ver scripts/ensaio_local.py)")
+# `usefixtures`, e não `skipif`: com `GOVDOCS_EXIGIR_ENSAIO_SQL=1` a
+# ausência do banco de ensaio precisa FALHAR, e um `skipif` decidiria
+# antes que o portão pudesse opinar.
+requer_pg = pytest.mark.usefixtures("ensaio_sql")
 
-# Quatro estados, os mesmos do ensaio remoto.
-PERMITIDO = "PERMITIDO"
-NEGADO = "NEGADO"
-INCONCLUSIVO = "INCONCLUSIVO"
-
-# `42501` é insufficient_privilege: a negação inequívoca. `42P17` NÃO
-# entra aqui — recursão de política é defeito, não decisão.
-SQLSTATE_DE_NEGACAO = "42501"
-
-
-def classificar_sql(erro: Exception) -> str:
-    """
-    NEGADO só com `42501`. Todo o resto é INCONCLUSIVO.
-
-    Vocabulário idêntico ao do ensaio remoto, e pelo mesmo motivo: um
-    erro de schema ou de sintaxe não mede autorização nenhuma, e contá-
-    lo como negação faz um banco quebrado parecer um banco contido.
-    """
-    estado = getattr(erro, "sqlstate", None)
-    if estado == SQLSTATE_DE_NEGACAO:
-        return NEGADO
-    return INCONCLUSIVO
+# O vocabulário do veredito — PERMITIDO/NEGADO/INCONCLUSIVO e o
+# classificador — mora em `scripts/ensaio_local.py` desde que passou a
+# ser usado também pelas provas da pesquisa de preços. Uma cópia só.
 
 
 @pytest.fixture(scope="module")
@@ -86,8 +72,7 @@ def banco():
     Falha de preparação FALHA — não pula. Um schema pela metade mede
     outra coisa e produz verde sobre coisa nenhuma.
     """
-    if not DSN:
-        pytest.skip("ensaio SQL não configurado")
+    exigir_ensaio_sql()
     import psycopg
 
     exigir_dsn_local(DSN)
