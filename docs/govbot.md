@@ -18,8 +18,9 @@ vazio ou valor falso significa **OFF**. Com a flag desligada:
 - o fluxo histórico do wizard permanece ativo.
 
 Não há ativação automática nesta branch, nem alteração de configuração em
-produção. Após o plano inicial, o usuário autorizou abrir PR e fazer merge
-somente depois das validações. Isso não autoriza ativar o GovBot em produção.
+produção. O GovBot inicial foi integrado pelo PR #14. A etapa 1.1 parte da
+`main` em uma nova branch e deve parar para auditoria independente, sem merge
+e sem ativação. A autorização da entrega anterior não se estende à etapa 1.1.
 
 ## Bloqueio de produção
 
@@ -115,6 +116,58 @@ O adaptador envia ao núcleo/modelo somente o recorte necessário ao foco:
 - um único bloco atual de DFD, ETP ou TR, resolvido no servidor; e
 - fatos canônicos relacionados, decisão de conhecimento já calculada, achados
   da versão atual e referências do trace RAG pertinente.
+
+### GovBot 1.1 — rascunhos visíveis e busca pela pergunta
+
+O contexto agora sobrepõe **todos** os rascunhos escalares reconhecidos da tela
+à cópia temporária de `dados`. Uma chave presente com valor vazio significa
+campo apagado, não retorno ao valor canônico. As pendências são calculadas
+sobre essa visão. `campos_em_rascunho` identifica a procedência no prompt;
+campos fora do foco têm recorte de 1.000 caracteres. O valor em foco permanece
+integral para comparação e hash. A planilha continua fora da sobreposição.
+
+Essa visão não é repassada a fatos, decisões, invalidação ou autosave. A leitura
+não escreve em `dados`, não cria fatos canônicos e não muda os documentos.
+O submit explícito continua descartando o draft, e a reidratação preserva
+edições durante reruns, com os mesmos buckets por processo/identidade.
+
+Somente mensagens validadas, ainda não processadas, passam pelo planejamento
+local de RAG. Conversas sociais, orientação estática, melhorias de redação com
+texto local, visualização, aplicar e desfazer não fazem busca. Um trace com
+cobertura lexical específica da pergunta pode dispensar a recuperação; apenas
+coincidir com o tema não basta. Esta seleção conservadora não é uma prova
+semântica de suficiência e será avaliada com modelo/base reais na etapa 1.2.
+
+Quando necessário, o adaptador chama `rag.buscar_referencias(...,
+contextual=True)`: mesmos embeddings, RPCs, índice, contexto de tenant e piso de
+relevância existentes. O modo contextual usa `consulta_textual` no fallback;
+o padrão dos consumidores anteriores permanece igual. Há no máximo uma busca
+e uma chamada de embeddings por mensagem. Não há cliente paralelo nem esquema
+novo. A consulta, de até 500 caracteres, usa somente vocabulário controlado dos
+temas jurídicos e das categorias de objeto existentes, além de referências
+explícitas a artigos e identificadores internos de foco/documento. Nomes,
+contatos, credenciais, prosa arbitrária, histórico e linhas da planilha não
+são serializados nela. Esse filtro pode perder termos específicos do objeto;
+é uma limitação deliberada de minimização, a medir na etapa 1.2.
+
+As referências são normalizadas no servidor, deduplicadas por source ID ou
+documento/ordem e limitadas a seis recortes de até 1.000 caracteres. IDs vindos
+da recuperação são preservados se válidos; na ausência, derivam de chunk,
+documento/ordem ou hash determinístico. Título, categoria, score/similaridade,
+tema e dispositivos disponíveis são mantidos. A busca atual tem prioridade
+com espaço reservado ao trace anterior, que nunca é sobrescrito nem salvo.
+
+Falha ou ausência de referência válida produz resposta local, sem chamar o
+modelo e sem mutação. Quando há fonte, o JSON continua sujeito à allowlist de
+source IDs e à única tentativa de correção. A resposta fundamentada também
+passa pelo guard de valores materiais: citar uma fonte sobre vigência da ata
+não autoriza criar prazo de entrega, artigo ou decisão administrativa. A
+aplicação ainda revalida seus próprios guards, hashes e orçamento de patch.
+Logs da busca contêm apenas finalidade, duração, ação/alvo abstratos e resultado.
+
+Os testes de integração adicionais estão em `tests/test_govbot_rag_contextual.py`;
+eles usam dublês determinísticos e bloqueiam acessos a serviços reais. Isso
+não valida qualidade conversacional, recall ou latência de produção.
 
 O prompt inclui no máximo oito mensagens anteriores, com até 2.000 caracteres
 por mensagem, tratadas como dados não confiáveis, nunca como autorização ou
