@@ -291,21 +291,7 @@ XLSX pela via que `planilha.modelo_xlsx()` já usa.
 
 ## M. RISCOS
 
-**M-1 — resolução CATMAT sem busca textual (ALTO, decide arquitetura).**
-Medido: `descricaoItem` devolve 0 para qualquer texto livre. Sem
-CATMAT/CATSER não há chamada de preço. Alternativas:
-
-- **(a)** baixar o catálogo (344.781 itens) e indexar localmente,
-  reusando embeddings do `rag.py`. Resolve de verdade e casa com a
-  arquitetura; custa uma carga inicial e uma rotina de atualização;
-- **(b)** navegar por `codigoGrupo`/`codigoClasse`/`codigoPdm` com a IA
-  escolhendo o ramo. Sem carga, mas mais chamadas e menos preciso;
-- **(c)** exigir CATMAT informado pelo usuário na planilha. Barato, mas
-  joga o trabalho de volta para quem o módulo deveria poupar — contraria
-  o §68.
-
-Recomendo **(a)**, com **(c)** como preenchimento manual opcional.
-**Precisa da sua aprovação: muda o escopo da Fase 1.**
+**M-1 — resolução do código de catálogo — RESOLVIDO.** Ver adendo abaixo.
 
 **M-2 — sem credencial de IA (ALTO, bloqueia parte).** `llm.motor_ativo()`
 devolve `''`. A camada semântica (§8) não pode ser exercitada, exatamente
@@ -382,3 +368,107 @@ schema/migration) podem andar sem risco, porque não dependem do M-1.
 Não declaro `APTO PARA PRODUÇÃO` — e não declararei enquanto persistirem
 o M-2 (sem credencial, camada semântica não exercitada) e o M-4 (RLS não
 aplicada).
+
+---
+
+# ADENDO — decisão de produto sobre CATMAT/CATSER e o M-1
+
+**Decisão recebida:** o sistema **não pode exigir** CATMAT/CATSER, mas
+**deve aceitá-los e usá-los quando pertinentes**.
+
+A decisão está certa, e a investigação que ela motivou mudou o desenho —
+para melhor. Registro também uma correção do que eu havia concluído.
+
+## Correção do que eu disse antes
+
+Eu afirmei que "não existe o caminho descrição → CATMAT". Isso vale para
+o **endpoint de catálogo** (`4_consultarItemMaterial`), onde `descricaoItem`
+de fato devolve zero para texto livre — confirmado. Mas eu havia parado
+cedo demais: a conclusão de que o pipeline inteiro dependia de resolver o
+código **estava errada**.
+
+Varri os 77 endpoints. Nenhum oferece busca textual livre — mas
+`/modulo-contratacoes/2_consultarItensContratacoes_PNCP_14133` devolve,
+**na mesma chamada e sem exigir código algum**:
+
+```
+descricaoResumida  descricaodetalhada        ← descrição em texto livre
+codItemCatalogo  codigoPdm  codigoGrupo      ← o código, QUANDO existe
+unidadeMedida  quantidade
+valorUnitarioEstimado  valorUnitarioResultado ← preço homologado
+nomeFornecedor  codFornecedor
+situacaoCompraItemNome  temResultado
+criterioJulgamentoNome  numeroControlePNCPCompra
+```
+
+Obrigatórios: apenas a janela de datas (`dataInclusaoPncpInicial/Final`).
+Opcionais úteis: `codItemCatalogo`, `codigoClasse`, `codigoGrupo`,
+`materialOuServico`, `temResultado`.
+
+É exatamente a forma que a decisão pede: **filtra por código quando há
+código, funciona sem ele quando não há.**
+
+## Quanto disso é real — medido, não estimado
+
+Amostra de **500 itens** de contratações reais (01–07/08/2025):
+
+| campo | presença |
+|---|---|
+| descrição | **500/500 — 100%** |
+| unidade | 500/500 — 100% |
+| quantidade | 500/500 — 100% |
+| `codItemCatalogo` | 490/500 — 98,0% |
+| `codigoPdm` | 453/500 — 90,6% |
+| preço homologado | 450/500 — 90,0% |
+
+Ou seja: **o corpus federal é bem catalogado** (98% com CATMAT). O
+problema nunca esteve lá — está do lado do usuário. A planilha municipal
+do nosso caso de 210 itens traz **códigos internos do município**
+(`572704`, `763`…), não CATMAT. Exigir CATMAT significaria mandar o
+servidor mapear 210 itens à mão, que é precisamente o trabalho que o
+módulo existe para eliminar (§68).
+
+## A escada de resolução que implementa a decisão
+
+```
+1. CATMAT/CATSER informado pelo usuário
+   → caminho preferencial: 1_consultarMaterial (tipo=codigoItemCatalogo)
+   → série de preços mais precisa e mais barata em chamadas
+
+2. Não informado → o sistema tenta resolver SOZINHO
+   → casa a descrição do item contra descricaodetalhada de itens
+     REALMENTE CONTRATADOS (que já trazem o codItemCatalogo)
+   → confiança alta ⇒ segue para o caminho 1, marcando a proveniência
+     "código resolvido pelo sistema", nunca como se o usuário o tivesse
+     informado
+
+3. Resolução fraca, ambígua ou item fora do catálogo
+   → caminho SEM código: janela de data + classe/grupo quando inferível,
+     com filtragem por descrição sobre o próprio corpus contratado
+   → PNCP em paralelo, para enriquecimento e comprovação
+
+4. Nada resolve
+   → PESQUISA INCOMPLETA para aquele item, com o motivo nomeado
+   → caminhos manuais: informar o código, ajustar filtros, anexar cotação
+```
+
+O passo 2 tem um efeito colateral bom: o índice local **não precisa ser o
+catálogo inteiro de 344.781 itens**. Basta indexar itens efetivamente
+contratados — que são menos, mais relevantes, já vêm com código **e já
+trazem o preço**. O mesmo dado serve para resolver e para cotar.
+
+## Consequência para as fases
+
+- a Fase 1 deixa de depender de uma carga do catálogo completo;
+- o adapter primário passa a ser `2_consultarItensContratacoes_PNCP_14133`
+  (descrição + preço + código, sem exigência), com `1_consultarMaterial`
+  como refinamento quando há código;
+- o casamento por descrição do passo 2 tem uma camada **determinística**
+  (tokens, unidade, classe) que roda **sem credencial de IA** — o M-2
+  deixa de bloquear a Fase 1 e passa a limitar apenas o refinamento
+  semântico;
+- CATMAT/CATSER entram como **coluna opcional** na planilha, aproveitada
+  quando presente. Nada a exigir do usuário.
+
+**M-1 encerrado.** Não há mais decisão arquitetural pendente para iniciar
+a implementação.
