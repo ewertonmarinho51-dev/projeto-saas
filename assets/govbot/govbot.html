@@ -1,0 +1,97 @@
+<div class="govbot-root" data-open="false" data-state="IDLE">
+  <button
+    id="govbot-launcher"
+    class="govbot-launcher"
+    type="button"
+    aria-label="Abrir o GovBot"
+    aria-controls="govbot-panel"
+    aria-expanded="false"
+  >
+    <span class="govbot-launcher-face" aria-hidden="true">
+      <span></span><span></span>
+    </span>
+    <span class="govbot-launcher-label">GovBot</span>
+  </button>
+
+  <button
+    id="govbot-scrim"
+    class="govbot-scrim"
+    type="button"
+    aria-label="Fechar o GovBot"
+    tabindex="-1"
+  ></button>
+
+  <aside
+    id="govbot-panel"
+    class="govbot-panel"
+    role="complementary"
+    aria-label="Assistente GovBot"
+    aria-hidden="true"
+  >
+    <header class="govbot-header">
+      <div id="govbot-mascot-wrap" class="govbot-mascot-wrap">
+        <!-- GOVBOT_MASCOT -->
+      </div>
+      <div class="govbot-heading">
+        <p class="govbot-eyebrow">Assistente do processo</p>
+        <h2>GovBot</h2>
+        <p id="govbot-visible-status" class="govbot-visible-status">Pronto para ajudar</p>
+      </div>
+      <button id="govbot-close" class="govbot-icon-button" type="button" aria-label="Fechar o GovBot">
+        <span aria-hidden="true">×</span>
+      </button>
+    </header>
+
+    <div
+      id="govbot-state-announcer"
+      class="govbot-visually-hidden"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
+
+    <div
+      id="govbot-alert-announcer"
+      class="govbot-visually-hidden"
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+    ></div>
+
+    <div id="govbot-nudge" class="govbot-nudge" role="status" aria-live="polite" hidden></div>
+
+    <section class="govbot-conversation" aria-label="Conversa com o GovBot">
+      <div
+        id="govbot-messages"
+        class="govbot-messages"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"
+        tabindex="0"
+      ></div>
+      <div id="govbot-proposals" class="govbot-proposals" aria-label="Propostas do GovBot"></div>
+    </section>
+
+    <div class="govbot-actions">
+      <button id="govbot-undo" class="govbot-secondary-button" type="button" hidden>
+        Desfazer última alteração
+      </button>
+    </div>
+
+    <form id="govbot-form" class="govbot-composer">
+      <label for="govbot-input" class="govbot-visually-hidden">Mensagem para o GovBot</label>
+      <textarea
+        id="govbot-input"
+        name="govbot-input"
+        rows="2"
+        maxlength="8000"
+        placeholder="Pergunte ou peça uma melhoria…"
+        aria-describedby="govbot-input-help"
+      ></textarea>
+      <button id="govbot-send" class="govbot-send-button" type="submit">Enviar</button>
+      <p id="govbot-input-help" class="govbot-input-help">
+        Enter envia · Shift+Enter cria uma linha · Alt+G abre o chat
+      </p>
+    </form>
+  </aside>
+</div>

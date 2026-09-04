@@ -94,6 +94,16 @@ if pagina == "Governança" and governanca_ui.disponivel():
     governanca_ui.render_governanca()
     st.stop()
 
+# O adaptador do componente é importado somente com a flag ativa. Além de
+# manter a regressão exatamente sem painel, isso evita registrar Components v2
+# ou criar buckets de conversa em ambientes onde o GovBot está desligado.
+govbot_panel = None
+if db.flag_ativa("govbot"):
+    from src.ui import govbot_panel as _govbot_panel
+
+    govbot_panel = _govbot_panel
+    govbot_panel.preparar_sessao()
+
 # ---------------------------------------------------------------------------
 # Roteamento do wizard
 # ---------------------------------------------------------------------------
@@ -121,3 +131,6 @@ else:
         state.ir_para(0 if not st.session_state.dados else len(st.session_state.aprovados) + 1)
     else:
         steps.render_sucesso()
+
+if govbot_panel is not None:
+    govbot_panel.render()

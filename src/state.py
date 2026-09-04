@@ -70,6 +70,7 @@ def autosalvar() -> None:
 
 def carregar_processo_salvo(proc: dict) -> None:
     """Restaura um processo salvo no Supabase para a sessão atual."""
+    _limpar_widgets_formulario()
     st.session_state.processo_id = proc["id"]
     st.session_state.dados = proc.get("dados") or {}
     st.session_state.documentos = proc.get("documentos") or {}
@@ -241,16 +242,37 @@ _CHAVES_DO_PROCESSO = (
 )
 _PREFIXOS_DO_PROCESSO = (
     "_familia_escolha_",    # escolha de família de modelo por documento
+    "govbot_campo_",        # widgets estáveis do formulário com GovBot ativo
+    "editor_",              # editores de documentos/planilha do processo
 )
+
+
+def _limpar_widgets_formulario() -> None:
+    """Remove valores de widgets que não podem atravessar processos."""
+    for chave in [
+        k for k in list(st.session_state.keys())
+        if isinstance(k, str)
+        and k.startswith(("govbot_campo_", "editor_"))
+    ]:
+        st.session_state.pop(chave, None)
 
 
 def reiniciar_processo() -> None:
     """Limpa tudo e volta ao Formulário Matriz (novo processo no banco)."""
+    # Se o GovBot já foi habilitado nesta sessão, desassocia o bucket sem
+    # apagar históricos de processos salvos. A próxima preparação criará um
+    # UUID local novo. Flag OFF nunca cria esta raiz e não passa por aqui.
+    raiz_govbot = st.session_state.get("govbot")
+    if isinstance(raiz_govbot, dict):
+        raiz_govbot["current_bucket"] = None
+        raiz_govbot["local_process_id"] = None
+        st.session_state.pop("govbot_form_draft", None)
     for chave in ("dados", "documentos", "edicoes_pendentes"):
         st.session_state[chave] = {}
     st.session_state.aprovados = set()
     st.session_state.processo_id = None
     st.session_state["_save_status"] = "nao_salvo"
+    _limpar_widgets_formulario()
     # Estado TRANSITÓRIO do processo anterior (caches do ciclo/fatos/score,
     # escolha de família, uploads lidos, histórico de gerações) não pode
     # vazar para a próxima contratação.

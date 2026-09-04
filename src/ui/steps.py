@@ -92,6 +92,7 @@ def render_formulario() -> None:
     components.render_stepper(st.session_state.etapa)
 
     dados = st.session_state.dados
+    govbot_ativo = db.flag_ativa("govbot")
 
     # Uploads continuam fora do form (contrato necessário para re-semear os
     # widgets imediatamente), mas ocupam uma única faixa compacta.
@@ -112,6 +113,8 @@ def render_formulario() -> None:
                     texto = rag.extrair_texto(doc_inicial.name, doc_inicial.getvalue())
                     dados["memorando"] = texto
                     st.session_state.dados = dados
+                    if govbot_ativo:
+                        st.session_state["govbot_campo_memorando"] = texto
                     st.session_state["_memorando_lido"] = doc_inicial.file_id
                     st.success(
                         f"Memorando/ofício importado ({len(texto)} caracteres). "
@@ -154,18 +157,28 @@ def render_formulario() -> None:
     def _campo(chave: str, destino=st) -> None:
         meta = CAMPOS_FORMULARIO[chave]
         rotulo = meta["rotulo"] + (" *" if meta["obrigatorio"] else "")
-        # Sem key: o valor vem sempre de ``dados`` para refletir uploads e
-        # processos retomados sem criar uma segunda fonte de verdade.
+        # Com a flag desligada, mantém exatamente o contrato histórico.
+        # Com o GovBot ativo, a key cria um marcador DOM estável e permite
+        # reidratar rascunhos capturados antes de um rerun completo.
+        kwargs_key = ({"key": f"govbot_campo_{chave}"}
+                      if govbot_ativo and chave != "itens" else {})
+        # Quando a sessão já contém o widget, não fornece um segundo valor
+        # inicial: evita o aviso de defaults concorrentes do Streamlit.
+        widget_hidratado = kwargs_key.get("key") in st.session_state
+        kwargs_valor = ({} if widget_hidratado else
+                        {"value": dados.get(chave, "")})
         if meta["tipo"] == "texto":
             respostas[chave] = destino.text_input(
-                rotulo, value=dados.get(chave, ""),
+                rotulo, **kwargs_valor,
                 placeholder=meta["placeholder"], help=meta["help"],
+                **kwargs_key,
             )
         elif meta["tipo"] == "area":
             altura = 150 if chave == "memorando" else 110
             respostas[chave] = destino.text_area(
-                rotulo, value=dados.get(chave, ""), height=altura,
+                rotulo, height=altura, **kwargs_valor,
                 placeholder=meta["placeholder"], help=meta["help"],
+                **kwargs_key,
             )
         elif meta["tipo"] == "planilha":
             respostas["itens"] = _render_planilha(dados, meta)
@@ -176,6 +189,7 @@ def render_formulario() -> None:
                 rotulo, opcoes,
                 index=opcoes.index(atual) if atual in opcoes else 0,
                 help=meta["help"],
+                **kwargs_key,
             )
 
     with st.form("formulario_matriz", border=False):
@@ -241,6 +255,12 @@ def render_formulario() -> None:
             state.invalidar_a_partir_de("formulario")
         st.session_state.dados = respostas
         state.autosalvar()
+        if govbot_ativo:
+            # O submit transformou os valores dos widgets em dados canônicos;
+            # o buffer separado deixa de ser um rascunho não enviado.
+            from . import govbot_panel
+
+            govbot_panel.confirmar_formulario()
         if db.disponivel() and st.session_state.get("_save_status") == "salvo":
             st.success("Rascunho salvo.")
         else:
@@ -268,6 +288,10 @@ def render_formulario() -> None:
         st.session_state.dados = respostas
         st.session_state.etapa = 1
         state.autosalvar()  # cria/atualiza o processo no Supabase
+        if govbot_ativo:
+            from . import govbot_panel
+
+            govbot_panel.confirmar_formulario()
         st.rerun()
 
 
