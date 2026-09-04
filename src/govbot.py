@@ -376,10 +376,50 @@ def _novo_bucket() -> dict[str, Any]:
     }
 
 
+def limpar_sessao(sessao: MutableMapping[str, Any]) -> None:
+    """Revoga as cópias efêmeras do GovBot, sem criar estado com flag OFF."""
+    raiz = sessao.pop(CHAVE_SESSAO, None)
+    tinha_estado = isinstance(raiz, dict) or CHAVE_RASCUNHO in sessao
+    if isinstance(raiz, dict):
+        buckets = raiz.get("buckets")
+        buckets = buckets if isinstance(buckets, Mapping) else {}
+        for bucket in buckets.values():
+            if isinstance(bucket, dict):
+                bucket.clear()
+        raiz.clear()
+    sessao.pop(CHAVE_RASCUNHO, None)
+    for chave in list(sessao):
+        if isinstance(chave, str) and (
+            chave.startswith("govbot_campo_")
+            or (tinha_estado and chave.startswith("editor_"))
+        ):
+            sessao.pop(chave, None)
+    if tinha_estado:
+        # Cópias que alimentam contexto/undo também pertencem à identidade.
+        for chave in ("edicoes_pendentes", "_rag_trace", "_decisao_cache"):
+            sessao.pop(chave, None)
+
+
+def _identidade_sessao(sessao: Mapping[str, Any]) -> str:
+    usuario = sessao.get("usuario")
+    usuario = usuario if isinstance(usuario, Mapping) else {}
+    # Não inclui JWT/senha nem muda as regras de autenticação existentes.
+    return hash_canonico({
+        "usuario": {chave: usuario.get(chave) for chave in (
+            "id", "auth_user_id", "login", "tenant_id", "secretaria_id")},
+        "tenant": sessao.get("tenant_id"),
+    })
+
+
 def _raiz_sessao(sessao: MutableMapping[str, Any]) -> dict[str, Any]:
     raiz = sessao.get(CHAVE_SESSAO)
+    identidade = _identidade_sessao(sessao)
+    if isinstance(raiz, dict) and raiz.get("identity") != identidade:
+        limpar_sessao(sessao)
+        raiz = None
     if not isinstance(raiz, dict):
         raiz = {
+            "identity": identidade,
             "open": True,
             "proactive": True,
             "current_bucket": None,
@@ -696,8 +736,8 @@ def guardar_rascunho(
 ) -> dict[str, str]:
     """Guarda somente widgets reconhecidos; nunca incorpora em ``dados``."""
     validado = _validar_rascunho(rascunho)
-    sessao[CHAVE_RASCUNHO] = dict(validado)
     raiz = _raiz_sessao(sessao)
+    sessao[CHAVE_RASCUNHO] = dict(validado)
     atual = raiz.get("current_bucket")
     if atual in raiz["buckets"]:
         raiz["buckets"][atual]["form_draft"] = dict(validado)
@@ -2279,6 +2319,18 @@ def aplicar_proposta_bloco(
     )
 
 
+def _texto_sem_numero_de_titulo(texto: Any) -> str:
+    """Número estrutural de título não é quantidade administrativa.
+
+    Preserva o conteúdo do título e do corpo para validação; não remove
+    números da prosa. Usa exatamente o parser de cláusulas do GovDocs.
+    """
+    from . import validacao
+
+    return validacao._RE_CLAUSULA.sub(  # noqa: SLF001
+        lambda match: match.group(2), str(texto or ""))
+
+
 def corrigir_achado(
     estado: MutableMapping[str, Any],
     bucket: MutableMapping[str, Any],
@@ -2344,10 +2396,16 @@ def corrigir_achado(
     }
     fatos_canonicos = _fatos_autoritativos(
         fatos_mod.extrair_do_formulario(dados))
-    valores_fontes: list[Any] = [
-        finding.get("descricao"), finding.get("resultadoEsperado"),
-        *(finding.get("evidencia") or ()), target,
-    ]
+    # Caminhos e diagnósticos (ex.: cláusula ausente 3) não são fatos.
+    # A exceção é a mensagem legal determinística, que contém o dispositivo
+    # correto do mapa canônico e não é texto produzido pelo modelo.
+    # ``evidencia`` é um recorte de exibição: o validador pode achatar suas
+    # linhas e misturar títulos/corpo. Não o reconstrói como fonte factual.
+    # O bloco original bruto continua em ``antes``; valores novos vêm de
+    # fatos/fontes canônicas resolvidas abaixo.
+    valores_fontes: list[Any] = []
+    if finding.get("categoria") == "fundamento_legal":
+        valores_fontes.append(finding.get("descricao"))
     for source_id in finding.get("sourceIds") or ():
         if str(source_id).startswith("formulario:"):
             valores_fontes.append(
@@ -2358,8 +2416,22 @@ def corrigir_achado(
                 f.get("valor") for f in fatos_canonicos
                 if f.get("path") == path)
     if operacao.get("op") in ("replace", "add"):
+        novos_blocos = blocos_mod.dividir_em_blocos(
+            str(finding["documentId"]), str(operacao.get("newValue") or ""))
+        titulos = [b for b in novos_blocos if b["tipo"] == "titulo"]
+        if titulos:
+            partes = target.split("/")
+            permite_titulo = (
+                len(partes) >= 3 and partes[1] == "clausula"
+                and (operacao.get("op") == "add" or partes[-1] == "0")
+            )
+            if not permite_titulo or len(titulos) != 1 \
+                    or novos_blocos[0] is not titulos[0] \
+                    or str(titulos[0]["clausula"]) != partes[2].split(".")[0]:
+                raise ErroAlvo("título incompatível com a cláusula autorizada")
         validar_valores_materiais(
-            operacao.get("newValue"), antes=atuais.get(target, ""),
+            _texto_sem_numero_de_titulo(operacao.get("newValue")),
+            antes=_texto_sem_numero_de_titulo(atuais.get(target, "")),
             fatos=fatos_canonicos, valores_fontes=valores_fontes)
     return aplicar_plano_documental(
         estado, bucket, plano, relatorio, action_id,
@@ -2441,7 +2513,21 @@ def desfazer_ultima_alteracao(
 
 def deve_aplicar_imediatamente(pedido: str, intent: GovBotIntent) -> bool:
     """"Melhore e aplique" só passa quando alvo e valor já são completos."""
-    texto = _sem_acento(pedido)
+    texto = _sem_acento(pedido).strip()
+    # Reconhecimento conservador: mencionar um comando não o autoriza.
+    # Texto ambíguo mantém a comparação e o botão Aplicar disponíveis.
+    if "?" in texto or any(
+        c in ('"', "'", "`") or unicodedata.category(c) in {"Pi", "Pf", "Ps", "Pe"}
+        for c in texto
+    ):
+        return False
+    if re.search(
+        r"\b(?:se|caso|quando|talvez|nao|nunca|jamais|sem|depois|apos|"
+        r"aguarde|posteriormente|futuramente|confirmacao|confirmar|"
+        r"autorizacao|autorizar|significa|significado|significar|"
+        r"explicacao|exemplo|comando|expressao)\b|\bmais\s+tarde\b|\bo\s+que\b", texto,
+    ):
+        return False
     negacao = (
         re.search(
             r"\b(?:nao|nunca|jamais)\s+(?:\w+\s+){0,4}"
@@ -2455,8 +2541,10 @@ def deve_aplicar_imediatamente(pedido: str, intent: GovBotIntent) -> bool:
     )
     if negacao:
         return False
-    imperativo = "aplique" in texto and any(
-        t in texto for t in ("melhore", "substitua", "corrija"))
+    imperativo = re.match(
+        r"^(?:por favor[,\s]+)?(?:melhore|substitua|corrija)\b"
+        r"[^.!?;\n]*\be\s+aplique\b", texto,
+    )
     if not imperativo or intent.action not in (
         "suggest_field", "replace_form_field", "suggest_section_patch",
         "apply_section_patch", "fix_finding"):

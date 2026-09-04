@@ -18,7 +18,8 @@ vazio ou valor falso significa **OFF**. Com a flag desligada:
 - o fluxo histórico do wizard permanece ativo.
 
 Não há ativação automática nesta branch, nem alteração de configuração em
-produção. A branch não inclui publicação, PR ou merge.
+produção. Após o plano inicial, o usuário autorizou abrir PR e fazer merge
+somente depois das validações. Isso não autoriza ativar o GovBot em produção.
 
 ## Bloqueio de produção
 
@@ -151,6 +152,9 @@ botão **Aplicar**.
 “Melhore e aplique” só executa imediatamente quando o modelo retorna alvo e
 valor completos e os guards determinísticos aprovam a ação. A intenção do
 modelo nunca é autorização suficiente.
+Perguntas, citações, condicionais e pedidos de aplicação adiada ficam apenas
+como proposta. O reconhecedor é conservador: pedidos ambíguos continuam com
+comparação e botão **Aplicar**, sem execução automática.
 Negação explícita de aplicação bloqueia a execução imediata. Para correção
 de achado, um pedido apenas sugestivo recebe orientação para confirmar com
 “corrija e aplique”; a correção revalida o achado na confirmação.
@@ -169,6 +173,9 @@ cria um bucket; `reindexar_bucket()` é a única operação que move explicitame
 o bucket local para `processo:<id>` depois do primeiro autosave bem-sucedido.
 Abrir outro processo salvo não reaproveita a conversa local. Reabrir um
 processo salvo na mesma sessão recupera seu bucket.
+Os buckets são vinculados à identidade do usuário e ao contexto institucional.
+Logout ou troca dessa identidade descarta histórico, propostas, undo, rascunhos,
+widgets e cópias de contexto do GovBot; uma conta nova não herda dados da anterior.
 
 O componente captura apenas widgets reconhecidos em `govbot_form_draft`. A
 cópia soberana fica no bucket do processo; o mapping plano serve somente para
@@ -224,6 +231,10 @@ podem ser introduzidos quando já aparecem no pedido do usuário, no valor
 anterior, em fatos canônicos ou no trecho de uma fonte RAG validada. Campos
 integralmente materiais, como órgão, responsável, prazo e modelo de execução,
 exigem o novo valor na evidência. O modelo não pode inventá-los.
+Na correção de achados, caminhos internos e diagnósticos estruturais não são
+fontes de quantidades. A numeração do título é validada como estrutura do alvo,
+sem autorizar esse número no corpo. Mensagens legais determinísticas mantêm
+o lastro do dispositivo indicado pelo mapa canônico.
 A validação distingue unidades, números por extenso, separadores brasileiros
 e afirmações administrativas positivas/negativas; reutiliza também as
 decisões estruturadas do verificador de consistência.

@@ -458,6 +458,10 @@ def sair() -> None:
     # o token sai PRIMEIRO e sempre: uma sessão encerrada que deixasse
     # o JWT para trás continuaria autorizando requisições
     st.session_state[db.CHAVE_DA_SESSAO] = ""
+    if "govbot" in st.session_state or "govbot_form_draft" in st.session_state:
+        from .govbot import limpar_sessao
+
+        limpar_sessao(st.session_state)
     # limpa o processo em andamento da sessão anterior
     st.session_state.dados = {}
     st.session_state.documentos = {}
