@@ -474,16 +474,31 @@ def _executar_rpc(funcao: str, params: dict) -> list[dict]:
         raise ErroRAG(_falha("buscar na base de conhecimento", exc)) from exc
 
 
-def buscar_referencias(consulta: str, qtd: int = RAG_TOP_K) -> list[dict]:
-    """Top-k trechos relevantes: vetorial se possível, senão textual."""
+def buscar_referencias(consulta: str, qtd: int = RAG_TOP_K, *,
+                      contextual: bool = False) -> list[dict]:
+    """Top-k pelos RPCs existentes; o modo contextual reutiliza piso e recall.
+
+    O padrão preserva os consumidores anteriores. Uma pergunta contextual
+    usa a mesma redução textual e o mesmo piso da recuperação temática,
+    mas executa apenas uma busca (e no máximo uma chamada de embeddings).
+    """
     if not db.disponivel():
         return []
     embedding = _gerar_embeddings([consulta], para_consulta=True)
+    modo = "vetorial" if embedding else "textual"
     if embedding:
-        return _executar_rpc("buscar_chunks_vetorial",
-                             {"query_embedding": embedding[0], "qtd": qtd})
-    return _executar_rpc("buscar_chunks_textual",
-                         {"consulta": consulta, "qtd": qtd})
+        brutos = _executar_rpc("buscar_chunks_vetorial",
+                              {"query_embedding": embedding[0], "qtd": qtd})
+    else:
+        brutos = _executar_rpc("buscar_chunks_textual", {
+            "consulta": consulta_textual(consulta, maximo=16) if contextual else consulta,
+            "qtd": qtd,
+        })
+    if not contextual:
+        return brutos
+    piso = piso_de_relevancia(modo)
+    return [{**ref, "score": _score(ref)} for ref in brutos
+            if _score(ref) >= piso]
 
 
 # ---------------------------------------------------------------------------

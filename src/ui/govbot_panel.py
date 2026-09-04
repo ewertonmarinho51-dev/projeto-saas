@@ -12,13 +12,15 @@ import copy
 import hashlib
 import logging
 import re
+import time
 import unicodedata
 from collections.abc import Mapping, MutableMapping, Sequence
+from dataclasses import replace
 from typing import Any
 
 import streamlit as st
 
-from .. import achados, blocos, fatos, govbot, state
+from .. import achados, blocos, fatos, govbot, rag, state
 from ..config import SEQUENCIA_DOCUMENTOS
 from .govbot_component import render_govbot
 
@@ -315,6 +317,43 @@ def _alvos_permitidos(contexto: govbot.GovBotContext) -> set[str]:
         if item.get("findingId")
     )
     return {alvo for alvo in alvos if alvo}
+
+
+def _complementar_contexto_rag(
+    sessao: Mapping[str, Any], contexto: govbot.GovBotContext, pedido: str,
+) -> govbot.GovBotContext:
+    """Consulta read-only pela pergunta atual; não persiste trace/conversa.
+
+    Chamado somente após validar/deduplicar o evento de mensagem. A montagem
+    visual, microfrases, aplicar e desfazer não passam por esta fronteira.
+    """
+    objeto = str((sessao.get("dados") or {}).get("objeto") or "")
+    if "objeto" in contexto.campos_em_rascunho:
+        objeto = str(contexto.dados_relevantes.get("objeto") or "")
+    consulta, motivo = govbot.planejar_consulta_rag(contexto, pedido, objeto=objeto)
+    if motivo == "dispensada":
+        return contexto
+    if motivo == "suficiente":
+        return replace(contexto, recuperacao_rag="suficiente")
+    inicio = time.monotonic()
+    resultado = "falha"
+    try:
+        brutas = rag.buscar_referencias(consulta, qtd=6, contextual=True)
+        atuais = [ref for ref in govbot._recortar_referencias(brutas, None)
+                  if ref.get("trecho")]
+        resultado = "recuperado" if atuais else "sem_referencias"
+        # Reserva para trace anterior, sem deixar a pergunta atual sem espaço.
+        referencias = govbot._recortar_referencias(
+            [*atuais[:4], *contexto.referencias_rag, *atuais[4:]], contexto.documento)
+        return replace(contexto, referencias_rag=referencias, recuperacao_rag=resultado)
+    except Exception:  # erros do provedor nunca expõem consulta, credenciais ou conteúdo
+        return replace(contexto, recuperacao_rag="falha")
+    finally:
+        _log.info(
+            "govbot finalidade=rag duracao_ms=%d modelo=infraestrutura_existente "
+            "acao=consulta alvo=base_conhecimento resultado=%s",
+            int((time.monotonic() - inicio) * 1000), resultado,
+        )
 
 
 def _valores_de_fontes(
@@ -684,6 +723,7 @@ def _processar_evento(
         return _desfazer(sessao, bucket, evento.request_id)
 
     contexto = _montar_contexto(sessao, evento.focus, evento.text)
+    contexto = _complementar_contexto_rag(sessao, contexto, evento.text)
     resposta = govbot.processar_mensagem(
         evento, contexto, bucket,
         alvos_permitidos=_alvos_permitidos(contexto),
