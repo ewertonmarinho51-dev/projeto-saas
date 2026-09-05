@@ -321,14 +321,29 @@ def render_sidebar() -> None:
         )
 
         usuario = auth.usuario_logado()
+        # A Pesquisa de Preços é do SERVIDOR, não do administrador: quem
+        # monta a cesta e decide sobre um discrepante é quem elabora o
+        # processo. Por isso ela entra na navegação dos dois papéis —
+        # mas só quando a flag está ligada, e ela nasce desligada.
+        from . import precos_ui
+
+        tem_precos = precos_ui.disponivel()
         if auth.eh_admin():
             opcoes = ["Novo processo", "Base de Conhecimento", "Administração"]
             from . import governanca_ui
 
             if governanca_ui.disponivel():
                 opcoes.append("Governança")
+            if tem_precos:
+                opcoes.append("Pesquisa de Preços")
             if st.session_state.get("pagina") == "Assistente de Documentos":
                 st.session_state.pagina = "Novo processo"
+            if st.session_state.get("pagina") not in opcoes:
+                st.session_state.pagina = "Novo processo"
+            st.radio("Navegação", options=opcoes, key="pagina",
+                     label_visibility="collapsed")
+        elif tem_precos:
+            opcoes = ["Novo processo", "Pesquisa de Preços"]
             if st.session_state.get("pagina") not in opcoes:
                 st.session_state.pagina = "Novo processo"
             st.radio("Navegação", options=opcoes, key="pagina",

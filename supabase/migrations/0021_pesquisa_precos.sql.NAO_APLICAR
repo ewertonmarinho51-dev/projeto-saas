@@ -835,5 +835,5 @@ grant execute on function public.revisar_pesquisa_preco(uuid, text)
 -- desligou de propósito.
 -- ===============================================================
 insert into public.config_app (chave, valor)
-values ('flag_pesquisa_precos', 'off')
+values ('flag_price_research', 'off')
 on conflict (chave) do nothing;

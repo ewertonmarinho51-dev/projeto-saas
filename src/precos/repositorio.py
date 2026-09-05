@@ -41,15 +41,17 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from .. import db
+from .. import db, governanca
 from . import estados
 from .estados import EstadoItem, EstadoPesquisa
 from .matching import Comparabilidade
 from .modelo import Referencia
 
 # Feature flag (§40). Ligada em nenhum lugar por esta fase: implementar
-# não é ativar.
-FLAG = "pesquisa_precos"
+# não é ativar. O valor vem de `governanca.py`, onde moram todas as
+# flags do projeto — string repetida em três arquivos é flag que um dia
+# fica meio ligada.
+FLAG = governanca.FLAG_PESQUISA_PRECOS
 
 TABELA_PESQUISAS = "pesquisas_preco"
 TABELA_ITENS = "pesquisa_preco_itens"

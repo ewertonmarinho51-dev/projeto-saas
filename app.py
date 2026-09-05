@@ -93,6 +93,19 @@ if pagina == "Governança" and governanca_ui.disponivel():
     # Centro de Governança (V6): flag + papel de governança obrigatórios
     governanca_ui.render_governanca()
     st.stop()
+if pagina == "Pesquisa de Preços":
+    # Módulo de pesquisa de preços (flag `price_research`, default OFF).
+    # Importado aqui, e não no topo, para que o app carregue exatamente
+    # como antes quando o módulo está desligado.
+    from src.ui import precos_ui
+
+    if precos_ui.disponivel():
+        precos_ui.render_precos()
+        st.stop()
+    # Flag desligada com a página ainda apontada para cá (por exemplo,
+    # alguém desligou a flag durante a sessão): volta ao wizard em vez
+    # de mostrar tela em branco.
+    st.session_state.pagina = "Novo processo"
 
 # O adaptador do componente é importado somente com a flag ativa. Além de
 # manter a regressão exatamente sem painel, isso evita registrar Components v2

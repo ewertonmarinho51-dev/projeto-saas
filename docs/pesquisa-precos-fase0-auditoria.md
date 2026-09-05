@@ -893,7 +893,7 @@ a decisão foi do motor, não que não havia ninguém.
 
 ## O que a Fase 3 NÃO faz — e é proposital
 
-- **não ativa nada.** `flag_pesquisa_precos` entra como `off`, e o
+- **não ativa nada.** `flag_price_research` entra como `off`, e o
   `on conflict do nothing` garante que reaplicar a migração jamais
   reative uma flag que alguém desligou de propósito;
 - **não tem UI** — é a Fase 4;
@@ -939,3 +939,167 @@ Com a ressalva registrada desde a Fase 0, que continua sendo o limite
 real: o módulo **não deve ser ativado em produção** enquanto a 0020 não
 estiver aplicada. O isolamento das tabelas de pesquisa de preços está
 provado; o da plataforma, não.
+
+---
+
+# FASE 4 — interface GovConnect (entregue)
+
+Branch `feature/pesquisa-precos`. O módulo continua **desligado**: a flag
+nasce `off` e nada nesta fase a liga.
+
+## O que foi criado
+
+| arquivo | o que faz |
+|---|---|
+| `src/precos/execucao.py` | motor de execução em lotes reentrantes: checkpoint, retry, cancelamento, retomada, idempotência |
+| `src/precos/filtros.py` | filtros da tela de revisão, puros e testáveis |
+| `src/ui/precos_ui.py` | lista, nova pesquisa, itens, execução, revisão por item, resumo global e card de dashboard |
+| `tests/test_precos_fase4.py` | 52 provas |
+
+Ligações: `app.py` ganhou a rota, `components.render_sidebar` ganhou a
+entrada de navegação — **as duas atrás da flag**, e o módulo é importado
+só quando ela está ligada, para que o app carregue exatamente como antes
+quando está desligada.
+
+## §46 — a interface não congela, e sem infraestrutura nova
+
+A Fase 0 mediu o problema: não há `threading`, `asyncio`, `celery`, `rq`,
+`multiprocessing` nem `concurrent.futures` em `src/`. Com 210 itens e
+~1 s por chamada externa, uma pesquisa completa congelaria a tela por
+minutos.
+
+A opção 1 daquela auditoria foi implementada: **cada script run processa
+um lote de 5 itens, grava e chama `st.rerun()`**. O progresso não mora em
+memória — mora no `estado` de cada item, que já é persistido. Isso
+entrega os cinco requisitos do §19 sem servidor novo:
+
+- **checkpoint** — o estado do item é a marca d'água; o concluído não é
+  refeito;
+- **retomada** — fechar o navegador e reabrir amanhã continua de onde
+  parou, inclusive em outra máquina;
+- **retry** — item em `error` volta para a fila; item `incomplete`
+  **não**, porque ele já rodou e o mercado não tinha referência
+  bastante. Refazer sozinho gastaria a API para chegar ao mesmo lugar;
+- **cancelamento** — é parar de enfileirar, não matar uma `thread`;
+- **idempotência** — reprocessar faz `upsert` pela chave (item, fonte,
+  id externo). A amostra não dobra, e a estatística não dobra com ela.
+
+O custo honesto, dito aqui e no código: é mais lento que paralelizar, e
+cada lote paga um rerun. Em troca, nada se perde se o navegador fechar.
+
+O motor é **lógica pura** — não importa Streamlit. Isso o torna testável
+sem interface e reutilizável por um worker externo, se um dia existir.
+
+## Duas correções que esta fase fez em decisões anteriores
+
+### 1. A flag estava fora da convenção do projeto
+
+A auditoria da Fase 0 registrou a convenção verificada: constante
+`FLAG_*` em `governanca.py`, valor **inglês em snake_case**
+(`canonical_facts`, `governance_center`…). A Fase 3 nasceu com
+`FLAG = "pesquisa_precos"` — uma string solta, em português, fora do
+lugar. Eu desviei da regra que eu mesmo tinha documentado.
+
+Corrigido antes de a interface existir, que é quando ainda sai barato:
+`governanca.FLAG_PESQUISA_PRECOS = "price_research"`, e a migração passou
+a inserir `flag_price_research`. Como a 0021 é `.NAO_APLICAR` e não está
+em banco nenhum, a troca não custou migração de dados. Há uma prova que
+amarra as três pontas.
+
+### 2. Uma prova de interface media o ramo errado
+
+`test_com_a_flag_ligada_o_servidor_comum_alcanca_o_modulo` passava — e
+continuou passando quando desliguei o ramo do servidor comum na sidebar.
+Ou seja: não provava nada.
+
+A causa: o teste usava `GOVDOCS_MODO_ABERTO=1`, e em modo aberto
+`auth.eh_admin()` devolve `True` para todo mundo. O teste media o ramo do
+**administrador** achando que media o do servidor. Refeito com o cenário
+que o `test_auth.py` já usava para isso (`db.disponivel` verdadeiro,
+`tem_admin` verdadeiro, sem modo aberto) — e agora a mutação é detectada.
+
+Isso só apareceu porque as provas foram submetidas a **mutação
+deliberada** depois de passarem: cinco comportamentos foram quebrados de
+propósito para conferir se alguma prova reclamava. Quatro reclamaram; a
+quinta não, e era esta.
+
+## Decisões de tela com consequência normativa
+
+**Filtro esconde, nunca apaga.** Toda função de `filtros.py` devolve
+lista nova, e os contadores (`3 na cesta, 9 excluídas`) são calculados
+sobre a lista **completa**. O §21 é explícito — "nunca esconder os
+resultados que foram descartados" — e um contador calculado sobre a
+lista filtrada esconderia a existência das excluídas.
+
+**Campo em branco não filtra.** Uma tela que zera a lista porque
+ninguém escolheu UF parece quebrada.
+
+**A anomalia é sinalizada, não julgada.** O texto diz a distância da
+mediana e sugere revisão. Não diz "preço inexequível" nem "preço
+ilegal": fórmula estatística não produz conclusão jurídica, e escrever
+isso na tela transformaria um sinal em acusação. Há uma prova que lê a
+tela renderizada e falha se essas palavras aparecerem.
+
+**Excluir referência exige motivo, e é mudança de status.** Não há
+`DELETE` em lugar nenhum do módulo — provado estruturalmente: nem o
+repositório nem a interface chamam `.delete(`, e o repositório não expõe
+função de exclusão.
+
+**O resumo não soma o que não terminou.** O valor global é a soma dos
+itens **concluídos**, e os pendentes aparecem nomeados. Somar tudo
+produziria um total com aparência de completo.
+
+**Sem sessão, a tela explica.** O repositório recusa a credencial de
+servidor (Fase 3); a interface não disfarça a recusa com uma lista
+vazia. Lista vazia por falta de permissão é a pior tela possível —
+parece que não há nada, quando na verdade não se pode ver.
+
+**Duplicar não é revisar.** `revisar()` cria outra versão da mesma
+pesquisa lógica (mesma raiz), para quando o resultado muda. Duplicar cria
+outra pesquisa, com linhagem própria, para repetir a coleta no ano
+seguinte. Misturá-las faria o histórico de 2027 aparecer pendurado na
+pesquisa de 2026. Os preços não vêm na cópia: são o que a nova coleta vai
+formar.
+
+## O que a Fase 4 NÃO faz — e é proposital
+
+- **não aplica preço a processo.** É a Fase 5, e ela precisa do diff
+  antes/depois, da proveniência e da invalidação dos documentos
+  posteriores. Nada disso vai acontecer por um botão desta tela;
+- **não exporta relatório.** É a Fase 6. Um botão "Exportar" aqui
+  entregaria menos do que aparenta;
+- **não usa IA.** A camada semântica é a Fase 7 e segue bloqueada por
+  falta de credencial. Tudo nesta fase é determinístico;
+- **não liga nada em produção.** A flag continua `off`, e a 0021 continua
+  `.NAO_APLICAR`.
+
+Do §29, ficaram entregues Abrir, Duplicar, Vincular e Arquivar.
+**Exportar** é a Fase 6, e **excluir** não vai existir: o §29 manda
+analisar a política antes de apagar pesquisa auditável, e a resposta do
+módulo é arquivar.
+
+## Testes
+
+52 provas novas. As de motor e filtro rodam **sem Streamlit e sem rede**;
+as de interface usam AppTest e medem contrato — porta de entrada, o que a
+tela diz quando falta sessão, e as quatro telas internas renderizando com
+dados semeados. Nenhuma toca a rede: as fontes são dublês injetados por
+`_fontes()`, que existe separada exatamente para isso.
+
+Cinco comportamentos foram quebrados de propósito para conferir se as
+provas reclamavam — quatro reclamaram na hora, e a quinta revelou o
+teste que media o ramo errado (acima).
+
+Suíte completa do projeto, com os dois portões ligados:
+**1665 passaram, 0 falharam, 108 pularam**. As 108 são, todas, de
+`test_seguranca_contencao.py`, que exige um projeto Supabase REMOTO
+descartável. `git diff --check` limpo.
+
+## Veredito da Fase 4
+
+`APTO PARA AUDITORIA`
+
+A ressalva das fases anteriores continua sendo o limite real: o módulo
+**não deve ser ativado em produção** enquanto a 0020 não estiver
+aplicada. O isolamento das tabelas de pesquisa de preços está provado; o
+da plataforma, não.
