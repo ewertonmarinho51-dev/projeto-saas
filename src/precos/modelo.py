@@ -240,3 +240,81 @@ def deduplicar(referencias: list[Referencia]) -> list[Referencia]:
         vistas.add(ref.chave_dedupe)
         unicas.append(ref)
     return unicas
+
+
+# ---------------------------------------------------------------------------
+# Procedência da fonte (§55 — "source_id arbitrário é rejeitado")
+#
+# `Fonte` é um dataclass: qualquer código — ou qualquer payload que um
+# adapter futuro monte a partir de resposta externa — pode declarar
+# `Fonte("qualquer_coisa", "…", tipo="sistema_oficial")`.
+#
+# E o tipo NÃO é decorativo: `estatistica.selecionar_cesta` ordena por
+# `perfil.prioridade_de_fontes`, com `sistema_oficial` em primeiro. Uma
+# fonte inventada que se declarasse sistema oficial entraria na cesta
+# à frente de uma contratação similar verdadeira, e o relatório diria
+# que o preço veio de sistema oficial de preços.
+#
+# A allowlist é o registro do que o módulo de fato integra. Ela não
+# APAGA a referência de origem desconhecida — apagar esconderia o que
+# chegou. Ela REBAIXA a fonte para `outro`, a última prioridade, e
+# carimba o motivo, para que a decisão apareça no relatório em vez de
+# acontecer em silêncio.
+#
+# Por que rebaixar e não excluir: `Fonte` é construída pelos NOSSOS
+# adapters, não montada a partir de payload da rede. Uma fonte fora da
+# lista significa, na prática, adapter novo que ninguém registrou — erro
+# de código, não ataque. Excluir faria o adapter novo produzir silêncio;
+# rebaixar impede a afirmação indevida de origem oficial e deixa o
+# problema visível na tela e no relatório. Silêncio é o pior dos dois.
+# ---------------------------------------------------------------------------
+FONTES_REGISTRADAS: dict[str, str] = {
+    "compras_gov_precos": "sistema_oficial",
+    "compras_gov_itens": "contratacao_similar",
+    "pncp": "sistema_oficial",
+}
+
+TIPO_NAO_REGISTRADO = "outro"
+
+MOTIVO_FONTE_DESCONHECIDA = (
+    "fonte não registrada no módulo — classificada como 'outro' e sem "
+    "prioridade de sistema oficial")
+
+MOTIVO_TIPO_DIVERGENTE = (
+    "a fonte declarou natureza diferente da registrada — prevalece a "
+    "registrada")
+
+
+def fonte_confiavel(fonte: Fonte) -> tuple[Fonte, str]:
+    """
+    Devolve `(fonte com a natureza REGISTRADA, motivo)`.
+
+    Motivo vazio significa que a fonte é a registrada e nada mudou.
+
+    A natureza nunca vem do que a fonte diz de si: vem da allowlist. É a
+    diferença entre "esta referência afirma ser de sistema oficial" e
+    "esta referência é de uma fonte que integramos como sistema oficial".
+    """
+    registrado = FONTES_REGISTRADAS.get(fonte.id)
+    if registrado is None:
+        return Fonte(fonte.id, fonte.nome, TIPO_NAO_REGISTRADO), \
+            MOTIVO_FONTE_DESCONHECIDA
+    if registrado != fonte.tipo:
+        return Fonte(fonte.id, fonte.nome, registrado), MOTIVO_TIPO_DIVERGENTE
+    return fonte, ""
+
+
+def conferir_procedencia(referencias: list[Referencia]) -> list[Referencia]:
+    """
+    Aplica `fonte_confiavel` a cada referência, registrando o motivo.
+
+    Roda no motor, entre a coleta e a normalização: é o ponto em que o
+    dado externo deixa de ser "o que a fonte disse" e passa a ser o que o
+    módulo aceita como procedência.
+    """
+    for referencia in referencias:
+        fonte, motivo = fonte_confiavel(referencia.fonte)
+        if motivo:
+            referencia.fonte = fonte
+            referencia.com_motivo(motivo)
+    return referencias

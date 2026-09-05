@@ -46,7 +46,7 @@ from decimal import Decimal, InvalidOperation
 from . import estatistica, matching, unidades
 from .estados import EstadoItem, EstadoPesquisa, estado_derivado
 from .fontes import Consulta, FontePesquisaPreco
-from .modelo import Referencia, deduplicar
+from .modelo import Referencia, conferir_procedencia, deduplicar
 from .perfil import PADRAO, PerfilNormativo
 
 # Quantos itens por script run.
@@ -259,7 +259,12 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
         resultado.duracao_s = time.monotonic() - inicio
         return resultado
 
-    unicas = deduplicar(coletadas)
+    # A procedência é conferida ANTES de qualquer outra coisa: é aqui
+    # que o dado externo deixa de ser "o que a fonte disse ser" e passa
+    # a ser o que o módulo aceita. Uma fonte não registrada que se
+    # declarasse sistema oficial entraria na cesta à frente de uma
+    # contratação similar verdadeira (§55).
+    unicas = conferir_procedencia(deduplicar(coletadas))
     resultado.encontradas = len(unicas)
 
     unidade = str(item.get("unidade") or "")

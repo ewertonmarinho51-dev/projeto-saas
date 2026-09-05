@@ -267,6 +267,30 @@ _LIMITE_LINHA_SEM_QUEBRA = 250
 # Linha separadora de cabeçalho Markdown: |---|---| (com ou sem ':')
 _RE_SEPARADOR_TABELA = re.compile(r"^\|?[\s:|-]+\|?$")
 
+# Divisão de células que RESPEITA o escape `\|`.
+#
+# O `split("|")` ingênuo transformava dado em ESTRUTURA: uma descrição de
+# item contendo "CANETA | 999999,00" — vinda de fonte externa ou digitada
+# na planilha do processo — acrescentava colunas à tabela do documento
+# oficial e deslocava os valores para a coluna errada. Medido: uma tabela
+# de 13 colunas virava 14, com o número forjado caindo sob "Descrição".
+#
+# Quem escreve a tabela escapa a barra (`\|`); aqui ela é reconhecida
+# como conteúdo e volta a ser uma barra comum na célula.
+_RE_PIPE_ESTRUTURAL = re.compile(r"(?<!\\)\|")
+
+
+def _celulas_da_linha(linha: str) -> list[str]:
+    r"""Células de uma linha de tabela Markdown, com `\|` como conteúdo."""
+    corpo = linha.strip()
+    if corpo.startswith("|"):
+        corpo = corpo[1:]
+    # A barra final só é delimitador se não estiver escapada.
+    if corpo.endswith("|") and not corpo.endswith("\\|"):
+        corpo = corpo[:-1]
+    return [celula.strip().replace("\\|", "|")
+            for celula in _RE_PIPE_ESTRUTURAL.split(corpo)]
+
 
 def _tem_cabecalho(tabela_buffer: list[str]) -> bool:
     """
@@ -598,7 +622,7 @@ def _docx_inserir_markdown(doc, texto_md: str) -> None:
             return
         com_cabecalho = _tem_cabecalho(tabela_buffer)
         linhas_tab = [
-            [c.strip() for c in ln.strip("|").split("|")]
+            _celulas_da_linha(ln)
             for ln in tabela_buffer
             if not _RE_SEPARADOR_TABELA.match(ln)  # descarta linha ---|---
         ]
@@ -947,7 +971,7 @@ def _pdf_render_tabela(pdf, linhas_tab: list[str]) -> None:
     """
     com_cabecalho = _tem_cabecalho(linhas_tab)
     linhas = [
-        [_latin1_seguro(c.strip()) for c in ln.strip("|").split("|")]
+        [_latin1_seguro(c) for c in _celulas_da_linha(ln)]
         for ln in linhas_tab
         if not _RE_SEPARADOR_TABELA.match(ln)  # descarta a linha ---|---
     ]

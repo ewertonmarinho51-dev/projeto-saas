@@ -67,8 +67,40 @@ def _moeda(valor) -> str:
     return AUSENTE if numero is None else planilha.formatar_moeda(float(numero))
 
 
+# ---------------------------------------------------------------------------
+# Neutralização de dado EXTERNO no Markdown
+#
+# Descrição, órgão, fornecedor e marca vêm da FONTE, não de nós. O §55 é
+# explícito: todo conteúdo externo é dado não confiável.
+#
+# Dois caracteres bastam para transformar dado em ESTRUTURA:
+#
+#   * `|` acrescenta colunas à tabela. Um fornecedor que cadastre o
+#     produto como "CANETA | 999999,00 | FALSO" faz o relatório oficial
+#     exibir um preço que ninguém pesquisou, na coluna de preço;
+#   * a quebra de linha encerra a linha da tabela e abre o que vier
+#     depois. Medido: uma descrição com "\n\n## SEÇÃO FALSA" derrubou a
+#     tabela de 13 colunas para 2 e injetou um cabeçalho e uma linha de
+#     "VALOR GLOBAL" forjados no documento.
+#
+# A neutralização é de ESTRUTURA, não de conteúdo: o texto continua
+# legível e integralmente presente — `|` vira `\|`, que o Markdown
+# renderiza como barra, e as quebras viram espaço. Apagar o conteúdo
+# esconderia o que a fonte de fato devolveu, e a evidência é o que este
+# relatório existe para preservar.
+# ---------------------------------------------------------------------------
+def _neutralizar(valor) -> str:
+    """Texto externo que pode entrar numa célula ou num título."""
+    bruto = str(valor or "")
+    # Quebras de linha (inclusive as de Windows e a de linha isolada)
+    # viram espaço: elas encerrariam a linha da tabela ou o título.
+    achatado = " ".join(bruto.replace("\r", "\n").split("\n"))
+    # A barra vertical é escapada, não removida.
+    return " ".join(achatado.replace("|", "\\|").split()).strip()
+
+
 def _texto(valor) -> str:
-    limpo = str(valor or "").strip()
+    limpo = _neutralizar(valor)
     return limpo or AUSENTE
 
 
