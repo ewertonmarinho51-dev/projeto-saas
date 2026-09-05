@@ -24,7 +24,8 @@ from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 
 from .matching import Comparabilidade
-from .modelo import CENTAVO, Referencia, StatusReferencia
+from .modelo import (CENTAVO, MOTIVO_NATUREZA_NAO_COMPARAVEL,
+                     NATUREZAS_COMPARAVEIS, Referencia, StatusReferencia)
 from .perfil import PerfilNormativo, PADRAO
 
 ZERO = Decimal("0")
@@ -239,6 +240,20 @@ def selecionar_cesta(
     for referencia, comparabilidade in ranqueadas:
         if referencia.valor_unitario_normalizado is None:
             referencia.status = StatusReferencia.REJEITADA
+            cesta.descartadas.append(referencia)
+            continue
+        # A natureza é conferida ANTES da comparabilidade, e a ordem
+        # importa: um valor estimado pelo órgão de origem pode ser
+        # perfeitamente comparável — mesmo produto, mesma unidade, mesma
+        # região — e é exatamente por isso que ele passaria no piso e
+        # entraria na cesta. Comparabilidade responde "é o mesmo
+        # produto?"; natureza responde "este número é um preço?". Só a
+        # segunda impede a estimativa da Administração de se apoiar na
+        # estimativa de outra Administração.
+        if referencia.natureza_valor not in NATUREZAS_COMPARAVEIS:
+            referencia.status = StatusReferencia.REVISAO_MANUAL
+            referencia.com_motivo(MOTIVO_NATUREZA_NAO_COMPARAVEL.format(
+                rotulo=referencia.rotulo_da_natureza))
             cesta.descartadas.append(referencia)
             continue
         if comparabilidade.score < piso:

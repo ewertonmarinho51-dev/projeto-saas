@@ -25,9 +25,17 @@ jobs:
     # aplicadas nele e em lugar nenhum mais — `exigir_dsn_local` recusa
     # DSN que não seja local, e recusa explicitamente qualquer DSN de
     # Supabase.
+    # A imagem é `pgvector/pgvector`, não `postgres` puro, e isso não é
+    # capricho: o schema real do projeto cria `public.vector(768)` e um
+    # índice HNSW na base de conhecimento do GovBot. Com `postgres:16` o
+    # ensaio morria em `create extension vector` — "extension \"vector\"
+    # is not available" — e as 94 provas de autorização ERRAVAM em toda
+    # PR desde a Fase 3. O portão se comportou como projetado: erro, não
+    # silêncio. O que faltava era dar ao runner o mesmo PostgreSQL que o
+    # schema exige, que é o que o Supabase de verdade oferece.
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -58,11 +66,14 @@ jobs:
 
       # `psycopg` é dependência de TESTE, não do app: fica fora de
       # requirements.txt para não embarcar um driver de Postgres no
-      # deploy do Streamlit, que fala com o Supabase por HTTP.
+      # deploy do Streamlit, que fala com o Supabase por HTTP. `pyyaml`
+      # entra pela mesma porta — a prova que guarda a imagem do serviço
+      # lê este arquivo como YAML, e ninguém mais no projeto depende
+      # dele.
       - name: Instalar dependências
         run: |
           pip install -r requirements.txt
-          pip install pytest "psycopg[binary]"
+          pip install pytest "psycopg[binary]" pyyaml
 
       # Os dois interruptores existem pela mesma razão: aqui a ausência
       # de um requisito é FALHA DE AMBIENTE, não skip. Instalar e subir

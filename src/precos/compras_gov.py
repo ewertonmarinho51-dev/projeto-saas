@@ -38,7 +38,8 @@ from datetime import date, timedelta
 
 from .fontes import (PAGINA_MAXIMA, PAGINA_MINIMA, Consulta,
                      FontePesquisaPreco, ResultadoBusca)
-from .modelo import Fonte, Referencia, para_data, para_decimal
+from .modelo import (Fonte, NaturezaValor, Referencia, para_data,
+                     para_decimal)
 
 BASE = "https://dadosabertos.compras.gov.br"
 
@@ -81,6 +82,19 @@ def _tokens(texto: str) -> set[str]:
             if len(p.strip(".:")) > 2 and p.strip(".:") not in ruido}
 
 
+def _casa(procurados: set[str], do_registro: set[str]) -> bool:
+    """
+    Metade dos termos significativos presentes basta para ser candidato.
+
+    Piso grosseiro e deliberado: aqui só se decide quem ENTRA na lista.
+    O ranqueamento fino, que é quem de fato separa PASTA de PASTA
+    CATÁLOGO, é da Fase 2 e continua determinístico.
+    """
+    if not procurados:
+        return False
+    return len(procurados & do_registro) * 2 >= len(procurados)
+
+
 class ComprasGovAdapter(FontePesquisaPreco):
     """Consulta o Compras.gov e devolve referências normalizadas."""
 
@@ -121,7 +135,7 @@ class ComprasGovAdapter(FontePesquisaPreco):
                     time.sleep(recuo)
                     recuo *= 2
                     continue
-                resultado.registrar(
+                resultado.falhar(
                     f"{self.fonte.nome} respondeu HTTP {erro.code} em "
                     f"{caminho}")
                 return None
@@ -130,12 +144,12 @@ class ComprasGovAdapter(FontePesquisaPreco):
                     time.sleep(recuo)
                     recuo *= 2
                     continue
-                resultado.registrar(
+                resultado.falhar(
                     f"{self.fonte.nome} não respondeu em {caminho}")
                 return None
             except json.JSONDecodeError:
                 # a API devolve texto puro em erro de validação
-                resultado.registrar(
+                resultado.falhar(
                     f"{self.fonte.nome} devolveu resposta não-JSON em "
                     f"{caminho}")
                 return None
@@ -220,14 +234,23 @@ class ComprasGovAdapter(FontePesquisaPreco):
                 "por texto — informe o CATMAT/CATSER para uma busca precisa")
             return
 
+        # Sinônimos da camada semântica, quando houve (§8). Eles entram
+        # como conjuntos ALTERNATIVOS: casar com qualquer um deles basta
+        # para o registro virar candidato. Somá-los aos termos originais
+        # faria o oposto do pretendido — o denominador cresceria e a
+        # busca ficaria mais restrita a cada sinônimo sugerido.
+        alternativos = [t for t in (_tokens(termo) for termo
+                                    in consulta.termos_alternativos) if t]
+
         for bruto in dados.get("resultado") or []:
             texto = (bruto.get("descricaodetalhada")
                      or bruto.get("descricaoResumida") or "")
-            achados = procurados & _tokens(texto)
+            tokens_do_registro = _tokens(texto)
             # metade dos termos significativos é um piso grosseiro e
             # deliberado: aqui só se decide quem ENTRA na lista de
             # candidatos; ranquear é trabalho da Fase 2.
-            if len(achados) * 2 >= len(procurados):
+            if _casa(procurados, tokens_do_registro) or any(
+                    _casa(alt, tokens_do_registro) for alt in alternativos):
                 resultado.referencias.append(
                     _referencia_de_item_contratado(bruto))
 
@@ -272,6 +295,12 @@ def _referencia_de_preco_praticado(bruto: dict) -> Referencia:
         data_compra=para_data(bruto.get("dataCompra")),
         data_resultado=para_data(bruto.get("dataResultado")),
         referencia_externa=_texto(bruto.get("idCompra")),
+        # O módulo "Preços Praticados" publica o que a Administração
+        # efetivamente pagou — é o nome e o propósito do endpoint, e
+        # `precoUnitario` é o valor da compra realizada. É a única
+        # origem deste projeto cuja natureza não depende de qual campo
+        # veio preenchido.
+        natureza_valor=NaturezaValor.PRATICADO,
     )
 
 
@@ -279,12 +308,30 @@ def _referencia_de_item_contratado(bruto: dict) -> Referencia:
     """
     `2_consultarItensContratacoes_PNCP_14133` → modelo normalizado.
 
-    Prefere o valor HOMOLOGADO ao estimado: o estimado é a expectativa do
-    órgão, o homologado é o preço que o mercado efetivamente praticou — e
-    é esse que sustenta uma estimativa defensável.
+    **A natureza do valor sai do campo que o preencheu**, e essa é a
+    correção mais importante deste adapter.
+
+    A versão anterior fazia `valor_unitario_original = homologado or
+    estimado` e seguia adiante: quando a contratação ainda não tinha
+    resultado, o `valorUnitarioEstimado` — a expectativa do órgão de
+    origem — entrava como referência comum, disputava a cesta em pé de
+    igualdade com preço praticado e podia formar o valor estimado da
+    contratação. Havia um `motivo` registrado, mas motivo é texto: nada
+    no modelo impedia o número de ser usado.
+
+    Agora o campo escolhido carimba a natureza (`HOMOLOGADO` ou
+    `ESTIMADO_ORIGEM`), e é a natureza que a cesta consulta. O valor
+    estimado continua coletado, listado e auditável — o que ele não faz
+    mais é entrar sozinho.
     """
     homologado = para_decimal(bruto.get("valorUnitarioResultado"))
     estimado = para_decimal(bruto.get("valorUnitarioEstimado"))
+    if homologado is not None:
+        natureza = NaturezaValor.HOMOLOGADO
+    elif estimado is not None:
+        natureza = NaturezaValor.ESTIMADO_ORIGEM
+    else:
+        natureza = NaturezaValor.OUTRO
     referencia = Referencia(
         fonte=FONTE_ITENS,
         id_externo=str(bruto.get("idCompraItem") or ""),
@@ -310,11 +357,12 @@ def _referencia_de_item_contratado(bruto: dict) -> Referencia:
         data_resultado=para_data(bruto.get("dataResultado")),
         data_compra=para_data(bruto.get("dataInclusaoPncp")),
         referencia_externa=_texto(bruto.get("numeroControlePNCPCompra")),
+        natureza_valor=natureza,
     )
-    if homologado is None and estimado is not None:
+    if natureza is NaturezaValor.ESTIMADO_ORIGEM:
         referencia.com_motivo(
-            "preço ESTIMADO pelo órgão — a contratação ainda não tem "
-            "resultado homologado")
+            "preço ESTIMADO pelo órgão de origem — a contratação ainda não "
+            "tem resultado homologado")
     return referencia
 
 

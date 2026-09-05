@@ -1,24 +1,33 @@
 -- ############################################################
 -- ##  0021 — Pesquisa de Preços (Fase 3: persistência)
 -- ##
--- ##  NÃO APLICAR EM PRODUÇÃO — extensão .NAO_APLICAR.
+-- ##  ESTADO: APLICÁVEL. O sufixo `.NAO_APLICAR` foi removido nesta
+-- ##  rodada, depois de a 0020 estar aplicada e verificada no ambiente
+-- ##  de ensaio (`govdocs-ensaio-descartavel`). Aplicada lá pelo
+-- ##  mecanismo oficial de migrations.
 -- ##
--- ##  Não é cautela decorativa. Esta migração CHAMA as funções de
--- ##  contexto da 0020 (`tenant_do_jwt`, `secretaria_do_jwt`,
--- ##  `e_admin`) nas suas políticas. Sem a 0020 aplicada, as
--- ##  políticas não podem sequer ser criadas — e, se pudessem, as
--- ##  tabelas novas nasceriam no mundo pré-0019, onde `anon` ainda
--- ##  tem grants amplos. Seria criar exposição nova para hospedar
--- ##  preço de contratação.
+-- ##  A trava existia por dependência TÉCNICA, não por cautela
+-- ##  decorativa: esta migração CHAMA as funções de contexto da 0020
+-- ##  (`tenant_do_jwt`, `secretaria_do_jwt`, `e_admin`) nas suas
+-- ##  políticas. Sem a 0020, as políticas não podem sequer ser
+-- ##  criadas — e, se pudessem, as tabelas nasceriam no mundo
+-- ##  pré-0019, onde `anon` ainda tem grants amplos. Seria criar
+-- ##  exposição nova para hospedar preço de contratação.
 -- ##
--- ##  O §39 do prompt do módulo diz a mesma coisa por outro lado:
--- ##  "não ativar este módulo em produção sem provar o mesmo
--- ##  isolamento exigido do restante da plataforma". O isolamento
--- ##  está escrito aqui e é EXECUTADO no ensaio local
--- ##  (tests/test_precos_fase3_rls.py). O que falta não é deste
--- ##  módulo: é a 0020 chegar à produção.
+-- ##  Ordem do runbook, e ela continua obrigatória:
+-- ##  0018 → 0019 → 0020 → 0021.
 -- ##
--- ##  Ordem do runbook: 0018 → 0019 → 0020 → 0021.
+-- ##  EM PRODUÇÃO ainda NÃO: a 0020 não chegou lá. O §39 do prompt do
+-- ##  módulo diz o mesmo por outro lado — "não ativar este módulo em
+-- ##  produção sem provar o mesmo isolamento exigido do restante da
+-- ##  plataforma". O isolamento desta migração está provado e
+-- ##  EXECUTADO (tests/test_precos_fase3_rls.py, 47 provas contra
+-- ##  PostgreSQL real). O que falta não é deste módulo.
+-- ##
+-- ##  IDEMPOTÊNCIA OPERACIONAL: tudo aqui é `if not exists`,
+-- ##  `create or replace`, `drop policy if exists` antes de criar, e
+-- ##  `on conflict do nothing` no insert da flag. Reaplicar não
+-- ##  duplica objeto nem religa a flag que alguém desligou.
 -- ############################################################
 
 -- ===============================================================
@@ -194,6 +203,21 @@ create table if not exists public.pesquisa_preco_itens (
   -- Ocorrências das fontes (§37): "PNCP indisponível" vive aqui.
   ocorrencias jsonb not null default '[]'::jsonb,
 
+  -- DESFECHO POR FONTE — `{"compras_gov_precos": "failure", "pncp":
+  -- "success_empty"}`.
+  --
+  -- Existe porque `ocorrencias` é texto para humano e não sustenta
+  -- decisão: relendo o item do banco, ninguém distinguia "a fonte de
+  -- preço caiu" de "o mercado não tinha o item". Os dois viravam
+  -- `incomplete`, e só o primeiro justifica repetir a busca.
+  --
+  -- Os valores são os de `precos.fontes.Desfecho`.
+  desfechos jsonb not null default '{}'::jsonb,
+
+  -- Diagnóstico da falha técnica, quando houve. Fica ao lado de
+  -- `estado='error'` e é o que a tela mostra ao oferecer o retry.
+  erro text not null default '',
+
   unique (pesquisa_id, numero)
 );
 
@@ -248,6 +272,21 @@ create table if not exists public.pesquisa_preco_referencias (
   -- e nunca zero, que mentiria dizendo que a conversão deu zero.
   unidade_normalizada text,
   valor_unitario_normalizado numeric(18, 4),
+
+  -- NATUREZA DO VALOR — o que o número É, não só quanto ele vale.
+  --
+  -- Sem esta coluna a regra viveria só em memória: recarregando a
+  -- pesquisa do banco, o `valorUnitarioEstimado` de uma contratação de
+  -- terceiro voltaria indistinguível de preço praticado, e a primeira
+  -- releitura perderia a proteção.
+  --
+  -- O CHECK enumera de propósito, com a mesma lista de
+  -- `precos.modelo.NaturezaValor`: natureza que o app não conhece não
+  -- entra no banco, e natureza que o banco não conhece não sai do app.
+  natureza_valor text not null default 'outro'
+    check (natureza_valor in ('praticado', 'homologado', 'contratado',
+                              'adjudicado', 'estimado_origem', 'proposta',
+                              'outro')),
 
   codigo_catalogo text,
   tipo_catalogo text,
@@ -417,6 +456,30 @@ revoke all on public.pesquisas_preco            from anon, public;
 revoke all on public.pesquisa_preco_itens       from anon, public;
 revoke all on public.pesquisa_preco_referencias from anon, public;
 revoke all on public.pesquisa_preco_eventos     from anon, public;
+
+-- DELETE FORA, INCLUSIVE PARA A CREDENCIAL DE SERVIDOR.
+--
+-- Estas quatro linhas nasceram de um achado ao APLICAR a migração no
+-- ambiente de ensaio, e valem o registro porque a migração afirmava o
+-- contrário do que acontecia. O Supabase configura o schema `public`
+-- com `alter default privileges ... grant all on tables to postgres,
+-- anon, authenticated, service_role` — então cada tabela criada aqui
+-- nascia com DELETE para `service_role` sem uma linha de SQL nossa
+-- pedindo por isso.
+--
+-- O ensaio local não pegou porque ele NÃO reproduzia esses defaults:
+-- era mais frouxo que a realidade e, por isso, mais complacente com a
+-- migração. Corrigido no mesmo commit (`ensaio_local.PREAMBULO`).
+--
+-- E o revoke tem dente: o `BYPASSRLS` do `service_role` ignora
+-- POLÍTICAS de linha, não GRANTs de tabela. Sem o privilégio, a
+-- credencial de servidor não apaga — e é ela que operaria estas
+-- tabelas se alguém voltasse atrás na decisão de usar o JWT do
+-- usuário.
+revoke delete on public.pesquisas_preco            from service_role;
+revoke delete on public.pesquisa_preco_itens       from service_role;
+revoke delete on public.pesquisa_preco_referencias from service_role;
+revoke delete on public.pesquisa_preco_eventos     from service_role;
 
 -- ---------------------------------------------------------------
 -- Políticas — cabeçalho
@@ -768,14 +831,18 @@ begin
     v_proxima, v_origem.id, v_raiz, coalesce(p_motivo, ''))
   returning id into v_nova;
 
+  -- `desfechos` e `erro` vêm junto: sem eles a revisão nasceria sem
+  -- saber POR QUE um item ficou em erro, e o servidor perderia a
+  -- distinção entre falha de fonte e ausência de preço logo na primeira
+  -- revisão — que é justamente quando ele está reexaminando o caso.
   insert into public.pesquisa_preco_itens (
     pesquisa_id, tenant_id, numero, codigo, tipo_catalogo, descricao,
     unidade, quantidade, estado, metodo, preco_estimado, preco_total,
-    estatisticas, justificativa, ocorrencias)
+    estatisticas, justificativa, ocorrencias, desfechos, erro)
   select v_nova, i.tenant_id, i.numero, i.codigo, i.tipo_catalogo,
          i.descricao, i.unidade, i.quantidade, i.estado, i.metodo,
          i.preco_estimado, i.preco_total, i.estatisticas, i.justificativa,
-         i.ocorrencias
+         i.ocorrencias, i.desfechos, i.erro
     from public.pesquisa_preco_itens i
    where i.pesquisa_id = p_pesquisa;
 
@@ -785,11 +852,19 @@ begin
   -- `coletado_em` é COPIADO, e `criado_em` não: a data em que o preço
   -- foi colhido da fonte é um fato e não muda ao ser copiado; a data
   -- em que esta linha passou a existir é outra coisa.
+  --
+  -- `natureza_valor` é COPIADA, e esquecê-la seria estrago silencioso:
+  -- a coluna tem default `'outro'`, e `outro` não é natureza
+  -- comparável. Uma revisão que não a copiasse nasceria com TODAS as
+  -- referências fora da cesta — cada item viraria `incomplete` sem que
+  -- nada tivesse mudado no mérito, e o motivo estaria num default de
+  -- schema, invisível para quem olhasse a tela.
   insert into public.pesquisa_preco_referencias (
     item_id, tenant_id, fonte_id, fonte_nome, fonte_tipo, id_externo,
     referencia_externa, raw_hash, descricao_original, unidade_original,
     quantidade_original, valor_unitario_original, capacidade_embalagem,
-    unidade_normalizada, valor_unitario_normalizado, codigo_catalogo,
+    unidade_normalizada, valor_unitario_normalizado, natureza_valor,
+    codigo_catalogo,
     tipo_catalogo, orgao, uf, municipio, fornecedor, ni_fornecedor,
     marca, data_compra, data_resultado, score, identidade, circunstancias,
     fatores, status, motivos, bruto, coletado_em)
@@ -798,6 +873,7 @@ begin
          r.descricao_original, r.unidade_original, r.quantidade_original,
          r.valor_unitario_original, r.capacidade_embalagem,
          r.unidade_normalizada, r.valor_unitario_normalizado,
+         r.natureza_valor,
          r.codigo_catalogo, r.tipo_catalogo, r.orgao, r.uf, r.municipio,
          r.fornecedor, r.ni_fornecedor, r.marca, r.data_compra,
          r.data_resultado, r.score, r.identidade, r.circunstancias,
@@ -829,8 +905,10 @@ grant execute on function public.revisar_pesquisa_preco(uuid, text)
 -- ===============================================================
 -- FEATURE FLAG (§40) — nasce DESLIGADA
 --
--- Aplicar a migração não liga o módulo. `flag_ativa('pesquisa_precos')`
--- lê esta chave, e ela entra como 'off'. `do nothing` no conflito
+-- Aplicar a migração não liga o módulo.
+-- `db.flag_ativa(governanca.FLAG_PESQUISA_PRECOS)` lê esta chave —
+-- `flag_price_research`, no padrão inglês das demais flags — e ela
+-- entra como 'off'. `do nothing` no conflito
 -- para que reaplicar a migração nunca reative uma flag que alguém
 -- desligou de propósito.
 -- ===============================================================

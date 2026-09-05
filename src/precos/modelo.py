@@ -34,6 +34,62 @@ from typing import Any
 CENTAVO = Decimal("0.01")
 
 
+class NaturezaValor(str, Enum):
+    """
+    O que o número É juridicamente — e não só quanto ele vale.
+
+    Existe porque a auditoria encontrou a pior contaminação possível numa
+    pesquisa de preços: o `valorUnitarioEstimado` de uma contratação de
+    terceiro entrando na cesta como se fosse preço praticado. São coisas
+    diferentes, e confundi-las erra nos dois sentidos:
+
+    * o valor ESTIMADO é a expectativa de outro órgão. Pode estar
+      superavaliado, pode nunca ter sido testado pelo mercado, e nada
+      garante que a contratação tenha sequer ocorrido;
+    * usá-lo como parâmetro é fundamentar a estimativa da Administração
+      na estimativa de outra Administração. Vira ciranda — um órgão copia
+      a expectativa do outro e ninguém nunca olhou preço real.
+
+    Um booleano `eh_estimado` diria menos e envelheceria pior: o mundo
+    tem mais de duas naturezas, e o relatório precisa dizer QUAL.
+    """
+
+    PRATICADO = "praticado"             # a Administração pagou este valor
+    HOMOLOGADO = "homologado"           # resultado homologado da licitação
+    CONTRATADO = "contratado"           # valor do contrato assinado
+    ADJUDICADO = "adjudicado"           # adjudicado ao vencedor
+    ESTIMADO_ORIGEM = "estimado_origem"  # expectativa do órgão de origem
+    PROPOSTA = "proposta"               # oferta de fornecedor, sem disputa
+    OUTRO = "outro"                     # natureza não determinada
+
+
+# As naturezas que entram na cesta estatística SOZINHAS. Todas descrevem
+# um valor que o mercado efetivamente praticou diante da Administração.
+#
+# A lista é POSITIVA de propósito. Uma lista negativa ("tudo menos
+# estimado") faria toda natureza nova nascer aceita, e a próxima fonte
+# integrada entraria na cesta antes de alguém decidir se deveria.
+NATUREZAS_COMPARAVEIS = frozenset({
+    NaturezaValor.PRATICADO, NaturezaValor.HOMOLOGADO,
+    NaturezaValor.CONTRATADO, NaturezaValor.ADJUDICADO,
+})
+
+ROTULO_NATUREZA = {
+    NaturezaValor.PRATICADO: "preço praticado",
+    NaturezaValor.HOMOLOGADO: "preço homologado",
+    NaturezaValor.CONTRATADO: "valor contratado",
+    NaturezaValor.ADJUDICADO: "valor adjudicado",
+    NaturezaValor.ESTIMADO_ORIGEM: "valor ESTIMADO pelo órgão de origem",
+    NaturezaValor.PROPOSTA: "proposta de fornecedor",
+    NaturezaValor.OUTRO: "natureza não determinada",
+}
+
+MOTIVO_NATUREZA_NAO_COMPARAVEL = (
+    "{rotulo} — não é preço efetivamente praticado, então não entra "
+    "sozinho na cesta. Continua listado como evidência e pode ser "
+    "incluído à mão, com justificativa registrada")
+
+
 class StatusReferencia(str, Enum):
     """
     Situação de uma referência dentro da pesquisa.
@@ -126,6 +182,11 @@ class Referencia:
     valor_unitario_original: Decimal | None = None
     capacidade_embalagem: Decimal | None = None   # itens por embalagem
 
+    # O que o número é. `OUTRO` é o padrão porque adapter que não
+    # classifica não deve ganhar a cesta por omissão — quem sabe a
+    # natureza é quem lê o campo da API, não quem consome o modelo.
+    natureza_valor: NaturezaValor = NaturezaValor.OUTRO
+
     codigo_catalogo: str | None = None
     tipo_catalogo: str | None = None              # 'CATMAT' | 'CATSER'
     codigo_pdm: str | None = None
@@ -179,6 +240,23 @@ class Referencia:
         preco = self.valor_unitario_original
         return preco is not None and preco > 0
 
+    @property
+    def serve_de_preco(self) -> bool:
+        """
+        Esta referência pode sustentar a estimativa SOZINHA?
+
+        Duas condições, e as duas são necessárias: há um número, e o
+        número é de natureza comparável. Uma referência com valor
+        estimado tem preço e não serve; uma homologada sem valor serve de
+        natureza e não tem número. Nenhuma das duas entra na cesta.
+        """
+        return self.tem_preco and self.natureza_valor in NATUREZAS_COMPARAVEIS
+
+    @property
+    def rotulo_da_natureza(self) -> str:
+        return ROTULO_NATUREZA.get(self.natureza_valor,
+                                   self.natureza_valor.value)
+
     def para_relatorio(self) -> dict:
         """
         Projeção estável para relatório e persistência.
@@ -198,6 +276,12 @@ class Referencia:
             "quantidade_original": _texto_decimal(self.quantidade_original),
             "valor_unitario_original": _texto_decimal(
                 self.valor_unitario_original),
+            # A natureza acompanha a referência até o relatório: quem
+            # audita meses depois precisa saber se aquele número foi
+            # pago ou só esperado por alguém.
+            "natureza_valor": self.natureza_valor.value,
+            "rotulo_natureza": self.rotulo_da_natureza,
+            "serve_de_preco": self.serve_de_preco,
             "capacidade_embalagem": _texto_decimal(self.capacidade_embalagem),
             "unidade_normalizada": self.unidade_normalizada,
             "valor_unitario_normalizado": _texto_decimal(

@@ -45,7 +45,8 @@ from decimal import Decimal, InvalidOperation
 
 from . import estatistica, matching, unidades
 from .estados import EstadoItem, EstadoPesquisa, estado_derivado
-from .fontes import Consulta, FontePesquisaPreco
+from . import fontes as fontes_mod
+from .fontes import Consulta, Desfecho, FontePesquisaPreco
 from .modelo import Referencia, conferir_procedencia, deduplicar
 from .perfil import PADRAO, PerfilNormativo
 
@@ -160,7 +161,8 @@ def _decimal(valor) -> Decimal | None:
         return None
 
 
-def consulta_do_item(item: dict, filtros: dict | None = None) -> Consulta:
+def consulta_do_item(item: dict, filtros: dict | None = None,
+                     termos_alternativos: tuple[str, ...] = ()) -> Consulta:
     """
     Traduz a linha do banco para a `Consulta` que os adapters entendem.
 
@@ -186,6 +188,7 @@ def consulta_do_item(item: dict, filtros: dict | None = None) -> Consulta:
         data_inicial=hoje - timedelta(days=dias),
         data_final=hoje,
         limite=int(filtros.get("limite") or LIMITE_POR_FONTE),
+        termos_alternativos=tuple(termos_alternativos),
     )
 
 
@@ -209,15 +212,37 @@ class ResultadoItem:
     erro: str = ""
     duracao_s: float = 0.0
 
+    # Termos que a camada semântica sugeriu, quando havia motor. Vai ao
+    # relatório: o §58 exige poder responder depois "o que a IA fez
+    # nesta pesquisa", e a resposta honesta é uma lista de palavras.
+    termos_semanticos: list[str] = field(default_factory=list)
+
+    # Desfecho de CADA fonte consultada, por id. É o que permite ao
+    # relatório e à tela dizerem "o Compras.gov caiu; o PNCP respondeu"
+    # em vez de um "houve problemas" que não ajuda ninguém a decidir se
+    # vale repetir a busca.
+    desfechos: dict[str, str] = field(default_factory=dict)
+
     @property
     def falhou(self) -> bool:
         return bool(self.erro)
+
+    @property
+    def fontes_de_preco_falharam(self) -> list[str]:
+        return [fid for fid, d in self.desfechos.items()
+                if d == Desfecho.FALHA.value and fid in self._de_preco]
+
+    # Preenchido por `pesquisar_item`: quais dos ids consultados eram
+    # fontes de preço. Sem isso, `desfechos` sozinho não diz se a falha
+    # atingiu quem importa.
+    _de_preco: frozenset = field(default_factory=frozenset, repr=False)
 
 
 def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
                    perfil: PerfilNormativo = PADRAO,
                    filtros: dict | None = None,
-                   piso: Decimal | None = None) -> ResultadoItem:
+                   piso: Decimal | None = None,
+                   motor_semantico=None) -> ResultadoItem:
     """
     O pipeline de um item, do zero à estimativa.
 
@@ -235,27 +260,88 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
     inicio = time.monotonic()
     resultado = ResultadoItem(item_id=str(item.get("id") or ""),
                               numero=int(item.get("numero") or 0))
-    consulta = consulta_do_item(item, filtros)
+
+    # ------------------------------------------------------------------
+    # A IA entra AQUI, e some em seguida
+    # ------------------------------------------------------------------
+    # É o único ponto do fluxo automático em que a camada semântica toca
+    # a pesquisa, e o que ela produz são PALAVRAS. Ela não vê preço — o
+    # prompt não o carrega —, não pontua referência, não escolhe cesta e
+    # não calcula nada. Da linha seguinte em diante tudo é
+    # determinístico.
+    #
+    # O pior estrago que um termo ruim causa é trazer candidato
+    # irrelevante, que o matching descarta. Nunca um preço errado.
+    #
+    # Sem motor a lista sai vazia e o pipeline segue idêntico: a camada é
+    # opcional de verdade, não um caminho feliz com fallback improvisado.
+    from . import semantica
+    termos = tuple(semantica.sugerir_termos(motor_semantico, item))
+    if termos:
+        resultado.termos_semanticos = list(termos)
+        resultado.ocorrencias.append(
+            "busca ampliada com termos equivalentes sugeridos pela camada "
+            f"semântica: {', '.join(termos)}")
+
+    consulta = consulta_do_item(item, filtros, termos)
 
     coletadas: list[Referencia] = []
-    falhas = 0
+    de_preco: set[str] = set()
     for fonte in fontes:
+        fid = getattr(getattr(fonte, "fonte", None), "id", "") or repr(fonte)
+        nome = getattr(getattr(fonte, "fonte", None), "nome", "fonte")
+        if fontes_mod.fornece_preco(fonte):
+            de_preco.add(fid)
         try:
             busca = fonte.pesquisar(consulta)
         except Exception as exc:  # noqa: BLE001 — adapter nenhum derruba a pesquisa
-            falhas += 1
-            nome = getattr(getattr(fonte, "fonte", None), "nome", "fonte")
+            resultado.desfechos[fid] = Desfecho.FALHA.value
             resultado.ocorrencias.append(
                 f"{nome}: indisponível no momento ({type(exc).__name__})")
             continue
+        resultado.desfechos[fid] = busca.desfecho.value
         coletadas.extend(busca.referencias)
         resultado.ocorrencias.extend(busca.ocorrencias)
 
-    if fontes and falhas == len(fontes):
-        # Todas as fontes caíram: é falha TÉCNICA, e o item volta para a
-        # fila na próxima rodada. Marcá-lo `incomplete` diria "o mercado
-        # não tinha o item", que é outra coisa e não se repetiria.
-        resultado.erro = "nenhuma fonte respondeu"
+    resultado._de_preco = frozenset(de_preco)
+
+    # ------------------------------------------------------------------
+    # Falha técnica NÃO é amostra insuficiente
+    # ------------------------------------------------------------------
+    # A versão anterior contava exceções: `falhas == len(fontes)`. Dois
+    # buracos, e os dois produziam a mesma mentira na tela.
+    #
+    # 1. adapter que trata o erro por dentro — e os dois tratam — nunca
+    #    levantava exceção. Um HTTP 503 do Compras.gov virava
+    #    `ResultadoBusca` vazio, `falhas` continuava 0, e o item saía
+    #    `incomplete`: "o mercado não tinha este item". O mercado não
+    #    tinha nada a ver com isso;
+    # 2. contava TODAS as fontes. Com o PNCP de pé (evidência) e o
+    #    Compras.gov fora (preço), `falhas != len(fontes)` e a pesquisa
+    #    se dizia bem-sucedida — apesar de nenhuma fonte de preço ter
+    #    respondido.
+    #
+    # A conta certa é sobre as fontes CAPAZES DE FORNECER PREÇO. Se
+    # todas elas falharam, é falha técnica: o item volta para a fila e se
+    # repete. Se responderam e não trouxeram nada, aí sim é o mercado
+    # falando, e repetir amanhã dá o mesmo.
+    falharam = [fid for fid in de_preco
+                if resultado.desfechos.get(fid) == Desfecho.FALHA.value]
+    if de_preco and len(falharam) == len(de_preco):
+        resultado.erro = (
+            "as fontes de preço não responderam "
+            f"({', '.join(sorted(falharam))}) — isto é falha técnica, não "
+            "ausência de preço no mercado; o item volta para a fila")
+        resultado.duracao_s = time.monotonic() - inicio
+        return resultado
+
+    if not de_preco:
+        # Nenhuma fonte de preço configurada. Também é falha técnica, e
+        # de configuração: sem ela a pesquisa não pode dar certo nunca, e
+        # deixar sair `incomplete` culparia o mercado por um erro nosso.
+        resultado.erro = (
+            "nenhuma fonte capaz de fornecer preço foi configurada para "
+            "esta pesquisa")
         resultado.duracao_s = time.monotonic() - inicio
         return resultado
 
@@ -299,7 +385,8 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
 def executar_lote(pesquisa: dict, itens: list[dict],
                   fontes: list[FontePesquisaPreco], repositorio, *,
                   perfil: PerfilNormativo = PADRAO,
-                  tamanho: int = LOTE_PADRAO) -> tuple[Progresso, list[str]]:
+                  tamanho: int = LOTE_PADRAO,
+                  motor_semantico=None) -> tuple[Progresso, list[str]]:
     """
     Processa um lote e PERSISTE. Devolve (progresso, linhas do relato).
 
@@ -331,12 +418,19 @@ def executar_lote(pesquisa: dict, itens: list[dict],
             por_id[item_id]["estado"] = EstadoItem.BUSCANDO.value
 
             resultado = pesquisar_item(item, fontes, perfil=perfil,
-                                       filtros=filtros)
+                                       filtros=filtros,
+                                       motor_semantico=motor_semantico)
 
             if resultado.falhou:
+                # `desfechos` e `erro` são gravados junto do estado: sem
+                # eles, ao recarregar a pesquisa amanhã ninguém distingue
+                # "a fonte de preço caiu" de "o mercado não tinha o
+                # item" — e só o primeiro caso justifica repetir a busca.
                 repositorio.mover_item(item_id, EstadoItem.ERRO,
                                        EstadoItem.BUSCANDO,
-                                       ocorrencias=resultado.ocorrencias)
+                                       ocorrencias=resultado.ocorrencias,
+                                       desfechos=resultado.desfechos,
+                                       erro=resultado.erro)
                 por_id[item_id]["estado"] = EstadoItem.ERRO.value
                 relato.append(
                     f"Item {resultado.numero:02d}  !  {resultado.erro}")

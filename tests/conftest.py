@@ -185,6 +185,45 @@ def ensaio_sql():
     exigir_ensaio_sql()
 
 
+@pytest.fixture(scope="module")
+def banco():
+    """
+    Banco descartável com o schema REAL e 0018→0021 aplicadas.
+
+    Vive aqui, e não dentro de um arquivo de teste, pela mesma razão
+    registrada acima para o dublê de PostgREST: duas cópias de uma
+    preparação de ensaio divergem caladas. Quando o smoke ponta a ponta
+    passou a precisar do mesmo banco das provas de RLS, copiar a fixture
+    teria criado exatamente isso — duas verdades sobre o que "o schema
+    real" significa.
+
+    Falha na preparação é ERRO, nunca skip.
+    """
+    exigir_ensaio_sql()
+
+    import os
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    import psycopg
+    from ensaio_local import (EnsaioLocal, criar_banco_descartavel,
+                              descartar_banco, exigir_dsn_local, preparar)
+
+    dsn_base = os.getenv(VARIAVEL_ENSAIO_SQL, "")
+    exigir_dsn_local(dsn_base)
+    dsn, nome = criar_banco_descartavel(dsn_base)
+    try:
+        with psycopg.connect(dsn, autocommit=True) as conexao:
+            try:
+                preparar(conexao)
+            except EnsaioLocal as erro:
+                pytest.fail(f"preparação do ensaio SQL falhou: {erro}")
+            yield conexao
+    finally:
+        descartar_banco(dsn_base, nome)
+
+
 # ---------------------------------------------------------------------------
 # Dublê de PostgREST para a pesquisa de preços
 #

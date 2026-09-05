@@ -397,11 +397,30 @@ def test_descricao_maliciosa_e_tratada_como_texto(itens_contratados):
     assert ref.motivos == [] or all("Ignore" not in m for m in ref.motivos)
 
 
-def test_resultado_de_busca_acumula_ocorrencias():
+def test_resultado_de_busca_separa_recado_de_falha():
+    """
+    A versão original desta prova dizia `registrar("uma falha")` e
+    esperava `houve_falha` — tratando os dois como sinônimos. Eram, e
+    esse era o defeito: `houve_falha` valia `bool(ocorrencias)`, então
+    qualquer recado marcava a fonte como quebrada. O PNCP, que registra
+    "sou fonte de enriquecimento" a cada item, aparecia permanentemente
+    fora do ar.
+
+    Agora `registrar` é recado e `falhar` é falha. `ocorrencias` continua
+    acumulando as duas — o servidor vê tudo —, mas só a segunda muda o
+    veredito.
+    """
     resultado = ResultadoBusca(fonte=Fonte("x", "X", "outro"))
     assert not resultado.houve_falha
-    resultado.registrar("uma falha")
-    assert resultado.houve_falha and len(resultado.ocorrencias) == 1
+
+    resultado.registrar("uso apenas para comprovação")
+    assert not resultado.houve_falha, "recado não é falha"
+    assert len(resultado.ocorrencias) == 1
+
+    resultado.falhar("respondeu HTTP 503")
+    assert resultado.houve_falha
+    assert resultado.falha == "respondeu HTTP 503"
+    assert len(resultado.ocorrencias) == 2, "o recado não foi apagado"
 
 
 # ---------------------------------------------------------------------------

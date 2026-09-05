@@ -20,8 +20,8 @@ from decimal import Decimal
 
 import pytest
 
-from src.precos import (IN_65_2021, LEI_14133, Cesta, Fonte, Referencia,
-                        StatusReferencia, calcular, comparar,
+from src.precos import (IN_65_2021, LEI_14133, Cesta, Fonte, NaturezaValor,
+                        Referencia, StatusReferencia, calcular, comparar,
                         detectar_anomalias, estimar, mediana, normalizar,
                         ordenar_por_comparabilidade, selecionar_cesta)
 from src.precos.estatistica import PISO_COMPARABILIDADE, METODO_AUTOMATICO
@@ -49,6 +49,12 @@ def ref(preco, *, descricao="PASTA CATALOGO 100 ENVELOPES PLASTICOS",
         else Decimal(str(capacidade)),
         codigo_catalogo=codigo, codigo_classe=classe, uf=uf,
         criterio_julgamento=criterio,
+        # Preço PRATICADO por padrão: é o que os adapters reais produzem
+        # no caminho normal, e estas provas medem cesta e estatística —
+        # não a regra de natureza, que tem suíte própria. Sem declarar,
+        # a referência cairia como `OUTRO` e nunca entraria na cesta,
+        # medindo outra coisa.
+        natureza_valor=NaturezaValor.PRATICADO,
         data_resultado=HOJE - timedelta(days=dias))
     return normalizar(r, "UNIDADE")
 

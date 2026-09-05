@@ -118,16 +118,44 @@ def do_item(item: dict, referencias: list[dict],
                      if r.get("valor_unitario_normalizado") in (None, "")
                      and r.get("valor_unitario_original") not in (None, "")]
 
+    # 0. FALHA TÉCNICA vem antes de tudo, e é uma mensagem diferente.
+    #
+    # Este bloco existe porque o sistema dizia a coisa errada no pior
+    # momento: quando a fonte de preço caía, o item saía `incomplete` e
+    # o GovBot avisava "encontrei apenas 0 referências" — culpando o
+    # mercado por uma indisponibilidade de servidor. O servidor então
+    # ampliava a janela, tirava o filtro de UF e procurava CATMAT, tudo
+    # inutilmente, porque não havia nada de errado com a busca.
+    #
+    # As duas situações pedem ações opostas: falha técnica pede
+    # REPETIR; amostra insuficiente pede MUDAR os critérios ou
+    # justificar. Por isso a mensagem é outra, e não um adjetivo a mais.
+    if estado == EstadoItem.ERRO.value:
+        quais = [fid for fid, d in (item.get("desfechos") or {}).items()
+                 if d == "failure"]
+        detalhe = f" ({', '.join(sorted(quais))})" if quais else ""
+        saida.append(Orientacao(
+            IMPEDE,
+            f"A consulta às fontes de preço falhou{detalhe} — isto é "
+            "indisponibilidade técnica, NÃO ausência de preço no mercado. "
+            "Não mexa nos critérios da busca por causa disto: rode a "
+            "pesquisa outra vez e o item volta para a fila "
+            "automaticamente.",
+            origem="item.estado + item.desfechos", item_numero=numero))
+        return _ordenar(saida)
+
     # 1. A regra dos três — o exemplo literal do §28.
     if estado == EstadoItem.INCOMPLETO.value:
         saida.append(Orientacao(
             IMPEDE,
             f"Encontrei apenas {len(na_cesta)} referência(s) defensável(is) "
             f"para este item, e o perfil {perfil.nome} pede "
-            f"{perfil.minimo_referencias}. Nenhum preço foi fabricado para "
-            "completar a cesta — amplie a janela de datas, tente sem filtro "
-            "de UF, informe o CATMAT/CATSER, ou registre a justificativa "
-            "para concluir com menos.",
+            f"{perfil.minimo_referencias}. As fontes responderam — o mercado "
+            "é que não tinha referência bastante, então repetir a busca "
+            "tende a dar o mesmo. Nenhum preço foi fabricado para completar "
+            "a cesta: amplie a janela de datas, tente sem filtro de UF, "
+            "informe o CATMAT/CATSER, ou registre a justificativa para "
+            "concluir com menos.",
             origem="item.estado + cesta", item_numero=numero))
     elif na_cesta and len(na_cesta) < perfil.minimo_referencias:
         saida.append(Orientacao(
@@ -235,20 +263,29 @@ def da_pesquisa(pesquisa: dict, itens: list[dict],
     com_erro = por_estado.get(EstadoItem.ERRO.value, [])
     por_revisar = por_estado.get(EstadoItem.EM_REVISAO.value, [])
 
+    # Os dois blocos abaixo são vizinhos de propósito: são as duas
+    # maneiras de um item não ter preço, e confundi-las manda o servidor
+    # para o lado errado. Cada mensagem diz explicitamente o que a outra
+    # não é.
     if incompletos:
         saida.append(Orientacao(
             IMPEDE,
             f"{len(incompletos)} item(ns) não fecharam a cesta mínima do "
-            f"perfil {perfil.nome}: {_lista(incompletos)}. Eles não têm "
-            "preço formado, e o valor global não os inclui.",
+            f"perfil {perfil.nome}: {_lista(incompletos)}. As fontes "
+            "responderam — o mercado é que não tinha referência bastante. "
+            "Repetir a busca tende a dar o mesmo: o caminho é ampliar a "
+            "janela, rever os filtros ou registrar a justificativa. Eles "
+            "não têm preço formado, e o valor global não os inclui.",
             origem="itens.estado"))
 
     if com_erro:
         saida.append(Orientacao(
             IMPEDE,
             f"{len(com_erro)} item(ns) pararam por falha técnica na "
-            f"consulta: {_lista(com_erro)}. Rode a pesquisa outra vez — "
-            "eles voltam para a fila automaticamente.",
+            f"consulta: {_lista(com_erro)}. Aqui é o contrário do caso "
+            "acima: as fontes de preço não responderam, e nada indica que "
+            "falte preço no mercado. Rode a pesquisa outra vez — eles "
+            "voltam para a fila automaticamente.",
             origem="itens.estado"))
 
     if por_revisar:

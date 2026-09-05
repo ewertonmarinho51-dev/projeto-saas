@@ -1458,14 +1458,36 @@ TABELAS_PRIVADAS = tabelas_do_inventario()
 # (somente SELECT em pg_tables; nenhuma linha de dado foi lida).
 TABELAS_EM_PRODUCAO = 28
 
+# As quatro da 0021. Entraram no inventário quando a migração perdeu o
+# sufixo `.NAO_APLICAR` e passou a casar com o glob `*.sql` — o
+# inventário é derivado do repositório justamente para acompanhar
+# migração nova sozinho, e foi o que ele fez.
+#
+# Elas NÃO estão em produção: a 0021 foi aplicada apenas no ambiente de
+# ensaio (`govdocs-ensaio-descartavel`). Somá-las a `TABELAS_EM_PRODUCAO`
+# seria afirmar uma implantação que não aconteceu.
+TABELAS_DA_PESQUISA_DE_PRECOS = frozenset({
+    "pesquisas_preco", "pesquisa_preco_itens",
+    "pesquisa_preco_referencias", "pesquisa_preco_eventos",
+})
+
 
 def test_o_inventario_cobre_todas_as_tabelas():
     """
     O ensaio anterior sondava 6 tabelas de 28 e ainda assim imprimia
     "CONTIDO". Um inventário incompleto é pior que nenhum: dá por
     fechado o que nunca foi olhado.
+
+    A conta distingue o que ESTÁ em produção do que o repositório já
+    descreve. Confundir os dois números faria o inventário mentir em
+    qualquer direção: para mais, dando por implantado o que não está;
+    para menos, deixando tabela nova fora da contagem que a cobre.
     """
-    assert len(TABELAS_PRIVADAS) == TABELAS_EM_PRODUCAO, TABELAS_PRIVADAS
+    em_producao = set(TABELAS_PRIVADAS) - TABELAS_DA_PESQUISA_DE_PRECOS
+
+    assert len(em_producao) == TABELAS_EM_PRODUCAO, sorted(em_producao)
+    assert TABELAS_DA_PESQUISA_DE_PRECOS <= set(TABELAS_PRIVADAS), (
+        "as tabelas da 0021 sumiram do inventário")
     for obrigatoria in ("usuarios", "config_app", "processos", "revisoes"):
         assert obrigatoria in TABELAS_PRIVADAS
 
@@ -1631,14 +1653,40 @@ def _sql_da_0020() -> str:
             / "0020_definitiva_supabase_auth_rls.sql.NAO_APLICAR").read_text()
 
 
-def test_a_0020_cobre_as_28_tabelas():
+def _sql_da_0021() -> str:
     """
-    Cobertura declarada = cobertura escrita. Tabela que não aparece na
-    migração não é "sem risco": é esquecida.
+    A 0021 já NÃO tem o sufixo `.NAO_APLICAR`: foi destravada e aplicada
+    no ambiente de ensaio nesta rodada.
     """
-    sql = _sql_da_0020()
-    faltando = [t for t in TABELAS_PRIVADAS if t not in sql]
-    assert not faltando, f"fora da matriz da 0020: {faltando}"
+    migracoes = Path(__file__).resolve().parent.parent / "supabase/migrations"
+    return (migracoes / "0021_pesquisa_precos.sql").read_text()
+
+
+def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
+    """
+    Cobertura declarada = cobertura escrita. Tabela que não aparece em
+    migração de contenção não é "sem risco": é esquecida.
+
+    A checagem passou a aceitar DUAS migrações, e não por conveniência:
+    a 0021 traz a própria matriz completa — RLS na primeira linha, 11
+    políticas, grants nominais e revoke de `anon` — em vez de pendurar
+    quatro tabelas novas no texto da 0020. Exigir que elas aparecessem
+    na 0020 obrigaria a reescrever uma migração já auditada a cada
+    módulo novo, que é como uma matriz de segurança começa a divergir
+    do que o banco de fato tem.
+
+    O que NÃO se afrouxou: continua sendo obrigatório que toda tabela
+    privada apareça em ALGUMA das duas.
+    """
+    coberto = _sql_da_0020() + _sql_da_0021()
+    faltando = [t for t in TABELAS_PRIVADAS if t not in coberto]
+    assert not faltando, f"sem matriz de RLS escrita: {faltando}"
+
+    # E cada uma no seu lugar: a 0021 não pode ter silenciosamente
+    # assumido tabela que era da 0020.
+    sql_0020 = _sql_da_0020()
+    for tabela in sorted(set(TABELAS_PRIVADAS) - TABELAS_DA_PESQUISA_DE_PRECOS):
+        assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 
 
 def test_a_0020_resolve_o_usuario_id_preexistente():

@@ -25,10 +25,12 @@ from .estados import (EstadoItem, EstadoPesquisa, TransicaoInvalida,
 from .estatistica import (Anomalia, Cesta, Estatisticas, Estimativa, calcular,
                           detectar_anomalias, estimar, mediana,
                           selecionar_cesta)
-from .fontes import Consulta, ErroFonte, FontePesquisaPreco, ResultadoBusca
+from .fontes import (Capacidade, Consulta, Desfecho, ErroFonte,
+                     FontePesquisaPreco, ResultadoBusca, fornece_preco)
 from .matching import (Comparabilidade, Fator, comparar,
                        ordenar_por_comparabilidade)
-from .modelo import (Fonte, Referencia, StatusReferencia, deduplicar,
+from .modelo import (NATUREZAS_COMPARAVEIS, Fonte, NaturezaValor,
+                     Referencia, StatusReferencia, deduplicar,
                      para_decimal)
 from .perfil import IN_65_2021, LEI_14133, PerfilNormativo
 from .pncp import PNCPAdapter
@@ -37,7 +39,9 @@ from .unidades import canonizar, comparavel, fator_de_conversao, normalizar
 __all__ = [
     "ComprasGovAdapter", "PNCPAdapter",
     "Consulta", "ResultadoBusca", "FontePesquisaPreco", "ErroFonte",
+    "Capacidade", "Desfecho", "fornece_preco",
     "Referencia", "Fonte", "StatusReferencia", "deduplicar", "para_decimal",
+    "NaturezaValor", "NATUREZAS_COMPARAVEIS",
     "canonizar", "fator_de_conversao", "normalizar", "comparavel",
     "Comparabilidade", "Fator", "comparar", "ordenar_por_comparabilidade",
     "Estatisticas", "Estimativa", "Cesta", "Anomalia", "calcular", "mediana",

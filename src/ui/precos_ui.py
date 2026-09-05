@@ -42,6 +42,7 @@ import streamlit as st
 from .. import auth, db, planilha
 from ..precos import (aplicacao, execucao, filtros as filtros_mod,
                       orientacao, perfil, relatorio)
+from ..precos import semantica as precos_semantica
 from ..precos import repositorio as repo
 from ..precos.estados import EstadoItem, EstadoPesquisa
 from . import components
@@ -716,6 +717,23 @@ def _render_execucao() -> None:
         "O motor consulta as fontes oficiais, normaliza a unidade e monta "
         "a cesta. Nada é inventado para completar a amostra.")
 
+    # A participação da IA é declarada ANTES da busca, não descoberta
+    # depois. Prometer "pesquisa com IA" e rodar determinístico seria a
+    # mentira mais fácil de contar aqui — e a mais difícil de o servidor
+    # detectar, porque o resultado tem a mesma cara.
+    if _motor_semantico() is not None:
+        st.caption(
+            "Camada semântica ATIVA: a IA sugere termos equivalentes para "
+            "ampliar a busca, e só isso. Ela não informa preço, não "
+            "pontua referência e não calcula estatística — quem faz isso é "
+            "o motor determinístico, com ou sem ela.")
+    else:
+        st.caption(
+            "Camada semântica INDISPONÍVEL (sem motor de IA configurado). "
+            "A pesquisa roda determinística: busca por descrição e por "
+            "CATMAT/CATSER, matching e estatística iguais. O que se perde "
+            "são sugestões de sinônimo para ampliar a busca.")
+
     st.progress(progresso.fracao, text=progresso.resumo())
 
     cancelar, continuar = st.columns([1, 1])
@@ -748,11 +766,23 @@ def _render_execucao() -> None:
     with st.spinner("Consultando fontes oficiais…"):
         _, relato = execucao.executar_lote(
             pesquisa, itens, _fontes(), repo,
-            perfil=perfil.obter(pesquisa.get("perfil_normativo")))
+            perfil=perfil.obter(pesquisa.get("perfil_normativo")),
+            motor_semantico=_motor_semantico())
 
     acumulado = list(st.session_state.get(RELATO) or [])
     st.session_state[RELATO] = (acumulado + relato)[-40:]
     st.rerun()
+
+
+def _motor_semantico():
+    """
+    O motor de IA da rodada — `None` quando não há credencial.
+
+    Injetável para que as provas exercitem o caminho com dublê. Sem
+    credencial devolve `None`, e o pipeline roda determinístico: a tela
+    diz isso em vez de fingir que a IA participou.
+    """
+    return precos_semantica.motor_do_projeto()
 
 
 def _fontes():

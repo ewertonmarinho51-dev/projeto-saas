@@ -421,6 +421,76 @@ def chamar(motor: Motor | None, pedido: str, dados_externos: dict, *,
     return proposta
 
 
+def motor_do_projeto() -> Motor | None:
+    """
+    O motor de IA do GovDocs, quando há credencial — ou `None`.
+
+    Reusa `llm.chamar_ia_texto`, que já é o caminho do auditor e do
+    corretor: mesma ordem de motores, mesmo fallback OpenAI→Gemini,
+    mesmo registro técnico. O §17 é explícito quanto a isto — nada de
+    um segundo sistema de IA no módulo de preços.
+
+    A assinatura de `chamar_ia_texto` é `(system, user) -> str`, que é
+    exatamente o `Motor` desta camada. Não foi coincidência procurada:
+    foi o motivo de a camada ter sido desenhada com o motor injetado.
+
+    Devolve `None` sem credencial, e é assim que o pipeline sabe cair no
+    modo determinístico em vez de estourar.
+    """
+    if not motor_disponivel():
+        return None
+
+    from .. import llm
+
+    def chamar_llm(sistema: str, usuario: str) -> str:
+        return llm.chamar_ia_texto(sistema, usuario,
+                                   finalidade="pesquisa_precos")
+
+    return chamar_llm
+
+
+def sugerir_termos(motor: Motor | None, item: dict,
+                   limite: int = 8) -> list[str]:
+    """
+    Termos equivalentes para AMPLIAR a busca — e nada além disso.
+
+    É o único ponto em que a IA toca o fluxo automático, e o que ela
+    devolve são PALAVRAS, não números. O caminho é estreito de
+    propósito:
+
+        descrição do item → termos → APIs oficiais → matching
+        determinístico → normalização → cesta → estatística
+
+    A IA entra no primeiro passo e some. Ela não vê preço (o prompt não
+    o carrega), não pontua referência, não escolhe cesta e não calcula
+    nada. Um termo ruim custa candidatos irrelevantes, que o matching
+    determinístico descarta — nunca um preço errado.
+
+    Sem motor devolve `[]`, e o chamador segue determinístico. Falha do
+    modelo também devolve `[]`: a pesquisa não pode parar porque um
+    serviço externo caiu para sugerir sinônimo.
+    """
+    if motor is None:
+        return []
+    descricao = str(item.get("descricao") or "").strip()
+    if not descricao:
+        return []
+    try:
+        proposta = chamar(
+            motor,
+            "Liste termos e sinônimos que descrevam o MESMO produto, para "
+            "ampliar uma busca em catálogo público. Responda "
+            '{"acao": "sugerir_termos", "termos": ["..."]}.',
+            dados_do_item(item, []),
+            referencias=[], finalidade="termos_equivalentes",
+            provedor="govdocs", modelo="")
+    except (ErroSemantico, MotorIndisponivel, Exception):  # noqa: BLE001
+        # Qualquer falha aqui é opcional por definição: a pesquisa
+        # inteira funciona sem sinônimo nenhum.
+        return []
+    return list(proposta.payload.get("termos") or [])[:limite]
+
+
 def _apenas_json(resposta: str) -> str:
     """
     Recorta o objeto JSON de uma resposta que pode vir com cerca de

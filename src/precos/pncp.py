@@ -16,6 +16,35 @@ O que o PNCP dá, e que o Compras.gov não dá, é a **referência oficial
 publicável**: `numeroControlePNCP` e `linkSistemaOrigem`, que transformam
 uma referência de preço em evidência com endereço verificável — o que o
 relatório precisa para ser auditável meses depois (§34).
+
+INVESTIGAÇÃO DE 05/09/2026 — o PNCP pode virar fonte de PREÇO?
+--------------------------------------------------------------
+Foi feita a pergunta contra o servidor, não contra a documentação. O que
+respondeu, e o que não respondeu:
+
+* `/api/consulta/v1/contratacoes/atualizacao` → **200**. E o registro da
+  contratação traz `valorTotalHomologado` **e** `valorTotalEstimado`,
+  separados — o próprio PNCP distingue as duas naturezas, o que
+  corrobora `modelo.NaturezaValor`. Mas são totais da CONTRATAÇÃO, não
+  preço unitário de item: não servem de referência;
+* `/api/consulta/v1/contratos` → **200**;
+* `/api/consulta/v1/contratacoes/publicacao` → **500**, "Erro na
+  comunicação com o banco de dados";
+* `/api/pncp/v1/orgaos/{cnpj}/compras/{ano}/{seq}/itens` e
+  `.../itens/{n}/resultados` → **502 e 503**, indisponíveis em todas as
+  tentativas com recuo.
+
+O preço unitário com natureza conhecida mora justamente nos dois últimos
+endpoints, e eles não responderam. **Não dá para verificar hoje quais
+campos existem, nem se `valorUnitarioHomologado` vem preenchido.**
+
+Conclusão, e ela é deliberada: o PNCP **continua declarando apenas
+`Capacidade.EVIDENCIA`**. Escrever um conversor para campos que não pude
+observar seria adivinhar o contrato de uma API — exatamente o tipo de
+suposição que já produziu defeito neste módulo. Quando os endpoints
+voltarem, o caminho está pavimentado: basta ler o campo, carimbar a
+`NaturezaValor` correspondente e acrescentar `Capacidade.PRECO` aqui.
+Até lá o sistema diz a verdade sobre o que encontrou.
 """
 
 from __future__ import annotations
@@ -27,7 +56,8 @@ import urllib.parse
 import urllib.request
 from datetime import date
 
-from .fontes import Consulta, FontePesquisaPreco, ResultadoBusca
+from .fontes import (Capacidade, Consulta, FontePesquisaPreco,
+                     ResultadoBusca)
 from .modelo import Fonte
 
 BASE = "https://pncp.gov.br/api/consulta/v1"
@@ -52,6 +82,12 @@ class PNCPAdapter(FontePesquisaPreco):
     """Enriquece referências com a publicação oficial correspondente."""
 
     fonte = FONTE_PNCP
+
+    # Declaração honesta do que este adapter entrega HOJE. Enquanto for
+    # só EVIDENCIA, o motor não o conta ao decidir se as fontes de preço
+    # responderam — que é o ponto todo: o PNCP estar de pé não conserta
+    # o Compras.gov estar fora.
+    capacidades = frozenset({Capacidade.EVIDENCIA})
 
     def __init__(self, abrir_url=None) -> None:
         self._abrir = abrir_url or self._abrir_url
@@ -80,7 +116,7 @@ class PNCPAdapter(FontePesquisaPreco):
                     time.sleep(recuo)
                     recuo *= 2
                     continue
-                resultado.registrar(
+                resultado.falhar(
                     f"o PNCP respondeu HTTP {erro.code}; a pesquisa "
                     "continua nas demais fontes")
                 return None
@@ -89,12 +125,12 @@ class PNCPAdapter(FontePesquisaPreco):
                     time.sleep(recuo)
                     recuo *= 2
                     continue
-                resultado.registrar(
+                resultado.falhar(
                     "o PNCP não respondeu agora; a pesquisa continua nas "
                     "demais fontes e você pode tentar novamente")
                 return None
             except json.JSONDecodeError:
-                resultado.registrar("o PNCP devolveu resposta não-JSON")
+                resultado.falhar("o PNCP devolveu resposta não-JSON")
                 return None
         return None
 
@@ -102,9 +138,15 @@ class PNCPAdapter(FontePesquisaPreco):
         """
         O PNCP não é porta de entrada — ver o docstring do módulo.
 
-        Devolver vazio com a ocorrência registrada é honesto e mantém o
-        contrato da interface; fingir uma busca por descrição que a API
-        não oferece seria pior.
+        Devolver vazio é honesto e mantém o contrato da interface;
+        fingir uma busca por descrição que a API não oferece seria pior.
+
+        O que mudou nesta rodada: isto é `registrar`, e NUNCA `falhar`.
+        Antes, o recado de projeto entrava em `ocorrencias` e
+        `houve_falha` era `bool(ocorrencias)` — então o PNCP aparecia
+        permanentemente quebrado, e o servidor lia "uma fonte falhou" a
+        cada item pesquisado. Recado não é falha, e o desfecho aqui é
+        `SEM_RESULTADO`.
         """
         resultado = ResultadoBusca(fonte=self.fonte)
         return resultado.registrar(

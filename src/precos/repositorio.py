@@ -153,6 +153,12 @@ def linha_de_referencia(referencia: Referencia,
         "unidade_normalizada": referencia.unidade_normalizada,
         "valor_unitario_normalizado": _numero(
             referencia.valor_unitario_normalizado),
+        # A natureza é PERSISTIDA, não recalculada na leitura: ela
+        # depende de qual campo da fonte trouxe o número, e esse campo
+        # só existe no instante da coleta. Sem gravá-la, a proteção
+        # contra valor estimado de terceiro se perderia na primeira
+        # releitura da pesquisa.
+        "natureza_valor": referencia.natureza_valor.value,
         "codigo_catalogo": referencia.codigo_catalogo,
         "tipo_catalogo": referencia.tipo_catalogo,
         "orgao": referencia.orgao,

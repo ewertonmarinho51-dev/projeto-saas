@@ -38,7 +38,7 @@ from src.precos import (aplicacao, execucao, filtros as filtros_mod, modelo,
 from src.precos import repositorio as repo
 from src.precos.estados import EstadoItem, EstadoPesquisa
 from src.precos.fontes import ResultadoBusca
-from src.precos.modelo import Fonte, Referencia
+from src.precos.modelo import Fonte, NaturezaValor, Referencia
 
 # Textos hostis que uma fonte pública pode devolver. Nenhum é inventado
 # para o teste passar: são as formas com que dado vira estrutura.
@@ -474,7 +474,11 @@ def _referencia(fonte, i, valor, descricao="CANETA ESFEROGRAFICA AZUL"):
         fonte=fonte, id_externo=f"{fonte.id}-{i}", bruto={},
         descricao_original=descricao, unidade_original="UNIDADE",
         quantidade_original=Decimal("100"),
-        valor_unitario_original=Decimal(valor))
+        valor_unitario_original=Decimal(valor),
+        # Ver a nota em test_precos_fase2: sem natureza declarada a
+        # referência não entra na cesta, e esta prova é sobre PROCEDÊNCIA
+        # da fonte, não sobre natureza do valor.
+        natureza_valor=NaturezaValor.PRATICADO)
 
 
 @pytest.mark.parametrize("erro", [

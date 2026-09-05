@@ -70,23 +70,8 @@ TABELAS = ("pesquisas_preco", "pesquisa_preco_itens",
 UNICIDADE_VIOLADA = "23505"
 
 
-@pytest.fixture(scope="module")
-def banco():
-    """Banco novo, schema real, 0018→0021 aplicadas. Falha não pula."""
-    exigir_ensaio_sql()
-    import psycopg
-
-    exigir_dsn_local(DSN)
-    dsn, nome = criar_banco_descartavel(DSN)
-    try:
-        with psycopg.connect(dsn, autocommit=True) as conexao:
-            try:
-                preparar(conexao)
-            except EnsaioLocal as erro:
-                pytest.fail(f"preparação do ensaio SQL falhou: {erro}")
-            yield conexao
-    finally:
-        descartar_banco(DSN, nome)
+# A fixture `banco` mora em tests/conftest.py: o smoke ponta a ponta
+# usa o mesmo banco, e duas cópias da preparação divergiriam caladas.
 
 
 @pytest.fixture(scope="module")
@@ -893,3 +878,92 @@ def test_o_check_do_banco_e_o_enum_do_python_nao_divergem(banco, tabela,
     assert do_banco == do_python, (
         f"{tabela}.{coluna}: banco={sorted(do_banco)} "
         f"python={sorted(do_python)}")
+
+
+@requer_pg
+def test_a_revisao_preserva_a_natureza_do_valor(banco, cenario):
+    """
+    Defeito encontrado lendo a RPC contra o modelo novo, e ele era
+    silencioso — o pior tipo.
+
+    `natureza_valor` tem default `'outro'` no schema, e `outro` não é
+    natureza comparável. A RPC copiava a árvore inteira SEM esta coluna,
+    então toda referência da revisão nascia `'outro'`: a cesta de todos
+    os itens esvaziava, cada item virava `incomplete`, e o motivo estava
+    num default de schema — invisível na tela, no relatório e no diff.
+    Revisar uma pesquisa para trocar a metodologia teria zerado o
+    trabalho inteiro.
+
+    A prova grava naturezas DIFERENTES e exige que a revisão as
+    reproduza uma a uma: contar linhas não pegaria o defeito, porque a
+    contagem estava certa.
+    """
+    with banco.transaction(force_rollback=True), banco.cursor() as c:
+        voltar_a_ser_servidor(c)
+        for ident, natureza in (("nat-praticado", "praticado"),
+                                ("nat-estimado", "estimado_origem"),
+                                ("nat-homologado", "homologado")):
+            c.execute(
+                "insert into public.pesquisa_preco_referencias "
+                "(item_id, tenant_id, fonte_id, id_externo, raw_hash, "
+                " valor_unitario_original, natureza_valor) "
+                "values (%s, %s, 'compras_gov_itens', %s, %s, 1.50, %s)",
+                (cenario["item"], cenario["tenant_a"], ident,
+                 f"hash-{ident}", natureza))
+
+        como(c, cenario["quem"]["titular"]["jwt"])
+        c.execute("select public.revisar_pesquisa_preco(%s, %s)",
+                  (cenario["pesquisa"], "conferir natureza"))
+        nova = c.fetchone()[0]
+
+        voltar_a_ser_servidor(c)
+        c.execute(
+            "select r.id_externo, r.natureza_valor "
+            "  from public.pesquisa_preco_referencias r "
+            "  join public.pesquisa_preco_itens i on i.id = r.item_id "
+            " where i.pesquisa_id = %s and r.id_externo like 'nat-%%' "
+            " order by r.id_externo", (nova,))
+        copiadas = dict(c.fetchall())
+
+    assert copiadas == {
+        "nat-estimado": "estimado_origem",
+        "nat-homologado": "homologado",
+        "nat-praticado": "praticado",
+    }, "a revisão perdeu a natureza e esvaziaria a cesta"
+
+
+@requer_pg
+def test_a_natureza_do_valor_e_restrita_pelo_banco(banco, cenario):
+    """
+    O CHECK não é decorativo: o app e o banco compartilham a lista, e
+    natureza que o app não conhece não entra. Sem isto, um valor
+    inventado passaria e a comparação `natureza in NATUREZAS_COMPARAVEIS`
+    silenciosamente o deixaria de fora sem ninguém saber por quê.
+    """
+    with banco.transaction(force_rollback=True), banco.cursor() as c:
+        voltar_a_ser_servidor(c)
+        with pytest.raises(Exception) as capturado:
+            c.execute(
+                "insert into public.pesquisa_preco_referencias "
+                "(item_id, tenant_id, fonte_id, id_externo, raw_hash, "
+                " natureza_valor) values (%s, %s, 'x', 'y', 'z', 'inventada')",
+                (cenario["item"], cenario["tenant_a"]))
+    assert getattr(capturado.value, "sqlstate", None) == "23514"
+
+
+@requer_pg
+def test_a_natureza_nasce_outro_e_nao_praticado(banco, cenario):
+    """
+    O default seguro. Se fosse `'praticado'`, um adapter que esquecesse
+    de classificar entregaria valor estimado como preço pago — e o erro
+    seria por OMISSÃO, que é o mais fácil de cometer.
+    """
+    with banco.transaction(force_rollback=True), banco.cursor() as c:
+        voltar_a_ser_servidor(c)
+        c.execute(
+            "insert into public.pesquisa_preco_referencias "
+            "(item_id, tenant_id, fonte_id, id_externo, raw_hash) "
+            "values (%s, %s, 'x', 'sem-natureza', 'h') "
+            "returning natureza_valor",
+            (cenario["item"], cenario["tenant_a"]))
+        assert c.fetchone()[0] == "outro"

@@ -35,6 +35,7 @@ from decimal import Decimal, InvalidOperation
 
 from .. import planilha
 from .estados import EstadoItem
+from .modelo import ROTULO_NATUREZA, NaturezaValor
 from .perfil import obter as obter_perfil
 
 # Versão do formato do relatório. Entra no identificador: mudar o layout
@@ -527,9 +528,14 @@ def _tabela_de_referencias(linhas: list[dict],
                            com_motivo: bool = False) -> str:
     if not linhas:
         return "Nenhuma."
-    cabecalho = ("| Fonte | Órgão | UF | Data | Qtd. | Unid. | Unitário | "
-                 "Compat. |")
-    separador = "|---|---|---|---|---|---|---|---|"
+    # "Natureza" é COLUNA, não nota de rodapé. A diferença entre um
+    # preço que alguém pagou e um valor que outro órgão apenas esperava
+    # pagar é a primeira coisa que um auditor pergunta sobre uma
+    # referência — não pode depender de o leitor abrir o campo de
+    # motivos.
+    cabecalho = ("| Fonte | Natureza | Órgão | UF | Data | Qtd. | Unid. | "
+                 "Unitário | Compat. |")
+    separador = "|---|---|---|---|---|---|---|---|---|"
     if com_motivo:
         cabecalho = cabecalho[:-1] + " Situação e motivo |"
         separador += "---|"
@@ -539,6 +545,10 @@ def _tabela_de_referencias(linhas: list[dict],
         compat = f"{score:.0%}" if score is not None else AUSENTE
         celulas = [
             _texto(linha.get("fonte_nome") or linha.get("fonte_id")),
+            _texto(linha.get("rotulo_natureza")
+                   or ROTULO_NATUREZA.get(
+                       NaturezaValor(str(linha.get("natureza_valor")
+                                         or "outro")), "")),
             _texto(linha.get("orgao")),
             _texto(linha.get("uf")),
             _data(linha.get("data_resultado") or linha.get("data_compra")),

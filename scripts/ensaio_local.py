@@ -66,7 +66,10 @@ SEQUENCIA_EM_ENSAIO = (
     # `secretaria_do_jwt` e `e_admin`. Aplicada antes, nem seria
     # criada — e, se fosse, as tabelas de pesquisa de preços nasceriam
     # no mundo pré-0019, onde `anon` ainda tem grant amplo.
-    "0021_pesquisa_precos.sql.NAO_APLICAR",
+    # Destravada nesta rodada (o sufixo saiu), mas continua AQUI e
+    # não entre as migrações de schema: a ordem importa mais que a
+    # extensão do arquivo.
+    "0021_pesquisa_precos.sql",
 )
 
 
@@ -152,12 +155,48 @@ $fn$;
 
 grant execute on function auth.uid(), auth.jwt(), auth.role()
   to anon, authenticated, service_role;
+
+-- DEFAULT PRIVILEGES DO SUPABASE — a parte que faltava, e que fez o
+-- ensaio ser MAIS FROUXO que a realidade.
+--
+-- O Supabase configura o schema `public` com `alter default privileges
+-- ... grant all on tables to postgres, anon, authenticated,
+-- service_role`. Sem isso aqui, toda tabela criada no ensaio nascia sem
+-- grant nenhum, e uma migração que dependesse do revoke explícito
+-- passava — enquanto no Supabase real a mesma tabela nascia com ALL
+-- para `service_role`.
+--
+-- Foi assim que a 0021 chegou a ser aplicada no projeto de ensaio
+-- afirmando "não há grant de DELETE para ninguém" e o `service_role`
+-- tendo DELETE nas quatro tabelas. O ensaio precisa ser tão permissivo
+-- quanto o ambiente que ele imita — senão ele prova o mundo errado.
+alter default privileges in schema public
+  grant all on tables to postgres, anon, authenticated, service_role;
+alter default privileges in schema public
+  grant all on functions to postgres, anon, authenticated, service_role;
+alter default privileges in schema public
+  grant all on sequences to postgres, anon, authenticated, service_role;
 """
 
 
 def migracoes_do_schema() -> list[pathlib.Path]:
-    """As `.sql` aplicáveis, em ordem. `.PENDENTE` e `.NAO_APLICAR` fora."""
-    return sorted(MIGRACOES.glob("[0-9][0-9][0-9][0-9]_*.sql"))
+    """
+    As `.sql` aplicáveis, em ordem. `.PENDENTE` e `.NAO_APLICAR` fora.
+
+    E fora também o que já está em `SEQUENCIA_EM_ENSAIO`. Sem esta
+    exclusão, uma migração que PERDE o sufixo `.NAO_APLICAR` — como a
+    0021 ao ser destravada nesta rodada — passa a casar com o glob e é
+    aplicada DUAS vezes: uma aqui, na ordem numérica, e outra na
+    sequência. A primeira viria antes da 0020, cujas funções ela chama,
+    e o ensaio quebraria com um erro que não tem nada a ver com o
+    conteúdo da migração.
+
+    A sequência é a autoridade sobre ordem; o glob cuida do resto.
+    """
+    em_sequencia = set(SEQUENCIA_EM_ENSAIO)
+    return sorted(caminho for caminho
+                  in MIGRACOES.glob("[0-9][0-9][0-9][0-9]_*.sql")
+                  if caminho.name not in em_sequencia)
 
 
 def sequencia_em_ensaio() -> list[pathlib.Path]:
