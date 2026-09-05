@@ -37,8 +37,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from ensaio_local import (  # noqa: E402
+    NEGADO,
+    PERMITIDO,
     EnsaioLocal,
     claims,
+    classificar_sql,
     como,
     criar_banco_descartavel,
     descartar_banco,
@@ -47,35 +50,18 @@ from ensaio_local import (  # noqa: E402
     voltar_a_ser_servidor,
 )
 
+from tests.conftest import exigir_ensaio_sql  # noqa: E402
+
 DSN = os.getenv("GOVDOCS_ENSAIO_PG_DSN", "")
 
-requer_pg = pytest.mark.skipif(
-    not DSN,
-    reason="ensaio SQL: defina GOVDOCS_ENSAIO_PG_DSN apontando para um "
-           "PostgreSQL LOCAL descartável (ver scripts/ensaio_local.py)")
+# `usefixtures`, e não `skipif`: com `GOVDOCS_EXIGIR_ENSAIO_SQL=1` a
+# ausência do banco de ensaio precisa FALHAR, e um `skipif` decidiria
+# antes que o portão pudesse opinar.
+requer_pg = pytest.mark.usefixtures("ensaio_sql")
 
-# Quatro estados, os mesmos do ensaio remoto.
-PERMITIDO = "PERMITIDO"
-NEGADO = "NEGADO"
-INCONCLUSIVO = "INCONCLUSIVO"
-
-# `42501` é insufficient_privilege: a negação inequívoca. `42P17` NÃO
-# entra aqui — recursão de política é defeito, não decisão.
-SQLSTATE_DE_NEGACAO = "42501"
-
-
-def classificar_sql(erro: Exception) -> str:
-    """
-    NEGADO só com `42501`. Todo o resto é INCONCLUSIVO.
-
-    Vocabulário idêntico ao do ensaio remoto, e pelo mesmo motivo: um
-    erro de schema ou de sintaxe não mede autorização nenhuma, e contá-
-    lo como negação faz um banco quebrado parecer um banco contido.
-    """
-    estado = getattr(erro, "sqlstate", None)
-    if estado == SQLSTATE_DE_NEGACAO:
-        return NEGADO
-    return INCONCLUSIVO
+# O vocabulário do veredito — PERMITIDO/NEGADO/INCONCLUSIVO e o
+# classificador — mora em `scripts/ensaio_local.py` desde que passou a
+# ser usado também pelas provas da pesquisa de preços. Uma cópia só.
 
 
 @pytest.fixture(scope="module")
@@ -86,8 +72,7 @@ def banco():
     Falha de preparação FALHA — não pula. Um schema pela metade mede
     outra coisa e produz verde sobre coisa nenhuma.
     """
-    if not DSN:
-        pytest.skip("ensaio SQL não configurado")
+    exigir_ensaio_sql()
     import psycopg
 
     exigir_dsn_local(DSN)
@@ -240,6 +225,67 @@ def _eventos_de(banco, entidade_id) -> list:
 
 
 EVENTOS_DE_APROVACAO = ("aprovacao_registrada", "aprovacao_revogada")
+
+
+# ---------------------------------------------------------------------------
+# O ambiente do ensaio
+# ---------------------------------------------------------------------------
+def test_a_ci_oferece_um_postgres_com_pgvector():
+    """
+    Guarda do defeito que deixou a CI vermelha da Fase 3 à Fase 7.
+
+    O schema real cria `public.vector(768)` e um índice HNSW na base de
+    conhecimento do GovBot. Com a imagem `postgres:16` pura, o ensaio
+    morria em `create extension vector` — "extension \\"vector\\" is not
+    available" — e as 94 provas de autorização ERRAVAM em toda PR. O
+    portão fez o que devia (erro, não silêncio); faltava dar ao runner o
+    PostgreSQL que o schema exige.
+
+    Esta prova falha se alguém voltar a imagem para um PostgreSQL sem a
+    extensão. Ela é estrutural de propósito: roda sem banco, então
+    protege a CI mesmo quando o próprio ensaio está indisponível — que é
+    exatamente a situação em que o erro passaria batido.
+
+    Ela lê a DIRETIVA `image:`, não o arquivo inteiro. A primeira versão
+    procurava a substring em qualquer lugar do YAML e passava mesmo com
+    `postgres:16`, porque o comentário que escrevi acima da imagem cita
+    `pgvector/pgvector` — o teste media o meu comentário.
+    """
+    import yaml
+
+    caminho = (Path(__file__).resolve().parent.parent
+               / ".github" / "workflows" / "ci.yml")
+    ci = yaml.safe_load(caminho.read_text(encoding="utf-8"))
+    servicos = ci["jobs"]["testes"]["services"]
+    imagem = servicos["postgres"]["image"]
+
+    assert imagem.startswith("pgvector/pgvector"), (
+        f"a CI declara {imagem!r}, um PostgreSQL sem pgvector; o schema "
+        "real não sobe nele e as provas de autorização erram")
+
+    # `python -m pytest`, não "pytest": o passo de instalação também
+    # contém a palavra, e casar com ela pegava o passo errado.
+    passo = next(p for p in ci["jobs"]["testes"]["steps"]
+                 if "python -m pytest" in str(p.get("run", "")))
+    ambiente = passo.get("env") or {}
+    assert ambiente.get("GOVDOCS_EXIGIR_ENSAIO_SQL") == "1", (
+        "a CI levanta o banco mas não exige o ensaio — sem isso as provas "
+        "voltam a PULAR em silêncio")
+    assert ambiente.get("GOVDOCS_ENSAIO_PG_DSN"), (
+        "a CI exige o ensaio mas não diz onde está o banco")
+
+
+@requer_pg
+def test_o_banco_do_ensaio_tem_a_extensao_vector(banco):
+    """
+    A contraprova em execução: o cluster onde as políticas são exercidas
+    é mesmo um PostgreSQL com `vector` instalada. Sem isto, a prova acima
+    seria só uma checagem de texto em YAML.
+    """
+    with banco.cursor() as c:
+        c.execute("select extversion from pg_extension where extname = 'vector'")
+        instalada = c.fetchone()
+    assert instalada, "o schema subiu sem a extensão vector — ensaio incompleto"
 
 
 # ---------------------------------------------------------------------------

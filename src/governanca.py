@@ -324,6 +324,20 @@ FLAG_PARECERES_LOTE = "legal_opinion_batch_processing"
 FLAG_LABORATORIO = "improvement_laboratory"
 FLAG_PUBLICACAO_GATE = "governance_publication_gate"
 
+# ===========================================================================
+# PESQUISA DE PREÇOS (§40 do prompt do módulo)
+#
+# A constante mora aqui, e não como string solta no módulo, porque é
+# assim que toda flag deste projeto é declarada — e porque uma string
+# repetida em três arquivos é uma flag que um dia fica meio ligada.
+#
+# O valor é inglês em snake_case, como as demais. A Fase 3 nasceu com
+# `pesquisa_precos` e desviava da convenção que a própria auditoria da
+# Fase 0 tinha registrado; corrigido agora, antes de a interface e o
+# banco de produção conhecerem o nome errado.
+# ===========================================================================
+FLAG_PESQUISA_PRECOS = "price_research"
+
 FLAGS_V6 = (
     FLAG_CENTRO, FLAG_CATALOGO, FLAG_POLITICAS_VISUAL,
     FLAG_FAMILIAS_SHADOW, FLAG_FAMILIAS_ATIVA, FLAG_TEMPLATES,
