@@ -12,6 +12,7 @@ DOM do Streamlit quebra a cada versão e não protege nada que importe.
 
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -680,10 +681,18 @@ def test_a_tela_de_revisao_mostra_cesta_descartados_e_anomalia(monkeypatch):
 
     avisos = " ".join(w.value for w in at.warning)
     assert "discrepante" in avisos
-    # O texto sinaliza; NÃO conclui juridicamente.
-    tudo = corpo + avisos + " ".join(str(c.value) for c in at.caption)
-    assert "inexequível" not in tudo.lower()
-    assert "ilegal" not in tudo.lower()
+    # O texto sinaliza; NÃO conclui juridicamente. A checagem procura a
+    # forma AFIRMATIVA, não a palavra solta: desde a Fase 7 o GovBot usa
+    # "inexequível" justamente para negá-la ("não afirma que o preço seja
+    # inexequível nem irregular"), e um `not in` cru reprovaria o texto
+    # correto — que é o oposto do que este teste defende.
+    tudo = (corpo + avisos + " ".join(str(c.value) for c in at.caption)
+            + " ".join(str(e.value) for e in at.error)
+            + " ".join(str(i.value) for i in at.info)).lower()
+    for afirmacao in (r"\bé inexequível", r"\bé ilegal", r"\bé irregular",
+                      r"\bpreço irregular", r"\bsuperfaturad"):
+        assert not re.search(afirmacao, tudo), (
+            f"a tela conclui juridicamente: {afirmacao}")
 
 
 def test_o_resumo_nao_soma_item_sem_preco(monkeypatch):

@@ -40,8 +40,8 @@ from decimal import Decimal, InvalidOperation
 import streamlit as st
 
 from .. import auth, db, planilha
-from ..precos import (aplicacao, execucao, filtros as filtros_mod, perfil,
-                      relatorio)
+from ..precos import (aplicacao, execucao, filtros as filtros_mod,
+                      orientacao, perfil, relatorio)
 from ..precos import repositorio as repo
 from ..precos.estados import EstadoItem, EstadoPesquisa
 from . import components
@@ -818,6 +818,8 @@ def _render_revisao() -> None:
     _cabecalho_do_item(pesquisa, item)
 
     referencias = repo.listar_referencias(str(item["id"]))
+    _render_govbot(orientacao.do_item(
+        item, referencias, perfil.obter(pesquisa.get("perfil_normativo"))))
     _render_explicacao(item, referencias)
     _render_painel_estatistico(pesquisa, item, referencias)
     escolhidos = _render_filtros(referencias)
@@ -835,6 +837,38 @@ def _cabecalho_do_item(pesquisa: dict, item: dict) -> None:
         f"{str(item.get('descricao') or '')}",
         f"Quantidade: {_texto_quantidade(item.get('quantidade'))}  ·  "
         f"Unidade: {item.get('unidade') or '—'}")
+
+
+def _render_govbot(orientacoes: list[orientacao.Orientacao]) -> None:
+    """
+    §28 — a orientação do GovBot, com a severidade traduzida em componente.
+
+    Duas escolhas que valem registro:
+
+    **Nada aqui vem de modelo de linguagem.** As três mensagens que o §28
+    exemplifica são leitura do que o motor já calculou; gerá-las com IA
+    seria pagar latência e risco de invenção para dizer um número que já
+    está na mesa. Consequência prática: o painel continua funcionando com
+    a IA fora do ar.
+
+    **A severidade escolhe o componente, e a ordem vem do módulo.** Com
+    210 itens, `st.error` para o que impede e `st.info` para o que apenas
+    informa é o que evita que o aviso decisivo se perca no meio da lista.
+    """
+    if not orientacoes:
+        return
+    with st.expander(f"GovBot — {len(orientacoes)} observação(ões)",
+                     expanded=any(o.severidade == orientacao.IMPEDE
+                                  for o in orientacoes)):
+        for aviso in orientacoes:
+            texto = f"{aviso.prefixo} {aviso.texto}"
+            if aviso.severidade == orientacao.IMPEDE:
+                st.error(texto)
+            elif aviso.severidade == orientacao.CONFIRA:
+                st.warning(texto)
+            else:
+                st.info(texto)
+            st.caption(f"Base do aviso: {aviso.origem}")
 
 
 def _render_explicacao(item: dict, referencias: list[dict]) -> None:
@@ -1136,6 +1170,10 @@ def _render_resumo() -> None:
             f"{', '.join(str(n) for n in sem_preco[:12])}"
             + (" …" if len(sem_preco) > 12 else "")
             + ". O valor global acima NÃO os inclui.")
+
+    # O panorama vem antes da lista: com 210 itens, o servidor precisa
+    # saber por onde começar, não rolar a tela até encontrar.
+    _render_govbot(orientacao.da_pesquisa(pesquisa, itens))
 
     st.divider()
     for item in itens:
