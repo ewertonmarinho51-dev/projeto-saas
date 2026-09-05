@@ -1103,3 +1103,159 @@ A ressalva das fases anteriores continua sendo o limite real: o módulo
 **não deve ser ativado em produção** enquanto a 0020 não estiver
 aplicada. O isolamento das tabelas de pesquisa de preços está provado; o
 da plataforma, não.
+
+---
+
+# FASE 5 — integração com o processo (entregue)
+
+Branch `feature/pesquisa-precos`. Flag continua `off`; 0021 continua
+`.NAO_APLICAR`.
+
+Esta é a fase em que um resultado de pesquisa vira **valor da
+contratação** — o número que o DFD, o ETP, o TR e o edital citam, e que
+sustenta o ato administrativo. Tudo aqui foi construído em torno de uma
+frase do §26: *"não alterar documento silenciosamente"*.
+
+## O que foi criado
+
+| arquivo | o que faz |
+|---|---|
+| `src/precos/aplicacao.py` | casamento verificado, diff, aplicação e proveniência — puro, sem banco e sem Streamlit |
+| `src/fatos.py` | cinco fatos canônicos da pesquisa aplicada (§27) |
+| `src/consistencia.py` | achado `consistencia_pesquisa_preco` quando a planilha muda depois da aplicação |
+| `src/ui/precos_ui.py` | tela de aplicação: diff, recusas, documentos a descartar, confirmação |
+| `tests/test_precos_fase5.py` | 37 provas |
+
+## As quatro maneiras de errar, e o que impede cada uma
+
+### 1. Escrever o preço no item errado
+
+A planilha do processo pode ter sido editada depois que a pesquisa foi
+criada. **Casar por posição** acertaria o item 1 e escreveria o preço da
+caneta no grampeador a partir da primeira linha inserida — em silêncio, e
+com aparência de correção.
+
+O casamento é por **código de catálogo** e, na falta dele, por
+**descrição normalizada** (sem acento, sem caixa, sem espaço repetido).
+Cada item da pesquisa é consumido no máximo uma vez. E mesmo depois de
+casar por código, a descrição é conferida: código igual com descrição
+completamente diferente é sinal de planilha editada, e vira recusa em vez
+de escrita.
+
+O que não confere **não é aplicado** — é devolvido como recusa nomeada,
+exibida com o mesmo destaque das mudanças. "48 de 50 itens" é a
+informação que decide se vale aplicar agora ou terminar a pesquisa antes.
+
+### 2. Alterar o processo sem o servidor ver
+
+O diff vem antes de qualquer escrita: item a item, o unitário atual e o
+novo, o valor global antes e depois, os avisos (quantidade divergente,
+fonte digitada à mão que será substituída) e a lista **nominal** dos
+documentos que serão descartados. A confirmação exige marcar que
+entendeu o descarte.
+
+A invalidação usa a cascata que já existe em `state.invalidar_a_partir_de
+("formulario")` — a planilha vive no Formulário Matriz, então mudá-la
+desatualiza a cadeia inteira, instrumentos derivados incluídos. Não há
+reimplementação dessa regra dentro do módulo de preços.
+
+**A guarda contra o pior erro possível:** se a pesquisa está vinculada a
+um processo e o processo aberto é outro, a tela não oferece o botão. Ela
+explica em texto. Botão cinza sem explicação faz o servidor procurar o
+defeito no lugar errado.
+
+### 3. Despejar a pesquisa dentro do documento
+
+`planilha.colunas_extra` transforma **qualquer chave nova do item** numa
+coluna da tabela exportada. Gravar a memória da pesquisa como campo de
+item faria todo DFD, ETP, TR e edital exibir colunas de score, método e
+identificadores — exatamente o que o §27 proíbe.
+
+Por isso o objeto estruturado vai para `dados['pesquisa_preco']`, fora
+dos itens, e o item recebe apenas um ponteiro curto no campo `fonte`,
+que já existia para isso: `Pesquisa de preços (rev. 2) · mediana · n=30`.
+A revisão entra no ponteiro porque dois documentos do mesmo processo
+podem ter saído de revisões diferentes da mesma pesquisa.
+
+Há duas provas separadas para isso: uma verifica que
+`colunas_extra` devolve apenas `fonte`, outra renderiza a tabela em
+Markdown e falha se `pesquisa_preco`, `score`, `metodologia`, `perfil`,
+`raiz_id` ou `versao_algoritmo` aparecerem nela.
+
+### 4. Deixar a proveniência afirmando o que já não é verdade
+
+Editar a planilha depois de aplicar é legítimo. O que não pode é a
+proveniência seguir dizendo que o valor veio da pesquisa quando o valor
+já mudou — os documentos citam esse número.
+
+Isso virou o achado `consistencia_pesquisa_preco`, severidade HIGH, **não
+auto-corrigível**: o sistema não sabe qual dos dois números está certo.
+Ou o servidor reaplica a pesquisa, ou desfaz a edição.
+
+## O defeito que rodar o código expôs
+
+A primeira versão da conferência comparava o valor global do **processo**
+com o valor global da **pesquisa**. Ao exercitar o módulo com dados
+realistas, o alerta acendeu imediatamente após uma aplicação
+perfeitamente correta.
+
+A causa: são grandezas diferentes. O processo costuma ter itens que a
+pesquisa não cobriu, e as quantidades da planilha podem divergir das que
+formaram o preço unitário. No ensaio, a pesquisa somou R$ 235,00 e o
+processo passou a valer R$ 707,00 — os dois corretos.
+
+Um alerta que acende sempre é ignorado, e aí o caso verdadeiro passa
+junto. A proveniência ganhou dois campos distintos:
+
+- `valor_global_da_pesquisa` — quanto a pesquisa somou, nas quantidades
+  dela. Informativo;
+- `valor_global_aplicado` — quanto o **processo** passou a valer no
+  instante da aplicação. É contra ele que a conferência compara.
+
+Com a correção, a conferência cala logo após aplicar e acende só quando a
+planilha muda de verdade. Há uma prova para cada um dos dois estados.
+
+## Os fatos canônicos (§27)
+
+Cinco, e nenhum a mais: `pesquisa_preco.id`, `.versao`, `.metodologia`,
+`.perfil` e `.valor_aplicado`. Eles respondem, sem abrir a pesquisa, de
+onde veio o preço, sob qual regra foi formado, por qual método, e quanto
+o processo valia quando isso aconteceu.
+
+A fonte é `pesquisa_preco:<id>`, **não** `inferencia:` — nada aqui é
+deduzido. É o registro de um ato praticado, e uma inferência não vincula
+sozinha (ver `conhecimento`). Confiança 0,95.
+
+## O que a Fase 5 NÃO faz
+
+- **não gera relatório nem anexo.** É a Fase 6;
+- **não usa IA.** Fase 7, ainda bloqueada por falta de credencial;
+- **não permite reaplicar por cima.** Pesquisa aplicada é terminal: para
+  mudar o preço do processo, cria-se uma **revisão** e aplica-se a
+  revisão. É o que preserva a memória do que sustentou o ato anterior;
+- **não liga nada em produção.**
+
+## Testes
+
+37 provas novas. As de domínio rodam sem Streamlit, sem banco e sem rede;
+as de interface usam AppTest e percorrem o fluxo completo — diff, marcação
+da confirmação, clique, e as quatro consequências juntas (planilha
+atualizada, total recalculado, documentos descartados, trilha
+registrada).
+
+Quatro comportamentos foram quebrados de propósito para conferir se as
+provas reclamavam: casar por posição, gravar a proveniência como campo de
+item, aplicar em processo diferente e não invalidar os documentos. **Os
+quatro foram detectados** — o segundo por duas provas independentes.
+
+Suíte completa do projeto, com os dois portões ligados:
+**1702 passaram, 0 falharam, 108 pularam** — as 108 são todas de
+`test_seguranca_contencao.py`, que exige projeto Supabase REMOTO.
+`git diff --check` limpo.
+
+## Veredito da Fase 5
+
+`APTO PARA AUDITORIA`
+
+A ressalva de sempre continua sendo o limite real: o módulo **não deve
+ser ativado em produção** enquanto a 0020 não estiver aplicada.

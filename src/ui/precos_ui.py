@@ -1,5 +1,5 @@
 """
-Pesquisa de Preços — superfície GovConnect (Fase 4).
+Pesquisa de Preços — superfície GovConnect (Fases 4 e 5).
 
 O §16 pede um módulo que **pareça parte natural do GovConnect**, sem
 copiar o sistema de referência tela a tela. Por isso aqui não há CSS
@@ -24,6 +24,10 @@ O repositório recusa operar com a credencial de servidor (Fase 3), e a
 interface não disfarça a recusa com uma lista vazia: ela explica que
 falta autenticação. Lista vazia por falta de permissão é a pior tela
 possível — parece que não há nada, quando na verdade não se pode ver.
+
+**4. A aplicação ao processo (§26) nunca é silenciosa.**
+O diff de cada item, o que a pesquisa não cobre e a lista NOMINAL dos
+documentos que serão descartados aparecem antes de qualquer escrita.
 """
 
 from __future__ import annotations
@@ -35,7 +39,7 @@ from decimal import Decimal, InvalidOperation
 import streamlit as st
 
 from .. import auth, db, planilha
-from ..precos import execucao, filtros as filtros_mod, perfil
+from ..precos import aplicacao, execucao, filtros as filtros_mod, perfil
 from ..precos import repositorio as repo
 from ..precos.estados import EstadoItem, EstadoPesquisa
 from . import components
@@ -1215,10 +1219,203 @@ def _render_acoes_do_resumo(pesquisa: dict,
             _ir(LISTA, **{PESQUISA: None})
             st.rerun()
 
-    st.caption(
-        "Aplicar os preços ao processo é a Fase 5 — ela precisa do diff "
-        "antes/depois e da invalidação dos documentos posteriores, e não "
-        "vai acontecer em silêncio por um botão desta tela.")
+    _render_aplicacao(pesquisa)
+
+
+# ---------------------------------------------------------------------------
+# §26 — Aplicação ao processo
+# ---------------------------------------------------------------------------
+def _render_aplicacao(pesquisa: dict) -> None:
+    """
+    O diff vem ANTES. Sempre.
+
+    O §26 é explícito: "não alterar documento silenciosamente". Aqui isso
+    significa três coisas visíveis na tela antes de qualquer escrita: o
+    preço de cada item antes e depois, o que a pesquisa NÃO cobre, e a
+    lista nominal dos documentos que serão descartados.
+    """
+    st.divider()
+    components.render_section_heading(
+        "Aplicar ao processo",
+        "O preço estimado passa a ser o valor da contratação — e é ele "
+        "que vai para o DFD, o ETP, o TR e o edital.")
+
+    impedimento = _impedimento_para_aplicar(pesquisa)
+    if impedimento:
+        st.info(impedimento)
+        return
+
+    dados = st.session_state.get("dados") or {}
+    itens_pesquisa = repo.listar_itens(str(pesquisa["id"]))
+    _, mudancas, recusas = aplicacao.aplicar(dados, pesquisa, itens_pesquisa)
+
+    if not mudancas:
+        st.warning(
+            "Nenhum item da planilha do processo casou com um item "
+            "concluído desta pesquisa. Nada seria alterado.")
+        _render_recusas(recusas)
+        return
+
+    _render_diff(dados, mudancas, recusas)
+    _render_confirmacao(pesquisa, itens_pesquisa)
+
+
+def _impedimento_para_aplicar(pesquisa: dict) -> str:
+    """
+    Por que ainda não dá para aplicar — em texto, e não em botão cinza.
+
+    Botão desabilitado sem explicação faz o servidor procurar o defeito
+    no lugar errado.
+    """
+    estado = str(pesquisa.get("estado") or "")
+    if estado == EstadoPesquisa.APLICADA.value:
+        return ("Esta pesquisa já foi aplicada. Para mudar os preços do "
+                "processo, crie uma revisão e aplique a revisão.")
+    if estado == EstadoPesquisa.ARQUIVADA.value:
+        return "Pesquisa arquivada não se aplica a processo."
+    if estado != EstadoPesquisa.CONCLUIDA.value:
+        return ("Conclua a pesquisa antes de aplicá-la. Enquanto houver "
+                "item por revisar, o preço ainda não passou por decisão "
+                "humana.")
+
+    processo_da_pesquisa = pesquisa.get("processo_id")
+    processo_aberto = st.session_state.get("processo_id")
+    if not processo_da_pesquisa:
+        return ("Esta pesquisa é autônoma. Vincule-a a um processo (na "
+                "lista, em “Mais ações”) antes de aplicar.")
+    if not processo_aberto:
+        return ("Abra o processo vinculado a esta pesquisa para aplicar os "
+                "preços — a aplicação escreve na planilha dele.")
+    if str(processo_da_pesquisa) != str(processo_aberto):
+        # A guarda que impede o pior erro possível desta tela: escrever
+        # o preço na planilha de OUTRA contratação.
+        return ("A pesquisa está vinculada a outro processo. Abra o "
+                "processo correto antes de aplicar.")
+    if not (st.session_state.get("dados") or {}).get("itens"):
+        return "O processo aberto ainda não tem planilha de itens."
+    return ""
+
+
+def _render_diff(dados: dict, mudancas: list, recusas: list[str]) -> None:
+    """O antes e o depois, item a item, no formato do §26."""
+    atual = _decimal(dados.get("valor_estimado")) or Decimal("0")
+    novo = aplicacao.valor_global_apos(dados, mudancas)
+
+    colunas = st.columns(3)
+    colunas[0].metric("Itens a atualizar", len(mudancas))
+    colunas[1].metric("Valor global atual", _moeda(atual))
+    colunas[2].metric("Valor global depois", _moeda(novo),
+                      delta=_moeda(novo - atual))
+
+    for mudanca in mudancas:
+        linhas = st.columns([1, 4, 2, 2])
+        linhas[0].write(f"{mudanca.posicao:02d}")
+        linhas[1].write(mudanca.descricao[:70])
+        linhas[2].write(f"Atual: {_moeda(mudanca.unitario_atual)}")
+        linhas[3].write(f"Novo: {_moeda(mudanca.unitario_novo)}")
+        for aviso in mudanca.avisos:
+            st.caption(f"↳ {aviso}")
+
+    _render_recusas(recusas)
+
+
+def _render_recusas(recusas: list[str]) -> None:
+    """
+    O que a pesquisa NÃO cobre.
+
+    Aparece com o mesmo destaque do que será alterado: "48 de 50 itens" é
+    a informação que decide se vale aplicar agora ou terminar a pesquisa
+    antes.
+    """
+    if not recusas:
+        return
+    with st.expander(f"{len(recusas)} item(ns) não serão alterados",
+                     expanded=True):
+        for recusa in recusas:
+            st.write(f"• {recusa}")
+
+
+def _render_confirmacao(pesquisa: dict, itens_pesquisa: list[dict]) -> None:
+    """A confirmação, com a lista NOMINAL do que será descartado."""
+    aprovados = sorted(st.session_state.get("aprovados") or set())
+    documentos = sorted(st.session_state.get("documentos") or {})
+    a_descartar = documentos or aprovados
+
+    if a_descartar:
+        st.warning(
+            "Aplicar altera a planilha do Formulário Matriz. Pela regra do "
+            "processo, os documentos gerados a partir dela ficam "
+            "desatualizados e serão descartados para nova geração: "
+            + ", ".join(d.upper() for d in a_descartar) + ".")
+    else:
+        st.caption("Nenhum documento gerado ainda — nada será descartado.")
+
+    with st.form("precos_aplicar"):
+        confirmado = st.checkbox(
+            "Entendi que os documentos acima serão descartados e "
+            "precisarão ser gerados novamente.",
+            disabled=not a_descartar, value=not a_descartar)
+        aplicar = st.form_submit_button("Aplicar preços ao processo",
+                                        type="primary")
+    if aplicar:
+        if not confirmado:
+            st.error("Confirme o descarte dos documentos para continuar.")
+            return
+        _aplicar_de_fato(pesquisa, itens_pesquisa)
+
+
+def _aplicar_de_fato(pesquisa: dict, itens_pesquisa: list[dict]) -> None:
+    """
+    A escrita, na ordem que sobrevive a uma queda no meio.
+
+    1. o processo é alterado e SALVO — sem isso, invalidar documentos
+       deixaria o processo sem documento e sem preço novo;
+    2. os documentos posteriores são invalidados pela regra que já
+       existe em `state`, e não por uma cópia dela aqui;
+    3. a pesquisa vira APLICADA e a trilha registra o ato.
+
+    A trilha vem por último de propósito: ela descreve um ato consumado,
+    e registrar antes deixaria a marca de algo que pode não ter
+    acontecido.
+    """
+    from .. import state
+
+    dados = st.session_state.get("dados") or {}
+    novos_dados, mudancas, _ = aplicacao.aplicar(
+        dados, pesquisa, itens_pesquisa)
+
+    st.session_state["dados"] = novos_dados
+    state.autosalvar()
+    # A planilha vive no Formulário Matriz: mudá-la desatualiza toda a
+    # cadeia documental. A cascata é a do `state`, com os instrumentos
+    # derivados junto — não uma reimplementação daqui.
+    state.invalidar_a_partir_de("formulario")
+
+    estado = str(pesquisa.get("estado") or "")
+    try:
+        repo.mover_pesquisa(str(pesquisa["id"]), EstadoPesquisa.APLICADA,
+                            estado)
+    except Exception as erro:  # noqa: BLE001 — o processo já foi alterado
+        st.warning(
+            "Os preços foram aplicados ao processo, mas a pesquisa não "
+            f"pôde ser marcada como aplicada: {erro}")
+
+    repo.registrar_evento(
+        str(pesquisa["id"]), "pesquisa_aplicada",
+        item_id=None,
+        descricao=f"{len(mudancas)} item(ns) atualizado(s)",
+        payload={
+            "processo": str(st.session_state.get("processo_id") or ""),
+            "valor_global": str(novos_dados.get("valor_estimado")),
+            "itens": [m.posicao for m in mudancas],
+        },
+        idempotency_key=f"aplicacao:{pesquisa['id']}")
+
+    st.success(
+        f"{len(mudancas)} item(ns) atualizado(s). Valor global do processo: "
+        f"{_moeda(novos_dados.get('valor_estimado'))}. Os documentos "
+        "precisam ser gerados novamente.")
+    st.rerun()
 
 
 # ---------------------------------------------------------------------------
