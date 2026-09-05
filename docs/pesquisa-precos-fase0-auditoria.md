@@ -1735,3 +1735,262 @@ dublê; **sua execução contra modelo real não foi feita e não pode ser
 feita neste ambiente sem credencial**. Quem for concluí-la precisa
 configurar o motor e medir três coisas que ninguém mediu ainda: utilidade
 da saída, taxa de recusa e custo por item.
+
+---
+
+# RODADA CORRETIVA — auditoria externa do PR #16
+
+Rodada pedida sobre o HEAD real da branch, não sobre a descrição do PR.
+Foi a decisão certa: a descrição do PR estava errada em número, e o CI
+estava vermelho havia cinco commits sem que eu tivesse olhado.
+
+## O CI estava vermelho desde a Fase 3, e a culpa é minha
+
+Os runs 146 a 152 falharam. Os das Fases 0 a 2 passaram. Eu escrevi, em
+cinco mensagens de commit seguidas, que a suíte passava — e passava, na
+minha máquina, com os dois portões ligados. **O que eu não fiz foi olhar
+o CI depois de mudá-lo na Fase 3.**
+
+A causa raiz:
+
+    psycopg.errors.FeatureNotSupported: extension "vector" is not available
+
+O schema real cria `public.vector(768)` e um índice HNSW para a base de
+conhecimento do GovBot. A imagem `postgres:16` que eu pus como serviço
+não traz pgvector. O ensaio morria ao aplicar o schema, e as 94 provas
+de autorização **erravam** — `1723 passed, 108 skipped, 94 errors`.
+
+O portão fez exatamente o que foi criado para fazer na Fase 3: com
+`GOVDOCS_EXIGIR_ENSAIO_SQL=1`, ambiente ausente vira ERRO e não skip. O
+mecanismo funcionou; o que faltou foi alguém ler o resultado.
+
+Correção: `pgvector/pgvector:pg16`, que é o PostgreSQL que o schema
+exige e o que o Supabase de fato oferece. Não mascara nada, não pula
+teste, não reduz cobertura — dá ao runner o banco certo.
+
+**A guarda nova nasceu oca.** Escrevi um teste que procurava
+`"pgvector/pgvector"` no texto do `ci.yml`; ele passava com
+`postgres:16` porque o meu próprio comentário acima da linha cita o nome
+da imagem. Reescrito para ler a diretiva `image:` do YAML.
+
+## "A fonte respondeu" não é "a fonte forneceu preço"
+
+O defeito conceitual que a auditoria apontou, e ele era pior do que o
+enunciado dizia.
+
+`pesquisar_item` contava exceções: `falhas == len(fontes)`. Dois buracos:
+
+1. **nenhum adapter levanta exceção.** Os dois tratam o erro por dentro
+   e devolvem `ResultadoBusca` vazio. Um HTTP 503 total do Compras.gov
+   deixava `falhas` em 0;
+2. **contava todas as fontes.** Com o PNCP de pé (evidência) e o
+   Compras.gov fora (preço), `falhas != len(fontes)`.
+
+Resultado: o item saía `incomplete`, que a tela e o relatório traduzem
+como "o mercado não tinha este item". O servidor então ampliava a
+janela, tirava o filtro de UF e caçava CATMAT — tudo inútil, porque não
+havia nada errado com a busca.
+
+Pior ainda: `ResultadoBusca.houve_falha` era `bool(ocorrencias)`, e
+ocorrência serve também para recado. O PNCP registra "sou fonte de
+enriquecimento, não de busca" a cada item — e aparecia permanentemente
+quebrado.
+
+O modelo novo:
+
+| Conceito | Onde mora | O que resolve |
+|---|---|---|
+| `Capacidade.PRECO` / `.EVIDENCIA` | declarada pela CLASSE do adapter | fonte de evidência de pé não conserta fonte de preço fora |
+| `Desfecho` (4 estados) | derivado do `ResultadoBusca` | separa mercado vazio de infraestrutura fora |
+| `falha` | campo próprio, não `ocorrencias` | recado deixa de virar falha |
+
+A capacidade é declarada, não deduzida: se fosse deduzida do resultado,
+uma fonte de preço que voltasse vazia POR FALHA seria reclassificada
+como fonte de evidência e a falha desapareceria.
+
+**A mutação que escapou.** Quebrei a conta para somar todas as fontes
+caídas em vez das de preço, e a suíte ficou verde: nenhum dos cenários
+A–D separava as duas contas, porque em todos quem caía era fonte de
+preço. Faltava o caso discriminante — evidência cai, preço entrega — e
+ele virou prova.
+
+## Valor estimado de terceiro entrando na cesta
+
+    valor_unitario_original = homologado or estimado
+
+Sem resultado homologado, o `valorUnitarioEstimado` — a expectativa do
+órgão de origem — entrava como referência comum, disputava a cesta em pé
+de igualdade com preço praticado e podia formar o valor da contratação.
+Havia um `motivo` registrado, mas motivo é texto: nada no modelo impedia
+o número de ser usado.
+
+Fundamentar a estimativa da Administração na estimativa de outra
+Administração é ciranda — um órgão copia a expectativa do outro e
+ninguém nunca olhou preço real.
+
+`NaturezaValor` tem sete naturezas, e `NATUREZAS_COMPARAVEIS` é lista
+**positiva**: natureza nova não nasce aceita só porque ninguém a
+proibiu. A cesta confere a natureza **antes** da comparabilidade, e a
+ordem é deliberada — um valor estimado pode descrever o mesmo produto,
+na mesma unidade, na mesma região, e é justamente por isso que passaria
+no piso.
+
+Medida no teste: três praticados a R$ 1,50/1,60/1,80 e um estimado a
+R$ 99,00 dão **R$ 1,63**. Com o estimado dentro, R$ 25,97 — dezesseis
+vezes mais.
+
+A coluna é persistida com CHECK no banco. Sem isso a regra viveria só em
+memória e a primeira releitura a perderia.
+
+## PNCP — a pergunta foi feita ao servidor
+
+| Endpoint | Resposta |
+|---|---|
+| `/api/consulta/v1/contratacoes/atualizacao` | **200** — e traz `valorTotalHomologado` **e** `valorTotalEstimado`, separados |
+| `/api/consulta/v1/contratos` | **200** |
+| `/api/consulta/v1/contratacoes/publicacao` | **500** — "Erro na comunicação com o banco de dados" |
+| `/api/pncp/v1/orgaos/{cnpj}/compras/{ano}/{seq}/itens` | **502 / 503** |
+| `.../itens/{n}/resultados` | **502 / 503** |
+
+O próprio PNCP distingue valor homologado de valor estimado no registro
+da contratação — o que corrobora o modelo de natureza. Mas são totais da
+CONTRATAÇÃO, não preço unitário de item.
+
+O preço unitário com natureza conhecida mora nos dois últimos endpoints,
+e eles não responderam em nenhuma tentativa com recuo. **O PNCP continua
+declarando apenas `EVIDENCIA`.** Escrever um conversor para campos que
+não pude observar seria adivinhar o contrato de uma API — exatamente o
+tipo de suposição que já produziu defeito neste módulo.
+
+## A IA entra no pipeline, e some em seguida
+
+    item → interpretação semântica → termos → APIs oficiais →
+    matching determinístico → normalização → cesta → estatística
+
+`motor_do_projeto()` reusa `llm.chamar_ia_texto`, cuja assinatura
+`(system, user) -> str` já é o `Motor` desta camada. Nada de um segundo
+sistema de IA (§17).
+
+O que a IA produz são **palavras**. Ela não vê preço — o prompt não o
+carrega —, não pontua referência, não escolhe cesta e não calcula nada.
+O pior estrago de um termo ruim é trazer candidato irrelevante, que o
+matching descarta.
+
+Sem credencial: `motor_do_projeto()` devolve `None`, `sugerir_termos`
+devolve `[]`, e a tela **diz** que a camada está indisponível antes da
+busca. Prometer "pesquisa com IA" e rodar determinístico seria a mentira
+mais fácil de contar aqui, e a mais difícil de o servidor detectar —
+porque o resultado tem a mesma cara.
+
+## Migrations — aplicadas no ensaio, não em produção
+
+Ambiente-alvo identificado por fato, não por suposição: a conta tem dois
+projetos, `govdocs-wizard` (produção) e **`govdocs-ensaio-descartavel`**,
+criado em 18/08/2026 exatamente para isto. Zero linhas em todas as
+tabelas.
+
+**0020** já estava aplicada lá, em três partes. Verificada em vez de
+reaplicada, como o enunciado exige: 10/10 funções de contexto, 45
+políticas, `usuarios.auth_user_id` presente, **zero políticas
+permissivas amplas**.
+
+**0021** destravada e aplicada em quatro partes. Três defeitos
+corrigidos antes:
+
+**1. A RPC de revisão não copiava `natureza_valor`.** Silencioso e
+grave: a coluna tem default `'outro'`, que não é comparável. Revisar
+uma pesquisa para trocar a metodologia faria TODAS as referências caírem
+fora da cesta, cada item viraria `incomplete`, e o motivo estaria num
+default de schema — invisível na tela, no relatório e no diff. Achado
+lendo a RPC contra o modelo novo.
+
+**2. `service_role` tinha DELETE nas quatro tabelas.** A migração
+afirmava "não há grant de DELETE para ninguém" e isso era **falso no
+ambiente real**: o Supabase configura o schema `public` com
+`alter default privileges ... grant all on tables to postgres, anon,
+authenticated, service_role`.
+
+O ensaio local não pegou porque **ele não reproduzia esses defaults** —
+era mais frouxo que a realidade e, por isso, mais complacente com a
+migração. Corrigido nos dois lados: o `PREAMBULO` do ensaio passou a
+configurar os mesmos defaults, e a 0021 revoga explicitamente. O revoke
+tem dente: o `BYPASSRLS` do `service_role` ignora POLÍTICAS de linha,
+não GRANTs de tabela.
+
+**3. Execução duplicada.** Ao perder o sufixo, a 0021 passou a casar com
+o glob de `migracoes_do_schema()` **e** continuou na sequência do
+ensaio — seria aplicada duas vezes, a primeira antes da 0020.
+
+### Verificação da aplicação
+
+Impressão digital MD5 de cada dimensão, ensaio remoto contra ensaio
+local (onde as 47 provas de isolamento executam):
+
+| Dimensão | Resultado |
+|---|---|
+| políticas (11) | `d88deeaf…` — **idêntica** |
+| colunas | `4c1263e1…` — **idêntica** |
+| grants | `dd1bde00…` — **idêntica** |
+| gatilhos | `a2d64909…` — **idêntica** |
+| checks | `066ecddc…` — **idêntica** |
+
+`anon` tem zero grants; `authenticated` tem exatamente
+INSERT/SELECT/UPDATE; nenhum papel do Supabase tem DELETE; nenhuma
+política ampla; `flag_price_research` = `off`.
+
+## Testes
+
+Duas suítes novas — capacidade/natureza (37 provas) e smoke ponta a
+ponta contra PostgreSQL real (4 provas) —, mais provas de revisão e de
+CHECK no ensaio SQL.
+
+Dezoito comportamentos quebrados de propósito. **Dois escaparam** e as
+provas foram reescritas: a conta de fontes de preço e a guarda da imagem
+do CI. Os dezesseis restantes foram detectados na primeira tentativa.
+
+Suíte completa, dois portões ligados: **1863 passaram, 0 falharam, 112
+pularam**.
+
+Três provas antigas mudaram de premissa, e nenhuma foi afrouxada:
+
+* `test_resultado_de_busca_acumula_ocorrencias` tratava recado e falha
+  como sinônimos — era o defeito. Passou a exigir a distinção;
+* `test_o_inventario_cobre_todas_as_tabelas` somava produção e
+  repositório num número só. Passou a distinguir: 28 em produção, mais
+  as quatro da 0021, que **não** estão em produção;
+* `test_a_0020_cobre_as_28_tabelas` exigia que toda tabela privada
+  aparecesse na 0020. A 0021 traz a própria matriz completa; exigir o
+  contrário obrigaria a reescrever uma migração já auditada a cada
+  módulo novo. Continua obrigatório aparecer em ALGUMA das duas.
+
+## O que continua aberto
+
+1. **Produção não recebeu nada.** A 0020 não está em produção, e sem ela
+   a 0021 não pode ir. O módulo continua desligado (`price_research` =
+   `off`);
+2. **A camada semântica nunca rodou contra modelo real.** Não há
+   credencial neste ambiente. Prompt, validação e governança estão
+   provados com dublê; utilidade, taxa de recusa e custo por item não
+   foram medidos;
+3. **O PNCP como fonte de preço continua indeterminado** — os endpoints
+   necessários estavam fora do ar;
+4. **`public.ensaio_objeto_novo`** no projeto de ensaio está com RLS
+   desligada. É o canário de default privileges de uma rodada anterior,
+   com zero linhas e **zero grants** para `anon`/`authenticated`/PUBLIC.
+   Não é exposição, mas é sujeira: recomendo remover. Não removi porque
+   está fora do escopo desta rodada e pode ser sonda deliberada de
+   alguém.
+
+## Veredito da rodada corretiva
+
+`APTO PARA AUDITORIA`
+
+O CI está verde pela primeira vez desde a Fase 3. Falha técnica deixou
+de ser confundida com amostra insuficiente. Valor estimado de terceiro
+não contamina mais a cesta, e a proteção sobrevive à releitura do banco.
+A IA participa do fluxo de verdade ou a interface diz que não participa.
+A 0021 está aplicada e verificada no ambiente de ensaio, com impressão
+digital idêntica à do ensaio onde o isolamento é provado por execução.
+
+A ressalva permanece e é a mesma: **não ativar em produção** enquanto a
+0020 não estiver aplicada lá.
