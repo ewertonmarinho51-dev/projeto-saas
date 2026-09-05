@@ -484,9 +484,13 @@ def sugerir_termos(motor: Motor | None, item: dict,
             dados_do_item(item, []),
             referencias=[], finalidade="termos_equivalentes",
             provedor="govdocs", modelo="")
-    except (ErroSemantico, MotorIndisponivel, Exception):  # noqa: BLE001
-        # Qualquer falha aqui é opcional por definição: a pesquisa
-        # inteira funciona sem sinônimo nenhum.
+    except Exception:  # noqa: BLE001
+        # Largo de propósito, e é o único lugar do módulo onde isso se
+        # justifica: a camada semântica é OPCIONAL, e a pesquisa inteira
+        # funciona sem sinônimo nenhum. Deixar uma falha de sugestão
+        # derrubar a coleta de preços seria trocar a função pelo enfeite.
+        # `ErroSemantico` e `MotorIndisponivel` estão incluídos — listá-los
+        # ao lado de `Exception` seria redundância decorativa.
         return []
     return list(proposta.payload.get("termos") or [])[:limite]
 

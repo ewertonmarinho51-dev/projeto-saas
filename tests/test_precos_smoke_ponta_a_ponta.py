@@ -40,9 +40,10 @@ from ensaio_local import claims, como, voltar_a_ser_servidor  # noqa: E402
 from src.precos import estatistica, matching  # noqa: E402
 from src.precos.modelo import NaturezaValor  # noqa: E402
 
+# `usefixtures` no módulo inteiro, e não `skipif`: com
+# `GOVDOCS_EXIGIR_ENSAIO_SQL=1` a ausência do banco precisa FALHAR, e um
+# `skipif` decidiria antes que o portão pudesse opinar.
 pytestmark = pytest.mark.usefixtures("ensaio_sql")
-
-requer_pg = pytest.mark.skipif(False, reason="")
 
 
 @pytest.fixture
