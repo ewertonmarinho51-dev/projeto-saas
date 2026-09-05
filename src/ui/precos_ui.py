@@ -33,13 +33,15 @@ documentos que serão descartados aparecem antes de qualquer escrita.
 from __future__ import annotations
 
 import html
+import io
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
 import streamlit as st
 
 from .. import auth, db, planilha
-from ..precos import aplicacao, execucao, filtros as filtros_mod, perfil
+from ..precos import (aplicacao, execucao, filtros as filtros_mod, perfil,
+                      relatorio)
 from ..precos import repositorio as repo
 from ..precos.estados import EstadoItem, EstadoPesquisa
 from . import components
@@ -1219,7 +1221,198 @@ def _render_acoes_do_resumo(pesquisa: dict,
             _ir(LISTA, **{PESQUISA: None})
             st.rerun()
 
+    _render_relatorios(pesquisa)
     _render_aplicacao(pesquisa)
+
+
+# ---------------------------------------------------------------------------
+# §31–§33 — relatórios e exportações
+# ---------------------------------------------------------------------------
+# Custo MEDIDO nesta máquina, com 30 referências por item (ver a seção da
+# Fase 6 no relatório de auditoria). Serve para AVISAR antes do clique, e
+# não para esconder o botão: uma pesquisa grande gera um relatório
+# grande, e isso é a natureza da memória de cálculo, não um defeito.
+_SEGUNDOS_POR_ITEM_NO_COMPLETO = 0.15
+_ITENS_PARA_AVISAR = 30
+
+
+def _render_relatorios(pesquisa: dict) -> None:
+    """
+    Os relatórios do §31 e §32, pelo motor institucional do §33.
+
+    Nada é gerado ao desenhar a tela: cada formato sai por um clique, e o
+    clique avisa antes quanto deve demorar. Gerar tudo a cada rerun
+    tornaria a tela de resumo inutilizável numa pesquisa de 210 itens.
+    """
+    st.divider()
+    components.render_section_heading(
+        "Relatórios",
+        "O relatório completo é a memória do ato: traz também o que foi "
+        "descartado, e por quê.")
+
+    itens = repo.listar_itens(str(pesquisa["id"]))
+    if not itens:
+        st.caption("Sem itens, não há o que relatar.")
+        return
+
+    referencias = {str(item["id"]): repo.listar_referencias(str(item["id"]))
+                   for item in itens}
+    identificador = relatorio.identificador_da_versao(
+        pesquisa, itens, referencias)
+
+    st.caption(
+        f"Identificador desta versão do resultado: `{identificador[:16]}…` — "
+        "o mesmo resultado gera sempre o mesmo identificador, "
+        "independentemente da data de emissão.")
+
+    if len(itens) >= _ITENS_PARA_AVISAR:
+        demora = len(itens) * _SEGUNDOS_POR_ITEM_NO_COMPLETO
+        st.info(
+            f"Esta pesquisa tem {len(itens)} itens. O relatório completo "
+            "inclui **todas** as referências, inclusive as descartadas — "
+            f"a geração leva cerca de {demora:.0f} s e a tela fica "
+            "aguardando. A memória analítica sai na hora e traz o mesmo "
+            "conteúdo em formato conferível.")
+
+    colunas = st.columns(4)
+    with colunas[0]:
+        _botao_de_download("Relatório completo (PDF)", pesquisa, itens,
+                           referencias, formato="pdf", tipo="completo")
+    with colunas[1]:
+        _botao_de_download("Quadro resumido (PDF)", pesquisa, itens,
+                           referencias, formato="pdf", tipo="resumido")
+    with colunas[2]:
+        _botao_de_download("Relatório completo (DOCX)", pesquisa, itens,
+                           referencias, formato="docx", tipo="completo")
+    with colunas[3]:
+        _botao_de_download("Memória analítica (XLSX)", pesquisa, itens,
+                           referencias, formato="xlsx", tipo="analitico")
+
+    _botao_do_pacote(pesquisa, itens, referencias)
+
+
+def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
+                           referencias: dict, *, formato: str,
+                           tipo: str) -> tuple[bytes, str, str]:
+    """
+    Gera um formato. Devolve (bytes, nome do arquivo, mimetype).
+
+    PDF e DOCX passam por `export.gerar_pdf`/`gerar_docx` — o motor
+    institucional que já existe, com os estilos, as larguras de tabela e
+    o gate de geometria provados. O §33 é explícito: nada de um segundo
+    pipeline de PDF.
+    """
+    from .. import export
+
+    if formato == "xlsx":
+        return (relatorio.xlsx_analitico(pesquisa, itens, referencias),
+                relatorio.nome_do_arquivo(pesquisa, "memoria-analitica",
+                                          "xlsx"),
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet")
+
+    if tipo == "resumido":
+        markdown = relatorio.resumido(pesquisa, itens, referencias)
+        titulo = "Pesquisa de Preços — Quadro Resumido"
+    else:
+        markdown = relatorio.completo(pesquisa, itens, referencias)
+        titulo = "Relatório de Pesquisa de Preços"
+
+    branding = st.session_state.get("branding") or None
+    if formato == "docx":
+        return (export.gerar_docx(titulo, markdown, branding),
+                relatorio.nome_do_arquivo(pesquisa, tipo, "docx"),
+                "application/vnd.openxmlformats-officedocument."
+                "wordprocessingml.document")
+    return (export.gerar_pdf(titulo, markdown, branding),
+            relatorio.nome_do_arquivo(pesquisa, tipo, "pdf"),
+            "application/pdf")
+
+
+def _botao_de_download(rotulo: str, pesquisa: dict, itens: list[dict],
+                       referencias: dict, *, formato: str,
+                       tipo: str) -> None:
+    """
+    Gera sob demanda e entrega.
+
+    `st.download_button` exige os bytes prontos, então a geração acontece
+    no clique de um botão comum e o download aparece em seguida. É um
+    passo a mais para o usuário, e é ele que impede a tela de gerar
+    quatro documentos a cada rerun.
+    """
+    chave = f"precos_export_{tipo}_{formato}_{pesquisa['id']}"
+    if st.button(rotulo, key=f"btn_{chave}", use_container_width=True):
+        with st.spinner(f"Gerando {rotulo.lower()}…"):
+            try:
+                st.session_state[chave] = _conteudo_do_relatorio(
+                    pesquisa, itens, referencias,
+                    formato=formato, tipo=tipo)
+            except Exception as erro:  # noqa: BLE001 — exportação não derruba a tela
+                identificador = db.registrar_incidente(
+                    erro, contexto="relatório da pesquisa de preços")
+                st.error(
+                    "Não foi possível gerar este relatório agora. "
+                    f"Identificador para suporte: {identificador}")
+                return
+
+    pronto = st.session_state.get(chave)
+    if pronto:
+        conteudo, nome, mimetype = pronto
+        st.download_button(f"Baixar {nome}", data=conteudo, file_name=nome,
+                           mime=mimetype, key=f"dl_{chave}",
+                           use_container_width=True)
+
+
+def _botao_do_pacote(pesquisa: dict, itens: list[dict],
+                     referencias: dict) -> None:
+    """
+    §33 — o pacote ZIP com tudo o que instrui o processo.
+
+    Um arquivo só para anexar: relatório completo, quadro resumido e
+    memória analítica. É o formato em que o servidor entrega a pesquisa
+    a quem vai auditá-la.
+    """
+    chave = f"precos_pacote_{pesquisa['id']}"
+    if st.button("Pacote completo (ZIP)", use_container_width=True,
+                 help="Relatório completo em PDF, quadro resumido em PDF e "
+                      "memória analítica em XLSX, num arquivo só."):
+        with st.spinner("Montando o pacote…"):
+            try:
+                st.session_state[chave] = _montar_pacote(
+                    pesquisa, itens, referencias)
+            except Exception as erro:  # noqa: BLE001
+                identificador = db.registrar_incidente(
+                    erro, contexto="pacote da pesquisa de preços")
+                st.error("Não foi possível montar o pacote agora. "
+                         f"Identificador para suporte: {identificador}")
+                return
+
+    pronto = st.session_state.get(chave)
+    if pronto:
+        nome = relatorio.nome_do_arquivo(pesquisa, "pacote", "zip")
+        st.download_button(f"Baixar {nome}", data=pronto, file_name=nome,
+                           mime="application/zip", key=f"dl_{chave}",
+                           use_container_width=True)
+
+
+def montar_pacote(pesquisa: dict, itens: list[dict],
+                  referencias: dict) -> bytes:
+    """Público para que o teste monte o pacote sem passar pela tela."""
+    return _montar_pacote(pesquisa, itens, referencias)
+
+
+def _montar_pacote(pesquisa: dict, itens: list[dict],
+                   referencias: dict) -> bytes:
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for formato, tipo in (("pdf", "completo"), ("pdf", "resumido"),
+                              ("xlsx", "analitico")):
+            conteudo, nome, _ = _conteudo_do_relatorio(
+                pesquisa, itens, referencias, formato=formato, tipo=tipo)
+            zf.writestr(nome, conteudo)
+    return buffer.getvalue()
 
 
 # ---------------------------------------------------------------------------

@@ -1259,3 +1259,161 @@ Suíte completa do projeto, com os dois portões ligados:
 
 A ressalva de sempre continua sendo o limite real: o módulo **não deve
 ser ativado em produção** enquanto a 0020 não estiver aplicada.
+
+---
+
+# FASE 6 — relatórios e exportações (entregue)
+
+Branch `feature/pesquisa-precos`. Flag `off`; 0021 `.NAO_APLICAR`.
+
+O relatório completo é a **memória do ato**: é o que um auditor lê meses
+depois para decidir se o preço se sustenta. Duas propriedades governam
+todo o módulo, e cada uma tem prova própria.
+
+**Ele contém o que foi descartado.** O §31 pede, em itens separados,
+"todas as referências selecionadas" (13) e "referências desconsideradas
+e motivo" (14). Um relatório que mostrasse só a cesta seria uma defesa,
+não uma memória — e a pergunta que a auditoria faz é justamente por que
+os outros preços não entraram.
+
+**Ele não inventa.** Onde o dado não existe, o relatório escreve
+`(não informado)`. Campo em branco é dúvida sobre se ninguém preencheu ou
+se o sistema perdeu.
+
+## O que foi criado
+
+| arquivo | o que faz |
+|---|---|
+| `src/precos/relatorio.py` | 22 seções do §31, quadro do §32, memória analítica XLSX e identificador de versão — tudo puro |
+| `src/ui/precos_ui.py` | exportação sob demanda: PDF completo, PDF resumido, DOCX, XLSX e pacote ZIP |
+| `src/export.py` | **duas correções** (abaixo) |
+| `tests/test_precos_fase6.py` | 29 provas |
+
+Saída em **Markdown**, convertida por `export.gerar_pdf`/`gerar_docx` —
+DOCX estilizado → LibreOffice → PDF, com estilos, larguras de tabela e
+gate de geometria já provados. O §33 é explícito: nada de um segundo
+pipeline de PDF, e não há.
+
+## Estrutura: os itens 13 a 17 são por item
+
+Os itens 13–17 do §31 (referências usadas, descartadas, memória de
+cálculo, unitário, total) existem **um conjunto por item**. Promovê-los a
+seções de topo os faria aparecer uma vez só, quando há 210. Ficam dentro
+do bloco de cada item, e o relatório abre a seção 12 dizendo isso em voz
+alta, com a numeração do prompt, para quem procurar por ela.
+
+## Identificador da versão (§31.22, §34)
+
+SHA-256 de uma projeção canônica: cabeçalho da pesquisa, método e preço
+de cada item, e de cada referência o `raw_hash` (impressão da evidência
+como a fonte a entregou) com o status que ela recebeu.
+
+**Não inclui a data de emissão.** Dois relatórios do mesmo resultado,
+emitidos em dias diferentes, produzem o mesmo identificador — sem isso
+ele não serviria para provar nada. Mas mudar o preço, o método, o estado
+de um item ou **reclassificar uma referência** muda o identificador,
+ainda que o preço final não mude. Há prova para cada um desses casos, e a
+ordem das referências não o afeta.
+
+## As duas correções que esta fase expôs em `export.py`
+
+Nenhuma delas é do módulo de preços: as duas atingiam o **produto
+inteiro**, e só apareceram porque a Fase 6 rodou o pipeline de verdade
+com dados realistas.
+
+### 1. Um travessão numa célula derrubava a exportação
+
+O medidor de largura de coluna usa Times em **latin-1**. Travessão,
+meia-risca, aspas curvas e reticências — presentes em qualquer descrição
+colada do Word ou extraída de PDF — levantavam
+`FPDFUnicodeEncodingException` e **derrubavam a geração do DOCX e do PDF**.
+Confirmado com a tabela da planilha do processo, não só com o relatório:
+
+```
+travessão      QUEBRA FPDFUnicodeEncodingException
+aspas curvas   QUEBRA FPDFUnicodeEncodingException
+```
+
+Medir largura é cálculo auxiliar: não pode ser o que impede o documento
+de existir. Agora há um mapa de equivalentes de mesma largura para os
+caracteres comuns, e o que escapa dele conta como um "m" — superestimar
+deixa a coluna larga, subestimar estoura a página, e estourar é o defeito
+caro. O documento continua com o caractere original: quem o escreve é o
+LibreOffice, não o medidor.
+
+### 2. Preencher tabela era quadrático
+
+Perfilando a geração de um relatório de 15 itens: **14,4 s de 18,5 s**
+dentro de `docx.table.Table.cell`. No python-docx, `Table.cell` passa por
+`_cells`, que reconstrói a lista de **todas** as células da tabela a cada
+acesso — preencher célula a célula é O((linhas×colunas)²).
+
+Trocado por `row.cells`, que constrói a lista uma vez por linha:
+
+| itens (30 refs cada) | antes | depois |
+|---|---|---|
+| 50 | 33,8 s | **5,8 s** |
+| 210 | (não terminava em tempo razoável) | **25,0 s** |
+
+Isso beneficia a planilha de 210 itens do DFD/ETP/TR tanto quanto o
+relatório de preços.
+
+### Uma hipótese minha que a medição derrubou
+
+Antes de perfilar, eu supus que o gargalo fosse a medição de largura e
+adicionei um `lru_cache` em `_largura_de_texto_cm`. Medido: **33,1 s →
+33,8 s**, ou seja, nada. O cache foi **removido** — código que não
+melhora nada, justificado por hipótese errada, é dívida — e o comentário
+que eu tinha escrito para defendê-lo saiu junto. O gargalo real só
+apareceu com `cProfile`.
+
+## Custo medido, e o que a tela faz com ele
+
+| itens × refs | Markdown | PDF completo | PDF resumido | XLSX |
+|---|---|---|---|---|
+| 1 × 5 | 138 linhas | 93 KB / 1,9 s | 45 KB / 0,9 s | 7 KB / 0,06 s |
+| 10 × 30 | 712 linhas | 1,3 MB / 7,3 s | 86 KB / 1,2 s | 29 KB / 0,09 s |
+| 50 × 30 | 3.152 linhas | 6,4 MB / 40,4 s | 273 KB / 4,6 s | 115 KB / 0,23 s |
+
+(PDF completo medido **antes** da correção quadrática; o DOCX de 210
+itens caiu para 25 s depois dela.)
+
+Uma pesquisa grande gera um relatório grande — isso é a natureza da
+memória de cálculo, não um defeito. A tela **não esconde o botão**: ela
+avisa antes quanto deve demorar, e nada é gerado ao desenhar a página —
+cada formato sai por um clique. Gerar quatro documentos a cada rerun
+tornaria a tela de resumo inutilizável.
+
+## O que a Fase 6 NÃO faz
+
+- **não usa IA.** Fase 7, ainda bloqueada por falta de credencial;
+- **não anexa comprovante externo.** As evidências são as referências
+  persistidas, com identificador oficial e impressão digital. Baixar
+  páginas das fontes para dentro do ZIP é decisão de retenção que o §35
+  manda avaliar juridicamente antes — e não foi avaliada;
+- **não liga nada em produção.**
+
+## Testes
+
+29 provas novas. Quatro comportamentos quebrados de propósito — esconder
+as descartadas, fazer o identificador depender da emissão, voltar o
+preenchimento quadrático e tirar a guarda de unicode: **os quatro foram
+detectados**.
+
+A prova do preenchimento quadrático **conta chamadas a `Table.cell`** em
+vez de cronometrar: não depende da máquina e aponta a causa, não o
+sintoma.
+
+Suíte completa do projeto, com os dois portões ligados:
+**1731 passaram, 0 falharam, 108 pularam**. `git diff --check` limpo.
+
+Efeito colateral medido da correção quadrática: a suíte inteira caiu de
+**5min30 para 2min09**. Não era só o relatório de preços que pagava o
+custo — era toda prova que gera documento com tabela.
+
+## Veredito da Fase 6
+
+`APTO PARA AUDITORIA`
+
+A ressalva de sempre: o módulo **não deve ser ativado em produção**
+enquanto a 0020 não estiver aplicada.

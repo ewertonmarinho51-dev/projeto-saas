@@ -299,6 +299,45 @@ def _texto_renderizado(celula: str) -> str:
     return _limpar_inline(_RE_LINK.sub(r"\1", celula or "")).strip()
 
 
+# Substitutos latin-1 para os caracteres que MEDEM parecido e que
+# aparecem o tempo todo em texto colado do Word ou extraído de PDF. A
+# medida sai correta; o documento continua com o caractere original,
+# porque quem o escreve é o LibreOffice, não o medidor.
+_EQUIVALENTE_PARA_MEDIDA = {
+    "—": "--",   # travessão
+    "–": "-",    # meia-risca
+    "‘": "'", "’": "'",
+    "“": '"', "”": '"',
+    "…": "...",
+    " ": " ",
+    "−": "-",    # sinal de menos
+    "•": "*",
+}
+
+# Largura de reserva, em pontos, para um caractere que nem o mapa acima
+# resolve. É o "m" do Times a 10 pt, arredondado para cima: superestimar
+# a largura faz a coluna ficar um pouco larga; subestimar faz o conteúdo
+# estourar a página, que é o defeito caro.
+_LARGURA_DESCONHECIDO_PT = 10.0
+
+
+def _para_medida(texto: str) -> str:
+    """Troca o que o Times latin-1 não encoda por equivalente de largura."""
+    saida = []
+    for caractere in texto:
+        equivalente = _EQUIVALENTE_PARA_MEDIDA.get(caractere)
+        if equivalente is not None:
+            saida.append(equivalente)
+            continue
+        try:
+            caractere.encode("latin-1")
+        except UnicodeEncodeError:
+            saida.append(None)          # marcado para largura de reserva
+        else:
+            saida.append(caractere)
+    return saida
+
+
 def _largura_de_texto_cm(texto: str, pt: float = _TABELA_PT,
                          negrito: bool = False) -> float:
     """
@@ -308,6 +347,17 @@ def _largura_de_texto_cm(texto: str, pt: float = _TABELA_PT,
     dependência do projeto. Uma constante de "largura média de caractere"
     erraria justamente onde importa — dígitos e maiúsculas são mais
     largos que a média, e é neles que a coluna estoura.
+
+    O medidor usa Times em latin-1, e travessão, meia-risca e aspas
+    curvas — que vêm em toda descrição colada do Word ou extraída de PDF
+    — estão fora dessa faixa. Antes, um único desses caracteres numa
+    célula levantava `FPDFUnicodeEncodingException` e derrubava a
+    geração INTEIRA do DOCX e do PDF. Medir é um cálculo auxiliar: ele
+    não pode ser o que impede o documento de existir.
+
+    A saída é conservadora por construção — caractere desconhecido conta
+    como um "m". Superestimar deixa a coluna um pouco larga; subestimar
+    estoura a página, que é o defeito que este módulo existe para evitar.
     """
     from fpdf import FPDF
 
@@ -316,7 +366,13 @@ def _largura_de_texto_cm(texto: str, pt: float = _TABELA_PT,
         _medidor = FPDF(unit="pt")
         _medidor.add_page()
     _medidor.set_font("Times", "B" if negrito else "", pt)
-    return _medidor.get_string_width(texto or "") / 72 * 2.54
+
+    pedacos = _para_medida(texto or "")
+    mensuraveis = "".join(c for c in pedacos if c is not None)
+    desconhecidos = sum(1 for c in pedacos if c is None)
+    largura_pt = _medidor.get_string_width(mensuraveis)
+    largura_pt += desconhecidos * _LARGURA_DESCONHECIDO_PT * (pt / 10.0)
+    return largura_pt / 72 * 2.54
 
 
 _medidor = None
@@ -553,9 +609,19 @@ def _docx_inserir_markdown(doc, texto_md: str) -> None:
             n_cols = len(linhas_tab[0])
             tabela = doc.add_table(rows=len(linhas_tab), cols=n_cols)
             tabela.style = "Table Grid"
-            for i, linha in enumerate(linhas_tab):
-                for j, celula in enumerate(linha[: len(tabela.columns)]):
-                    par = tabela.cell(i, j).paragraphs[0]
+            # Preenchimento por LINHA, e não por `tabela.cell(i, j)`.
+            #
+            # No python-docx, `Table.cell` passa por `_cells`, que
+            # reconstrói a lista de TODAS as células da tabela a cada
+            # acesso. Preencher célula a célula é, portanto, quadrático
+            # no tamanho da tabela: medido com um relatório de 15 itens,
+            # `cell()` respondia por 14,4 s de 18,5 s. `row.cells`
+            # constrói a lista uma vez por linha.
+            for i, (linha_docx, linha) in enumerate(
+                    zip(tabela.rows, linhas_tab)):
+                celulas_docx = linha_docx.cells
+                for j, celula in enumerate(linha[: len(celulas_docx)]):
+                    par = celulas_docx[j].paragraphs[0]
                     if i == 0 and com_cabecalho:  # cabeçalho: negrito, sem links
                         par.add_run(_limpar_inline(celula)).bold = True
                     else:
