@@ -60,6 +60,28 @@ def normalizar_url(valor) -> str:
     return url
 
 
+def escapar_celula(valor) -> str:
+    """
+    Prepara um valor para virar CÉLULA de tabela Markdown.
+
+    A barra vertical é ESTRUTURA numa tabela Markdown, e a descrição de
+    um item é dado — do servidor que digitou ou da fonte externa que o
+    devolveu. Sem escapar, "CANETA | 999999,00 | FALSO" acrescentava duas
+    colunas à tabela do DFD/ETP/TR e deslocava os valores: o número
+    forjado caía sob "Descrição" e o preço real ia para outra coluna.
+    Medido: a tabela de 8 colunas exibia o conteúdo trocado.
+
+    Quebras de linha viram espaço pelo mesmo motivo — elas encerrariam a
+    linha da tabela e abririam o que viesse depois como conteúdo novo do
+    documento.
+
+    Escapa, não apaga: o texto continua inteiro e legível.
+    """
+    bruto = str(valor if valor is not None else "")
+    achatado = " ".join(bruto.replace("\r", "\n").split("\n"))
+    return " ".join(achatado.replace("|", "\\|").split())
+
+
 def para_link_markdown(valor) -> str:
     """URL -> '[link](url)' (compacto e clicável); demais valores inalterados."""
     if eh_url(valor):
@@ -439,7 +461,8 @@ def para_markdown(itens: list[dict], valor_global: float,
         return "(planilha não informada)"
     extras = colunas_extra(itens)
     cabecalho = ["Código", "Descrição", "Unidade", "Quantidade",
-                 "Valor Unitário", "Valor Total"] + [_rotulo_coluna(e) for e in extras]
+                 "Valor Unitário", "Valor Total"] + [
+        escapar_celula(_rotulo_coluna(e)) for e in extras]
     linhas = [
         "| " + " | ".join(cabecalho) + " |",
         "|" + "---|" * len(cabecalho),
@@ -455,13 +478,19 @@ def para_markdown(itens: list[dict], valor_global: float,
             total = round(_num(it.get("quantidade"))
                           * _num(it.get("valor_unitario")), 2)
         celulas = [
-            it.get("codigo") or "-", it.get("descricao") or "",
-            it.get("unidade") or "-", qtd,
+            escapar_celula(it.get("codigo")) or "-",
+            escapar_celula(it.get("descricao")),
+            escapar_celula(it.get("unidade")) or "-", qtd,
             formatar_moeda(it.get("valor_unitario")),
             formatar_moeda(total),
         ]
         for e in extras:
-            celulas.append(para_link_markdown(it.get(e, "")) or "-")
+            # O link já é gerado por nós ("[link](url)"); o que não é URL
+            # é texto externo e passa pelo escape.
+            bruto = it.get(e, "")
+            celulas.append(
+                para_link_markdown(bruto) if eh_url(bruto)
+                else (escapar_celula(bruto) or "-"))
         linhas.append("| " + " | ".join(str(c) for c in celulas) + " |")
     if incluir_global:
         fim = ["", "", "", "", "**VALOR GLOBAL**",
@@ -669,8 +698,18 @@ _MINIMO_LINHAS_PLANILHA = 5
 _PROPORCAO_CODIGOS = 0.8
 
 
+_RE_PIPE_ESTRUTURAL = re.compile(r"(?<!\\)\|")
+
+
 def _celulas(linha: str) -> list[str]:
-    return [c.strip() for c in linha.strip().strip("|").split("|")]
+    r"""Células de uma linha de tabela, com `\|` valendo como conteúdo."""
+    corpo = linha.strip()
+    if corpo.startswith("|"):
+        corpo = corpo[1:]
+    if corpo.endswith("|") and not corpo.endswith("\\|"):
+        corpo = corpo[:-1]
+    return [c.strip().replace("\\|", "|")
+            for c in _RE_PIPE_ESTRUTURAL.split(corpo)]
 
 
 def _blocos_de_tabela(linhas: list[str]) -> list[tuple[int, int]]:

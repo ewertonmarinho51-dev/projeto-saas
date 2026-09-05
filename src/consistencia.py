@@ -28,7 +28,8 @@ from . import blocos, db, governanca, planilha
 CATEGORIAS = ("consistencia_valor", "consistencia_calculo",
               "consistencia_quantidade", "consistencia_prazo",
               "consistencia_objeto", "consistencia_decisao",
-              "requisito_nao_operacionalizavel")
+              "requisito_nao_operacionalizavel",
+              "consistencia_pesquisa_preco")
 
 # ---------------------------------------------------------------------------
 # DECISÕES do processo (P1)
@@ -187,6 +188,47 @@ def _verificar_calculo(contexto: dict, achados_out: list, contador) -> None:
             "sistema não escolhe qual está certo.",
             False, [], ["fato:valor.total"],
             bloqueio="UNRESOLVED_SOURCE_CONFLICT"))
+
+
+def _verificar_pesquisa_aplicada(contexto, achados_out, contador) -> None:
+    """
+    O processo ainda vale o que valia quando a pesquisa foi aplicada?
+
+    Editar a planilha depois de aplicar é legítimo. O que não pode é a
+    proveniência continuar afirmando que o valor veio da pesquisa quando
+    o valor já mudou — os documentos citam esse número, e a memória de
+    cálculo anexada deixaria de explicá-lo.
+
+    A comparação é contra `pesquisa_preco.valor_aplicado`, que é o total
+    do PROCESSO no instante da aplicação. Comparar contra o total da
+    própria pesquisa acenderia o alerta em quase toda aplicação real: o
+    processo costuma ter itens que a pesquisa não cobriu, e as
+    quantidades da planilha podem divergir das que formaram o preço.
+
+    Não é auto-corrigível: o sistema não sabe qual dos dois números está
+    certo. Ou o servidor confirma a edição e reaplica a pesquisa, ou
+    desfaz a edição — e essa é uma decisão dele.
+    """
+    aplicado = contexto.get("pesquisa_preco.valor_aplicado")
+    total = contexto.get("valor.total")
+    if aplicado is None or total is None:
+        return
+    if abs(float(total) - float(aplicado)) <= 0.01:
+        return
+    identificador = str(contexto.get("pesquisa_preco.id") or "")
+    achados_out.append(_finding(
+        contador(), "bundle", "consistencia_pesquisa_preco", "HIGH",
+        f"o valor global do processo "
+        f"({planilha.formatar_moeda(float(total))}) mudou depois que a "
+        f"pesquisa de preços foi aplicada "
+        f"({planilha.formatar_moeda(float(aplicado))}): a proveniência "
+        f"registrada já não descreve o valor atual",
+        f"pesquisa {identificador[:8]}" if identificador else "",
+        "Planilha e pesquisa reconciliadas pelo responsável — reaplicar a "
+        "pesquisa ou desfazer a edição. O sistema não escolhe qual dos "
+        "dois valores está certo.",
+        False, [], ["fato:pesquisa_preco.valor_aplicado", "fato:valor.total"],
+        bloqueio="UNRESOLVED_SOURCE_CONFLICT"))
 
 
 def _verificar_valor_global(contexto, por_doc, achados_out, contador):
@@ -506,6 +548,7 @@ def verificar(fatos: list[dict],
         return next(sequencia)
 
     _verificar_calculo(contexto, achados_out, contador)
+    _verificar_pesquisa_aplicada(contexto, achados_out, contador)
     _verificar_valor_global(contexto, por_doc, achados_out, contador)
     _verificar_quantidades(contexto, por_doc, achados_out, contador)
     _verificar_prazo(por_doc, achados_out, contador)

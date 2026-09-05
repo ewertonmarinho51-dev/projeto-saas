@@ -315,7 +315,62 @@ def extrair_do_formulario(dados: dict,
             fato(f"itens[{i}].{campo}",
                  float(valor) if tipo == "numero" else str(valor).strip(),
                  tipo, "itens")
+
+    fatos.extend(_fatos_da_pesquisa_aplicada(dados, processo_id))
     return fatos
+
+
+# ---------------------------------------------------------------------------
+# Pesquisa de preços aplicada (§27)
+#
+# O §27 diz que DFD, ETP e TR **não reproduzem a pesquisa**: consomem
+# apenas os fatos de que precisam, e a memória completa fica no
+# relatório. Estes são esses fatos — cinco, e nenhum a mais.
+#
+# Eles existem para responder, meses depois e sem abrir a pesquisa: de
+# onde veio este preço, sob qual regra ele foi formado, por qual método,
+# e quanto o processo valia quando isso aconteceu.
+#
+# A confiança é alta e a fonte NÃO é `inferencia:`: nada aqui é
+# deduzido. É o registro de um ato já praticado — alguém aplicou a
+# pesquisa, e a aplicação ficou gravada com a sua proveniência.
+# ---------------------------------------------------------------------------
+CONFIANCA_PESQUISA = 0.95
+
+
+def _fatos_da_pesquisa_aplicada(dados: dict,
+                                processo_id: str | None) -> list[dict]:
+    from .precos.aplicacao import CHAVE_PROVENIENCIA
+
+    proveniencia = dados.get(CHAVE_PROVENIENCIA) or {}
+    identificador = str(proveniencia.get("id") or "").strip()
+    if not identificador:
+        return []
+
+    fonte = f"pesquisa_preco:{identificador}"
+    saida: list[dict] = []
+
+    def registrar(path, valor, tipo):
+        if valor in (None, ""):
+            return
+        saida.append(governanca.novo_fato(
+            processo_id, path, valor, tipo, fonte,
+            confianca=CONFIANCA_PESQUISA))
+
+    registrar("pesquisa_preco.id", identificador, "texto")
+    registrar("pesquisa_preco.versao", float(proveniencia.get("versao") or 1),
+              "numero")
+    registrar("pesquisa_preco.metodologia",
+              str(proveniencia.get("metodologia") or "").strip(), "texto")
+    registrar("pesquisa_preco.perfil",
+              str(proveniencia.get("perfil_normativo") or "").strip(), "texto")
+    aplicado = proveniencia.get("valor_global_aplicado")
+    if aplicado not in (None, ""):
+        # O valor do PROCESSO no instante da aplicação — é contra ele que
+        # `consistencia` confere se a planilha mudou depois. O total da
+        # pesquisa é outra grandeza e não serve para essa conferência.
+        registrar("pesquisa_preco.valor_aplicado", float(aplicado), "numero")
+    return saida
 
 
 # ---------------------------------------------------------------------------
