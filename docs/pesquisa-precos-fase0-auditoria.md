@@ -2097,3 +2097,89 @@ Uma coisa só, e não é deste módulo: **não existe conta no Supabase Auth**.
 Sem `auth.uid()`, toda política da 0021 nega — como deve. Enquanto isso
 não for resolvido (está sendo tratado em paralelo), ligar a flag
 entregaria uma tela que não escreve nada.
+
+---
+
+## Preparado, não executado: o vínculo com o Supabase Auth
+
+A 0020 criou `usuarios.auth_user_id` e `processos.auth_user_id` e não
+preencheu nenhuma das duas. Foi decisão, não esquecimento: ligar linha a
+conta é ato administrativo com consequência de acesso, e não pertence a
+um arquivo de schema que roda sozinho num deploy.
+
+`scripts/vincular_contas_auth.py` faz esse passo. Está pronto, provado
+(28 provas, quatro mutações deliberadas todas detectadas) e **não foi
+executado** — não há conta no Auth para vincular.
+
+### Por que não dá para automatizar o casamento
+
+`public.usuarios` **não tem coluna de e-mail**. Tem `login`, e os dois
+logins em produção não são endereços de e-mail (medido em 06/09/2026).
+Não existe chave natural entre `usuarios` e `auth.users`. Casar por
+semelhança de nome seria adivinhação, e adivinhar errado entrega o
+processo de um servidor à conta de outro — sem sintoma na tela.
+
+Por isso o vínculo é **declarado** num arquivo que uma pessoa escreve:
+
+```json
+[
+  {"usuario_id": "<uuid de public.usuarios>",
+   "auth_email": "servidor@example.org"}
+]
+```
+
+```bash
+python scripts/vincular_contas_auth.py --mapa vinculos.json            # confere
+python scripts/vincular_contas_auth.py --mapa vinculos.json --aplicar  # grava
+```
+
+Sem `--aplicar` nada é gravado. O script não lê nem imprime a chave.
+
+### O `app_metadata` é o que o RLS lê
+
+Cada conta precisa nascer com:
+
+```json
+{"papel": "admin" | "usuario",
+ "tenant_id": "<uuid>",
+ "secretaria_id": "<uuid, ou ausente>",
+ "papel_governanca": "<texto, opcional>"}
+```
+
+Em **`app_metadata`**, nunca em `user_metadata`: o segundo é editável
+pelo próprio titular pela API do cliente — papel gravado ali é papel que
+o usuário se dá sozinho.
+
+O script recusa vincular quando o `app_metadata` diverge da linha de
+`usuarios` em qualquer desses campos. É a recusa menos óbvia e a mais
+importante: quem decide o que o RLS enxerga é o JWT, não a tabela. Conta
+dizendo "tenant A" e linha dizendo "tenant B" faz o servidor entrar e
+ver o município errado, com a tela mostrando o certo.
+
+### O que o script recusa
+
+* e-mail sem conta no Auth, ou casando com mais de uma;
+* `usuario_id` inexistente, ou já vinculado a **outra** conta (desfazer
+  vínculo é decisão administrativa, não efeito colateral de script);
+* mesmo usuário ou mesma conta repetidos no mapa;
+* escopo divergente entre `app_metadata` e `usuarios`.
+
+Reexecutar é seguro: cada escrita é condicionada a `auth_user_id is
+null`, então uma queda no meio é retomada, não duplicada.
+
+### Estado de produção hoje (06/09/2026)
+
+| | |
+|---|---|
+| contas no Supabase Auth | **0** |
+| `usuarios` | 2 (1 admin, 1 usuário), ambos com secretaria |
+| `usuarios` vinculados | 0 |
+| `processos` | 6 — todos com `secretaria_id`, nenhum com `auth_user_id` |
+| processos por usuário | 5 do admin, 1 do outro (fecha os 6) |
+
+O caminho de preenchimento é determinístico: `processos.usuario_id` →
+`usuarios.id` → `usuarios.auth_user_id`. Assim que as duas contas
+existirem, o mapa tem duas linhas e os 6 processos ganham dono.
+
+**Enquanto isso não for feito, `GOVDOCS_EXIGIR_SUPABASE_AUTH=1` não pode
+ser ligado**: com 0 contas, trancaria os dois usuários para fora.
