@@ -1994,3 +1994,106 @@ digital idêntica à do ensaio onde o isolamento é provado por execução.
 
 A ressalva permanece e é a mesma: **não ativar em produção** enquanto a
 0020 não estiver aplicada lá.
+
+---
+
+# Rodada de produção — 0018→0021 aplicadas, e um achado a mais
+
+Data: 06/09/2026. Projeto `govdocs-wizard` (**produção**).
+**A flag `price_research` continua `off`. Nada foi ligado.**
+
+## O que entrou em produção
+
+| migração | conteúdo | estado |
+|---|---|---|
+| 0018 | contenção do achado P0 | aplicada |
+| 0019 | revogação dos defaults amplos | aplicada |
+| 0020 | Supabase Auth, `auth.uid()`, RLS dos processos | aplicada — **sem** a migração de dados |
+| 0021 | pesquisa de preços: 4 tabelas, 11 políticas, 5 gatilhos, 1 RPC | aplicada em 4 partes |
+
+A 0021 foi aplicada pelo mecanismo oficial de migrations, nas mesmas
+quatro partes já validadas no ensaio: tabelas e índices; predicados,
+RLS, revokes, políticas e grants; gatilhos, RPC de revisão e a flag;
+e a revogação de DELETE/TRUNCATE.
+
+O item 1 da lista "O que continua aberto" da rodada anterior — *"produção
+não recebeu nada"* — está **fechado**. Os itens 2, 3 e 4 continuam
+abertos, sem alteração.
+
+## O achado desta rodada: TRUNCATE não é DELETE
+
+A verificação pós-aplicação não parou na comparação de impressões
+digitais. Foi ela que pegou o defeito — e a comparação, sozinha, teria
+passado: produção e ensaio batiam nos cinco hashes **porque os dois
+tinham o mesmo buraco**.
+
+A 0021 revogava `DELETE` de `service_role` e afirmava, por escrito, que
+a trilha é append-only "até para a credencial de servidor". Não era. O
+default do schema `public` concede `arwdDxtm`, e o `D` — TRUNCATE —
+ficou. TRUNCATE apaga todas as linhas **sem disparar gatilho de linha**:
+o `trg_pesquisa_preco_trilha_imutavel` é `before update or delete` e não
+alcança TRUNCATE. Um comando esvaziaria `pesquisa_preco_eventos`.
+
+É o mesmo defeito da rodada anterior (o DELETE de `service_role`) com
+outro verbo, e a correção anterior tinha sido literal demais: revogou o
+privilégio nomeado no achado, não a classe do problema.
+
+Corrigido nos dois projetos e no arquivo da migração:
+`revoke delete, truncate ... from service_role, authenticated, anon,
+public`. Os grants de `select/insert/update` seguem intactos.
+
+**A prova veio antes da correção**, e é o ponto: `test_ninguem_pode_apagar`
+passou a exigir `DELETE` **e** `TRUNCATE`, falhou (12 linhas), e só então
+a migração foi corrigida. Sem a extensão da prova, a correção seria uma
+afirmação minha sobre o banco.
+
+### Por que o ensaio local viu e a produção não denunciava
+
+O `pg_default_acl` do schema `public` em produção tem **duas** entradas,
+e qual vale depende de quem cria a tabela:
+
+| dono do default | privilégios concedidos a |
+|---|---|
+| `supabase_admin` | postgres, anon, authenticated, service_role |
+| `postgres` | postgres, service_role |
+
+As migrações rodam como `postgres`, então vale a segunda — mais estreita.
+Por isso `authenticated` nunca teve DELETE em produção, embora o ensaio
+local acusasse. O ensaio reproduz de propósito a entrada **mais larga**:
+ensaio pessimista gera revoke a mais; ensaio otimista deixa buraco. A
+migração passou a revogar explicitamente de `authenticated` também, para
+não depender da circunstância de ter rodado com um dono e não com outro.
+
+## Verificação executada
+
+* impressões digitais MD5 de políticas, colunas, grants, gatilhos e
+  CHECKs — **idênticas** entre produção e ensaio;
+* RLS ligada nas quatro tabelas; 11 políticas;
+* `anon`: **nenhum** privilégio nas quatro tabelas;
+* `service_role`: sem `DELETE` e sem `TRUNCATE`;
+* `authenticated`: exatamente `select/insert/update` (e `select/insert`
+  na trilha);
+* `flag_price_research` = `off`;
+* Security Advisors: **nenhum achado de nível ERROR**. Os três WARN de
+  `SECURITY DEFINER` executável por `authenticated` são as RPCs
+  intencionais — cada uma autoriza como primeira instrução;
+* suíte completa, dois portões ligados: **1864 passaram, 0 falharam,
+  112 pularam**.
+
+## Escopo maior, não tocado
+
+`service_role` mantém `TRUNCATE` em 30 das 32 tabelas de `public`, e
+`DELETE` em quase todas. É condição do projeto inteiro, anterior a este
+módulo, e não foi alterada aqui — mexer nas tabelas dos outros módulos
+sem provas próprias seria exatamente o tipo de alteração silenciosa que
+o runbook proíbe. Fica **registrado como achado aberto**, para decisão
+em rodada própria. A exceção já correta é `eventos_governanca`: a 0020 a
+deixou sem grant nenhum para `anon`/`authenticated`/`service_role`, com
+escrita só pela RPC definidora.
+
+## O que falta para ligar a flag
+
+Uma coisa só, e não é deste módulo: **não existe conta no Supabase Auth**.
+Sem `auth.uid()`, toda política da 0021 nega — como deve. Enquanto isso
+não for resolvido (está sendo tratado em paralelo), ligar a flag
+entregaria uma tela que não escreve nada.

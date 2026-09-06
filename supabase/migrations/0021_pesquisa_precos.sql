@@ -1,10 +1,21 @@
 -- ############################################################
 -- ##  0021 — Pesquisa de Preços (Fase 3: persistência)
 -- ##
--- ##  ESTADO: APLICÁVEL. O sufixo `.NAO_APLICAR` foi removido nesta
--- ##  rodada, depois de a 0020 estar aplicada e verificada no ambiente
--- ##  de ensaio (`govdocs-ensaio-descartavel`). Aplicada lá pelo
--- ##  mecanismo oficial de migrations.
+-- ##  ESTADO: APLICADA EM PRODUÇÃO (`govdocs-wizard`) em 06/09/2026,
+-- ##  pelo mecanismo oficial de migrations, em quatro partes:
+-- ##  tabelas e índices; predicados, RLS, revokes, políticas e grants;
+-- ##  gatilhos, a RPC de revisão e a flag; e a revogação de
+-- ##  DELETE/TRUNCATE. Antes disso já estava aplicada e verificada no
+-- ##  ambiente de ensaio (`govdocs-ensaio-descartavel`).
+-- ##
+-- ##  A FLAG NASCEU E CONTINUA `off`. Aplicar a migração não liga o
+-- ##  módulo: as quatro tabelas estão vazias e sem tráfego.
+-- ##
+-- ##  Verificação pós-aplicação: as impressões digitais de políticas,
+-- ##  colunas, grants, gatilhos e checks batem entre produção e o
+-- ##  ensaio; RLS ligado nas quatro; `anon` sem privilégio nenhum;
+-- ##  `service_role` sem DELETE e sem TRUNCATE; Security Advisors sem
+-- ##  achado de nível ERROR.
 -- ##
 -- ##  A trava existia por dependência TÉCNICA, não por cautela
 -- ##  decorativa: esta migração CHAMA as funções de contexto da 0020
@@ -17,12 +28,13 @@
 -- ##  Ordem do runbook, e ela continua obrigatória:
 -- ##  0018 → 0019 → 0020 → 0021.
 -- ##
--- ##  EM PRODUÇÃO ainda NÃO: a 0020 não chegou lá. O §39 do prompt do
--- ##  módulo diz o mesmo por outro lado — "não ativar este módulo em
+-- ##  O §39 do prompt do módulo exige "não ativar este módulo em
 -- ##  produção sem provar o mesmo isolamento exigido do restante da
 -- ##  plataforma". O isolamento desta migração está provado e
 -- ##  EXECUTADO (tests/test_precos_fase3_rls.py, 47 provas contra
--- ##  PostgreSQL real). O que falta não é deste módulo.
+-- ##  PostgreSQL real). Ligar a flag depende de outra coisa, que não é
+-- ##  desta migração: hoje não existe conta no Supabase Auth, e sem
+-- ##  `auth.uid()` toda política aqui nega — como deve.
 -- ##
 -- ##  IDEMPOTÊNCIA OPERACIONAL: tudo aqui é `if not exists`,
 -- ##  `create or replace`, `drop policy if exists` antes de criar, e
@@ -452,10 +464,22 @@ alter table public.pesquisa_preco_eventos      enable row level security;
 
 -- `anon` não tem nada aqui. A linha é explícita — e não confiada ao
 -- default — porque é a afirmação central desta migração.
-revoke all on public.pesquisas_preco            from anon, public;
-revoke all on public.pesquisa_preco_itens       from anon, public;
-revoke all on public.pesquisa_preco_referencias from anon, public;
-revoke all on public.pesquisa_preco_eventos     from anon, public;
+--
+-- `authenticated` entra no revoke e recebe de volta, logo abaixo,
+-- exatamente select/insert/update por tabela. Parece redundante e não
+-- é: o `pg_default_acl` do schema `public` tem DUAS entradas, e qual
+-- delas vale depende de QUEM cria a tabela. A entrada do dono
+-- `supabase_admin` concede `arwdDxtm` a anon, authenticated e
+-- service_role; a do dono `postgres` — que é quem executa estas
+-- migrações — concede só a postgres e service_role. Amarrar a
+-- ausência de DELETE de `authenticated` ao fato de a migração ter
+-- rodado como `postgres` é depender de uma circunstância que nenhuma
+-- linha deste arquivo declara. Com o revoke explícito, o resultado é
+-- o mesmo nos dois caminhos.
+revoke all on public.pesquisas_preco            from anon, authenticated, public;
+revoke all on public.pesquisa_preco_itens       from anon, authenticated, public;
+revoke all on public.pesquisa_preco_referencias from anon, authenticated, public;
+revoke all on public.pesquisa_preco_eventos     from anon, authenticated, public;
 
 -- DELETE FORA, INCLUSIVE PARA A CREDENCIAL DE SERVIDOR.
 --
@@ -476,10 +500,18 @@ revoke all on public.pesquisa_preco_eventos     from anon, public;
 -- credencial de servidor não apaga — e é ela que operaria estas
 -- tabelas se alguém voltasse atrás na decisão de usar o JWT do
 -- usuário.
-revoke delete on public.pesquisas_preco            from service_role;
-revoke delete on public.pesquisa_preco_itens       from service_role;
-revoke delete on public.pesquisa_preco_referencias from service_role;
-revoke delete on public.pesquisa_preco_eventos     from service_role;
+--
+-- TRUNCATE vai junto, e a razão é a que torna o achado grave: ele
+-- apaga TODAS as linhas sem passar pelo gatilho de linha. O
+-- `trg_pesquisa_preco_trilha_imutavel` é `before update or delete` —
+-- TRUNCATE não é nenhum dos dois. Revogar só DELETE deixaria esta
+-- migração afirmando, por escrito, que a trilha é append-only "até
+-- para a credencial de servidor" enquanto um único comando a
+-- esvaziava. Foi exatamente o que a primeira versão fez.
+revoke delete, truncate on public.pesquisas_preco            from service_role;
+revoke delete, truncate on public.pesquisa_preco_itens       from service_role;
+revoke delete, truncate on public.pesquisa_preco_referencias from service_role;
+revoke delete, truncate on public.pesquisa_preco_eventos     from service_role;
 
 -- ---------------------------------------------------------------
 -- Políticas — cabeçalho

@@ -177,6 +177,23 @@ grant execute on function auth.uid(), auth.jwt(), auth.role()
 -- afirmando "não há grant de DELETE para ninguém" e o `service_role`
 -- tendo DELETE nas quatro tabelas. O ensaio precisa ser tão permissivo
 -- quanto o ambiente que ele imita — senão ele prova o mundo errado.
+--
+-- ADENDO, medido no Supabase de produção em 06/09/2026: o
+-- `pg_default_acl` do schema `public` lá tem DUAS entradas, e qual
+-- delas vale depende de QUEM cria a tabela —
+--
+--   dono `supabase_admin`: `arwdDxtm` a postgres, anon, authenticated
+--                          e service_role;
+--   dono `postgres`      : `arwdDxtm` só a postgres e service_role.
+--
+-- As migrações rodam como `postgres`, então na prática vale a segunda,
+-- mais estreita. O ensaio reproduz de propósito a PRIMEIRA, que é a
+-- mais larga: assim ele acusa todo privilégio que a migração não
+-- revogar explicitamente, em vez de depender da circunstância de ter
+-- rodado com um dono e não com o outro. Ensaio pessimista gera revoke
+-- a mais; ensaio otimista deixa buraco. Foi este ensaio, mais largo
+-- que a realidade, que revelou o TRUNCATE de `service_role` que a
+-- 0021 não revogava — e que produção de fato concedia.
 alter default privileges in schema public
   grant all on tables to postgres, anon, authenticated, service_role;
 alter default privileges in schema public

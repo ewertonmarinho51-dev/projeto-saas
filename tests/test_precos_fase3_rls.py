@@ -269,16 +269,23 @@ def test_ninguem_pode_apagar(banco):
     Não é esquecimento: rejeitar uma referência é mudar `status`, e uma
     pesquisa em que preço coletado some sem rastro é o oposto do que o
     módulo existe para produzir.
+
+    TRUNCATE entra na mesma asserção, e não por simetria: ele apaga
+    todas as linhas SEM disparar o gatilho de linha. O
+    `trg_pesquisa_preco_trilha_imutavel` é `before update or delete` —
+    um TRUNCATE passa por baixo dele e leva a trilha inteira. Checar só
+    DELETE deixaria a migração afirmando "append-only até para a
+    credencial de servidor" enquanto um comando apagava tudo.
     """
     with banco.cursor() as c:
         voltar_a_ser_servidor(c)
         # O DONO da tabela sempre tem tudo — é do PostgreSQL, não uma
         # concessão desta migração. O que importa é que nenhum papel do
         # Supabase apague: são eles que chegam pela rede.
-        c.execute("select table_name, grantee "
+        c.execute("select table_name, grantee, privilege_type "
                   "from information_schema.role_table_grants "
                   "where table_schema = 'public' and table_name = any(%s) "
-                  "and privilege_type = 'DELETE' "
+                  "and privilege_type in ('DELETE', 'TRUNCATE') "
                   "and grantee in ('anon', 'authenticated', 'service_role', "
                   "'PUBLIC')", (list(TABELAS),))
         assert c.fetchall() == []
