@@ -1086,7 +1086,7 @@ grant execute on function public.ensaio_auditoria_catalogo(text)
   to service_role;
 
 -- 4) a própria 0019: copiar o corpo de
---    supabase/migrations/0019_emergencial_fecha_anon.sql.NAO_APLICAR
+--    supabase/migrations/0019_emergencial_fecha_anon.sql
 --    e executar, com revisão humana.
 
 SEQUÊNCIA — a ordem importa, e a versão anterior estava errada.

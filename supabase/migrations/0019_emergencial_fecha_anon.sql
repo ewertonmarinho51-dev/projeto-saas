@@ -1,23 +1,22 @@
 -- ############################################################
--- ##  NÃO APLICAR SEM APROVAÇÃO HUMANA — extensão .NAO_APLICAR
--- ##  Achado P0 de 14/08/2026 — FASE EMERGENCIAL (contenção)
+-- ##  APLICADA EM PRODUÇÃO em 06/09/2026, com autorização
+-- ##  expressa, na ordem 0018 → 0019 → 0020.
 -- ##
--- ##  ORDEM OBRIGATÓRIA: esta migração é o passo (f) do runbook em
--- ##  docs/seguranca-achado-p0.md. Os passos (a) a (e) vêm antes,
--- ##  e o aplicativo NÃO pode ser reaberto entre (f) e (i).
+-- ##  O pré-requisito que a travava — "código com credencial de
+-- ##  servidor JÁ EM PRODUÇÃO" — foi conferido antes: sem ele
+-- ##  esta migração derrubaria o aplicativo, porque ele perderia
+-- ##  tudo o que é revogado aqui.
 -- ##
--- ##  PRÉ-REQUISITOS:
--- ##   (a) aplicativo em MANUTENÇÃO / acesso privado;
--- ##   (b) backup, políticas, grants e logs preservados;
--- ##   (c) SUPABASE_SECRET_KEY criada e gravada nos Secrets;
--- ##   (d) código com credencial de servidor + redação + falha
--- ##       fechada JÁ EM PRODUÇÃO, com
--- ##       GOVDOCS_EXIGIR_CREDENCIAL_SERVIDOR=1;
--- ##   (e) chaves de OpenAI/Google removidas de config_app;
--- ##   ensaio executado antes (scripts/ensaio_seguranca.py).
+-- ##  Verificação executada depois de aplicar, em produção, com
+-- ##  as seis consultas do rodapé: zero políticas anônimas, zero
+-- ##  grants de tabela, zero tabelas sem RLS, zero sequences
+-- ##  abertas, zero funções executáveis por `anon`, gatilho de
+-- ##  evento instalado. Dados intactos.
 -- ##
--- ##  Sem o passo (d), esta migração DERRUBA o aplicativo: ele acessa
--- ##  o banco como `anon` e perde tudo o que é revogado aqui.
+-- ##  PENDENTE, e é configuração de painel e não SQL: desmarcar
+-- ##  `graphql_public` em Settings → API → Exposed schemas. O
+-- ##  resolvedor respeita RLS e os grants, então o passo 2 já o
+-- ##  esvazia; ainda assim o app não usa GraphQL.
 -- ############################################################
 
 -- Idempotente. NÃO toca em nenhuma LINHA: só políticas e privilégios.

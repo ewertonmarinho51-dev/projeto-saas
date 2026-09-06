@@ -515,3 +515,111 @@ o segredo de mentira ensinando todo mundo a desligar o alarme.
 
 O único achado real foi a referência do projeto — tratada acima, e
 **anterior a esta branch**.
+
+---
+
+# APLICAÇÃO EM PRODUÇÃO — 06/09/2026
+
+As três migrações de contenção e autorização foram aplicadas no projeto
+**`govdocs-wizard`** (produção), com autorização expressa, na ordem do
+runbook: **0018 → 0019 → 0020**.
+
+## O que foi verificado ANTES de aplicar
+
+A 0018 trazia um aviso que teria sido decisivo — e que já não valia:
+
+> "o app acessa o Supabase SÓ com a chave publicável e NÃO usa Supabase
+> Auth. Aplicar esta migração hoje tornaria `config_app` invisível para o
+> próprio aplicativo."
+
+Isso era verdade em 14/08. Antes de aplicar, foi conferido no código que
+`db._cliente()` usa `SUPABASE_SECRET_KEY` e que `db.obter_config()` lê
+por ele — a credencial de servidor contorna RLS por definição.
+
+Estado de produção levantado antes (somente leitura):
+
+| Fato | Valor |
+|---|---|
+| contas em `auth.users` | **0** |
+| contas em `usuarios` | 2, ambas ativas, autenticando por `senha_hash` |
+| `usuarios.auth_user_id` | a coluna **não existia** |
+| processos | 6 |
+| processos com `secretaria_id` nulo | **6 de 6** |
+| grants de tabela para `anon` | **182** |
+| funções de contexto da 0020 | 0 |
+
+Esses números mudaram a resposta à pergunta "aplico a 0020 sozinha?".
+Aplicá-la isolada deixaria os 182 grants do `anon` abertos — a exposição
+real e imediata — enquanto instalaria uma matriz que nada exercita.
+
+Ensaio local com a sequência completa confirmou o ponto que decide se o
+app continua de pé: depois de 0018→0021, `service_role` mantém todos os
+privilégios e `BYPASSRLS`, e `anon` fica com zero. As três migrações não
+contêm nenhum comando destrutivo (0 ocorrências de `drop table`,
+`truncate`, `delete from`, `drop column`).
+
+## O que foi verificado DEPOIS de aplicar
+
+Todas as consultas de verificação das próprias migrações, em produção:
+
+| Verificação | Resultado |
+|---|---|
+| políticas alcançando `anon`/`public` | **0** |
+| grants de tabela para `anon`/`authenticated`/PUBLIC | **0** |
+| tabelas sem RLS | **0** |
+| sequences abertas | **0** |
+| funções da aplicação executáveis por `anon` | **0** |
+| escrita sem `WITH CHECK` | **0** |
+| tabela com grant a `authenticated` e sem política | **0** |
+| políticas instaladas | 45 |
+| funções de contexto e governança | 10 |
+| gatilho `funcao_nasce_fechada` | instalado |
+
+**Smoke com os papéis reais**, em produção:
+
+| Papel | `usuarios` | `config_app` | `processos` |
+|---|---|---|---|
+| `service_role` (o app) | 2 | 27 | 6 |
+| `anon` (visitante) | recusado por privilégio | recusado | recusado |
+
+Nenhuma linha foi lida, alterada ou removida pelas migrações: 6
+processos, 2 usuários e 27 chaves de configuração continuam lá.
+
+**Security Advisors** depois da aplicação: a criticidade de RLS desligada
+desapareceu. Restaram 3 INFO (`config_app` e as duas tabelas de backup
+com RLS e sem política — é o Grupo 1 da 0020, deliberado), 2 WARN das
+funções `SECURITY DEFINER` que são o único caminho da trilha e conferem
+autorização por dentro, e 1 WARN da extensão `vector` em `public`, que é
+pré-existente do RAG e cuja mudança quebraria o índice HNSW.
+
+## O QUE NÃO FOI FEITO — e é o que separa "instalado" de "protegendo"
+
+**A migração de dados não foi executada.** As políticas estão corretas e
+instaladas, e ainda não governam ninguém, porque o app opera pela
+credencial de servidor. Faltam três decisões que são humanas:
+
+1. **criar as contas no Supabase Auth.** Exige o e-mail de cada pessoa —
+   `usuarios` guarda `login`, não e-mail — e a redefinição de senha pelo
+   próprio titular. `senha_hash` **não** deve ser copiado: o PBKDF2 do
+   app não é o formato do Supabase Auth;
+2. **vincular `usuarios.auth_user_id`** e fazer o backfill de
+   `processos.auth_user_id`, conferindo as contagens antes e depois;
+3. **decidir a secretaria de cada um dos 6 processos legados.** Enquanto
+   `secretaria_id` for nulo, o processo só é visível ao admin — um
+   servidor comum veria a lista vazia.
+
+Só depois de tudo conferido vêm os `set not null`, e só então a ETAPA E
+(o app passar a autenticar por Supabase Auth) faz sentido. Inverter essa
+ordem tranca cada servidor para fora dos próprios processos, com a tela
+vazia e nada no log.
+
+**A rotação das chaves de IA não foi feita.** `OPENAI_API_KEY` e
+`GOOGLE_API_KEY` seguem em `config_app` e estiveram legíveis por quem
+tivesse a chave publicável. A 0018 fecha o acesso daqui para a frente;
+ela não desfaz exposição passada. A rotação continua recomendada e é
+decisão do responsável.
+
+**`graphql_public` continua exposto.** É configuração de painel
+(Settings → API → Exposed schemas), não SQL. O resolvedor respeita RLS e
+os grants, então o passo 2 da 0019 já o esvazia — mas o app não usa
+GraphQL e não há razão para mantê-lo.

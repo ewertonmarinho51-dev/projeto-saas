@@ -1,18 +1,39 @@
 -- ############################################################
--- ##  NÃO APLICAR — extensão .NAO_APLICAR
--- ##  Achado P0 — FASE DEFINITIVA
+-- ##  APLICADA EM PRODUÇÃO em 06/09/2026, com autorização
+-- ##  expressa, em três partes, depois de 0018 e 0019.
 -- ##
--- ##  Matriz COMPLETA das 28 tabelas de `public`, com grants e
--- ##  políticas executáveis. Depende de migração de dados que NÃO
--- ##  deve ser automatizada sem revisão humana — ver ETAPA C.
+-- ##  PRINCÍPIO: credencial de servidor NÃO é autorização. Ela
+-- ##  ignora RLS por definição; usá-la como modelo permanente
+-- ##  transfere toda a autorização para o código do app, sem rede
+-- ##  de proteção no banco.
 -- ##
--- ##  PRINCÍPIO: credencial de servidor NÃO é autorização. Ela ignora
--- ##  RLS por definição; usá-la como modelo permanente transfere toda
--- ##  a autorização para o código do app, sem rede de proteção no
--- ##  banco. Aqui a autorização volta para o banco, via auth.uid().
+-- ##  A MIGRAÇÃO DE DADOS **NÃO FOI FEITA**, e é isso que separa
+-- ##  "a matriz existe" de "a matriz protege". Estado real de
+-- ##  produção em 06/09/2026:
 -- ##
--- ##  A 0019 é contenção e continua valendo enquanto esta não estiver
--- ##  concluída: nenhuma etapa abaixo reabre `anon`.
+-- ##    * 0 contas no Supabase Auth; as 2 contas de `usuarios`
+-- ##      continuam entrando por `senha_hash`, pelo caminho de
+-- ##      servidor;
+-- ##    * `usuarios.auth_user_id` e `processos.auth_user_id`
+-- ##      existem e estão NULOS;
+-- ##    * os 6 processos têm `secretaria_id` NULO — pela ETAPA C,
+-- ##      cada um só seria visível ao admin.
+-- ##
+-- ##  Consequência prática: as políticas abaixo estão instaladas e
+-- ##  corretas, mas ainda não governam ninguém, porque o app opera
+-- ##  pela credencial de servidor. Elas passam a valer quando a
+-- ##  ETAPA E for concluída — e a ETAPA C precisa vir antes, ou os
+-- ##  servidores ficam trancados para fora dos próprios processos.
+-- ##
+-- ##  A criação das contas no Auth exige o e-mail de cada pessoa
+-- ##  (a tabela guarda `login`, não e-mail) e a redefinição de
+-- ##  senha pelo titular. A secretaria de cada processo legado é
+-- ##  decisão HUMANA, processo a processo. Nada disso pode ser
+-- ##  adivinhado por SQL, e nada disso foi feito aqui.
+-- ##
+-- ##  Verificação executada depois de aplicar: as três consultas
+-- ##  do rodapé em zero, 45 políticas, 10 funções de contexto,
+-- ##  `anon` recusado por privilégio, dados intactos.
 -- ############################################################
 --
 -- DECISÃO DE ARQUITETURA (tomada explicitamente, 15/08/2026)

@@ -1492,17 +1492,55 @@ def test_o_inventario_cobre_todas_as_tabelas():
         assert obrigatoria in TABELAS_PRIVADAS
 
 
-def test_as_migracoes_de_contencao_nao_estao_aplicaveis():
+def test_as_migracoes_de_contencao_declaram_que_foram_aplicadas():
     """
-    0018/0019/0020 continuam com a extensão .NAO_APLICAR: nenhuma
-    ferramenta de migração as executa por engano.
+    A premissa desta prova MUDOU, e mudar era o ponto.
+
+    Antes ela exigia que 0018/0019/0020 mantivessem o sufixo
+    `.NAO_APLICAR` — a trava que impedia qualquer ferramenta de
+    executá-las por engano. As três foram aplicadas em produção em
+    06/09/2026, com autorização expressa, na ordem do runbook. Manter a
+    asserção antiga passaria a exigir que o repositório MENTISSE sobre o
+    estado do banco.
+
+    O que ela guarda agora é o que continua valendo: as três existem,
+    estão aplicáveis, e cada uma DIZ no cabeçalho que já foi aplicada —
+    para que ninguém as leia como pendentes e as aplique de novo achando
+    que está fechando algo aberto.
     """
     migracoes = Path(__file__).resolve().parent.parent / "supabase/migrations"
     for numero in ("0018", "0019", "0020"):
         arquivos = list(migracoes.glob(f"{numero}_*"))
-        assert arquivos, numero
-        for arquivo in arquivos:
-            assert arquivo.name.endswith(".NAO_APLICAR"), arquivo.name
+        assert len(arquivos) == 1, (
+            f"{numero}: esperado um arquivo só — dois equivalentes causam "
+            f"execução duplicada. Achados: {[a.name for a in arquivos]}")
+        arquivo = arquivos[0]
+        assert arquivo.name.endswith(".sql"), arquivo.name
+        cabecalho = arquivo.read_text(encoding="utf-8")[:1500]
+        assert "APLICADA EM PRODUÇÃO" in cabecalho, (
+            f"{arquivo.name} não declara que foi aplicada")
+
+
+def test_a_0020_registra_que_a_migracao_de_dados_nao_foi_feita():
+    """
+    O ponto mais fácil de esquecer, e o mais caro.
+
+    A 0020 instalou a matriz de RLS, mas as políticas ainda não governam
+    ninguém: não há conta no Supabase Auth, `auth_user_id` está nulo nos
+    dois lados, e todo processo está sem secretaria. Um leitor que veja
+    "0020 aplicada" e conclua "autorização no banco resolvida" erraria
+    por uma distância grande.
+
+    O cabeçalho tem de dizer isso, porque é ele que sobrevive à memória
+    de quem aplicou.
+    """
+    migracoes = Path(__file__).resolve().parent.parent / "supabase/migrations"
+    sql = (migracoes / "0020_definitiva_supabase_auth_rls.sql").read_text(
+        encoding="utf-8")[:3000]
+
+    assert "MIGRAÇÃO DE DADOS **NÃO FOI FEITA**" in sql
+    assert "0 contas no Supabase Auth" in sql
+    assert "decisão HUMANA" in sql
 
 
 def test_a_0019_nao_depende_de_nomes_escritos_a_mao():
@@ -1511,7 +1549,7 @@ def test_a_0019_nao_depende_de_nomes_escritos_a_mao():
     passar `anon_select_geracoes` e `anon_select_tenants`.
     """
     migracoes = Path(__file__).resolve().parent.parent / "supabase/migrations"
-    sql = (migracoes / "0019_emergencial_fecha_anon.sql.NAO_APLICAR").read_text()
+    sql = (migracoes / "0019_emergencial_fecha_anon.sql").read_text()
     assert "from pg_policies" in sql          # políticas pelo catálogo
     assert "from pg_tables" in sql            # tabelas pelo catálogo
     assert "relkind = 'S'" in sql             # sequences
@@ -1522,7 +1560,7 @@ def test_a_0019_nao_depende_de_nomes_escritos_a_mao():
 def _sql_da_0019() -> str:
     migracoes = Path(__file__).resolve().parent.parent / "supabase/migrations"
     return (migracoes
-            / "0019_emergencial_fecha_anon.sql.NAO_APLICAR").read_text()
+            / "0019_emergencial_fecha_anon.sql").read_text()
 
 
 def test_a_0019_revoga_o_default_execute_de_public():
@@ -1609,7 +1647,7 @@ def test_os_relatorios_nao_afirmam_streamlit_enviando_secrets():
     alvos = [raiz / "docs" / "seguranca-config-app.md",
              raiz / "docs" / "seguranca-achado-p0.md",
              raiz / "supabase" / "migrations"
-             / "0018_rls_config_app_e_processos.sql.NAO_APLICAR"]
+             / "0018_rls_config_app_e_processos.sql"]
     permitido = ("recebe a interface", "Isso está errado", "ERRADO",
                  "versão dizia", "dizia-se aqui", "NÃO envia a chave",
                  "nunca é enviado ao cliente")
@@ -1634,7 +1672,7 @@ def test_os_relatorios_nao_declaram_comprometimento_provado():
     raiz = Path(__file__).resolve().parent.parent
     alvos = [raiz / "docs" / "seguranca-config-app.md",
              raiz / "supabase" / "migrations"
-             / "0018_rls_config_app_e_processos.sql.NAO_APLICAR"]
+             / "0018_rls_config_app_e_processos.sql"]
     proibidos = ("chaves comprometidas",
                  "devem ser consideradas comprometidas",
                  "Trate como comprometimento")
@@ -1650,7 +1688,7 @@ def test_os_relatorios_nao_declaram_comprometimento_provado():
 def _sql_da_0020() -> str:
     migracoes = Path(__file__).resolve().parent.parent / "supabase/migrations"
     return (migracoes
-            / "0020_definitiva_supabase_auth_rls.sql.NAO_APLICAR").read_text()
+            / "0020_definitiva_supabase_auth_rls.sql").read_text()
 
 
 def _sql_da_0021() -> str:
@@ -1934,7 +1972,7 @@ def test_a_0020_usa_app_metadata_e_nunca_user_metadata():
     ali é escalação de privilégio por construção.
     """
     migracoes = Path(__file__).resolve().parent.parent / "supabase/migrations"
-    sql = (migracoes / "0020_definitiva_supabase_auth_rls.sql.NAO_APLICAR"
+    sql = (migracoes / "0020_definitiva_supabase_auth_rls.sql"
            ).read_text()
     assert "'app_metadata'" in sql
     # a única menção a user_metadata é a que ADVERTE contra usá-lo

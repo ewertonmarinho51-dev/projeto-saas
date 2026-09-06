@@ -50,17 +50,24 @@ import uuid
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 MIGRACOES = RAIZ / "supabase/migrations"
 
-# As três `.NAO_APLICAR` são o objeto do ensaio, aplicadas NA ORDEM do
-# runbook. As demais são o schema sobre o qual elas atuam.
+# As quatro migrações de contenção/autorização são o objeto do ensaio,
+# aplicadas NA ORDEM do runbook. As demais são o schema sobre o qual elas
+# atuam.
+#
+# Elas já NÃO têm o sufixo `.NAO_APLICAR`: as três primeiras foram
+# aplicadas em produção em 06/09/2026 e a 0021 no ambiente de ensaio.
+# Continuam AQUI, e não entre as migrações de schema, porque a ORDEM
+# entre elas é o que importa — a 0021 chama funções da 0020, a 0020
+# depende do fechamento da 0019.
 #
 # Ensaiar a 0020 sozinha esconderia uma dependência real: é a 0019 que
 # revoga o `EXECUTE ON FUNCTIONS FROM PUBLIC` default, e sem ela toda
 # função criada pela 0020 — o gatilho da trilha inclusive — nasce
 # executável por `anon`. O ensaio pegou isso na primeira execução.
 SEQUENCIA_EM_ENSAIO = (
-    "0018_rls_config_app_e_processos.sql.NAO_APLICAR",
-    "0019_emergencial_fecha_anon.sql.NAO_APLICAR",
-    "0020_definitiva_supabase_auth_rls.sql.NAO_APLICAR",
+    "0018_rls_config_app_e_processos.sql",
+    "0019_emergencial_fecha_anon.sql",
+    "0020_definitiva_supabase_auth_rls.sql",
     # A 0021 entra na sequência, e não entre as migrações de schema,
     # porque DEPENDE da 0020: suas políticas chamam `tenant_do_jwt`,
     # `secretaria_do_jwt` e `e_admin`. Aplicada antes, nem seria

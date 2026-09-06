@@ -742,7 +742,7 @@ def test_o_ajuste_de_default_privileges_tolera_recusa(banco):
     gerenciado: o que se garante é que cada tentativa está isolada.
     """
     sql = (Path(__file__).resolve().parent.parent
-           / "supabase/migrations/0019_emergencial_fecha_anon.sql.NAO_APLICAR"
+           / "supabase/migrations/0019_emergencial_fecha_anon.sql"
            ).read_text()
     assert "insufficient_privilege" in sql, (
         "as tentativas de default privileges não toleram recusa: uma "

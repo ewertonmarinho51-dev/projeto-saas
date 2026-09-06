@@ -1,23 +1,25 @@
 -- ############################################################
--- ##  NÃO APLICAR NO ESTADO ATUAL — extensão .NAO_APLICAR   ##
--- ##                                                        ##
--- ##  Descoberta posterior (14/08): o app acessa o Supabase ##
--- ##  SÓ com a chave publicável (db._cliente) e NÃO usa     ##
--- ##  Supabase Auth. Não existe caminho service_role no     ##
--- ##  código. Aplicar esta migração hoje tornaria           ##
--- ##  config_app invisível para o próprio aplicativo:       ##
--- ##                                                        ##
--- ##   - db.obter_config() devolveria "" → OPENAI_API_KEY e ##
--- ##     GOOGLE_API_KEY somem → a geração para;             ##
--- ##   - db.flag_ativa() lê a MESMA tabela → TODAS as       ##
--- ##     feature flags caem para OFF em silêncio, incluindo ##
--- ##     tela_progresso, correcao_automatica, canonical_    ##
--- ##     facts e knowledge_engine_active.                   ##
--- ##                                                        ##
--- ##  A ordem correta está em docs/seguranca-config-app.md. ##
--- ##  Renomeie de volta para .sql somente na etapa 5 do     ##
--- ##  plano, depois de os segredos saírem do banco e de o   ##
--- ##  app ler configuração por caminho privilegiado.        ##
+-- ##  APLICADA EM PRODUÇÃO em 06/09/2026, com autorização
+-- ##  expressa. O sufixo `.NAO_APLICAR` saiu junto.
+-- ##
+-- ##  A trava existia por uma razão que deixou de valer: em
+-- ##  14/08 o app acessava o Supabase SÓ pela chave publicável,
+-- ##  e esta migração o teria deixado sem `config_app` — sem
+-- ##  chaves de IA e com TODAS as feature flags em OFF, em
+-- ##  silêncio. Desde então `db._cliente()` passou a usar
+-- ##  SUPABASE_SECRET_KEY, e isso foi CONFERIDO no código antes
+-- ##  de aplicar: `db.obter_config()` lê pelo cliente de
+-- ##  servidor, que contorna RLS por definição.
+-- ##
+-- ##  Verificado depois de aplicar, em produção: `service_role`
+-- ##  enxerga usuarios=2, config_app=27, processos=6; `anon` é
+-- ##  recusado por privilégio.
+-- ##
+-- ##  O QUE ESTA MIGRAÇÃO NÃO FEZ, e continua pendente: rotacionar
+-- ##  OPENAI_API_KEY e GOOGLE_API_KEY. Elas seguem em `config_app`
+-- ##  e estiveram legíveis por quem tivesse a chave publicável.
+-- ##  Fechar o acesso não desfaz exposição passada — a rotação é
+-- ##  decisão do responsável e não foi feita aqui.
 -- ############################################################
 
 -- ============================================================
