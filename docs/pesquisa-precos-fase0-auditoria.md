@@ -2198,3 +2198,29 @@ recuo exponencial.
 Duas sondagens separadas por dois dias, mesmo resultado no endpoint que
 importa. O PNCP segue declarando `Capacidade.EVIDENCIA` apenas — não se
 escreve conversor para campo que não se pôde observar.
+
+### Receita exata das duas contas (medida em 07/09/2026)
+
+Para não sobrar adivinhação na hora de criar: os valores abaixo saíram
+do catálogo de produção, e é exatamente o que o
+`vincular_contas_auth.py` vai conferir antes de gravar. `app_metadata`
+divergente é recusa, não aviso.
+
+| `usuarios.id` | papel | `app_metadata` que a conta precisa ter |
+|---|---|---|
+| `679d43c6-1fcc-459c-98b4-9ad9315c1715` | admin | `{"papel":"admin","tenant_id":"11111111-1111-1111-1111-111111111111","secretaria_id":"99a6a458-a146-4ea6-8a10-7163e18e8997"}` |
+| `d76ab816-4831-4ff7-af5f-bf164b1a0b90` | usuario | `{"papel":"usuario","tenant_id":"11111111-1111-1111-1111-111111111111","secretaria_id":"332ad63f-60b1-4db8-9381-940dfd5d63c3"}` |
+
+Nenhum dos dois tem `papel_governanca`; a chave fica **fora** do JSON —
+`null` e ausente são tratados como iguais, mas escrever a chave com
+outro valor é divergência.
+
+Vai em **`app_metadata`**, nunca em `user_metadata`. Pelo painel do
+Supabase: Authentication → Users → Add user, e depois editar o
+*App Metadata* da conta. Pela API de administração:
+`auth.admin.create_user({..., "app_metadata": {...}})`.
+
+Criada a conta, o resto é curto: escrever o mapa com os dois
+`usuario_id` e os dois e-mails, rodar sem `--aplicar` para conferir, e
+rodar com `--aplicar`. Os 6 processos ganham dono pelo caminho
+`processos.usuario_id → usuarios.id → usuarios.auth_user_id`.
