@@ -2183,3 +2183,18 @@ existirem, o mapa tem duas linhas e os 6 processos ganham dono.
 
 **Enquanto isso não for feito, `GOVDOCS_EXIGIR_SUPABASE_AUTH=1` não pode
 ser ligado**: com 0 contas, trancaria os dois usuários para fora.
+
+### PNCP, ressondado em 07/09/2026
+
+O item 3 da lista de abertos continua aberto, e agora com duas medições
+em vez de uma. `/contratacoes/publicacao` respondeu **200** — o 500 de
+05/09 era transitório, e fica registrado para que ninguém escreva no
+código que aquele endpoint não funciona (de quebra: o servidor exige
+`tamanhoPagina >= 10`). Já
+`/api/pncp/v1/orgaos/{cnpj}/compras/{ano}/{seq}/itens`, que é onde mora
+o preço unitário, devolveu **502** outra vez, com três tentativas e
+recuo exponencial.
+
+Duas sondagens separadas por dois dias, mesmo resultado no endpoint que
+importa. O PNCP segue declarando `Capacidade.EVIDENCIA` apenas — não se
+escreve conversor para campo que não se pôde observar.
