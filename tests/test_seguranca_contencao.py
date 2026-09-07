@@ -1454,18 +1454,17 @@ requer_ensaio = pytest.mark.skipif(
 
 TABELAS_PRIVADAS = tabelas_do_inventario()
 
-# Confirmado por leitura do catálogo de produção em 15/08/2026
-# (somente SELECT em pg_tables; nenhuma linha de dado foi lida).
-TABELAS_EM_PRODUCAO = 28
+# Confirmado por leitura do catálogo de produção em 15/08/2026, e de
+# novo em 06/09/2026 (somente SELECT em pg_tables; nenhuma linha de dado
+# foi lida). Os 28 do primeiro censo mais as quatro da 0021, aplicada em
+# produção em 06/09/2026 — a separação entre "está em produção" e "o
+# repositório descreve" deixou de existir para estas quatro, e mantê-la
+# faria o inventário afirmar o contrário do que o catálogo mostra.
+TABELAS_EM_PRODUCAO = 32
 
-# As quatro da 0021. Entraram no inventário quando a migração perdeu o
-# sufixo `.NAO_APLICAR` e passou a casar com o glob `*.sql` — o
-# inventário é derivado do repositório justamente para acompanhar
-# migração nova sozinho, e foi o que ele fez.
-#
-# Elas NÃO estão em produção: a 0021 foi aplicada apenas no ambiente de
-# ensaio (`govdocs-ensaio-descartavel`). Somá-las a `TABELAS_EM_PRODUCAO`
-# seria afirmar uma implantação que não aconteceu.
+# As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
+# inclui, mas porque são as únicas cuja implantação esta suíte
+# acompanhou de ponta a ponta, e o nome documenta o vínculo.
 TABELAS_DA_PESQUISA_DE_PRECOS = frozenset({
     "pesquisas_preco", "pesquisa_preco_itens",
     "pesquisa_preco_referencias", "pesquisa_preco_eventos",
@@ -1478,14 +1477,13 @@ def test_o_inventario_cobre_todas_as_tabelas():
     "CONTIDO". Um inventário incompleto é pior que nenhum: dá por
     fechado o que nunca foi olhado.
 
-    A conta distingue o que ESTÁ em produção do que o repositório já
-    descreve. Confundir os dois números faria o inventário mentir em
-    qualquer direção: para mais, dando por implantado o que não está;
-    para menos, deixando tabela nova fora da contagem que a cobre.
+    A contagem é do que ESTÁ em produção. Ela mentiria em qualquer
+    direção se fosse deixada para trás: para menos, deixando tabela
+    implantada fora da conta que a cobre; para mais, dando por
+    implantado o que ainda não foi.
     """
-    em_producao = set(TABELAS_PRIVADAS) - TABELAS_DA_PESQUISA_DE_PRECOS
-
-    assert len(em_producao) == TABELAS_EM_PRODUCAO, sorted(em_producao)
+    assert len(TABELAS_PRIVADAS) == TABELAS_EM_PRODUCAO, \
+        sorted(TABELAS_PRIVADAS)
     assert TABELAS_DA_PESQUISA_DE_PRECOS <= set(TABELAS_PRIVADAS), (
         "as tabelas da 0021 sumiram do inventário")
     for obrigatoria in ("usuarios", "config_app", "processos", "revisoes"):

@@ -38,6 +38,21 @@ O preço unitário com natureza conhecida mora justamente nos dois últimos
 endpoints, e eles não responderam. **Não dá para verificar hoje quais
 campos existem, nem se `valorUnitarioHomologado` vem preenchido.**
 
+RESSONDAGEM DE 07/09/2026 — a conclusão não mudou, um detalhe mudou
+------------------------------------------------------------------
+* `/contratacoes/publicacao` → **200**. O 500 de 05/09 era transitório,
+  e o registro fica para que ninguém escreva no código que aquele
+  endpoint "não funciona". De quebra: o servidor exige
+  `tamanhoPagina >= 10` e devolve 400 com "must be greater than or equal
+  to 10" abaixo disso;
+* `/api/pncp/v1/orgaos/{cnpj}/compras/{ano}/{seq}/itens` → **502** outra
+  vez, com três tentativas, recuo exponencial e 90 s de espera de
+  leitura.
+
+O endpoint que traz o preço unitário continua sem responder, em duas
+sondagens separadas por dois dias. A conclusão abaixo permanece — e
+permanece pelo mesmo motivo, não por inércia.
+
 Conclusão, e ela é deliberada: o PNCP **continua declarando apenas
 `Capacidade.EVIDENCIA`**. Escrever um conversor para campos que não pude
 observar seria adivinhar o contrato de uma API — exatamente o tipo de

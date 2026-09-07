@@ -1994,3 +1994,233 @@ digital idêntica à do ensaio onde o isolamento é provado por execução.
 
 A ressalva permanece e é a mesma: **não ativar em produção** enquanto a
 0020 não estiver aplicada lá.
+
+---
+
+# Rodada de produção — 0018→0021 aplicadas, e um achado a mais
+
+Data: 06/09/2026. Projeto `govdocs-wizard` (**produção**).
+**A flag `price_research` continua `off`. Nada foi ligado.**
+
+## O que entrou em produção
+
+| migração | conteúdo | estado |
+|---|---|---|
+| 0018 | contenção do achado P0 | aplicada |
+| 0019 | revogação dos defaults amplos | aplicada |
+| 0020 | Supabase Auth, `auth.uid()`, RLS dos processos | aplicada — **sem** a migração de dados |
+| 0021 | pesquisa de preços: 4 tabelas, 11 políticas, 5 gatilhos, 1 RPC | aplicada em 4 partes |
+
+A 0021 foi aplicada pelo mecanismo oficial de migrations, nas mesmas
+quatro partes já validadas no ensaio: tabelas e índices; predicados,
+RLS, revokes, políticas e grants; gatilhos, RPC de revisão e a flag;
+e a revogação de DELETE/TRUNCATE.
+
+O item 1 da lista "O que continua aberto" da rodada anterior — *"produção
+não recebeu nada"* — está **fechado**. Os itens 2, 3 e 4 continuam
+abertos, sem alteração.
+
+## O achado desta rodada: TRUNCATE não é DELETE
+
+A verificação pós-aplicação não parou na comparação de impressões
+digitais. Foi ela que pegou o defeito — e a comparação, sozinha, teria
+passado: produção e ensaio batiam nos cinco hashes **porque os dois
+tinham o mesmo buraco**.
+
+A 0021 revogava `DELETE` de `service_role` e afirmava, por escrito, que
+a trilha é append-only "até para a credencial de servidor". Não era. O
+default do schema `public` concede `arwdDxtm`, e o `D` — TRUNCATE —
+ficou. TRUNCATE apaga todas as linhas **sem disparar gatilho de linha**:
+o `trg_pesquisa_preco_trilha_imutavel` é `before update or delete` e não
+alcança TRUNCATE. Um comando esvaziaria `pesquisa_preco_eventos`.
+
+É o mesmo defeito da rodada anterior (o DELETE de `service_role`) com
+outro verbo, e a correção anterior tinha sido literal demais: revogou o
+privilégio nomeado no achado, não a classe do problema.
+
+Corrigido nos dois projetos e no arquivo da migração:
+`revoke delete, truncate ... from service_role, authenticated, anon,
+public`. Os grants de `select/insert/update` seguem intactos.
+
+**A prova veio antes da correção**, e é o ponto: `test_ninguem_pode_apagar`
+passou a exigir `DELETE` **e** `TRUNCATE`, falhou (12 linhas), e só então
+a migração foi corrigida. Sem a extensão da prova, a correção seria uma
+afirmação minha sobre o banco.
+
+### Por que o ensaio local viu e a produção não denunciava
+
+O `pg_default_acl` do schema `public` em produção tem **duas** entradas,
+e qual vale depende de quem cria a tabela:
+
+| dono do default | privilégios concedidos a |
+|---|---|
+| `supabase_admin` | postgres, anon, authenticated, service_role |
+| `postgres` | postgres, service_role |
+
+As migrações rodam como `postgres`, então vale a segunda — mais estreita.
+Por isso `authenticated` nunca teve DELETE em produção, embora o ensaio
+local acusasse. O ensaio reproduz de propósito a entrada **mais larga**:
+ensaio pessimista gera revoke a mais; ensaio otimista deixa buraco. A
+migração passou a revogar explicitamente de `authenticated` também, para
+não depender da circunstância de ter rodado com um dono e não com outro.
+
+## Verificação executada
+
+* impressões digitais MD5 de políticas, colunas, grants, gatilhos e
+  CHECKs — **idênticas** entre produção e ensaio;
+* RLS ligada nas quatro tabelas; 11 políticas;
+* `anon`: **nenhum** privilégio nas quatro tabelas;
+* `service_role`: sem `DELETE` e sem `TRUNCATE`;
+* `authenticated`: exatamente `select/insert/update` (e `select/insert`
+  na trilha);
+* `flag_price_research` = `off`;
+* Security Advisors: **nenhum achado de nível ERROR**. Os três WARN de
+  `SECURITY DEFINER` executável por `authenticated` são as RPCs
+  intencionais — cada uma autoriza como primeira instrução;
+* suíte completa, dois portões ligados: **1864 passaram, 0 falharam,
+  112 pularam**.
+
+## Escopo maior, não tocado
+
+`service_role` mantém `TRUNCATE` em 30 das 32 tabelas de `public`, e
+`DELETE` em quase todas. É condição do projeto inteiro, anterior a este
+módulo, e não foi alterada aqui — mexer nas tabelas dos outros módulos
+sem provas próprias seria exatamente o tipo de alteração silenciosa que
+o runbook proíbe. Fica **registrado como achado aberto**, para decisão
+em rodada própria. A exceção já correta é `eventos_governanca`: a 0020 a
+deixou sem grant nenhum para `anon`/`authenticated`/`service_role`, com
+escrita só pela RPC definidora.
+
+## O que falta para ligar a flag
+
+Uma coisa só, e não é deste módulo: **não existe conta no Supabase Auth**.
+Sem `auth.uid()`, toda política da 0021 nega — como deve. Enquanto isso
+não for resolvido (está sendo tratado em paralelo), ligar a flag
+entregaria uma tela que não escreve nada.
+
+---
+
+## Preparado, não executado: o vínculo com o Supabase Auth
+
+A 0020 criou `usuarios.auth_user_id` e `processos.auth_user_id` e não
+preencheu nenhuma das duas. Foi decisão, não esquecimento: ligar linha a
+conta é ato administrativo com consequência de acesso, e não pertence a
+um arquivo de schema que roda sozinho num deploy.
+
+`scripts/vincular_contas_auth.py` faz esse passo. Está pronto, provado
+(28 provas, quatro mutações deliberadas todas detectadas) e **não foi
+executado** — não há conta no Auth para vincular.
+
+### Por que não dá para automatizar o casamento
+
+`public.usuarios` **não tem coluna de e-mail**. Tem `login`, e os dois
+logins em produção não são endereços de e-mail (medido em 06/09/2026).
+Não existe chave natural entre `usuarios` e `auth.users`. Casar por
+semelhança de nome seria adivinhação, e adivinhar errado entrega o
+processo de um servidor à conta de outro — sem sintoma na tela.
+
+Por isso o vínculo é **declarado** num arquivo que uma pessoa escreve:
+
+```json
+[
+  {"usuario_id": "<uuid de public.usuarios>",
+   "auth_email": "servidor@example.org"}
+]
+```
+
+```bash
+python scripts/vincular_contas_auth.py --mapa vinculos.json            # confere
+python scripts/vincular_contas_auth.py --mapa vinculos.json --aplicar  # grava
+```
+
+Sem `--aplicar` nada é gravado. O script não lê nem imprime a chave.
+
+### O `app_metadata` é o que o RLS lê
+
+Cada conta precisa nascer com:
+
+```json
+{"papel": "admin" | "usuario",
+ "tenant_id": "<uuid>",
+ "secretaria_id": "<uuid, ou ausente>",
+ "papel_governanca": "<texto, opcional>"}
+```
+
+Em **`app_metadata`**, nunca em `user_metadata`: o segundo é editável
+pelo próprio titular pela API do cliente — papel gravado ali é papel que
+o usuário se dá sozinho.
+
+O script recusa vincular quando o `app_metadata` diverge da linha de
+`usuarios` em qualquer desses campos. É a recusa menos óbvia e a mais
+importante: quem decide o que o RLS enxerga é o JWT, não a tabela. Conta
+dizendo "tenant A" e linha dizendo "tenant B" faz o servidor entrar e
+ver o município errado, com a tela mostrando o certo.
+
+### O que o script recusa
+
+* e-mail sem conta no Auth, ou casando com mais de uma;
+* `usuario_id` inexistente, ou já vinculado a **outra** conta (desfazer
+  vínculo é decisão administrativa, não efeito colateral de script);
+* mesmo usuário ou mesma conta repetidos no mapa;
+* escopo divergente entre `app_metadata` e `usuarios`.
+
+Reexecutar é seguro: cada escrita é condicionada a `auth_user_id is
+null`, então uma queda no meio é retomada, não duplicada.
+
+### Estado de produção hoje (06/09/2026)
+
+| | |
+|---|---|
+| contas no Supabase Auth | **0** |
+| `usuarios` | 2 (1 admin, 1 usuário), ambos com secretaria |
+| `usuarios` vinculados | 0 |
+| `processos` | 6 — todos com `secretaria_id`, nenhum com `auth_user_id` |
+| processos por usuário | 5 do admin, 1 do outro (fecha os 6) |
+
+O caminho de preenchimento é determinístico: `processos.usuario_id` →
+`usuarios.id` → `usuarios.auth_user_id`. Assim que as duas contas
+existirem, o mapa tem duas linhas e os 6 processos ganham dono.
+
+**Enquanto isso não for feito, `GOVDOCS_EXIGIR_SUPABASE_AUTH=1` não pode
+ser ligado**: com 0 contas, trancaria os dois usuários para fora.
+
+### PNCP, ressondado em 07/09/2026
+
+O item 3 da lista de abertos continua aberto, e agora com duas medições
+em vez de uma. `/contratacoes/publicacao` respondeu **200** — o 500 de
+05/09 era transitório, e fica registrado para que ninguém escreva no
+código que aquele endpoint não funciona (de quebra: o servidor exige
+`tamanhoPagina >= 10`). Já
+`/api/pncp/v1/orgaos/{cnpj}/compras/{ano}/{seq}/itens`, que é onde mora
+o preço unitário, devolveu **502** outra vez, com três tentativas e
+recuo exponencial.
+
+Duas sondagens separadas por dois dias, mesmo resultado no endpoint que
+importa. O PNCP segue declarando `Capacidade.EVIDENCIA` apenas — não se
+escreve conversor para campo que não se pôde observar.
+
+### Receita exata das duas contas (medida em 07/09/2026)
+
+Para não sobrar adivinhação na hora de criar: os valores abaixo saíram
+do catálogo de produção, e é exatamente o que o
+`vincular_contas_auth.py` vai conferir antes de gravar. `app_metadata`
+divergente é recusa, não aviso.
+
+| `usuarios.id` | papel | `app_metadata` que a conta precisa ter |
+|---|---|---|
+| `679d43c6-1fcc-459c-98b4-9ad9315c1715` | admin | `{"papel":"admin","tenant_id":"11111111-1111-1111-1111-111111111111","secretaria_id":"99a6a458-a146-4ea6-8a10-7163e18e8997"}` |
+| `d76ab816-4831-4ff7-af5f-bf164b1a0b90` | usuario | `{"papel":"usuario","tenant_id":"11111111-1111-1111-1111-111111111111","secretaria_id":"332ad63f-60b1-4db8-9381-940dfd5d63c3"}` |
+
+Nenhum dos dois tem `papel_governanca`; a chave fica **fora** do JSON —
+`null` e ausente são tratados como iguais, mas escrever a chave com
+outro valor é divergência.
+
+Vai em **`app_metadata`**, nunca em `user_metadata`. Pelo painel do
+Supabase: Authentication → Users → Add user, e depois editar o
+*App Metadata* da conta. Pela API de administração:
+`auth.admin.create_user({..., "app_metadata": {...}})`.
+
+Criada a conta, o resto é curto: escrever o mapa com os dois
+`usuario_id` e os dois e-mails, rodar sem `--aplicar` para conferir, e
+rodar com `--aplicar`. Os 6 processos ganham dono pelo caminho
+`processos.usuario_id → usuarios.id → usuarios.auth_user_id`.
