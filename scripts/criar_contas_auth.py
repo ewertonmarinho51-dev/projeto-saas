@@ -163,8 +163,11 @@ def montar_plano(cliente, mapa: list[dict]) -> list[dict]:
 
 
 def _usuario_da_resposta(resposta):
-    return getattr(resposta, "user", None) or getattr(
+    usuario = getattr(resposta, "user", None) or getattr(
         getattr(resposta, "data", None), "user", None)
+    if usuario is None and getattr(resposta, "id", None):
+        usuario = resposta
+    return usuario
 
 
 def aplicar(cliente, plano: list[dict]) -> list[dict]:
@@ -206,6 +209,9 @@ def main(argv: list[str] | None = None) -> int:
     except ErroCriacao as erro:
         print(f"RECUSADO: {erro}")
         return 2
+    except Exception:
+        print("RECUSADO: falha ao conferir Auth/banco. Consulte o log seguro do servidor.")
+        return 2
 
     print(f"Projeto conferido: {args.projeto_ref}")
     print(f"Contas a criar: {len(plano)}")
@@ -220,14 +226,17 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         criadas = aplicar(cliente, plano)
-    except Exception as erro:  # Admin API pode levantar exceções da SDK
-        print(f"RECUSADO DURANTE A CRIAÇÃO: {type(erro).__name__}: {erro}")
+    except ErroCriacao as erro:
+        print(f"RECUSADO DURANTE A CRIAÇÃO: {erro}")
+        return 2
+    except Exception:
+        print("RECUSADO DURANTE A CRIAÇÃO: falha da Admin API. Não vincule contas até revisar o estado no Auth.")
         return 2
 
     print("\nContas criadas/invitadas:")
     for item in criadas:
         print(f"  - usuario={item['usuario_id']} auth_uid={item['auth_uid']} email={item['email']}")
-    print("Não vincule ainda: rode o dry-run de vincular_contas_auth.py com estes UIDs.")
+    print("Não vincule ainda: rode o dry-run de scripts/aplicar_vinculos_auth.py com estes UIDs.")
     return 0
 
 
