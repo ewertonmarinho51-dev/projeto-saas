@@ -135,6 +135,22 @@ class ClienteFalso:
         return Consulta(self.banco, nome, self.diario)
 
 
+class ConsultaComCorrida(Consulta):
+    """Simula outra execução ganhando o UPDATE condicional do usuário."""
+
+    def execute(self):
+        if self.operacao == "update" and self.tabela == "usuarios":
+            for linha in self.banco[self.tabela]:
+                if self._casa(linha):
+                    linha["auth_user_id"] = OUTRA_CONTA
+        return super().execute()
+
+
+class ClienteComCorrida(ClienteFalso):
+    def table(self, nome):
+        return ConsultaComCorrida(self.banco, nome, self.diario)
+
+
 def _banco(**ajustes):
     usuario = {"id": USUARIO, "nome": "Servidor", "papel": "usuario",
                "tenant_id": TENANT, "secretaria_id": SECRETARIA,
@@ -239,6 +255,23 @@ def test_email_e_normalizado(tmp_path):
     assert lido[0]["auth_email"] == "um@example.org"
 
 
+@pytest.mark.parametrize("campo, valor", [
+    ("usuario_id", "nao-e-uuid"),
+    ("auth_uid", "tambem-nao-e-uuid"),
+])
+def test_uuid_invalido_e_recusado(tmp_path, campo, valor):
+    item = {"usuario_id": USUARIO, "auth_uid": CONTA}
+    item[campo] = valor
+    with pytest.raises(vinc.ErroVinculo, match="UUID válido"):
+        vinc.ler_mapa(_escrever(tmp_path, [item]))
+
+
+def test_campo_desconhecido_e_recusado(tmp_path):
+    item = {"usuario_id": USUARIO, "auth_uid": CONTA, "papel": "admin"}
+    with pytest.raises(vinc.ErroVinculo, match="campos desconhecidos"):
+        vinc.ler_mapa(_escrever(tmp_path, [item]))
+
+
 # ---------------------------------------------------------------------------
 # Conferência contra o banco
 # ---------------------------------------------------------------------------
@@ -285,6 +318,25 @@ def test_vinculo_ja_feito_para_a_mesma_conta_e_aceito():
     banco = _banco(usuario={"auth_user_id": CONTA})
     plano = vinc.conferir(_cliente(banco=banco), [_vinculo()])
     assert plano[0]["ja_vinculado"] is True
+
+
+def test_usuario_inativo_e_recusado():
+    banco = _banco(usuario={"ativo": False})
+    with pytest.raises(vinc.ErroVinculo, match="INATIVO"):
+        vinc.conferir(_cliente(banco=banco), [_vinculo()])
+
+
+def test_mesma_conta_por_email_e_uid_e_recusada_antes_de_escrever():
+    banco = _banco()
+    segunda = dict(banco["usuarios"][0])
+    segunda.update({"id": OUTRA_CONTA, "nome": "Outro servidor"})
+    banco["usuarios"].append(segunda)
+    mapa = [
+        _vinculo(),
+        _vinculo(usuario_id=OUTRA_CONTA, auth_email="", auth_uid=CONTA),
+    ]
+    with pytest.raises(vinc.ErroVinculo, match="dois usuários"):
+        vinc.conferir(_cliente(banco=banco), mapa)
 
 
 @pytest.mark.parametrize("meta, campo", [
@@ -352,19 +404,22 @@ def test_aplicar_vincula_usuario_e_processos():
     assert {p["auth_user_id"] for p in banco["processos"]} == {CONTA}
 
 
-def test_aplicar_nao_toca_processo_de_outro_dono():
+def test_aplicar_recusa_processo_de_outro_dono_sem_escrita_parcial():
     """
-    O filtro `is null` é o que impede a segunda execução de reescrever
-    o que já tem dono — inclusive dono posto à mão.
+    Processo já ligado a outra conta não é ignorado: indica inconsistência
+    administrativa e bloqueia inclusive o preenchimento dos processos nulos.
     """
     banco = _banco(processos=[
         {"id": "p1", "usuario_id": USUARIO, "auth_user_id": None},
         {"id": "p2", "usuario_id": USUARIO, "auth_user_id": OUTRA_CONTA},
     ])
     cliente = ClienteFalso(banco, [_conta()])
-    vinc.aplicar(cliente, vinc.conferir(cliente, [_vinculo()]))
+    plano = vinc.conferir(cliente, [_vinculo()])
+    with pytest.raises(vinc.ErroVinculo, match="já aponta"):
+        vinc.aplicar(cliente, plano)
     por_id = {p["id"]: p["auth_user_id"] for p in banco["processos"]}
-    assert por_id == {"p1": CONTA, "p2": OUTRA_CONTA}
+    assert banco["usuarios"][0]["auth_user_id"] is None
+    assert por_id == {"p1": None, "p2": OUTRA_CONTA}
 
 
 def test_aplicar_duas_vezes_nao_escreve_de_novo():
@@ -373,6 +428,29 @@ def test_aplicar_duas_vezes_nao_escreve_de_novo():
     vinc.aplicar(cliente, vinc.conferir(cliente, [_vinculo()]))
     segunda = vinc.aplicar(cliente, vinc.conferir(cliente, [_vinculo()]))
     assert segunda == {"usuarios": 0, "processos": 0}
+
+
+def test_corrida_no_usuario_para_antes_de_tocar_processos():
+    banco = _banco()
+    cliente = ClienteComCorrida(banco, [_conta()])
+    plano = vinc.conferir(cliente, [_vinculo()])
+    with pytest.raises(vinc.ErroVinculo, match="concorrência"):
+        vinc.aplicar(cliente, plano)
+    assert banco["usuarios"][0]["auth_user_id"] == OUTRA_CONTA
+    assert {p["auth_user_id"] for p in banco["processos"]} == {None}
+
+
+def test_processo_previamente_divergente_bloqueia_toda_escrita():
+    banco = _banco(processos=[
+        {"id": "p1", "usuario_id": USUARIO, "auth_user_id": OUTRA_CONTA},
+        {"id": "p2", "usuario_id": USUARIO, "auth_user_id": None},
+    ])
+    cliente = ClienteFalso(banco, [_conta()])
+    plano = vinc.conferir(cliente, [_vinculo()])
+    with pytest.raises(vinc.ErroVinculo, match="já aponta"):
+        vinc.aplicar(cliente, plano)
+    assert banco["usuarios"][0]["auth_user_id"] is None
+    assert banco["processos"][1]["auth_user_id"] is None
 
 
 def test_a_escrita_do_usuario_e_condicionada():
