@@ -74,6 +74,7 @@ import argparse
 import json
 import pathlib
 import sys
+import uuid
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
@@ -107,14 +108,31 @@ def ler_mapa(caminho: pathlib.Path) -> list[dict]:
     vinculos: list[dict] = []
     vistos_usuario: set[str] = set()
     vistos_conta: set[str] = set()
+    campos_permitidos = {"usuario_id", "auth_email", "auth_uid"}
     for indice, item in enumerate(bruto, start=1):
         if not isinstance(item, dict):
             raise ErroVinculo(f"vínculo {indice}: esperava um objeto")
+        desconhecidos = sorted(set(item) - campos_permitidos)
+        if desconhecidos:
+            raise ErroVinculo(
+                f"vínculo {indice}: campos desconhecidos: "
+                + ", ".join(desconhecidos))
         usuario = str(item.get("usuario_id") or "").strip()
         email = str(item.get("auth_email") or "").strip().lower()
         uid = str(item.get("auth_uid") or "").strip()
         if not usuario:
             raise ErroVinculo(f"vínculo {indice}: falta `usuario_id`")
+        try:
+            usuario = str(uuid.UUID(usuario))
+        except ValueError:
+            raise ErroVinculo(
+                f"vínculo {indice}: `usuario_id` não é UUID válido") from None
+        if uid:
+            try:
+                uid = str(uuid.UUID(uid))
+            except ValueError:
+                raise ErroVinculo(
+                    f"vínculo {indice}: `auth_uid` não é UUID válido") from None
         if bool(email) == bool(uid):
             raise ErroVinculo(
                 f"vínculo {indice}: informe `auth_email` OU `auth_uid`, "
@@ -220,12 +238,25 @@ def conferir(cliente, vinculos: list[dict]) -> list[dict]:
     linhas = {str(l["id"]): l for l in (resposta.data or [])}
 
     plano: list[dict] = []
+    contas_resolvidas: dict[str, str] = {}
     for vinculo in vinculos:
         uid_usuario = vinculo["usuario_id"]
         linha = linhas.get(uid_usuario)
         if linha is None:
             raise ErroVinculo(f"`usuarios` não tem a linha {uid_usuario}")
         conta = _achar_conta(vinculo, contas)
+        outro_usuario = contas_resolvidas.get(conta["id"])
+        if outro_usuario and outro_usuario != uid_usuario:
+            raise ErroVinculo(
+                f"a conta Auth {conta['id']} foi resolvida para dois usuários "
+                f"({outro_usuario} e {uid_usuario}). Use uma conta individual "
+                "por usuário.")
+        contas_resolvidas[conta["id"]] = uid_usuario
+
+        if not bool(linha.get("ativo")):
+            raise ErroVinculo(
+                f"{uid_usuario} está INATIVO. Reativar ou vincular essa conta "
+                "exige decisão administrativa explícita; o script não faz isso.")
 
         ja = str(linha.get("auth_user_id") or "")
         if ja and ja != conta["id"]:
@@ -271,6 +302,38 @@ def processos_a_preencher(cliente, plano: list[dict]) -> dict[str, int]:
     return contagem
 
 
+def processos_inconsistentes(cliente, plano: list[dict]) -> list[dict]:
+    """Processos já ligados a uma conta diferente da conta de seu usuário."""
+    fora: list[dict] = []
+    for item in plano:
+        resposta = (cliente.table("processos")
+                    .select("id, usuario_id, auth_user_id")
+                    .eq("usuario_id", item["usuario_id"]).execute())
+        for processo in resposta.data or []:
+            atual = str(processo.get("auth_user_id") or "")
+            if atual and atual != item["auth_uid"]:
+                fora.append({
+                    "processo_id": str(processo.get("id") or ""),
+                    "usuario_id": item["usuario_id"],
+                    "esperado": item["auth_uid"],
+                    "encontrado": atual,
+                })
+    return fora
+
+
+def _confirmar_usuario_vinculado(cliente, item: dict) -> None:
+    """Relê o vínculo efetivo; impede que uma corrida contamine processos."""
+    resposta = (cliente.table("usuarios").select("id, auth_user_id")
+                .eq("id", item["usuario_id"]).execute())
+    linhas = resposta.data or []
+    atual = str(linhas[0].get("auth_user_id") or "") if len(linhas) == 1 else ""
+    if atual != item["auth_uid"]:
+        raise ErroVinculo(
+            f"concorrência ou alteração detectada em {item['usuario_id']}: "
+            f"esperava auth_user_id={item['auth_uid']}, encontrou "
+            f"{atual or '(vazio)'}. Nenhum processo desse usuário foi alterado.")
+
+
 # ---------------------------------------------------------------------------
 # Aplicação
 # ---------------------------------------------------------------------------
@@ -284,19 +347,45 @@ def aplicar(cliente, plano: list[dict]) -> dict[str, int]:
     queda no meio termina o que faltou em vez de duplicar.
     """
     escritos = {"usuarios": 0, "processos": 0}
+    inconsistentes = processos_inconsistentes(cliente, plano)
+    if inconsistentes:
+        primeiro = inconsistentes[0]
+        raise ErroVinculo(
+            f"processo {primeiro['processo_id']} já aponta para "
+            f"{primeiro['encontrado']}, mas o usuário "
+            f"{primeiro['usuario_id']} aponta para {primeiro['esperado']}. "
+            "Corrija a inconsistência por procedimento administrativo antes "
+            "de aplicar o mapa.")
+
     for item in plano:
         if not item["ja_vinculado"]:
-            (cliente.table("usuarios")
-             .update({"auth_user_id": item["auth_uid"]})
-             .eq("id", item["usuario_id"])
-             .is_("auth_user_id", "null").execute())
-            escritos["usuarios"] += 1
+            resposta_usuario = (
+                cliente.table("usuarios")
+                .update({"auth_user_id": item["auth_uid"]})
+                .eq("id", item["usuario_id"])
+                .is_("auth_user_id", "null").execute())
+            escritos["usuarios"] += len(resposta_usuario.data or [])
+
+        # O estado pode mudar entre a conferência e esta escrita.
+        _confirmar_usuario_vinculado(cliente, item)
+
+        inconsistentes = processos_inconsistentes(cliente, [item])
+        if inconsistentes:
+            primeiro = inconsistentes[0]
+            raise ErroVinculo(
+                f"processo {primeiro['processo_id']} mudou de dono durante "
+                "a execução; pare e faça a conferência administrativa.")
 
         resposta = (cliente.table("processos")
                     .update({"auth_user_id": item["auth_uid"]})
                     .eq("usuario_id", item["usuario_id"])
                     .is_("auth_user_id", "null").execute())
         escritos["processos"] += len(resposta.data or [])
+
+        if processos_inconsistentes(cliente, [item]):
+            raise ErroVinculo(
+                f"a validação posterior encontrou processo divergente para "
+                f"{item['usuario_id']}; mantenha a flag desligada.")
     return escritos
 
 
@@ -333,6 +422,13 @@ def main(argv: list[str] | None = None) -> int:
                 "SUPABASE_SECRET_KEY (o script não lê nem imprime a chave).")
         cliente = db._cliente()  # noqa: SLF001 — é a credencial de servidor
         plano = conferir(cliente, vinculos)
+        inconsistentes = processos_inconsistentes(cliente, plano)
+        if inconsistentes:
+            primeiro = inconsistentes[0]
+            raise ErroVinculo(
+                f"processo {primeiro['processo_id']} já está ligado à conta "
+                f"{primeiro['encontrado']}, divergente de "
+                f"{primeiro['esperado']}. Corrija antes de continuar.")
         pendentes = processos_a_preencher(cliente, plano)
     except ErroVinculo as erro:
         print(f"RECUSADO: {erro}")
@@ -362,7 +458,11 @@ def main(argv: list[str] | None = None) -> int:
               "Use --aplicar quando o relatório acima estiver como você quer.")
         return 0
 
-    escritos = aplicar(cliente, plano)
+    try:
+        escritos = aplicar(cliente, plano)
+    except ErroVinculo as erro:
+        print(f"RECUSADO DURANTE A APLICAÇÃO: {erro}")
+        return 2
     print(f"\nGravado: {escritos['usuarios']} usuários vinculados, "
           f"{escritos['processos']} processos com dono.")
     print(f"Processos ainda sem `auth_user_id`: {orfaos(cliente)}")
