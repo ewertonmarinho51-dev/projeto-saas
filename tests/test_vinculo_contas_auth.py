@@ -404,19 +404,22 @@ def test_aplicar_vincula_usuario_e_processos():
     assert {p["auth_user_id"] for p in banco["processos"]} == {CONTA}
 
 
-def test_aplicar_nao_toca_processo_de_outro_dono():
+def test_aplicar_recusa_processo_de_outro_dono_sem_escrita_parcial():
     """
-    O filtro `is null` é o que impede a segunda execução de reescrever
-    o que já tem dono — inclusive dono posto à mão.
+    Processo já ligado a outra conta não é ignorado: indica inconsistência
+    administrativa e bloqueia inclusive o preenchimento dos processos nulos.
     """
     banco = _banco(processos=[
         {"id": "p1", "usuario_id": USUARIO, "auth_user_id": None},
         {"id": "p2", "usuario_id": USUARIO, "auth_user_id": OUTRA_CONTA},
     ])
     cliente = ClienteFalso(banco, [_conta()])
-    vinc.aplicar(cliente, vinc.conferir(cliente, [_vinculo()]))
+    plano = vinc.conferir(cliente, [_vinculo()])
+    with pytest.raises(vinc.ErroVinculo, match="já aponta"):
+        vinc.aplicar(cliente, plano)
     por_id = {p["id"]: p["auth_user_id"] for p in banco["processos"]}
-    assert por_id == {"p1": CONTA, "p2": OUTRA_CONTA}
+    assert banco["usuarios"][0]["auth_user_id"] is None
+    assert por_id == {"p1": None, "p2": OUTRA_CONTA}
 
 
 def test_aplicar_duas_vezes_nao_escreve_de_novo():
