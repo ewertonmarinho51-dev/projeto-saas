@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import pathlib
 import sys
 
@@ -78,3 +79,69 @@ def test_canario_permite_sobra_so_com_um_usuario():
 def test_aplicacao_completa_sem_orfaos_passa():
     assert gates.validar_sobras(antes=6, a_preencher=6,
                                 canario=False, quantidade_vinculos=2) == 0
+
+
+# ---------------------------------------------------------------------------
+# O script precisa CHEGAR a recusar
+#
+# As provas acima exercitam funções soltas, e por isso passavam enquanto
+# nenhum dos três scripts conseguia sequer iniciar: `main()` fazia
+# `import db` com `src/` no `sys.path`, e `src/db.py` abre com
+# `from . import trilha`. Importado como módulo solto, sem pacote, o
+# import relativo estoura `ImportError` — antes de qualquer conferência,
+# e FORA do `try`, então nem virava "RECUSADO".
+#
+# O runbook inteiro da migração de identidade depende destes três
+# comandos. Prova de função não alcança o defeito: só rodar o programa
+# de verdade alcança. Por isso aqui é subprocesso, pela mesma linha de
+# comando que o runbook manda digitar.
+# ---------------------------------------------------------------------------
+import json  # noqa: E402
+import subprocess  # noqa: E402
+
+USUARIO = "679d43c6-1fcc-459c-98b4-9ad9315c1715"
+
+
+@pytest.fixture
+def mapa_valido(tmp_path):
+    caminho = tmp_path / "contas-auth.json"
+    caminho.write_text(json.dumps(
+        [{"usuario_id": USUARIO, "auth_email": "servidor@example.org"}]),
+        encoding="utf-8")
+    return caminho
+
+
+# Cada script tem a sua linha de comando, e a diferença é informativa:
+# `vincular_contas_auth.py` NÃO aceita `--projeto-ref`. A guarda de
+# projeto nasceu nos dois scripts novos; o antigo é o que o runbook
+# deixou de usar, em favor do `aplicar_vinculos_auth.py`. Mandar os
+# mesmos argumentos aos três esconderia essa diferença atrás de um erro
+# de argparse — e foi o que aconteceu na primeira versão desta prova.
+ARGUMENTOS = {
+    "criar_contas_auth.py": ["--projeto-ref", PROD],
+    "vincular_contas_auth.py": [],
+    "aplicar_vinculos_auth.py": ["--projeto-ref", PROD],
+}
+
+
+@pytest.mark.parametrize("script", sorted(ARGUMENTOS))
+def test_o_script_inicia_e_recusa_em_vez_de_estourar(script, mapa_valido):
+    """
+    Sem credencial, o esperado é uma RECUSA legível — não um traceback.
+
+    A distinção importa para quem opera: "RECUSADO: banco indisponível"
+    diz o que fazer; um `ImportError` de import relativo diz que o
+    programa está quebrado, e some com a diferença entre "falta
+    configurar" e "não funciona".
+    """
+    ambiente = {"PATH": os.environ.get("PATH", ""),
+                "HOME": os.environ.get("HOME", "")}
+    resultado = subprocess.run(
+        [sys.executable, str(RAIZ / "scripts" / script),
+         "--mapa", str(mapa_valido), *ARGUMENTOS[script]],
+        capture_output=True, text=True, timeout=120, env=ambiente, cwd=RAIZ)
+
+    assert "ImportError" not in resultado.stderr, resultado.stderr
+    assert "Traceback" not in resultado.stderr, resultado.stderr
+    assert "RECUSADO" in resultado.stdout, (resultado.stdout, resultado.stderr)
+    assert resultado.returncode == 2
