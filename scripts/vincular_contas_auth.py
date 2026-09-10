@@ -78,7 +78,6 @@ import uuid
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
-sys.path.insert(0, str(RAIZ / "src"))
 
 CAMPOS_DO_ESCOPO = ("papel", "tenant_id", "secretaria_id", "papel_governanca")
 
@@ -412,7 +411,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="grava. Sem isto, só confere e relata.")
     args = parser.parse_args(argv)
 
-    import db  # noqa: PLC0415 — import tardio: o app abre sem a lib
+    from src import db  # noqa: PLC0415 — import tardio; `src` é PACOTE
 
     try:
         vinculos = ler_mapa(args.mapa)

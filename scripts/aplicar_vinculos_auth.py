@@ -20,7 +20,6 @@ from urllib.parse import urlparse
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
-sys.path.insert(0, str(RAIZ / "src"))
 sys.path.insert(0, str(RAIZ / "scripts"))
 
 import vincular_contas_auth as vinc  # noqa: E402
@@ -78,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--aplicar", action="store_true")
     args = parser.parse_args(argv)
 
-    import db  # noqa: PLC0415
+    from src import db  # noqa: PLC0415 — import tardio; `src` é PACOTE
 
     try:
         mapa = vinc.ler_mapa(args.mapa)
