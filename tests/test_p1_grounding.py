@@ -552,6 +552,11 @@ def _preparar_geracao(monkeypatch, chunk_conteudo, falhar_tudo=False,
     st.session_state.clear()
     monkeypatch.setattr(llm, "obter_openai_key", lambda: "k-openai")
     monkeypatch.setattr(llm, "obter_api_key", lambda: "k-gemini")
+    # O terceiro motor fica de fora DESTA montagem de propósito: aqui se
+    # prova o rastro do RAG na queda openai→gemini. Deixá-lo solto faria a
+    # prova de "todas as engines falham" depender de existir ou não um
+    # OPENROUTER_API_KEY no ambiente de quem roda a suíte.
+    monkeypatch.setattr(llm, "obter_openrouter_key", lambda: "")
     monkeypatch.setattr(llm, "montar_prompt",
                         lambda doc, dados, ctx: ("s", "u"))
     monkeypatch.setattr(llm, "registrar_geracao",
@@ -567,12 +572,12 @@ def _preparar_geracao(monkeypatch, chunk_conteudo, falhar_tudo=False,
                              "categoria": "lei",
                              "dispositivos": [chunk_conteudo]}]}})
 
-    def _openai(s, u, chave):
+    def _openai(s, u, chave, **kw):
         if falhar_tudo or falhar_openai:
             raise llm.ErroGeracaoIA("openai fora do ar")
         return f"texto via openai ({chunk_conteudo})"
 
-    def _gemini(s, u, chave):
+    def _gemini(s, u, chave, **kw):
         if falhar_tudo:
             raise llm.ErroGeracaoIA("gemini fora do ar")
         return f"texto via gemini ({chunk_conteudo})"

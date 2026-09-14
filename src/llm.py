@@ -28,6 +28,9 @@ from .config import (
     GEMINI_MODELOS_FALLBACK,
     OPENAI_MODEL_PADRAO,
     OPENAI_MODELOS_FALLBACK,
+    OPENROUTER_BASE_URL,
+    OPENROUTER_MODEL_PADRAO,
+    OPENROUTER_MODELOS_FALLBACK,
 )
 from . import templates_gov
 from .prompts import dados_objetivos_do_formulario, montar_prompt
@@ -159,13 +162,33 @@ def obter_api_key() -> str:
     return _ler_chave("GOOGLE_API_KEY", "api_key_manual")
 
 
+def obter_openrouter_key() -> str:
+    """Chave do terceiro motor (OpenRouter)."""
+    return _ler_chave("OPENROUTER_API_KEY", "openrouter_key_manual")
+
+
+# Ordem de precedência dos motores. É a ÚNICA fonte da ordem: quem
+# adiciona motor mexe aqui, e `motor_ativo`, a geração de documento e a
+# revisão passam a enxergá-lo sem uma terceira cópia do mesmo try/except.
+def motores_disponiveis() -> list[tuple[str, str]]:
+    """
+    [(motor, chave)] dos motores configurados, do principal ao último.
+
+    OpenRouter vem por último de propósito — ver o comentário da escolha
+    em `config.py`. Motor sem chave não entra na lista.
+    """
+    candidatos = (
+        ("openai", obter_openai_key()),
+        ("gemini", obter_api_key()),
+        ("openrouter", obter_openrouter_key()),
+    )
+    return [(motor, chave) for motor, chave in candidatos if chave]
+
+
 def motor_ativo() -> str:
-    """'openai' | 'gemini' | '' — qual motor será usado na próxima geração."""
-    if obter_openai_key():
-        return "openai"
-    if obter_api_key():
-        return "gemini"
-    return ""
+    """'openai' | 'gemini' | 'openrouter' | '' — motor da próxima geração."""
+    disponiveis = motores_disponiveis()
+    return disponiveis[0][0] if disponiveis else ""
 
 
 def _obter_modelo() -> str:
@@ -195,6 +218,14 @@ def _modelos_gemini() -> list[str]:
     return _dedup([_obter_modelo(), *GEMINI_MODELOS_FALLBACK])
 
 
+def _obter_modelo_openrouter() -> str:
+    return _ler_chave("OPENROUTER_MODEL", "") or OPENROUTER_MODEL_PADRAO
+
+
+def _modelos_openrouter() -> list[str]:
+    return _dedup([_obter_modelo_openrouter(), *OPENROUTER_MODELOS_FALLBACK])
+
+
 def _e_erro_de_modelo(exc: Exception) -> bool:
     """True quando o modelo não existe/sem acesso — vale tentar outro modelo."""
     t = f"{type(exc).__name__}: {exc}".lower()
@@ -221,6 +252,11 @@ def _traduzir_erro(exc: Exception, motor: str = "") -> str:
         rotulo, var_chave, var_modelo, painel = (
             "Google Gemini", "GOOGLE_API_KEY", "GEMINI_MODEL",
             "aistudio.google.com (chave e cota)")
+    elif motor == "openrouter":
+        rotulo, var_chave, var_modelo, painel = (
+            "OpenRouter", "OPENROUTER_API_KEY", "OPENROUTER_MODEL",
+            "openrouter.ai (chave, créditos e limite diário do plano "
+            "gratuito)")
     else:
         rotulo, var_chave, var_modelo, painel = (
             "IA", "OPENAI_API_KEY/GOOGLE_API_KEY", "OPENAI_MODEL/GEMINI_MODEL",
@@ -380,6 +416,75 @@ def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str,
     )
 
 
+def _chamar_openrouter(system_prompt: str, user_prompt: str, api_key: str,
+                       timeout: float | None = None,
+                       tentativas: int = API_TENTATIVAS) -> str:
+    """
+    Terceiro motor: OpenRouter, pela API compatível com a da OpenAI.
+
+    O corpo é o MESMO de `_chamar_openai`, e isso é intencional: muda a
+    base e a lista de modelos, não o protocolo. Reescrever o laço de
+    retentativa aqui criaria duas implementações do mesmo contrato que
+    divergiriam na primeira correção feita só de um lado.
+
+    `_params_modelo_openai` devolve `{}` para estes identificadores
+    (`nvidia/...`, `google/gemma-...`), então nenhum parâmetro específico
+    da OpenAI é enviado. Vale notar que a Nemotron Ultra é modelo de
+    raciocínio: se ela gastar o orçamento pensando e devolver vazio, o
+    `_RespostaVazia` já existente troca de modelo sozinho.
+    """
+    from openai import OpenAI
+
+    cliente = OpenAI(
+        api_key=api_key,
+        base_url=OPENROUTER_BASE_URL,
+        timeout=timeout or API_TIMEOUT_SEGUNDOS,
+        max_retries=0,
+        # Cabeçalhos de atribuição do OpenRouter. Identificam a aplicação
+        # no painel do provedor; não carregam dado de processo.
+        default_headers={
+            "HTTP-Referer": "https://github.com/ewertonmarinho51-dev/projeto-saas",
+            "X-Title": "GovDocs Wizard",
+        },
+    )
+    modelos = _modelos_openrouter()
+    ultima_excecao: Exception | None = None
+    tentados: list[str] = []
+    for i, modelo in enumerate(modelos):
+        tentados.append(modelo)
+        try:
+            return _openai_uma_chamada(cliente, modelo, system_prompt,
+                                       user_prompt, tentativas)
+        except Exception as exc:  # noqa: BLE001
+            ultima_excecao = exc
+            if _trocar_de_modelo(exc) and i < len(modelos) - 1:
+                continue
+            break
+    raise ErroGeracaoIA(
+        _traduzir_erro(ultima_excecao, "openrouter"),
+        detalhe=f"[OpenRouter · tentados: {', '.join(tentados)}] "
+                f"{type(ultima_excecao).__name__}: {ultima_excecao}",
+    )
+
+
+# Despacho por motor. Mantido junto das implementações para que um motor
+# novo não possa ser adicionado sem aparecer aqui.
+_CHAMADAS = {
+    "openai": lambda *a, **k: _chamar_openai(*a, **k),
+    "gemini": lambda *a, **k: _chamar_gemini(*a, **k),
+    "openrouter": lambda *a, **k: _chamar_openrouter(*a, **k),
+}
+
+
+def _chamar_motor(motor: str, system_prompt: str, user_prompt: str,
+                  api_key: str, timeout: float | None = None,
+                  tentativas: int = API_TENTATIVAS) -> str:
+    """Chama o motor nomeado. Indireção tardia para o teste poder trocar
+    `_chamar_openai` por um dublê com `monkeypatch.setattr`."""
+    return _CHAMADAS[motor](system_prompt, user_prompt, api_key,
+                            timeout=timeout, tentativas=tentativas)
+
+
 def _gemini_uma_chamada(cliente, types, modelo: str, system_prompt: str,
                         user_prompt: str, tentativas: int = API_TENTATIVAS
                         ) -> str:
@@ -522,13 +627,16 @@ def gerar_documento(doc_key: str, dados: dict,
                                       "referencias": []}, texto)
         return texto
 
-    chave_openai = obter_openai_key()
-    chave_gemini = obter_api_key()
-    if not chave_openai and not chave_gemini:
+    # A guarda continua AQUI, e não só dentro de `_percorrer_motores`: ela
+    # precisa vir antes de montar o prompt e de consultar o RAG. Sem chave
+    # nenhuma, esse trabalho todo seria jogado fora, e a mensagem certa é
+    # a desta tela — que menciona o Modo Demonstração como saída.
+    if not motores_disponiveis():
         raise ErroGeracaoIA(
             "Nenhuma chave de API configurada. Informe a chave da OpenAI "
-            "(motor principal) ou do Google AI Studio na barra lateral / "
-            ".streamlit/secrets.toml — ou ative o Modo Demonstração."
+            "(motor principal), do Google AI Studio ou do OpenRouter na "
+            "barra lateral / .streamlit/secrets.toml — ou ative o Modo "
+            "Demonstração."
         )
     system_prompt, user_prompt = montar_prompt(doc_key, dados, contexto_anterior)
 
@@ -552,42 +660,73 @@ def gerar_documento(doc_key: str, dados: dict,
     if instrucoes_extra:
         user_prompt += instrucoes_extra
 
-    # Motor principal: OpenAI; fallback automático (e AVISADO): Gemini.
+    # Motores em ordem de precedência, com queda AVISADA para o seguinte.
     # Toda geração — sucesso ou falha — entra no registro técnico.
-    texto = ""
-    if chave_openai:
-        inicio = time.time()
-        try:
-            texto = _chamar_openai(system_prompt, user_prompt, chave_openai)
-            registrar_geracao(doc_key, "openai", inicio, "ok",
-                              rag_trace=rag_trace)
-        except ErroGeracaoIA as erro:
-            registrar_geracao(doc_key, "openai", inicio, "falha",
-                              erro=getattr(erro, "detalhe", "") or str(erro),
-                              rag_trace=rag_trace)
-            if not chave_gemini:
-                raise
-            st.warning(
-                f"Motor principal (OpenAI) indisponível — tentando Gemini. "
-                f"{erro}\n\n`{getattr(erro, 'detalhe', '')}`",
-            )
-    if not texto:
-        inicio = time.time()
-        try:
-            texto = _chamar_gemini(system_prompt, user_prompt, chave_gemini)
-            registrar_geracao(doc_key, "gemini", inicio, "ok",
-                              fallback=bool(chave_openai),
-                              rag_trace=rag_trace)
-        except ErroGeracaoIA as erro:
-            registrar_geracao(doc_key, "gemini", inicio, "falha",
-                              erro=getattr(erro, "detalhe", "") or str(erro),
-                              fallback=bool(chave_openai),
-                              rag_trace=rag_trace)
-            raise
+    #
+    # O laço substituiu duas cópias do mesmo try/except. Com três motores
+    # seriam três, e a terceira já nasceria divergindo: era na cópia do
+    # Gemini que `fallback=` estava preenchido, e na da OpenAI não.
+    texto = _percorrer_motores(doc_key, system_prompt, user_prompt,
+                               rag_trace=rag_trace, avisar=True)
     # Injeta a tabela real da planilha (grande) no lugar da marca [[TABELA_ITENS]].
     final = planilha.injetar_tabela(texto, dados.get("itens"))
     _associar_rag_trace(doc_key, rag_trace, final)
     return final
+
+
+ROTULOS_MOTOR = {
+    "openai": "OpenAI",
+    "gemini": "Gemini",
+    "openrouter": "OpenRouter",
+}
+
+
+def _percorrer_motores(rotulo_registro: str, system_prompt: str,
+                       user_prompt: str, *, rag_trace: dict | None = None,
+                       avisar: bool = False,
+                       timeout: float | None = None,
+                       tentativas: int = API_TENTATIVAS) -> str:
+    """
+    Tenta cada motor configurado, em ordem, até um responder.
+
+    Devolve o texto do primeiro que responder. Se todos falharem, propaga
+    o erro do ÚLTIMO — que é o que o operador precisa ver para agir, já
+    que os anteriores ele acabou de ver na tela como aviso.
+
+    `avisar` liga o `st.warning` de queda de motor, que faz sentido na
+    geração de documento (o usuário está esperando) e não na revisão
+    automática, que roda em segundo plano.
+    """
+    disponiveis = motores_disponiveis()
+    if not disponiveis:
+        raise ErroGeracaoIA(
+            "Nenhuma chave de API configurada. Informe a chave da OpenAI, "
+            "do Gemini ou do OpenRouter no painel do administrador.")
+
+    extras = {"rag_trace": rag_trace} if rag_trace is not None else {}
+    for indice, (motor, chave) in enumerate(disponiveis):
+        inicio = time.time()
+        try:
+            texto = _chamar_motor(motor, system_prompt, user_prompt, chave,
+                                  timeout=timeout, tentativas=tentativas)
+            registrar_geracao(rotulo_registro, motor, inicio, "ok",
+                              fallback=indice > 0, **extras)
+            return texto
+        except ErroGeracaoIA as erro:
+            registrar_geracao(rotulo_registro, motor, inicio, "falha",
+                              erro=getattr(erro, "detalhe", "") or str(erro),
+                              fallback=indice > 0, **extras)
+            ultimo = indice == len(disponiveis) - 1
+            if ultimo:
+                raise
+            if avisar:
+                proximo = ROTULOS_MOTOR.get(disponiveis[indice + 1][0],
+                                            disponiveis[indice + 1][0])
+                st.warning(
+                    f"Motor {ROTULOS_MOTOR.get(motor, motor)} indisponível "
+                    f"— tentando {proximo}. {erro}\n\n"
+                    f"`{getattr(erro, 'detalhe', '')}`")
+    raise AssertionError("inalcançável: o último motor propaga ou retorna")
 
 
 def _associar_rag_trace(doc_key: str, rag_trace: dict, texto: str) -> None:
@@ -622,60 +761,42 @@ def chamar_ia_texto(system_prompt: str, user_prompt: str,
     `timeout`/`tentativas` deixam tarefas rápidas (auditor) desistir bem
     antes do teto de geração — sem esperar minutos por um motor lento.
     """
-    chave_openai = obter_openai_key()
-    chave_gemini = obter_api_key()
-    if not chave_openai and not chave_gemini:
-        raise ErroGeracaoIA(
-            "Nenhuma chave de API configurada para a revisão com IA. "
-            "Informe a chave da OpenAI ou do Gemini no painel do "
-            "administrador."
-        )
-    if chave_openai:
-        inicio = time.time()
-        try:
-            texto = _chamar_openai(system_prompt, user_prompt, chave_openai,
-                                   timeout=timeout, tentativas=tentativas)
-            registrar_geracao(finalidade, "openai", inicio, "ok")
-            return texto
-        except ErroGeracaoIA as erro:
-            registrar_geracao(finalidade, "openai", inicio, "falha",
-                              erro=getattr(erro, "detalhe", "") or str(erro))
-            if not chave_gemini:
-                raise
-    inicio = time.time()
-    try:
-        texto = _chamar_gemini(system_prompt, user_prompt, chave_gemini,
-                               timeout=timeout, tentativas=tentativas)
-        registrar_geracao(finalidade, "gemini", inicio, "ok",
-                          fallback=bool(chave_openai))
-        return texto
-    except ErroGeracaoIA as erro:
-        registrar_geracao(finalidade, "gemini", inicio, "falha",
-                          erro=getattr(erro, "detalhe", "") or str(erro),
-                          fallback=bool(chave_openai))
-        raise
+    return _percorrer_motores(finalidade, system_prompt, user_prompt,
+                              avisar=False, timeout=timeout,
+                              tentativas=tentativas)
 
 
 def testar_conexao(motor: str) -> tuple[bool, str]:
     """
-    Faz uma chamada mínima ao motor ('openai' | 'gemini') e devolve
-    (ok, mensagem). Usado pelo botão "Testar conexão" do painel admin para
-    diagnosticar chave/modelo com o erro técnico exato.
+    Faz uma chamada mínima ao motor ('openai' | 'gemini' | 'openrouter') e
+    devolve (ok, mensagem). Usado pelo botão "Testar conexão" do painel
+    admin para diagnosticar chave/modelo com o erro técnico exato.
+
+    Motor desconhecido é RECUSADO por nome. A versão anterior tratava
+    qualquer coisa diferente de 'openai' como Gemini — com três motores,
+    isso faria um "testar OpenRouter" reportar o Gemini como se fosse ele.
     """
     system = "Responda apenas com a palavra OK."
     user = "Responda: OK"
+    chaves = {
+        "openai": (obter_openai_key, "OPENAI_API_KEY", _modelos_openai,
+                   "OpenAI"),
+        "gemini": (obter_api_key, "GOOGLE_API_KEY", _modelos_gemini,
+                   "Gemini"),
+        "openrouter": (obter_openrouter_key, "OPENROUTER_API_KEY",
+                       _modelos_openrouter, "OpenRouter"),
+    }
+    if motor not in chaves:
+        return False, (f"Motor desconhecido: {motor!r}. "
+                       f"Use um de: {', '.join(sorted(chaves))}.")
+    obter, nome_var, listar_modelos, rotulo = chaves[motor]
     try:
-        if motor == "openai":
-            chave = obter_openai_key()
-            if not chave:
-                return False, "OPENAI_API_KEY não configurada."
-            _chamar_openai(system, user, chave)
-            return True, f"OpenAI respondeu. Modelos tentados: {', '.join(_modelos_openai())}."
-        chave = obter_api_key()
+        chave = obter()
         if not chave:
-            return False, "GOOGLE_API_KEY não configurada."
-        _chamar_gemini(system, user, chave)
-        return True, f"Gemini respondeu. Modelos tentados: {', '.join(_modelos_gemini())}."
+            return False, f"{nome_var} não configurada."
+        _chamar_motor(motor, system, user, chave)
+        return True, (f"{rotulo} respondeu. Modelos tentados: "
+                      f"{', '.join(listar_modelos())}.")
     except ErroGeracaoIA as erro:
         # `detalhe` já sai sanitizado de ErroGeracaoIA.__init__
         detalhe = getattr(erro, "detalhe", "")
