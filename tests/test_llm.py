@@ -15,9 +15,17 @@ def sem_rag(monkeypatch):
     monkeypatch.setattr(rag, "montar_bloco_referencias", lambda dados, doc_key: "")
 
 
-def _configurar(monkeypatch, openai_key: str, gemini_key: str):
+def _configurar(monkeypatch, openai_key: str, gemini_key: str,
+                openrouter_key: str = ""):
+    """
+    Fixa as TRÊS chaves. O terceiro motor entra com "" por padrão para que
+    as provas antigas sigam significando exatamente o que significavam —
+    e para que um `OPENROUTER_API_KEY` no ambiente de quem roda a suíte
+    não mude o resultado delas.
+    """
     monkeypatch.setattr(llm, "obter_openai_key", lambda: openai_key)
     monkeypatch.setattr(llm, "obter_api_key", lambda: gemini_key)
+    monkeypatch.setattr(llm, "obter_openrouter_key", lambda: openrouter_key)
 
 
 def test_motor_ativo(monkeypatch):
@@ -31,10 +39,10 @@ def test_motor_ativo(monkeypatch):
 
 def test_openai_e_o_motor_principal(monkeypatch):
     _configurar(monkeypatch, "sk-x", "g-y")
-    monkeypatch.setattr(llm, "_chamar_openai", lambda s, u, k: "DOC OPENAI")
+    monkeypatch.setattr(llm, "_chamar_openai", lambda s, u, k, **kw: "DOC OPENAI")
     monkeypatch.setattr(
         llm, "_chamar_gemini",
-        lambda s, u, k: pytest.fail("Gemini não deveria ser chamado"),
+        lambda s, u, k, **kw: pytest.fail("Gemini não deveria ser chamado"),
     )
     assert llm.gerar_documento("dfd", DADOS, None) == "DOC OPENAI"
 
@@ -42,18 +50,18 @@ def test_openai_e_o_motor_principal(monkeypatch):
 def test_fallback_para_gemini_quando_openai_falha(monkeypatch):
     _configurar(monkeypatch, "sk-x", "g-y")
 
-    def openai_quebrada(s, u, k):
+    def openai_quebrada(s, u, k, **kw):
         raise llm.ErroGeracaoIA("cota excedida")
 
     monkeypatch.setattr(llm, "_chamar_openai", openai_quebrada)
-    monkeypatch.setattr(llm, "_chamar_gemini", lambda s, u, k: "DOC GEMINI")
+    monkeypatch.setattr(llm, "_chamar_gemini", lambda s, u, k, **kw: "DOC GEMINI")
     assert llm.gerar_documento("etp", DADOS, "dfd aprovado") == "DOC GEMINI"
 
 
 def test_erro_propagado_sem_fallback_disponivel(monkeypatch):
     _configurar(monkeypatch, "sk-x", "")
 
-    def openai_quebrada(s, u, k):
+    def openai_quebrada(s, u, k, **kw):
         raise llm.ErroGeracaoIA("timeout")
 
     monkeypatch.setattr(llm, "_chamar_openai", openai_quebrada)
@@ -89,7 +97,7 @@ def test_erro_carrega_detalhe_tecnico(monkeypatch):
     _configurar(monkeypatch, "sk-x", "")
     monkeypatch.setattr(llm, "_obter_modelo_openai", lambda: "gpt-5-mini")
 
-    def openai_quebrada(s, u, k):
+    def openai_quebrada(s, u, k, **kw):
         raise llm.ErroGeracaoIA("falhou", detalhe="[OpenAI · gpt-5-mini] AuthError: 401")
 
     monkeypatch.setattr(llm, "_chamar_openai", openai_quebrada)
@@ -192,7 +200,7 @@ def test_testar_conexao_sem_chave(monkeypatch):
 
 def test_testar_conexao_ok(monkeypatch):
     _configurar(monkeypatch, "sk-x", "")
-    monkeypatch.setattr(llm, "_chamar_openai", lambda s, u, k: "OK")
+    monkeypatch.setattr(llm, "_chamar_openai", lambda s, u, k, **kw: "OK")
     ok, msg = llm.testar_conexao("openai")
     assert ok and "OpenAI" in msg
 
@@ -247,7 +255,7 @@ def test_gerar_injeta_tabela_grande(monkeypatch):
     # IA devolve texto com a marca; a tabela real deve substituí-la
     monkeypatch.setattr(
         llm, "_chamar_openai",
-        lambda s, u, k: "## Estimativa\n\n" + planilha.MARCADOR_TABELA,
+        lambda s, u, k, **kw: "## Estimativa\n\n" + planilha.MARCADOR_TABELA,
     )
     saida = llm.gerar_documento("dfd", dados, None)
     assert planilha.MARCADOR_TABELA not in saida
@@ -280,3 +288,138 @@ def test_ler_chave_sidebar_vazio_nao_estoura():
     assert llm._obter_modelo_openai()  # gpt-5-mini (padrão)
     assert llm._obter_modelo()          # gemini-... (padrão)
     assert llm._ler_chave("QUALQUER_COISA", "") == ""
+
+
+# ---------------------------------------------------------------------------
+# Terceiro motor: OpenRouter
+#
+# A regra que mais importa aqui não é "o motor funciona" — é que ele NÃO
+# altera quem já estava configurado. Adicionar motor gratuito ao lado de
+# uma chave paga não pode rebaixar a geração em silêncio.
+# ---------------------------------------------------------------------------
+def test_openrouter_entra_por_ultimo_na_precedencia(monkeypatch):
+    """Com as três chaves, o motor ativo continua sendo a OpenAI."""
+    _configurar(monkeypatch, "sk-x", "g-y", "or-z")
+    assert llm.motor_ativo() == "openai"
+    assert [m for m, _ in llm.motores_disponiveis()] == [
+        "openai", "gemini", "openrouter"]
+
+
+def test_openrouter_e_o_motor_ativo_quando_e_a_unica_chave(monkeypatch):
+    _configurar(monkeypatch, "", "", "or-z")
+    assert llm.motor_ativo() == "openrouter"
+
+
+def test_openrouter_nao_e_chamado_quando_a_openai_responde(monkeypatch):
+    _configurar(monkeypatch, "sk-x", "g-y", "or-z")
+    monkeypatch.setattr(llm, "_chamar_openai", lambda s, u, k, **kw: "DOC OPENAI")
+    monkeypatch.setattr(
+        llm, "_chamar_openrouter",
+        lambda s, u, k, **kw: pytest.fail("OpenRouter não deveria ser chamado"))
+    assert llm.gerar_documento("dfd", DADOS, None) == "DOC OPENAI"
+
+
+def test_openrouter_assume_quando_os_dois_primeiros_falham(monkeypatch):
+    _configurar(monkeypatch, "sk-x", "g-y", "or-z")
+
+    def quebrada(s, u, k, **kw):
+        raise llm.ErroGeracaoIA("cota excedida")
+
+    monkeypatch.setattr(llm, "_chamar_openai", quebrada)
+    monkeypatch.setattr(llm, "_chamar_gemini", quebrada)
+    monkeypatch.setattr(llm, "_chamar_openrouter",
+                        lambda s, u, k, **kw: "DOC OPENROUTER")
+    assert llm.gerar_documento("etp", DADOS, "dfd aprovado") == "DOC OPENROUTER"
+
+
+def test_erro_propagado_e_o_do_ultimo_motor(monkeypatch):
+    """
+    Quando todos falham, o operador precisa do erro do ÚLTIMO: os
+    anteriores ele já viu como aviso na tela. Propagar o primeiro mandaria
+    conferir uma credencial que não é a que está bloqueando agora.
+    """
+    _configurar(monkeypatch, "sk-x", "", "or-z")
+    monkeypatch.setattr(
+        llm, "_chamar_openai",
+        lambda s, u, k, **kw: (_ for _ in ()).throw(
+            llm.ErroGeracaoIA("falha da openai")))
+    monkeypatch.setattr(
+        llm, "_chamar_openrouter",
+        lambda s, u, k, **kw: (_ for _ in ()).throw(
+            llm.ErroGeracaoIA("limite diário do openrouter")))
+    with pytest.raises(llm.ErroGeracaoIA, match="limite diário do openrouter"):
+        llm.gerar_documento("tr", DADOS, "etp aprovado")
+
+
+def test_a_revisao_automatica_tambem_alcanca_o_openrouter(monkeypatch):
+    """`chamar_ia_texto` usa a mesma cadeia — sem uma segunda ordem."""
+    _configurar(monkeypatch, "", "", "or-z")
+    monkeypatch.setattr(llm, "_chamar_openrouter",
+                        lambda s, u, k, **kw: "REVISADO")
+    assert llm.chamar_ia_texto("s", "u", finalidade="corretor") == "REVISADO"
+
+
+def test_modelos_openrouter_comecam_pelo_maior_e_sao_gratuitos(monkeypatch):
+    """
+    O primeiro é a Nemotron Ultra, e TODOS carregam o sufixo `:free`.
+
+    O sufixo é a diferença entre o endpoint gratuito e o pago do mesmo
+    modelo. Um identificador sem ele passaria a faturar sem que nada na
+    tela mudasse — por isso a prova é sobre a lista inteira, não sobre o
+    primeiro item.
+    """
+    monkeypatch.setattr(llm, "_obter_modelo_openrouter",
+                        lambda: llm.OPENROUTER_MODEL_PADRAO)
+    modelos = llm._modelos_openrouter()
+    assert modelos[0] == "nvidia/nemotron-3-ultra-550b-a55b:free"
+    assert all(m.endswith(":free") for m in modelos), modelos
+    assert len(modelos) == len(set(modelos))
+
+
+def test_modelo_do_openrouter_e_configuravel(monkeypatch):
+    monkeypatch.setattr(llm, "_obter_modelo_openrouter", lambda: "outro/modelo")
+    assert llm._modelos_openrouter()[0] == "outro/modelo"
+
+
+def test_openrouter_aponta_para_a_base_certa(monkeypatch):
+    """
+    A base é o que distingue OpenRouter de OpenAI — o SDK é o mesmo. Sem
+    ela, a chave do OpenRouter iria para a api.openai.com e voltaria 401.
+    """
+    capturado = {}
+
+    def cliente_falso(**kw):
+        capturado.update(kw)
+        return object()
+
+    monkeypatch.setattr("openai.OpenAI", cliente_falso)
+    monkeypatch.setattr(llm, "_openai_uma_chamada",
+                        lambda *a, **kw: "OK")
+    assert llm._chamar_openrouter("s", "u", "or-z") == "OK"
+    assert capturado["base_url"] == llm.OPENROUTER_BASE_URL
+    assert capturado["api_key"] == "or-z"
+
+
+def test_traduzir_erro_openrouter_aponta_a_variavel_certa():
+    msg = llm._traduzir_erro(Exception("401 invalid api key"), "openrouter")
+    assert "OpenRouter" in msg and "OPENROUTER_API_KEY" in msg
+
+
+def test_testar_conexao_recusa_motor_desconhecido(monkeypatch):
+    """
+    Antes, qualquer nome diferente de 'openai' caía no Gemini. Com três
+    motores isso faria um "testar OpenRouter" reportar o Gemini como se
+    fosse ele — e o operador concluiria que a chave está boa.
+    """
+    _configurar(monkeypatch, "", "g-y", "")
+    monkeypatch.setattr(llm, "_chamar_gemini",
+                        lambda s, u, k, **kw: pytest.fail("não é o motor pedido"))
+    ok, msg = llm.testar_conexao("motor-que-nao-existe")
+    assert not ok and "desconhecido" in msg.lower()
+
+
+def test_testar_conexao_do_openrouter(monkeypatch):
+    _configurar(monkeypatch, "", "", "or-z")
+    monkeypatch.setattr(llm, "_chamar_openrouter", lambda s, u, k, **kw: "OK")
+    ok, msg = llm.testar_conexao("openrouter")
+    assert ok and "OpenRouter" in msg and ":free" in msg

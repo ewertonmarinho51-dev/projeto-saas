@@ -21,6 +21,46 @@ OPENAI_MODELOS_FALLBACK = ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"]
 GEMINI_MODEL_PADRAO = "gemini-2.5-flash"
 GEMINI_MODELOS_FALLBACK = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
 
+# ---------------------------------------------------------------------------
+# Terceiro motor: OpenRouter (sobrescreva com OPENROUTER_MODEL)
+#
+# Entra DEPOIS da OpenAI e do Gemini, e a ordem é deliberada: os modelos
+# gratuitos daqui são mais fracos que `gpt-5-mini`/`gemini-2.5-flash` para
+# texto jurídico longo, e vêm com teto de requisições. Quem já tem chave
+# paga não pode ser rebaixado em silêncio por ter configurado OpenRouter
+# também.
+#
+# A API é compatível com a da OpenAI — muda a base e a chave —, então
+# este motor reusa `_openai_uma_chamada` inteiro: não há segundo cliente
+# HTTP, segundo laço de retentativa nem segunda tradução de erro.
+#
+# ESCOLHA DOS MODELOS (lida na documentação do provedor em 14/09/2026):
+#
+#   * `nemotron-3-ultra` — 550B MoE (55B ativos), contexto de 1M e até
+#     65.536 tokens de saída. O maior da lista gratuita, e o teto de saída
+#     importa porque a geração de documento pede 16.384;
+#   * `nemotron-3-super` — 120B A12B, a irmã menor, para quando a Ultra
+#     estiver saturada;
+#   * `gemma-4-31b` — densa, 262k de contexto, 32.768 de saída;
+#   * `gemma-4-26b-a4b` — MoE com apenas 3,8B ativos por token. A mais
+#     fraca das quatro; fica por último, como rede.
+#
+# FICARAM DE FORA, e o porquê vale registrado: `ling-3.0-flash-fin` e
+# `-sante` são variantes de DOMÍNIO (finanças e saúde), `-vl` é visão, e o
+# restante da lista gratuita é embedding, reranker, TTS ou pequeno demais
+# para um Termo de Referência.
+#
+# O sufixo `:free` é explícito de propósito. O mesmo identificador sem ele
+# é o endpoint PAGO do mesmo modelo — deixar implícito transformaria um
+# erro de digitação em fatura.
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_MODEL_PADRAO = "nvidia/nemotron-3-ultra-550b-a55b:free"
+OPENROUTER_MODELOS_FALLBACK = [
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+]
+
 # Parâmetros de robustez das chamadas à API
 API_TIMEOUT_SEGUNDOS = 180  # documentos longos + planilhas grandes
 API_TENTATIVAS = 3          # nº de tentativas antes de desistir
