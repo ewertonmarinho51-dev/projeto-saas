@@ -324,6 +324,36 @@ def test_sem_a_coluna_a_tela_diz_por_que(monkeypatch):
     assert "renomear" in avisos.lower()
 
 
+def test_sem_a_coluna_a_lista_nao_manda_usar_o_botao_escondido(monkeypatch):
+    """
+    Achado do Codex no PR, e ele estava certo.
+
+    A legenda "Sem nome. Use Renomear para dar um" aparece em toda linha
+    sem nome próprio — e, na queda, NENHUMA linha tem nome, porque a
+    coluna nem veio na consulta. O painel degradado apontava para um
+    controle que ele mesmo tinha acabado de esconder, uma vez por
+    processo.
+
+    Esconder o botão sem calar a dica é meio conserto: a dica é que fala
+    com o servidor.
+    """
+    at = _painel(monkeypatch, coluna_existe=False)
+
+    legendas = " ".join(c.value for c in at.caption)
+    assert "Renomear" not in legendas
+
+
+def test_com_a_coluna_a_dica_de_nomear_continua(monkeypatch):
+    """
+    O contrapeso: calar a dica sempre tiraria a única indicação de que
+    dá para nomear um processo.
+    """
+    at = _painel(monkeypatch, coluna_existe=True)
+
+    legendas = " ".join(c.value for c in at.caption)
+    assert "Renomear" in legendas
+
+
 def test_com_a_coluna_o_botao_esta_la(monkeypatch):
     """
     O contrapeso das três acima: elas passariam todas num painel que

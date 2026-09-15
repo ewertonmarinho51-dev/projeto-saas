@@ -158,9 +158,14 @@ def _render_cabecalho_da_linha(resumo: dict, aberto: bool) -> None:
     with coluna_status:
         st.badge(resumo["status"],
                  color=COR_DO_STATUS.get(resumo["status"], "gray"))
-    if not resumo["nome_proprio"]:
+    if not resumo["nome_proprio"] and db.coluna_nome_disponivel():
         # Sem nome próprio, o título acima já é "órgão — objeto"; repetir
         # os dois embaixo seria ruído. A dica diz o que fazer a respeito.
+        #
+        # Ela cala junto com o botão. Na queda sem a coluna, NENHUMA linha
+        # tem nome próprio — a coluna nem veio na consulta —, então a dica
+        # apareceria em todas, apontando uma vez por processo para um
+        # controle que a própria tela acabou de esconder.
         coluna_nome.caption("Sem nome. Use **Renomear** para dar um.")
 
 
