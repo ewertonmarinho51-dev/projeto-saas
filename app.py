@@ -93,6 +93,15 @@ if pagina == "Governança" and governanca_ui.disponivel():
     # Centro de Governança (V6): flag + papel de governança obrigatórios
     governanca_ui.render_governanca()
     st.stop()
+if pagina == "Processos":
+    # Painel de controle de processos. SEM flag, ao contrário da Pesquisa
+    # de Preços: esta aba substitui o expander "Processos salvos" da barra
+    # lateral, e escondê-la atrás de uma flag deixaria o servidor sem
+    # nenhuma forma de retomar um processo.
+    from src.ui import processos_ui
+
+    processos_ui.render_processos()
+    st.stop()
 if pagina == "Pesquisa de Preços":
     # Módulo de pesquisa de preços (flag `price_research`, default OFF).
     # Importado aqui, e não no topo, para que o app carregue exatamente

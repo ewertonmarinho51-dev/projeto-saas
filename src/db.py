@@ -641,13 +641,25 @@ def salvar_processo(
         raise _traduzir_erro(exc) from exc
 
 
-def listar_processos(limite: int = 20, usuario_id: str | None = None) -> list[dict]:
-    """Processos mais recentes; com usuario_id, apenas os daquele usuário."""
+def listar_processos(limite: int = 50, usuario_id: str | None = None) -> list[dict]:
+    """
+    Processos mais recentes; com usuario_id, apenas os daquele usuário.
+
+    O select traz `dados`, `documentos` e `aprovados` porque o painel
+    deriva status, etapa e progresso deles (`src/processos.py`). É mais
+    peso por linha do que o seletor antigo pedia, e é o preço de não
+    guardar esses três em colunas que divergiriam do real.
+
+    O limite subiu de 20 para 50 junto com a mudança: 20 servia a um
+    seletor de "retomar o último"; um painel que promete busca precisa
+    ter o que buscar.
+    """
     try:
         consulta = (
             _cliente()
             .table("processos")
-            .select("id, orgao, objeto, etapa, atualizado_em")
+            .select("id, nome, orgao, objeto, etapa, dados, documentos, "
+                    "aprovados, criado_em, atualizado_em")
         )
         if usuario_id:
             consulta = consulta.eq("usuario_id", usuario_id)
@@ -655,6 +667,31 @@ def listar_processos(limite: int = 20, usuario_id: str | None = None) -> list[di
             consulta.order("atualizado_em", desc=True).limit(limite).execute()
         )
         return resposta.data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def renomear_processo(processo_id: str, nome: str) -> str:
+    """
+    Dá nome ao processo e devolve o nome efetivamente gravado.
+
+    SÓ o nome entra no update. Mandar o registro inteiro, como
+    `salvar_processo` faz, sobrescreveria `dados` e `documentos` com o
+    que estivesse na sessão de quem renomeou — e renomear a partir da
+    LISTA, onde nenhum processo está carregado, apagaria o conteúdo do
+    processo renomeado.
+
+    O nome é normalizado (espaços colapsados) e limitado a 120
+    caracteres. Não é regra de negócio: é o que cabe numa linha de lista
+    sem empurrar as outras colunas para fora da tela. Cortar aqui, e não
+    na interface, impede o banco de guardar um texto que a tela nunca
+    conseguiria mostrar inteiro.
+    """
+    limpo = " ".join(str(nome or "").split())[:120]
+    try:
+        (_cliente().table("processos")
+         .update({"nome": limpo}).eq("id", processo_id).execute())
+        return limpo
     except Exception as exc:  # noqa: BLE001
         raise _traduzir_erro(exc) from exc
 

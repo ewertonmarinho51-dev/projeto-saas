@@ -31,8 +31,12 @@ def _rotulo_do_botao(doc_key: str, meta: dict) -> str:
 
 def _render_planilha(dados: dict, meta: dict) -> list[dict]:
     """Editor da planilha orçamentária dentro do formulário matriz."""
-    st.markdown(f"**{meta['rotulo']} \\***")
-    st.caption(meta["help"])
+    # Mesma separação do `_campo`: a tela lê `rotulo_tela`/`ajuda_simples`
+    # e `rotulo`/`help` seguem canônicos, rumo ao prompt. A planilha tem
+    # editor próprio e escreve os dois à mão — foi por isso que ficou de
+    # fora da simplificação dos outros dez campos.
+    st.markdown(f"**{meta.get('rotulo_tela') or meta['rotulo']} \\***")
+    st.caption(meta.get("ajuda_simples") or meta["help"])
     st.caption(
         "A coluna **Fonte / Link** já está disponível: cole o link de onde o "
         "preço foi obtido — no documento ele aparece compacto como 'link', "
@@ -83,6 +87,41 @@ def _render_planilha(dados: dict, meta: dict) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Etapa 0 — Formulário Matriz
 # ---------------------------------------------------------------------------
+def _render_progresso_do_formulario(dados: dict) -> None:
+    """
+    O que já foi preenchido e o que ainda falta, ANTES de submeter.
+
+    O formulário já avisava sobre campos obrigatórios vazios — mas só no
+    clique de avançar, depois de a pessoa ter rolado a página inteira.
+    Quem está começando não sabe quanto falta até bater no erro.
+
+    Conta só os OBRIGATÓRIOS. Incluir os opcionais faria o contador
+    parar em "8 de 11" com tudo o que importa pronto, e o servidor
+    procuraria por três campos que ninguém exige dele.
+    """
+    obrigatorios = [
+        (chave, meta) for chave, meta in CAMPOS_FORMULARIO.items()
+        if meta["obrigatorio"]
+    ]
+    faltam = [
+        meta.get("rotulo_tela") or meta["rotulo"]
+        for chave, meta in obrigatorios
+        if not (dados.get("itens") if chave == "itens" else dados.get(chave))
+    ]
+    feitos = len(obrigatorios) - len(faltam)
+    st.progress(feitos / len(obrigatorios) if obrigatorios else 0.0)
+    if faltam:
+        st.caption(
+            f"**{feitos} de {len(obrigatorios)}** campos obrigatórios "
+            f"preenchidos. Ainda falta: {', '.join(faltam)}."
+        )
+    else:
+        st.caption(
+            f"**{feitos} de {len(obrigatorios)}** campos obrigatórios "
+            "preenchidos. Pode avançar."
+        )
+
+
 def render_formulario() -> None:
     components.render_page_header(
         "Dados da demanda",
@@ -154,9 +193,30 @@ def render_formulario() -> None:
 
     respostas: dict = {}
 
+    def _render_exemplo(chave: str, destino=st) -> None:
+        """
+        Exemplo pronto, ABAIXO do campo.
+
+        O placeholder já trazia exemplos, mas ele desaparece assim que a
+        pessoa digita a primeira letra — some justamente quando ela está
+        no meio da frase e quer conferir se está no caminho certo. Abaixo
+        do campo, o exemplo fica.
+        """
+        exemplo = (CAMPOS_FORMULARIO[chave].get("exemplo") or "").strip()
+        if exemplo:
+            destino.caption(f"**Exemplo:** {exemplo}")
+
     def _campo(chave: str, destino=st) -> None:
         meta = CAMPOS_FORMULARIO[chave]
-        rotulo = meta["rotulo"] + (" *" if meta["obrigatorio"] else "")
+        # O rótulo da TELA é `rotulo_tela`; `rotulo` continua sendo o
+        # canônico que `prompts.py` manda ao modelo. Separar os dois é o
+        # que permite simplificar a linguagem da interface sem alterar em
+        # nada o prompt de geração. Sem `rotulo_tela`, cai no de sempre.
+        rotulo = meta.get("rotulo_tela") or meta["rotulo"]
+        rotulo += " *" if meta["obrigatorio"] else ""
+        # Idem para a ajuda: a simples é para o servidor; a original fica
+        # no lugar dela quando não houver versão simplificada.
+        ajuda = meta.get("ajuda_simples") or meta["help"]
         # Com a flag desligada, mantém exatamente o contrato histórico.
         # Com o GovBot ativo, a key cria um marcador DOM estável e permite
         # reidratar rascunhos capturados antes de um rerun completo.
@@ -170,14 +230,14 @@ def render_formulario() -> None:
         if meta["tipo"] == "texto":
             respostas[chave] = destino.text_input(
                 rotulo, **kwargs_valor,
-                placeholder=meta["placeholder"], help=meta["help"],
+                placeholder=meta["placeholder"], help=ajuda,
                 **kwargs_key,
             )
         elif meta["tipo"] == "area":
             altura = 150 if chave == "memorando" else 110
             respostas[chave] = destino.text_area(
                 rotulo, height=altura, **kwargs_valor,
-                placeholder=meta["placeholder"], help=meta["help"],
+                placeholder=meta["placeholder"], help=ajuda,
                 **kwargs_key,
             )
         elif meta["tipo"] == "planilha":
@@ -188,9 +248,12 @@ def render_formulario() -> None:
             respostas[chave] = destino.selectbox(
                 rotulo, opcoes,
                 index=opcoes.index(atual) if atual in opcoes else 0,
-                help=meta["help"],
+                help=ajuda,
                 **kwargs_key,
             )
+        _render_exemplo(chave, destino)
+
+    _render_progresso_do_formulario(dados)
 
     with st.form("formulario_matriz", border=False):
         with st.container(border=True):

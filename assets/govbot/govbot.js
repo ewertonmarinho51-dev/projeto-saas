@@ -269,14 +269,35 @@ export default function renderGovBot(component) {
     composer.disabled = true;
     sendButton.disabled = true;
     undoButton.disabled = true;
+    enviarEvento(eventType, textValue(text),
+                 proposalId === null ? null : textValue(proposalId));
+  }
+
+  // ÚNICO ponto de saída do componente, e o formato do payload vive só
+  // aqui. Dois lugares montando o evento divergiriam na primeira chave
+  // nova — e a fronteira com o Python é exatamente o que não pode ter
+  // duas versões.
+  function enviarEvento(eventType, text, proposalId) {
     setTriggerValue("event", {
       request_id: requestId(),
       event_type: eventType,
-      text: textValue(text),
+      text: text,
       focus: currentFocus,
-      proposal_id: proposalId === null ? null : textValue(proposalId),
+      proposal_id: proposalId,
       draft: captureDraft(),
     });
+  }
+
+  function emitUi(eventType) {
+    // Evento de INTERFACE, não de conversa.
+    //
+    // Não passa por `emit` de propósito: aquele marca `eventPending`,
+    // desabilita o compositor e espera resposta do modelo. Minimizar não
+    // pergunta nada ao GovBot, e bloquear a caixa de texto por causa de
+    // um clique no X seria pior que o defeito original. Também não pode
+    // disputar o `eventPending` de uma mensagem em andamento: minimizar
+    // no meio de uma resposta é legítimo e não pode cancelá-la.
+    enviarEvento(eventType, "", null);
   }
 
   function eyeState(raw, fallback) {
@@ -340,12 +361,22 @@ export default function renderGovBot(component) {
   }
 
   function closeAndRestoreFocus() {
+    // Minimiza: o painel recolhe e o ícone flutuante assume.
+    //
+    // O `setOpen` local é o eco imediato — sem ele o painel só sumiria
+    // depois do rerun do Streamlit, e o clique pareceria engolido. Mas
+    // quem GUARDA o estado é o Python: o componente é remontado a cada
+    // rerun com `data.open`, e sem avisar o servidor a próxima montagem
+    // reabriria o painel. Era exatamente esse o defeito — o X recolhia
+    // e algo reabria logo em seguida.
     setOpen(false);
     launcher.focus({ preventScroll: true });
+    emitUi("minimizar");
   }
 
   function onLauncherClick() {
     setOpen(true);
+    emitUi("expandir");
   }
 
   function onUndoClick() {

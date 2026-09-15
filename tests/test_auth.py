@@ -122,8 +122,17 @@ def test_usuario_comum_nao_ve_paginas_de_admin(monkeypatch):
     }
     at.run()
     assert not at.exception
-    # sem radio de navegação (sem Base de Conhecimento / Administração)
-    assert not [r for r in at.radio if r.key == "pagina"]
+    # A navegação existe para todo servidor (Novo processo + Processos), mas
+    # NENHUMA página de administração aparece nela.
+    #
+    # A versão anterior exigia que não houvesse radio nenhum, e usava isso
+    # como sinal de "não é admin". Era proxy, não a propriedade: passaria
+    # igual se a Administração fosse renderizada por outro caminho que não o
+    # radio. Agora a asserção é sobre o que o nome da prova promete.
+    navegacao = [r for r in at.radio if r.key == "pagina"]
+    assert navegacao, "todo servidor tem navegação"
+    opcoes = set(navegacao[0].options)
+    assert not opcoes & {"Base de Conhecimento", "Administração", "Governança"}
     titulos = " ".join(s.value for s in at.subheader)
     assert "Formulário Matriz" in titulos
 

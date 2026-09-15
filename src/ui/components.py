@@ -260,56 +260,6 @@ def render_summary_strip(total_documentos: int, fatos_pendentes: int) -> None:
     )
 
 
-def _render_processos_salvos() -> None:
-    """Painel de processos persistidos no Supabase (retomar / excluir)."""
-    if not db.disponivel():
-        st.caption("Nenhum processo salvo nesta sessão local.")
-        return
-
-    if st.session_state.processo_id:
-        st.caption(f"Processo atual: {st.session_state.processo_id[:8]}…")
-
-    usuario = auth.usuario_logado()
-    filtro = None if auth.eh_admin() else (usuario or {}).get("id")
-    try:
-        processos = db.listar_processos(usuario_id=filtro)
-    except db.ErroBanco as erro:
-        st.warning(str(erro))
-        return
-
-    if not processos:
-        st.caption("Nenhum processo salvo ainda.")
-        return
-
-    rotulos = {db.rotulo_processo(p): p for p in processos}
-    escolha = st.selectbox(
-        "Retomar processo",
-        list(rotulos),
-        index=None,
-        placeholder="Selecione um processo…",
-        help="O andamento é salvo automaticamente a cada etapa aprovada.",
-    )
-    col_abrir, col_excluir = st.columns(2)
-    if col_abrir.button("Abrir", use_container_width=True, disabled=not escolha):
-        try:
-            proc = db.carregar_processo(rotulos[escolha]["id"])
-            if proc:
-                state.carregar_processo_salvo(proc)
-            else:
-                st.warning("Processo não encontrado. Pode ter sido excluído.")
-        except db.ErroBanco as erro:
-            st.warning(str(erro))
-    if col_excluir.button("Excluir", use_container_width=True, disabled=not escolha):
-        try:
-            db.excluir_processo(rotulos[escolha]["id"])
-            if st.session_state.processo_id == rotulos[escolha]["id"]:
-                st.session_state.processo_id = None
-                st.session_state["_save_status"] = "nao_salvo"
-            st.rerun()
-        except db.ErroBanco as erro:
-            st.warning(str(erro))
-
-
 def render_sidebar() -> None:
     """Shell interno compacto; não cria rotas ou ações sem implementação."""
     with st.sidebar:
@@ -329,7 +279,8 @@ def render_sidebar() -> None:
 
         tem_precos = precos_ui.disponivel()
         if auth.eh_admin():
-            opcoes = ["Novo processo", "Base de Conhecimento", "Administração"]
+            opcoes = ["Novo processo", "Processos", "Base de Conhecimento",
+                      "Administração"]
             from . import governanca_ui
 
             if governanca_ui.disponivel():
@@ -342,18 +293,24 @@ def render_sidebar() -> None:
                 st.session_state.pagina = "Novo processo"
             st.radio("Navegação", options=opcoes, key="pagina",
                      label_visibility="collapsed")
-        elif tem_precos:
-            opcoes = ["Novo processo", "Pesquisa de Preços"]
+        else:
+            # "Processos" é de TODO servidor: quem elabora é quem precisa
+            # saber em que pé está cada processo seu. Entra sem depender
+            # de flag nem de papel — ao contrário da Pesquisa de Preços,
+            # que segue opcional. O ramo `else` que antes desenhava um
+            # rótulo estático deixou de existir: agora todo servidor tem
+            # ao menos duas páginas, então sempre há navegação de fato.
+            opcoes = ["Novo processo", "Processos"]
+            if tem_precos:
+                opcoes.append("Pesquisa de Preços")
             if st.session_state.get("pagina") not in opcoes:
                 st.session_state.pagina = "Novo processo"
             st.radio("Navegação", options=opcoes, key="pagina",
                      label_visibility="collapsed")
-        else:
-            st.markdown('<nav class="gc-sidebar-current" aria-current="page">'
-                        'Novo processo</nav>', unsafe_allow_html=True)
 
-        with st.expander("Processos salvos"):
-            _render_processos_salvos()
+        # O expander "Processos salvos" saiu daqui: virou a aba
+        # "Processos". Mantê-lo criaria dois lugares para a mesma coisa,
+        # com o da barra lateral mostrando menos e podendo divergir.
 
         if usuario:
             papel = (usuario.get("cargo") or
