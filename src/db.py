@@ -587,6 +587,88 @@ def _traduzir_erro(exc: Exception) -> ErroBanco:
     )
 
 
+# ---------------------------------------------------------------------------
+# A janela entre o deploy e a migração 0022
+#
+# Código e migração não chegam juntos ao ambiente: o deploy é automático
+# e o SQL é aplicado à mão. Entre um e outro existe um intervalo real em
+# que o painel pede a coluna `nome` a um banco que ainda não a tem.
+#
+# Sem tratamento, esse intervalo tira a aba Processos do ar para todos.
+# Com tratamento, ele custa um apelido — e a lista, o andamento e o
+# "continuar de onde parei" seguem de pé.
+# ---------------------------------------------------------------------------
+_COLUNAS_DO_PAINEL = ("id, nome, orgao, objeto, etapa, dados, documentos, "
+                      "aprovados, criado_em, atualizado_em")
+# A MESMA consulta, sem a coluna. Não é um select reduzido: `dados`,
+# `documentos` e `aprovados` continuam porque é deles que status, etapa e
+# progresso são derivados. Encolher aqui trocaria o erro por uma lista
+# que mente sobre o andamento.
+_COLUNAS_SEM_NOME = _COLUNAS_DO_PAINEL.replace("nome, ", "", 1)
+
+# Último estado observado. Só a listagem e o renomear escrevem nele, e
+# ambos reavaliam a cada chamada.
+_COLUNA_NOME_PRESENTE = True
+
+
+def _marcar_coluna_nome(*, presente: bool) -> None:
+    global _COLUNA_NOME_PRESENTE
+    _COLUNA_NOME_PRESENTE = presente
+
+
+def coluna_nome_disponivel() -> bool:
+    """
+    A coluna `nome` existe neste banco, até onde a última consulta viu?
+
+    A interface usa isto para não oferecer "Renomear" onde renomear vai
+    falhar. Oferecer o botão e quebrar no clique seria pior do que não
+    oferecer: o servidor digitaria o nome antes de descobrir.
+
+    Otimista por padrão. O banco normal TEM a coluna, e presumir o
+    contrário esconderia o botão de todo mundo até a primeira listagem.
+    """
+    return _COLUNA_NOME_PRESENTE
+
+
+def esquecer_estado_da_coluna_nome() -> None:
+    """Volta ao padrão otimista. Existe para os testes não vazarem um no
+    outro — a flag é global do módulo."""
+    _marcar_coluna_nome(presente=True)
+
+
+def _e_coluna_nome_ausente(exc: Exception) -> bool:
+    """
+    A falha é "a coluna `nome` não existe", e não outra coisa?
+
+    Duas mensagens, porque são dois caminhos diferentes: no `select` o
+    PostgREST chega ao banco e devolve 42703; no `update` ele falha antes,
+    no cache de schema, com PGRST204. Tratar só a primeira deixaria o
+    renomear quebrado do jeito feio.
+
+    A detecção é estreita de propósito. Se qualquer falha disparasse a
+    segunda tentativa, uma queda de conexão viraria duas tentativas e a
+    mesma mensagem genérica — com o dobro da espera.
+
+    Lê os campos ESTRUTURADOS do `APIError` antes de cair no texto. Hoje
+    o `str()` do postgrest traz o dicionário inteiro e a busca no texto
+    bastaria; amanhã ele pode trazer só o código, e uma detecção que
+    dependesse do formato da string sairia do ar em silêncio — deixando
+    a aba Processos quebrada exatamente no cenário que ela existe para
+    cobrir.
+    """
+    partes = [str(exc)]
+    for campo in ("code", "message", "details"):
+        valor = getattr(exc, campo, None)
+        if isinstance(valor, str):
+            partes.append(valor)
+    texto = " ".join(partes).lower()
+    if "nome" not in texto:
+        return False
+    return ("42703" in texto or "pgrst204" in texto
+            or "does not exist" in texto or "não existe" in texto
+            or "could not find" in texto)
+
+
 def salvar_processo(
     processo_id: str | None,
     dados: dict,
@@ -654,21 +736,34 @@ def listar_processos(limite: int = 50, usuario_id: str | None = None) -> list[di
     seletor de "retomar o último"; um painel que promete busca precisa
     ter o que buscar.
     """
-    try:
-        consulta = (
-            _cliente()
-            .table("processos")
-            .select("id, nome, orgao, objeto, etapa, dados, documentos, "
-                    "aprovados, criado_em, atualizado_em")
-        )
+    def consultar(com_nome: bool):
+        consulta = _cliente().table("processos").select(
+            _COLUNAS_DO_PAINEL if com_nome else _COLUNAS_SEM_NOME)
         if usuario_id:
             consulta = consulta.eq("usuario_id", usuario_id)
-        resposta = (
-            consulta.order("atualizado_em", desc=True).limit(limite).execute()
-        )
-        return resposta.data or []
+        return consulta.order("atualizado_em", desc=True).limit(limite).execute()
+
+    try:
+        resposta = consultar(com_nome=True)
     except Exception as exc:  # noqa: BLE001
-        raise _traduzir_erro(exc) from exc
+        if not _e_coluna_nome_ausente(exc):
+            raise _traduzir_erro(exc) from exc
+        # A 0022 ainda não rodou neste banco. A lista inteira não pode
+        # sumir por causa de uma coluna cujo único papel é guardar um
+        # apelido: sem ela o nome cai para "órgão — objeto", que é o que
+        # a tela mostrava antes de a coluna existir.
+        _marcar_coluna_nome(presente=False)
+        try:
+            resposta = consultar(com_nome=False)
+        except Exception as segundo:  # noqa: BLE001
+            raise _traduzir_erro(segundo) from segundo
+    else:
+        # Reavaliado a CADA listagem, de propósito: aplicar a 0022 com o
+        # app no ar tem de bastar. Lembrar "não existe" para sempre
+        # exigiria reiniciar o serviço depois da migração, e ninguém
+        # associaria um painel degradado a um reinício que falta.
+        _marcar_coluna_nome(presente=True)
+    return resposta.data or []
 
 
 def renomear_processo(processo_id: str, nome: str) -> str:
@@ -691,9 +786,18 @@ def renomear_processo(processo_id: str, nome: str) -> str:
     try:
         (_cliente().table("processos")
          .update({"nome": limpo}).eq("id", processo_id).execute())
-        return limpo
     except Exception as exc:  # noqa: BLE001
+        if _e_coluna_nome_ausente(exc):
+            _marcar_coluna_nome(presente=False)
+            raise ErroBanco(
+                "Renomear ainda não está disponível neste ambiente: falta "
+                "aplicar a migração 0022 no banco. O restante do painel "
+                "funciona normalmente, e o processo aparece pelo órgão e "
+                "pelo objeto até lá."
+            ) from exc
         raise _traduzir_erro(exc) from exc
+    _marcar_coluna_nome(presente=True)
+    return limpo
 
 
 # ---------------------------------------------------------------------------

@@ -93,6 +93,15 @@ def render_processos() -> None:
         f"{len(visiveis)} de {len(lista)} processo(s)"
         if len(visiveis) != len(lista) else f"{len(lista)} processo(s)"
     )
+    # Aviso ÚNICO, no topo, e não um por linha: a causa é uma só, e
+    # repeti-la em cada processo transformaria a explicação em ruído.
+    if not db.coluna_nome_disponivel():
+        st.info(
+            "**Renomear está indisponível** enquanto a migração 0022 não "
+            "for aplicada ao banco. Até lá cada processo aparece pelo órgão "
+            "e pelo objeto; o andamento e o *Continuar de onde parei* "
+            "funcionam normalmente."
+        )
     for processo in visiveis:
         _render_linha(processo)
 
@@ -191,8 +200,12 @@ def _render_acoes(resumo: dict, aberto: bool) -> None:
                            use_container_width=True):
         _abrir(resumo["id"])
 
-    if coluna_renomear.button("Renomear", key=f"renomear_{resumo['id']}",
-                              use_container_width=True):
+    # Sem a coluna no banco, o botão não aparece. O aviso do topo já
+    # explicou a ausência — repetir a explicação aqui, botão a botão,
+    # diria a mesma coisa tantas vezes quantos forem os processos.
+    if db.coluna_nome_disponivel() and coluna_renomear.button(
+            "Renomear", key=f"renomear_{resumo['id']}",
+            use_container_width=True):
         st.session_state[RENOMEANDO] = resumo["id"]
         st.rerun()
 
