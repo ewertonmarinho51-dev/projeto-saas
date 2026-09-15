@@ -32,6 +32,38 @@ _CHAVE_UI_STATUS = "_ui_status"
 _CHAVE_UI_ABRIR = "_ui_force_open"
 _CHAVE_META = "_adapter"
 
+# Eventos que só mexem na visibilidade do painel. Ficam separados dos de
+# conversa porque o tratamento é o oposto: não chamam o modelo, não geram
+# proposta e não podem consumir o turno de uma mensagem em andamento.
+_EVENTOS_DE_INTERFACE = ("minimizar", "expandir")
+
+
+def _ajustar_visibilidade(sessao: MutableMapping[str, Any], *,
+                          aberto: bool) -> bool:
+    """
+    Guarda no PYTHON se o painel está aberto, e devolve False.
+
+    O `False` diz ao chamador que não houve trabalho de IA — nada a
+    reprocessar, nenhuma resposta a exibir.
+
+    Por que o estado mora aqui, e não só no navegador: o componente é
+    remontado a cada rerun do Streamlit, recebendo `data.open` deste
+    dicionário. Enquanto o fechar era só client-side, `open` continuava
+    `True` no servidor e a montagem seguinte reabria o painel — o defeito
+    que o servidor via como "o X não funciona". O `sessionStorage` do
+    frontend continua lá como eco imediato, mas deixou de ser a fonte da
+    verdade: ele some numa aba nova e é bloqueável pelo navegador.
+
+    O histórico não é tocado: a conversa vive no bucket, que esta função
+    não alcança. Minimizar esconde o painel e nada mais.
+    """
+    raiz = sessao.get(govbot.CHAVE_SESSAO)
+    if not isinstance(raiz, MutableMapping):
+        raiz = {}
+        sessao[govbot.CHAVE_SESSAO] = raiz
+    raiz["open"] = bool(aberto)
+    return False
+
 
 def _sessao() -> MutableMapping[str, Any]:
     return st.session_state
@@ -721,6 +753,13 @@ def _processar_evento(
             sessao, bucket, str(evento.proposal_id), evento.request_id)
     if evento.event_type == "undo":
         return _desfazer(sessao, bucket, evento.request_id)
+    # Minimizar/expandir é estado de INTERFACE e sai antes de qualquer
+    # chamada ao modelo: o servidor clicou no X, não fez uma pergunta.
+    # Deixar cair no fluxo de mensagem gastaria uma chamada de IA por
+    # clique e, pior, devolveria uma resposta que ninguém pediu.
+    if evento.event_type in _EVENTOS_DE_INTERFACE:
+        return _ajustar_visibilidade(
+            sessao, aberto=evento.event_type == "expandir")
 
     contexto = _montar_contexto(sessao, evento.focus, evento.text)
     contexto = _complementar_contexto_rag(sessao, contexto, evento.text)

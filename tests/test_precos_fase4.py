@@ -504,14 +504,22 @@ def test_com_a_flag_ligada_o_servidor_comum_alcanca_o_modulo(monkeypatch):
 
 def test_com_a_flag_desligada_o_servidor_comum_nao_ganha_navegacao(monkeypatch):
     """
-    A regressão que o `test_auth` já protege, medida também aqui: sem a
-    flag, a sidebar do servidor comum é exatamente a de antes.
+    Sem a flag, "Pesquisa de Preços" NÃO aparece na navegação do servidor.
+
+    A prova mudou de forma junto com o painel de Processos: antes ela
+    exigia que não existisse radio nenhum, porque sem a flag o servidor
+    comum não tinha para onde navegar. Hoje ele tem — "Processos" entrou
+    para todo mundo —, e a ausência do radio deixou de significar "flag
+    desligada". O que continua valendo, e é o que esta prova protege, é
+    que a aba de preços não aparece.
     """
     at = _como_servidor_comum(monkeypatch, flag_ligada=False)
     at.run()
 
     assert not at.exception
-    assert not [r for r in at.radio if r.key == "pagina"]
+    navegacao = [r for r in at.radio if r.key == "pagina"]
+    assert navegacao, "o servidor tem navegação (Novo processo + Processos)"
+    assert "Pesquisa de Preços" not in navegacao[0].options
 
 
 def test_sem_sessao_a_tela_explica_em_vez_de_mostrar_lista_vazia(monkeypatch):

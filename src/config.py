@@ -223,6 +223,16 @@ def exportaveis_do_processo(dados: dict | None,
 # O Streamlit exibe esse texto como tooltip (ícone ? ao lado do rótulo).
 CAMPOS_FORMULARIO = {
     "memorando": {
+        "rotulo_tela": "Documento que pediu a compra",
+        "ajuda_simples": (
+            "Cole aqui o memorando ou ofício que pediu a compra. Se "
+            "preferir, envie o arquivo no campo acima."
+        ),
+        "exemplo": (
+            "Memorando nº 45/2026 — SEMED. A Secretaria de Educação "
+            "solicita a aquisição de material de expediente para as 12 "
+            "escolas da rede, cujo estoque se esgota em março."
+        ),
         "rotulo": "Documento inicial da demanda (memorando / ofício)",
         "tipo": "area",
         "obrigatorio": False,
@@ -240,6 +250,9 @@ CAMPOS_FORMULARIO = {
         ),
     },
     "orgao": {
+        "rotulo_tela": "Quem está pedindo",
+        "ajuda_simples": "A secretaria ou departamento que precisa da compra.",
+        "exemplo": "Prefeitura Municipal de Bom Jardim — Secretaria de Educação",
         "rotulo": "Órgão / Entidade Requisitante",
         "tipo": "texto",
         "obrigatorio": True,
@@ -250,6 +263,9 @@ CAMPOS_FORMULARIO = {
         ),
     },
     "responsavel": {
+        "rotulo_tela": "Quem assina o pedido",
+        "ajuda_simples": "Nome e cargo de quem responde pelas informações.",
+        "exemplo": "Maria Silva — Diretora de Compras",
         "rotulo": "Responsável pela Demanda (nome e cargo)",
         "tipo": "texto",
         "obrigatorio": False,
@@ -260,6 +276,16 @@ CAMPOS_FORMULARIO = {
         ),
     },
     "objeto": {
+        "rotulo_tela": "O que vai ser comprado ou contratado",
+        "ajuda_simples": (
+            "Descreva com quantidade e unidade de medida. Quanto mais "
+            "concreto, melhor o documento sai."
+        ),
+        "exemplo": (
+            "Aquisição de 5.000 resmas de papel A4 75g, 600 canetas "
+            "esferográficas azuis e 300 pastas suspensas, para as escolas "
+            "da rede municipal."
+        ),
         "rotulo": "Objeto Detalhado da Contratação",
         "tipo": "area",
         "obrigatorio": True,
@@ -274,6 +300,16 @@ CAMPOS_FORMULARIO = {
         ),
     },
     "justificativa": {
+        "rotulo_tela": "Por que isso é necessário",
+        "ajuda_simples": (
+            "Explique o problema que a compra resolve e o que acontece se "
+            "ela não for feita."
+        ),
+        "exemplo": (
+            "O estoque atual de material de expediente atende até março de "
+            "2027. Sem a reposição, as 12 escolas ficam sem material para "
+            "matrícula, diários de classe e comunicados às famílias."
+        ),
         "rotulo": "Justificativa e Problema a Ser Resolvido",
         "tipo": "area",
         "obrigatorio": True,
@@ -288,6 +324,15 @@ CAMPOS_FORMULARIO = {
         ),
     },
     "alinhamento": {
+        "rotulo_tela": "Já estava no planejamento do ano?",
+        "ajuda_simples": (
+            "Se a compra consta do Plano de Contratações Anual, informe o "
+            "item. Se não consta, explique por quê."
+        ),
+        "exemplo": (
+            "Item 23 do Plano de Contratações Anual de 2027, aprovado pelo "
+            "Decreto nº 12/2026."
+        ),
         "rotulo": "Alinhamento Estratégico (PCA / Planejamento)",
         "tipo": "area",
         "obrigatorio": False,
@@ -301,6 +346,15 @@ CAMPOS_FORMULARIO = {
         ),
     },
     "requisitos": {
+        "rotulo_tela": "Exigências que o fornecedor precisa cumprir",
+        "ajuda_simples": (
+            "Normas, certificações, garantia, prazo de troca — o que for "
+            "obrigatório para o produto ou serviço servir."
+        ),
+        "exemplo": (
+            "Papel A4 com certificação FSC. Canetas com tinta à base de "
+            "água. Garantia de troca de itens com defeito em até 30 dias."
+        ),
         "rotulo": "Requisitos Técnicos e Normativos",
         "tipo": "area",
         "obrigatorio": False,
@@ -316,6 +370,12 @@ CAMPOS_FORMULARIO = {
         ),
     },
     "itens": {
+        "rotulo_tela": "Lista de itens e preços",
+        "ajuda_simples": (
+            "Um item por linha, com quantidade e valor unitário. Dá para "
+            "importar de uma planilha."
+        ),
+        "exemplo": "Papel A4 75g — resma — 5.000 un — R$ 24,90",
         "rotulo": "Planilha Orçamentária (itens da contratação)",
         "tipo": "planilha",
         "obrigatorio": True,
@@ -330,6 +390,13 @@ CAMPOS_FORMULARIO = {
         ),
     },
     "modelo_execucao": {
+        "rotulo_tela": "Como a entrega vai acontecer",
+        "ajuda_simples": (
+            "Entrega única, entregas parceladas ao longo do ano, ou "
+            "registro de preços (quando ainda não se sabe a quantidade "
+            "exata)."
+        ),
+        "exemplo": "Entrega parcelada, conforme a necessidade de cada escola.",
         "rotulo": "Modelo de Execução / Fornecimento",
         "tipo": "selecao",
         "obrigatorio": True,
@@ -348,6 +415,9 @@ CAMPOS_FORMULARIO = {
         ),
     },
     "prazo": {
+        "rotulo_tela": "Para quando você precisa",
+        "ajuda_simples": "A data em que a compra precisa estar concluída.",
+        "exemplo": "Até março de 2027, antes do início do ano letivo.",
         "rotulo": "Prazo / Data Pretendida para a Contratação",
         "tipo": "texto",
         "obrigatorio": False,
@@ -358,6 +428,12 @@ CAMPOS_FORMULARIO = {
         ),
     },
     "riscos": {
+        "rotulo_tela": "O que pode dar errado",
+        "ajuda_simples": "Problemas que podem atrapalhar a compra ou a entrega.",
+        "exemplo": (
+            "Atraso na entrega no início do ano letivo. Variação de preço "
+            "do papel. Fornecedor único na região."
+        ),
         "rotulo": "Riscos Identificados",
         "tipo": "area",
         "obrigatorio": False,

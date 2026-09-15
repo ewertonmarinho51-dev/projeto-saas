@@ -279,3 +279,67 @@ def test_wrapper_rejeita_view_model_nao_json_e_ignora_resultado_sem_evento(monke
         module.render_govbot({"invalid": float("nan")})
     with pytest.raises(ValueError, match="string não vazia"):
         module.render_govbot({}, key=" ")
+
+
+# ---------------------------------------------------------------------------
+# Minimizar — o X recolhe o painel e o ícone flutuante assume
+#
+# O defeito não era handler ausente: `closeButton.addEventListener` sempre
+# existiu. Era que o fechar nunca saía do navegador. O Python guarda
+# `open` e remonta o componente a cada rerun do Streamlit com esse valor;
+# como ninguém avisava o servidor, `open` continuava `True` e a montagem
+# seguinte reabria o painel. Para quem usa, "o X não funciona".
+# ---------------------------------------------------------------------------
+def test_minimizar_avisa_o_python():
+    """Sem isto, o estado do painel morre no navegador a cada rerun."""
+    javascript = _read(JS)
+    assert 'emitUi("minimizar")' in javascript
+    assert 'emitUi("expandir")' in javascript
+
+
+def test_o_x_continua_ligado_ao_handler():
+    javascript = _read(JS)
+    assert 'closeButton.addEventListener("click", closeAndRestoreFocus)' in \
+        javascript
+
+
+def test_minimizar_nao_passa_pelo_caminho_de_mensagem():
+    """
+    `emit` marca `eventPending`, desabilita o compositor e espera resposta
+    do modelo. Minimizar não pergunta nada ao GovBot — bloquear a caixa de
+    texto por causa de um clique no X seria pior que o defeito original. E
+    minimizar no meio de uma resposta é legítimo: não pode cancelá-la.
+    """
+    javascript = _read(JS)
+    corpo = javascript.split("function emitUi(", 1)[1].split("\n  }", 1)[0]
+    # Ignora comentários: o próprio comentário de `emitUi` explica por que
+    # ela NÃO usa `eventPending`, e a primeira versão desta prova tropeçou
+    # nisso — reprovava o código pelo texto que o justifica.
+    codigo = "\n".join(l for l in corpo.splitlines()
+                       if not l.strip().startswith("//"))
+    assert "eventPending" not in codigo
+    assert "composer.disabled" not in codigo
+
+
+def test_o_eco_local_acompanha_o_aviso_ao_servidor():
+    """
+    O `setOpen(false)` local existe para o painel recolher NA HORA. Sem
+    ele o clique só teria efeito depois do rerun, e pareceria engolido —
+    que é justamente a queixa original.
+    """
+    javascript = _read(JS)
+    corpo = javascript.split("function closeAndRestoreFocus(", 1)[1]
+    corpo = corpo.split("\n  }", 1)[0]
+    assert "setOpen(false)" in corpo
+    assert 'emitUi("minimizar")' in corpo
+
+
+def test_o_icone_flutuante_existe_e_flutua():
+    """
+    O ícone precisa ficar sobre qualquer tela e acima do conteúdo. Se
+    fosse estático, minimizar esconderia o GovBot sem deixar como voltar.
+    """
+    css = _read(CSS)
+    bloco = css.split(".govbot-launcher {", 1)[1].split("}", 1)[0]
+    assert "position: fixed" in bloco
+    assert "z-index" in bloco

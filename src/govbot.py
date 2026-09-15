@@ -81,7 +81,11 @@ DOCUMENTOS_EDITAVEIS = ("dfd", "etp", "tr")
 DOCUMENTOS_SOMENTE_ORIGEM = ("edital", "arp")
 FOCOS_DE_EDITOR = tuple(f"editor_{doc}" for doc in DOCUMENTOS)
 
-TIPOS_EVENTO = ("message", "apply_proposal", "undo")
+# `minimizar` e `expandir` são eventos de INTERFACE: o servidor recolheu ou
+# reabriu o painel. Entram na allowlist porque o frontend só emite o que
+# está aqui — mas não são mensagem, não chamam o modelo e não produzem
+# proposta. O painel os desvia antes do fluxo de conversa.
+TIPOS_EVENTO = ("message", "apply_proposal", "undo", "minimizar", "expandir")
 CHAVES_EVENTO = (
     "request_id", "event_type", "text", "focus", "proposal_id", "draft",
 )
@@ -1455,6 +1459,33 @@ def _validar_resposta_fundamentada(
         valores_fontes=valores)
 
 
+def ajuda_de_campo(chave: str) -> str:
+    """
+    A explicação do campo COMO O SERVIDOR LÊ.
+
+    A queda para `help` não é zelo excessivo: um campo cadastrado sem
+    `ajuda_simples` faria o assistente responder com string vazia, e
+    "não sei" silencioso é pior do que a versão em jargão.
+    """
+    meta = CAMPOS_FORMULARIO[chave]
+    return str(meta.get("ajuda_simples") or meta.get("help") or "")
+
+
+def orientacao_de_campo(chave: str) -> str:
+    """
+    A resposta de "o que preencho aqui?": explicação mais exemplo.
+
+    Quem pergunta quer ver uma frase pronta para adaptar antes de querer
+    uma definição. O exemplo já está no catálogo de campos — mantê-lo
+    fora do assistente seria tê-lo escrito uma vez e usado pela metade.
+    """
+    texto = ajuda_de_campo(chave)
+    exemplo = str(CAMPOS_FORMULARIO[chave].get("exemplo") or "").strip()
+    if not exemplo:
+        return texto
+    return f"{texto} Exemplo: {exemplo}".strip()
+
+
 def orientacao_local(
     contexto: GovBotContext, pedido: str,
 ) -> GovBotIntent | None:
@@ -1523,9 +1554,8 @@ def orientacao_local(
                 f"Você está na etapa do documento {contexto.documento.upper()}.")
     if (not texto or any(t in texto for t in ("ajuda", "o que preencher"))) \
             and contexto.campo_em_foco:
-        meta = CAMPOS_FORMULARIO[contexto.campo_em_foco]
         return GovBotIntent(
-            "explain_current", str(meta.get("help") or ""),
+            "explain_current", orientacao_de_campo(contexto.campo_em_foco),
             contexto.campo_em_foco, {}, ())
     return None
 
@@ -2863,8 +2893,8 @@ def montar_view_model(
     foco = contexto.campo_em_foco or contexto.bloco_em_foco
     guidance = {}
     if contexto.campo_em_foco:
-        guidance[contexto.campo_em_foco] = str(
-            CAMPOS_FORMULARIO[contexto.campo_em_foco].get("help") or "")
+        guidance[contexto.campo_em_foco] = ajuda_de_campo(
+            contexto.campo_em_foco)
     return {
         "state": state,
         "status_text": str(status_text),
