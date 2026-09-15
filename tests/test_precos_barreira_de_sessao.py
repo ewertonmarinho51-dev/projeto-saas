@@ -119,6 +119,25 @@ def test_a_barreira_nunca_vira_lista_vazia(monkeypatch):
         assert "Minhas pesquisas" not in titulos
 
 
+def test_nenhuma_das_frases_promete_que_a_senha_e_a_mesma(monkeypatch):
+    """
+    Achado do Codex, e ele estava certo.
+
+    As duas senhas são INDEPENDENTES: `criar_contas_auth.py` convida por
+    `invite_user_by_email` e a pessoa define a senha dela no convite; o
+    `senha_hash` legado nunca é copiado nem sincronizado. Dizer "com a
+    mesma senha" manda para um segundo login falhado quem seguir a
+    instrução ao pé da letra — e quem acabou de bater numa barreira é
+    exatamente quem segue ao pé da letra.
+
+    Coincidiram nas duas contas criadas à mão em produção. Coincidência
+    não é garantia, e a frase estava afirmando garantia.
+    """
+    avisos = _avisos(_barreira(monkeypatch, VINCULADO)).lower()
+
+    assert "mesma senha" not in avisos
+
+
 # ---------------------------------------------------------------------------
 # O aviso no login
 #
@@ -182,6 +201,8 @@ def test_o_aviso_aparece_uma_vez_e_some(monkeypatch):
     assert not at.exception
     primeira = " ".join(w.value for w in at.warning).lower()
     assert "e-mail" in primeira or "email" in primeira
+    # Mesma regra do aviso da barreira: não prometer senha igual.
+    assert "mesma senha" not in primeira
 
     at.run()
     segunda = " ".join(w.value for w in at.warning).lower()

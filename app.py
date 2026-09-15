@@ -87,8 +87,9 @@ if st.session_state.pop(auth.AVISO_LOGIN_LEGADO, False):
     st.warning(
         "Você entrou pelo **login antigo**. Funciona, mas a Pesquisa de "
         "Preços não abre por esse caminho: ela depende da verificação de "
-        "identidade do banco. Da próxima vez, entre com o seu **e-mail** e "
-        "a mesma senha."
+        "identidade do banco. Da próxima vez, entre com o seu **e-mail** — "
+        "com a senha que você definiu ao receber o convite, que é "
+        "independente da do login antigo."
     )
 
 # ---------------------------------------------------------------------------
