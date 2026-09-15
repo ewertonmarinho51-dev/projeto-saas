@@ -79,6 +79,18 @@ if not auth.modo_aberto() and not auth.usuario_logado():
 components.render_sidebar()
 components.render_cabecalho()
 
+# Entrou pelo login antigo TENDO conta de e-mail. Uma vez só, na
+# primeira tela depois do login: é aviso sobre um ato que acabou de
+# acontecer, não sobre um estado permanente. O `pop` é o que impede de
+# virar moldura — e moldura ninguém lê.
+if st.session_state.pop(auth.AVISO_LOGIN_LEGADO, False):
+    st.warning(
+        "Você entrou pelo **login antigo**. Funciona, mas a Pesquisa de "
+        "Preços não abre por esse caminho: ela depende da verificação de "
+        "identidade do banco. Da próxima vez, entre com o seu **e-mail** e "
+        "a mesma senha."
+    )
+
 # ---------------------------------------------------------------------------
 # Navegação por papel: admin vê Base de Conhecimento e Administração
 # ---------------------------------------------------------------------------

@@ -348,6 +348,13 @@ def atualizar_usuario(usuario_id: str, **campos) -> None:
 # ---------------------------------------------------------------------------
 # Sessão / permissões
 # ---------------------------------------------------------------------------
+# Marca de que o login caiu no caminho legado existindo conta de e-mail.
+# Fica em `session_state` e é consumida UMA vez: é aviso sobre um ato que
+# acabou de acontecer, não sobre um estado permanente. Repetido em toda
+# tela viraria moldura, e ninguém lê moldura.
+AVISO_LOGIN_LEGADO = "_aviso_login_legado"
+
+
 def entrar(usuario: dict) -> None:
     """
     Registra o usuário na sessão e deriva o contexto institucional do
@@ -367,6 +374,15 @@ def entrar(usuario: dict) -> None:
         st.session_state.tenant_id = usuario["tenant_id"]
     if token:
         st.session_state[db.CHAVE_DA_SESSAO] = token
+    elif usuario.get("auth_user_id"):
+        # Entrou pelo legado TENDO conta de e-mail. É o caso em que o
+        # app funciona quase inteiro e a Pesquisa de Preços não abre —
+        # e a pessoa não tem como saber por quê, porque está logada.
+        #
+        # Sem `auth_user_id` o aviso não entra: quem não tem conta de
+        # e-mail não teria o que fazer com ele, e pedir ação impossível
+        # treina a pessoa a ignorar aviso.
+        st.session_state[AVISO_LOGIN_LEGADO] = True
 
 
 def usuario_logado() -> dict | None:
