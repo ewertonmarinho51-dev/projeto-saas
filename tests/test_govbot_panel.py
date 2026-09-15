@@ -496,7 +496,15 @@ def test_app_com_flag_desligada_mantem_fluxo_sem_estado_govbot(monkeypatch):
     assert not at.exception
     assert "govbot" not in at.session_state
     assert "govbot_form_draft" not in at.session_state
+    # Itera o próprio `session_state`, não `.filtered_state`.
+    #
+    # Na 1.64 o `at.session_state` do AppTest passou a resolver atributo
+    # como CHAVE: `.filtered_state` virou "a chave chamada
+    # filtered_state", que não existe, e a prova quebrou com
+    # `AttributeError` — sem que nada no app tivesse mudado. Iterar o
+    # objeto dá a mesma visão filtrada e não depende de o nome interno
+    # continuar existindo.
     assert not any(
         str(chave).startswith("govbot_campo_")
-        for chave in at.session_state.filtered_state
+        for chave in at.session_state
     )

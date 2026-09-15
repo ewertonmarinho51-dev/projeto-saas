@@ -189,11 +189,51 @@ def _exigir_sessao() -> bool:
     """
     if db.cliente_do_usuario() is not None:
         return True
-    st.info(
-        "A Pesquisa de Preços opera com a sua identidade — é ela que o "
-        "banco usa para decidir o que você alcança. Entre no sistema com "
-        "sua conta para abrir o módulo."
-    )
+
+    # Três ausências diferentes, três frases diferentes. A versão
+    # anterior tinha UMA — "entre no sistema com sua conta" — e ela
+    # apareceu em produção para o administrador, com nome e papel na
+    # barra lateral, já logado. Estava certa sobre a credencial e não
+    # dizia nada sobre o que fazer.
+    usuario = auth.usuario_logado()
+    if usuario is None:
+        st.info(
+            "A Pesquisa de Preços opera com a sua identidade — é ela que o "
+            "banco usa para decidir o que você alcança. Entre no sistema "
+            "para abrir o módulo."
+        )
+    elif usuario.get("auth_user_id"):
+        # Tem conta de e-mail e entrou pela porta antiga. O conserto é
+        # dela, e cabe numa frase.
+        #
+        # E a frase NÃO promete que a senha é a mesma: o convite do
+        # `criar_contas_auth.py` deixa a pessoa definir a senha do
+        # e-mail, e o `senha_hash` legado nunca é copiado. Prometer
+        # senha igual mandaria para um segundo login falhado justamente
+        # quem seguiu a instrução ao pé da letra.
+        st.warning(
+            f"Você entrou pelo login antigo (**{usuario.get('login') or '—'}**), "
+            "que não passa pela verificação de identidade do banco — e é "
+            "ela que a Pesquisa de Preços usa para decidir o que você "
+            "alcança.\n\n"
+            "**Saia e entre de novo usando o seu e-mail.** São dois "
+            "acessos com senhas independentes: a do e-mail é a que você "
+            "definiu ao receber o convite, não a do login antigo. Se não "
+            "souber qual é, peça ao administrador.\n\n"
+            "O resto do sistema funciona dos dois jeitos; só este módulo "
+            "exige o acesso por e-mail."
+        )
+    else:
+        # Sem conta de e-mail não adianta mandar sair e entrar: não há
+        # por onde. Empurrar alguém para uma porta que não abre é pior
+        # do que dizer que a porta ainda não existe.
+        st.warning(
+            "O seu acesso ainda não foi vinculado ao login por e-mail, e a "
+            "Pesquisa de Preços depende dele para saber o que você alcança. "
+            "Procure o administrador para criar esse vínculo — não há nada "
+            "que dê para fazer por esta tela."
+        )
+
     components.render_guidance(
         "Esta tela não usa a credencial de servidor do aplicativo. Se ela "
         "usasse, as políticas de acesso do banco deixariam de ser "
