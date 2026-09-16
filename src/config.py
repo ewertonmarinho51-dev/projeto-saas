@@ -108,8 +108,23 @@ ETAPAS = [
 # Ordem sequencial dos documentos (regra de negócio: cada documento usa o
 # anterior aprovado como contexto)
 SEQUENCIA_DOCUMENTOS = ["dfd", "etp", "tr", "edital"]
+SEQUENCIA_COM_MAPA = ["dfd", "etp", "mapa_riscos", "tr", "edital"]
+CHAVE_FLUXO_MAPA = "_fluxo_mapa_riscos"
+
+
+def sequencia_do_processo(dados=None, documentos=None) -> list[str]:
+    """Versão persistida do fluxo; uma flag não reescreve processos antigos."""
+    com_mapa = ((dados or {}).get(CHAVE_FLUXO_MAPA) is True
+                or "mapa_riscos" in (documentos or {}))
+    return list(SEQUENCIA_COM_MAPA if com_mapa else SEQUENCIA_DOCUMENTOS)
 
 DOCUMENTOS = {
+    "mapa_riscos": {
+        "etapa": 3, "sigla": "Mapa de Riscos", "titulo": "Mapa de Riscos",
+        "base_legal": "art. 18, X, da Lei nº 14.133/2021",
+        "descricao": "Análise dos riscos, danos, ações preventivas e de contingência, com responsáveis.",
+        "usa_contexto_de": "etp",
+    },
     "dfd": {
         "etapa": 1,
         "sigla": "DFD",
@@ -178,6 +193,7 @@ DOCUMENTOS = {
 # ARP não é etapa do wizard: é emitida junto do edital, como instrumento
 # separado, quando há Sistema de Registro de Preços.
 DOCUMENTOS_EXPORTAVEIS = SEQUENCIA_DOCUMENTOS + ["arp"]
+DOCUMENTOS_EXPORTAVEIS_COM_MAPA = SEQUENCIA_COM_MAPA + ["arp"]
 
 # Instrumentos emitidos JUNTO de um documento do wizard, e não como etapa
 # própria. Quem invalida o documento-âncora invalida o instrumento: a Ata
@@ -212,8 +228,9 @@ def exportaveis_do_processo(dados: dict | None,
     estado é a primeira linha; esta função é a que decide o arquivo.
     """
     documentos = documentos or {}
-    ordem = (DOCUMENTOS_EXPORTAVEIS if adota_srp(dados)
-             else SEQUENCIA_DOCUMENTOS)
+    ordem = sequencia_do_processo(dados, documentos)
+    if adota_srp(dados):
+        ordem.append("arp")
     return [k for k in ordem if k in documentos]
 
 # ---------------------------------------------------------------------------

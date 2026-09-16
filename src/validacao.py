@@ -1199,6 +1199,14 @@ def validar_documento(doc_key: str, texto: str,
     quando None, essas checagens são omitidas.
     """
     texto = texto or ""
+    if doc_key == "mapa_riscos":
+        from .mapa_riscos import validar
+        return (validar(texto) + _validar_bloqueantes(doc_key, texto)
+                + _validar_identificacoes(doc_key, texto, dados)
+                + _validar_dados_improvisados(doc_key, texto)
+                + _validar_fundamentos_legais(doc_key, texto, dados)
+                + _validar_lastro_das_citacoes(doc_key, texto, lastro)
+                + _validar_tabelas(doc_key, texto))
     return (
         _validar_bloqueantes(doc_key, texto)
         + _validar_tabela_de_itens(doc_key, texto,

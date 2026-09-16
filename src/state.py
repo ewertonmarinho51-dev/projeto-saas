@@ -10,7 +10,41 @@ import streamlit as st
 
 from . import contexto, db
 from .config import (INSTRUMENTOS_DERIVADOS, SEQUENCIA_DOCUMENTOS, adota_srp,
-                     exportaveis_do_processo)
+                     exportaveis_do_processo, sequencia_do_processo,
+                     CHAVE_FLUXO_MAPA, DOCUMENTOS)
+
+
+def configurar_fluxo() -> None:
+    """Captura a opção só para processo novo. Nunca insere mapa em histórico."""
+    s = st.session_state
+    if CHAVE_FLUXO_MAPA not in s:
+        novo = not (s.get("dados") or s.get("documentos") or s.get("processo_id"))
+        s[CHAVE_FLUXO_MAPA] = (
+            (novo and db.flag_ativa("mapa_riscos"))
+            or (s.get("dados") or {}).get(CHAVE_FLUXO_MAPA) is True
+            or "mapa_riscos" in (s.get("documentos") or {}))
+
+
+def sequencia() -> list[str]:
+    dados = dict(st.session_state.get("dados") or {})
+    if st.session_state.get(CHAVE_FLUXO_MAPA):
+        dados[CHAVE_FLUXO_MAPA] = True
+    return sequencia_do_processo(dados, st.session_state.get("documentos"))
+
+
+def etapas() -> list[str]:
+    nomes = ["Dados da Demanda"] + ["Minuta de Edital" if d == "edital" else DOCUMENTOS[d]["sigla"] for d in sequencia()] + ["Concluído"]
+    return [f"{i}. {nome}" for i, nome in enumerate(nomes, 1)]
+
+
+def contexto_para_documento(doc_key: str) -> str | None:
+    """Toda a cadeia aprovada, sem promover rascunhos pendentes a fonte."""
+    ordem = sequencia()
+    anteriores = ordem[:ordem.index(doc_key)] if doc_key in ordem else ordem[:-1]
+    docs = st.session_state.get("documentos") or {}
+    aprovados = st.session_state.get("aprovados") or set()
+    return "\n\n".join(f"=== {DOCUMENTOS[d]['titulo']} aprovado ===\n{docs[d]}"
+                       for d in anteriores if d in docs and d in aprovados) or None
 
 
 def inicializar() -> None:
@@ -41,6 +75,8 @@ def autosalvar() -> None:
     if not st.session_state.dados:
         st.session_state["_save_status"] = "nao_salvo"
         return
+    if st.session_state.get(CHAVE_FLUXO_MAPA):
+        st.session_state.dados[CHAVE_FLUXO_MAPA] = True
     if not db.disponivel():
         st.session_state["_save_status"] = "local"
         return
@@ -70,10 +106,18 @@ def autosalvar() -> None:
 
 def carregar_processo_salvo(proc: dict) -> None:
     """Restaura um processo salvo no Supabase para a sessão atual."""
+    from .operacao_documento import ocupada
+    if ocupada(st.session_state):
+        return
     _limpar_widgets_formulario()
+    for chave in _CHAVES_DO_PROCESSO:
+        st.session_state.pop(chave, None)
     st.session_state.processo_id = proc["id"]
     st.session_state.dados = proc.get("dados") or {}
     st.session_state.documentos = proc.get("documentos") or {}
+    st.session_state[CHAVE_FLUXO_MAPA] = (
+        st.session_state.dados.get(CHAVE_FLUXO_MAPA) is True
+        or "mapa_riscos" in st.session_state.documentos)
     st.session_state.aprovados = set(proc.get("aprovados") or [])
     st.session_state.edicoes_pendentes = {}
     st.session_state["_save_status"] = "salvo"
@@ -81,13 +125,16 @@ def carregar_processo_salvo(proc: dict) -> None:
 
 
 def ir_para(etapa: int) -> None:
+    from .operacao_documento import ocupada
+    if ocupada(st.session_state):
+        return
     st.session_state.etapa = etapa
     st.rerun()
 
 
 def doc_da_etapa(etapa: int) -> str:
     """Etapas 1..4 correspondem a dfd, etp, tr, edital."""
-    return SEQUENCIA_DOCUMENTOS[etapa - 1]
+    return sequencia()[etapa - 1]
 
 
 def calcular_etapas_navegaveis(
@@ -106,24 +153,25 @@ def calcular_etapas_navegaveis(
     if not dados:
         return disponiveis
 
+    ordem = sequencia_do_processo(dados, documentos)
     concluidos = {
-        doc_key for doc_key in SEQUENCIA_DOCUMENTOS
+        doc_key for doc_key in ordem
         if doc_key in documentos and doc_key in aprovados
     }
-    for etapa, _doc_key in enumerate(SEQUENCIA_DOCUMENTOS, start=1):
-        anteriores = set(SEQUENCIA_DOCUMENTOS[: etapa - 1])
+    for etapa, _doc_key in enumerate(ordem, start=1):
+        anteriores = set(ordem[: etapa - 1])
         if anteriores.issubset(concluidos):
             disponiveis.add(etapa)
 
-    if set(SEQUENCIA_DOCUMENTOS).issubset(concluidos):
-        disponiveis.add(5)
+    if set(ordem).issubset(concluidos):
+        disponiveis.add(len(ordem) + 1)
     return disponiveis
 
 
 def etapas_navegaveis() -> set[int]:
     """Etapas acessíveis no processo carregado na sessão atual."""
     return calcular_etapas_navegaveis(
-        st.session_state.dados,
+        dict(st.session_state.dados, **{CHAVE_FLUXO_MAPA: "mapa_riscos" in sequencia()}),
         st.session_state.documentos,
         st.session_state.aprovados,
     )
@@ -142,7 +190,7 @@ def guardar_edicao_pendente(doc_key: str, texto: str) -> None:
 def _preservar_editor_atual() -> None:
     """Copia o editor visível para o buffer antes de trocar de etapa."""
     etapa = int(st.session_state.get("etapa") or 0)
-    if not 1 <= etapa <= len(SEQUENCIA_DOCUMENTOS):
+    if not 1 <= etapa <= len(sequencia()):
         return
     doc_key = doc_da_etapa(etapa)
     chave_editor = f"editor_{doc_key}"
@@ -153,7 +201,8 @@ def _preservar_editor_atual() -> None:
 
 def navegar_pelo_stepper(etapa: int) -> None:
     """Callback do stepper clicável; etapas futuras são ignoradas."""
-    if etapa not in etapas_navegaveis():
+    from .operacao_documento import ocupada
+    if ocupada(st.session_state) or etapa not in etapas_navegaveis():
         return
     _preservar_editor_atual()
     st.session_state.etapa = etapa
@@ -162,6 +211,9 @@ def navegar_pelo_stepper(etapa: int) -> None:
 def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
     """Salva a versão editada pelo usuário, marca como aprovado e avança."""
     from . import db
+    from .operacao_documento import ocupada
+    if ocupada(st.session_state):
+        return
 
     if db.em_manutencao():
         # Aprovação é ato de processo: não pode acontecer sem rastro
@@ -179,6 +231,7 @@ def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
         texto_editado, st.session_state.processo_id)
 
     st.session_state.documentos[doc_key] = texto_editado
+    st.session_state.setdefault("_documentos_obsoletos", {}).pop(doc_key, None)
     st.session_state.setdefault("edicoes_pendentes", {}).pop(doc_key, None)
     st.session_state.aprovados.add(doc_key)
     st.session_state.etapa += 1
@@ -214,13 +267,16 @@ def invalidar_a_partir_de(doc_key: str) -> None:
     torna a Ata que saiu com ele obsoleta.
     """
     if doc_key == "formulario":
-        posteriores = list(SEQUENCIA_DOCUMENTOS)
+        posteriores = sequencia()
     else:
-        idx = SEQUENCIA_DOCUMENTOS.index(doc_key)
-        posteriores = SEQUENCIA_DOCUMENTOS[idx + 1:]
+        ordem = sequencia()
+        idx = ordem.index(doc_key)
+        posteriores = ordem[idx + 1:]
         for derivado in INSTRUMENTOS_DERIVADOS.get(doc_key, ()):
             descartar_documento(derivado)
     for chave in posteriores:
+        if chave in st.session_state.documentos:
+            st.session_state.setdefault("_documentos_obsoletos", {})[chave] = doc_key
         descartar_documento(chave)
 
 
@@ -239,6 +295,10 @@ _CHAVES_DO_PROCESSO = (
     "_score_cache",         # índice de confiança
     "_rag_trace",           # rastro do RAG por documento (lastro das citações)
     "registro_geracoes",    # histórico técnico das gerações
+    "_documentos_obsoletos",
+    "_geracao_erro", "_geracao_pedida", "_operacao_documento", "_rich_editors", "_revisao_geracao",
+    "_geracao_sessao", "_ultima_geracao_concluida",
+    CHAVE_FLUXO_MAPA,
 )
 _PREFIXOS_DO_PROCESSO = (
     "_familia_escolha_",    # escolha de família de modelo por documento
@@ -252,7 +312,7 @@ def _limpar_widgets_formulario() -> None:
     for chave in [
         k for k in list(st.session_state.keys())
         if isinstance(k, str)
-        and k.startswith(("govbot_campo_", "editor_"))
+        and k.startswith(("govbot_campo_", "editor_", "rich_editor_"))
     ]:
         st.session_state.pop(chave, None)
 
@@ -262,6 +322,9 @@ def reiniciar_processo() -> None:
     # Se o GovBot já foi habilitado nesta sessão, desassocia o bucket sem
     # apagar históricos de processos salvos. A próxima preparação criará um
     # UUID local novo. Flag OFF nunca cria esta raiz e não passa por aqui.
+    from .operacao_documento import ocupada
+    if ocupada(st.session_state):
+        return
     raiz_govbot = st.session_state.get("govbot")
     if isinstance(raiz_govbot, dict):
         raiz_govbot["current_bucket"] = None
