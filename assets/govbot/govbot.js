@@ -136,7 +136,7 @@ function normalizedCanonicalKey(rawKey) {
     const field = raw.slice("govbot_campo_".length);
     return /^[a-z][a-z0-9_]{0,63}$/.test(field) ? field : null;
   }
-  if (/^editor_(dfd|etp|tr|edital)$/.test(raw)) return raw;
+  if (/^editor_(dfd|etp|mapa_riscos|tr|edital)$/.test(raw)) return raw;
   return /^[a-z][a-z0-9_]{0,63}$/.test(raw) ? raw : null;
 }
 
@@ -239,7 +239,7 @@ export default function renderGovBot(component) {
 
   function keyIsAllowed(key) {
     if (!key || key === "itens" || key.startsWith("editor_itens_")) return false;
-    if (/^editor_(dfd|etp|tr|edital)$/.test(key)) return true;
+    if (/^editor_(dfd|etp|mapa_riscos|tr|edital)$/.test(key)) return true;
     if (!KNOWN_FORM_FIELDS.includes(key)) return false;
     return allowedFields.size === 0 || allowedFields.has(key);
   }
@@ -260,6 +260,7 @@ export default function renderGovBot(component) {
       if (!keyIsAllowed(key) || Object.prototype.hasOwnProperty.call(draft, key)) continue;
       draft[key] = inputText(inputForWrapper(wrapper));
     }
+    document.dispatchEvent(new CustomEvent('govdocs:collect-drafts',{detail:{draft}}));
     return draft;
   }
 
@@ -735,6 +736,35 @@ export default function renderGovBot(component) {
     composer.value = data.composer_draft;
   }
 
+  const badge=root.querySelector('#govbot-alert-count');
+  if(badge){badge.hidden=!data.alert_count;badge.textContent=String(data.alert_count||0);badge.setAttribute('aria-label',`${data.alert_count||0} alertas para revisão`);}
+  const alerts=root.querySelector('#govbot-alerts');
+  if(alerts){
+    clearChildren(alerts);
+    const groups=new Map();
+    for(const item of (data.alerts||[])){
+      const active=['NOVO','VISTO','ADIADO'].includes(item.estado);
+      const groupKey=active?item.documentId:'historico';
+      if(!groups.has(groupKey)){
+        const group=document.createElement('details');group.className='govbot-alert-group';
+        const summary=document.createElement('summary');
+        const labels={formulario:'Dados da demanda',dfd:'DFD',etp:'ETP',mapa_riscos:'Mapa de Riscos',tr:'TR',edital:'Edital',historico:'Alertas encerrados'};
+        summary.textContent=labels[groupKey]||groupKey;group.append(summary);alerts.append(group);groups.set(groupKey,group);
+      }
+      const card=document.createElement('details');card.className='govbot-alert-card';
+      const title=document.createElement('summary');
+      title.textContent=`${item.gravidade||'ATENCAO'} · ${item.estado} · ${item.descricao}`;
+      card.append(title);
+      const evidence=document.createElement('p');evidence.textContent=item.resultadoEsperado||'Revise os dados de origem.';card.append(evidence);
+      if(['NOVO','VISTO','ADIADO'].includes(item.estado)){
+        for(const [label,action] of [['Entender','explain'],['Localizar','locate'],['Sugerir correção','suggest'],['Adiar','defer'],['Marcar como resolvido','resolve']]){
+          const button=document.createElement('button');button.type='button';button.className='govbot-secondary-button';button.textContent=label;
+          button.addEventListener('click',()=>emit('alert',`${action}:${item.id}`));card.append(button);
+        }
+      }
+      groups.get(groupKey).append(card);
+    }
+  }
   renderMessages();
   renderProposals();
 

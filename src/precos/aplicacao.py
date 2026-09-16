@@ -89,7 +89,7 @@ def estimativa_estruturada(pesquisa: dict, itens: list[dict]) -> dict:
                       if i.get("metodo")})
     concluidos = [i for i in itens
                   if str(i.get("estado")) == EstadoItem.COMPLETO.value]
-    return {
+    resultado = {
         "id": str(pesquisa.get("id") or ""),
         "versao": int(pesquisa.get("versao") or 1),
         "raiz_id": str(pesquisa.get("raiz_id") or pesquisa.get("id") or ""),
@@ -111,6 +111,16 @@ def estimativa_estruturada(pesquisa: dict, itens: list[dict]) -> dict:
         "versao_algoritmo": str(pesquisa.get("versao_algoritmo") or ""),
         "versao_regras": str(pesquisa.get("versao_regras") or ""),
     }
+    sinais = []
+    for item in concluidos:
+        anomalias = (item.get("estatisticas") or {}).get("anomalias") or []
+        if anomalias:
+            sinais.append({"item": str(item.get("codigo") or item.get("id") or "sem código"),
+                           "quantidade": len(anomalias),
+                           "criterios": sorted({str(a.get("criterio") or "") for a in anomalias})})
+    if sinais:
+        resultado["sinais_estatisticos"] = sinais
+    return resultado
 
 
 def _soma_dos_itens(itens: list[dict]) -> Decimal:
