@@ -18,7 +18,7 @@ import shutil
 import zipfile
 from datetime import date
 
-from .config import DOCUMENTOS, DOCUMENTOS_EXPORTAVEIS, exportaveis_do_processo
+from .config import DOCUMENTOS, DOCUMENTOS_EXPORTAVEIS_COM_MAPA, exportaveis_do_processo, sequencia_do_processo
 
 
 def _ordem_de_exportacao(documentos: dict[str, str],
@@ -34,7 +34,7 @@ def _ordem_de_exportacao(documentos: dict[str, str],
     saber se a Ata cabe, e inventar a resposta seria pior.
     """
     if dados is None:
-        return [k for k in DOCUMENTOS_EXPORTAVEIS if k in documentos]
+        return [k for k in DOCUMENTOS_EXPORTAVEIS_COM_MAPA if k in documentos]
     return exportaveis_do_processo(dados, documentos)
 
 # Padrão institucional (medido nos documentos manuais aprovados)
@@ -224,16 +224,31 @@ def _docx_hyperlink(par, url: str, texto: str) -> None:
 
 
 def _docx_runs_ricos(par, texto: str) -> None:
-    """Preenche o parágrafo com runs de negrito e hyperlinks compactos."""
-    for seg in _segmentos_ricos(texto):
-        if seg["url"]:
-            _docx_hyperlink(par, seg["url"], seg["text"])
-        elif seg["text"]:
-            run = par.add_run(seg["text"])
-            if seg["bold"]:
-                # só marca quando positivo: run.bold=False anularia o negrito
-                # herdado do estilo (ex.: títulos de cláusula)
-                run.bold = True
+    """Mesmo Markdown do editor, sem perder ênfase ou executar HTML."""
+    from markdown_it import MarkdownIt
+    tokens = MarkdownIt("commonmark", {"html": False}).parseInline(texto)[0].children or []
+    bold = italic = 0
+    url = None
+    for token in tokens:
+        if token.type == "strong_open": bold += 1
+        elif token.type == "strong_close": bold -= 1
+        elif token.type == "em_open": italic += 1
+        elif token.type == "em_close": italic -= 1
+        elif token.type == "link_open": url = token.attrGet("href")
+        elif token.type == "link_close": url = None
+        elif token.type in {"hardbreak", "softbreak"}: par.add_run().add_break()
+        elif token.type in {"text", "code_inline"}:
+            if url and url.lower().startswith(("https://", "http://", "mailto:")):
+                _docx_hyperlink(par, url, token.content)
+            else:
+                partes = re.split(r"(<br\s*/?>)", token.content, flags=re.I)
+                for parte in partes:
+                    if re.fullmatch(r"<br\s*/?>", parte, re.I):
+                        par.add_run().add_break()
+                    elif parte:
+                        run = par.add_run(parte)
+                        if bold: run.bold = True
+                        if italic: run.italic = True
 
 
 def _docx_paragrafo_com_negrito(doc, texto: str, estilo: str | None = None):
@@ -663,13 +678,17 @@ def _docx_inserir_markdown(doc, texto_md: str) -> None:
         if tipo in ("h1", "h2", "h3"):
             # cláusulas numeradas em negrito, presas ao 1º parágrafo
             _docx_paragrafo_com_negrito(
-                doc, _limpar_inline(conteudo), estilo="GovDocs Clausula")
+                doc, conteudo, estilo="GovDocs Clausula")
         elif tipo == "item":
+            nivel = min(3, (len(linha) - len(linha.lstrip())) // 4 + 1)
             _docx_paragrafo_com_negrito(doc, "•  " + conteudo,
-                                        estilo="GovDocs Item 1")
+                                        estilo=f"GovDocs Item {nivel}")
         elif tipo == "par":
+            numerado = re.match(r"^(\s*)\d+[.)]\s+", linha)
+            estilo = (f"GovDocs Item {min(3, len(numerado[1]) // 4 + 1)}"
+                      if numerado else _estilo_do_paragrafo(conteudo))
             _docx_paragrafo_com_negrito(doc, conteudo,
-                                        estilo=_estilo_do_paragrafo(conteudo))
+                                        estilo=estilo)
     descarregar_tabela()
 
 
@@ -718,6 +737,8 @@ def gerar_docx(titulo: str, texto_md: str, branding: dict | None = None) -> byte
     doc = _docx_novo()
     _docx_aplicar_branding(doc, branding)
     doc.add_paragraph(titulo.upper(), style="GovDocs Titulo")
+    if titulo.upper() == "MAPA DE RISCOS":
+        texto_md = re.sub(r"(?im)^#\s+MAPA DE RISCOS\s*\n", "", texto_md, count=1)
     _docx_inserir_markdown(doc, texto_md)
     buffer = io.BytesIO()
     doc.save(buffer)
@@ -737,7 +758,10 @@ def gerar_docx_consolidado(documentos: dict[str, str],
         doc.add_page_break()
         doc.add_paragraph(DOCUMENTOS[doc_key]["titulo"].upper(),
                           style="GovDocs Titulo")
-        _docx_inserir_markdown(doc, documentos[doc_key])
+        texto = documentos[doc_key]
+        if doc_key == "mapa_riscos":
+            texto = re.sub(r"(?im)^#\s+MAPA DE RISCOS\s*\n", "", texto, count=1)
+        _docx_inserir_markdown(doc, texto)
     buffer = io.BytesIO()
     doc.save(buffer)
     return buffer.getvalue()
@@ -1153,7 +1177,7 @@ def gerar_zip(documentos: dict[str, str], formato: str,
             # O número do arquivo é POSICIONAL na ordem canônica do
             # dossiê, não sequencial: o Edital é sempre 04, ainda que o
             # pacote saia incompleto.
-            i = DOCUMENTOS_EXPORTAVEIS.index(doc_key) + 1
+            i = (sequencia_do_processo(dados, documentos) + ["arp"]).index(doc_key) + 1
             meta = DOCUMENTOS[doc_key]
             nome = f"{i:02d}-{meta['sigla'].replace('/', '-')}.{formato}"
             zf.writestr(nome, gerador(meta["titulo"], documentos[doc_key]))
