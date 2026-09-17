@@ -325,7 +325,7 @@ def ordenar(apontamentos) -> tuple[Apontamento, ...]:
     corrigir o Edital primeiro e o ETP depois deixaria o Edital apoiado
     numa versão que deixou de existir no meio da própria execução.
     """
-    ordem = list(config.SEQUENCIA_DOCUMENTOS)
+    ordem = list(config.SEQUENCIA_COM_MAPA)
     for chave in config.DOCUMENTOS:
         if chave not in ordem:
             ordem.append(chave)

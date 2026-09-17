@@ -52,3 +52,21 @@ def test_renderizacao_nao_executa_html_ou_urls_ativas():
     assert "<script>" not in html
     assert 'href="javascript:' not in html
     assert "<strong>ação</strong>" in html
+
+
+def test_correcao_externa_substitui_rascunho_da_versao_antiga(monkeypatch):
+    from src.ui import rich_editor
+    s = sessao()
+    s["_rich_editors"]["etp"]["source"] = hash_texto(s["documentos"]["etp"])
+    s["editor_etp"] = "Rascunho antigo"
+    s["edicoes_pendentes"] = {"etp": "Rascunho antigo"}
+    s["documentos"]["etp"] = "Corrigido por parecer"
+    recebido = {}
+    def componente(**kwargs):
+        recebido.update(kwargs["data"])
+    monkeypatch.setattr(rich_editor.st, "session_state", s)
+    monkeypatch.setattr(rich_editor, "_renderer", lambda: componente)
+    acao, texto = rich_editor.render_editor("etp", s["documentos"]["etp"])
+    assert texto == recebido["markdown"] == "Corrigido por parecer"
+    assert not s["edicoes_pendentes"]
+    assert acao is None

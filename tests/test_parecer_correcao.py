@@ -20,6 +20,16 @@ import pytest
 
 from src import parecer_correcao as pc
 
+
+def test_plano_corrige_mapa_entre_etp_e_tr():
+    docs = {chave: "## Revisão\nTexto." for chave in ["tr", "mapa_riscos", "etp"]}
+    plano = pc.planejar([
+        {"documento_afetado": chave, "problema": "Revisar redação",
+         "recomendacao": "Corrigir redação"}
+        for chave in docs
+    ], docs)
+    assert plano.ordem == ("etp", "mapa_riscos", "tr")
+
 DOCUMENTOS = {
     "dfd": "CLÁUSULA PRIMEIRA - DA NECESSIDADE\nAquisição de expediente.",
     "etp": "CLÁUSULA PRIMEIRA - DO OBJETO\nEstudo técnico preliminar.\n\n"

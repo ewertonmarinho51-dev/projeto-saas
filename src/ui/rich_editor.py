@@ -104,6 +104,12 @@ def render_editor(doc_key, texto_base, *, disabled=False):
     registros = sessao.setdefault("_rich_editors", {})
     registro = registros.setdefault(doc_key, {})
     if registro.get("source") != source:
+        if registro.get("source") is not None:
+            # Uma correção externa (por exemplo, parecer) mudou o canônico.
+            # O rascunho da versão anterior não pode sobrescrever essa correção.
+            texto = texto_base
+            sessao.setdefault("edicoes_pendentes", {}).pop(doc_key, None)
+            sessao[f"editor_{doc_key}"] = texto_base
         registro.pop("action", None)
         registro.update(version=uuid.uuid4().hex, source=source, sequence=0)
     versao = registro["version"]
