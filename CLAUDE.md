@@ -39,6 +39,7 @@ sumir inteira, o app gera documento igual.
 |---|---|---|
 | Cartographer | `.mcp.json` | mapa do código |
 | context7 | `.mcp.json` | documentação viva das bibliotecas |
+| Headroom | `.mcp.json` | comprime saída de ferramenta grande |
 | `setup-advisor` | `.claude/skills/` | que automação vale a pena aqui |
 | `revisar-migracao` | `.claude/skills/` | o ritual de migração de banco |
 | `prova-com-dente` | `.claude/skills/` | teste de mutação |
@@ -48,6 +49,25 @@ sumir inteira, o app gera documento igual.
 
 Detalhes em `docs/AI_AUTOMATION_ARCHITECTURE.md`. Não há
 `.claude/commands/` de propósito: skill já é invocável como `/nome`.
+
+### Headroom — quando comprimir
+
+`headroom_compress` em saída de ferramenta: JSON de API, listagens, logs,
+`git diff` longo, saída de CI, consulta ao banco com muitas linhas
+semelhantes, resultado do Cartographer. `headroom_retrieve` com o hash
+quando precisar do literal (cache local de 1h).
+
+**Nunca comprima** o que vira documento do processo — DFD, ETP, TR, Mapa
+de Riscos, edital, contrato, ata, pesquisa de preços, PNCP, propostas,
+pareceres. E **nunca a planilha de itens**: medido em
+`scripts/headroom_bench.py`, ela comprime 41% perdendo **463 números e
+185 códigos de item**.
+
+Não vale a pena abaixo de ~1.000 tokens, em prosa em português nem em
+código — medido: 0% de economia. Nunca mande segredo para compressão: o
+CCR grava o original em disco por uma hora.
+
+`docs/HEADROOM_INTEGRATION.md` tem a tabela completa.
 
 ### Antes de adicionar ferramenta
 
@@ -74,6 +94,7 @@ do operador.
 | documentação atualizada de biblioteca | context7 |
 | schema, RLS, grants, dados | Supabase |
 | PR, issue, CI | GitHub |
+| saída de ferramenta grande demais | Headroom (`headroom_compress`) |
 | erro em produção | (não há rastreamento — ver o doc) |
 | essa migração está segura? | `revisor-de-banco-e-seguranca` |
 | essa prova tem dente? | `prova-com-dente` |
