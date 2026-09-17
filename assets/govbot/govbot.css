@@ -13,7 +13,8 @@
   --govbot-danger: #b42318;
   --govbot-shadow: 0 18px 52px rgba(11, 31, 51, 0.2);
   position: fixed;
-  z-index: 100000;
+  /* Acima do header transparente do Streamlit (999990), abaixo do loading. */
+  z-index: 1000000;
   inset: 0;
   width: 0 !important;
   height: 0 !important;
@@ -47,7 +48,7 @@ textarea:focus-visible,
 
 .govbot-root {
   position: fixed;
-  z-index: 100000;
+  z-index: 1000000;
   inset: 0;
   width: 0;
   height: 0;
