@@ -24,9 +24,74 @@ App Streamlit que gera documentos da fase preparatória de licitações
   Rodar antes de qualquer push. CI: GitHub Actions em todo push.
 - **Banco**: Supabase projeto `nxibohgoekphxblqtqku`; migrações
   versionadas em `supabase/migrations/` (aplicar via MCP ou SQL Editor).
-- **Git**: trunk `main`; trabalho em
-  `claude/procurement-docs-wizard-rhfl5o`. Usuário autorizou merge
-  direto na main. Textos de commit em português.
+- **Git**: trunk `main`; trabalho em branch `claude/<assunto>` por
+  entrega, com PR. Usuário autoriza o merge caso a caso, quando o CI
+  fecha verde. Textos de commit em português.
+
+## Camada de automação de agentes
+
+Esta camada serve a quem DESENVOLVE. O produto não a conhece, e
+`tests/test_automacao_agentes.py` prova isso mecanicamente: nenhum
+módulo de `src/` menciona `.claude`, `cartographer` ou o Advisor. Se ela
+sumir inteira, o app gera documento igual.
+
+| Peça | Onde | Para quê |
+|---|---|---|
+| Cartographer | `.mcp.json` | mapa do código |
+| context7 | `.mcp.json` | documentação viva das bibliotecas |
+| `setup-advisor` | `.claude/skills/` | que automação vale a pena aqui |
+| `revisar-migracao` | `.claude/skills/` | o ritual de migração de banco |
+| `prova-com-dente` | `.claude/skills/` | teste de mutação |
+| `revisor-de-banco-e-seguranca` | `.claude/agents/` | RLS, grants, segredos |
+| bloqueio de segredo | `.claude/settings.json` | recusa escrita em `.env`, `secrets.toml`, `contas-auth*.json` |
+| provas relacionadas | `.claude/settings.json` | roda o teste do módulo editado; nunca reprova |
+
+Detalhes em `docs/AI_AUTOMATION_ARCHITECTURE.md`. Não há
+`.claude/commands/` de propósito: skill já é invocável como `/nome`.
+
+### Antes de adicionar ferramenta
+
+Você tem uma camada de análise de automações baseada na metodologia do
+Claude Code Setup. **Antes de acrescentar MCP, skill, hook, agente ou
+workflow, analise a arquitetura e determine se a automação gera
+benefício real aqui.** Prefira poucas ferramentas de alto valor a muitas
+integrações redundantes — a regra do plugin oficial é 1–2 por categoria.
+
+Para entender a estrutura do código, consulte primeiro as ferramentas de
+inteligência do repositório (Cartographer). Para documentação de
+biblioteca, use a ferramenta de documentação. Antes de mudança
+estrutural, avalie dependências, impacto, segurança e testes.
+
+**Nunca instale ferramenta nem altere produção automaticamente porque
+uma recomendação apareceu.** Recomendação é texto; instalação é decisão
+do operador.
+
+### Roteador — uma ferramenta por pergunta
+
+| Pergunta | Ferramenta |
+|---|---|
+| onde está esse código? | Cartographer |
+| documentação atualizada de biblioteca | context7 |
+| schema, RLS, grants, dados | Supabase |
+| PR, issue, CI | GitHub |
+| erro em produção | (não há rastreamento — ver o doc) |
+| essa migração está segura? | `revisor-de-banco-e-seguranca` |
+| essa prova tem dente? | `prova-com-dente` |
+| que ferramenta eu deveria usar? | `setup-advisor` |
+
+Encadear três quando uma resolve gasta contexto e produz relatório mais
+longo, não mais certo.
+
+### Segredo
+
+Nunca leia, imprima, registre, versione ou exponha `.env`,
+`.streamlit/secrets.toml`, `contas-auth*.json`, chave de API, token,
+cookie, senha, certificado privado ou segredo de deploy — nem em
+comando, log, fixture, commit ou relatório. O gancho de bloqueio é a
+última linha, não a primeira: ele falha aberto de propósito.
+
+MCP com credencial de produção **não** entra em `.mcp.json` versionado.
+O arquivo é do repositório; a credencial é da pessoa.
 
 ## Cartographer — mapa semântico do código
 

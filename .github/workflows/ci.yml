@@ -47,7 +47,46 @@ jobs:
           --health-retries 5
 
     steps:
+      # `fetch-depth: 0` porque a varredura de segredos precisa do
+      # intervalo BASE..HEAD, e com a profundidade 1 padrão não há base
+      # para comparar — o `merge-base` falharia e a varredura seria
+      # pulada calada, que é o pior dos mundos.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # VARREDURA DE SEGREDOS — primeiro passo, de propósito.
+      #
+      # O scanner existe desde a revisão externa e até agora dependia de
+      # alguém lembrar de rodá-lo. Scanner que depende de memória não é
+      # controle, é intenção. Aqui ele roda sozinho, antes dos 2,5 min de
+      # suíte, para que um segredo em diff falhe em segundos.
+      #
+      # Escopo ÁRVORE: o estado FINAL dos arquivos, que é o que vai para
+      # o repositório. O escopo HISTÓRICO acusaria linhas que commits
+      # posteriores já removeram, e um portão que acusa o que não existe
+      # mais é um portão que as pessoas aprendem a ignorar.
+      #
+      # Sem base identificável a varredura FALHA. Não pula: "não consegui
+      # verificar" e "verifiquei e está limpo" não podem ter a mesma cor.
+      - name: Varredura de segredos (árvore)
+        env:
+          BASE_DA_PR: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_DA_PR:-}" ]; then
+            base="$BASE_DA_PR"
+          else
+            git fetch --no-tags origin main
+            base="$(git merge-base origin/main HEAD)"
+          fi
+          if [ "$base" = "$(git rev-parse HEAD)" ]; then
+            echo "HEAD é a própria base: nada de novo para varrer."
+            exit 0
+          fi
+          echo "varrendo ${base}..$(git rev-parse HEAD)"
+          python3 scripts/varredura_segredos.py \
+            --repo . --base "$base" --head HEAD --escopo arvore
 
       - uses: actions/setup-node@v4
         with:
