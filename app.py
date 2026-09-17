@@ -89,6 +89,19 @@ if geracao_ocupada(st.session_state):
 components.render_sidebar()
 components.render_cabecalho()
 
+# Entrou pelo login antigo TENDO conta de e-mail. Uma vez só, na
+# primeira tela depois do login: é aviso sobre um ato que acabou de
+# acontecer, não sobre um estado permanente. O `pop` é o que impede de
+# virar moldura — e moldura ninguém lê.
+if st.session_state.pop(auth.AVISO_LOGIN_LEGADO, False):
+    st.warning(
+        "Você entrou pelo **login antigo**. Funciona, mas a Pesquisa de "
+        "Preços não abre por esse caminho: ela depende da verificação de "
+        "identidade do banco. Da próxima vez, entre com o seu **e-mail** — "
+        "com a senha que você definiu ao receber o convite, que é "
+        "independente da do login antigo."
+    )
+
 # ---------------------------------------------------------------------------
 # Navegação por papel: admin vê Base de Conhecimento e Administração
 # ---------------------------------------------------------------------------
@@ -103,6 +116,26 @@ if pagina == "Governança" and governanca_ui.disponivel():
     # Centro de Governança (V6): flag + papel de governança obrigatórios
     governanca_ui.render_governanca()
     st.stop()
+if pagina == "Parecer Jurídico":
+    # Fim do fluxo: o processo já tem documentos e recebe depois um
+    # parecer jurídico que os corrige.
+    from src.ui import parecer_ui
+
+    if parecer_ui.disponivel():
+        parecer_ui.render_parecer()
+        st.stop()
+    st.session_state.pagina = "Novo processo"
+
+if pagina == "Consolidar Demandas":
+    # Etapa opcional, antes do formulário: junta os Documentos de
+    # Formalização de Demanda das secretarias numa planilha só.
+    from src.ui import demanda_ui
+
+    if demanda_ui.disponivel():
+        demanda_ui.render_demanda()
+        st.stop()
+    st.session_state.pagina = "Novo processo"
+
 if pagina == "Processos":
     # Painel de controle de processos. SEM flag, ao contrário da Pesquisa
     # de Preços: esta aba substitui o expander "Processos salvos" da barra

@@ -7,7 +7,18 @@
 # ============================================================
 
 # Interface web (frontend + backend integrados)
-streamlit>=1.62.0
+#
+# FIXADA, não em faixa aberta. Com `>=`, o CI instalava a versão mais
+# nova do dia: a 1.64.0 saiu no meio de um PR, mudou o `at.session_state`
+# do AppTest para resolver atributo como chave, e uma prova quebrou no CI
+# enquanto passava no ambiente local — sem que uma linha do app tivesse
+# mudado. O problema não foi a API ter mudado; foi a mudança ter chegado
+# sem ninguém decidir.
+#
+# Para subir: troque o número, rode a suíte inteira, conserte o que
+# quebrar e diga no commit o que mudou. `tests/test_dependencia_streamlit.py`
+# guarda o teto e também que o ambiente rode a versão fixada aqui.
+streamlit==1.64.0
 
 # Integração com a IA — motor principal: OpenAI
 openai>=1.40.0
