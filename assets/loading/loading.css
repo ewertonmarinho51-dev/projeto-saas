@@ -1,0 +1,9 @@
+.gc-generation-overlay { position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:rgb(20 32 48 / 45%);padding:20px;font-family:system-ui,sans-serif;color:#233144; }
+.gc-generation-card { width:min(100%,480px);box-sizing:border-box;padding:32px;border:1px solid #dce3ea;border-radius:8px;background:#fff; }
+.gc-generation-card h2 { font-size:21px;line-height:1.4;margin:0 0 22px; }
+.gc-generation-card p { font-size:16px;line-height:1.6; }
+.gc-generation-bar { height:3px;overflow:hidden;background:#e8edf3;margin:24px 0; }
+.gc-generation-bar::after { content:'';display:block;height:3px;background:#1b4f8a;transform-origin:left;animation:gc-generation-motion 1.6s ease-in-out infinite; }
+@keyframes gc-generation-motion { 0%,100% { transform:scaleX(.15); } 50% { transform:scaleX(.85); } }
+@media(prefers-reduced-motion:reduce) { .gc-generation-bar::after { animation:none;transform:scaleX(1); } }
+@media(max-width:600px) { .gc-generation-card { padding:24px; } .gc-generation-card h2 { font-size:19px; } }

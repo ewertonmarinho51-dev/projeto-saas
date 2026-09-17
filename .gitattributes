@@ -1,0 +1,3 @@
+# O bundle contém dois espaços significativos em literal Markdown (hard break).
+# O arquivo gerado é conferido pela recompilação reproduzível no CI.
+assets/rich_editor/editor.bundle.js -whitespace

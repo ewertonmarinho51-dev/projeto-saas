@@ -650,6 +650,9 @@ def executar_na_tela(dados: dict, processo_id: str | None,
     else:
         decisao = cache["decisao"]
 
+    st.session_state["_decisao_cache"]["context_hash"] = governanca.hash_canonico(
+        {"dados": dados, "docs": documentos, "proc": processo_id})
+
     if not motor_ativo():
         resultado = decisao["resultado"]
         _log.info(

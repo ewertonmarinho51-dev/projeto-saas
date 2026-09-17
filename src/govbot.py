@@ -28,7 +28,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from .config import (CAMPOS_FORMULARIO, DOCUMENTOS, INSTRUMENTOS_DERIVADOS,
-                     SEQUENCIA_DOCUMENTOS)
+                     SEQUENCIA_DOCUMENTOS, sequencia_do_processo)
 
 
 FLAG_GOVBOT = "govbot"
@@ -77,7 +77,7 @@ CAMPOS_ESCALARES = tuple(
     chave for chave, meta in CAMPOS_FORMULARIO.items()
     if meta.get("tipo") != "planilha"
 )
-DOCUMENTOS_EDITAVEIS = ("dfd", "etp", "tr")
+DOCUMENTOS_EDITAVEIS = ("dfd", "etp", "mapa_riscos", "tr")
 DOCUMENTOS_SOMENTE_ORIGEM = ("edital", "arp")
 FOCOS_DE_EDITOR = tuple(f"editor_{doc}" for doc in DOCUMENTOS)
 
@@ -85,7 +85,7 @@ FOCOS_DE_EDITOR = tuple(f"editor_{doc}" for doc in DOCUMENTOS)
 # reabriu o painel. Entram na allowlist porque o frontend só emite o que
 # está aqui — mas não são mensagem, não chamam o modelo e não produzem
 # proposta. O painel os desvia antes do fluxo de conversa.
-TIPOS_EVENTO = ("message", "apply_proposal", "undo", "minimizar", "expandir")
+TIPOS_EVENTO = ("message", "apply_proposal", "undo", "minimizar", "expandir", "alert")
 CHAVES_EVENTO = (
     "request_id", "event_type", "text", "focus", "proposal_id", "draft",
 )
@@ -93,9 +93,9 @@ CHAVES_EVENTO = (
 _log = logging.getLogger("govdocs.govbot")
 _RE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{7,127}$")
 _RE_BLOCO = re.compile(
-    r"^(dfd|etp|tr)/(?:preambulo/\d+|clausula/\d+(?:\.\d+)?/\d+)$")
+    r"^(dfd|etp|mapa_riscos|tr)/(?:preambulo/\d+|clausula/\d+(?:\.\d+)?/\d+)$")
 _RE_CLAUSULA_FUTURA = re.compile(
-    r"^(dfd|etp|tr)/clausula/\d+(?:\.\d+)?$")
+    r"^(dfd|etp|mapa_riscos|tr)/clausula/\d+(?:\.\d+)?$")
 _RE_MATERIAL = re.compile(
     r"(?<!\w)(?:R\$\s*)?\d+(?:[.,]\d+)*(?:\s*%|/\d{2,4})?(?!\w)",
     re.IGNORECASE,
@@ -891,7 +891,8 @@ def montar_contexto_minimo(
     dados = {**(dados or {}), **rascunhos}
     documentos = documentos or {}
     foco_normalizado = normalizar_foco(foco)
-    doc = documento or _documento_da_etapa(int(etapa))
+    ordem = sequencia_do_processo(dados, documentos)
+    doc = documento or (ordem[int(etapa) - 1] if 1 <= int(etapa) <= len(ordem) else None)
     campo: str | None = None
     bloco: str | None = None
     valor: Any = None
@@ -942,9 +943,8 @@ def montar_contexto_minimo(
         raise ErroAlvo(f"documento desconhecido: {doc!r}")
     comparacao: dict[str, Any] = {}
     if doc:
-        indice = (SEQUENCIA_DOCUMENTOS.index(doc)
-                  if doc in SEQUENCIA_DOCUMENTOS else -1)
-        anterior = (SEQUENCIA_DOCUMENTOS[indice - 1] if indice > 0
+        indice = (ordem.index(doc) if doc in ordem else -1)
+        anterior = (ordem[indice - 1] if indice > 0
                     else "edital" if doc == "arp" else None)
         disponivel = bool(
             anterior and documentos.get(anterior) and documentos.get(doc))
@@ -2030,15 +2030,15 @@ def _invalidar_em_memoria(estado: MutableMapping[str, Any], origem: str) -> None
     fora do app.
     """
     docs = estado.setdefault("documentos", {})
+    ordem = sequencia_do_processo(estado.get("dados"), docs)
     pendentes = estado.setdefault("edicoes_pendentes", {})
     aprovados = estado.setdefault("aprovados", set())
     if origem == "formulario":
-        posteriores = list(SEQUENCIA_DOCUMENTOS)
+        posteriores = list(ordem)
     else:
-        if origem not in SEQUENCIA_DOCUMENTOS:
+        if origem not in ordem:
             raise ErroAlvo("origem de invalidação desconhecida")
-        posteriores = list(SEQUENCIA_DOCUMENTOS[
-            SEQUENCIA_DOCUMENTOS.index(origem) + 1:])
+        posteriores = list(ordem[ordem.index(origem) + 1:])
         posteriores.extend(INSTRUMENTOS_DERIVADOS.get(origem, ()))
     posteriores.extend(
         derivado for doc in tuple(posteriores)

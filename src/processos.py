@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from .config import DOCUMENTOS, SEQUENCIA_DOCUMENTOS, adota_srp
+from .config import DOCUMENTOS, SEQUENCIA_DOCUMENTOS, adota_srp, sequencia_do_processo
 
 # ---------------------------------------------------------------------------
 # Status — os nomes que o servidor lê
@@ -55,7 +55,7 @@ def documentos_do_processo(processo: dict) -> tuple[str, ...]:
     "quase pronto" para sempre, sem nada que o servidor pudesse fazer.
     """
     dados = processo.get("dados") or {}
-    obrigatorios = list(SEQUENCIA_DOCUMENTOS)
+    obrigatorios = sequencia_do_processo(dados, processo.get("documentos"))
     if adota_srp(dados):
         if "arp" in DOCUMENTOS and "arp" not in obrigatorios:
             obrigatorios.append("arp")

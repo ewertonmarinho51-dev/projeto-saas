@@ -26,6 +26,7 @@ contas-auth*.json
 # dos testes, e os parametrizados carregam no nome os literais de
 # credencial falsa que a suíte monta em runtime
 .pytest_cache/
+node_modules/
 
 # Cartographer — mapa semântico do código para o agente de desenvolvimento
 #

@@ -361,113 +361,167 @@ def render_formulario() -> None:
 # ---------------------------------------------------------------------------
 # Etapas 1..4 — Geração e preview editável de cada documento
 # ---------------------------------------------------------------------------
+def _gerar_com_progresso(doc_key: str, contexto: str | None,
+                         instrucoes_extra: str = "") -> bool:
+    """Gera candidato e só substitui o documento depois de revisão e guard."""
+    import copy
+    import logging
+    import uuid
+    from .. import operacao_documento, validacao
+
+    sessao = st.session_state
+    pedido = sessao.get("_geracao_pedida") or {}
+    request_id = pedido.get("id") or uuid.uuid4().hex
+    titulo = DOCUMENTOS[doc_key]["titulo"]
+    overlay = db.flag_ativa("loading_overlay")
+    trace_anterior = copy.deepcopy(sessao.get("_rag_trace") or {})
+    placeholder = st.empty()
+
+    def progresso(etapa):
+        if overlay:
+            from . import loading
+            with placeholder.container():
+                loading.render(titulo, etapa)
+        else:
+            components.render_document_skeleton(placeholder, DOCUMENTOS[doc_key]["sigla"])
+
+    try:
+        with operacao_documento.executar(sessao, doc_key, request_id, progresso) as (etapa, base):
+            argumentos = {"instrucoes_extra": instrucoes_extra}
+            if overlay:
+                argumentos["progresso"] = etapa
+            else:
+                etapa("GERANDO")
+            candidatos = {doc_key: gerar_documento(doc_key, copy.deepcopy(sessao.dados),
+                                                   contexto, **argumentos)}
+            if doc_key == "edital" and state.usa_srp(sessao.dados):
+                candidatos["arp"] = gerar_documento("arp", copy.deepcopy(sessao.dados), contexto)
+            etapa("REVISANDO")
+            relatorio = validacao.validar_todos(candidatos, dados=sessao.dados)
+            etapa("FINALIZANDO")
+            operacao_documento.confirmar_versao(sessao, base)
+            # Todas as saídas, inclusive ARP, estão prontas antes da substituição.
+            if doc_key in sessao.documentos:
+                state.invalidar_a_partir_de(doc_key)
+            sessao.documentos.update(candidatos)
+            sessao.aprovados.difference_update(candidatos)
+            for chave in candidatos:
+                sessao.edicoes_pendentes.pop(chave, None)
+                sessao.pop(f"editor_{chave}", None)
+                sessao.setdefault("_documentos_obsoletos", {}).pop(chave, None)
+            sessao["_revisao_geracao"] = {"documento": doc_key, "achados": relatorio}
+            sessao.pop("_geracao_erro", None)
+            state.autosalvar()
+            etapa("PRONTO")
+        return True
+    except operacao_documento.OperacaoEmCurso:
+        return False
+    except Exception as erro:
+        sessao["_rag_trace"] = trace_anterior
+        sessao["_geracao_erro"] = doc_key
+        logging.getLogger("govdocs.geracao").error(
+            "geracao documento=%s resultado=falha tipo=%s", doc_key, type(erro).__name__)
+        st.error("Não foi possível concluir o documento. Seu trabalho anterior foi preservado.")
+        return False
+    finally:
+        sessao.pop("_geracao_pedida", None)
+        if overlay:
+            from . import loading
+            with placeholder.container():
+                loading.render(titulo, "PRONTO", ativo=False)
+        else:
+            placeholder.empty()
+
+
+def _pedir_geracao(doc_key):
+    import uuid
+    st.session_state["_geracao_pedida"] = {"documento": doc_key, "id": uuid.uuid4().hex}
+    st.session_state.pop("_geracao_erro", None)
+    st.rerun()
+
+
 def render_etapa_documento(doc_key: str) -> None:
-    meta = DOCUMENTOS[doc_key]
-    st.subheader(f"{meta['titulo']} ({meta['sigla']})")
+    """Uma superfície de revisão; nenhuma aprovação automática."""
+    from ..operacao_documento import ocupada
+
+    meta = dict(DOCUMENTOS[doc_key])
+    meta["etapa"] = state.sequencia().index(doc_key) + 1
+    st.subheader(meta["titulo"] if meta["titulo"] == meta["sigla"]
+                 else f"{meta['titulo']} ({meta['sigla']})")
     components.render_stepper(st.session_state.etapa)
     render_base_legal(f"Base legal: {meta['base_legal']}. {meta['descricao']}")
+    contexto = state.contexto_para_documento(doc_key)
+    pedido = st.session_state.get("_geracao_pedida") or {}
+    erro = st.session_state.get("_geracao_erro") == doc_key
+    novo = doc_key not in st.session_state.documentos
+    automatico = doc_key == "mapa_riscos" and novo and not erro
+    solicitado = pedido.get("documento") == doc_key
 
-    contexto_key = meta["usa_contexto_de"]
-    contexto = st.session_state.documentos.get(contexto_key) if contexto_key else None
-
-    # ---------- Documento ainda não gerado: tela de geração ----------
-    if doc_key not in st.session_state.documentos:
-        if contexto_key:
-            st.info(
-                f"Este documento será redigido pela IA usando o formulário e o "
-                f"**{DOCUMENTOS[contexto_key]['sigla']} aprovado** como contexto."
-            )
-
-        # Família de modelo (V6 F4): resolvida pelo CONTEXTO do processo.
-        # Shadow: só registra a decisão. Ativa: injeta as diretrizes na
-        # geração; ambiguidade REAL vira pergunta objetiva (nunca lista
-        # técnica de modelos). Flags OFF: nada muda.
+    if novo or solicitado:
         bloco_familia = ""
-        resolucao = familias.resolver_para_processo(
-            doc_key, st.session_state.dados,
-            st.session_state.get("processo_id"),
+        resolucao = None if doc_key == "mapa_riscos" else familias.resolver_para_processo(
+            doc_key, st.session_state.dados, st.session_state.get("processo_id"),
             st.session_state.get(f"_familia_escolha_{doc_key}"))
         if resolucao is not None:
             if resolucao["situacao"] == "ambigua":
-                st.radio(
-                    resolucao["pergunta"],
-                    [o["chave"] for o in resolucao["opcoes"]],
-                    format_func=lambda c, _o=resolucao["opcoes"]: next(
-                        o["rotulo"] for o in _o if o["chave"] == c),
-                    index=None, key=f"_familia_escolha_{doc_key}",
-                )
+                st.radio(resolucao["pergunta"], [o["chave"] for o in resolucao["opcoes"]],
+                         format_func=lambda c, _o=resolucao["opcoes"]: next(
+                             o["rotulo"] for o in _o if o["chave"] == c),
+                         index=None, key=f"_familia_escolha_{doc_key}")
                 st.info("Responda à pergunta acima para gerar o documento.")
                 _botao_voltar(meta)
                 return
             if resolucao["situacao"] == "unica":
-                st.caption(
-                    "Família de modelo aplicada automaticamente: "
-                    f"**{resolucao['payload']['nome']}**"
-                )
-                bloco_familia = familias.bloco_para_prompt(
-                    resolucao["payload"])
-
-        if st.button(
-            _rotulo_do_botao(doc_key, meta), type="primary",
-            use_container_width=True,
-        ):
-            carregamento = st.empty()
-            components.render_document_skeleton(carregamento, meta["sigla"])
-            try:
-                texto = gerar_documento(doc_key, st.session_state.dados,
-                                        contexto,
-                                        instrucoes_extra=bloco_familia)
-                st.session_state.documentos[doc_key] = texto
-                # SRP: a Ata é instrumento PRÓPRIO e sai junto do
-                # edital — determinística, nunca por prosa livre.
-                if doc_key == "edital" and state.usa_srp(
-                        st.session_state.dados):
-                    st.session_state.documentos["arp"] = gerar_documento(
-                        "arp", st.session_state.dados, contexto)
+                bloco_familia = familias.bloco_para_prompt(resolucao["payload"])
+        if erro:
+            st.error("Não foi possível concluir o documento. Seu trabalho anterior foi preservado.")
+        clicou = False
+        if not automatico and not solicitado:
+            clicou = st.button("Tentar novamente" if erro else _rotulo_do_botao(doc_key, meta),
+                               type="primary", use_container_width=True,
+                               disabled=ocupada(st.session_state))
+        if automatico or solicitado or clicou:
+            concluiu = _gerar_com_progresso(doc_key, contexto, bloco_familia)
+            if concluiu or st.session_state.get("_geracao_erro") == doc_key:
                 st.rerun()
-            except ErroGeracaoIA as erro:
-                carregamento.empty()
-                st.error(str(erro))
-                detalhe = getattr(erro, "detalhe", "")
-                if detalhe:
-                    with st.expander("Detalhes técnicos (erro bruto da API)"):
-                        st.code(detalhe)
         _botao_voltar(meta)
         return
 
-    # ---------- Preview editável (controle humano obrigatório) ----------
-    st.success(
-        "Rascunho gerado. **Revise e edite livremente o texto abaixo.** Nada "
-        "avança sem a sua aprovação."
-    )
-    aba_editar, aba_visualizar = st.tabs(["Editar", "Visualizar formatado"])
-    with aba_editar:
-        texto_editado = st.text_area(
-            "Conteúdo do documento (editável)",
-            value=st.session_state.edicoes_pendentes.get(
-                doc_key, st.session_state.documentos[doc_key]),
-            height=480,
-            key=f"editor_{doc_key}",
-            label_visibility="collapsed",
-        )
-    with aba_visualizar:
-        st.markdown(texto_editado)
-
-    col_voltar, col_regerar, col_aprovar = st.columns([1, 1, 2])
-    if col_voltar.button("Voltar", use_container_width=True, key=f"volta_{doc_key}"):
+    st.success("Rascunho gerado. Revise o documento antes de aprovar.")
+    if erro:
+        st.warning("A nova elaboração não foi concluída. A versão anterior foi preservada.")
+        if st.button("Tentar novamente", key=f"retry_{doc_key}"):
+            _pedir_geracao(doc_key)
+    if db.flag_ativa("editor_rico"):
+        from .rich_editor import render_editor
+        acao, texto_editado = render_editor(doc_key, st.session_state.documentos[doc_key],
+                                             disabled=ocupada(st.session_state))
+    else:
+        aba_editar, aba_visualizar = st.tabs(["Editar", "Visualizar formatado"])
+        with aba_editar:
+            texto_editado = st.text_area(
+                "Conteúdo do documento (editável)",
+                value=st.session_state.edicoes_pendentes.get(doc_key, st.session_state.documentos[doc_key]),
+                height=480, key=f"editor_{doc_key}", label_visibility="collapsed")
+        with aba_visualizar:
+            st.markdown(texto_editado)
+        voltar, regerar, aprovar = st.columns([1, 1, 2])
+        acao = None
+        if voltar.button("Voltar", use_container_width=True, key=f"volta_{doc_key}"):
+            acao = "back"
+        if regerar.button("Gerar novamente", use_container_width=True, key=f"regera_{doc_key}",
+                          help="Elabora uma nova versão preservando a anterior se ocorrer uma falha."):
+            acao = "regenerate"
+        if aprovar.button(f"Aprovar {meta['sigla']} e avançar", type="primary",
+                          use_container_width=True, key=f"aprova_{doc_key}"):
+            acao = "approve"
+    if acao == "back":
         state.guardar_edicao_pendente(doc_key, texto_editado)
         state.ir_para(meta["etapa"] - 1)
-    if col_regerar.button(
-        "Gerar novamente", use_container_width=True, key=f"regera_{doc_key}",
-        help="Descarta este rascunho e solicita nova redação à IA.",
-    ):
-        state.descartar_documento(doc_key)
-        st.rerun()
-    if col_aprovar.button(
-        f"Aprovar {meta['sigla']} e avançar", type="primary",
-        use_container_width=True, key=f"aprova_{doc_key}",
-    ):
-        # Se o texto mudou em relação ao aprovado antes, invalida os seguintes
+    elif acao == "regenerate":
+        state.guardar_edicao_pendente(doc_key, texto_editado)
+        _pedir_geracao(doc_key)
+    elif acao == "approve":
         if st.session_state.documentos.get(doc_key) != texto_editado:
             state.invalidar_a_partir_de(doc_key)
         state.aprovar_e_avancar(doc_key, texto_editado)
@@ -718,7 +772,8 @@ def render_sucesso() -> None:
                 st.markdown(f"- **{a['documento']}** — {a['mensagem']}  \n"
                             f"  `…{a['trecho']}…`")
             etapas_com_pendencia = sorted({
-                DOCUMENTOS[a["doc"]]["etapa"] for a in bloqueios if a["doc"] in DOCUMENTOS
+                state.sequencia().index("edital" if a["doc"] == "arp" else a["doc"]) + 1
+                for a in bloqueios if a["doc"] in state.sequencia() or a["doc"] == "arp"
             })
             if etapas_com_pendencia and st.button(
                 "Ir para o primeiro documento com pendência", type="primary",
@@ -755,7 +810,7 @@ def render_sucesso() -> None:
     # os fatos canônicos. Shadow: apenas registra a decisão (log/banco).
     # Ativo: exibe o resultado e bloqueios de regra impedem a emissão.
     decisao_conhecimento = conhecimento.executar_na_tela(
-        st.session_state.dados, st.session_state.get("processo_id"))
+        st.session_state.dados, st.session_state.get("processo_id"), documentos=docs)
 
     # Índice de confiança (V5 F6): shadow calcula e persiste em silêncio;
     # com o gate ligado, o painel aparece e crítico/score baixo bloqueia.

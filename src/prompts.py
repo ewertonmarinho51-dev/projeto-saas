@@ -229,6 +229,9 @@ def _instrucoes(doc_key: str, dados: dict) -> str:
     """
     if doc_key == "edital":
         return INSTRUCOES_EDITAL
+    if doc_key == "mapa_riscos":
+        from .mapa_riscos import INSTRUCOES
+        return INSTRUCOES
     srp = "SRP" in (dados.get("modelo_execucao") or "")
     return _ABERTURAS[doc_key] + "\n\n" + perfis.estrutura_para_prompt(doc_key, srp=srp)
 
@@ -314,6 +317,8 @@ def montar_prompt(doc_key: str, dados: dict, contexto_anterior: str | None) -> t
     usuário (None apenas para o DFD, que parte só do formulário).
     """
     partes = [_instrucoes(doc_key, dados)]
+    if doc_key == "tr" and dados.get("_fluxo_mapa_riscos") is True:
+        partes[0] = partes[0].replace("CONTEXTO EXCLUSIVO", "REFERÊNCIA DECISÓRIA DA CADEIA APROVADA")
     memorando = (dados.get("memorando") or "").strip()
     if memorando:
         partes.append(
@@ -338,9 +343,10 @@ def montar_prompt(doc_key: str, dados: dict, contexto_anterior: str | None) -> t
     )
     if contexto_anterior:
         nomes = {"dfd": "DFD APROVADO", "etp": "ETP APROVADO", "tr": "TR APROVADO"}
-        origem = {"etp": "dfd", "tr": "etp", "edital": "tr"}[doc_key]
+        origem = {"etp": "dfd", "mapa_riscos": "etp", "tr": "etp", "edital": "tr"}[doc_key]
         # P1: o DFD PROPÕE, o ETP DECIDE, o TR EXECUTA a decisão do ETP.
         papel = {
+            "mapa_riscos": "Analise riscos a partir das decisões do ETP aprovado e dos fatos confirmados, sem inventar dados ou responsabilidades.",
             "etp": "A solução indicada pelo DFD é PRELIMINAR: use-a como "
                    "hipótese inicial do estudo, que pode confirmá-la, "
                    "ajustá-la ou afastá-la de forma fundamentada.",
@@ -356,4 +362,8 @@ def montar_prompt(doc_key: str, dados: dict, contexto_anterior: str | None) -> t
             f"{papel}\n"
             + contexto_anterior
         )
+    if doc_key == "tr" and (dados.get("_fluxo_mapa_riscos") is True):
+        partes.append("O contexto inclui a cadeia aprovada DFD, ETP e Mapa de Riscos. "
+                      "Preserve a autoridade das decisões do ETP e operacionalize as ações "
+                      "pertinentes do mapa no TR, sem tratá-lo como matriz contratual.")
     return SYSTEM_PROMPT_BASE, "\n".join(partes)

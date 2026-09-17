@@ -925,3 +925,11 @@ textarea:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+#govbot-alert-count{background:#fff;color:#174676;border-radius:12px;min-width:22px;padding:2px 5px;font-size:12px;font-weight:700}
+#govbot-alerts{max-height:240px;overflow:auto;padding:0 12px;font-size:13px}
+.govbot-alert-group{border-bottom:1px solid #dce3ea;padding:8px 0}
+.govbot-alert-group>summary{font-weight:600;cursor:pointer}
+.govbot-alert-card{padding:8px 4px;line-height:1.5}
+.govbot-alert-card>summary{cursor:pointer}
+.govbot-alert-card button{margin:3px;font-size:12px}
