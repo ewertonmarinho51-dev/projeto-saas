@@ -279,13 +279,15 @@ export default function renderGovBot(component) {
   // nova — e a fronteira com o Python é exatamente o que não pode ter
   // duas versões.
   function enviarEvento(eventType, text, proposalId) {
+    // Abrir/fechar não depende do editor, que pode estar trocando de etapa.
+    const somenteInterface = eventType === "minimizar" || eventType === "expandir";
     setTriggerValue("event", {
       request_id: requestId(),
       event_type: eventType,
       text: text,
-      focus: currentFocus,
+      focus: somenteInterface ? null : currentFocus,
       proposal_id: proposalId,
-      draft: captureDraft(),
+      draft: somenteInterface ? {} : captureDraft(),
     });
   }
 
