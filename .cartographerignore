@@ -35,3 +35,11 @@ __pycache__/
 
 # --- Dados de análise descartáveis ------------------------------------
 *.bak
+
+# --- Camada de automação de agentes -----------------------------------
+#
+# `.claude/` é instrução PARA o agente, não código do produto. Indexá-la
+# faria o grafo do código citar arquivos que descrevem o próprio grafo —
+# ruído no mapa, e uma volta estranha quando alguém perguntasse ao
+# Cartographer onde fica a arquitetura.
+.claude/
