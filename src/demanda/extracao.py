@@ -48,6 +48,13 @@ _QTD_SOZINHA = re.compile(r"^([\d.]+,\d{4})$")
 _QTD_COM_UNIDADE = re.compile(r"^([\d.]+,\d{4})\s+(\S.*)$")
 # Valor estimado, duas casas. Só o layout A tem.
 _VALOR = re.compile(r"^([\d.]+,\d{2})$")
+# Terceira forma: a linha inteira de uma vez. É o que o `pypdf` produz
+# para os MESMOS arquivos que o PyMuPDF quebra em linhas, e é como um
+# quadro colado de planilha costuma chegar. A quantidade é ancorada pelas
+# QUATRO casas decimais, e a descrição é não-gulosa — sem isso,
+# "ALMOFADA PARA CARIMBO 12 x 9cm" faria a quantidade virar 12.
+_LINHA_INTEIRA = re.compile(
+    r"^(\d{6})\s+(.+?)\s+([\d.]+,\d{4})\s+(\S+)(?:\s+[\d.]+,\d{2})?$")
 _NUMERO_DFD = re.compile(r"DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA N[ºo°]?\s*(\d+)")
 # `05  Secret.de Planejamento` — código de dois dígitos, dois espaços, nome.
 _ORGAO = re.compile(r"^(\d{2})\s\s+(\S.*)$")
@@ -153,6 +160,30 @@ def _ler_item(linhas: list[str], i: int) -> tuple[ItemDemanda | None, int]:
     layout com coluna de valor; se vem sozinha, a unidade é a linha
     seguinte. Um arquivo novo que misture os dois continua legível.
     """
+    inteira = _LINHA_INTEIRA.match(linhas[i])
+    if inteira:
+        item = ItemDemanda(
+            codigo=inteira.group(1),
+            descricao=inteira.group(2).strip(),
+            quantidade=numero(inteira.group(3)),
+            unidade=inteira.group(4).strip(),
+        )
+        j = i + 1
+        if j < len(linhas) and linhas[j].startswith(_ESPECIFICACAO):
+            resto = linhas[j][len(_ESPECIFICACAO):].strip()
+            partes = [resto] if resto else []
+            j += 1
+            while j < len(linhas) and not _CODIGO.match(linhas[j]) \
+                    and not _LINHA_INTEIRA.match(linhas[j]) \
+                    and not linhas[j].startswith(_ESPECIFICACAO):
+                partes.append(linhas[j])
+                j += 1
+            texto = " ".join(partes).strip()
+            if texto:
+                from dataclasses import replace
+                item = replace(item, especificacao=texto)
+        return item, j
+
     codigo = linhas[i]
     descricao: list[str] = []
     j = i + 1
@@ -238,7 +269,10 @@ def extrair_do_texto(texto: str) -> tuple[DFD, ...]:
         codigo_orgao, nome_orgao = _cabecalho(corpo)
         itens, i, ordem = [], 0, 0
         while i < len(corpo):
-            if not _CODIGO.match(corpo[i]):
+            # Um item começa por um código sozinho na linha OU por uma
+            # linha inteira. Testar só a primeira forma zeraria a
+            # extração do `pypdf` por completo — e em silêncio.
+            if not _CODIGO.match(corpo[i]) and not _LINHA_INTEIRA.match(corpo[i]):
                 i += 1
                 continue
             item, i = _ler_item(corpo, i)

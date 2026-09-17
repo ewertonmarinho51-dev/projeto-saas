@@ -262,6 +262,40 @@ def test_a_conferencia_acusa_quando_o_total_nao_fecha():
     assert laudo.divergencias
 
 
+def test_a_conferencia_refaz_a_conta_pelas_ORIGENS_e_nao_pelo_proprio_total():
+    """
+    Nasceu de uma mutação que escapou.
+
+    A prova anterior corrompia só o `total` — e a conferência a pegava
+    pela soma das colunas por secretaria, não pelas origens. Trocar a
+    conta das origens por `linha.total` (comparar o número consigo
+    mesmo) passava na suíte inteira, e a "prova matemática" do §12
+    viraria uma tautologia sem ninguém perceber.
+
+    Aqui o total E as colunas são adulterados juntos, de forma coerente.
+    Só as origens discordam — então só a conta pelas origens salva.
+    """
+    import dataclasses
+
+    r = consolidacao.consolidar([
+        _origem("A", [_item("111111", 20)]),
+        _origem("B", [_item("111111", 35)]),
+    ])
+    linha = r.linhas[0]
+    assert linha.total == Decimal("55")
+
+    mentira = dataclasses.replace(
+        linha,
+        total=Decimal("999"),
+        por_secretaria={"A": Decimal("964"), "B": Decimal("35")},
+    )
+    corrompido = dataclasses.replace(r, linhas=(mentira,))
+
+    laudo = consolidacao.conferir(corrompido)
+    assert not laudo.fecha
+    assert any("origens" in d for d in laudo.divergencias)
+
+
 def test_cada_quantidade_aponta_para_o_arquivo_e_o_dfd():
     r = consolidacao.consolidar([
         _origem("SEMS", [_item("111111", 20)], arquivo="sems.pdf", numero="20260506010"),

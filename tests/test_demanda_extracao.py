@@ -109,6 +109,58 @@ def test_a_especificacao_e_capturada_quando_existe():
     assert envelope.especificacao is None
 
 
+def test_layout_c_linha_inteira_numa_so():
+    """
+    Terceira forma, e ela não é hipotética: é o que o `pypdf` produz
+    para os MESMOS arquivos que o PyMuPDF quebra em linhas.
+
+    Aceitar as duas formas é o que impede o parser de ser refém de uma
+    biblioteca — trocar o extrator, ou receber o mesmo quadro colado de
+    um DOCX, deixaria de zerar a extração inteira em silêncio.
+    """
+    dfds = extracao.extrair_do_texto(
+        "DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA Nº 20260101001\n"
+        "ÓRGÃO :\n01  Secretaria de Teste\n"
+        "Código Quant UnidadeDescrição Vl. Estimado\n"
+        "370614 ENVELOPE AMARELO 260MMX360MM 50,0000 UNIDADE 0,00\n"
+        "133975 PAPEL VERGÊ (CORES VARIADAS) 30,0000 PACOTE 0,00\n"
+    )
+
+    itens = dfds[0].itens
+    assert len(itens) == 2
+    assert itens[0].codigo == "370614"
+    assert itens[0].descricao == "ENVELOPE AMARELO 260MMX360MM"
+    assert itens[0].quantidade == Decimal("50")
+    assert itens[0].unidade == "UNIDADE"
+    assert itens[1].unidade == "PACOTE"
+
+
+def test_layout_c_sem_coluna_de_valor():
+    dfds = extracao.extrair_do_texto(
+        "DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA Nº 20260101001\n"
+        "ÓRGÃO :\n01  Secretaria de Teste\n"
+        "572705 ALMOFADA PARA CARIMBO 12 x 9cm 40,0000 UNIDADE\n"
+    )
+
+    assert dfds[0].itens[0].quantidade == Decimal("40")
+    assert dfds[0].itens[0].unidade == "UNIDADE"
+
+
+def test_a_linha_inteira_nao_engole_o_numero_da_descricao():
+    """
+    "ALMOFADA PARA CARIMBO 12 x 9cm" tem números no meio. Se o parser
+    agarrasse o primeiro número que visse, a quantidade viraria 12.
+    """
+    dfds = extracao.extrair_do_texto(
+        "DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA Nº 20260101001\n"
+        "ÓRGÃO :\n01  Secretaria de Teste\n"
+        "572705 ALMOFADA PARA CARIMBO 12 x 9cm 40,0000 UNIDADE\n"
+    )
+
+    assert dfds[0].itens[0].quantidade == Decimal("40")
+    assert "12 x 9cm" in dfds[0].itens[0].descricao
+
+
 # ---------------------------------------------------------------------------
 # Vários DFDs no mesmo arquivo
 # ---------------------------------------------------------------------------

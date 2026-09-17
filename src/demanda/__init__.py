@@ -10,6 +10,6 @@ O nome do pacote é `demanda`, e não `solicitacoes`, porque é assim que
 os documentos reais se chamam: `DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA`.
 """
 
-from . import consolidacao, extracao  # noqa: F401
+from . import aplicacao, consolidacao, extracao, ingestao  # noqa: F401
 
-__all__ = ["extracao", "consolidacao"]
+__all__ = ["extracao", "ingestao", "consolidacao", "aplicacao"]

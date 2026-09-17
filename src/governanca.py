@@ -338,6 +338,12 @@ FLAG_PUBLICACAO_GATE = "governance_publication_gate"
 # ===========================================================================
 FLAG_PESQUISA_PRECOS = "price_research"
 
+# Consolidação dos Documentos de Formalização de Demanda. Nasce
+# DESLIGADA: a etapa muda a ORIGEM da planilha orçamentária do processo,
+# e ligar sem auditoria colocaria uma quantidade consolidada dentro de um
+# edital antes de alguém conferir a conta.
+FLAG_CONSOLIDACAO = "demand_consolidation"
+
 FLAGS_V6 = (
     FLAG_CENTRO, FLAG_CATALOGO, FLAG_POLITICAS_VISUAL,
     FLAG_FAMILIAS_SHADOW, FLAG_FAMILIAS_ATIVA, FLAG_TEMPLATES,
