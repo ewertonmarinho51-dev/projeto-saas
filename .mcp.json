@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cartographer": {
+      "command": "cartographer-mcp",
+      "args": []
+    }
+  }
+}

@@ -1,0 +1,37 @@
+# O que o Cartographer NUNCA deve indexar.
+#
+# Ele já respeita o `.gitignore`, e o `.gitignore` deste repositório já
+# cobre segredos. Este arquivo existe assim mesmo, por duas razões:
+#
+# 1. defesa em profundidade — um dia alguém afrouxa o `.gitignore` para
+#    versionar um arquivo de exemplo e leva junto o que não devia;
+# 2. há coisas que NÃO são segredo e mesmo assim não têm por que entrar
+#    no grafo: ambiente virtual, cache, artefatos de build. Indexá-las
+#    infla o índice e enche a busca semântica de resultado de biblioteca
+#    de terceiro, que é ruído para quem procura código deste projeto.
+
+# --- Segredos e identidade real ---------------------------------------
+.streamlit/secrets.toml
+.streamlit/secrets.toml.*
+!.streamlit/secrets.toml.example
+.env
+.env.*
+*.pem
+*.key
+*.p12
+# Mapas administrativos: contêm e-mails e UIDs de pessoas reais.
+contas-auth*.json
+vinculos*.json
+vinculo-*.json
+
+# --- Dependências e artefatos -----------------------------------------
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cartographer/
+
+# --- Dados de análise descartáveis ------------------------------------
+*.bak

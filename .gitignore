@@ -26,3 +26,15 @@ contas-auth*.json
 # dos testes, e os parametrizados carregam no nome os literais de
 # credencial falsa que a suíte monta em runtime
 .pytest_cache/
+
+# Cartographer — mapa semântico do código para o agente de desenvolvimento
+#
+# O ÍNDICE não é versionado: é derivado do código, pesa megabytes, muda a
+# cada commit e recriá-lo custa segundos (`cartographer index .`). Um .db
+# binário no repositório daria conflito de merge em toda branch.
+#
+# A CONFIGURAÇÃO é versionada, e de propósito — é ela que mantém o índice
+# local ao projeto em vez de cair no banco global de ~/.cartographer/,
+# que misturaria este repositório com qualquer outro da máquina.
+.cartographer/*
+!.cartographer/config.json

@@ -1,0 +1,13 @@
+{
+  "dbPath": ".cartographer/index.db",
+  "_comentario": [
+    "Índice LOCAL ao projeto. Sem este arquivo, o Cartographer e o",
+    "servidor MCP caem no banco global em ~/.cartographer/, que mistura",
+    "este repositório com qualquer outro que a máquina indexe — e a",
+    "busca semântica passa a devolver resultado de outro projeto.",
+    "",
+    "O servidor MCP lê este arquivo a partir do diretório de trabalho",
+    "(cartographer/mcp/server.py), então ele é a forma suportada de",
+    "fixar o caminho — melhor que variável de ambiente, que se perde."
+  ]
+}
