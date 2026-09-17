@@ -77,6 +77,16 @@ SEQUENCIA_EM_ENSAIO = (
     # não entre as migrações de schema: a ordem importa mais que a
     # extensão do arquivo.
     "0021_pesquisa_precos.sql",
+    # A 0024 entra por ÚLTIMO, e a posição é o conteúdo dela: ela
+    # afirma algo sobre o schema inteiro — "nenhum papel de rede tem
+    # TRUNCATE em `public`". Aplicada no meio, a afirmação valeria só
+    # para as tabelas criadas até ali, e a 0021, que cria mais quatro,
+    # decidiria o veredito por acidente de ordem.
+    #
+    # Ela também não cabe entre as migrações de schema: o glob roda
+    # ANTES desta sequência, e lá a 0024 conferiria um mundo em que a
+    # 0020 ainda não passou. Passaria — sem ter provado nada.
+    "0024_service_role_sem_truncate.sql",
 )
 
 

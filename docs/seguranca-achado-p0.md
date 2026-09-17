@@ -623,3 +623,97 @@ decisão do responsável.
 (Settings → API → Exposed schemas), não SQL. O resolvedor respeita RLS e
 os grants, então o passo 2 da 0019 já o esvazia — mas o app não usa
 GraphQL e não há razão para mantê-lo.
+
+---
+
+# Rodada de 17/09/2026 — o TRUNCATE que sobrou
+
+Este bloco fecha um achado que este documento vinha carregando em aberto
+desde a rodada da 0021, e registra, com a mesma literalidade do resto do
+arquivo, o que ele **não** fecha.
+
+## O achado, medido
+
+`service_role` tinha TRUNCATE em **26 das 32** tabelas de `public` em
+produção. As 6 de fora não foram decisão: são as 4 tabelas da 0021, que
+revogou explicitamente, e as 2 de backup, fechadas pela 0016. Onde
+alguém escreveu o revoke, não havia; no resto, havia.
+
+A origem é a mesma já descrita acima: o `alter default privileges ...
+grant all on tables` que o Supabase deixa em `public` faz toda tabela
+criada por `postgres` nascer com `arwdDxtm` para `service_role` — o `D`
+é o TRUNCATE. Por isso a 0021 não bastou: ela consertou as tabelas dela,
+não a fábrica.
+
+## Por que isso importa mais do que parece
+
+TRUNCATE é o único jeito de esvaziar uma tabela **sem passar por gatilho
+de linha**. `governanca_eventos` tem `evento_ator_confiavel`;
+`pesquisa_preco_eventos` tem `pesquisa_preco_trilha_imutavel`;
+`processos` tem `trg_processos_atualizado`. Todos são
+`before insert/update/delete`, e TRUNCATE não é nenhum dos três. A
+trilha que a plataforma promete a um órgão público cabia inteira num
+comando que nenhum gatilho veria passar — e que é instantâneo, sem a
+janela de suspeita que um DELETE de milhões de linhas daria.
+
+## A correção: migração 0024
+
+Duas linhas de efeito e uma de conferência:
+
+1. `revoke truncate on all tables in schema public` para
+   `service_role`, `authenticated`, `anon` e `public` — o estoque;
+2. `alter default privileges for role postgres in schema public revoke
+   truncate on tables` — a fábrica, sem a qual a 0025 traz o problema
+   de volta calada;
+3. um bloco `do $$` que **falha a migração** se o catálogo não
+   corresponder ao que o cabeçalho afirma. Um `revoke` que não pega não
+   levanta erro: devolve sucesso sem fazer nada.
+
+`postgres` mantém TRUNCATE de propósito — é o dono das tabelas, tem tudo
+por construção do PostgreSQL, e revogar dele seria teatro.
+
+## Ensaiada antes de produção, nos dois níveis
+
+| Ensaio | Resultado |
+|---|---|
+| PostgreSQL local descartável, schema real, 22 migrações | `service_role` recusado com **42501** ao truncar `governanca_eventos` |
+| Projeto Supabase descartável (33 tabelas, os 6 `pg_default_acl` reais) | default de `postgres` passou de `arwdDxtm` a `arwdxtm`; tabela criada depois nasce sem TRUNCATE; `service_role` recusado com 42501 |
+| DELETE de `service_role` | **27 tabelas, intacto** — nada do que o app faz foi tocado |
+
+As provas estão em `tests/test_truncate_service_role.py` e rodam no CI
+com `GOVDOCS_EXIGIR_ENSAIO_SQL=1`, onde a ausência do PostgreSQL de
+ensaio é falha e não skip. Quatro mutações foram aplicadas para
+verificar que elas mordem: remover o revoke, remover o `alter default`,
+e cada uma delas de novo com o bloco de conferência desativado, para
+provar que os testes pegam sozinhos e não dependem da migração se
+autodenunciar.
+
+Uma das provas foi reescrita por passar pelo motivo errado: `truncate
+processos cascade` era recusado mesmo sem a 0024, porque o fecho do
+CASCADE toca uma tabela da 0021. Passou a criar o próprio par
+pai/filho depois de todas as migrações — assim o único motivo de
+recusa possível é o que a 0024 fez.
+
+## O que esta rodada NÃO resolve
+
+**`service_role` continua com DELETE em 26 tabelas e continua
+`BYPASSRLS`.** Quem obtiver a chave de servidor ainda apaga linha por
+linha, e o PostgREST expõe DELETE. Chamar a 0024 de "contenção da
+credencial de servidor" seria falso: ela tira da mesa o comando que
+apaga tudo sem rastro, não o acesso.
+
+O passo seguinte seria revogar DELETE onde o aplicativo não apaga. O
+aplicativo apaga em **3** tabelas — `config_orgaos` e `processos`
+(`src/db.py`) e `documentos_referencia` (`src/rag.py`) —, o que deixa
+**23** candidatas. Não foi feito aqui porque exige decidir, tabela a
+tabela, o que é retenção e o que é esquecimento; e porque quebrar uma
+escrita legítima para fechar um buraco hipotético é trocar de problema,
+não resolvê-lo. Fica como achado aberto, com o número medido.
+
+**A segunda entrada do `pg_default_acl` continua larga.** `public` tem
+duas: a de `postgres`, que a 0024 estreita, e uma de `supabase_admin`,
+que concede `arwdDxtm` a `anon`, `authenticated` e `service_role`.
+`postgres` não é membro de `supabase_admin` e não pode alterá-la. Hoje
+ela é inerte — as 32 tabelas de `public` são todas de `postgres` —, mas
+uma tabela que um recurso do Supabase venha a criar como
+`supabase_admin` nascerá larga, e nenhuma linha da 0024 impedirá isso.
