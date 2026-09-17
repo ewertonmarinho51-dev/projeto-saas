@@ -245,6 +245,34 @@ def test_nada_em_claude_carrega_segredo():
 
 
 # ---------------------------------------------------------------------------
+# 4b) O portão de segredos do CI — a guarda contra a regressão medida
+# ---------------------------------------------------------------------------
+def test_o_portao_do_ci_varre_so_as_linhas_adicionadas():
+    """
+    `--unified=0` é a correção de um portão que nasceu quebrado, e esta
+    prova existe para que ele não volte a quebrar do mesmo jeito.
+
+    A primeira versão do passo usava o modo derivado, que gera `git
+    diff` com 3 linhas de CONTEXTO — e o contexto entra na varredura. A
+    PR que criou o passo falhou por causa da referência do projeto
+    Supabase que já estava no `CLAUDE.md` da main, duas linhas acima de
+    uma edição sem relação com ela.
+
+    Portão que reprova por condição PREEXISTENTE na vizinhança do que
+    você editou é portão que se aprende a contornar. A pergunta certa é
+    "esta mudança INTRODUZ segredo?".
+    """
+    ci = (RAIZ / ".github" / "workflows" / "ci.yml").read_text()
+    assert "varredura_segredos.py" in ci, "o portão de segredos sumiu do CI"
+    assert "--unified=0" in ci, (
+        "a varredura voltou a incluir linhas de contexto: uma condição "
+        "preexistente perto de uma edição passa a reprovar a PR")
+    assert "fetch-depth: 0" in ci, (
+        "sem histórico não há base para comparar, e a varredura seria "
+        "pulada calada")
+
+
+# ---------------------------------------------------------------------------
 # 5) A FRONTEIRA — a prova que existe para ser desobedecida algum dia
 # ---------------------------------------------------------------------------
 def test_o_aplicativo_nao_conhece_a_camada_de_automacao():
