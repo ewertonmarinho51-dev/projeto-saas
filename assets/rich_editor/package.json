@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "esbuild editor.js --bundle --format=esm --target=es2020 --outfile=editor.bundle.js --minify --legal-comments=eof",
-    "test": "node --test editor.test.js"
+    "test": "node --test editor.test.js govbot.test.js"
   },
   "dependencies": {
     "@tiptap/core": "3.31.3",
