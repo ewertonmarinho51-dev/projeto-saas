@@ -10,6 +10,15 @@
       "headers": {
         "Authorization": "${CONTEXT7_API_KEY:-}"
       }
+    },
+    "headroom": {
+      "type": "stdio",
+      "command": "headroom",
+      "args": ["mcp", "serve"],
+      "env": {
+        "HEADROOM_BEACON": "off",
+        "DO_NOT_TRACK": "1"
+      }
     }
   }
 }

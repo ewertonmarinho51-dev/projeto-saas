@@ -58,6 +58,8 @@ manda.
 | Camada | Estado |
 |---|---|
 | Cartographer | `.mcp.json` versionado. Mapa do código, **não** do produto |
+| context7 | `.mcp.json`. Documentação viva das bibliotecas |
+| Headroom | `.mcp.json`. Comprime saída de ferramenta. **Só para o agente** — medido: a planilha de 210 itens comprime 41% perdendo 463 números |
 | Skills | `caveman`, `design-taste`, `design-minimalist`, `revisar-migracao`, `prova-com-dente`, esta |
 | Hooks | `.claude/settings.json` — bloqueio de segredo (PreToolUse), provas relacionadas (PostToolUse) |
 | Subagentes | `revisor-de-banco-e-seguranca` |
@@ -151,10 +153,17 @@ Elas não são negociáveis por uma recomendação:
 
 ## Fronteira com as outras camadas
 
+As quatro camadas, sem sobreposição: **Cartographer = Repository
+Intelligence**, **context7 = Documentation Intelligence**, **Headroom =
+Context Optimization**, **esta skill = Tool Intelligence**. O Headroom
+vem sempre DEPOIS das outras — ele comprime o que elas produziram, nunca
+antes e nunca no lugar delas.
+
 | Pergunta | Ferramenta |
 |---|---|
 | onde está esse código? | Cartographer |
 | documentação atualizada de biblioteca | ferramenta de docs (context7, se instalada) |
+| essa saída de ferramenta é grande demais | Headroom — e só ela: nunca em conteúdo que vira documento |
 | schema, RLS, grants, dados | ferramenta Supabase |
 | PR, issue, CI | ferramenta GitHub |
 | essa migração está segura? | subagente `revisor-de-banco-e-seguranca` |
