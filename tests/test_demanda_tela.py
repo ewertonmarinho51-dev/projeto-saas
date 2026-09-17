@@ -153,13 +153,30 @@ def test_a_flag_nasce_desligada():
     §34. A etapa muda a ORIGEM da planilha do processo; ligada sem
     auditoria, colocaria uma quantidade consolidada dentro de um edital
     antes de alguém conferir a conta.
+
+    Olha o SQL, não o texto cru do arquivo.
+
+    A versão anterior casava `'on'` em qualquer lugar — e reprovou no dia
+    em que um COMENTÁRIO do cabeçalho passou a registrar que, em
+    produção, a flag foi ligada depois. O comentário estava certo e a
+    migração continuava inserindo `'off'`: era falso positivo.
+
+    Comentário não liga flag. Tirá-los antes de comparar mantém os
+    dentes da prova sobre o que importa, que é o SQL executável.
     """
     from pathlib import Path
 
     migracoes = Path(__file__).resolve().parents[1] / "supabase" / "migrations"
-    ligada = [
-        m.name for m in migracoes.glob("*.sql")
-        if "demand_consolidation" in m.read_text(encoding="utf-8")
-        and "'on'" in m.read_text(encoding="utf-8")
-    ]
+
+    def so_o_sql(texto: str) -> str:
+        return "\n".join(
+            linha for linha in texto.splitlines()
+            if not linha.lstrip().startswith("--")
+        )
+
+    ligada = []
+    for m in migracoes.glob("*.sql"):
+        sql = so_o_sql(m.read_text(encoding="utf-8"))
+        if "demand_consolidation" in sql and "'on'" in sql:
+            ligada.append(m.name)
     assert not ligada, ligada
