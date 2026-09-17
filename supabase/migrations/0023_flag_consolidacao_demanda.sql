@@ -5,7 +5,11 @@
 -- ##  ESTADO: APLICÁVEL. Uma linha em `config_app`, com valor
 -- ##  'off'. Não cria tabela, não altera coluna, não toca RLS.
 -- ##
--- ##  NÃO APLICADA EM PRODUÇÃO nesta entrega, conforme o escopo.
+-- ##  APLICADA EM PRODUÇÃO em 17/09/2026, a pedido do operador,
+-- ##  como `m0023_flags_consolidacao_demanda_e_correcao_parecer`.
+-- ##  As duas flags entraram como 'off' e foram LIGADAS em
+-- ##  seguida, também a pedido — o estado atual de produção é
+-- ##  'on' para as duas, não o 'off' que este arquivo insere.
 -- ############################################################
 
 -- ===============================================================
