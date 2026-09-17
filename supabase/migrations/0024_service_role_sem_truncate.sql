@@ -5,8 +5,16 @@
 -- ##  default. Não cria tabela, não altera coluna, não apaga
 -- ##  dado, não mexe em política de RLS nem em credencial.
 -- ##
--- ##  NÃO APLICADA EM PRODUÇÃO por este arquivo. Quando for,
--- ##  este cabeçalho registra a data, como a 0022 e a 0023.
+-- ##  APLICADA EM PRODUÇÃO em 17/09/2026, a pedido do operador,
+-- ##  como `m0024_service_role_sem_truncate`. Antes: TRUNCATE
+-- ##  para `service_role` em 26 das 32 tabelas. Depois: só
+-- ##  `postgres`, nas 32. O DELETE de `service_role` seguiu em
+-- ##  26 — intocado, como este arquivo promete. Conferido
+-- ##  também por comportamento, numa tabela descartável criada
+-- ##  e apagada na hora: `service_role` recusado com 42501.
+-- ##  Nenhuma tabela real foi alvo de TRUNCATE, nem dentro de
+-- ##  rollback. 6 processos, 2 usuários e 40 chaves de
+-- ##  configuração continuam lá.
 -- ############################################################
 
 -- ===============================================================
