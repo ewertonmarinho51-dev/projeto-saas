@@ -87,7 +87,7 @@ def _contexto_topbar() -> tuple[str, str]:
     etapa = int(st.session_state.get("etapa") or 0)
     if etapa == 0:
         atual = "Novo processo"
-    elif 1 <= etapa <= 4:
+    elif 1 <= etapa <= len(state.sequencia()):
         doc_key = state.doc_da_etapa(etapa)
         atual = DOCUMENTOS[doc_key]["sigla"]
     else:
@@ -195,16 +195,19 @@ def render_stepper(etapa_atual: int) -> None:
     disponiveis = state.etapas_navegaveis()
     aprovados = set(st.session_state.get("aprovados") or set())
     dados = bool(st.session_state.get("dados"))
-    colunas = st.columns(len(ETAPAS), gap="small")
-    for i, nome in enumerate(ETAPAS):
+    etapas = state.etapas()
+    from ..operacao_documento import ocupada
+    em_operacao = ocupada(st.session_state)
+    colunas = st.columns(len(etapas), gap="small")
+    for i, nome in enumerate(etapas):
         rotulo = nome.split(". ", 1)[-1]
         if i == etapa_atual:
             classe = "gc-step-current"
         elif i == 0 and dados:
             classe = "gc-step-done"
-        elif 1 <= i <= 4 and state.doc_da_etapa(i) in aprovados:
+        elif 1 <= i <= len(state.sequencia()) and state.doc_da_etapa(i) in aprovados:
             classe = "gc-step-done"
-        elif i == 5 and i < etapa_atual:
+        elif i == len(etapas) - 1 and i < etapa_atual:
             classe = "gc-step-done"
         else:
             classe = "gc-step-future"
@@ -218,7 +221,7 @@ def render_stepper(etapa_atual: int) -> None:
                 rotulo,
                 key=f"navegar_etapa_{i}",
                 type="secondary",
-                disabled=i not in disponiveis,
+                disabled=em_operacao or i not in disponiveis,
                 help=("Abrir esta etapa" if i in disponiveis else
                       "Conclua e aprove as etapas anteriores para acessar."),
                 use_container_width=True,

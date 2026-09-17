@@ -136,10 +136,14 @@ def test_o_script_inicia_e_recusa_em_vez_de_estourar(script, mapa_valido):
     """
     ambiente = {"PATH": os.environ.get("PATH", ""),
                 "HOME": os.environ.get("HOME", "")}
+    # Runtime Windows e saída UTF-8, sem herdar credenciais da sessão.
+    ambiente["PYTHONUTF8"] = "1"
+    if os.environ.get("SYSTEMROOT"):
+        ambiente["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
     resultado = subprocess.run(
         [sys.executable, str(RAIZ / "scripts" / script),
          "--mapa", str(mapa_valido), *ARGUMENTOS[script]],
-        capture_output=True, text=True, timeout=120, env=ambiente, cwd=RAIZ)
+        capture_output=True, text=True, encoding="utf-8", timeout=120, env=ambiente, cwd=RAIZ)
 
     assert "ImportError" not in resultado.stderr, resultado.stderr
     assert "Traceback" not in resultado.stderr, resultado.stderr

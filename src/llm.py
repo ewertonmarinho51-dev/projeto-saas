@@ -584,7 +584,7 @@ def gerar_instrumento_oficial(doc_key: str, dados: dict) -> str:
 
 def gerar_documento(doc_key: str, dados: dict,
                     contexto_anterior: str | None,
-                    instrucoes_extra: str = "") -> str:
+                    instrucoes_extra: str = "", *, progresso=None) -> str:
     """
     Gera o documento `doc_key` ('dfd' | 'etp' | 'tr' | 'edital' | 'arp').
 
@@ -612,14 +612,22 @@ def gerar_documento(doc_key: str, dados: dict,
     from . import planilha
 
     if doc_key in templates_gov.TEMPLATES_OFICIAIS:
+        if progresso:
+            progresso("GERANDO")
         return gerar_instrumento_oficial(doc_key, dados)
 
     if st.session_state.get("modo_demo", False):
+        if progresso:
+            progresso("GERANDO")
         # Fallback EXPLÍCITO (nunca silencioso): só ocorre com o toggle
         # "Modo Demonstração" ligado pelo usuário; registrado como tal.
         inicio = time.time()
-        texto = planilha.injetar_tabela(_gerar_demo(doc_key, dados),
-                                        dados.get("itens"))
+        if doc_key == "mapa_riscos":
+            from .mapa_riscos import minuta_demo
+            texto = minuta_demo(dados)
+        else:
+            texto = planilha.injetar_tabela(_gerar_demo(doc_key, dados),
+                                            dados.get("itens"))
         registrar_geracao(doc_key, "demo", inicio, "ok", fallback=True)
         # esqueleto offline não consulta a base: rastro vazio, mas do
         # documento certo (o anterior não pode ficar valendo)
@@ -666,10 +674,13 @@ def gerar_documento(doc_key: str, dados: dict,
     # O laço substituiu duas cópias do mesmo try/except. Com três motores
     # seriam três, e a terceira já nasceria divergindo: era na cópia do
     # Gemini que `fallback=` estava preenchido, e na da OpenAI não.
+    if progresso:
+        progresso("GERANDO")
     texto = _percorrer_motores(doc_key, system_prompt, user_prompt,
-                               rag_trace=rag_trace, avisar=True)
+                               rag_trace=rag_trace, avisar=progresso is None)
     # Injeta a tabela real da planilha (grande) no lugar da marca [[TABELA_ITENS]].
-    final = planilha.injetar_tabela(texto, dados.get("itens"))
+    final = (texto if doc_key == "mapa_riscos" else
+             planilha.injetar_tabela(texto, dados.get("itens")))
     _associar_rag_trace(doc_key, rag_trace, final)
     return final
 

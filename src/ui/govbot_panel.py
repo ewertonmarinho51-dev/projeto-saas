@@ -21,7 +21,7 @@ from typing import Any
 import streamlit as st
 
 from .. import achados, blocos, fatos, govbot, rag, state
-from ..config import SEQUENCIA_DOCUMENTOS
+from ..config import SEQUENCIA_COM_MAPA as SEQUENCIA_DOCUMENTOS, sequencia_do_processo
 from .govbot_component import render_govbot
 
 
@@ -71,8 +71,9 @@ def _sessao() -> MutableMapping[str, Any]:
 
 def _documento_atual(sessao: Mapping[str, Any]) -> str | None:
     etapa = int(sessao.get("etapa") or 0)
-    if 1 <= etapa <= len(SEQUENCIA_DOCUMENTOS):
-        return SEQUENCIA_DOCUMENTOS[etapa - 1]
+    ordem = sequencia_do_processo(sessao.get("dados"), sessao.get("documentos"))
+    if 1 <= etapa <= len(ordem):
+        return ordem[etapa - 1]
     return None
 
 
@@ -740,6 +741,9 @@ def _processar_evento(
     bruto: Mapping[str, Any],
 ) -> bool:
     focos_da_tela = _focos_da_tela(sessao)
+    from ..operacao_documento import ocupada
+    if ocupada(sessao):
+        raise govbot.ErroGovBot("Aguarde a conclusão do documento antes de continuar.")
     evento = govbot.parsear_evento(
         bruto, bucket, focos_permitidos=focos_da_tela,
         rascunhos_permitidos=focos_da_tela,
@@ -747,6 +751,51 @@ def _processar_evento(
     if evento.focus is not None:
         bucket["_last_focus"] = evento.focus
     govbot.guardar_rascunho(sessao, evento.draft)
+
+    if evento.event_type == "alert":
+        from .. import db, govbot_alertas
+        from dataclasses import replace
+        if not db.flag_ativa("govbot_alertas"):
+            raise govbot.ErroGovBot("Os alertas não estão disponíveis nesta sessão.")
+        govbot_alertas.avaliar(sessao, bucket)
+        acao, _, identificador = evento.text.partition(":")
+        if acao not in {"explain", "defer", "locate", "suggest", "resolve"}:
+            raise govbot.ErroGovBot("Ação de alerta desconhecida.")
+        if acao == "resolve":
+            atual = bucket.get("alertas", {}).get("itens", {}).get(identificador)
+            if atual is None:
+                raise govbot.ErroGovBot("Alerta não encontrado neste processo.")
+            mensagem = ("A verificação confirmou a resolução deste alerta."
+                        if atual["estado"] == "RESOLVIDO" else
+                        "O apontamento ainda aparece na verificação. Corrija a origem ou adie sua análise.")
+            govbot.adicionar_mensagem(bucket, "assistant", mensagem)
+            govbot.marcar_processado(bucket, evento.request_id, {"applied": False})
+            return False
+        try:
+            alerta = govbot_alertas.marcar(bucket, identificador, "ADIADO" if acao == "defer" else "VISTO")
+        except ValueError as erro:
+            raise govbot.ErroGovBot(str(erro)) from erro
+        if acao != "suggest":
+            govbot.marcar_processado(bucket, evento.request_id, {"applied": False})
+            if acao == "explain":
+                govbot.adicionar_mensagem(bucket, "assistant", alerta["descricao"] + "\n\n" +
+                    str(alerta.get("resultadoEsperado") or "Revise os dados de origem.") + "\n\n" +
+                    "\n".join(str(e) for e in alerta.get("evidencia", [])))
+            elif acao == "locate":
+                doc = alerta.get("documentId")
+                etapa_alvo = 0 if doc == "formulario" else (
+                    state.sequencia().index(doc) + 1 if doc in state.sequencia() else -1)
+                if etapa_alvo not in state.etapas_navegaveis():
+                    raise govbot.ErroGovBot("Revise e aprove as etapas anteriores para abrir este documento.")
+                state.navegar_pelo_stepper(etapa_alvo)
+                return True
+            return False
+        doc = alerta.get("documentId")
+        foco = alerta.get("campo") if doc == "formulario" else f"editor_{doc}"
+        if foco not in focos_da_tela:
+            raise govbot.ErroGovBot("Use Localizar para abrir o campo ou documento antes de pedir uma sugestão.")
+        evento = replace(evento, event_type="message", focus=foco,
+                         text="Sugira uma correção para revisão humana, sem aplicar: " + alerta["descricao"])
 
     if evento.event_type == "apply_proposal":
         return _aplicar_proposta(
@@ -819,6 +868,10 @@ def _view_model(
         for campo in govbot.CAMPOS_ESCALARES
     }
     view["form_version"] = govbot.hash_canonico(escalares_atuais)
+    from .. import db, govbot_alertas
+    if db.flag_ativa("govbot_alertas"):
+        view["alerts"] = govbot_alertas.avaliar(sessao, bucket)
+        view["alert_count"] = sum(a["estado"] in {"NOVO", "VISTO"} for a in view["alerts"])
     # Exibe apenas a proposta mais recente; as anteriores continuam no bucket
     # para auditoria efêmera, mas não viram botões potencialmente obsoletos.
     view["proposals"] = [

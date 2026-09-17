@@ -1,0 +1,20 @@
+{
+  "name": "govdocs-rich-editor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild editor.js --bundle --format=esm --target=es2020 --outfile=editor.bundle.js --minify --legal-comments=eof",
+    "test": "node --test editor.test.js"
+  },
+  "dependencies": {
+    "@tiptap/core": "3.31.3",
+    "@tiptap/extension-table": "3.31.3",
+    "@tiptap/markdown": "3.31.3",
+    "@tiptap/starter-kit": "3.31.3",
+    "dompurify": "3.4.15"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "jsdom": "30.0.1"
+  }
+}

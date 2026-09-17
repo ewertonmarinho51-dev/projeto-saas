@@ -45,3 +45,7 @@ pillow>=10.0.0
 
 # Importação da planilha orçamentária de arquivos Excel (.xlsx)
 openpyxl>=3.1.0
+
+# Editor visual e exportação: parsing canônico e sanitização local.
+markdown-it-py==4.0.0
+bleach==6.2.0

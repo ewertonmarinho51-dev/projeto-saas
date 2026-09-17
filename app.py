@@ -76,6 +76,16 @@ if not auth.modo_aberto() and not auth.usuario_logado():
         login.render_bootstrap_admin()
     st.stop()
 
+state.configurar_fluxo()
+from src.operacao_documento import ocupada as geracao_ocupada
+if geracao_ocupada(st.session_state):
+    @st.fragment(run_every="1s")
+    def aguardar_documento():
+        if not geracao_ocupada(st.session_state):
+            st.rerun(scope="app")
+        st.info("Seu documento está sendo elaborado. Aguarde a conclusão.")
+    aguardar_documento()
+    st.stop()
 components.render_sidebar()
 components.render_cabecalho()
 
@@ -166,7 +176,7 @@ etapa = st.session_state.etapa
 
 if etapa == 0:
     steps.render_formulario()
-elif 1 <= etapa <= 4:
+elif 1 <= etapa <= len(state.sequencia()):
     # Proteção de sequência: não permite pular etapas sem aprovar as anteriores
     doc_key = state.doc_da_etapa(etapa)
     anterior = state.doc_da_etapa(etapa - 1) if etapa > 1 else None
@@ -182,8 +192,10 @@ elif 1 <= etapa <= 4:
         steps.render_etapa_documento(doc_key)
 else:
     # Só chega à tela de conclusão com os 4 documentos aprovados
-    if len(st.session_state.aprovados) < 4:
-        state.ir_para(0 if not st.session_state.dados else len(st.session_state.aprovados) + 1)
+    if not set(state.sequencia()).issubset(st.session_state.aprovados):
+        faltante = next(i for i, d in enumerate(state.sequencia(), 1)
+                        if d not in st.session_state.aprovados)
+        state.ir_para(0 if not st.session_state.dados else faltante)
     else:
         steps.render_sucesso()
 
