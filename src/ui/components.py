@@ -275,9 +275,18 @@ def render_sidebar() -> None:
         # monta a cesta e decide sobre um discrepante é quem elabora o
         # processo. Por isso ela entra na navegação dos dois papéis —
         # mas só quando a flag está ligada, e ela nasce desligada.
-        from . import precos_ui
+        from . import demanda_ui, parecer_ui, precos_ui
 
         tem_precos = precos_ui.disponivel()
+        # "Consolidar Demandas" entra ANTES de "Novo processo", que é a
+        # ordem do fluxo real (§4): o servidor recebe os pedidos das
+        # secretarias e só então preenche o formulário. Como a Pesquisa
+        # de Preços, é opcional e nasce desligada — processo de uma
+        # secretaria só não tem o que consolidar.
+        tem_demanda = demanda_ui.disponivel()
+        # O parecer chega DEPOIS dos documentos prontos, então
+        # a aba fica no fim da navegação — é o fim do fluxo.
+        tem_parecer = parecer_ui.disponivel()
         if auth.eh_admin():
             opcoes = ["Novo processo", "Processos", "Base de Conhecimento",
                       "Administração"]
@@ -287,6 +296,10 @@ def render_sidebar() -> None:
                 opcoes.append("Governança")
             if tem_precos:
                 opcoes.append("Pesquisa de Preços")
+            if tem_parecer:
+                opcoes.append("Parecer Jurídico")
+            if tem_demanda:
+                opcoes.insert(0, "Consolidar Demandas")
             if st.session_state.get("pagina") == "Assistente de Documentos":
                 st.session_state.pagina = "Novo processo"
             if st.session_state.get("pagina") not in opcoes:
@@ -303,6 +316,10 @@ def render_sidebar() -> None:
             opcoes = ["Novo processo", "Processos"]
             if tem_precos:
                 opcoes.append("Pesquisa de Preços")
+            if tem_parecer:
+                opcoes.append("Parecer Jurídico")
+            if tem_demanda:
+                opcoes.insert(0, "Consolidar Demandas")
             if st.session_state.get("pagina") not in opcoes:
                 st.session_state.pagina = "Novo processo"
             st.radio("Navegação", options=opcoes, key="pagina",
