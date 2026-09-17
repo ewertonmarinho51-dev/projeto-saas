@@ -106,6 +106,16 @@ if pagina == "Governança" and governanca_ui.disponivel():
     # Centro de Governança (V6): flag + papel de governança obrigatórios
     governanca_ui.render_governanca()
     st.stop()
+if pagina == "Parecer Jurídico":
+    # Fim do fluxo: o processo já tem documentos e recebe depois um
+    # parecer jurídico que os corrige.
+    from src.ui import parecer_ui
+
+    if parecer_ui.disponivel():
+        parecer_ui.render_parecer()
+        st.stop()
+    st.session_state.pagina = "Novo processo"
+
 if pagina == "Consolidar Demandas":
     # Etapa opcional, antes do formulário: junta os Documentos de
     # Formalização de Demanda das secretarias numa planilha só.

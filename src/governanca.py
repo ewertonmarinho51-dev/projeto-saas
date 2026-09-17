@@ -344,6 +344,12 @@ FLAG_PESQUISA_PRECOS = "price_research"
 # edital antes de alguém conferir a conta.
 FLAG_CONSOLIDACAO = "demand_consolidation"
 
+# Correção dos documentos a partir de um parecer jurídico. Nasce
+# DESLIGADA: ela ALTERA documentos já gerados e retira aprovações. Ligar
+# sem auditoria deixaria um parecer mal interpretado reescrever cláusula
+# de edital.
+FLAG_CORRECAO_PARECER = "legal_opinion_correction"
+
 FLAGS_V6 = (
     FLAG_CENTRO, FLAG_CATALOGO, FLAG_POLITICAS_VISUAL,
     FLAG_FAMILIAS_SHADOW, FLAG_FAMILIAS_ATIVA, FLAG_TEMPLATES,

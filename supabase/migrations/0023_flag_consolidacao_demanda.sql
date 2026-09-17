@@ -1,5 +1,6 @@
 -- ############################################################
--- ##  0023 — Flag da consolidação de demandas
+-- ##  0023 — Flags da consolidação de demandas e da correção
+-- ##            por parecer jurídico
 -- ##
 -- ##  ESTADO: APLICÁVEL. Uma linha em `config_app`, com valor
 -- ##  'off'. Não cria tabela, não altera coluna, não toca RLS.
@@ -52,3 +53,16 @@ on conflict (chave) do nothing;
 comment on table public.config_app is
   'Configuração e feature flags do aplicativo. Flags usam a chave '
   'flag_<nome_em_ingles> e nascem desligadas.';
+
+-- ===============================================================
+-- A flag da correção por parecer jurídico, também desligada.
+--
+-- Está na mesma migração porque as duas nascem juntas e pelo mesmo
+-- motivo: alteram documento que vai ao processo administrativo. Esta é
+-- a mais sensível das duas — ela REESCREVE cláusula de documento já
+-- gerado e retira aprovações. Ligada sem auditoria, um parecer mal
+-- interpretado mudaria o edital.
+-- ===============================================================
+insert into public.config_app (chave, valor)
+values ('flag_legal_opinion_correction', 'off')
+on conflict (chave) do nothing;

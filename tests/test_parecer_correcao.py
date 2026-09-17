@@ -488,3 +488,139 @@ def test_a_versao_pre_parecer_sobrevive_a_aplicacao():
     pc.aplicar(plano, DOCUMENTOS, {"tr"}, gerar=gerar, aplicar_patch=aplicar_patch)
 
     assert plano.original == DOCUMENTOS
+
+
+# ---------------------------------------------------------------------------
+# A tela
+# ---------------------------------------------------------------------------
+def _app(monkeypatch, *, flag=True, documentos=None):
+    from pathlib import Path
+
+    from streamlit.testing.v1 import AppTest
+
+    from src import auth, db, governanca
+
+    monkeypatch.setattr(db, "disponivel", lambda: True)
+    monkeypatch.setattr(db, "flag_ativa",
+                        lambda nome: flag and nome == governanca.FLAG_CORRECAO_PARECER)
+    monkeypatch.setattr(auth, "tem_admin", lambda: True)
+    monkeypatch.setattr(auth, "precisa_configurar", lambda: False)
+    monkeypatch.setattr(auth, "modo_aberto", lambda: False)
+    at = AppTest.from_file(
+        str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=60)
+    at.secrets["SUPABASE_URL"] = ""
+    at.secrets["SUPABASE_KEY"] = ""
+    at.session_state["usuario"] = {"id": "u1", "nome": "S", "login": "s",
+                                   "papel": "usuario"}
+    if documentos is not None:
+        at.session_state["documentos"] = documentos
+    return at
+
+
+def test_a_aba_do_parecer_segue_a_flag(monkeypatch):
+    at = _app(monkeypatch, flag=True)
+    at.run()
+    opcoes = [r for r in at.radio if r.key == "pagina"][0].options
+    assert "Parecer Jurídico" in opcoes
+
+    at = _app(monkeypatch, flag=False)
+    at.run()
+    opcoes = [r for r in at.radio if r.key == "pagina"][0].options
+    assert "Parecer Jurídico" not in opcoes
+
+
+def test_a_aba_do_parecer_fica_no_fim_do_fluxo(monkeypatch):
+    """O parecer chega depois dos documentos prontos."""
+    at = _app(monkeypatch, flag=True)
+    at.run()
+    opcoes = [r for r in at.radio if r.key == "pagina"][0].options
+
+    assert opcoes.index("Parecer Jurídico") > opcoes.index("Novo processo")
+
+
+def test_sem_processo_aberto_a_tela_diz_o_que_fazer(monkeypatch):
+    """
+    Parecer corrige DOCUMENTO. Sem processo carregado não há o que
+    corrigir — e a tela manda abrir um em vez de mostrar upload que não
+    levaria a nada.
+    """
+    at = _app(monkeypatch, flag=True)
+    at.session_state["pagina"] = "Parecer Jurídico"
+    at.run()
+
+    assert not at.exception
+    avisos = " ".join(i.value for i in at.info)
+    assert "Processos" in avisos
+    assert not at.file_uploader
+
+
+def test_com_processo_aberto_a_tela_pede_o_parecer(monkeypatch):
+    at = _app(monkeypatch, flag=True, documentos=DOCUMENTOS)
+    at.session_state["pagina"] = "Parecer Jurídico"
+    at.run()
+
+    assert not at.exception
+    assert at.file_uploader
+
+
+def test_com_a_flag_desligada_a_rota_nao_abre(monkeypatch):
+    """
+    Navegação escondida não é autorização: quem forçar a página na sessão
+    volta ao wizard.
+
+    A asserção é sobre o upload DO PARECER, não sobre existir upload na
+    tela: o formulário matriz tem um próprio, para importar planilha, e
+    exigir "nenhum file_uploader" passaria por acidente hoje e quebraria
+    no dia em que o wizard ganhasse outro campo.
+    """
+    at = _app(monkeypatch, flag=False, documentos=DOCUMENTOS)
+    at.session_state["pagina"] = "Parecer Jurídico"
+    at.run()
+
+    assert not at.exception
+    assert not any("Parecer jurídico" in (u.label or "")
+                   for u in at.file_uploader)
+
+
+def test_o_plano_aparece_antes_de_qualquer_botao_de_aplicar(monkeypatch):
+    """
+    A regra que atravessa a tela: nada é alterado antes de o servidor ver
+    o plano inteiro. O botão de aplicar só existe com o plano na tela.
+    """
+    at = _app(monkeypatch, flag=True, documentos=DOCUMENTOS)
+    at.session_state["pagina"] = "Parecer Jurídico"
+    at.run()
+
+    assert not any("Aplicar" in (b.label or "") for b in at.button)
+
+
+def test_com_plano_na_sessao_a_tela_mostra_os_apontamentos(monkeypatch):
+    at = _app(monkeypatch, flag=True, documentos=DOCUMENTOS)
+    at.session_state["pagina"] = "Parecer Jurídico"
+    at.session_state["parecer_plano"] = pc.planejar([
+        _achado(),
+        _achado(correcao_solicitada="Definir a modalidade adequada."),
+    ], DOCUMENTOS)
+    at.run()
+
+    assert not at.exception
+    texto = " ".join(m.value for m in at.markdown)
+    assert "2 apontamentos" in texto
+    assert any("Aplicar" in (b.label or "") for b in at.button)
+
+
+def test_parecer_so_com_pendencia_nao_oferece_aplicar(monkeypatch):
+    """
+    Sem correção automática não há o que aplicar — e um botão que não
+    faria nada é pior do que a ausência dele.
+    """
+    at = _app(monkeypatch, flag=True, documentos=DOCUMENTOS)
+    at.session_state["pagina"] = "Parecer Jurídico"
+    at.session_state["parecer_plano"] = pc.planejar([
+        _achado(correcao_solicitada="Definir a modalidade adequada."),
+    ], DOCUMENTOS)
+    at.run()
+
+    assert not any("Aplicar" in (b.label or "") for b in at.button)
+    avisos = " ".join(i.value for i in at.info)
+    assert "não decide no seu lugar" in avisos
