@@ -1414,3 +1414,235 @@ def rotulo_processo(proc: dict) -> str:
     orgao = (proc.get("orgao") or "sem órgão")[:35]
     objeto = (proc.get("objeto") or "sem objeto")[:45]
     return f"{quando} — {orgao} — {objeto}"
+
+
+# ===========================================================================
+# MULTI-PREFEITURAS — módulos, servidores, funções, portarias, assinaturas
+# (migração 0025)
+#
+# REGRA QUE VALE PARA TODAS AS FUNÇÕES ABAIXO: `tenant_id` vem de
+# `tenant_atual()`, que deriva do vínculo do usuário autenticado — NUNCA
+# de parâmetro. Nenhuma assinatura aqui aceita tenant, e isso é
+# deliberado: um parâmetro opcional de tenant é um convite a alguém
+# passá-lo a partir da tela, e o §4 do escopo proíbe exatamente isso.
+#
+# A RLS da 0025 recusaria de qualquer jeito. Esta camada não é a
+# contenção — é a primeira linha, e existe para que a segunda nunca
+# precise ser exercida.
+# ===========================================================================
+def modulos_do_tenant() -> dict[str, bool]:
+    """`{modulo: habilitado}` da prefeitura atual."""
+    try:
+        linhas = (_cliente().table("tenant_modulos")
+                  .select("modulo, habilitado")
+                  .eq("tenant_id", tenant_atual()).execute()).data or []
+        return {l["modulo"]: bool(l["habilitado"]) for l in linhas}
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def salvar_modulo_do_tenant(modulo: str, habilitado: bool) -> None:
+    try:
+        (_cliente().table("tenant_modulos")
+         .upsert({"tenant_id": tenant_atual(), "modulo": modulo,
+                  "habilitado": habilitado},
+                 on_conflict="tenant_id,modulo").execute())
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def modulos_da_secretaria(secretaria_id: str) -> dict[str, str]:
+    """`{modulo: estado}` — HERDAR, HABILITADO ou DESABILITADO."""
+    try:
+        linhas = (_cliente().table("secretaria_modulos")
+                  .select("modulo, estado")
+                  .eq("secretaria_id", secretaria_id).execute()).data or []
+        return {l["modulo"]: l["estado"] for l in linhas}
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def salvar_modulo_da_secretaria(secretaria_id: str, modulo: str,
+                                estado: str) -> None:
+    """
+    Recusa HABILITADO quando a prefeitura não tem o módulo.
+
+    A checagem é aqui e não no banco porque um CHECK precisaria consultar
+    outra tabela — o que em PostgreSQL vira gatilho, e gatilho que valida
+    hierarquia de configuração transforma erro de tela em erro de banco
+    sem ganho de contenção: quem escreve nesta tabela já é `e_admin()` do
+    próprio tenant.
+    """
+    from . import modulos as _modulos
+
+    estado = _modulos.estado_valido(estado)
+    if not _modulos.pode_habilitar_na_secretaria(
+            no_tenant=modulos_do_tenant().get(modulo, False), estado=estado):
+        raise ErroBanco(
+            f"O módulo '{modulo}' não está habilitado para esta prefeitura. "
+            "Habilite-o no nível da Prefeitura antes de liberá-lo para uma "
+            "secretaria.")
+    try:
+        (_cliente().table("secretaria_modulos")
+         .upsert({"secretaria_id": secretaria_id, "tenant_id": tenant_atual(),
+                  "modulo": modulo, "estado": estado},
+                 on_conflict="secretaria_id,modulo").execute())
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def modulo_disponivel(modulo: str, secretaria_id: str | None = None) -> bool:
+    """
+    A resposta que a navegação consulta. Os três níveis de uma vez.
+
+    Falha do banco devolve o valor da FLAG GLOBAL, e não `False`: o
+    módulo deixar de aparecer porque o Supabase piscou seria uma queda de
+    funcionalidade causada pela camada que existe para organizá-la.
+    """
+    from . import modulos as _modulos
+
+    global_ = flag_ativa(modulo)
+    if not global_:
+        return False
+    try:
+        no_tenant = modulos_do_tenant().get(modulo, False)
+        estado = (modulos_da_secretaria(secretaria_id).get(modulo, _modulos.HERDAR)
+                  if secretaria_id else _modulos.HERDAR)
+    except ErroBanco:
+        return global_
+    return _modulos.resolver(flag_global=global_, no_tenant=no_tenant,
+                             na_secretaria=_modulos.estado_valido(estado))
+
+
+def listar_servidores(incluir_inativos: bool = False) -> list[dict]:
+    try:
+        consulta = (_cliente().table("servidores").select("*")
+                    .eq("tenant_id", tenant_atual()))
+        if not incluir_inativos:
+            consulta = consulta.eq("ativo", True)
+        return (consulta.order("nome").execute()).data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def salvar_servidor(registro: dict, servidor_id: str | None = None) -> str:
+    registro = {k: v for k, v in registro.items() if k != "tenant_id"}
+    registro["tenant_id"] = tenant_atual()
+    try:
+        tabela = _cliente().table("servidores")
+        if servidor_id:
+            tabela.update(registro).eq("id", servidor_id).execute()
+            return servidor_id
+        resposta = tabela.insert(registro).execute()
+        return (resposta.data or [{}])[0].get("id", "")
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def listar_funcoes_administrativas() -> list[dict]:
+    """O domínio de funções — do produto, igual para toda prefeitura."""
+    try:
+        return (_cliente().table("funcoes_administrativas")
+                .select("*").order("ordem").execute()).data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def listar_funcoes_de_servidores(secretaria_id: str | None = None) -> list[dict]:
+    try:
+        consulta = (_cliente().table("servidor_funcoes").select("*")
+                    .eq("tenant_id", tenant_atual()).eq("ativo", True))
+        if secretaria_id:
+            consulta = consulta.or_(
+                f"secretaria_id.eq.{secretaria_id},secretaria_id.is.null")
+        return (consulta.execute()).data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def listar_portarias(secretaria_id: str | None = None,
+                     tipo: str | None = None) -> list[dict]:
+    try:
+        consulta = (_cliente().table("portarias").select("*")
+                    .eq("tenant_id", tenant_atual()))
+        if secretaria_id:
+            consulta = consulta.eq("secretaria_id", secretaria_id)
+        if tipo:
+            consulta = consulta.eq("tipo", tipo)
+        return (consulta.order("ano", desc=True).order("numero", desc=True)
+                .execute()).data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def salvar_portaria(registro: dict, portaria_id: str | None = None) -> str:
+    registro = {k: v for k, v in registro.items() if k != "tenant_id"}
+    registro["tenant_id"] = tenant_atual()
+    try:
+        tabela = _cliente().table("portarias")
+        if portaria_id:
+            tabela.update(registro).eq("id", portaria_id).execute()
+            return portaria_id
+        resposta = tabela.insert(registro).execute()
+        return (resposta.data or [{}])[0].get("id", "")
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def listar_membros_de_portaria(portaria_id: str) -> list[dict]:
+    """
+    Membros com o NOME do servidor resolvido — a tela precisa mostrar
+    gente, não uuid. O `join` é do PostgREST e respeita a RLS das duas
+    tabelas.
+    """
+    try:
+        linhas = (_cliente().table("portaria_membros")
+                  .select("*, servidores(nome, cargo, matricula, ativo)")
+                  .eq("portaria_id", portaria_id).eq("ativo", True)
+                  .order("ordem").execute()).data or []
+        for linha in linhas:
+            servidor = linha.pop("servidores", None) or {}
+            linha["nome"] = servidor.get("nome")
+            linha["cargo"] = servidor.get("cargo")
+            linha["servidor_ativo"] = servidor.get("ativo", True)
+        return linhas
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def salvar_membro_de_portaria(portaria_id: str, servidor_id: str,
+                              funcao: str, ordem: int = 100) -> None:
+    try:
+        (_cliente().table("portaria_membros")
+         .upsert({"portaria_id": portaria_id, "servidor_id": servidor_id,
+                  "tenant_id": tenant_atual(), "funcao": funcao,
+                  "ordem": ordem},
+                 on_conflict="portaria_id,servidor_id,funcao").execute())
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def gravar_signatarios(processo_id: str, doc_key: str,
+                       snapshots: list[dict]) -> None:
+    """
+    Congela os signatários de um documento. INSERT apenas — a 0025 não
+    concede UPDATE nem DELETE a papel nenhum de rede, de propósito:
+    documento assinado não muda de signatário depois de emitido.
+    """
+    if not snapshots:
+        return
+    linhas = [{**s, "processo_id": processo_id, "doc_key": doc_key,
+               "tenant_id": tenant_atual()} for s in snapshots]
+    try:
+        _cliente().table("documento_signatarios").insert(linhas).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def signatarios_do_documento(processo_id: str, doc_key: str) -> list[dict]:
+    try:
+        return (_cliente().table("documento_signatarios").select("*")
+                .eq("processo_id", processo_id).eq("doc_key", doc_key)
+                .order("ordem").execute()).data or []
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc

@@ -87,6 +87,18 @@ SEQUENCIA_EM_ENSAIO = (
     # ANTES desta sequência, e lá a 0024 conferiria um mundo em que a
     # 0020 ainda não passou. Passaria — sem ter provado nada.
     "0024_service_role_sem_truncate.sql",
+    # A 0025 entra DEPOIS da 0024, e a ordem é o conteúdo de novo: ela
+    # cria dez tabelas, e é o `alter default privileges` estreitado pela
+    # 0024 que faz cada uma delas NASCER sem TRUNCATE para
+    # `service_role`. Invertido, o ensaio provaria a contenção de tabelas
+    # que a 0024 já tinha alcançado e deixaria as novas de fora — que é
+    # exatamente o defeito que a 0021 cometeu e a 0024 consertou.
+    #
+    # E, como toda migração desta sequência, ela DEPENDE da 0020: as
+    # políticas chamam `tenant_do_jwt()`, `e_admin()` e
+    # `pode_ler_processo()`. No glob ela rodaria antes e quebraria por um
+    # motivo que não tem nada a ver com o conteúdo dela.
+    "0025_multi_prefeituras_servidores_portarias.sql",
 )
 
 

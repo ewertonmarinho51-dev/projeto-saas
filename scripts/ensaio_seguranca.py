@@ -270,11 +270,27 @@ def tabelas_do_inventario() -> list[str]:
     tabelas de 28, e o "CONTIDO" que ela imprimia não significava nada
     sobre as outras 22. Derivar do repositório faz a cobertura
     acompanhar cada migração nova automaticamente.
+
+    COMENTÁRIO NÃO É SQL, e a distinção custou um defeito real: a 0025
+    explica no texto dela que "`create table if not exists` que não cria
+    não levanta erro" — e o extrator leu essa frase como se fosse um
+    comando. O backtick depois de `exists` impediu o grupo opcional de
+    casar, a expressão recuou, e uma tabela chamada `if` entrou no
+    inventário de segurança.
+
+    Uma tabela fantasma aqui não é curiosidade: este inventário é o que a
+    varredura de contenção sonda, e ele alimenta a prova que conta quantas
+    tabelas existem em produção. Descartar `if` na saída trataria o
+    sintoma; o defeito é ler comentário como código.
     """
     nomes: set[str] = set()
     for arquivo in sorted(MIGRACOES.glob("*.sql")):
+        sql = "\n".join(
+            linha for linha in arquivo.read_text().splitlines()
+            if not linha.lstrip().startswith("--")
+        )
         nomes.update(m.group(1).lower()
-                     for m in _RE_CREATE_TABLE.finditer(arquivo.read_text()))
+                     for m in _RE_CREATE_TABLE.finditer(sql))
     nomes.discard("as")          # artefato de `create table … as select`
     return sorted(nomes)
 
