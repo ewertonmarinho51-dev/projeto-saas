@@ -2,6 +2,22 @@
   "name": "Python 3",
   // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
   "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
+  // Política de roteamento de modelo LIGADA em desenvolvimento.
+  //
+  // Este é o ambiente onde ela deve ser exercitada primeiro: aqui uma
+  // geração de documento que caia para motor não homologado FALHA em vez
+  // de rebaixar em silêncio, e é assim que se descobre, com o servidor
+  // ao lado, se a política está estreita demais.
+  //
+  // Produção NÃO herda daqui. O Streamlit Cloud instala `requirements.txt`
+  // e `packages.txt`; este arquivo é do devcontainer/Codespaces e não
+  // participa do deploy. Ligar lá é ato separado e deliberado.
+  //
+  // `OMNIROUTE_ENABLED` continua ausente de propósito: ela manda os
+  // motores compatíveis por um gateway, e não há gateway rodando.
+  "containerEnv": {
+    "OMNIROUTE_ROUTING_ENABLED": "true"
+  },
   "customizations": {
     "codespaces": {
       "openFiles": [

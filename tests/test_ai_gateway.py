@@ -204,7 +204,150 @@ def test_o_estado_mostra_endereco_e_nunca_chave(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 5) A POLÍTICA NÃO PODE SER MUDADA PELA TELA
+# 4b) A POLÍTICA NO CAMINHO REAL — não só na função pura
+#
+# As provas acima medem `roteamento` e `ai_gateway` isolados. Estas duas
+# atravessam `llm.gerar_documento`, que é o caminho que a tela usa, e são
+# o espelho de `test_fallback_para_gemini_quando_openai_falha`
+# (tests/test_llm.py): lá, SEM política, a queda da OpenAI leva ao Gemini;
+# aqui, COM política, ela para.
+#
+# As duas versões existem de propósito. Apagar a antiga esconderia que o
+# comportamento depende de uma chave, e é justamente isso que precisa
+# ficar visível.
+# ---------------------------------------------------------------------------
+DADOS = {"orgao": "Órgão X", "objeto": "Objeto Y", "justificativa": "Z"}
+
+
+@pytest.fixture
+def _sem_rag(monkeypatch):
+    from src import rag
+    monkeypatch.setattr(rag, "montar_bloco_referencias",
+                        lambda dados, doc_key: "")
+
+
+def _chaves(monkeypatch, openai: str, gemini: str, openrouter: str = ""):
+    from src import llm
+    monkeypatch.setattr(llm, "obter_openai_key", lambda: openai)
+    monkeypatch.setattr(llm, "obter_api_key", lambda: gemini)
+    monkeypatch.setattr(llm, "obter_openrouter_key", lambda: openrouter)
+
+
+def test_documento_oficial_nao_cai_para_o_gemini_com_a_politica_ligada(
+        monkeypatch, _sem_rag):
+    """
+    O comportamento que esta entrega existe para produzir, medido no
+    caminho real: um ETP cuja geração falha na OpenAI **não** é
+    concluído pelo Gemini. A requisição morre, e morrer é o certo —
+    documento oficial gerado por motor não homologado é assinado por
+    agente público.
+    """
+    from src import llm
+
+    monkeypatch.setenv(ai_gateway.VAR_ROTEAMENTO, "true")
+    _chaves(monkeypatch, "sk-x", "g-y", "or-z")
+
+    def openai_quebrada(s, u, k, **kw):
+        raise llm.ErroGeracaoIA("cota excedida")
+
+    monkeypatch.setattr(llm, "_chamar_openai", openai_quebrada)
+    monkeypatch.setattr(
+        llm, "_chamar_gemini",
+        lambda s, u, k, **kw: pytest.fail(
+            "Gemini atendeu um documento oficial: a política não pegou"))
+    monkeypatch.setattr(
+        llm, "_chamar_openrouter",
+        lambda s, u, k, **kw: pytest.fail(
+            "OpenRouter atendeu um documento oficial: a política não pegou"))
+
+    with pytest.raises(llm.ErroGeracaoIA):
+        llm.gerar_documento("etp", DADOS, "dfd aprovado")
+
+
+def test_tarefa_nao_critica_continua_caindo_para_o_gemini(
+        monkeypatch, _sem_rag):
+    """
+    O outro lado, e ele importa tanto quanto: a política estreita o que é
+    crítico e **não** toca no resto. Uma chamada genérica continua com a
+    cascata inteira, senão o endurecimento vira indisponibilidade.
+    """
+    from src import llm
+
+    monkeypatch.setenv(ai_gateway.VAR_ROTEAMENTO, "true")
+    _chaves(monkeypatch, "sk-x", "g-y")
+
+    def openai_quebrada(s, u, k, **kw):
+        raise llm.ErroGeracaoIA("cota excedida")
+
+    monkeypatch.setattr(llm, "_chamar_openai", openai_quebrada)
+    monkeypatch.setattr(llm, "_chamar_gemini", lambda s, u, k, **kw: "DO GEMINI")
+
+    assert llm.chamar_ia_texto("s", "u",
+                               finalidade="tarefa-generica-zz") == "DO GEMINI"
+
+
+# ---------------------------------------------------------------------------
+# 5) ONDE A POLÍTICA ESTÁ LIGADA — e onde ela NÃO está
+# ---------------------------------------------------------------------------
+def _devcontainer() -> dict:
+    import json
+    import pathlib
+    import re
+
+    bruto = (pathlib.Path(__file__).resolve().parent.parent
+             / ".devcontainer" / "devcontainer.json").read_text()
+    # JSONC: o arquivo tem comentários, e eles são a documentação da
+    # decisão. Tirar antes de validar é mais honesto que exigir JSON puro.
+    return json.loads(re.sub(r"^\s*//.*$", "", bruto, flags=re.M))
+
+
+def test_o_roteamento_esta_ligado_em_desenvolvimento():
+    """
+    Desenvolvimento é onde a política tem que ser exercitada primeiro.
+
+    Aqui uma geração que caia para motor não homologado FALHA em vez de
+    rebaixar em silêncio — e é com o servidor ao lado que se descobre se
+    a política ficou estreita demais, não em produção.
+    """
+    ambiente = _devcontainer().get("containerEnv") or {}
+    assert ambiente.get("OMNIROUTE_ROUTING_ENABLED") == "true", (
+        "o roteamento saiu do devcontainer: desenvolvimento voltou a ter "
+        "fallback irrestrito para documento oficial")
+
+
+def test_o_gateway_continua_desligado_em_desenvolvimento():
+    """
+    Ligar o roteamento é uma decisão; ligar o GATEWAY é outra.
+
+    `OMNIROUTE_ENABLED` manda os motores compatíveis por um endereço
+    externo, e não há gateway rodando. Ligá-la sem `OMNIROUTE_BASE_URL`
+    não faria efeito hoje — mas deixaria a chave armada para o dia em que
+    alguém preencher a base por outro motivo.
+    """
+    ambiente = _devcontainer().get("containerEnv") or {}
+    assert "OMNIROUTE_ENABLED" not in ambiente
+    assert "OMNIROUTE_BASE_URL" not in ambiente
+
+
+def test_producao_nao_herda_o_roteamento_do_devcontainer():
+    """
+    O deploy é Streamlit Cloud: ele instala `requirements.txt` e
+    `packages.txt`, e não lê `.devcontainer/`. Esta prova existe para que
+    ninguém confunda "ligado em desenvolvimento" com "ligado", e para
+    pegar o dia em que alguém tentar ligar em produção por um atalho.
+    """
+    import pathlib
+
+    raiz = pathlib.Path(__file__).resolve().parent.parent
+    for arquivo in ("requirements.txt", "packages.txt"):
+        texto = (raiz / arquivo).read_text()
+        assert "OMNIROUTE" not in texto.upper(), (
+            f"{arquivo} ganhou uma variável de roteamento — ele é o que "
+            "o Streamlit Cloud instala, e ligar produção é ato separado")
+
+
+# ---------------------------------------------------------------------------
+# 6) A POLÍTICA NÃO PODE SER MUDADA PELA TELA
 # ---------------------------------------------------------------------------
 def test_as_chaves_vem_do_ambiente_e_nao_do_banco():
     """

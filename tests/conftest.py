@@ -120,6 +120,34 @@ def exigir_motor_institucional() -> None:
     pytest.skip(recado)
 
 
+@pytest.fixture(autouse=True)
+def _roteamento_previsivel(monkeypatch):
+    """
+    A suíte NÃO herda o estado de roteamento do ambiente. Nunca.
+
+    Esta fixture nasceu de uma quebra real: ao ligar
+    `OMNIROUTE_ROUTING_ENABLED` no devcontainer, quatro provas de fallback
+    ficaram vermelhas — `test_fallback_para_gemini_quando_openai_falha` e
+    companhia, que geram um `etp` e afirmam que a queda da OpenAI leva ao
+    Gemini. Elas não estavam erradas: descrevem o comportamento SEM a
+    política, e a política é justamente o que impede um documento oficial
+    de cair para motor não homologado.
+
+    O defeito não era o conteúdo delas — era a suíte passar a depender de
+    uma variável de ambiente. Um desenvolvedor no Codespaces veria quatro
+    vermelhos que não têm relação com o código que ele escreveu, e a
+    reação natural seria desligar a política.
+
+    Aqui o estado fica EXPLÍCITO: desligado por padrão, e quem quer medir
+    a política ligada liga com `monkeypatch.setenv` dentro da própria
+    prova — como faz `tests/test_ai_gateway.py`. Prova que depende do
+    shell de quem a roda não é prova, é sorte.
+    """
+    for var in ("OMNIROUTE_ENABLED", "OMNIROUTE_BASE_URL",
+                "OMNIROUTE_ROUTING_ENABLED"):
+        monkeypatch.delenv(var, raising=False)
+
+
 @pytest.fixture
 def motor_institucional():
     """Provas que exigem o PDF real pedem esta fixture."""

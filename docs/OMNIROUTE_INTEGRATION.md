@@ -75,11 +75,34 @@ alguém a declarou. A proteção contra esquecimento é
 Todas nascem **desligadas**, e são lidas do **ambiente** — nunca de
 `config_app`.
 
-| Variável | Padrão | O que faz |
-|---|---|---|
-| `OMNIROUTE_ENABLED` | desligada | Manda os motores compatíveis pelo gateway |
-| `OMNIROUTE_BASE_URL` | vazia | Endereço do `/v1`. Sem ela, `ENABLED` não liga nada |
-| `OMNIROUTE_ROUTING_ENABLED` | desligada | Aplica a política de grupos na cascata |
+| Variável | Padrão | Desenvolvimento | O que faz |
+|---|---|---|---|
+| `OMNIROUTE_ENABLED` | desligada | desligada | Manda os motores compatíveis pelo gateway |
+| `OMNIROUTE_BASE_URL` | vazia | vazia | Endereço do `/v1`. Sem ela, `ENABLED` não liga nada |
+| `OMNIROUTE_ROUTING_ENABLED` | desligada | **LIGADA** | Aplica a política de grupos na cascata |
+
+### O roteamento está ligado em desenvolvimento
+
+`.devcontainer/devcontainer.json` traz
+`containerEnv.OMNIROUTE_ROUTING_ENABLED=true`. Desenvolvimento é onde a
+política precisa ser exercitada primeiro: ali uma geração que caia para
+motor não homologado **falha** em vez de rebaixar em silêncio, e é com o
+servidor ao lado que se descobre se a política ficou estreita demais.
+
+**Produção não herda daqui.** O Streamlit Cloud instala
+`requirements.txt` e `packages.txt`; o devcontainer é do Codespaces e não
+participa do deploy. Ligar em produção é ato separado e deliberado —
+`test_producao_nao_herda_o_roteamento_do_devcontainer` existe para pegar
+quem tentar o atalho.
+
+O que muda na prática, no Codespaces: com OpenAI **e** Gemini
+configurados, uma falha da OpenAI ao gerar edital passa a **falhar** em
+vez de cair para o Gemini. É o comportamento desejado — e se incomodar, a
+conversa é sobre homologar o Gemini, não sobre desligar a política.
+
+`OMNIROUTE_ENABLED` continua ausente de propósito, e há prova disso: não
+existe gateway rodando, e deixar a chave armada faria efeito no dia em
+que alguém preenchesse a `base_url` por outro motivo.
 
 `config_app` é editável pelo painel do administrador. Uma política de
 roteamento que um usuário autenticado muda pela tela não é política — é

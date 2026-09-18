@@ -61,8 +61,14 @@ antes de ser gerado, senão cai no grupo mais barato — há prova disso.
 
 `OMNIROUTE_ENABLED`, `OMNIROUTE_BASE_URL` e `OMNIROUTE_ROUTING_ENABLED`
 vêm do AMBIENTE, nunca de `config_app`: a tabela é editável pelo painel,
-e política que usuário muda pela tela não é política. Todas nascem
-desligadas, e com tudo desligado o comportamento é idêntico ao de antes.
+e política que usuário muda pela tela não é política.
+
+**`OMNIROUTE_ROUTING_ENABLED` está LIGADA em desenvolvimento**
+(`.devcontainer/devcontainer.json`) e desligada em produção. No
+Codespaces, uma falha da OpenAI ao gerar edital passa a FALHAR em vez de
+cair para o Gemini — é o comportamento desejado, e se incomodar a
+conversa é sobre homologar o Gemini, não sobre desligar a política. O
+deploy não lê o devcontainer; ligar em produção é ato separado.
 
 Embeddings **nunca** passam por roteamento: o índice v2 é pinado a
 `text-embedding-3-small` e outro provedor corromperia a busca em
