@@ -58,9 +58,40 @@ homologado é pior que um edital não gerado, porque o primeiro é assinado.
 
 Só a OpenAI é homologada para documento oficial hoje — e isso é uma
 **afirmação de homologação**, não preferência técnica: é o motor com que
-a suíte de documentos foi construída e conferida. Gemini e OpenRouter
-entram quando passarem no conjunto de avaliação, e a entrada é decisão do
-operador registrada em commit.
+a suíte de documentos foi construída e conferida.
+
+### Como homologar um motor
+
+Entrar em `PROCUREMENT_HIGH_ACCURACY` são nove caracteres numa tupla —
+barato demais para o peso que tem, porque a partir dali o modelo gera
+edital. Por isso a entrada exige **evidência em disco**, e
+`tests/test_homologacao.py` recusa motor sem ela:
+
+```bash
+.venv/bin/python scripts/homologacao_modelo.py --motor gemini --gravar
+```
+
+O script gera a cadeia inteira — DFD → ETP → TR → edital — com **só o
+motor candidato** (o fallback é desligado; homologar com cascata mediria
+a cascata, não o modelo), a partir do caso real de **210 itens** do
+repositório. Depois confere se cada valor monetário, quantidade, unidade,
+código de item, data, artigo de lei e link que **entrou** saiu
+**literal**.
+
+O critério é literalidade, não semelhança. Um documento pode estar bem
+escrito, bem estruturado e juridicamente elegante, e ter trocado
+`R$ 8.024.834,67` por `R$ 8.024.834,00`. Num edital isso não é erro de
+digitação: é outro valor licitado. **Um literal perdido reprova.**
+
+Aprovado, o relatório vai para `docs/homologacao/<motor>.json` e o nome
+entra na tupla **no mesmo commit**. Sem relatório, a suíte cai e diz o
+comando a rodar.
+
+`openai` é o incumbente e está no grupo sem relatório — registrado, não
+escondido: a evidência dele é a suíte inteira deste repositório. A lista
+de incumbentes tem **um** nome, e `test_o_incumbente_e_um_so` existe para
+que ela não cresça: "incumbente" que vira lista é a porta dos fundos da
+homologação.
 
 Rótulo desconhecido cai em `background`, o grupo mais permissivo.
 Estreitar por acidente quebraria funcionalidade; a restrição só vale onde

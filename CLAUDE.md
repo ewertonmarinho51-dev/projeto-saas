@@ -59,6 +59,13 @@ Riscos, edital, ARP) é `PROCUREMENT_HIGH_ACCURACY` e só usa motor
 homologado; hoje, só a OpenAI. Documento novo entra em `TIPO_DO_ROTULO`
 antes de ser gerado, senão cai no grupo mais barato — há prova disso.
 
+**Nunca acrescente motor a `PROCUREMENT_HIGH_ACCURACY` sem relatório.**
+Rode `scripts/homologacao_modelo.py --motor <m> --gravar`, que gera a
+cadeia inteira sobre o caso real de 210 itens e reprova se um único
+valor, quantidade, data, código ou artigo sair diferente do que entrou.
+O relatório vai junto no commit; `tests/test_homologacao.py` recusa a
+promoção sem ele.
+
 `OMNIROUTE_ENABLED`, `OMNIROUTE_BASE_URL` e `OMNIROUTE_ROUTING_ENABLED`
 vêm do AMBIENTE, nunca de `config_app`: a tabela é editável pelo painel,
 e política que usuário muda pela tela não é política.
