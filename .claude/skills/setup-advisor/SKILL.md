@@ -60,6 +60,7 @@ manda.
 | Cartographer | `.mcp.json` versionado. Mapa do código, **não** do produto |
 | context7 | `.mcp.json`. Documentação viva das bibliotecas |
 | Headroom | `.mcp.json`. Comprime saída de ferramenta. **Só para o agente** — medido: a planilha de 210 itens comprime 41% perdendo 463 números |
+| `ai_gateway` + `roteamento` | `src/`. AI Gateway e política de modelo por tarefa. OmniRoute pluggável por `base_url`, hoje desligado |
 | Skills | `caveman`, `design-taste`, `design-minimalist`, `revisar-migracao`, `prova-com-dente`, esta |
 | Hooks | `.claude/settings.json` — bloqueio de segredo (PreToolUse), provas relacionadas (PostToolUse) |
 | Subagentes | `revisor-de-banco-e-seguranca` |
@@ -153,11 +154,19 @@ Elas não são negociáveis por uma recomendação:
 
 ## Fronteira com as outras camadas
 
-As quatro camadas, sem sobreposição: **Cartographer = Repository
+As camadas, sem sobreposição: **Cartographer = Repository
 Intelligence**, **context7 = Documentation Intelligence**, **Headroom =
-Context Optimization**, **esta skill = Tool Intelligence**. O Headroom
-vem sempre DEPOIS das outras — ele comprime o que elas produziram, nunca
-antes e nunca no lugar delas.
+Context Optimization**, **`ai_gateway`/OmniRoute = Model Routing / AI
+Gateway**, **esta skill = Tool Intelligence**. O Headroom vem sempre
+DEPOIS das outras — ele comprime o que elas produziram — e o roteador de
+modelo vem por último, já com o contexto pronto.
+
+Ao avaliar centralizar provider no OmniRoute, os três números que
+decidiram da última vez: **~442 MB e 77 dependências**, **nenhum runtime
+Node no deploy** (Streamlit Cloud instala `requirements.txt` e
+`packages.txt`), e o **tier gratuito no default**, que colide com a regra
+de não mandar documento administrativo para provider gratuito. Ver
+`docs/OMNIROUTE_INTEGRATION.md`.
 
 | Pergunta | Ferramenta |
 |---|---|

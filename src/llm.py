@@ -32,7 +32,7 @@ from .config import (
     OPENROUTER_MODEL_PADRAO,
     OPENROUTER_MODELOS_FALLBACK,
 )
-from . import templates_gov
+from . import ai_gateway, templates_gov
 from .prompts import dados_objetivos_do_formulario, montar_prompt
 
 
@@ -392,7 +392,11 @@ def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str,
     # Import tardio: a interface abre mesmo sem a biblioteca instalada
     from openai import OpenAI
 
+    # `base_url=None` é o padrão do SDK — é o caminho direto de sempre. O
+    # gateway só entra quando alguém liga `OMNIROUTE_ENABLED` E configura
+    # `OMNIROUTE_BASE_URL`; sem as duas, esta linha não muda nada.
     cliente = OpenAI(api_key=api_key,
+                     base_url=ai_gateway.base_url_para("openai"),
                      timeout=timeout or API_TIMEOUT_SEGUNDOS, max_retries=0)
     modelos = _modelos_openai()
     ultima_excecao: Exception | None = None
@@ -713,6 +717,19 @@ def _percorrer_motores(rotulo_registro: str, system_prompt: str,
         raise ErroGeracaoIA(
             "Nenhuma chave de API configurada. Informe a chave da OpenAI, "
             "do Gemini ou do OpenRouter no painel do administrador.")
+
+    # A política de roteamento entra AQUI, e só aqui: este é o único
+    # lugar do sistema onde a cascata de motores é decidida. Com
+    # `OMNIROUTE_ROUTING_ENABLED` desligado — o padrão — a lista volta
+    # intacta e a ordem é a de sempre.
+    #
+    # Com ela ligada, a geração de um edital deixa de poder cair para um
+    # motor não homologado só porque o principal ficou indisponível. Era
+    # esse o buraco: a cascata é irrestrita, então uma queda da OpenAI no
+    # meio de um edital descia para o motor seguinte sem que ninguém
+    # tivesse homologado aquele modelo para documento que vira ato
+    # administrativo.
+    disponiveis = ai_gateway.motores_para(rotulo_registro, disponiveis)
 
     extras = {"rag_trace": rag_trace} if rag_trace is not None else {}
     for indice, (motor, chave) in enumerate(disponiveis):

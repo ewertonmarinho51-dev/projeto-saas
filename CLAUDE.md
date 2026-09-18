@@ -40,6 +40,7 @@ sumir inteira, o app gera documento igual.
 | Cartographer | `.mcp.json` | mapa do código |
 | context7 | `.mcp.json` | documentação viva das bibliotecas |
 | Headroom | `.mcp.json` | comprime saída de ferramenta grande |
+| `ai_gateway` + `roteamento` | `src/` | política de modelo por tarefa; OmniRoute pluggável, hoje desligado |
 | `setup-advisor` | `.claude/skills/` | que automação vale a pena aqui |
 | `revisar-migracao` | `.claude/skills/` | o ritual de migração de banco |
 | `prova-com-dente` | `.claude/skills/` | teste de mutação |
@@ -49,6 +50,29 @@ sumir inteira, o app gera documento igual.
 
 Detalhes em `docs/AI_AUTOMATION_ARCHITECTURE.md`. Não há
 `.claude/commands/` de propósito: skill já é invocável como `/nome`.
+
+### Modelo por tarefa
+
+A escolha de modelo mora em `src/roteamento.py` — **não espalhe decisão
+de modelo por outros arquivos**. Documento oficial (DFD, ETP, TR, Mapa de
+Riscos, edital, ARP) é `PROCUREMENT_HIGH_ACCURACY` e só usa motor
+homologado; hoje, só a OpenAI. Documento novo entra em `TIPO_DO_ROTULO`
+antes de ser gerado, senão cai no grupo mais barato — há prova disso.
+
+`OMNIROUTE_ENABLED`, `OMNIROUTE_BASE_URL` e `OMNIROUTE_ROUTING_ENABLED`
+vêm do AMBIENTE, nunca de `config_app`: a tabela é editável pelo painel,
+e política que usuário muda pela tela não é política.
+
+**`OMNIROUTE_ROUTING_ENABLED` está LIGADA em desenvolvimento**
+(`.devcontainer/devcontainer.json`) e desligada em produção. No
+Codespaces, uma falha da OpenAI ao gerar edital passa a FALHAR em vez de
+cair para o Gemini — é o comportamento desejado, e se incomodar a
+conversa é sobre homologar o Gemini, não sobre desligar a política. O
+deploy não lê o devcontainer; ligar em produção é ato separado.
+
+Embeddings **nunca** passam por roteamento: o índice v2 é pinado a
+`text-embedding-3-small` e outro provedor corromperia a busca em
+silêncio. `docs/OMNIROUTE_INTEGRATION.md` tem o resto.
 
 ### Headroom — quando comprimir
 
