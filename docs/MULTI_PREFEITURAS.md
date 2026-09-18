@@ -289,6 +289,99 @@ convidaria alguém a declarar uma coisa que as datas contradizem.
 
 ---
 
+## Emissão: onde o cadastro vivo vira documento congelado
+
+Enquanto o documento é rascunho, ele usa os dados atuais — se o cargo do
+servidor mudar hoje, o rascunho de hoje mostra o cargo de hoje (§35). Na
+**aprovação** isso para: timbrado e signatários são copiados para
+`documento_identidades` e `documento_signatarios`, e a exportação passa a
+ler de lá.
+
+A diferença não é técnica, é jurídica. Um edital aprovado é ato
+administrativo publicado. Se o servidor for exonerado em março, o edital
+de janeiro continua tendo sido assinado por quem o assinou, com o cargo
+que ele tinha — e um sistema que regenerasse o PDF consultando o cadastro
+de março produziria **um documento que nunca existiu**.
+
+| Peça | Papel |
+|---|---|
+| `src/emissao.py` | Lógica pura: monta snapshots, calcula o hash da identidade, renderiza o bloco. Não conhece Streamlit nem Supabase |
+| `src/instituicional_bridge.py` | A única parte que conhece sessão e banco. Lê o que a sessão sabe, pede ao banco o que falta, chama `emissao` |
+| `src/state.py` | Duas linhas em `aprovar_e_avancar`, **antes** de avançar a etapa |
+| `src/export.py` | `gerar_docx`/`gerar_pdf` ganham `assinaturas: str = ""` |
+
+### A assinatura que torna o erro impossível
+
+`export.gerar_docx(titulo, texto, branding, assinaturas)` recebe o bloco
+**já renderizado** — nunca uma lista de servidores a consultar. A
+exportação não sabe o que é cadastro de pessoal, e é exatamente por isso
+que ela **não consegue** regenerar um documento histórico com dados de
+hoje. `test_a_exportacao_nao_conhece_cadastro_de_pessoal` reprova se
+`export.py` passar a chamar `db.listar…`.
+
+O bloco entra nos **dois** caminhos do PDF — a conversão por LibreOffice
+e o fallback `fpdf2`. Pôr só no primeiro faria o PDF perder as
+assinaturas exatamente quando o LibreOffice não estivesse disponível, e é
+nesse dia que ninguém repara.
+
+### Best-effort, deliberadamente
+
+Falha ao congelar **não impede a aprovação** — mesma decisão que
+`aprendizado.capturar_edicao` já tomou no mesmo ponto do fluxo. Travar o
+avanço do processo porque uma tabela auxiliar não respondeu seria trocar
+um registro incompleto por um servidor público parado.
+
+O que a falha produz é documento sem bloco de assinatura (visível, não
+silencioso) e uma linha de log. O que ela **nunca** produz é assinatura
+lida do cadastro vivo na exportação: sem snapshot, sem bloco.
+
+### A tela de seleção (§29–§32)
+
+`src/ui/signatarios.py`, num expander **antes** do botão de aprovar. A
+posição é a decisão: aprovar é emitir, e o que estiver escolhido ali é o
+que fica congelado — pôr a seleção depois faria o servidor descobrir que
+assinou sem escolher.
+
+**A ordem dos dois campos é a funcionalidade.** Primeiro o **tipo** de
+signatário (§29); só então os servidores elegíveis (§30). Invertida — uma
+lista de gente e um campo de função ao lado — a tela viraria um
+formulário onde alguém digita que o Antonio é pregoeiro, e a designação
+passaria a ser afirmação do operador em vez de ato administrativo.
+
+Com a ordem certa, "Equipe de Planejamento" mostra exatamente os membros
+da portaria vigente. E quando a lista vem vazia, ela **diz por quê**:
+
+| Causa | O que a tela diz |
+|---|---|
+| Sem portaria vigente | cadastre-a em Administração → Instituição → Portarias |
+| Portaria sem membros dessa função | designe-os |
+| Sem designação vigente | cadastre a função |
+| Todos já escolhidos | todos os elegíveis já foram adicionados |
+
+*"Nenhum servidor disponível"* mandaria o operador procurar defeito no
+lugar errado — e cada uma dessas causas leva a uma ação diferente.
+
+A tela também reordena e remove antes da aprovação (§32), **reconfere a
+elegibilidade no clique** (entre montar a lista e o botão, a portaria
+pode ter sido revogada) e mostra o conflito de portarias em vermelho sem
+escolher nenhuma.
+
+### Detalhes que evitam erro calado
+
+**Só função de portaria carrega o número dela.** Carimbar
+`Portaria nº 003/2026` sob o nome do Secretário Municipal seria
+atribuir-lhe uma designação que a portaria não fez.
+
+**Escolha cujo servidor sumiu do cadastro é descartada com log**, não
+vira snapshot com nome vazio: bloco de assinatura sem nome é pior que
+bloco ausente, porque parece assinado.
+
+**Conflito de portarias não é resolvido no congelamento.** O documento
+sai sem o número e o log registra; o painel administrativo é onde isso se
+conserta.
+
+---
+
 ## Dois defeitos que a suíte existente pegou
 
 **O inventário de segurança lia comentário como comando.** A 0025 explica
@@ -321,9 +414,6 @@ Esta entrega é a **fundação**: schema, resolvedores e provas. O que falta
 | Faltando | Escopo |
 |---|---|
 | Pré-visualização de timbrado | §13 |
-| Tela de seleção de signatários | §32 |
-| Gravação do snapshot no fluxo de aprovação | §35 |
-| Leitura dos snapshots na exportação DOCX/PDF | §34 |
 | Integração com o GovBot | §36, §37, §50 |
 | Ocultar módulo indisponível na navegação | §39 |
 | Flags `multi_tenant_admin`, `servidores`, `portarias` | §59 |

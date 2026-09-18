@@ -733,13 +733,23 @@ def _docx_aplicar_branding(doc, branding: dict | None) -> None:
             run.font.size = Pt(8)
 
 
-def gerar_docx(titulo: str, texto_md: str, branding: dict | None = None) -> bytes:
+def gerar_docx(titulo: str, texto_md: str, branding: dict | None = None,
+               assinaturas: str = "") -> bytes:
+    """
+    `assinaturas` é o bloco JÁ RENDERIZADO a partir do snapshot — nunca
+    uma lista de servidores a consultar.
+
+    A exportação não sabe o que é cadastro de pessoal, e é exatamente por
+    isso que ela não CONSEGUE regenerar um documento histórico com dados
+    de hoje. Vazio por padrão: documento sem snapshot sai como sempre
+    saiu (§58).
+    """
     doc = _docx_novo()
     _docx_aplicar_branding(doc, branding)
     doc.add_paragraph(titulo.upper(), style="GovDocs Titulo")
     if titulo.upper() == "MAPA DE RISCOS":
         texto_md = re.sub(r"(?im)^#\s+MAPA DE RISCOS\s*\n", "", texto_md, count=1)
-    _docx_inserir_markdown(doc, texto_md)
+    _docx_inserir_markdown(doc, texto_md + (assinaturas or ""))
     buffer = io.BytesIO()
     doc.save(buffer)
     return buffer.getvalue()
@@ -1110,13 +1120,19 @@ def _pdf_bytes(pdf) -> bytes:
     return bytes(saida)
 
 
-def gerar_pdf(titulo: str, texto_md: str, branding: dict | None = None) -> bytes:
+def gerar_pdf(titulo: str, texto_md: str, branding: dict | None = None,
+              assinaturas: str = "") -> bytes:
     """
     PDF do documento. Caminho principal: DOCX estilizado -> LibreOffice
     (mesmo conteúdo/formatação do DOCX, Times 12/1,5/6pt/justificado).
     Fallback: renderizador fpdf2 (fonte Times nativa).
+
+    O bloco de assinatura entra nos DOIS caminhos. Pôr só no primeiro
+    faria o PDF perder as assinaturas exatamente quando o LibreOffice
+    não estivesse disponível — e é nesse dia que ninguém repara.
     """
-    convertido = _docx_em_pdf(gerar_docx(titulo, texto_md, branding))
+    convertido = _docx_em_pdf(gerar_docx(titulo, texto_md, branding,
+                                         assinaturas))
     if convertido:
         return _pdf_aplicar_marca(convertido, branding)
 
@@ -1127,7 +1143,7 @@ def gerar_pdf(titulo: str, texto_md: str, branding: dict | None = None) -> bytes
                    _latin1_seguro(titulo.upper()), align="C",
                    new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
-    _pdf_inserir_markdown(pdf, texto_md)
+    _pdf_inserir_markdown(pdf, texto_md + (assinaturas or ""))
     return _pdf_bytes(pdf)
 
 

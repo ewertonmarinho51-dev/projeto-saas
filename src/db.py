@@ -1681,3 +1681,31 @@ def salvar_dados_do_tenant(registro: dict) -> None:
          .eq("id", tenant_atual()).execute())
     except Exception as exc:  # noqa: BLE001
         raise _traduzir_erro(exc) from exc
+
+
+def gravar_identidade_do_documento(processo_id: str, doc_key: str,
+                                   linha: dict) -> None:
+    """
+    Congela o timbrado aplicado a um documento. INSERT apenas.
+
+    A 0025 não concede UPDATE nem DELETE a papel nenhum de rede: se a
+    prefeitura trocar a logo amanhã, o edital publicado ontem continua
+    com a de ontem. Correção é emissão nova, com `versao` maior.
+    """
+    registro = {**linha, "processo_id": processo_id, "doc_key": doc_key,
+                "tenant_id": tenant_atual()}
+    try:
+        _cliente().table("documento_identidades").insert(registro).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def identidade_do_documento(processo_id: str, doc_key: str) -> dict:
+    """A identidade congelada — a versão mais recente, se houver."""
+    try:
+        linhas = (_cliente().table("documento_identidades").select("*")
+                  .eq("processo_id", processo_id).eq("doc_key", doc_key)
+                  .order("versao", desc=True).limit(1).execute()).data or []
+        return linhas[0] if linhas else {}
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
