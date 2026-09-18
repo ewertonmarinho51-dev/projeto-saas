@@ -1454,13 +1454,14 @@ requer_ensaio = pytest.mark.skipif(
 
 TABELAS_PRIVADAS = tabelas_do_inventario()
 
-# Confirmado por leitura do catálogo de produção em 15/08/2026, e de
-# novo em 06/09/2026 (somente SELECT em pg_tables; nenhuma linha de dado
-# foi lida). Os 28 do primeiro censo mais as quatro da 0021, aplicada em
-# produção em 06/09/2026 — a separação entre "está em produção" e "o
-# repositório descreve" deixou de existir para estas quatro, e mantê-la
-# faria o inventário afirmar o contrário do que o catálogo mostra.
-TABELAS_EM_PRODUCAO = 32
+# Confirmado por leitura do catálogo de produção em 15/08/2026, de novo
+# em 06/09/2026 e de novo em 18/09/2026 (somente SELECT em pg_tables;
+# nenhuma linha de dado foi lida). Os 28 do primeiro censo, mais as
+# quatro da 0021 (aplicada em 06/09/2026), mais as dez da 0025 (aplicada
+# em 18/09/2026) — a separação entre "está em produção" e "o repositório
+# descreve" deixou de existir para as catorze, e mantê-la faria o
+# inventário afirmar o contrário do que o catálogo mostra.
+TABELAS_EM_PRODUCAO = 42
 
 # As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
 # inclui, mas porque são as únicas cuja implantação esta suíte
@@ -1470,17 +1471,19 @@ TABELAS_DA_PESQUISA_DE_PRECOS = frozenset({
     "pesquisa_preco_referencias", "pesquisa_preco_eventos",
 })
 
-# As dez da 0025 (multi-prefeituras). Elas estão DESCRITAS no repositório
-# e NÃO aplicadas em produção — e a distinção é o ponto desta lista.
+# As dez da 0025 (multi-prefeituras), APLICADAS EM PRODUÇÃO em
+# 18/09/2026. Até essa data elas viviam fora da contagem, numa lista de
+# pendentes, porque o inventário mentiria "para mais" ao dar por
+# implantado o que ainda não estava.
 #
-# `TABELAS_EM_PRODUCAO` continua 32 de propósito. Subi-la para 42 faria o
-# inventário afirmar que a 0025 está no banco, que é exatamente a mentira
-# "para mais" contra a qual o teste abaixo avisa: dar por implantado o
-# que ainda não foi.
+# A aplicação foi medida no catálogo antes e depois: 32 → 42 tabelas, as
+# dez com RLS, nenhum grant para `anon`, nenhum TRUNCATE para papel de
+# rede e nenhuma escrita nos dois snapshots. Por isso os nomes saíram da
+# lista de pendentes e entraram na contagem — o ato deliberado que o
+# comentário anterior aqui previa.
 #
-# Quando a 0025 for aplicada, quem a aplicar move estes nomes daqui para
-# a contagem — ato deliberado, igual ao cabeçalho que a 0018, a 0019 e a
-# 0020 passaram a declarar depois de aplicadas.
+# Continuam NOMEADOS, como os quatro da 0021, porque são os únicos cuja
+# implantação esta suíte acompanhou de ponta a ponta.
 TABELAS_DA_MULTI_PREFEITURA = frozenset({
     "tenant_modulos", "secretaria_modulos", "servidores",
     "servidor_vinculos", "funcoes_administrativas", "servidor_funcoes",
@@ -1500,13 +1503,12 @@ def test_o_inventario_cobre_todas_as_tabelas():
     implantada fora da conta que a cobre; para mais, dando por
     implantado o que ainda não foi.
     """
-    aplicadas = set(TABELAS_PRIVADAS) - TABELAS_DA_MULTI_PREFEITURA
-    assert len(aplicadas) == TABELAS_EM_PRODUCAO, sorted(aplicadas)
+    assert len(set(TABELAS_PRIVADAS)) == TABELAS_EM_PRODUCAO, \
+        sorted(TABELAS_PRIVADAS)
 
-    # As dez da 0025 estão no repositório e NÃO no banco. Exigi-las aqui
-    # garante que o inventário as cubra quando forem aplicadas — e
-    # mantê-las fora da contagem impede o arquivo de afirmar que já
-    # estão.
+    # As dez da 0025 entraram na contagem em 18/09/2026, quando foram
+    # aplicadas. Exigi-las nominalmente continua valendo: garante que o
+    # inventário não as perca de vista agora que elas guardam dado real.
     assert TABELAS_DA_MULTI_PREFEITURA <= set(TABELAS_PRIVADAS), (
         "as tabelas da 0025 sumiram do inventário")
     assert TABELAS_DA_PESQUISA_DE_PRECOS <= set(TABELAS_PRIVADAS), (

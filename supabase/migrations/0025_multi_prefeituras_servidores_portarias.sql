@@ -7,8 +7,13 @@
 -- ##  Não mexe em política de RLS já instalada, não remove
 -- ##  coluna, não toca em `config_orgaos` nem em `secretarias`.
 -- ##
--- ##  NÃO APLICADA EM PRODUÇÃO. Quando for, este cabeçalho
--- ##  registra a data, como a 0022, a 0023 e a 0024.
+-- ##  APLICADA EM PRODUÇÃO em 18/09/2026, depois de ensaiada no
+-- ##  projeto descartável pelo mesmo caminho. Medição antes e
+-- ##  depois: 32 → 42 tabelas; as dez com RLS; zero grant para
+-- ##  `anon`; zero TRUNCATE para papel de rede; zero escrita nos
+-- ##  dois snapshots; 10 funções semeadas. Dados existentes
+-- ##  intactos (1 tenant, 2 secretarias, 6 processos). Nenhuma
+-- ##  flag foi ligada: a funcionalidade entrou escura.
 -- ############################################################
 
 -- ===============================================================
