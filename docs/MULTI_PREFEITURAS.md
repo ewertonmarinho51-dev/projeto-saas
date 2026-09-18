@@ -406,6 +406,71 @@ que a 0018, a 0019 e a 0020 passaram a declarar depois de aplicadas.
 
 ---
 
+## O smoke ponta a ponta (§57)
+
+`tests/test_smoke_multi_prefeituras.py` monta o cenário literal do §57
+num PostgreSQL descartável — Prefeitura Alfa, Gabinete com o brasão do
+município, Administração com brasão próprio e Portaria 003/2026, Educação
+sem nenhum dos dois — e percorre o caminho inteiro: banco → resolvedor de
+identidade → resolvedor de portaria → elegibilidade → snapshot → bloco de
+assinatura.
+
+**Fronteira, dita antes que alguém confie demais**: roda contra o schema
+REAL e atravessa a RLS com JWT de usuário autenticado, mas **não** passa
+por `db.py` — que fala PostgREST por HTTP — nem por Streamlit. Prova que
+schema, constraints e lógica de domínio se encaixam; não prova transporte.
+
+### As onze provas passaram de primeira — e isso não bastava
+
+Suíte que passa na primeira execução não provou nada até mostrar que sabe
+falhar. Cada garantia foi verificada quebrando-a de propósito:
+
+| Mutação | Resultado |
+|---|---|
+| `portarias.resolver` sem o filtro de secretaria | a Educação recebeu a Portaria 003/2026 da Administração — **pego**, e é a frase literal do §57 |
+| `assinaturas.elegiveis` aceitando qualquer servidor | João, que nenhuma portaria designou, apareceu como elegível — **pego** |
+| herança de identidade pegando a primeira da lista em vez da `padrao` | **escapou** |
+| `revoke update` do snapshot removido da 0025 | **pego** pelo bloco de verificação da própria migração, que recusou aplicar |
+
+**O mutante que escapou era um defeito da prova.** `listar_secretarias`
+ordena `padrao desc, nome`, então a secretaria do município já chega
+primeiro e "pegar a primeira com identidade" dá a mesma resposta que
+"pegar a padrão": o teste acertava por acidente de `ORDER BY`, não por
+mérito do resolvedor. Bastaria alguém mudar aquele `order` — ou o
+PostgREST devolver em ordem diferente — para a Educação passar a sair com
+o brasão da Administração sem um único teste reclamar.
+
+A correção foi `test_a_heranca_escolhe_o_padrao_e_nao_a_primeira_da_lista`,
+que entrega a mesma lista em ordem **hostil** (a Administração antes do
+Gabinete) e exige a mesma resposta. Com ela, o mutante morre. A consulta
+de produção não foi alterada: o defeito estava no que a prova assumia, não
+no que o sistema faz.
+
+### A imutabilidade do snapshot está na camada de GRANT
+
+Uma sonda isolada concedeu `update` de volta em `documento_signatarios`
+num banco descartável e refez o comando como usuário autenticado: ele
+**passou**, `rowcount = 1`. Ou seja, o 42501 que o teste observa vem do
+`revoke`, e não de política de RLS — a política permitiria. É informação
+operacional, não defeito: significa que um `grant all on all tables in
+schema public to authenticated` reabriria a edição de documento já
+assinado em silêncio.
+
+Por isso o controle é duplo e ambos existem:
+`test_ninguem_altera_nem_apaga_snapshot` lê o catálogo (onde a decisão
+vive) e o smoke **executa** a recusa (provando que o catálogo descreve o
+comportamento). Nenhum dos dois substitui o outro.
+
+### Guardas contra prova vazia
+
+Três asserções no arquivo não testam o produto, testam o teste: que o
+acervo lido pela Educação não está vazio (senão "nenhuma portaria vigente"
+seria verdade pelo motivo errado), que o município ainda tem os três
+servidores, e que a exoneração encenada alterou de fato uma linha
+(`rowcount == 1`) antes de se concluir que o bloco congelado resistiu.
+
+---
+
 ## O que NÃO está pronto
 
 Esta entrega é a **fundação**: schema, resolvedores e provas. O que falta
@@ -417,7 +482,6 @@ Esta entrega é a **fundação**: schema, resolvedores e provas. O que falta
 | Integração com o GovBot | §36, §37, §50 |
 | Ocultar módulo indisponível na navegação | §39 |
 | Flags `multi_tenant_admin`, `servidores`, `portarias` | §59 |
-| Smoke ponta a ponta com as duas secretarias | §57 |
 
 A ordem importa: a fundação primeiro porque erro de schema e de RLS é
 caro e difícil de reverter; a tela é mecânica sobre uma base provada.
