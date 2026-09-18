@@ -242,6 +242,53 @@ queda de funcionalidade causada pela camada que existe para organizá-la.
 
 ---
 
+## O painel administrativo
+
+`src/ui/instituicional.py`, ligado como **uma aba** em `admin.py` — não
+quatro. O painel já tinha seis; dez abas no topo seria a "Administração
+virando ERP gigantesco" que o §7 proíbe, e empurraria *Usuários* e
+*Chaves de IA* para fora do campo de visão de quem abre a tela. A
+navegação é em dois níveis: a aba **Instituição** com um seletor interno
+de quatro seções.
+
+| Seção | O que faz | Escopo |
+|---|---|---|
+| Prefeitura | Dados institucionais, todos opcionais | §8 |
+| Módulos | Habilitação por prefeitura e o estado por secretaria | §9, §10 |
+| Servidores | Cadastro e ativação | §15 |
+| Portarias | Registro, situação, membros e histórico | §19–§22, §52, §54 |
+
+**A aba só existe com `flag_multi_prefeituras` ligada, e a flag nasce
+desligada.** Sem a 0025 aplicada as consultas falhariam de qualquer jeito
+— e uma aba que só sabe explicar por que não funciona é pior que aba
+nenhuma. Quando a migração falta, `_exigir_migracao()` diz **qual
+arquivo** aplicar, em vez de deixar vazar um erro de PostgREST sobre
+relação inexistente.
+
+### Decisões da tela
+
+**Módulo indisponível no produto não aparece como caixa desmarcada** —
+aparece como *"indisponível nesta versão do sistema"*. Uma caixa que o
+administrador marca e que não liga nada levaria semanas para ser
+descoberta.
+
+**O aviso de conflito de portarias vive na tela onde ele se conserta**
+(§50). Duas portarias vigentes do mesmo tipo aparecem em vermelho na
+lista, com os dois números. Deixar o erro só para a hora de gerar o
+documento adiaria a descoberta para o pior momento possível.
+
+**Não há campo de texto livre no cadastro de membro** (§53). Só um
+seletor de servidores já cadastrados: criar pessoa nova por dentro de uma
+portaria produziria dois "Antonio" que o sistema não sabe serem o mesmo,
+e o snapshot do documento apontaria para o errado.
+
+**Portaria nova nasce RASCUNHO**, nunca ATIVA. E a situação declarada
+oferece só RASCUNHO, ATIVA e REVOGADA — EXPIRADA e FUTURA são efeito da
+vigência, que o sistema calcula sozinho; oferecê-las para escolha
+convidaria alguém a declarar uma coisa que as datas contradizem.
+
+---
+
 ## Dois defeitos que a suíte existente pegou
 
 **O inventário de segurança lia comentário como comando.** A 0025 explica
@@ -273,7 +320,6 @@ Esta entrega é a **fundação**: schema, resolvedores e provas. O que falta
 
 | Faltando | Escopo |
 |---|---|
-| Painel administrativo (Prefeitura / Secretarias / Servidores / Portarias) | §7, §51, §52 |
 | Pré-visualização de timbrado | §13 |
 | Tela de seleção de signatários | §32 |
 | Gravação do snapshot no fluxo de aprovação | §35 |

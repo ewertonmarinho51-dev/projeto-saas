@@ -1646,3 +1646,38 @@ def signatarios_do_documento(processo_id: str, doc_key: str) -> list[dict]:
                 .order("ordem").execute()).data or []
     except Exception as exc:  # noqa: BLE001
         raise _traduzir_erro(exc) from exc
+
+
+def tenant_atual_registro() -> dict:
+    """
+    A prefeitura da sessão, com os dados institucionais da 0025.
+
+    Devolve `{}` quando a linha não existe em vez de levantar: o tenant
+    padrão do modo aberto (CI, desenvolvimento sem login) não tem
+    registro, e a tela institucional não pode quebrar por isso.
+    """
+    try:
+        linhas = (_cliente().table("tenants").select("*")
+                  .eq("id", tenant_atual()).limit(1).execute()).data or []
+        return linhas[0] if linhas else {}
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc
+
+
+def salvar_dados_do_tenant(registro: dict) -> None:
+    """
+    Atualiza os campos institucionais da prefeitura ATUAL.
+
+    `id` e `tenant_id` são descartados do registro de propósito: esta
+    função altera a prefeitura da sessão e nenhuma outra, e aceitar um
+    identificador por parâmetro abriria a porta que o §4 fecha.
+    """
+    registro = {k: v for k, v in registro.items()
+                if k not in ("id", "tenant_id", "slug", "criado_em")}
+    if not registro:
+        return
+    try:
+        (_cliente().table("tenants").update(registro)
+         .eq("id", tenant_atual()).execute())
+    except Exception as exc:  # noqa: BLE001
+        raise _traduzir_erro(exc) from exc

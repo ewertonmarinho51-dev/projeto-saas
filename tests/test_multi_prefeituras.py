@@ -466,3 +466,104 @@ def test_o_vocabulario_de_funcoes_bate_com_a_migracao():
         f"só no Python: {set(assinaturas.ROTULOS) - no_sql}; "
         f"só no SQL: {no_sql - set(assinaturas.ROTULOS)}")
     assert set(assinaturas.TIPOS_DE_SIGNATARIO) == no_sql
+
+
+# ---------------------------------------------------------------------------
+# O PAINEL INSTITUCIONAL
+#
+# Provas de ESTRUTURA e de POLÍTICA, não de pixel. O que importa aqui é
+# que a aba não apareça por acidente, que ela não ofereça módulo que o
+# sistema não entrega, e que nenhum caminho da tela crie pessoa nova por
+# dentro de uma portaria.
+# ---------------------------------------------------------------------------
+def test_a_aba_institucional_nasce_desligada(monkeypatch):
+    """
+    Sem a 0025 aplicada, as consultas da aba falhariam de qualquer jeito
+    — e uma aba que só sabe explicar por que não funciona é pior que aba
+    nenhuma. A flag é o interruptor, e ela nasce desligada.
+    """
+    from src import db
+    from src.ui import instituicional
+
+    monkeypatch.setattr(db, "flag_ativa", lambda nome: False)
+    assert instituicional.ativo() is False
+
+    monkeypatch.setattr(
+        db, "flag_ativa",
+        lambda nome: nome == instituicional.FLAG_MULTI_PREFEITURAS)
+    assert instituicional.ativo() is True
+
+
+def test_a_aba_so_entra_no_painel_com_a_flag(monkeypatch):
+    """
+    O `admin.py` monta a lista de abas condicionalmente. Esta prova lê o
+    código porque renderizar Streamlit aqui exigiria o AppTest inteiro
+    para medir uma decisão de uma linha.
+    """
+    import inspect
+
+    from src.ui import admin
+
+    fonte = inspect.getsource(admin.render_admin)
+    assert "instituicional.ativo()" in fonte
+    assert 'rotulos.insert(3, "Instituição")' in fonte
+    assert "instituicional.render()" in fonte
+
+
+def test_o_painel_nao_oferece_modulo_que_o_sistema_nao_entrega():
+    """
+    Cada módulo da tela precisa existir como flag global. Oferecer um que
+    o produto não tem produziria uma caixa que o administrador marca e
+    que não liga nada — e ele levaria semanas para descobrir.
+    """
+    from src.ui import instituicional
+
+    codigos = {codigo for codigo, _ in instituicional.MODULOS_OFERECIDOS}
+    esperados = {"price_research", "demand_consolidation",
+                 "legal_opinion_correction", "canonical_facts",
+                 "process_consistency"}
+    assert codigos == esperados, (
+        "a lista de módulos da tela divergiu das flags do produto")
+    for _, rotulo in instituicional.MODULOS_OFERECIDOS:
+        assert rotulo and rotulo[0].isupper(), rotulo
+
+
+def test_a_portaria_so_designa_servidor_ja_cadastrado():
+    """
+    §53: adicionar membro REFERENCIA cadastro existente. Um campo de
+    texto livre ali produziria dois "Antonio" que o sistema não sabe
+    serem o mesmo — e o snapshot do documento apontaria para o errado.
+    """
+    import inspect
+
+    from src.ui import instituicional
+
+    fonte = inspect.getsource(instituicional._render_membros)
+    assert "db.listar_servidores()" in fonte
+    assert "selectbox" in fonte
+    assert "text_input" not in fonte, (
+        "apareceu campo livre no cadastro de membro da portaria")
+
+
+def test_o_painel_avisa_o_conflito_de_portarias():
+    """
+    §50: o aviso de duas portarias vigentes aparece na tela onde ele se
+    conserta. Deixar o erro só para a hora de gerar o documento adiaria
+    a descoberta para o pior momento possível.
+    """
+    import inspect
+
+    from src.ui import instituicional
+
+    fonte = inspect.getsource(instituicional._avisar_conflito)
+    assert "PortariaAmbigua" in fonte
+    assert "st.error" in fonte
+
+
+def test_o_painel_explica_qual_migracao_falta():
+    import inspect
+
+    from src.ui import instituicional
+
+    fonte = inspect.getsource(instituicional._exigir_migracao)
+    assert "0025" in fonte
