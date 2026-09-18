@@ -12,7 +12,7 @@ import streamlit as st
 from .. import (achados, auth, branding, ciclo, contexto, corretor, db,
                 governanca, govbot, llm, patches)
 from ..llm import motor_ativo
-from . import revisao
+from . import instituicional, revisao
 
 
 def render_admin() -> None:
@@ -22,22 +22,32 @@ def render_admin() -> None:
     # pendência de migração para `sb_secret_…`.
     for aviso in db.avisos_de_credencial():
         st.warning(aviso)
-    (aba_usuarios, aba_chaves, aba_identidade, aba_secretarias,
-     aba_revisao, aba_qualidade) = st.tabs(
-        ["Usuários", "Chaves de IA", "Identidade visual", "Secretarias",
-         "Revisão", "Qualidade"]
-    )
-    with aba_usuarios:
+    # A aba "Instituição" só existe com `flag_multi_prefeituras` ligada,
+    # e a flag nasce desligada. Sem a migração 0025 aplicada as consultas
+    # dela falhariam de qualquer jeito — e uma aba que só sabe explicar
+    # por que não funciona é pior que aba nenhuma.
+    rotulos = ["Usuários", "Chaves de IA", "Identidade visual", "Secretarias",
+               "Revisão", "Qualidade"]
+    com_instituicao = instituicional.ativo()
+    if com_instituicao:
+        rotulos.insert(3, "Instituição")
+
+    abas = dict(zip(rotulos, st.tabs(rotulos)))
+
+    with abas["Usuários"]:
         _render_usuarios()
-    with aba_chaves:
+    with abas["Chaves de IA"]:
         _render_chaves()
-    with aba_identidade:
+    with abas["Identidade visual"]:
         _render_identidade()
-    with aba_secretarias:
+    if com_instituicao:
+        with abas["Instituição"]:
+            instituicional.render()
+    with abas["Secretarias"]:
         _render_secretarias()
-    with aba_revisao:
+    with abas["Revisão"]:
         _render_revisao()
-    with aba_qualidade:
+    with abas["Qualidade"]:
         _render_qualidade()
 
 

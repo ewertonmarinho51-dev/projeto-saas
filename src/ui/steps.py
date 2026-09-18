@@ -8,9 +8,9 @@ Telas de cada etapa do wizard:
 import streamlit as st
 
 from .. import (achados, auth, conhecimento, contexto, corretor, db,
-                explicacoes, export, familias, fatos, planilha,
-                qualidade, rag, state)
-from . import components, revisao
+                explicacoes, export, familias, fatos, instituicional_bridge,
+                planilha, qualidade, rag, state)
+from . import components, revisao, signatarios
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
 from .components import render_base_legal
@@ -505,6 +505,12 @@ def render_etapa_documento(doc_key: str) -> None:
                 height=480, key=f"editor_{doc_key}", label_visibility="collapsed")
         with aba_visualizar:
             st.markdown(texto_editado)
+        # A seleção vem ANTES do botão de aprovar, e a posição é a
+        # decisão: aprovar é emitir, e o que estiver escolhido aqui é o
+        # que fica congelado no documento. Pôr a seleção depois faria o
+        # servidor descobrir que assinou sem escolher.
+        signatarios.render(doc_key)
+
         voltar, regerar, aprovar = st.columns([1, 1, 2])
         acao = None
         if voltar.button("Voltar", use_container_width=True, key=f"volta_{doc_key}"):
@@ -971,7 +977,12 @@ def render_sucesso() -> None:
                 )
                 acao.download_button(
                     f"Baixar {meta_doc['sigla']} em DOCX",
-                    data=export.gerar_docx(meta_doc["titulo"], docs[doc_key], branding),
+                    # O bloco de assinatura vem do SNAPSHOT congelado na
+                    # aprovação, nunca do cadastro vivo. Sem snapshot a
+                    # string é vazia e o documento sai como sempre saiu.
+                    data=export.gerar_docx(
+                        meta_doc["titulo"], docs[doc_key], branding,
+                        instituicional_bridge.bloco_para_exportacao(doc_key)),
                     file_name=f"{prefixo}-{nome_arquivo}.docx",
                     mime=("application/vnd.openxmlformats-officedocument."
                           "wordprocessingml.document"),

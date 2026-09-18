@@ -1470,6 +1470,24 @@ TABELAS_DA_PESQUISA_DE_PRECOS = frozenset({
     "pesquisa_preco_referencias", "pesquisa_preco_eventos",
 })
 
+# As dez da 0025 (multi-prefeituras). Elas estão DESCRITAS no repositório
+# e NÃO aplicadas em produção — e a distinção é o ponto desta lista.
+#
+# `TABELAS_EM_PRODUCAO` continua 32 de propósito. Subi-la para 42 faria o
+# inventário afirmar que a 0025 está no banco, que é exatamente a mentira
+# "para mais" contra a qual o teste abaixo avisa: dar por implantado o
+# que ainda não foi.
+#
+# Quando a 0025 for aplicada, quem a aplicar move estes nomes daqui para
+# a contagem — ato deliberado, igual ao cabeçalho que a 0018, a 0019 e a
+# 0020 passaram a declarar depois de aplicadas.
+TABELAS_DA_MULTI_PREFEITURA = frozenset({
+    "tenant_modulos", "secretaria_modulos", "servidores",
+    "servidor_vinculos", "funcoes_administrativas", "servidor_funcoes",
+    "portarias", "portaria_membros",
+    "documento_identidades", "documento_signatarios",
+})
+
 
 def test_o_inventario_cobre_todas_as_tabelas():
     """
@@ -1482,12 +1500,39 @@ def test_o_inventario_cobre_todas_as_tabelas():
     implantada fora da conta que a cobre; para mais, dando por
     implantado o que ainda não foi.
     """
-    assert len(TABELAS_PRIVADAS) == TABELAS_EM_PRODUCAO, \
-        sorted(TABELAS_PRIVADAS)
+    aplicadas = set(TABELAS_PRIVADAS) - TABELAS_DA_MULTI_PREFEITURA
+    assert len(aplicadas) == TABELAS_EM_PRODUCAO, sorted(aplicadas)
+
+    # As dez da 0025 estão no repositório e NÃO no banco. Exigi-las aqui
+    # garante que o inventário as cubra quando forem aplicadas — e
+    # mantê-las fora da contagem impede o arquivo de afirmar que já
+    # estão.
+    assert TABELAS_DA_MULTI_PREFEITURA <= set(TABELAS_PRIVADAS), (
+        "as tabelas da 0025 sumiram do inventário")
     assert TABELAS_DA_PESQUISA_DE_PRECOS <= set(TABELAS_PRIVADAS), (
         "as tabelas da 0021 sumiram do inventário")
     for obrigatoria in ("usuarios", "config_app", "processos", "revisoes"):
         assert obrigatoria in TABELAS_PRIVADAS
+
+
+def test_o_inventario_nao_le_comentario_como_comando():
+    """
+    Comentário não é SQL, e a distinção custou um defeito real.
+
+    A 0025 explica no texto dela que "`create table if not exists` que
+    não cria não levanta erro". O extrator leu a frase como comando: o
+    backtick depois de `exists` impediu o grupo opcional de casar, a
+    expressão recuou, e uma tabela chamada `if` entrou no inventário —
+    que é justamente o que a varredura de contenção sonda e o que a
+    contagem de tabelas em produção compara.
+
+    Esta prova guarda o conserto e usa o mesmo caso que o revelou.
+    """
+    assert "if" not in TABELAS_PRIVADAS, (
+        "o inventário voltou a ler comentário como comando")
+    assert "as" not in TABELAS_PRIVADAS
+    for nome in TABELAS_PRIVADAS:
+        assert nome not in ("not", "exists", "table", "public"), nome
 
 
 def test_as_migracoes_de_contencao_declaram_que_foram_aplicadas():
@@ -1698,6 +1743,22 @@ def _sql_da_0021() -> str:
     return (migracoes / "0021_pesquisa_precos.sql").read_text()
 
 
+def _sql_da_0025() -> str:
+    """
+    A 0025 traz a MATRIZ DELA, pelo mesmo argumento que abriu espaço para
+    a 0021: RLS na primeira linha de cada tabela, políticas nominais,
+    grants explícitos, revoke de `anon` e um bloco de conferência que
+    falha a própria migração se o catálogo não corresponder.
+
+    Exigir que as dez tabelas novas aparecessem na 0020 obrigaria a
+    reescrever uma migração já auditada — e é assim que uma matriz de
+    segurança começa a divergir do que o banco de fato tem.
+    """
+    migracoes = Path(__file__).resolve().parent.parent / "supabase/migrations"
+    return (migracoes
+            / "0025_multi_prefeituras_servidores_portarias.sql").read_text()
+
+
 def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     """
     Cobertura declarada = cobertura escrita. Tabela que não aparece em
@@ -1714,14 +1775,15 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     O que NÃO se afrouxou: continua sendo obrigatório que toda tabela
     privada apareça em ALGUMA das duas.
     """
-    coberto = _sql_da_0020() + _sql_da_0021()
+    coberto = _sql_da_0020() + _sql_da_0021() + _sql_da_0025()
     faltando = [t for t in TABELAS_PRIVADAS if t not in coberto]
     assert not faltando, f"sem matriz de RLS escrita: {faltando}"
 
-    # E cada uma no seu lugar: a 0021 não pode ter silenciosamente
-    # assumido tabela que era da 0020.
+    # E cada uma no seu lugar: nem a 0021 nem a 0025 podem ter
+    # silenciosamente assumido tabela que era da 0020.
     sql_0020 = _sql_da_0020()
-    for tabela in sorted(set(TABELAS_PRIVADAS) - TABELAS_DA_PESQUISA_DE_PRECOS):
+    proprias = TABELAS_DA_PESQUISA_DE_PRECOS | TABELAS_DA_MULTI_PREFEITURA
+    for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 
 

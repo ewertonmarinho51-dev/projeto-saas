@@ -638,6 +638,31 @@ def test_a_regra_vale_so_para_e_mail():
     assert any(a.categoria == "OpenAI" and a.e_real for a in achados), achados
 
 
+def test_o_placeholder_da_prefeitura_nao_isenta_prefeitura_de_verdade():
+    """
+    O `contato@` do domínio genérico de município é placeholder de
+    formulário e entrou na allowlist por VALOR EXATO. (Escrito montado,
+    nunca literal — é a mesma disciplina que o resto deste arquivo
+    segue, e `test_este_arquivo_nao_contem_literal_de_segredo` a cobra.)
+
+    A tentação era acrescentar `.gov.br` aos domínios reservados — e
+    seria a pior das isenções: liberaria o e-mail de qualquer prefeitura
+    real, que é dado de contato de gente que existe. Município de
+    verdade é `<cidade>.<uf>.gov.br`, e este teste exige que ele
+    continue reprovando.
+    """
+    placeholder = _montar("contato", "@municipio", ".gov", ".br")
+    achados = varrer("x.patch", f"+ e-mail: {placeholder}\n")
+    assert achados, "o padrão deixou de casar o placeholder"
+    assert all(a.situacao == FALSO_DOCUMENTADO for a in achados), achados
+
+    real = _montar("contato", "@belem", ".pa", ".gov", ".br")
+    achados = varrer("x.patch", f"+ e-mail: {real}\n")
+    assert achados
+    assert all(a.e_real for a in achados), (
+        "endereço de prefeitura real herdou a dispensa do placeholder")
+
+
 def test_o_laudo_nomeia_as_duas_listas(tmp_path):
     """
     O texto final dizia "todas na allowlist por valor exato". Com a

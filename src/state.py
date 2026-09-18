@@ -234,6 +234,21 @@ def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
     st.session_state.setdefault("_documentos_obsoletos", {}).pop(doc_key, None)
     st.session_state.setdefault("edicoes_pendentes", {}).pop(doc_key, None)
     st.session_state.aprovados.add(doc_key)
+
+    # APROVAR É EMITIR: daqui em diante o timbrado e os signatários deste
+    # documento param de depender do cadastro. Se o servidor for exonerado
+    # em março, o edital de janeiro continua tendo sido assinado por quem
+    # o assinou, com o cargo que ele tinha.
+    #
+    # Best-effort, pela mesma razão que a captura de aprendizado acima:
+    # travar o avanço do processo porque uma tabela auxiliar não respondeu
+    # seria trocar um registro incompleto por um servidor público parado.
+    # A falha produz documento sem bloco de assinatura — visível — e uma
+    # linha de log; nunca assinatura lida do cadastro vivo na exportação.
+    from . import instituicional_bridge
+
+    instituicional_bridge.congelar_na_aprovacao(doc_key)
+
     st.session_state.etapa += 1
     autosalvar()  # persiste cada avanço no Supabase (quando configurado)
     st.rerun()
