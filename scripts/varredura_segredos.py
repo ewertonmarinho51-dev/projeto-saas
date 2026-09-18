@@ -137,6 +137,14 @@ FALSOS_CONHECIDOS = frozenset({
     _montado("senha-super-secreta", "@db.exemplo.supabase.co"),
     # remetente que o git grava no cabeçalho de todo format-patch
     _montado("noreply", "@anthropic.com"),
+    # placeholder do formulário de dados da prefeitura, em
+    # `src/ui/instituicional.py`. Município real é `<cidade>.<uf>.gov.br`
+    # — `municipio.gov.br` é genérico por construção, endereço de
+    # ninguém. NÃO entrou em DOMINIOS_RESERVADOS: `.gov.br` não é
+    # reservado pela RFC 2606, e isentá-lo por sufixo liberaria o
+    # e-mail de qualquer prefeitura de verdade. Entra por VALOR EXATO,
+    # que é o escopo mais estreito possível.
+    _montado("contato", "@municipio.gov.br"),
 })
 
 # ---------------------------------------------------------------------------
