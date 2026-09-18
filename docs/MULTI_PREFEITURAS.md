@@ -396,13 +396,70 @@ na saída trataria o sintoma; o defeito era ler comentário como código, e
 foi isso que se consertou.
 
 **A contagem de tabelas em produção.** A prova exige que o inventário
-descreva exatamente as 32 tabelas que estão no banco. Com a 0025 no
-repositório, ele passou a descrever 42. **Não subi a contagem para 42** —
-isso faria o arquivo afirmar que a 0025 está aplicada, que é a mentira
-"para mais" contra a qual a própria prova avisa. As dez entraram numa
-lista nomeada de **pendentes de aplicação**, e quem aplicar a migração
-move os nomes de lá para a contagem — ato deliberado, igual ao cabeçalho
-que a 0018, a 0019 e a 0020 passaram a declarar depois de aplicadas.
+descreva exatamente as tabelas que estão no banco. Enquanto a 0025 vivia
+só no repositório, **não subi a contagem de 32 para 42** — isso faria o
+arquivo afirmar que a migração estava aplicada, que é a mentira "para
+mais" contra a qual a própria prova avisa. As dez ficaram numa lista
+nomeada de **pendentes de aplicação**.
+
+Em **18/09/2026 a 0025 foi aplicada**, e os nomes saíram de lá para a
+contagem — o ato deliberado que aquele comentário previa. A contagem é
+42 porque o catálogo mostra 42, e não porque o repositório quis.
+
+---
+
+## A aplicação em produção (18/09/2026)
+
+Antes de escrever qualquer coisa, o pré-voo mediu: 32 tabelas, **nenhuma
+das dez já existente**, nenhuma das oito colunas novas de `tenants` já
+existente, RLS ligada em todas as tabelas do schema, e a 0024 presente —
+que importava, porque é dela que vem o `alter default privileges`
+estreitado.
+
+**Um susto do pré-voo foi defeito da minha consulta, não do banco.** A
+primeira medição acusou "1 das 8 colunas já existe"; a coluna era `uf`,
+que a 0025 **não adiciona**. Eu havia listado `uf`/`municipio` no lugar
+de `sigla`/`cidade`. Refeita com os nomes certos: zero colisões.
+
+**Um risco real foi verificado e não se materializou.** Existem DOIS
+defaults de privilégio no schema: o do `postgres`, estreitado pela 0024,
+e um do `supabase_admin` que ainda concede TRUNCATE a `anon`,
+`authenticated` e `service_role`. Qual deles vale depende de quem cria a
+tabela — e a conferência da própria 0025 mede TRUNCATE só nos dois
+snapshots, não nas dez. O ensaio no projeto descartável, pelo mesmo
+caminho da aplicação real, mediu **zero TRUNCATE de rede nas dez**: o
+`revoke truncate` explícito do arquivo cobre o caso independentemente de
+qual default venceu. É a diferença entre um arquivo que afirma o estado
+final e um que aplica um delta.
+
+Pós-voo em produção, medido e não presumido:
+
+| Medida | Resultado |
+|---|---|
+| Tabelas no schema `public` | 32 → **42** |
+| Das dez, faltando | 0 |
+| Das dez, sem RLS | 0 |
+| Qualquer tabela do schema sem RLS | 0 |
+| TRUNCATE para `anon`/`authenticated`/`service_role`/`PUBLIC` | 0 |
+| Grants para `anon`/`PUBLIC` | 0 |
+| UPDATE/DELETE/TRUNCATE nos dois snapshots | 0 |
+| Políticas instaladas | 26 |
+| Funções administrativas semeadas | 10 |
+| `tenants` / `secretarias` / `processos` | 1 / 2 / 6 — intactos |
+
+**A única política ampla é a prevista.** `funcoes_le` usa `using (true)`,
+e o §12 proíbe isso em produção salvo justificativa arquitetural
+específica para tabela realmente pública. A justificativa está escrita na
+própria migração: `funcoes_administrativas` é o domínio do PRODUTO, não
+de cada prefeitura — leitura para qualquer autenticado, escrita para
+ninguém pela rede. Deixar uma prefeitura renomear `EQUIPE_PLANEJAMENTO`
+quebraria o código que casa por esse código. A consulta ao catálogo
+confirmou que ela é a única: SELECT, só `authenticated`.
+
+**Nenhuma flag foi ligada.** Não existe linha `flag_multi_prefeituras` em
+`config_app`, e ausente é desligada — a funcionalidade entrou escura. O
+verificador de segurança do Supabase não acusou nada novo: os quatro
+achados que ele lista são anteriores e nenhum envolve as dez tabelas.
 
 ---
 
