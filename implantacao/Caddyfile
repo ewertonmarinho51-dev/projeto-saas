@@ -1,0 +1,79 @@
+# ###########################################################
+#  Caddy — TLS automático e proxy para o Streamlit
+#
+#  O certificado do Let's Encrypt é emitido e renovado sozinho.
+#  Para isso o A record de govconect.com precisa JÁ apontar para
+#  o IPv4 do VPS antes da primeira subida: o desafio HTTP-01
+#  chega pela porta 80 no domínio, e apontando para outro lugar
+#  ele falha.
+# ###########################################################
+
+# O e-mail dos avisos de expiração do Let's Encrypt vem do AMBIENTE,
+# e não escrito aqui, por uma razão específica: este repositório é
+# PÚBLICO. Endereço pessoal em arquivo versionado é endereço
+# publicado — para quem varre o GitHub atrás deles, inclusive.
+#
+# Defina-o em `/etc/govdocs/caddy.env` (ver o compose). Use um
+# endereço que você de fato leia: certificado que expira em
+# silêncio derruba o site num domingo.
+{
+	email {$ACME_EMAIL}
+}
+
+govconect.com, www.govconect.com {
+	# ---------------------------------------------------------
+	# WEBSOCKET É REQUISITO, NÃO DETALHE
+	#
+	# O Streamlit fala com o navegador por WebSocket em
+	# `/_stcore/stream`. O Caddy encaminha WebSocket sem
+	# configuração extra — é uma das razões de ele estar aqui no
+	# lugar do nginx, onde isso exige `Upgrade`/`Connection` na
+	# mão e falha em silêncio quando alguém esquece: a página
+	# carrega e nenhum botão responde.
+	# ---------------------------------------------------------
+	reverse_proxy app:8501 {
+		# O Streamlit precisa saber que está atrás de proxy e que
+		# o esquema original era HTTPS; sem isso ele monta URLs
+		# com http:// e o navegador recusa conteúdo misto.
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		header_up Host {host}
+	}
+
+	# ---------------------------------------------------------
+	# CABEÇALHOS DE SEGURANÇA
+	#
+	# Sem CSP aqui de propósito: o Streamlit injeta script e
+	# estilo em linha, e uma CSP restritiva quebraria a aplicação
+	# inteira. Uma CSP que precisa de `unsafe-inline` para o app
+	# funcionar não protege de quase nada e dá a impressão de que
+	# protege — pior que não ter. Se um dia valer a pena, o
+	# caminho é `nonce`, e é trabalho de verdade.
+	# ---------------------------------------------------------
+	header {
+		# Um ano de HSTS. NÃO inclui `preload` nem subdomínios:
+		# preload é praticamente irreversível, e você ainda pode
+		# querer um subdomínio em HTTP durante alguma migração.
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# O servidor não precisa anunciar o que é.
+		-Server
+	}
+
+	# Documento público pode ser grande: a planilha de 210 itens
+	# vira DOCX e PDF no mesmo pedido. O padrão do Caddy já é
+	# generoso, mas o log de requisição longa ajuda a diagnosticar.
+	log {
+		output file /data/acesso.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		# `format` sem o corpo: log de aplicação de governo não
+		# guarda conteúdo de documento.
+		format json
+	}
+
+	encode gzip zstd
+}
