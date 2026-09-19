@@ -99,6 +99,13 @@ SEQUENCIA_EM_ENSAIO = (
     # `pode_ler_processo()`. No glob ela rodaria antes e quebraria por um
     # motivo que não tem nada a ver com o conteúdo dela.
     "0025_multi_prefeituras_servidores_portarias.sql",
+    # A 0026 só acrescenta uma coluna a `geracoes`, que existe desde a
+    # 0006, então a posição dela é indiferente à contenção — entra por
+    # último por ser a última. Fica NOMEADA na sequência, em vez de
+    # cair no glob, porque a sequência é a declaração de ordem deste
+    # ensaio: migração que aparece só pelo glob é migração cuja posição
+    # ninguém pensou.
+    "0026_geracoes_roteamento.sql",
 )
 
 
