@@ -105,8 +105,10 @@ SEQUENCIA_EM_ENSAIO = (
     # devolver DELETE por default e a conferência da 0027 teria passado
     # sobre um mundo que deixou de existir três linhas abaixo.
     #
-    # (A 0026 não aparece aqui: ela só acrescenta coluna e entra pelo
-    # glob, que roda antes desta sequência. A 0027 não depende dela.)
+    # A 0027 não depende da 0026: `geracoes` existe desde a 0006, e o
+    # `revoke` daqui não sabe nem se importa com as colunas dela. Se as
+    # duas entregas se cruzarem, a 0026 entra ANTES desta linha — a
+    # ordem entre elas é livre, e só esta precisa ser a última.
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
