@@ -1,8 +1,27 @@
 # Proposta — o DELETE de `service_role`, tabela a tabela
 
-**17/09/2026.** Documento de DECISÃO, não de execução. **Nada foi
-aplicado**: nenhum `revoke` de DELETE foi executado em produção nem no
-projeto de ensaio por causa deste arquivo. As consultas que o embasam
+> **DECIDIDA E PARCIALMENTE EXECUTADA — 19/09/2026.**
+>
+> A pergunta da seção 5 foi respondida pelo operador: **"se não for útil
+> remova a linha"** — em `secretarias`, `usuarios` e `config_orgaos`,
+> *remover* significa **apagar a linha**.
+>
+> A resposta **mantém** o DELETE nessas tabelas: tela de administração
+> que apaga precisa do privilégio. E ela não diz nada sobre o grupo da
+> TRILHA — por isso foi a trilha que saiu primeiro, que é o grupo onde a
+> resposta não muda nada e onde revogar é coerência, não aposta.
+>
+> A **0027 foi aplicada em produção em 19/09/2026**: as 13 tabelas do
+> grupo 2 perderam o DELETE. De **34 para 21** as tabelas apagáveis pela
+> credencial de servidor. Nada foi apagado — é revogação de privilégio,
+> e volta com um `grant` por tabela.
+>
+> **Continua em aberto:** o grupo 4 (conhecimento, 6 tabelas), que
+> espera a decisão sobre reindexação, e as **oito tabelas novas da
+> 0025**, que não existiam quando este documento foi escrito.
+
+**17/09/2026.** Documento de DECISÃO, não de execução — assim ele
+nasceu. As consultas que o embasam
 são `SELECT` em catálogo (`information_schema.role_table_grants`,
 `pg_constraint`, `pg_proc`, `pg_class`) — nenhuma linha de dado de
 negócio foi lida.
@@ -157,14 +176,51 @@ política de RLS. Nada aqui altera RLS.
 
 ---
 
-## 5. A pergunta que decide
+## 5. A pergunta que decide — RESPONDIDA
 
-Só uma, e é de produto:
+Era uma só, e era de produto:
 
 > Em `secretarias`, `usuarios` e `config_orgaos`, "remover" significa
 > apagar a linha ou marcar como inativa?
 
-Se for marcar como inativa, os grupos 2 e 3 (17 tabelas) podem ser
-revogados sem ressalva, e o grupo 4 fica para depois da decisão sobre
-reindexação. Se for apagar a linha, `usuarios` e `secretarias` saem da
-lista e entram na fila de "tela de administração ainda não escrita".
+**Resposta do operador, 19/09/2026: apagar a linha.**
+
+O caminho que este documento previa para essa resposta foi o seguido ao
+pé da letra: `usuarios` e `secretarias` **saem** da lista de revogação e
+entram na fila de "tela de administração ainda não escrita" — elas
+precisam do DELETE para a tela que vai apagar. `config_orgaos` já estava
+no grupo 1 por uso real do código.
+
+Sobrou o grupo 2 — a trilha —, onde a resposta não muda nada, e foi ele
+que a **0027** fechou. `test_a_decisao_do_operador_manteve_estas_apagaveis`
+fixa a decisão no código: quem a mudar depois muda um teste com nome, em
+vez de descobrir pela tela.
+
+---
+
+## 6. O que ficou de fora, e por quê
+
+**Grupo 4 — conhecimento (6 tabelas).** `chunks_referencia`,
+`fatos_canonicos`, `fontes_conhecimento`, `melhoria_clusters`,
+`melhoria_propostas`, `regras_conhecimento`. Depende de uma decisão que
+ainda não foi tomada: reindexar **recria do zero** ou **remove e
+regrava**? Se recria, o DELETE some com elas.
+
+**As oito tabelas novas da 0025.** `tenant_modulos`,
+`secretaria_modulos`, `servidores`, `servidor_vinculos`,
+`servidor_funcoes`, `portarias`, `portaria_membros` e
+`funcoes_administrativas` têm DELETE para `service_role` e não existiam
+quando este documento foi escrito. Elas merecem levantamento próprio, e
+há um indício forte de que pelo menos parte do DELETE ali sai:
+**`portarias` é soft-delete por desenho** — a própria tela diz "portaria
+não se apaga: revoga-se", porque é o histórico que permite a um
+documento de 2025 continuar citando a portaria de 2025.
+
+Mas "indício forte" não é como se mexe em privilégio de produção, e o
+levantamento de uma tabela é o que separa uma revogação segura de uma
+que derruba um botão dias depois.
+
+**O achado de primeira ordem continua aberto:** quem tiver a chave de
+servidor continua apagando em `processos`, que é o dado que mais
+importa. Nenhuma matriz de privilégio conserta chave vazada — o que
+conserta é rotação, e rotação é decisão sua.
