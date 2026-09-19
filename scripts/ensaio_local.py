@@ -99,16 +99,22 @@ SEQUENCIA_EM_ENSAIO = (
     # `pode_ler_processo()`. No glob ela rodaria antes e quebraria por um
     # motivo que não tem nada a ver com o conteúdo dela.
     "0025_multi_prefeituras_servidores_portarias.sql",
+    # A 0026 só acrescenta uma coluna a `geracoes`, que existe desde a
+    # 0006, então a posição dela é indiferente à contenção. Fica NOMEADA
+    # na sequência, em vez de cair no glob, porque a sequência é a
+    # declaração de ordem deste ensaio: migração que aparece só pelo
+    # glob é migração cuja posição ninguém pensou.
+    "0026_geracoes_roteamento.sql",
     # A 0027 entra por ÚLTIMO e a posição é o conteúdo dela, como na
     # 0024: ela afirma algo sobre o estado FINAL dos privilégios. No
     # meio da sequência, a 0025 — que cria dez tabelas depois — poderia
     # devolver DELETE por default e a conferência da 0027 teria passado
     # sobre um mundo que deixou de existir três linhas abaixo.
     #
-    # A 0027 não depende da 0026: `geracoes` existe desde a 0006, e o
-    # `revoke` daqui não sabe nem se importa com as colunas dela. Se as
-    # duas entregas se cruzarem, a 0026 entra ANTES desta linha — a
-    # ordem entre elas é livre, e só esta precisa ser a última.
+    # Ela não depende da 0026: `geracoes` existe desde a 0006, e o
+    # `revoke` daqui não sabe nem se importa com as colunas dela. A
+    # ordem ENTRE as duas é livre; o que não é livre é a 0027 ser a
+    # última.
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

@@ -66,6 +66,20 @@ _log = logging.getLogger("govdocs.geracao")
 _ultimo_uso: dict = {}
 
 
+def _telemetria_de_roteamento(rotulo: str, motor: str) -> dict:
+    """
+    Sob QUAL política a tarefa correu — ou `{}` se nem isso deu para saber.
+
+    Blindado de propósito: este campo é auditoria, e auditoria não pode
+    derrubar uma geração. Se `telemetria` levantar por qualquer motivo,
+    o registro sai sem ele em vez de o documento não sair.
+    """
+    try:
+        return dict(ai_gateway.telemetria(rotulo, motor))
+    except Exception:  # noqa: BLE001 — ver a docstring
+        return {}
+
+
 def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
                       erro: str = "", fallback: bool = False,
                       processo_id: str | None = None,
@@ -77,6 +91,9 @@ def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
     consultas/temas feitos à base, fontes recuperadas com título,
     categoria e score. Guarda IDENTIFICAÇÃO da fonte — nunca chaves de
     API, nunca o documento inteiro.
+
+    `roteamento` responde a outra pergunta, que até aqui não tinha
+    resposta: SOB QUAL POLÍTICA este documento foi gerado.
     """
     registro = {
         "quando": datetime.now().isoformat(timespec="seconds"),
@@ -92,6 +109,12 @@ def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
         "erro": (erro or "")[:300],            # sanitizado (sem chave/conteúdo)
         "fallback": fallback,
         "rag_trace": rag_trace or {},
+        # `ai_gateway.telemetria` já devolvia exatamente estes campos e
+        # NÃO era chamada em lugar nenhum do sistema — foi escrita e
+        # nunca ligada. Ligá-la é o oposto de criar um segundo
+        # mecanismo: é usar o que já existia. Sem conteúdo dentro:
+        # nada de prompt, resposta ou chave, e há prova disso.
+        "roteamento": _telemetria_de_roteamento(doc_key, motor),
     }
     _log.info("geracao %s", registro)
     historico = st.session_state.setdefault("registro_geracoes", [])
