@@ -1218,20 +1218,34 @@ def registrar_geracao_bd(registro: dict) -> None:
         "erro": registro.get("erro", ""),
         "fallback": bool(registro.get("fallback")),
     }
-    # P1: rastro do RAG (coluna `rag_trace`, migração 0011). Antes dela a
-    # coluna não existe — o insert é refeito sem o campo, preservando a
-    # compatibilidade com bancos ainda não migrados.
-    trace = registro.get("rag_trace") or {}
-    try:
-        _cliente().table("geracoes").insert(
-            {**linha, "rag_trace": trace} if trace else linha).execute()
-    except Exception:  # noqa: BLE001
-        if not trace:
-            return
+    # Colunas OPCIONAIS, cada uma de uma migração diferente:
+    #   `rag_trace`  (0011) — por que o sistema citou aquele artigo;
+    #   `roteamento` (0026) — sob qual política a tarefa correu.
+    #
+    # Um banco pode estar em qualquer ponto entre as duas, então o insert
+    # degrada em degraus: tenta com tudo, depois sem a mais nova, e por
+    # fim só com as colunas que existem desde a 0006. Sem os degraus, um
+    # banco sem a 0026 perderia TAMBÉM o `rag_trace`, e a correção de um
+    # buraco de auditoria teria aberto outro.
+    opcionais = {}
+    if registro.get("rag_trace"):
+        opcionais["rag_trace"] = registro["rag_trace"]
+    if registro.get("roteamento"):
+        opcionais["roteamento"] = registro["roteamento"]
+
+    degraus = [{**linha, **opcionais}]
+    if "roteamento" in opcionais:
+        degraus.append({k: v for k, v in degraus[0].items()
+                        if k != "roteamento"})
+    if opcionais:
+        degraus.append(linha)
+
+    for tentativa in degraus:
         try:
-            _cliente().table("geracoes").insert(linha).execute()
-        except Exception:  # noqa: BLE001
-            pass
+            _cliente().table("geracoes").insert(tentativa).execute()
+            return
+        except Exception:  # noqa: BLE001 — próximo degrau
+            continue
 
 
 # ---------------------------------------------------------------------------
