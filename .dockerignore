@@ -1,0 +1,49 @@
+# O contexto de build é a RAIZ do repositório (ver o compose), e é
+# POR ISSO que este arquivo mora aqui, e não ao lado do Dockerfile.
+#
+# O Docker procura `.dockerignore` na raiz do CONTEXTO, não junto
+# do Dockerfile. Posto em `implantacao/`, ele seria ignorado sem um
+# aviso sequer: a build funcionaria, a imagem subiria, e o
+# `secrets.toml` teria entrado no contexto sem ninguém notar. É uma
+# das falhas silenciosas mais caras do Docker, e a primeira versão
+# deste arquivo caiu nela.
+#
+# Este arquivo decide o que NÃO sobe para o daemon do Docker.
+#
+# A primeira seção não é sobre tamanho de imagem: é sobre segredo.
+# Tudo que a build enxerga pode acabar numa camada, e camada de
+# imagem é distribuível.
+
+.streamlit/secrets.toml
+.streamlit/secrets.toml.*
+!.streamlit/secrets.toml.example
+.env
+*.pem
+*.key
+contas-auth.json
+
+# Nada de Git dentro da imagem: o histórico inteiro viajaria junto,
+# incluindo qualquer coisa que já tenha sido removida por commit.
+.git
+.gitignore
+
+# Ferramentas e artefatos de desenvolvimento
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+scripts/
+supabase/
+docs/
+.devcontainer/
+.github/
+.claude/
+.cartographer/
+.mcp.json
+node_modules/
+
+# O bundle do editor é versionado e PRECISA entrar (está em
+# assets/), mas o código-fonte e as dependências dele, não.
+assets/rich_editor/node_modules/

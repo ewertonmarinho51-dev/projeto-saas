@@ -1,0 +1,75 @@
+# ###########################################################
+#  GovDocs no VPS — aplicativo + proxy com TLS automático
+#
+#  Suba com:  docker compose up -d --build
+#  Ver logs:  docker compose logs -f app
+#  Derrube:   docker compose down
+# ###########################################################
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: implantacao/Dockerfile
+    image: govdocs:local
+    restart: unless-stopped
+
+    # A PORTA NÃO É PUBLICADA NO HOST, e isso é a decisão de
+    # segurança mais importante deste arquivo.
+    #
+    # Com `ports: "8501:8501"`, o Streamlit ficaria acessível em
+    # http://<ip-do-vps>:8501 — sem TLS, sem o domínio, e
+    # contornando o Caddy inteiro. Quem descobrisse o IP entraria
+    # pela porta dos fundos em texto claro. Aqui só a rede interna
+    # do compose alcança o app; a internet fala com o Caddy.
+    expose:
+      - "8501"
+
+    # Os segredos vêm de um arquivo FORA do repositório, criado por
+    # você no servidor. Nada de `environment:` com valor literal
+    # aqui: este arquivo é versionado, e segredo em arquivo
+    # versionado é segredo vazado.
+    env_file:
+      - /etc/govdocs/env
+
+    networks:
+      - interna
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"     # HTTP/3
+    # Arquivo PRÓPRIO, com uma variável só: `ACME_EMAIL`.
+    #
+    # Deliberadamente NÃO é o `/etc/govdocs/env` do app. Aquele tem as
+    # chaves do Supabase e das IAs, e o Caddy não tem o que fazer com
+    # elas — dar a um proxy o ambiente inteiro da aplicação é ampliar
+    # o estrago de graça no dia em que ele for comprometido.
+    env_file:
+      - /etc/govdocs/caddy.env
+
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # certificados — PRECISA persistir
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - interna
+
+networks:
+  interna:
+    driver: bridge
+
+volumes:
+  # Sem este volume, cada `docker compose down` jogaria fora os
+  # certificados e o Let's Encrypt seria consultado de novo na
+  # subida seguinte — até bater o limite de emissão por domínio e
+  # o site ficar sem HTTPS por uma semana. É o erro clássico de
+  # quem põe Caddy em contentor.
+  caddy_data:
+  caddy_config:
