@@ -1,7 +1,9 @@
 # Implantação no VPS da Hostinger — do Streamlit Cloud para casa própria
 
-**19/09/2026.** Sai o Streamlit Cloud, sai a Vercel, entra o seu VPS na
-Hostinger servindo `govconect.com` por HTTPS.
+**19/09/2026.** Sai a Vercel, entra o seu VPS na Hostinger servindo
+`govconect.com` por HTTPS. O **Streamlit Cloud fica**, como homologação
+— ver a seção *Homologação e produção*, que diz também o que ele **não**
+é.
 
 > **O IP do VPS não aparece escrito neste documento**, e a omissão é
 > deliberada: este repositório é **público**. Um runbook que anuncia
@@ -154,16 +156,21 @@ ainda não propagou — volte ao passo 1.
 
 Abra **https://govconect.com**.
 
-### 6. Só então desligar o antigo
-
-**Nesta ordem, e só depois de o novo estar de pé e testado.**
-
-**Streamlit Cloud:** share.streamlit.io → seu app → ⋮ → *Delete app*.
-Enquanto o app antigo existir, ele continua com as chaves nos Secrets
-dele — se você não pretende voltar, apague o app, não só pause.
+### 6. Desligar a Vercel — e MANTER o Streamlit Cloud
 
 **Vercel:** vercel.com → projeto `projeto-saas` → Settings → Git →
 *Disconnect*. Ou remova o projeto inteiro.
+
+**Streamlit Cloud: fica.** Decisão do operador em 19/09/2026 — ele passa
+a servir de homologação, para conferir alterações antes de promovê-las.
+Configure nos Secrets dele:
+
+```toml
+GOVDOCS_AMBIENTE = "homologacao"
+```
+
+Isso faz o app desenhar a tarja de homologação. **Leia a seção seguinte
+antes de tratá-lo como ambiente de teste** — ele não é um.
 
 > A integração da Vercel nunca teve o que construir aqui: este
 > repositório é um app **Streamlit** (`app.py`, `requirements.txt`,
@@ -175,25 +182,78 @@ dele — se você não pretende voltar, apague o app, não só pause.
 
 ---
 
-## Atualizar depois
+## Homologação e produção
+
+**A homologação acompanha `main`. A produção só se move por TAG.** É o
+intervalo entre as duas que dá sentido a "testar antes de subir": tudo
+que mergeia aparece no Streamlit Cloud sozinho; o VPS fica onde está até
+alguém promover.
+
+### ⚠ O que a homologação NÃO é
+
+**Ela aponta para o banco de PRODUÇÃO.** Decisão do operador, registrada
+— e a consequência não é opinião:
+
+- **processo criado ali é processo real**, na tabela real;
+- **documento aprovado ali congela snapshot de verdade**, com assinatura;
+- **evento gravado ali entra na trilha de governança**, e desde a 0027 a
+  credencial do aplicativo não apaga mais: lixo de teste fica;
+- **flag ligada ali muda produção na hora, para todo mundo** — inclusive
+  para quem está no VPS. As flags de `config_app` têm chave primária
+  apenas em `chave`, sem escopo por instalação.
+
+Então ela serve para **conferir tela e comportamento de código**. Não
+serve para testar dado nem configuração. O app avisa isso numa tarja
+vermelha no topo, e há prova de que a tarja não amolece
+(`tests/test_ambiente_e_promocao.py`).
+
+O isolamento de verdade seria apontar os Secrets do Streamlit Cloud para
+o projeto `govdocs-ensaio-descartavel` do Supabase, que existe e só
+precisa das migrações 0022, 0023, 0026 e 0027. O dia em que isso for
+feito, `ambiente.grava_em_producao()` passa a devolver `False` — uma
+linha, com o teste que já descreve a transição — e a tarja amansa
+sozinha.
+
+### Promover uma versão
+
+No seu computador, quando o que está em `main` tiver sido conferido na
+homologação:
 
 ```bash
-cd /opt/govdocs
-git pull
-cd implantacao
-docker compose up -d --build
+git tag -a v1.4.0 -m "o que muda nesta versão"
+git push origin v1.4.0
 ```
 
-O `--build` é necessário: a imagem carrega o código. Sem ele, o
-contentor sobe com a versão anterior e você conclui que o `git pull` não
-funcionou.
+No VPS:
+
+```bash
+cd /opt/govdocs/implantacao
+sudo ./promover.sh v1.4.0
+sudo ./promover.sh --atual      # que versão está no ar?
+```
+
+O script recusa tag inexistente **antes** de tocar no serviço, guarda a
+versão anterior para o caso de precisar voltar, e só declara sucesso
+quando `https://govconect.com/_stcore/health` responde — `docker compose
+up` devolve o controle quando os contentores foram criados, não quando o
+aplicativo está servindo, e a diferença aparece justamente no dia em que
+a versão nova não sobe.
+
+Para voltar, é o mesmo comando com a versão anterior:
+
+```bash
+sudo ./promover.sh v1.3.0
+```
 
 ## Reverter
 
-O Streamlit Cloud continua existindo até você apagá-lo no passo 6 — é por
-isso que ele é o **último** passo. Para voltar antes disso: devolva o
-registro `A` para `2.57.91.91` e reative o app antigo. Depois de apagado,
-voltar significa recriar o app no Cloud e repreencher os Secrets.
+**Uma versão:** `sudo ./promover.sh <versão anterior>` — ver acima.
+
+**A hospedagem inteira:** devolva o registro `A` para `2.57.91.91`. O
+Streamlit Cloud continua no ar como homologação e apontando para o mesmo
+banco, então ele volta a atender sozinho assim que o DNS propagar. É um
+efeito colateral agradável da decisão de manter os dois no mesmo banco —
+e o único.
 
 ---
 

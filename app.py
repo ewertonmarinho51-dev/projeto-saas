@@ -23,7 +23,7 @@ COMO RODAR LOCALMENTE
 
 import streamlit as st
 
-from src import auth, db, state
+from src import ambiente, auth, db, state
 from src.ui import admin, biblioteca, components, governanca_ui, login, steps
 
 # Configuração da página — deve ser a 1ª chamada Streamlit do script
@@ -88,6 +88,12 @@ if geracao_ocupada(st.session_state):
     st.stop()
 components.render_sidebar()
 components.render_cabecalho()
+
+# A tarja da homologação vem ANTES de qualquer tela de trabalho, e
+# depois do cabeçalho para não competir com ele. Quem entra precisa
+# saber em que instalação está antes do primeiro clique — ver
+# `src/ambiente.py` para por que isto existe.
+ambiente.render_aviso()
 
 # Entrou pelo login antigo TENDO conta de e-mail. Uma vez só, na
 # primeira tela depois do login: é aviso sobre um ato que acabou de
