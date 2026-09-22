@@ -235,10 +235,26 @@ def subir_streamlit(pilha: Pilha) -> subprocess.Popen:
         "GOVDOCS_AMBIENTE": "homologacao",
         "GOVDOCS_LIVRO_SEM_LLM": os.environ.get(
             "GOVDOCS_LIVRO_SEM_LLM", "/tmp/govdocs_sem_llm.jsonl"),
-        # Nenhuma chave de LLM: o app precisa encontrar o campo VAZIO e
-        # se comportar como se comporta sem provedor configurado. É um
-        # dos caminhos que o §3 manda exercitar.
-        "OPENAI_API_KEY": "",
+    })
+
+    # A chave é o INTERRUPTOR do caminho de IA, e os dois estados
+    # precisam ser exercitados:
+    #
+    #   sem `GOVDOCS_IA_SIMULADA` → campo vazio. `motores_disponiveis()`
+    #       devolve lista vazia e a geração recusa com a mensagem que
+    #       fala do Modo Demonstração. É um caminho de produção real —
+    #       o de quem ainda não configurou provedor.
+    #
+    #   com `GOVDOCS_IA_SIMULADA` → chave de FORMATO plausível e valor
+    #       falso. Nada sai para a rede: quem atende é a fixture no
+    #       transporte. O valor não é segredo, é literal de teste.
+    simulacao = os.environ.get("GOVDOCS_IA_SIMULADA", "")
+    chave_de_ensaio = "sk-ensaio-sem-custo-nao-e-credencial" if simulacao else ""
+    ambiente.update({
+        "GOVDOCS_IA_SIMULADA": simulacao,
+        "GOVDOCS_LIVRO_IA_SIMULADA": os.environ.get(
+            "GOVDOCS_LIVRO_IA_SIMULADA", "/tmp/govdocs_ia_simulada.jsonl"),
+        "OPENAI_API_KEY": chave_de_ensaio,
         "GOOGLE_API_KEY": "",
         "OPENROUTER_API_KEY": "",
     })
@@ -364,8 +380,15 @@ def principal(argv: list[str] | None = None) -> int:
             # mesma porta, o que a interface acabou de gravar. São
             # chaves efêmeras desta execução — não há segredo real aqui.
             ambiente = dict(os.environ)
+            ambiente["PYTHONPATH"] = os.pathsep.join(
+                [str(SCRIPTS / "bloqueio_de_custo"), str(SCRIPTS), str(RAIZ)]
+                + ([os.environ["PYTHONPATH"]]
+                   if os.environ.get("PYTHONPATH") else []))
             ambiente.update({
                 "GOVDOCS_URL_APP": info.url_app,
+                "OPENAI_API_KEY": (
+                    "sk-ensaio-sem-custo-nao-e-credencial"
+                    if os.environ.get("GOVDOCS_IA_SIMULADA") else ""),
                 "SUPABASE_URL": info.url_supabase,
                 "SUPABASE_SERVICE_KEY": info.chave_servidor,
                 "SUPABASE_KEY": info.chave_publica,

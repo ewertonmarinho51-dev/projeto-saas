@@ -28,6 +28,17 @@ if os.environ.get("GOVDOCS_BLOQUEAR_LLM", "1") not in ("0", "false", "off"):
         import sem_llm
 
         sem_llm.instalar()
+
+        # A IA simulada entra DEPOIS do bloqueio, e a ordem é o
+        # significado: instalada por fora, ela atende a chamada e o
+        # bloqueio nem a vê. As duas contagens ficam separadas —
+        # `sem_llm.tentativas()` continua sendo "quantas tentaram sair",
+        # com meta zero, e `ia_simulada.quantas()` é "quantas foram
+        # atendidas por fixture". Invertida a ordem, toda geração
+        # apareceria como tentativa de gasto e o §3 ficaria ilegível.
+        import ia_simulada
+
+        ia_simulada.instalar()
     except Exception as _erro:  # noqa: BLE001
         # Falhar aqui derrubaria o interpretador inteiro por um motivo
         # obscuro. Melhor gritar na saída de erro: a bateria confere

@@ -18,6 +18,7 @@ aqui que se descobre — e não na fatura.
 
 from __future__ import annotations
 
+import json
 import socket
 import sys
 from pathlib import Path
@@ -213,14 +214,52 @@ def test_o_teste_de_conexao_do_painel_nao_gasta(monkeypatch):
 def test_o_livro_registra_host_e_nunca_conteudo(monkeypatch):
     """
     O livro vira anexo de relatório, e anexo de relatório circula. Só
-    host, porta e horário — nunca corpo, cabeçalho ou chave.
+    host, porta, caminho e horário — nunca corpo, cabeçalho ou chave.
     """
     with pytest.raises(sem_llm.ChamadaPagaBloqueada):
         socket.getaddrinfo("api.openai.com", 443)
 
     for evento in sem_llm.relatorio():
-        assert set(evento) == {"quando", "host", "porta"}, (
-            f"o livro ganhou campo além de host/porta/quando: {set(evento)}")
+        assert set(evento) == {"quando", "host", "porta", "caminho"}, (
+            f"o livro ganhou campo além do combinado: {set(evento)}")
+
+
+def test_o_livro_guarda_o_caminho_e_JAMAIS_a_query():
+    """
+    O caminho separa `/v1/chat/completions` de `/v1/embeddings`, e é
+    essa distinção que sustenta o achado de custo do §15: uma única
+    geração de documento dispara as duas coisas.
+
+    A QUERY fica de fora, e o motivo é concreto: o Gemini manda a chave
+    em `?key=…`. Um livro que guardasse a query seria um vazamento de
+    credencial com aparência de evidência de auditoria.
+    """
+    import httpx
+
+    pedido = httpx.Request(
+        "POST", "https://generativelanguage.googleapis.com/v1beta/models/"
+                "x:generateContent?key=CHAVE-QUE-NAO-PODE-VAZAR")
+    with pytest.raises(sem_llm.ChamadaPagaBloqueada):
+        httpx.HTTPTransport().handle_request(pedido)
+
+    evento = sem_llm.relatorio()[-1]
+    assert evento["caminho"] == "/v1beta/models/x:generateContent"
+    assert "CHAVE-QUE-NAO-PODE-VAZAR" not in json.dumps(evento)
+
+
+def test_a_mensagem_do_bloqueio_tambem_nao_ecoa_a_query():
+    """
+    A exceção sobe para o log do app e para a tela. Fechar só o livro
+    deixaria a mesma chave sair pela mensagem.
+    """
+    import httpx
+
+    pedido = httpx.Request(
+        "POST", "https://generativelanguage.googleapis.com/v1beta/x"
+                "?key=OUTRA-CHAVE-SECRETA")
+    with pytest.raises(sem_llm.ChamadaPagaBloqueada) as erro:
+        httpx.HTTPTransport().handle_request(pedido)
+    assert "OUTRA-CHAVE-SECRETA" not in str(erro.value)
 
 
 def test_a_mensagem_de_bloqueio_nao_ecoa_chave(monkeypatch):

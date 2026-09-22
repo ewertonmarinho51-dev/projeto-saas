@@ -736,16 +736,33 @@ def _selecionar_com_reserva(ranking: list[dict],
                   reverse=True)
 
 
+# Como cada documento se descreve para a busca. O Mapa de Riscos entrou
+# no fluxo (`config.SEQUENCIA_COM_MAPA`) sem entrar aqui, e a ausência
+# não era uma busca pior: era `KeyError` no meio da geração, capturado
+# lá em cima como "Não foi possível concluir o documento". Com
+# `flag_mapa_riscos` ligada, isso travava o processo na terceira etapa.
+#
+# A prova que fecha isso é estrutural e mora em
+# `tests/test_achado_mapa_riscos_rag.py`: ela percorre a SEQUÊNCIA, de
+# modo que o próximo documento acrescentado ao fluxo falhe no teste, e
+# não na tela do servidor.
+NOMES_PARA_BUSCA = {
+    "dfd": "documento de formalização da demanda",
+    "etp": "estudo técnico preliminar",
+    "mapa_riscos": "mapa de riscos análise de riscos da contratação "
+                   "medidas preventivas e de contingência",
+    "tr": "termo de referência",
+    "edital": "edital de licitação registro de preços",
+}
+
+
 def montar_consulta(dados: dict, doc_key: str) -> str:
     """Texto de busca combinando objeto, justificativa e o tipo de documento."""
-    nomes = {
-        "dfd": "documento de formalização da demanda",
-        "etp": "estudo técnico preliminar",
-        "tr": "termo de referência",
-        "edital": "edital de licitação registro de preços",
-    }
     partes = [
-        nomes[doc_key],
+        # `.get`, e não `[...]`: um documento desconhecido passa a
+        # buscar só pelos fatos do processo, que é uma busca pior — e
+        # muito melhor que derrubar a geração inteira.
+        NOMES_PARA_BUSCA.get(doc_key, ""),
         dados.get("objeto") or "",
         dados.get("justificativa") or "",
         dados.get("modelo_execucao") or "",
@@ -845,6 +862,21 @@ def montar_contexto(dados: dict, doc_key: str) -> dict:
     except ErroRAG as erro:
         st.warning(str(erro))
         trace["erro"] = str(erro)[:200]
+        return {"bloco": "", "trace": trace}
+    except Exception as erro:  # noqa: BLE001
+        # "Nunca levanta exceção" valia só para `ErroRAG`, e a distância
+        # entre a promessa e o código custou o Mapa de Riscos: um
+        # `KeyError` de dicionário incompleto subia daqui e derrubava a
+        # geração inteira, com a mensagem genérica de falha na tela.
+        #
+        # O enriquecimento que falha devolve bloco vazio. O que ele NÃO
+        # pode fazer é sumir: a correlação vai para o log do servidor e
+        # a marca fica no rastro, que é o que aparece na tela de
+        # referências do documento. Engolir em silêncio trocaria um
+        # defeito ruidoso por um invisível.
+        correlacao = db.registrar_incidente(erro, f"rag: contexto {doc_key}")
+        trace["erro"] = (f"a Base de Conhecimento não pôde ser consultada "
+                         f"para este documento. Referência: {correlacao}.")
         return {"bloco": "", "trace": trace}
 
     referencias = resultado["referencias"]

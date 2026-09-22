@@ -129,11 +129,26 @@ def _e_pago(host: str) -> bool:
     return any(alvo == h or alvo.endswith("." + h) for h in HOSTS_PAGOS)
 
 
-def _registrar(host: str, porta) -> None:
+def _sem_query(caminho: str) -> str:
+    """
+    Só o caminho. A query string NUNCA entra — o Gemini manda a chave
+    em `?key=…`, e este livro vira anexo de relatório.
+    """
+    return (caminho or "").split("?", 1)[0].split("#", 1)[0]
+
+
+def _registrar(host: str, porta, caminho: str = "") -> None:
     evento = {
         "quando": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "host": host,
         "porta": porta,
+        # O CAMINHO, porque sem ele o livro não distingue
+        # `/v1/chat/completions` de `/v1/embeddings` — e a distinção É o
+        # achado: uma única geração de documento dispara as duas coisas,
+        # com preços e volumes diferentes. "Duas tentativas para
+        # api.openai.com" não diz qual delas cresce numa bateria
+        # operacional; com o caminho, diz.
+        "caminho": _sem_query(caminho),
         # NUNCA o corpo da requisição, nem cabeçalho, nem chave: este
         # livro vira anexo de relatório, e anexo de relatório vaza.
     }
@@ -146,8 +161,8 @@ def _registrar(host: str, porta) -> None:
             pass  # o livro é conveniência; a contagem em memória é a prova
 
 
-def _barrar(host: str, porta) -> None:
-    _registrar(str(host), porta)
+def _barrar(host: str, porta, caminho: str = "") -> None:
+    _registrar(str(host), porta, caminho)
     raise ChamadaPagaBloqueada(
         f"CHAMADA PAGA BLOQUEADA: {host}:{porta}. Esta bateria roda com "
         "orçamento zero (§3). Use mock ou fixture — e registre o caminho "
@@ -176,12 +191,14 @@ def instalar() -> None:
 
         def httpx_guardado(self, request):
             if _e_pago(request.url.host):
-                _barrar(request.url.host, request.url.port or 443)
+                _barrar(request.url.host, request.url.port or 443,
+                        request.url.path)
             return _originais["httpx"](self, request)
 
         async def httpx_guardado_async(self, request):
             if _e_pago(request.url.host):
-                _barrar(request.url.host, request.url.port or 443)
+                _barrar(request.url.host, request.url.port or 443,
+                        request.url.path)
             return await _originais["httpx_async"](self, request)
 
         httpx.HTTPTransport.handle_request = httpx_guardado
@@ -199,7 +216,7 @@ def instalar() -> None:
 
             alvo = urlparse(request.url)
             if _e_pago(alvo.hostname or ""):
-                _barrar(alvo.hostname, alvo.port or 443)
+                _barrar(alvo.hostname, alvo.port or 443, alvo.path)
             return _originais["requests"](self, request, *args, **kwargs)
 
         adapters.HTTPAdapter.send = requests_guardado
