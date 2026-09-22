@@ -26,9 +26,29 @@ import datetime as _dt
 
 import streamlit as st
 
-from .. import assinaturas, db, modulos, portarias
+from .. import assinaturas, branding, contexto, db, modulos, portarias
 
 FLAG_MULTI_PREFEITURAS = "multi_prefeituras"
+
+# §59 — as seções têm flag PRÓPRIA, e a relação com a de cima é de
+# CONJUNÇÃO, como a dos módulos: `multi_prefeituras` diz que a aba
+# existe; cada uma destas diz que aquela seção está liberada.
+#
+# Por que três e não uma: elas entram em produção em momentos
+# diferentes. Cadastrar prefeitura e módulos é o primeiro dia;
+# servidores exige o RH ter passado a lista; portarias exige alguém
+# conferir o que está vigente. Uma flag só obrigaria a ligar tudo de
+# uma vez — ou a deixar tudo desligado esperando a parte mais lenta.
+#
+# TODAS NASCEM LIGADAS quando ausentes, ao contrário da
+# `multi_prefeituras`, que nasce desligada. A diferença é deliberada:
+# quem já ligou a aba decidiu usar a funcionalidade, e fazer cada
+# seção exigir uma segunda decisão seria transformar o §59 num
+# labirinto de caixas. Estas flags existem para DESLIGAR uma seção
+# que ainda não está pronta, não para ligar uma por uma.
+FLAG_ADMIN = "multi_tenant_admin"
+FLAG_SERVIDORES = "servidores"
+FLAG_PORTARIAS = "portarias"
 
 # Os módulos que o painel oferece por prefeitura e por secretaria. São os
 # que o produto de fato entrega hoje; a flag global de cada um continua
@@ -41,11 +61,41 @@ MODULOS_OFERECIDOS = (
     ("process_consistency", "Consistência do Processo"),
 )
 
-_SECOES = ("Prefeitura", "Módulos", "Servidores", "Portarias")
+_SECOES_FIXAS = ("Prefeitura", "Timbrado", "Módulos")
 
 
 def ativo() -> bool:
     return db.flag_ativa(FLAG_MULTI_PREFEITURAS)
+
+
+def _liberada(flag: str) -> bool:
+    """
+    Seção liberada? Ausente = SIM (ver o comentário das constantes).
+
+    `db.flag_ativa` devolve False para chave ausente, que é o default
+    certo para flag de funcionalidade nova e o ERRADO aqui. Por isso a
+    pergunta é feita ao contrário: a seção só some se alguém escreveu
+    um valor falso, deliberadamente.
+    """
+    valor = db.obter_config(f"flag_{flag}").strip().lower()
+    return valor not in ("0", "false", "off", "nao", "não", "desligado")
+
+
+def secoes_visiveis() -> tuple[str, ...]:
+    """As seções que este administrador vê agora (§59)."""
+    secoes = list(_SECOES_FIXAS)
+    if not _liberada(FLAG_ADMIN):
+        # Sem o cadastro institucional, "Módulos" perde o objeto: ele
+        # configura a prefeitura que a seção Prefeitura cadastra.
+        secoes = []
+    if _liberada(FLAG_SERVIDORES):
+        secoes.append("Servidores")
+    if _liberada(FLAG_PORTARIAS):
+        # Portaria sem servidor cadastrado não tem membro para
+        # designar, mas a seção continua útil: dá para registrar a
+        # portaria e designar depois.
+        secoes.append("Portarias")
+    return tuple(secoes)
 
 
 def render() -> None:
@@ -59,12 +109,23 @@ def render() -> None:
     if not _exigir_migracao():
         return
 
-    secao = st.radio("Seção", _SECOES, horizontal=True,
+    secoes = secoes_visiveis()
+    if not secoes:
+        st.info(
+            "Nenhuma seção do cadastro institucional está liberada. "
+            "As flags `multi_tenant_admin`, `servidores` e `portarias` "
+            "controlam cada uma delas."
+        )
+        return
+
+    secao = st.radio("Seção", secoes, horizontal=True,
                      label_visibility="collapsed")
     st.divider()
 
     if secao == "Prefeitura":
         _render_prefeitura()
+    elif secao == "Timbrado":
+        _render_timbrado()
     elif secao == "Módulos":
         _render_modulos()
     elif secao == "Servidores":
@@ -141,6 +202,107 @@ def _render_prefeitura() -> None:
                 st.rerun()
             except db.ErroBanco as erro:
                 st.error(str(erro))
+
+
+# ---------------------------------------------------------------------------
+# TIMBRADO — a herança, VISÍVEL (§13)
+#
+# O sistema resolve a identidade visual sozinho: secretaria própria →
+# município → nenhuma. Funciona desde antes desta entrega, e era
+# justamente esse o problema — funcionava sem que ninguém conseguisse
+# VER o resultado antes de gerar um documento.
+#
+# Uma secretaria sem timbrado próprio herda o do município. Se o
+# administrador não enxerga essa resolução, o primeiro lugar onde ela
+# aparece é o PDF assinado, e a descoberta de que a secretaria estava
+# usando o brasão errado acontece depois da publicação.
+#
+# Esta tela não decide nada e não grava nada: ela MOSTRA a decisão que
+# a exportação vai tomar, usando `contexto.resolver_identidade` — o
+# mesmo resolvedor, não uma segunda cópia da regra. Se as duas telas
+# divergirem um dia, é porque alguém criou a segunda cópia.
+# ---------------------------------------------------------------------------
+def _render_timbrado() -> None:
+    try:
+        secretarias = db.listar_secretarias()
+    except db.ErroBanco as erro:
+        st.error(str(erro))
+        return
+
+    if not secretarias:
+        st.info(
+            "Nenhuma secretaria cadastrada. O timbrado é resolvido por "
+            "secretaria — cadastre-as na aba **Secretarias**, que é onde "
+            "a identidade visual também é definida."
+        )
+        return
+
+    st.caption(
+        "Como o documento vai sair, por secretaria. Secretaria sem "
+        "identidade própria herda a do município — é o que esta tela "
+        "torna visível ANTES de alguém gerar e publicar um PDF."
+    )
+
+    nomes = {s["id"]: s.get("nome") or s.get("sigla") or "—"
+             for s in secretarias}
+    escolhida = st.selectbox("Secretaria", list(nomes),
+                             format_func=lambda i: nomes[i])
+
+    identidade, origem = contexto.resolver_identidade(secretarias, escolhida)
+
+    if origem == "secretaria":
+        st.success("**Identidade própria.** Esta secretaria tem timbrado "
+                   "cadastrado e é ele que sai nos documentos dela.")
+    elif origem == "municipio":
+        padrao = next((s for s in secretarias if s.get("padrao")), {})
+        st.info(
+            f"**Herdado do município** — de *{padrao.get('nome') or '—'}*, "
+            "que está marcada como padrão. Esta secretaria não tem "
+            "timbrado próprio, e documentos dela saem com o do município."
+        )
+    else:
+        st.warning(
+            "**Nenhuma identidade cadastrada.** Os documentos sairão SEM "
+            "timbrado — nem o da secretaria, nem o do município. Defina "
+            "uma identidade padrão na aba **Secretarias**."
+        )
+        return
+
+    _previa(identidade or {})
+
+
+def _previa(identidade: dict) -> None:
+    """Desenha o que existe, e nomeia o que falta."""
+    cabecalho = branding.de_base64(identidade.get("cabecalho_img"))
+    rodape = branding.de_base64(identidade.get("rodape_img"))
+    marca = branding.de_base64(identidade.get("marca_img"))
+
+    if cabecalho or rodape or marca:
+        if cabecalho:
+            st.markdown("**Cabeçalho**")
+            st.image(cabecalho, use_container_width=True)
+        else:
+            st.caption("Sem imagem de cabeçalho.")
+        if marca:
+            st.markdown("**Marca d'água**")
+            st.image(marca, width=220)
+        if rodape:
+            st.markdown("**Rodapé**")
+            st.image(rodape, use_container_width=True)
+        else:
+            st.caption("Sem imagem de rodapé.")
+        return
+
+    # Identidade por TEXTO: é o formato antigo, e continua válido. Mostrar
+    # o texto tal como está é mais honesto que renderizar uma imitação do
+    # documento — a imitação daria a impressão de fidelidade que ela não
+    # tem, e é exatamente sobre fidelidade que esta tela existe.
+    st.markdown("**Identidade por texto** — nenhuma imagem cadastrada.")
+    st.text(
+        f"Cabeçalho: {identidade.get('cabecalho') or '(vazio)'}\n"
+        f"Rodapé:    {identidade.get('rodape') or '(vazio)'}\n"
+        f"Marca:     {identidade.get('marca_dagua') or '(nenhuma)'}"
+    )
 
 
 # ---------------------------------------------------------------------------

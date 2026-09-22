@@ -39,7 +39,7 @@ from decimal import Decimal, InvalidOperation
 
 import streamlit as st
 
-from .. import auth, db, planilha
+from .. import auth, contexto, db, planilha
 from ..precos import (aplicacao, execucao, filtros as filtros_mod,
                       orientacao, perfil, relatorio)
 from ..precos import semantica as precos_semantica
@@ -108,11 +108,17 @@ def disponivel() -> bool:
     """
     O módulo aparece na navegação?
 
-    Só a flag. A sessão NÃO entra aqui de propósito: se a ausência de
-    sessão escondesse o menu, o servidor veria o módulo sumir sem
-    explicação. Ele aparece, e a tela diz o que falta.
+    Os TRÊS níveis (§39): a flag global diz que o produto entrega, e
+    `tenant_modulos`/`secretaria_modulos` dizem se esta prefeitura
+    contratou e se esta secretaria usa.
+
+    A sessão de pesquisa NÃO entra aqui, e isso continua de propósito:
+    se a ausência de sessão escondesse o menu, o servidor veria o
+    módulo sumir sem explicação. Ele aparece, e a tela diz o que falta.
+    O que esconde o item é decisão INSTITUCIONAL — alguém marcou
+    desabilitado no painel —, não estado de trabalho.
     """
-    return db.flag_ativa(repo.FLAG)
+    return contexto.modulo_disponivel_aqui(repo.FLAG)
 
 
 def _identidade() -> tuple[str, str | None]:

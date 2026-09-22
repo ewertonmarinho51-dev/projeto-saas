@@ -1509,9 +1509,25 @@ def modulo_disponivel(modulo: str, secretaria_id: str | None = None) -> bool:
     """
     A resposta que a navegação consulta. Os três níveis de uma vez.
 
-    Falha do banco devolve o valor da FLAG GLOBAL, e não `False`: o
-    módulo deixar de aparecer porque o Supabase piscou seria uma queda de
-    funcionalidade causada pela camada que existe para organizá-la.
+    AUSÊNCIA DE LINHA NÃO É RECUSA — é "ninguém decidiu ainda", e a
+    decisão volta para o nível de cima, a flag global.
+
+    A distinção decide se esta função pode ser ligada à navegação sem
+    derrubar produção. `tenant_modulos` está VAZIA em toda prefeitura
+    que ainda não foi cadastrada, e `{}.get(modulo, False)` devolveria
+    negado: Pesquisa de Preços, Consolidar Demandas e Parecer Jurídico
+    sumiriam da tela no mesmo instante, em nome de uma camada que existe
+    para ORGANIZAR funcionalidade, não para removê-la.
+
+    Recusa tem que ser ATO: uma linha com `habilitado = false`, gravada
+    por alguém no painel. É o que a tela de Módulos faz.
+
+    A mesma leitura vale para a secretaria — `estado` ausente cai em
+    HERDAR, que é como `modulos.resolver` já tratava o desconhecido.
+
+    Falha do banco devolve o valor da FLAG GLOBAL, e não `False`, pela
+    mesma razão: o módulo sumir porque o Supabase piscou seria queda de
+    funcionalidade causada pela camada que organiza.
     """
     from . import modulos as _modulos
 
@@ -1519,7 +1535,8 @@ def modulo_disponivel(modulo: str, secretaria_id: str | None = None) -> bool:
     if not global_:
         return False
     try:
-        no_tenant = modulos_do_tenant().get(modulo, False)
+        # `True` como default: sem linha, herda a flag global.
+        no_tenant = modulos_do_tenant().get(modulo, True)
         estado = (modulos_da_secretaria(secretaria_id).get(modulo, _modulos.HERDAR)
                   if secretaria_id else _modulos.HERDAR)
     except ErroBanco:
