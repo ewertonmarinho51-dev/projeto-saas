@@ -535,18 +535,85 @@ Esta entrega é a **fundação**: schema, resolvedores e provas. O que falta
 
 | Faltando | Escopo |
 |---|---|
-| Integração com o GovBot | §36, §37 |
+**Nada.** O §13, o §39 e o §59 saíram em 22/09/2026; o §36 e o §37 em
+22/09/2026 também, quando o operador forneceu o texto das duas seções.
+O §50 já estava entregue com o painel administrativo.
 
-O §13, o §39 e o §59 saíram em 22/09/2026 — ver a seção seguinte. O §50
-(aviso de portaria em conflito, na tela onde ele se conserta) já estava
-entregue com o painel administrativo.
+---
 
-Do GovBot ficou só o §36 e o §37, e por um motivo que vale registrar: o
-texto dessas duas seções não foi preservado em lugar nenhum do
-repositório. Restou a linha-resumo "integração com o GovBot", que não
-diz o que integrar. Implementar por adivinhação produziria trabalho que
-não corresponde ao pedido — e este projeto passou a sessão inteira
-recusando exatamente isso.
+## §36 e §37 — o GovBot no cadastro institucional
+
+### A decisão que define a arquitetura
+
+O §37 é explícito: *"a validação deve ocorrer também no backend, antes
+de qualquer alteração. Não basta o GovBot recusar o pedido em linguagem
+natural: uma chamada direta ao mecanismo de alteração deve estar sujeita
+às mesmas regras."*
+
+Isso decide **onde** o portão mora. Ele não está no prompt, nem na
+conversa, nem na tela: está em `instituicional_bridge.guardar_escolhas`,
+o ponto onde a escolha é **gravada**. Uma verificação que vivesse na
+camada de linguagem sumiria no instante em que alguém chamasse a função
+por baixo — e é exatamente esse caminho que o §37 manda fechar.
+
+`test_a_gravacao_passa_pelo_portao_sem_nenhuma_conversa` chama
+`guardar_escolhas` direto, sem GovBot no caminho. Se a regra estivesse
+no prompt, essa prova passaria e o sistema estaria aberto.
+
+### Consulta estruturada, nunca geração livre
+
+`src/govbot_institucional.py` responde às perguntas do §36 consultando o
+**cadastro**, pelos mesmos resolvedores da tela de assinatura. Um modelo
+que "lembra" que o Antonio é pregoeiro produz uma designação que nenhum
+ato administrativo concedeu — e o documento sai assinado.
+
+Nada de elegibilidade é reescrito ali. O módulo acrescenta a **leitura**
+(juntar os dados numa consulta só, o `Panorama`) e a **tradução**
+(transformar o veredito em frase que o servidor entende). Se ele
+decidisse por conta própria quem pode assinar, existiriam duas verdades
+— a da tela e a do robô — e elas divergiriam na primeira mudança.
+
+### O que foi reusado
+
+| Arquivo | O que veio dele |
+|---|---|
+| `src/assinaturas.py` | `elegiveis()`, `conferir_elegibilidade()`, `ROTULOS`, `FUNCOES_DE_PORTARIA` |
+| `src/portarias.py` | `resolver()`, `citacao()`, `membros_vigentes()`, `PortariaAmbigua` |
+| `src/emissao.py` | `data_de_referencia()` — a data do processo, não hoje |
+| `src/contexto.py` | `contexto_institucional()` — secretaria da sessão, nunca do texto |
+| `src/db.py` | `listar_servidores/portarias/membros_de_portaria/funcoes_de_servidores` |
+
+### Três decisões registradas
+
+**Só as escolhas NOVAS são conferidas.** Remover e reordenar não
+introduzem par `(servidor, função)` nenhum. Conferir tudo a cada
+gravação transformaria o portão em prisão: se a portaria fosse revogada
+depois da escolha, o servidor não conseguiria nem **remover** a linha
+que ficou inválida.
+
+**Não conferir é diferente de aprovar.** Se o panorama não pode ser
+montado — banco fora, cadastro ilegível —, a escolha nova é **recusada**.
+O caminho de exceção não pode virar a porta larga.
+
+**Ambiguidade é pendência, nunca escolha.** Dois "Maria Silva" no
+cadastro e o robô escolhendo a primeira produziria um documento assinado
+pela pessoa errada, com o nome certo. Mesma regra do §23 para portarias
+em conflito, que também bloqueia qualquer confirmação nova.
+
+### O isolamento por prefeitura não depende de boa vontade
+
+`localizar_servidor` busca **só no panorama**, e o panorama vem de
+`db.listar_servidores()`, que filtra por tenant e passa pela RLS. Não há
+segundo caminho — e há prova estrutural de que não passe a haver:
+qualquer `db.` dentro daquela função derruba a suíte.
+
+### O robô não pode consertar o cadastro para validar o pedido
+
+O §37 proíbe *"criar uma portaria fictícia, presumir uma designação ou
+modificar o cadastro administrativo para atender ao pedido"*. A garantia
+não é revisar intenção — é **não existir caminho**: uma prova estrutural
+reprova qualquer `salvar_*`, `.insert(`, `.update(` ou `.delete(` no
+módulo, e outra exige que toda chamada `db.x()` comece com `listar_`.
 
 ---
 
