@@ -130,7 +130,7 @@ if pagina == "Parecer Jurídico":
     if parecer_ui.disponivel():
         parecer_ui.render_parecer()
         st.stop()
-    st.session_state.pagina = "Novo processo"
+    components.ir_para_pagina("Novo processo")
 
 if pagina == "Consolidar Demandas":
     # Etapa opcional, antes do formulário: junta os Documentos de
@@ -140,7 +140,7 @@ if pagina == "Consolidar Demandas":
     if demanda_ui.disponivel():
         demanda_ui.render_demanda()
         st.stop()
-    st.session_state.pagina = "Novo processo"
+    components.ir_para_pagina("Novo processo")
 
 if pagina == "Processos":
     # Painel de controle de processos. SEM flag, ao contrário da Pesquisa
@@ -163,7 +163,7 @@ if pagina == "Pesquisa de Preços":
     # Flag desligada com a página ainda apontada para cá (por exemplo,
     # alguém desligou a flag durante a sessão): volta ao wizard em vez
     # de mostrar tela em branco.
-    st.session_state.pagina = "Novo processo"
+    components.ir_para_pagina("Novo processo")
 
 # O adaptador do componente é importado somente com a flag ativa. Além de
 # manter a regressão exatamente sem painel, isso evita registrar Components v2

@@ -71,6 +71,44 @@ grant connect on database "{banco}" to authenticator;
 """
 
 
+# ---------------------------------------------------------------------------
+# AS FLAGS QUE PRODUÇÃO TEM — medidas, não supostas
+#
+# Lidas de `config_app` do projeto de produção em 24/09/2026 (somente
+# SELECT; nenhuma linha foi escrita lá). Todas valiam "1".
+#
+# Sem espelhá-las, a homologação subia com TUDO desligado e a auditoria
+# testaria um sistema que ninguém usa: sem Mapa de Riscos no fluxo, sem
+# GovBot, sem editor rico, sem consolidação de demandas. O §2 manda
+# identificar o que está efetivamente implantado; testar outra
+# configuração produz um laudo sobre um programa que não existe.
+#
+# A lista é EXPLÍCITA e datada de propósito. Ligar "tudo que houver"
+# faria a homologação divergir de produção no dia em que alguém
+# acrescentasse uma flag nova — e a divergência não apareceria em
+# lugar nenhum.
+FLAGS_ESPELHADAS_DE_PRODUCAO = (
+    "flag_achados_estruturados", "flag_canonical_facts",
+    "flag_clause_catalog_admin", "flag_confidence_emission_gate",
+    "flag_confidence_score_shadow", "flag_correcao_automatica",
+    "flag_corretor_shadow", "flag_demand_consolidation",
+    "flag_editor_rico", "flag_explanations", "flag_gate_emissao",
+    "flag_govbot", "flag_govbot_alertas", "flag_governance_center",
+    "flag_governance_publication_gate", "flag_improvement_laboratory",
+    "flag_institutional_learning_capture",
+    "flag_institutional_learning_publish", "flag_knowledge_engine_active",
+    "flag_knowledge_engine_shadow", "flag_legal_opinion_batch_processing",
+    "flag_legal_opinion_correction", "flag_legal_opinion_ingestion",
+    "flag_loading_overlay", "flag_mapa_riscos",
+    "flag_model_family_resolution_active",
+    "flag_model_family_resolution_shadow", "flag_multi_prefeituras",
+    "flag_onboarding_assistant", "flag_price_research",
+    "flag_process_consistency", "flag_reauditoria", "flag_secretarias",
+    "flag_tela_progresso", "flag_template_builder",
+    "flag_tenant_inheritance_admin", "flag_visual_policy_builder",
+)
+
+
 def _dsn_do_banco(dsn_admin: str, banco: str) -> str:
     base, _, resto = dsn_admin.partition("?")
     base = base.rsplit("/", 1)[0] + "/" + banco
@@ -159,10 +197,16 @@ def montar(dsn_admin: str = DSN_ADMIN_PADRAO, banco: str = BANCO_PADRAO,
             # ATRAVÉS do PostgREST, camada que o ensaio SQL local
             # declaradamente não cobre.
             cursor.execute(SQL_DOS_OBJETOS_DE_ENSAIO)
+
+            cursor.executemany(
+                "insert into public.config_app (chave, valor) values (%s, '1') "
+                "on conflict (chave) do update set valor = excluded.valor",
+                [(chave,) for chave in FLAGS_ESPELHADAS_DE_PRODUCAO])
         conexao.commit()
 
     relatorio["migracoes"] = aplicadas
     relatorio["objetos_de_ensaio"] = True
+    relatorio["flags"] = len(FLAGS_ESPELHADAS_DE_PRODUCAO)
     return relatorio
 
 

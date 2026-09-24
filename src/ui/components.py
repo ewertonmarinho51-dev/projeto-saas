@@ -263,8 +263,50 @@ def render_summary_strip(total_documentos: int, fatos_pendentes: int) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Trocar de página DEPOIS que a barra lateral já foi desenhada
+#
+# ACHADO P1 DA AUDITORIA (§5), medido no navegador: clicar em "Continuar
+# de onde parei" na aba Processos derrubava a tela com
+#
+#   streamlit.errors.StreamlitWidgetAlreadyInstantiatedError:
+#   st.session_state.pagina cannot be modified after the widget with key
+#   pagina is instantiated.
+#
+# `pagina` é a CHAVE do `st.radio` da navegação, criado aqui, cedo. Tudo
+# que roda depois — o roteamento do `app.py`, a aba Processos — encontra
+# o widget já instanciado, e atribuir à chave dele é proibido.
+#
+# O efeito para quem usa era total: a ação principal da lista de
+# processos não abria processo nenhum e mostrava um traceback de Python
+# na tela. Reabrir um processo salvo é o caminho de todo dia seguinte de
+# trabalho.
+#
+# A saída é PEDIR a troca em vez de fazê-la: quem quiser mudar de página
+# depois da barra lateral guarda o pedido, e é a próxima execução do
+# script que o atende — antes de o radio existir.
+CHAVE_PAGINA_PENDENTE = "_pagina_pendente"
+
+
+def ir_para_pagina(nome: str) -> None:
+    """
+    Pede a troca de página para a próxima execução do script.
+
+    Use SEMPRE isto depois de `render_sidebar()`. Atribuir direto a
+    `st.session_state.pagina` funciona antes da barra lateral e levanta
+    `StreamlitWidgetAlreadyInstantiatedError` depois dela — e a diferença
+    não aparece em teste que não desenhe a barra.
+    """
+    st.session_state[CHAVE_PAGINA_PENDENTE] = nome
+
+
 def render_sidebar() -> None:
     """Shell interno compacto; não cria rotas ou ações sem implementação."""
+    # Antes de qualquer widget: é a única janela em que `pagina` ainda
+    # pode ser escrita.
+    if pendente := st.session_state.pop(CHAVE_PAGINA_PENDENTE, ""):
+        st.session_state["pagina"] = pendente
+
     with st.sidebar:
         simbolo = _asset_data_uri("govconnect-symbol.png")
         st.markdown(

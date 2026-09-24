@@ -126,16 +126,56 @@ def test_a_tarja_muda_quando_o_banco_deixar_de_ser_compartilhado(monkeypatch):
     assert not erros and len(infos) == 1
 
 
-def test_grava_em_producao_continua_verdadeiro_enquanto_o_banco_for_o_mesmo():
+def _com_url(monkeypatch, url: str):
+    from src import db
+
+    monkeypatch.setattr(
+        db, "_segredo",
+        lambda nome, _u=url: _u if nome == "SUPABASE_URL" else "")
+
+
+@pytest.mark.parametrize("url", [
+    "https://umprojeto.supabase.co",
+    "https://banco.prefeitura.gov.br",
+    "",                                   # sem configuração declarada
+    "://url torta",                       # nem dá para ler o host
+])
+def test_o_que_nao_se_prova_separado_conta_como_producao(monkeypatch, url):
     """
-    Uma guarda contra otimismo. Se alguém trocar isto para `False` sem
-    de fato separar o banco, a tarja passa a dizer "não alcança
-    produção" — uma mentira que convida ao erro exato que ela existia
-    para evitar.
+    Guarda contra otimismo, e é a metade que importa da decisão.
+
+    "Não é o projeto de produção" NÃO é a mesma coisa que "é um banco
+    separado": o Streamlit Cloud aponta para produção e tem URL de
+    `supabase.co` como qualquer outro projeto. Enquanto a separação não
+    estiver PROVADA, a tarja precisa dizer a verdade mais séria — senão
+    ela passa a anunciar "não alcança produção" e convida ao erro exato
+    que existe para evitar.
     """
-    assert ambiente.grava_em_producao() is True, (
-        "se a homologação ganhou banco próprio, troque também os "
-        "Secrets do Streamlit Cloud e o texto deste teste — nesta ordem")
+    _com_url(monkeypatch, url)
+    assert ambiente.grava_em_producao() is True
+
+
+@pytest.mark.parametrize("url", [
+    "http://127.0.0.1:3001",
+    "http://localhost:3001",
+    "http://[::1]:3001",
+    "HTTP://LocalHost:3001/",
+])
+def test_loopback_prova_que_o_banco_nao_e_o_de_producao(monkeypatch, url):
+    """
+    Nada que responda em loopback é o banco da Prefeitura. É a única
+    separação que a aplicação consegue provar sozinha, e é a que a pilha
+    de homologação local usa.
+
+    Até a auditoria pré-operacional de 24/09/2026 isto devolvia True sem
+    condição, e a tarja MENTIA numa instalação isolada: anunciava "o
+    banco é o de PRODUÇÃO" para quem estava num Postgres descartável.
+    Aviso que erra desse lado ensina a ignorá-lo — e é o mesmo aviso que
+    precisa ser levado a sério quando a instalação de fato escreve em
+    produção.
+    """
+    _com_url(monkeypatch, url)
+    assert ambiente.grava_em_producao() is False
 
 
 # ---------------------------------------------------------------------------
