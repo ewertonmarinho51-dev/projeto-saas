@@ -57,6 +57,7 @@ from ensaio_local import (  # noqa: E402
     migracoes_do_schema,
     sequencia_em_ensaio,
 )
+from ensaio_seguranca import SQL_DOS_OBJETOS_DE_ENSAIO  # noqa: E402
 
 DSN_ADMIN_PADRAO = "postgresql://postgres@/postgres?host=/tmp/pgens"
 BANCO_PADRAO = "homologacao"
@@ -147,9 +148,21 @@ def montar(dsn_admin: str = DSN_ADMIN_PADRAO, banco: str = BANCO_PADRAO,
                         f"{arquivo.name}: {type(erro).__name__}: {erro}"
                     ) from erro
                 aplicadas.append(arquivo.name)
+
+            # Os objetos descartáveis do ensaio de contenção, na ordem
+            # que é o próprio teste: criados DEPOIS das migrações, eles
+            # nascem sob os default privileges já revogados. Criados
+            # antes, provariam o mundo anterior.
+            #
+            # Sem eles, 114 provas de `tests/test_seguranca_contencao.py`
+            # não rodam — e são justamente as que exercitam a autorização
+            # ATRAVÉS do PostgREST, camada que o ensaio SQL local
+            # declaradamente não cobre.
+            cursor.execute(SQL_DOS_OBJETOS_DE_ENSAIO)
         conexao.commit()
 
     relatorio["migracoes"] = aplicadas
+    relatorio["objetos_de_ensaio"] = True
     return relatorio
 
 
@@ -164,14 +177,26 @@ def conferir(dsn: str) -> dict:
                 "from pg_tables where schemaname = 'public'")
             total, com_rls = cursor.fetchone()
             cursor.execute(
+                "select tablename from pg_tables where schemaname = 'public' "
+                "and not rowsecurity order by tablename")
+            sem_rls = [linha[0] for linha in cursor.fetchall()]
+            cursor.execute(
                 "select count(*) from pg_policies where schemaname = 'public'")
             (politicas,) = cursor.fetchone()
             cursor.execute(
                 "select table_name from information_schema.tables "
                 "where table_schema = 'public' order by table_name")
             tabelas = [linha[0] for linha in cursor.fetchall()]
-    return {"tabelas": total, "com_rls": com_rls, "sem_rls": total - com_rls,
+    return {"tabelas": total, "com_rls": com_rls, "sem_rls": sem_rls,
             "politicas": politicas, "nomes": tabelas}
+
+
+# `ensaio_objeto_novo` nasce SEM RLS e SEM grant de propósito: é o
+# canário que prova que os default privileges foram revogados. Se `anon`
+# conseguir lê-la, o problema está nos defaults, não nela. Listá-la como
+# achado faria o relatório gritar exatamente onde não há nada errado — e
+# um alarme que sempre toca é um alarme que ninguém lê.
+TABELAS_SEM_RLS_POR_DESENHO = frozenset({"ensaio_objeto_novo"})
 
 
 def principal(argv: list[str] | None = None) -> int:
@@ -187,10 +212,16 @@ def principal(argv: list[str] | None = None) -> int:
     print(f"banco de homologação {relatorio['banco']}: {estado}")
 
     foto = conferir(relatorio["dsn"])
+    inesperadas = [t for t in foto["sem_rls"]
+                   if t not in TABELAS_SEM_RLS_POR_DESENHO]
     print(f"  tabelas: {foto['tabelas']}  com RLS: {foto['com_rls']}  "
-          f"sem RLS: {foto['sem_rls']}  políticas: {foto['politicas']}")
+          f"sem RLS: {len(foto['sem_rls'])}  políticas: {foto['politicas']}")
     if foto["sem_rls"]:
-        print("  ATENÇÃO: há tabela sem RLS — confira antes de confiar no "
+        print(f"  sem RLS por desenho (canário do ensaio): "
+              f"{', '.join(sorted(set(foto['sem_rls']) - set(inesperadas)))}")
+    if inesperadas:
+        print(f"  ATENÇÃO: tabela sem RLS e sem explicação: "
+              f"{', '.join(inesperadas)} — confira antes de confiar no "
               "teste de isolamento (§17).")
     return 0
 

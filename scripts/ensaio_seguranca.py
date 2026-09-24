@@ -141,6 +141,43 @@ def referencia_do_projeto(url: str) -> str:
     return ""                                # custom domain ou desconhecido
 
 
+# A pilha de homologação LOCAL (`scripts/homologacao_stack.py`) serve um
+# PostgREST de verdade em loopback. Sem uma forma de nomeá-la, as provas
+# de contenção desta suíte — as que exercitam `anon` ATRAVÉS do
+# PostgREST, camada que o ensaio SQL local declaradamente NÃO cobre —
+# ficavam todas puladas. Teste pulado não prova nada.
+#
+# A referência sintética abaixo NÃO afrouxa a guarda: ela continua
+# tendo de ser DECLARADA em GOVDOCS_ENSAIO_PROJETO, como qualquer outra.
+# Sem a declaração, uma URL de loopback é recusada igual a um domínio
+# desconhecido.
+#
+# FRONTEIRA, dita aqui porque alguém vai confiar nisto: loopback prova
+# que o destino não é a internet, não que o destino seja o PostgREST
+# desta máquina. Um túnel SSH de produção para 127.0.0.1 passaria —
+# exatamente como passaria a referência de produção declarada por engano
+# na allowlist. A guarda protege contra acidente, não contra quem decide
+# burlá-la.
+REFERENCIA_LOOPBACK = "loopback"
+_HOSTS_DE_LOOPBACK = ("127.0.0.1", "::1", "localhost")
+
+
+def _referencia_de_loopback(url: str) -> str:
+    """`REFERENCIA_LOOPBACK` quando a URL é http em loopback; "" senão."""
+    try:
+        partes = urllib.parse.urlsplit(url)
+    except ValueError:
+        return ""
+    if partes.scheme.casefold() != "http":
+        return ""
+    if partes.username or partes.password:
+        return ""
+    if partes.path not in ("", "/") or partes.query or partes.fragment:
+        return ""
+    host = (partes.hostname or "").strip().casefold()
+    return REFERENCIA_LOOPBACK if host in _HOSTS_DE_LOOPBACK else ""
+
+
 def _allowlist_de_ensaio() -> frozenset[str]:
     """
     Allowlist POSITIVA das referências de ensaio, declarada pelo
@@ -176,13 +213,14 @@ def exigir_ensaio(url: str | None = None) -> str:
     if not url:
         raise ProducaoRecusada("GOVDOCS_ENSAIO_URL não definida.")
 
-    referencia = referencia_do_projeto(url)
+    referencia = referencia_do_projeto(url) or _referencia_de_loopback(url)
     if not referencia:
         raise ProducaoRecusada(
             "RECUSADO: não foi possível PROVAR a identidade do projeto a "
             "partir da URL. Use `https://<referencia>.supabase.co`, sem "
-            "porta, sem caminho e sem ponto final. Nenhuma operação foi "
-            "executada.")
+            "porta, sem caminho e sem ponto final — ou a pilha local em "
+            f"loopback, declarando `{REFERENCIA_LOOPBACK}` em "
+            f"{NOME_ALLOWLIST}. Nenhuma operação foi executada.")
 
     if _e_producao(referencia):
         raise ProducaoRecusada(
@@ -941,7 +979,7 @@ def veredito_final(por_papel: dict[str, dict], bloqueadas: list[str],
     return total
 
 
-INSTRUCOES = """\
+_PRELUDIO = """\
 Rodar no SQL Editor do projeto de ENSAIO (nunca produção).
 
 Nada aqui toca em tabela de domínio: o ensaio prova CONFIGURAÇÃO pelo
@@ -976,6 +1014,22 @@ catálogo e COMPORTAMENTO em objetos descartáveis criados só para isso.
 --
 --    Defina também GOVDOCS_ENSAIO_TENANT com o uuid de T1.
 
+"""
+
+# A PARTE EXECUTÁVEL das instruções, separada do texto para poder ser
+# APLICADA, e não só lida.
+#
+# Enquanto era um pedaço de prosa, estes objetos só existiam num projeto
+# Supabase hospedado que alguém tivesse preparado à mão. Sem eles, 114
+# provas de contenção não rodavam — davam erro de preparação ou ficavam
+# puladas —, e a suíte seguia verde sem nunca ter exercitado a camada
+# HTTP da autorização.
+#
+# Continua sendo o MESMO texto impresso por `--instrucoes`: a string é
+# uma só, e o que mudou foi poder passá-la a um cursor. Duplicar o SQL
+# num segundo lugar seria pior que não aplicá-lo — as duas cópias
+# divergiriam, e a divergência não apareceria em teste nenhum.
+SQL_DOS_OBJETOS_DE_ENSAIO = """\
 -- 2) objetos DESCARTÁVEIS, criados DEPOIS de aplicar a 0019 — a ordem
 --    é o teste: eles nascem sob os default privileges já revogados.
 create table if not exists public.ensaio_objeto_novo (
@@ -1101,6 +1155,9 @@ revoke all on function public.ensaio_auditoria_catalogo(text) from public;
 grant execute on function public.ensaio_auditoria_catalogo(text)
   to service_role;
 
+"""
+
+_EPILOGO = """\
 -- 4) a própria 0019: copiar o corpo de
 --    supabase/migrations/0019_emergencial_fecha_anon.sql
 --    e executar, com revisão humana.
@@ -1145,6 +1202,8 @@ o veredito CONTIDO fica bloqueado até ser resolvida. NAO_APLICAVEL é
 outra coisa — não há alvo (zero bucket de Storage, por exemplo) — e não
 bloqueia.
 """
+
+INSTRUCOES = _PRELUDIO + SQL_DOS_OBJETOS_DE_ENSAIO + _EPILOGO
 
 
 def main() -> int:
