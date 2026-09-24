@@ -95,9 +95,23 @@ _DOCUMENTOS = (
 
 
 def _documento_do_prompt(texto: str) -> str:
-    alvo = texto.upper()
+    """
+    Qual documento foi PEDIDO — lido só nas INSTRUÇÕES.
+
+    Procurar no prompt inteiro dava a resposta errada, e o erro era
+    silencioso: o prompt do Mapa de Riscos carrega o ETP aprovado como
+    contexto, então "ESTUDO TÉCNICO PRELIMINAR" aparecia nele e a
+    fixture devolvia um ETP. A bateria acusava "marcador vazou no mapa"
+    quando o que tinha vazado era a detecção.
+
+    As instruções vêm ANTES do bloco do formulário; o contexto do
+    documento anterior vem DEPOIS. Cortar ali separa o pedido da
+    bagagem.
+    """
+    corte = texto.find(_MARCA_FORMULARIO)
+    instrucoes = (texto[:corte] if corte > 0 else texto).upper()
     for marca, chave in _DOCUMENTOS:
-        if marca in alvo:
+        if marca in instrucoes:
             return chave
     return "documento"
 
@@ -153,6 +167,35 @@ def _corpo(doc: str, campos: dict, qual: str) -> str:
         f"## 3. JUSTIFICATIVA\n\n{justificativa}\n\n"
     )
 
+    # O Mapa de Riscos tem estrutura PRÓPRIA, e o prompt real dele
+    # proíbe reproduzir a planilha orçamentária no corpo. Uma fixture que
+    # devolvesse `[[TABELA_ITENS]]` aqui não estaria simulando o modelo:
+    # estaria simulando um modelo que desobedeceu — e o teste passaria a
+    # medir a desobediência, não o transporte.
+    #
+    # Para exercitar a desobediência DE PROPÓSITO existe o modo
+    # `sem_tabela`/`contraditoria`: aí o marcador aparece e a prova é que
+    # `validacao` BLOQUEIA, que é o comportamento certo do sistema.
+    if doc == "mapa_riscos" and qual not in ("contraditoria", "sem_tabela"):
+        return (f"# MAPA DE RISCOS\n\n"
+                f"| FASE DE ANÁLISE |\n|---|\n"
+                f"| Planejamento da contratação. |\n\n"
+                f"Objeto: {objeto}\n\n"
+                f"## RISCO 01\n"
+                f"Atraso na entrega compromete a continuidade do "
+                f"serviço da unidade demandante.\n"
+                f"| Avaliação | Baixa | Média | Alta |\n|---|---|---|---|\n"
+                f"| Probabilidade: | | X | |\n"
+                f"| Impacto: | | | X |\n"
+                f"| Id | Dano |\n|---|---|\n"
+                f"| 1. | Interrupção da atividade administrativa. |\n"
+                f"| Id | Ação Preventiva | Responsável |\n|---|---|---|\n"
+                f"| 1. | Exigir cronograma de entrega na contratação. | "
+                f"{orgao} |\n"
+                f"| Id | Ação de Contingência | Responsável |\n|---|---|---|\n"
+                f"| 1. | Acionar as penalidades contratuais cabíveis. | "
+                f"{orgao} |\n")
+
     if qual == "incompleta":
         return (cabecalho
                 + "## 4. ESTIMATIVA DE VALOR\n\n"
@@ -197,8 +240,14 @@ def _atender(corpo_bruto: bytes) -> tuple[int, dict]:
         pedido = json.loads(corpo_bruto or b"{}")
     except ValueError:
         pedido = {}
+    # SÓ a mensagem do usuário. O system prompt é o mesmo para todos os
+    # documentos e traz o mapa canônico da Lei nº 14.133/2021, onde
+    # "documento de formalização da demanda" aparece como verbete — de
+    # modo que procurar ali fazia TODO pedido ser detectado como DFD, e
+    # a bateria acusava o sistema por um erro da própria fixture.
     texto_do_prompt = "\n".join(
-        str(m.get("content") or "") for m in pedido.get("messages") or [])
+        str(m.get("content") or "") for m in pedido.get("messages") or []
+        if m.get("role") != "system")
 
     qual = modo()
     doc = _documento_do_prompt(texto_do_prompt)
