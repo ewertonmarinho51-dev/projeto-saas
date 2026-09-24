@@ -259,6 +259,14 @@ def _atender(corpo_bruto: bytes) -> tuple[int, dict]:
         "modo": qual,
         "campos_no_prompt": len(campos),
         "objeto_no_prompt": bool(_fato(campos, "objeto")),
+        # TAMANHO, não conteúdo. É o que decide a conta da rodada
+        # operacional — o §20-E pede orçamento, e orçamento sem medida do
+        # prompt é chute. Caracteres, porque contar token exigiria o
+        # tokenizador do provedor e a ordem de grandeza é a mesma.
+        "caracteres_no_sistema": sum(
+            len(str(m.get("content") or ""))
+            for m in pedido.get("messages") or [] if m.get("role") == "system"),
+        "caracteres_no_usuario": len(texto_do_prompt),
         # NUNCA o prompt inteiro: ele carrega os dados do processo e
         # este registro vira anexo de relatório.
     }
