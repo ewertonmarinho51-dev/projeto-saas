@@ -72,6 +72,10 @@ def bateria(monkeypatch):
     ia_simulada.zerar()
     sem_llm.instalar()
     ia_simulada.instalar()
+    # "Instalei" e "intercepta" são afirmações diferentes, e foi a
+    # distância entre as duas que deixou 34 provas saírem para a rede
+    # na CI. Nada roda sem a prova.
+    ia_simulada.autoteste()
     try:
         yield
     finally:
@@ -219,6 +223,7 @@ def bateria_adversa(monkeypatch):
         ia_simulada.zerar()
         sem_llm.instalar()
         ia_simulada.instalar()
+        ia_simulada.autoteste()
 
     try:
         yield preparar

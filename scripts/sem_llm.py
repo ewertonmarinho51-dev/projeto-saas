@@ -174,10 +174,28 @@ def _barrar(host: str, porta, caminho: str = "") -> None:
 _originais: dict = {}
 
 
+# Marca no próprio substituto. Ver o comentário gêmeo em
+# `ia_simulada`: identificar a instalação por um registro paralelo
+# permite que o registro e o efeito divirjam, e foi assim que a
+# interceptação sumiu na CI sem ninguém notar.
+_MARCA = "_govdocs_sem_llm"
+
+
+def ativo() -> bool:
+    """O bloqueio está de pé NESTE processo, agora?"""
+    if getattr(socket.getaddrinfo, _MARCA, False):
+        return True
+    try:
+        import httpx
+    except ImportError:
+        return False
+    return bool(getattr(httpx.HTTPTransport.handle_request, _MARCA, False))
+
+
 def instalar() -> None:
     """Idempotente: chamar duas vezes não empilha dois interceptadores."""
     global _original
-    if _original is not None:
+    if _original is not None or ativo():
         return
 
     # --- camada 1: o TRANSPORTE HTTP, onde o destino é visível -------
@@ -201,6 +219,8 @@ def instalar() -> None:
                         request.url.path)
             return await _originais["httpx_async"](self, request)
 
+        setattr(httpx_guardado, _MARCA, True)
+        setattr(httpx_guardado_async, _MARCA, True)
         httpx.HTTPTransport.handle_request = httpx_guardado
         httpx.AsyncHTTPTransport.handle_async_request = httpx_guardado_async
     except ImportError:
@@ -219,6 +239,7 @@ def instalar() -> None:
                 _barrar(alvo.hostname, alvo.port or 443, alvo.path)
             return _originais["requests"](self, request, *args, **kwargs)
 
+        setattr(requests_guardado, _MARCA, True)
         adapters.HTTPAdapter.send = requests_guardado
     except ImportError:
         pass
@@ -231,6 +252,7 @@ def instalar() -> None:
             _barrar(str(host), porta)
         return _original(host, porta, *args, **kwargs)
 
+    setattr(guardado, _MARCA, True)
     socket.getaddrinfo = guardado
 
 

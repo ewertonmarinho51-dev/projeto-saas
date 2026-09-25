@@ -292,13 +292,38 @@ def _e_conversa(url) -> bool:
     return any(marca in caminho for marca in _CAMINHOS)
 
 
+# Marca no PRÓPRIO substituto, em vez de um dicionário paralelo dizendo
+# "já instalei".
+#
+# A versão anterior usava `if not modo() or _originais: return`, e isso
+# quebrou na CI: bastava `_originais` ficar com resíduo de uma execução
+# anterior para `instalar()` desistir em silêncio — e aí a chamada não
+# era atendida por fixture nenhuma e saía para a REDE. Trinta e quatro
+# provas falharam com "falha na comunicação", que é o defeito mais caro
+# possível numa bateria cujo critério é `chamadas pagas = 0`.
+#
+# Perguntar ao próprio `httpx` quem está instalado não tem esse
+# problema: a resposta vem de onde o efeito acontece, não de um registro
+# que pode divergir dele.
+_MARCA = "_govdocs_ia_simulada"
+
+
+def ativo() -> bool:
+    """A interceptação está de pé NESTE processo, agora?"""
+    try:
+        import httpx
+    except ImportError:
+        return False
+    return bool(getattr(httpx.HTTPTransport.handle_request, _MARCA, False))
+
+
 def instalar() -> None:
     """Idempotente. Sem modo escolhido, não instala nada."""
-    if not modo() or _originais:
+    if not modo() or ativo():
         return
     import httpx
 
-    _originais["httpx"] = httpx.HTTPTransport.handle_request
+    original = httpx.HTTPTransport.handle_request
 
     def guardado(self, request):
         if _e_conversa(request.url):
@@ -306,16 +331,49 @@ def instalar() -> None:
             return httpx.Response(
                 codigo, json=corpo, request=request,
                 headers={"content-type": "application/json"})
-        return _originais["httpx"](self, request)
+        return original(self, request)
 
+    setattr(guardado, _MARCA, True)
+    _originais["httpx"] = original
     httpx.HTTPTransport.handle_request = guardado
 
 
 def remover() -> None:
-    if "httpx" in _originais:
+    if ativo() and "httpx" in _originais:
         import httpx
 
         httpx.HTTPTransport.handle_request = _originais.pop("httpx")
+    _originais.pop("httpx", None)
+
+
+def autoteste() -> None:
+    """
+    Prova, AQUI E AGORA, que uma conversa é atendida por fixture.
+
+    Existe porque "instalei" e "intercepta" são afirmações diferentes, e
+    foi justamente a distância entre as duas que deixou a bateria sair
+    para a rede na CI. A prova é uma requisição de mentira pelo mesmo
+    caminho que o SDK usa; se ela não voltar da fixture, nada roda.
+
+    Levanta `RuntimeError` — nunca devolve falso em silêncio, que seria
+    repetir o erro que este método existe para impedir.
+    """
+    import httpx
+
+    if not modo():
+        raise RuntimeError("GOVDOCS_IA_SIMULADA não está definido")
+
+    antes = quantas()
+    pedido = httpx.Request(
+        "POST", "https://api.openai.com/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "autoteste"}]})
+    resposta = httpx.HTTPTransport().handle_request(pedido)
+    if resposta.status_code != 200 or quantas() != antes + 1:
+        raise RuntimeError(
+            "a IA simulada NÃO está interceptando neste ambiente — a "
+            "próxima chamada sairia para a rede de verdade")
+    with _trava:
+        del _respostas[-1]      # o autoteste não é resposta da bateria
 
 
 def respostas() -> list[dict]:

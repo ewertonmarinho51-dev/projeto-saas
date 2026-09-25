@@ -69,6 +69,7 @@ def com_ia_simulada(monkeypatch):
     ia_simulada.zerar()
     sem_llm.instalar()
     ia_simulada.instalar()
+    ia_simulada.autoteste()
     try:
         yield
     finally:
