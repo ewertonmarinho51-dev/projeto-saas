@@ -181,15 +181,77 @@ _originais: dict = {}
 _MARCA = "_govdocs_sem_llm"
 
 
-def ativo() -> bool:
-    """O bloqueio está de pé NESTE processo, agora?"""
-    if getattr(socket.getaddrinfo, _MARCA, False):
-        return True
+# As bibliotecas HTTP de API idêntica que os SDKs usam. `httpx2` entrou
+# porque a `openai` 3.x migrou para ela; a lista é explícita para que a
+# próxima migração apareça como uma linha a acrescentar, e não como um
+# silêncio.
+_BIBLIOTECAS_HTTP = ("httpx", "httpx2")
+
+
+def _modulo(nome: str):
     try:
-        import httpx
+        return __import__(nome)
     except ImportError:
+        return None
+
+
+def bibliotecas_cobertas() -> list[str]:
+    """Quais das bibliotecas conhecidas estão instaladas E interceptadas."""
+    cobertas = []
+    for nome in _BIBLIOTECAS_HTTP:
+        modulo = _modulo(nome)
+        if modulo is not None and getattr(
+                modulo.HTTPTransport.handle_request, _MARCA, False):
+            cobertas.append(nome)
+    return cobertas
+
+
+def bibliotecas_descobertas() -> list[str]:
+    """Instaladas — cobertas ou não. A diferença é o buraco."""
+    return [n for n in _BIBLIOTECAS_HTTP if _modulo(n) is not None]
+
+
+def ativo() -> bool:
+    """
+    O bloqueio está de pé NESTE processo, agora?
+
+    Exige TODAS as bibliotecas presentes cobertas, não alguma: cobrir
+    uma e deixar outra é o estado em que o guarda existe, responde que
+    sim, e o SDK sai pela porta da outra.
+    """
+    presentes = bibliotecas_descobertas()
+    if presentes and bibliotecas_cobertas() != presentes:
         return False
-    return bool(getattr(httpx.HTTPTransport.handle_request, _MARCA, False))
+    return bool(getattr(socket.getaddrinfo, _MARCA, False)) or bool(presentes)
+
+
+def _instalar_em(nome: str) -> None:
+    modulo = _modulo(nome)
+    if modulo is None or getattr(
+            modulo.HTTPTransport.handle_request, _MARCA, False):
+        return
+
+    sincrono = modulo.HTTPTransport.handle_request
+    assincrono = modulo.AsyncHTTPTransport.handle_async_request
+
+    def guardado(self, request):
+        if _e_pago(request.url.host):
+            _barrar(request.url.host, request.url.port or 443,
+                    request.url.path)
+        return sincrono(self, request)
+
+    async def guardado_async(self, request):
+        if _e_pago(request.url.host):
+            _barrar(request.url.host, request.url.port or 443,
+                    request.url.path)
+        return await assincrono(self, request)
+
+    setattr(guardado, _MARCA, True)
+    setattr(guardado_async, _MARCA, True)
+    _originais[nome] = sincrono
+    _originais[f"{nome}_async"] = assincrono
+    modulo.HTTPTransport.handle_request = guardado
+    modulo.AsyncHTTPTransport.handle_async_request = guardado_async
 
 
 def instalar() -> None:
@@ -200,31 +262,19 @@ def instalar() -> None:
 
     # --- camada 1: o TRANSPORTE HTTP, onde o destino é visível -------
     # É esta que pega o tráfego por proxy — a que faltava.
-    try:
-        import httpx
-
-        _originais["httpx"] = httpx.HTTPTransport.handle_request
-        _originais["httpx_async"] = (
-            httpx.AsyncHTTPTransport.handle_async_request)
-
-        def httpx_guardado(self, request):
-            if _e_pago(request.url.host):
-                _barrar(request.url.host, request.url.port or 443,
-                        request.url.path)
-            return _originais["httpx"](self, request)
-
-        async def httpx_guardado_async(self, request):
-            if _e_pago(request.url.host):
-                _barrar(request.url.host, request.url.port or 443,
-                        request.url.path)
-            return await _originais["httpx_async"](self, request)
-
-        setattr(httpx_guardado, _MARCA, True)
-        setattr(httpx_guardado_async, _MARCA, True)
-        httpx.HTTPTransport.handle_request = httpx_guardado
-        httpx.AsyncHTTPTransport.handle_async_request = httpx_guardado_async
-    except ImportError:
-        pass
+    #
+    # E é PLURAL desde 25/09/2026. A `openai` 3.x deixou de usar `httpx`
+    # e passou a usar `httpx2`, uma biblioteca de mesma API e outro
+    # nome. Enquanto esta função conhecia só `httpx`, o guarda ficava
+    # cego para o SDK inteiro — e a única camada que sobrava era o DNS,
+    # que o `HTTPS_PROXY` já derrota (ver o cabeçalho do módulo).
+    #
+    # Ou seja: numa máquina com proxy e `openai` 3.x, NADA barrava. O
+    # `requirements.txt` pede `openai>=1.40.0`, sem teto, então bastava
+    # reinstalar para cair nesse mundo. Foi assim que a CI achou o
+    # buraco antes da fatura.
+    for nome in _BIBLIOTECAS_HTTP:
+        _instalar_em(nome)
 
     try:
         from requests import adapters
@@ -261,12 +311,16 @@ def remover() -> None:
     if _original is not None:
         socket.getaddrinfo = _original
         _original = None
-    if "httpx" in _originais:
-        import httpx
-
-        httpx.HTTPTransport.handle_request = _originais.pop("httpx")
-        httpx.AsyncHTTPTransport.handle_async_request = _originais.pop(
-            "httpx_async")
+    for nome in _BIBLIOTECAS_HTTP:
+        if nome not in _originais:
+            continue
+        modulo = _modulo(nome)
+        if modulo is not None:
+            modulo.HTTPTransport.handle_request = _originais[nome]
+            modulo.AsyncHTTPTransport.handle_async_request = _originais[
+                f"{nome}_async"]
+        _originais.pop(nome, None)
+        _originais.pop(f"{nome}_async", None)
     if "requests" in _originais:
         from requests import adapters
 

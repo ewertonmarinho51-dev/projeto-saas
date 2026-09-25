@@ -308,42 +308,71 @@ def _e_conversa(url) -> bool:
 _MARCA = "_govdocs_ia_simulada"
 
 
-def ativo() -> bool:
-    """A interceptação está de pé NESTE processo, agora?"""
+# As bibliotecas HTTP de API idêntica que os SDKs usam. `httpx2` entrou
+# porque a `openai` 3.x migrou para ela — e enquanto este módulo
+# conhecia só `httpx`, a fixture não atendia e a chamada saía para a
+# REDE. Ver o comentário gêmeo em `sem_llm`.
+_BIBLIOTECAS_HTTP = ("httpx", "httpx2")
+
+
+def _modulo(nome: str):
     try:
-        import httpx
+        return __import__(nome)
     except ImportError:
+        return None
+
+
+def _presentes() -> list[str]:
+    return [n for n in _BIBLIOTECAS_HTTP if _modulo(n) is not None]
+
+
+def ativo() -> bool:
+    """
+    A interceptação está de pé em TODAS as bibliotecas presentes?
+
+    Exigir todas, e não alguma: cobrir uma e deixar outra é o estado em
+    que a fixture responde "estou instalada" e o SDK sai pela porta da
+    outra — que foi exatamente o que aconteceu.
+    """
+    presentes = _presentes()
+    if not presentes:
         return False
-    return bool(getattr(httpx.HTTPTransport.handle_request, _MARCA, False))
+    return all(
+        getattr(_modulo(n).HTTPTransport.handle_request, _MARCA, False)
+        for n in presentes)
 
 
 def instalar() -> None:
     """Idempotente. Sem modo escolhido, não instala nada."""
-    if not modo() or ativo():
+    if not modo():
         return
-    import httpx
+    for nome in _presentes():
+        modulo = _modulo(nome)
+        if getattr(modulo.HTTPTransport.handle_request, _MARCA, False):
+            continue
+        original = modulo.HTTPTransport.handle_request
 
-    original = httpx.HTTPTransport.handle_request
+        def guardado(self, request, _orig=original, _mod=modulo):
+            if _e_conversa(request.url):
+                codigo, corpo = _atender(request.read())
+                return _mod.Response(
+                    codigo, json=corpo, request=request,
+                    headers={"content-type": "application/json"})
+            return _orig(self, request)
 
-    def guardado(self, request):
-        if _e_conversa(request.url):
-            codigo, corpo = _atender(request.read())
-            return httpx.Response(
-                codigo, json=corpo, request=request,
-                headers={"content-type": "application/json"})
-        return original(self, request)
-
-    setattr(guardado, _MARCA, True)
-    _originais["httpx"] = original
-    httpx.HTTPTransport.handle_request = guardado
+        setattr(guardado, _MARCA, True)
+        _originais[nome] = original
+        modulo.HTTPTransport.handle_request = guardado
 
 
 def remover() -> None:
-    if ativo() and "httpx" in _originais:
-        import httpx
-
-        httpx.HTTPTransport.handle_request = _originais.pop("httpx")
-    _originais.pop("httpx", None)
+    for nome in _BIBLIOTECAS_HTTP:
+        if nome not in _originais:
+            continue
+        modulo = _modulo(nome)
+        if modulo is not None:
+            modulo.HTTPTransport.handle_request = _originais[nome]
+        _originais.pop(nome, None)
 
 
 def autoteste() -> None:
@@ -358,22 +387,32 @@ def autoteste() -> None:
     Levanta `RuntimeError` — nunca devolve falso em silêncio, que seria
     repetir o erro que este método existe para impedir.
     """
-    import httpx
-
     if not modo():
         raise RuntimeError("GOVDOCS_IA_SIMULADA não está definido")
 
-    antes = quantas()
-    pedido = httpx.Request(
-        "POST", "https://api.openai.com/v1/chat/completions",
-        json={"messages": [{"role": "user", "content": "autoteste"}]})
-    resposta = httpx.HTTPTransport().handle_request(pedido)
-    if resposta.status_code != 200 or quantas() != antes + 1:
+    presentes = _presentes()
+    if not presentes:
         raise RuntimeError(
-            "a IA simulada NÃO está interceptando neste ambiente — a "
-            "próxima chamada sairia para a rede de verdade")
-    with _trava:
-        del _respostas[-1]      # o autoteste não é resposta da bateria
+            "nenhuma biblioteca HTTP conhecida instalada: a fixture não "
+            f"tem onde atender (conhecidas: {_BIBLIOTECAS_HTTP})")
+
+    # UMA prova por biblioteca presente. Provar só numa deixaria
+    # exatamente o buraco que a `openai` 3.x abriu ao migrar de `httpx`
+    # para `httpx2`: a resposta vinha da que eu testei, e a chamada saía
+    # pela que eu não testei.
+    for nome in presentes:
+        modulo = _modulo(nome)
+        antes = quantas()
+        pedido = modulo.Request(
+            "POST", "https://api.openai.com/v1/chat/completions",
+            json={"messages": [{"role": "user", "content": "autoteste"}]})
+        resposta = modulo.HTTPTransport().handle_request(pedido)
+        if resposta.status_code != 200 or quantas() != antes + 1:
+            raise RuntimeError(
+                f"a IA simulada NÃO está interceptando em `{nome}` — a "
+                "próxima chamada sairia para a rede de verdade")
+        with _trava:
+            del _respostas[-1]   # o autoteste não é resposta da bateria
 
 
 def respostas() -> list[dict]:
