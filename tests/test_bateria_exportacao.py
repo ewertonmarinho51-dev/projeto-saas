@@ -51,7 +51,7 @@ import massas_auditoria as massas  # noqa: E402
 
 from src import export, llm, planilha  # noqa: E402
 
-CHAVE_DE_ENSAIO = "sk-ensaio-sem-custo-nao-e-credencial"
+CHAVE_DE_ENSAIO = "ensaio-sem-custo-isto-nao-e-credencial"
 
 exige_libreoffice = pytest.mark.skipif(
     export.motor_pdf() != "libreoffice",

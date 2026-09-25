@@ -266,7 +266,7 @@ def test_a_mensagem_de_bloqueio_nao_ecoa_chave(monkeypatch):
     from src import llm
 
     monkeypatch.setattr(llm, "obter_openai_key",
-                        lambda: "sk-proj-SEGREDOQUENAOPODEVAZAR")
+                        lambda: "SEGREDO-QUE-NAO-PODE-VAZAR")
     monkeypatch.setattr(llm, "obter_api_key", lambda: "")
     monkeypatch.setattr(llm, "obter_openrouter_key", lambda: "")
 

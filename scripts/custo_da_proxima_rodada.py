@@ -39,7 +39,7 @@ import sem_llm  # noqa: E402
 import massas_auditoria as massas  # noqa: E402
 
 SAIDA = pathlib.Path("/tmp/auditoria")
-CHAVE_DE_ENSAIO = "sk-ensaio-sem-custo-nao-e-credencial"
+CHAVE_DE_ENSAIO = "ensaio-sem-custo-isto-nao-e-credencial"
 
 # O fluxo com `flag_mapa_riscos` ligada, que é o de produção. `edital` e
 # `arp` ficam de fora porque não passam por modelo nenhum — são montados

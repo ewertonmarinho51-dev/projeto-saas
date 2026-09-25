@@ -145,6 +145,13 @@ FALSOS_CONHECIDOS = frozenset({
     # e-mail de qualquer prefeitura de verdade. Entra por VALOR EXATO,
     # que é o escopo mais estreito possível.
     _montado("contato", "@municipio.gov.br"),
+    # literal do teste que prova a RECUSA de URL com credencial
+    # embutida, em `tests/test_seguranca_contencao.py`. A guarda de
+    # ensaio precisa rejeitar `usuario:senha@host`, e provar isso exige
+    # escrever a forma proibida uma vez. Entra por VALOR EXATO — e
+    # continua APARECENDO no laudo como falso documentado, que é o
+    # ponto: a ocorrência não some, ela fica explicada.
+    _montado("senha", "@127.0.0.1"),
 })
 
 # ---------------------------------------------------------------------------

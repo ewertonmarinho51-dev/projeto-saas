@@ -249,7 +249,7 @@ def subir_streamlit(pilha: Pilha) -> subprocess.Popen:
     #       falso. Nada sai para a rede: quem atende é a fixture no
     #       transporte. O valor não é segredo, é literal de teste.
     simulacao = os.environ.get("GOVDOCS_IA_SIMULADA", "")
-    chave_de_ensaio = "sk-ensaio-sem-custo-nao-e-credencial" if simulacao else ""
+    chave_de_ensaio = "ensaio-sem-custo-isto-nao-e-credencial" if simulacao else ""
     ambiente.update({
         "GOVDOCS_IA_SIMULADA": simulacao,
         "GOVDOCS_LIVRO_IA_SIMULADA": os.environ.get(
@@ -387,7 +387,7 @@ def principal(argv: list[str] | None = None) -> int:
             ambiente.update({
                 "GOVDOCS_URL_APP": info.url_app,
                 "OPENAI_API_KEY": (
-                    "sk-ensaio-sem-custo-nao-e-credencial"
+                    "ensaio-sem-custo-isto-nao-e-credencial"
                     if os.environ.get("GOVDOCS_IA_SIMULADA") else ""),
                 "SUPABASE_URL": info.url_supabase,
                 "SUPABASE_SERVICE_KEY": info.chave_servidor,
