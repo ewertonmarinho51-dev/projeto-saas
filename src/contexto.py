@@ -124,3 +124,27 @@ def identidade_para_exportacao() -> tuple[dict | None, str] | None:
         )
         return None
     return identidade, origem
+
+
+def modulo_disponivel_aqui(modulo: str) -> bool:
+    """
+    Este módulo está disponível para QUEM ESTÁ LOGADO? (§39)
+
+    Existe para que a navegação não repita, em cada tela, a pergunta
+    "de qual secretaria é este usuário?". A secretaria vem da sessão
+    autenticada — nunca de formulário —, como todo o resto deste módulo.
+
+    NUNCA LEVANTA. Uma navegação que quebra porque a resolução de
+    módulo falhou é pior que uma navegação generosa demais: o servidor
+    fica sem o menu inteiro em vez de sem um item. Na dúvida, devolve o
+    que a flag global diz, que é o comportamento anterior a esta
+    camada.
+    """
+    try:
+        secretaria_id = contexto_institucional().get("secretaria_id")
+    except Exception:  # noqa: BLE001 — ver a docstring
+        secretaria_id = None
+    try:
+        return db.modulo_disponivel(modulo, secretaria_id)
+    except Exception:  # noqa: BLE001
+        return db.flag_ativa(modulo)

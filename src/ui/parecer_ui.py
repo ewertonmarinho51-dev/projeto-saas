@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from .. import auth, db, governanca, pareceres, parecer_correcao as pc
+from .. import auth, contexto, db, governanca, pareceres, parecer_correcao as pc
 from . import components
 
 PLANO = "parecer_plano"
@@ -57,8 +57,13 @@ _COR = {
 
 
 def disponivel() -> bool:
-    """Flag ligada. Nasce desligada, como o §34 pede."""
-    return db.flag_ativa(governanca.FLAG_CORRECAO_PARECER)
+    """
+    Os três níveis (§39). Nasce desligada, como o §34 pede.
+
+    Antes olhava só a flag global, e o item aparecia no menu mesmo para
+    uma secretaria que tinha desabilitado o módulo no painel.
+    """
+    return contexto.modulo_disponivel_aqui(governanca.FLAG_CORRECAO_PARECER)
 
 
 def render_parecer() -> None:

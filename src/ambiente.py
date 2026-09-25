@@ -63,17 +63,41 @@ def rotulo() -> str:
     return ROTULOS[atual()]
 
 
+# Endereços que PROVAM não ser o Supabase hospedado. A pilha de
+# homologação local (`scripts/homologacao_stack.py`) serve o PostgREST
+# em loopback; nada que responda em loopback é o banco da Prefeitura.
+_HOSPEDEIROS_LOCAIS = ("127.0.0.1", "localhost", "::1", "[::1]")
+
+
 def grava_em_producao() -> bool:
     """
     O banco desta instalação é o de produção?
 
-    Hoje devolve True SEMPRE, e o motivo está no cabeçalho: a
-    homologação aponta para o mesmo Supabase. A função existe separada
-    de `atual()` justamente para que o dia em que isso mudar seja uma
-    mudança de UMA linha com prova, e não uma caçada por todos os
-    lugares que assumiram a coincidência.
+    Devolve False só quando dá para PROVAR que não é — hoje, quando o
+    banco é servido em loopback. Qualquer outra coisa devolve True,
+    inclusive um projeto Supabase hospedado que não seja o de produção:
+    "não consigo provar que é separado" tem de ser tratado como
+    produção, que é a leitura mais séria.
+
+    Até a auditoria pré-operacional de 24/09/2026 isto devolvia True sem
+    condição, porque não existia instalação com banco separado. Passou a
+    existir, e a tarja começou a MENTIR — anunciava "o banco é o de
+    produção" numa instalação isolada. Aviso que erra desse lado é pior
+    que aviso nenhum: ensina a ignorá-lo, e é o mesmo aviso que precisa
+    ser levado a sério quando a instalação de fato escreve em produção.
     """
-    return True
+    from . import db
+
+    url = db._segredo("SUPABASE_URL").strip().lower()  # noqa: SLF001
+    if not url:
+        return True
+    try:
+        from urllib.parse import urlsplit
+
+        hospedeiro = (urlsplit(url).hostname or "").strip().lower()
+    except ValueError:
+        return True
+    return hospedeiro not in _HOSPEDEIROS_LOCAIS
 
 
 def render_aviso() -> None:

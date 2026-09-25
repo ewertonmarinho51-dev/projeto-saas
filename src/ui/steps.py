@@ -87,6 +87,11 @@ def _render_planilha(dados: dict, meta: dict) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Etapa 0 — Formulário Matriz
 # ---------------------------------------------------------------------------
+# O aviso de "rascunho salvo" atravessa o rerun por aqui. Ver o bloco de
+# `salvar_rascunho` em `render_formulario` para o porquê do rerun.
+CHAVE_AVISO_RASCUNHO = "_aviso_rascunho"
+
+
 def _render_progresso_do_formulario(dados: dict) -> None:
     """
     O que já foi preenchido e o que ainda falta, ANTES de submeter.
@@ -129,6 +134,11 @@ def render_formulario() -> None:
         legacy_subheader="Formulário Matriz: dados da demanda",
     )
     components.render_stepper(st.session_state.etapa)
+
+    # `pop`, e não `get`: o aviso é sobre um ato que acabou de acontecer.
+    # Deixado no estado, viraria moldura permanente — e moldura ninguém lê.
+    if aviso := st.session_state.pop(CHAVE_AVISO_RASCUNHO, ""):
+        st.success(aviso)
 
     dados = st.session_state.dados
     govbot_ativo = db.flag_ativa("govbot")
@@ -324,10 +334,20 @@ def render_formulario() -> None:
             from . import govbot_panel
 
             govbot_panel.confirmar_formulario()
-        if db.disponivel() and st.session_state.get("_save_status") == "salvo":
-            st.success("Rascunho salvo.")
-        else:
-            st.success("Rascunho mantido nesta sessão local.")
+        # O aviso viaja no estado e é mostrado no topo da execução
+        # seguinte, porque aqui embaixo ele seria a ÚNICA coisa a mudar
+        # na tela: o contador de obrigatórios é desenhado ANTES do
+        # formulário, lendo `st.session_state.dados`, e os widgets de um
+        # `st.form` só chegam ao estado no submit. Sem o rerun, o
+        # servidor preenchia tudo, salvava, lia "Rascunho salvo." e
+        # logo acima "1 de 5 campos obrigatórios preenchidos. Ainda
+        # falta: …" listando exatamente os campos que acabara de
+        # preencher. Achado da navegação do §5.
+        st.session_state[CHAVE_AVISO_RASCUNHO] = (
+            "Rascunho salvo."
+            if db.disponivel() and st.session_state.get("_save_status") == "salvo"
+            else "Rascunho mantido nesta sessão local.")
+        st.rerun()
 
     if enviado:
 

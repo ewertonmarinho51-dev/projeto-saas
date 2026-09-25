@@ -950,6 +950,75 @@ def _validar_tabela_de_itens(doc_key: str, texto: str,
     ]
 
 
+# ---------------------------------------------------------------------------
+# O valor global AFIRMADO NA PROSA, conferido contra a planilha
+#
+# ACHADO DA AUDITORIA PRÉ-OPERACIONAL (§8/§14). A tabela emitida já era
+# conferida item a item; a PROSA não era. Medido com a fixture
+# `contraditoria`: um DFD que escrevia "valor global estimado de R$ 1,00"
+# num processo de R$ 167.774,50 passava sem um único achado bloqueante —
+# a tabela ao lado estava certa, e ninguém confrontava as duas.
+#
+# É a classe de erro que um modelo de linguagem comete com mais
+# facilidade: o número da tabela vem por injeção de código e está sempre
+# certo; o número escrito por extenso no meio do texto vem do modelo.
+#
+# A checagem é DELIBERADAMENTE estreita. Só dispara quando a prosa
+# ROTULA o número como o valor global/total da contratação, e só fora
+# das linhas de tabela. Um "R$" solto no texto não é afirmação de total,
+# e bloquear por ele pararia documento legítimo.
+#
+# FICA DE FORA, e vai ao laudo como risco residual em vez de virar
+# regra frouxa: a CONTAGEM de itens afirmada na prosa ("abrange 7 (sete)
+# itens"). Documentos com lotes dizem isso legitimamente de um lote, e
+# um bloqueio com falso positivo é pior que a ausência da checagem.
+# ---------------------------------------------------------------------------
+_RE_VALOR_GLOBAL_NA_PROSA = re.compile(
+    r"valor\s+(?:global|total)"
+    r"(?:\s+(?:estimad[oa]|d[ae]\s+contrata[çc][ãa]o|estimado\s+d[ae]\s+"
+    r"contrata[çc][ãa]o))?"
+    r"[^\n\d]{0,60}?"
+    r"R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})",
+    re.IGNORECASE)
+
+# Diferença tolerada entre o valor escrito e a planilha. Um centavo
+# cobre arredondamento de formatação; não cobre erro de ordem de
+# grandeza, que é o que se quer pegar.
+_TOLERANCIA_REAIS = 0.01
+
+
+def _para_float(valor_brasileiro: str) -> float:
+    return float(valor_brasileiro.replace(".", "").replace(",", "."))
+
+
+def _validar_valor_global_na_prosa(doc_key: str, texto: str,
+                                   itens: list[dict] | None) -> list[dict]:
+    """Valor global afirmado no texto que não é o da planilha."""
+    if not itens:
+        return []
+    _, global_da_planilha = planilha.calcular(itens)
+    if not global_da_planilha:
+        return []
+
+    achados: list[dict] = []
+    for linha in (texto or "").splitlines():
+        if linha.strip().startswith("|"):
+            continue  # a tabela tem conferência própria, item a item
+        for achado in _RE_VALOR_GLOBAL_NA_PROSA.finditer(linha):
+            escrito = _para_float(achado.group(1))
+            if abs(escrito - global_da_planilha) <= _TOLERANCIA_REAIS:
+                continue
+            da_planilha = (f"{global_da_planilha:,.2f}"
+                           .replace(",", "§").replace(".", ",")
+                           .replace("§", "."))
+            achados.append(_achado(
+                doc_key, "bloqueia",
+                f"valor global afirmado no texto (R$ {achado.group(1)}) "
+                f"diverge da planilha do processo (R$ {da_planilha})",
+                linha.strip()))
+    return achados
+
+
 def _natureza_do_objeto(dados: dict | None) -> str:
     """
     BENS / SERVICOS / OBRAS_ENGENHARIA a partir do processo, reutilizando
@@ -1211,6 +1280,8 @@ def validar_documento(doc_key: str, texto: str,
         _validar_bloqueantes(doc_key, texto)
         + _validar_tabela_de_itens(doc_key, texto,
                                    (dados or {}).get("itens"))
+        + _validar_valor_global_na_prosa(doc_key, texto,
+                                         (dados or {}).get("itens"))
         + _validar_identificacoes(doc_key, texto, dados)
         + _validar_dados_improvisados(doc_key, texto)
         + _validar_fundamentos_legais(doc_key, texto, dados)

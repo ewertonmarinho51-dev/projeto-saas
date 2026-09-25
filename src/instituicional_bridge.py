@@ -53,7 +53,44 @@ def escolhas_da_sessao(doc_key: str) -> list[dict]:
 
 
 def guardar_escolhas(doc_key: str, escolhas: list[dict]) -> None:
-    """Grava a escolha do rascunho. O autosave do processo persiste."""
+    """
+    Grava a escolha do rascunho. O autosave do processo persiste.
+
+    AQUI MORA O PORTÃO DO §37, e a posição é o conteúdo.
+
+    O escopo é explícito: não basta o GovBot recusar em linguagem
+    natural; uma chamada DIRETA ao mecanismo de alteração tem que cair
+    na mesma regra. Este é o mecanismo de alteração. Uma verificação que
+    vivesse só na tela, ou só no prompt do robô, sumiria no instante em
+    que alguém chamasse esta função por baixo — e é exatamente esse
+    caminho que o §37 manda fechar.
+
+    Levanta `assinaturas.ErroAssinatura` quando a escolha nova não é
+    elegível. Quem chama trata: a tela mostra em vermelho, o GovBot
+    transforma em frase.
+    """
+    from . import assinaturas, govbot_institucional
+
+    anteriores = escolhas_da_sessao(doc_key)
+    if ativo() and escolhas:
+        try:
+            panorama = govbot_institucional.montar_panorama(
+                {"criado_em": st.session_state.get("processo_criado_em")})
+        except Exception as erro:  # noqa: BLE001
+            # Sem cadastro legível não dá para CONFERIR — e não conferir
+            # é diferente de aprovar. Recusa a gravação nova em vez de
+            # deixar passar sem verificação.
+            _log.warning("panorama indisponível ao gravar signatários: %s",
+                         erro)
+            if len(escolhas) > len(anteriores):
+                raise assinaturas.ErroAssinatura(
+                    "Não foi possível conferir a elegibilidade no cadastro "
+                    f"agora ({erro}). A escolha não foi gravada."
+                ) from erro
+        else:
+            govbot_institucional.conferir_escolhas(
+                escolhas, anteriores, panorama)
+
     dados = st.session_state.setdefault("dados", {})
     dados.setdefault(emissao.CHAVE_ESCOLHA, {})[doc_key] = escolhas
 

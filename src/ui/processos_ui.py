@@ -270,9 +270,15 @@ def _abrir(processo_id: str) -> None:
     if not processo:
         st.warning("Processo não encontrado. Pode ter sido excluído.")
         return
-    st.session_state.pagina = "Novo processo"
-    # `carregar_processo_salvo` termina em `st.rerun()`, então a troca de
-    # página acima precisa vir ANTES — depois dela não há linha que rode.
+    # `components.ir_para_pagina`, e NÃO `st.session_state.pagina = …`:
+    # a barra lateral já instanciou o radio cuja chave é `pagina`, e
+    # escrever nela aqui levanta StreamlitWidgetAlreadyInstantiatedError
+    # — traceback na tela e processo que não abre. Ver o comentário de
+    # `components.CHAVE_PAGINA_PENDENTE`.
+    components.ir_para_pagina("Novo processo")
+    # `carregar_processo_salvo` termina em `st.rerun()`, então o pedido
+    # de troca precisa vir ANTES — depois dela não há linha que rode, e é
+    # o rerun que faz a próxima execução atendê-lo.
     state.carregar_processo_salvo(processo)
 
 

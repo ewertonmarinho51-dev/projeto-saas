@@ -535,10 +535,154 @@ Esta entrega é a **fundação**: schema, resolvedores e provas. O que falta
 
 | Faltando | Escopo |
 |---|---|
-| Pré-visualização de timbrado | §13 |
-| Integração com o GovBot | §36, §37, §50 |
-| Ocultar módulo indisponível na navegação | §39 |
-| Flags `multi_tenant_admin`, `servidores`, `portarias` | §59 |
+**Nada.** O §13, o §39 e o §59 saíram em 22/09/2026; o §36 e o §37 em
+22/09/2026 também, quando o operador forneceu o texto das duas seções.
+O §50 já estava entregue com o painel administrativo.
+
+---
+
+## §36 e §37 — o GovBot no cadastro institucional
+
+### A decisão que define a arquitetura
+
+O §37 é explícito: *"a validação deve ocorrer também no backend, antes
+de qualquer alteração. Não basta o GovBot recusar o pedido em linguagem
+natural: uma chamada direta ao mecanismo de alteração deve estar sujeita
+às mesmas regras."*
+
+Isso decide **onde** o portão mora. Ele não está no prompt, nem na
+conversa, nem na tela: está em `instituicional_bridge.guardar_escolhas`,
+o ponto onde a escolha é **gravada**. Uma verificação que vivesse na
+camada de linguagem sumiria no instante em que alguém chamasse a função
+por baixo — e é exatamente esse caminho que o §37 manda fechar.
+
+`test_a_gravacao_passa_pelo_portao_sem_nenhuma_conversa` chama
+`guardar_escolhas` direto, sem GovBot no caminho. Se a regra estivesse
+no prompt, essa prova passaria e o sistema estaria aberto.
+
+### Consulta estruturada, nunca geração livre
+
+`src/govbot_institucional.py` responde às perguntas do §36 consultando o
+**cadastro**, pelos mesmos resolvedores da tela de assinatura. Um modelo
+que "lembra" que o Antonio é pregoeiro produz uma designação que nenhum
+ato administrativo concedeu — e o documento sai assinado.
+
+Nada de elegibilidade é reescrito ali. O módulo acrescenta a **leitura**
+(juntar os dados numa consulta só, o `Panorama`) e a **tradução**
+(transformar o veredito em frase que o servidor entende). Se ele
+decidisse por conta própria quem pode assinar, existiriam duas verdades
+— a da tela e a do robô — e elas divergiriam na primeira mudança.
+
+### O que foi reusado
+
+| Arquivo | O que veio dele |
+|---|---|
+| `src/assinaturas.py` | `elegiveis()`, `conferir_elegibilidade()`, `ROTULOS`, `FUNCOES_DE_PORTARIA` |
+| `src/portarias.py` | `resolver()`, `citacao()`, `membros_vigentes()`, `PortariaAmbigua` |
+| `src/emissao.py` | `data_de_referencia()` — a data do processo, não hoje |
+| `src/contexto.py` | `contexto_institucional()` — secretaria da sessão, nunca do texto |
+| `src/db.py` | `listar_servidores/portarias/membros_de_portaria/funcoes_de_servidores` |
+
+### Três decisões registradas
+
+**Só as escolhas NOVAS são conferidas.** Remover e reordenar não
+introduzem par `(servidor, função)` nenhum. Conferir tudo a cada
+gravação transformaria o portão em prisão: se a portaria fosse revogada
+depois da escolha, o servidor não conseguiria nem **remover** a linha
+que ficou inválida.
+
+**Não conferir é diferente de aprovar.** Se o panorama não pode ser
+montado — banco fora, cadastro ilegível —, a escolha nova é **recusada**.
+O caminho de exceção não pode virar a porta larga.
+
+**Ambiguidade é pendência, nunca escolha.** Dois "Maria Silva" no
+cadastro e o robô escolhendo a primeira produziria um documento assinado
+pela pessoa errada, com o nome certo. Mesma regra do §23 para portarias
+em conflito, que também bloqueia qualquer confirmação nova.
+
+### O isolamento por prefeitura não depende de boa vontade
+
+`localizar_servidor` busca **só no panorama**, e o panorama vem de
+`db.listar_servidores()`, que filtra por tenant e passa pela RLS. Não há
+segundo caminho — e há prova estrutural de que não passe a haver:
+qualquer `db.` dentro daquela função derruba a suíte.
+
+### O robô não pode consertar o cadastro para validar o pedido
+
+O §37 proíbe *"criar uma portaria fictícia, presumir uma designação ou
+modificar o cadastro administrativo para atender ao pedido"*. A garantia
+não é revisar intenção — é **não existir caminho**: uma prova estrutural
+reprova qualquer `salvar_*`, `.insert(`, `.update(` ou `.delete(` no
+módulo, e outra exige que toda chamada `db.x()` comece com `listar_`.
+
+---
+
+## §13, §39 e §59 — o que saiu em 22/09/2026
+
+### §39 — o código morto que quase virou queda de produção
+
+`db.modulo_disponivel` existia desde a fundação, com a docstring "a
+resposta que a navegação consulta", e **não era chamada em lugar
+nenhum**. A navegação olhava só a flag global: uma secretaria que
+desabilitasse um módulo no painel continuava vendo o item no menu.
+
+É o mesmo padrão de `ai_gateway.telemetria`, que a 0026 foi ligar —
+função escrita, provada e nunca conectada. Vale como sinal: neste
+repositório, "existe uma função para isso" não quer dizer que alguém a
+use.
+
+**Ligar a função parecia trivial e não era.** `modulos_do_tenant()`
+devolve `{}` para prefeitura ainda não cadastrada, e
+`{}.get(modulo, False)` significa NEGADO. Em produção, onde
+`tenant_modulos` está vazia, a ligação ingênua teria apagado Pesquisa de
+Preços, Consolidar Demandas e Parecer Jurídico do menu de todo mundo —
+uma camada criada para ORGANIZAR funcionalidade removendo
+funcionalidade.
+
+A correção está na camada que LÊ, não no resolvedor puro: ausência de
+linha é "ninguém decidiu" e devolve a decisão à flag global. Recusa tem
+que ser **ato** — uma linha com `habilitado = false`, gravada por alguém
+no painel. `test_prefeitura_sem_cadastro_nao_perde_modulo` é a prova que
+protege produção, e a mutação que devolve o default para `False` a
+derruba.
+
+### §13 — a herança, visível antes do PDF
+
+A resolução secretaria → município → nenhuma funcionava desde antes da
+0025, e era justamente esse o problema: funcionava sem que ninguém
+conseguisse **ver** o resultado antes de gerar um documento. O primeiro
+lugar onde a herança aparecia era o PDF assinado, e descobrir ali que a
+secretaria usou o brasão errado é descobrir depois da publicação.
+
+A seção **Timbrado** mostra, por secretaria, qual identidade sai e de
+onde ela vem — e usa `contexto.resolver_identidade`, o mesmo resolvedor
+da exportação, não uma segunda cópia da regra. Há prova disso: se a tela
+implementasse a própria versão, as duas divergiriam e a pré-visualização
+passaria a mostrar um timbrado diferente do que o PDF usaria, que é o
+oposto do que ela serve para fazer.
+
+Identidade por texto é mostrada **como texto**. Renderizar uma imitação
+do documento daria uma impressão de fidelidade que ela não tem — e
+fidelidade é exatamente o assunto desta tela.
+
+### §59 — três flags, porque são três momentos
+
+`multi_tenant_admin`, `servidores` e `portarias` controlam cada seção do
+cadastro institucional. Três e não uma porque entram em produção em
+momentos diferentes: cadastrar prefeitura e módulos é o primeiro dia;
+servidores exige o RH ter passado a lista; portarias exige alguém
+conferir o que está vigente. Uma flag só obrigaria a ligar tudo de uma
+vez — ou a deixar tudo desligado esperando a parte mais lenta.
+
+**Elas nascem LIGADAS quando ausentes**, ao contrário da
+`multi_prefeituras`, que nasce desligada. A diferença é deliberada: quem
+ligou a aba já decidiu usar a funcionalidade, e exigir uma segunda
+decisão por seção transformaria o §59 num labirinto de caixas. Estas
+flags existem para **desligar** uma seção que ainda não está pronta.
+
+Desligar `multi_tenant_admin` leva junto **Timbrado** e **Módulos**: sem
+a seção Prefeitura, as duas perdem o objeto — configuram e exibem a
+prefeitura que aquela seção cadastra.
 
 A ordem importa: a fundação primeiro porque erro de schema e de RLS é
 caro e difícil de reverter; a tela é mecânica sobre uma base provada.

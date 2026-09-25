@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from .. import auth, db, governanca, state
+from .. import auth, contexto, db, governanca, state
 from ..demanda import aplicacao, consolidacao, exportacao, ingestao
 from . import components
 
@@ -42,8 +42,13 @@ _TEXTO_DO_STATUS = {
 
 
 def disponivel() -> bool:
-    """Flag ligada e banco de pé. Nasce desligada, como o §34 pede."""
-    return db.flag_ativa(governanca.FLAG_CONSOLIDACAO)
+    """
+    Os três níveis (§39). Nasce desligada, como o §34 pede.
+
+    Antes olhava só a flag global, e o item aparecia no menu mesmo para
+    uma secretaria que tinha desabilitado o módulo no painel.
+    """
+    return contexto.modulo_disponivel_aqui(governanca.FLAG_CONSOLIDACAO)
 
 
 def render_demanda() -> None:

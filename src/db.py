@@ -710,14 +710,22 @@ def salvar_processo(
         # Só chega preenchido com a flag ligada — que pressupõe a
         # migração 0007 aplicada (coluna existente).
         registro["secretaria_id"] = secretaria_id
+    # A prefeitura vem do VÍNCULO da sessão, nunca do que o chamador
+    # monta. Sem o carimbo, a inserção caía no DEFAULT da coluna e o
+    # processo de uma prefeitura nascia dentro da primeira. Ver o bloco
+    # de `listar_processos` para o achado completo.
+    tenant = tenant_atual()
     try:
         tabela = _cliente().table("processos")
         if processo_id:
-            resposta = tabela.update(registro).eq("id", processo_id).execute()
+            resposta = (tabela.update(registro).eq("id", processo_id)
+                        .eq("tenant_id", tenant).execute())
             if resposta.data:
                 return processo_id
-            # id não encontrado (ex.: excluído em outra sessão) — insere novo
-        resposta = tabela.insert(registro).execute()
+            # id não encontrado (ex.: excluído em outra sessão, ou de
+            # outra prefeitura) — insere novo, na prefeitura de quem
+            # está salvando. Nunca sobrescreve o alheio.
+        resposta = tabela.insert({**registro, "tenant_id": tenant}).execute()
         return resposta.data[0]["id"]
     except Exception as exc:  # noqa: BLE001 — traduzimos qualquer falha
         raise _traduzir_erro(exc) from exc
@@ -736,9 +744,23 @@ def listar_processos(limite: int = 50, usuario_id: str | None = None) -> list[di
     seletor de "retomar o último"; um painel que promete busca precisa
     ter o que buscar.
     """
+    # ACHADO P0 DA AUDITORIA (§11/§17), 24/09/2026. `processos` ganhou
+    # `tenant_id` na 0006 e esta consulta nunca passou a usá-lo. A
+    # interface chama SEM `usuario_id` para administrador — "vê os
+    # processos do município", diz o comentário de `processos_ui` — e
+    # sem nenhum filtro a lista devolvia os 50 processos mais recentes
+    # de TODAS as prefeituras: objeto, justificativa, valores e
+    # documentos. E entregava os ids, que abriam, renomeavam e apagavam.
+    #
+    # O RLS não cobre: o app opera com `service_role`, que tem BYPASSRLS.
+    # As políticas da 0020 defendem contra chave publicável vazada, não
+    # contra a consulta do próprio app sem `where`. Aqui o filtro abaixo
+    # É a contenção.
     def consultar(com_nome: bool):
-        consulta = _cliente().table("processos").select(
-            _COLUNAS_DO_PAINEL if com_nome else _COLUNAS_SEM_NOME)
+        consulta = (_cliente().table("processos")
+                    .select(_COLUNAS_DO_PAINEL if com_nome
+                            else _COLUNAS_SEM_NOME)
+                    .eq("tenant_id", tenant_atual()))
         if usuario_id:
             consulta = consulta.eq("usuario_id", usuario_id)
         return consulta.order("atualizado_em", desc=True).limit(limite).execute()
@@ -785,7 +807,8 @@ def renomear_processo(processo_id: str, nome: str) -> str:
     limpo = " ".join(str(nome or "").split())[:120]
     try:
         (_cliente().table("processos")
-         .update({"nome": limpo}).eq("id", processo_id).execute())
+         .update({"nome": limpo}).eq("id", processo_id)
+         .eq("tenant_id", tenant_atual()).execute())
     except Exception as exc:  # noqa: BLE001
         if _e_coluna_nome_ausente(exc):
             _marcar_coluna_nome(presente=False)
@@ -1287,11 +1310,33 @@ def flag_ativa(nome: str) -> bool:
 
 # ---------------------------------------------------------------------------
 # Identidade visual por órgão (cabeçalho, rodapé, marca d'água)
+#
+# ACHADO DE SEGURANÇA DA AUDITORIA (§11/§17), 24/09/2026 — e a razão de
+# `tenant_id` aparecer em TODAS as quatro operações abaixo, não só na
+# leitura.
+#
+# `config_orgaos` ganhou `tenant_id` na migração 0006 e nenhum dos
+# acessos passou a usá-lo: a listagem devolvia a identidade de todas as
+# prefeituras (e é ela que alimenta o seletor de timbrado); marcar uma
+# como padrão limpava a marca de TODAS as outras, de qualquer prefeitura
+# — escrita cruzando o tenant; a inserção não carimbava a prefeitura, de
+# modo que a identidade nova nascia na do DEFAULT da coluna; e a
+# exclusão apagava por id sem conferir de quem era.
+#
+# O RLS NÃO cobre isto, e é importante entender por quê: o app opera com
+# a credencial de SERVIDOR, e `service_role` tem BYPASSRLS. As políticas
+# do banco protegem contra uma chave publicável vazada — não contra uma
+# consulta do próprio app que esqueceu o `where`. Aqui, o
+# `.eq("tenant_id", …)` É a contenção.
+#
+# A tabela irmã `secretarias`, mais nova, sempre filtrou — inclusive no
+# espelhamento logo abaixo. O legado ficou para trás sozinho.
 # ---------------------------------------------------------------------------
 def listar_orgaos() -> list[dict]:
     try:
         return (
             _cliente().table("config_orgaos").select("*")
+            .eq("tenant_id", tenant_atual())
             .order("padrao", desc=True).order("orgao").execute()
         ).data or []
     except Exception as exc:  # noqa: BLE001
@@ -1300,16 +1345,24 @@ def listar_orgaos() -> list[dict]:
 
 def salvar_orgao(registro: dict, orgao_id: str | None = None) -> None:
     """Cria/atualiza identidade visual; se padrao=True, desmarca as demais."""
+    # O tenant vem do VÍNCULO da sessão, nunca do registro: aceitar o
+    # campo de quem chama deixaria a prefeitura de destino ser escolhida
+    # por quem monta o dicionário. Mesmo contrato de `salvar_servidor`.
+    registro = {k: v for k, v in registro.items() if k != "tenant_id"}
+    tenant = tenant_atual()
     try:
         tabela = _cliente().table("config_orgaos")
         if registro.get("padrao"):
-            tabela.update({"padrao": False}).neq(
-                "id", orgao_id or "00000000-0000-0000-0000-000000000000"
-            ).execute()
+            (tabela.update({"padrao": False})
+             .eq("tenant_id", tenant)
+             .neq("id", orgao_id or "00000000-0000-0000-0000-000000000000")
+             .execute())
         if orgao_id:
-            tabela.update(registro).eq("id", orgao_id).execute()
+            (tabela.update(registro)
+             .eq("id", orgao_id).eq("tenant_id", tenant).execute())
         else:
-            resposta = tabela.insert(registro).execute()
+            resposta = tabela.insert(
+                {**registro, "tenant_id": tenant}).execute()
             orgao_id = ((resposta.data or [{}])[0]).get("id")
     except Exception as exc:  # noqa: BLE001
         raise _traduzir_erro(exc) from exc
@@ -1396,7 +1449,11 @@ def salvar_secretaria(registro: dict, secretaria_id: str | None = None) -> None:
 
 def excluir_orgao(orgao_id: str) -> None:
     try:
-        _cliente().table("config_orgaos").delete().eq("id", orgao_id).execute()
+        # `tenant_id` junto do `id`: o §11 manda tratar o backend como se
+        # o frontend não existisse, e apagar por id sozinho é o caminho
+        # que sobra depois de a listagem ser fechada.
+        (_cliente().table("config_orgaos").delete()
+         .eq("id", orgao_id).eq("tenant_id", tenant_atual()).execute())
     except Exception as exc:  # noqa: BLE001
         raise _traduzir_erro(exc) from exc
 
@@ -1404,7 +1461,9 @@ def excluir_orgao(orgao_id: str) -> None:
 def carregar_processo(processo_id: str) -> dict | None:
     try:
         resposta = (
-            _cliente().table("processos").select("*").eq("id", processo_id).execute()
+            _cliente().table("processos").select("*")
+            .eq("id", processo_id)
+            .eq("tenant_id", tenant_atual()).execute()
         )
         return resposta.data[0] if resposta.data else None
     except Exception as exc:  # noqa: BLE001
@@ -1413,7 +1472,8 @@ def carregar_processo(processo_id: str) -> dict | None:
 
 def excluir_processo(processo_id: str) -> None:
     try:
-        _cliente().table("processos").delete().eq("id", processo_id).execute()
+        (_cliente().table("processos").delete()
+         .eq("id", processo_id).eq("tenant_id", tenant_atual()).execute())
     except Exception as exc:  # noqa: BLE001
         raise _traduzir_erro(exc) from exc
 
@@ -1509,9 +1569,25 @@ def modulo_disponivel(modulo: str, secretaria_id: str | None = None) -> bool:
     """
     A resposta que a navegação consulta. Os três níveis de uma vez.
 
-    Falha do banco devolve o valor da FLAG GLOBAL, e não `False`: o
-    módulo deixar de aparecer porque o Supabase piscou seria uma queda de
-    funcionalidade causada pela camada que existe para organizá-la.
+    AUSÊNCIA DE LINHA NÃO É RECUSA — é "ninguém decidiu ainda", e a
+    decisão volta para o nível de cima, a flag global.
+
+    A distinção decide se esta função pode ser ligada à navegação sem
+    derrubar produção. `tenant_modulos` está VAZIA em toda prefeitura
+    que ainda não foi cadastrada, e `{}.get(modulo, False)` devolveria
+    negado: Pesquisa de Preços, Consolidar Demandas e Parecer Jurídico
+    sumiriam da tela no mesmo instante, em nome de uma camada que existe
+    para ORGANIZAR funcionalidade, não para removê-la.
+
+    Recusa tem que ser ATO: uma linha com `habilitado = false`, gravada
+    por alguém no painel. É o que a tela de Módulos faz.
+
+    A mesma leitura vale para a secretaria — `estado` ausente cai em
+    HERDAR, que é como `modulos.resolver` já tratava o desconhecido.
+
+    Falha do banco devolve o valor da FLAG GLOBAL, e não `False`, pela
+    mesma razão: o módulo sumir porque o Supabase piscou seria queda de
+    funcionalidade causada pela camada que organiza.
     """
     from . import modulos as _modulos
 
@@ -1519,7 +1595,8 @@ def modulo_disponivel(modulo: str, secretaria_id: str | None = None) -> bool:
     if not global_:
         return False
     try:
-        no_tenant = modulos_do_tenant().get(modulo, False)
+        # `True` como default: sem linha, herda a flag global.
+        no_tenant = modulos_do_tenant().get(modulo, True)
         estado = (modulos_da_secretaria(secretaria_id).get(modulo, _modulos.HERDAR)
                   if secretaria_id else _modulos.HERDAR)
     except ErroBanco:

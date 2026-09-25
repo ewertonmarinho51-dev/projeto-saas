@@ -326,3 +326,75 @@ def test_o_assistente_nao_fica_mudo_num_campo_sem_ajuda_simples(monkeypatch):
     intent = govbot.orientacao_local(contexto, "o que preencher")
 
     assert intent.response == CAMPOS_FORMULARIO["orgao"]["help"]
+
+
+# ---------------------------------------------------------------------------
+# O contador de obrigatórios depois de salvar — achado da navegação (§5/§16)
+#
+# MEDIDO NO NAVEGADOR, não deduzido: com o formulário inteiro preenchido
+# e o rascunho salvo, a tela dizia
+#
+#   "1 de 5 campos obrigatórios preenchidos. Ainda falta: Quem está
+#    pedindo, O que vai ser comprado ou contratado, Por que isso é
+#    necessário, Como a entrega vai acontecer."
+#
+# listando exatamente os quatro campos que o servidor acabara de
+# preencher — e logo abaixo, "Rascunho salvo.".
+#
+# CAUSA: o contador é desenhado ANTES do `st.form`, lendo
+# `st.session_state.dados`; e widget dentro de um `st.form` só chega ao
+# estado no submit. O caminho "Iniciar elaboração" já fazia `st.rerun()`
+# e por isso nunca mostrou o defeito; o de "Salvar rascunho" não fazia.
+#
+# CONSEQUÊNCIA para quem usa (§16): confusão e retrabalho. O servidor é
+# informado de que os campos obrigatórios estão vazios no instante
+# seguinte a preenchê-los e salvá-los, e a saída natural é digitar tudo
+# de novo.
+# ---------------------------------------------------------------------------
+def _formulario_preenchido():
+    from tests.test_app import _app_modo_aberto  # noqa: PLC0415
+
+    at = _app_modo_aberto()
+    at.run()
+    assert not at.exception
+    return at
+
+
+def test_contador_de_obrigatorios_acompanha_o_rascunho_salvo():
+    at = _formulario_preenchido()
+
+    valores = {
+        "Quem está pedindo": "Prefeitura de Ensaio — Secretaria de Compras",
+        "O que vai ser comprado": "Aquisição de material de expediente.",
+        "Por que isso é necessário": "Reposição do estoque do almoxarifado.",
+    }
+    for trecho, valor in valores.items():
+        alvos = [e for e in list(at.text_input) + list(at.text_area)
+                 if trecho.lower() in (e.label or "").lower()]
+        assert alvos, f"campo {trecho!r} não encontrado"
+        alvos[0].set_value(valor)
+
+    at.session_state["dados"] = dict(at.session_state.get("dados") or {})
+    salvar = [b for b in at.button if "rascunho" in (b.label or "").lower()]
+    assert salvar, [b.label for b in at.button]
+    salvar[0].click().run()
+    assert not at.exception
+
+    legendas = " ".join(c.value for c in at.caption)
+    assert "Ainda falta: Quem está pedindo" not in legendas, (
+        "depois de salvar, a tela ainda pede os campos que acabaram de ser "
+        f"preenchidos. Legendas: {legendas[:300]}")
+
+
+def test_o_aviso_de_rascunho_salvo_sobrevive_ao_rerun():
+    """
+    O rerun que conserta o contador não pode engolir a confirmação: sem
+    ela, o servidor clica em salvar e nada acontece na tela.
+    """
+    at = _formulario_preenchido()
+    salvar = [b for b in at.button if "rascunho" in (b.label or "").lower()]
+    salvar[0].click().run()
+    assert not at.exception
+    sucessos = " ".join(s.value for s in at.success)
+    assert "ascunho" in sucessos, (
+        f"nenhuma confirmação de salvamento na tela: {sucessos[:200]}")

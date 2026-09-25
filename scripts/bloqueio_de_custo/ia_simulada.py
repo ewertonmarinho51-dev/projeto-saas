@@ -1,0 +1,430 @@
+"""
+IA simulada no TRANSPORTE HTTP — respostas controladas, custo zero.
+
+    GOVDOCS_IA_SIMULADA=coerente python -m streamlit run app.py
+
+POR QUE NO TRANSPORTE, E NÃO TROCANDO `llm._chamar_openai`
+
+Um dublê posto em `llm._chamar_openai` prova que aquela função foi
+desviada. Não prova nada sobre o que vem antes e depois dela — e é
+justamente aí que mora o trabalho que o §8 manda conferir:
+
+  * a montagem do prompt (`prompts.montar_prompt`) e o bloco do RAG;
+  * o cliente da OpenAI de verdade, com o `max_completion_tokens`, os
+    parâmetros por modelo e o laço de retentativa;
+  * a leitura de `choices[0].message.content`, o `finish_reason` vazio,
+    o `usage` que alimenta a telemetria;
+  * a troca de modelo, a queda para o motor seguinte;
+  * a injeção da tabela (`planilha.injetar_tabela`) no `[[TABELA_ITENS]]`.
+
+Respondendo no transporte, TODO esse caminho roda de verdade. O que se
+troca é só o texto que a rede traria — que é exatamente o que o §8 pede
+("respostas simuladas de IA que permitam testar estruturas corretas e
+incorretas") e exatamente o que não se pode pagar nesta rodada.
+
+RELAÇÃO COM O BLOQUEIO DO §3
+
+`sem_llm` barra e CONTA tentativas de sair. Este módulo é instalado
+DEPOIS dele, então fica por fora: uma chamada simulada é respondida
+aqui e nunca chega ao bloqueio. Por isso as duas contagens são
+separadas e ambas entram no laudo —
+
+    sem_llm.tentativas()     → chamadas que tentaram sair    (meta: 0)
+    ia_simulada.respostas()  → chamadas atendidas por fixture
+
+Se a segunda for zero numa bateria que gerou documentos, o caminho da
+IA não foi exercitado, e dizer que foi seria falso.
+
+OS MODOS, E O QUE CADA UM EXISTE PARA REVELAR
+
+  coerente     — devolve os fatos do processo como vieram no prompt. É
+                 o controle: o que sair diferente disso no documento
+                 exportado foi o sistema que mudou, não o modelo.
+  incompleta   — devolve `[PREENCHER: …]`. O sistema precisa ACUSAR a
+                 pendência, não publicar o marcador como se fosse texto.
+  contraditoria— afirma quantidade e valor que CONTRADIZEM o formulário.
+                 O sistema não pode aceitar em silêncio.
+  sem_tabela   — omite `[[TABELA_ITENS]]`. Revela se a planilha some sem
+                 ninguém reclamar.
+  vazia        — devolve conteúdo vazio com `finish_reason=length`, que é
+                 o que modelos de raciocínio fazem de verdade. Exercita
+                 a troca de modelo e a queda entre motores.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import threading
+import time
+
+MODOS = ("coerente", "incompleta", "contraditoria", "sem_tabela", "vazia")
+
+_trava = threading.Lock()
+_respostas: list[dict] = []
+_originais: dict = {}
+
+# Caminhos de conversa dos provedores que `llm.py` conhece. Qualquer
+# outro caminho no mesmo host (modelos, embeddings) NÃO é simulado: cai
+# no bloqueio do §3 e aparece na contagem, que é onde deve aparecer.
+_CAMINHOS = ("/chat/completions", "/v1/chat/completions",
+             ":generateContent")
+
+_LIVRO = (os.environ.get("GOVDOCS_LIVRO_IA_SIMULADA")
+          or "/tmp/govdocs_ia_simulada.jsonl")
+
+
+def modo() -> str:
+    valor = (os.environ.get("GOVDOCS_IA_SIMULADA") or "").strip().lower()
+    return valor if valor in MODOS else ""
+
+
+# ---------------------------------------------------------------------------
+# O que o prompt carregava — a evidência de transporte
+# ---------------------------------------------------------------------------
+_MARCA_FORMULARIO = "=== DADOS DO FORMULÁRIO MATRIZ"
+
+_DOCUMENTOS = (
+    ("DOCUMENTO DE FORMALIZAÇÃO DA DEMANDA", "dfd"),
+    ("ESTUDO TÉCNICO PRELIMINAR", "etp"),
+    ("MAPA DE RISCOS", "mapa_riscos"),
+    ("TERMO DE REFERÊNCIA", "tr"),
+    ("MINUTA DE EDITAL", "edital"),
+)
+
+
+def _documento_do_prompt(texto: str) -> str:
+    """
+    Qual documento foi PEDIDO — lido só nas INSTRUÇÕES.
+
+    Procurar no prompt inteiro dava a resposta errada, e o erro era
+    silencioso: o prompt do Mapa de Riscos carrega o ETP aprovado como
+    contexto, então "ESTUDO TÉCNICO PRELIMINAR" aparecia nele e a
+    fixture devolvia um ETP. A bateria acusava "marcador vazou no mapa"
+    quando o que tinha vazado era a detecção.
+
+    As instruções vêm ANTES do bloco do formulário; o contexto do
+    documento anterior vem DEPOIS. Cortar ali separa o pedido da
+    bagagem.
+    """
+    corte = texto.find(_MARCA_FORMULARIO)
+    instrucoes = (texto[:corte] if corte > 0 else texto).upper()
+    for marca, chave in _DOCUMENTOS:
+        if marca in instrucoes:
+            return chave
+    return "documento"
+
+
+def _campos_do_prompt(texto: str) -> dict:
+    """
+    Os pares `- Rótulo: valor` do bloco do Formulário Matriz.
+
+    É leitura do que o SISTEMA mandou, não do que o teste queria mandar.
+    A diferença entre os dois é um achado, e só aparece porque este
+    módulo lê o prompt em vez de receber os fatos por fora.
+    """
+    inicio = texto.find(_MARCA_FORMULARIO)
+    if inicio < 0:
+        return {}
+    trecho = texto[inicio:]
+    campos: dict[str, str] = {}
+    for linha in trecho.splitlines():
+        achado = re.match(r"^- ([^:]{2,60}):\s*(.*)$", linha)
+        if achado:
+            campos.setdefault(achado.group(1).strip(), achado.group(2).strip())
+    return campos
+
+
+def _fato(campos: dict, *rotulos: str) -> str:
+    for rotulo in rotulos:
+        for chave, valor in campos.items():
+            if rotulo.lower() in chave.lower() and valor:
+                return valor
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# As minutas simuladas
+# ---------------------------------------------------------------------------
+def _corpo(doc: str, campos: dict, qual: str) -> str:
+    objeto = _fato(campos, "objeto") or "(objeto não veio no prompt)"
+    orgao = _fato(campos, "órgão", "orgao", "unidade") or "(órgão ausente)"
+    justificativa = _fato(campos, "justificativa") or "(justificativa ausente)"
+
+    titulo = {
+        "dfd": "DOCUMENTO DE FORMALIZAÇÃO DA DEMANDA",
+        "etp": "ESTUDO TÉCNICO PRELIMINAR",
+        "mapa_riscos": "MAPA DE RISCOS",
+        "tr": "TERMO DE REFERÊNCIA",
+    }.get(doc, "DOCUMENTO")
+
+    cabecalho = (
+        f"# {titulo}\n\n"
+        f"## 1. IDENTIFICAÇÃO\n\n"
+        f"Unidade demandante: {orgao}\n\n"
+        f"## 2. OBJETO\n\n{objeto}\n\n"
+        f"## 3. JUSTIFICATIVA\n\n{justificativa}\n\n"
+    )
+
+    # O Mapa de Riscos tem estrutura PRÓPRIA, e o prompt real dele
+    # proíbe reproduzir a planilha orçamentária no corpo. Uma fixture que
+    # devolvesse `[[TABELA_ITENS]]` aqui não estaria simulando o modelo:
+    # estaria simulando um modelo que desobedeceu — e o teste passaria a
+    # medir a desobediência, não o transporte.
+    #
+    # Para exercitar a desobediência DE PROPÓSITO existe o modo
+    # `sem_tabela`/`contraditoria`: aí o marcador aparece e a prova é que
+    # `validacao` BLOQUEIA, que é o comportamento certo do sistema.
+    if doc == "mapa_riscos" and qual not in ("contraditoria", "sem_tabela"):
+        return (f"# MAPA DE RISCOS\n\n"
+                f"| FASE DE ANÁLISE |\n|---|\n"
+                f"| Planejamento da contratação. |\n\n"
+                f"Objeto: {objeto}\n\n"
+                f"## RISCO 01\n"
+                f"Atraso na entrega compromete a continuidade do "
+                f"serviço da unidade demandante.\n"
+                f"| Avaliação | Baixa | Média | Alta |\n|---|---|---|---|\n"
+                f"| Probabilidade: | | X | |\n"
+                f"| Impacto: | | | X |\n"
+                f"| Id | Dano |\n|---|---|\n"
+                f"| 1. | Interrupção da atividade administrativa. |\n"
+                f"| Id | Ação Preventiva | Responsável |\n|---|---|---|\n"
+                f"| 1. | Exigir cronograma de entrega na contratação. | "
+                f"{orgao} |\n"
+                f"| Id | Ação de Contingência | Responsável |\n|---|---|---|\n"
+                f"| 1. | Acionar as penalidades contratuais cabíveis. | "
+                f"{orgao} |\n")
+
+    if qual == "incompleta":
+        return (cabecalho
+                + "## 4. ESTIMATIVA DE VALOR\n\n"
+                  "[PREENCHER: valor estimado da contratação, que não "
+                  "constava do formulário]\n\n"
+                  "## 5. RELAÇÃO DE ITENS\n\n[[TABELA_ITENS]]\n")
+    if qual == "contraditoria":
+        return (cabecalho
+                + "## 4. QUANTITATIVOS\n\n"
+                  "A presente contratação abrange 7 (sete) itens, no valor "
+                  "global estimado de R$ 1,00 (um real).\n\n"
+                  "## 5. RELAÇÃO DE ITENS\n\n[[TABELA_ITENS]]\n")
+    if qual == "sem_tabela":
+        return (cabecalho
+                + "## 4. RELAÇÃO DE ITENS\n\nConforme planilha anexa.\n")
+    return (cabecalho
+            + "## 4. RELAÇÃO DE ITENS\n\n[[TABELA_ITENS]]\n\n"
+              "## 5. RESPONSÁVEL PELA DEMANDA\n\n"
+              "A demanda será acompanhada pela equipe designada na forma "
+              "da portaria vigente.\n")
+
+
+def _resposta_json(texto: str, vazia: bool) -> dict:
+    return {
+        "id": f"chatcmpl-simulada-{len(_respostas) + 1}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": "simulada-sem-custo",
+        "choices": [{
+            "index": 0,
+            "message": {"role": "assistant",
+                        "content": "" if vazia else texto},
+            "finish_reason": "length" if vazia else "stop",
+        }],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0,
+                  "total_tokens": 0},
+    }
+
+
+def _atender(corpo_bruto: bytes) -> tuple[int, dict]:
+    try:
+        pedido = json.loads(corpo_bruto or b"{}")
+    except ValueError:
+        pedido = {}
+    # SÓ a mensagem do usuário. O system prompt é o mesmo para todos os
+    # documentos e traz o mapa canônico da Lei nº 14.133/2021, onde
+    # "documento de formalização da demanda" aparece como verbete — de
+    # modo que procurar ali fazia TODO pedido ser detectado como DFD, e
+    # a bateria acusava o sistema por um erro da própria fixture.
+    texto_do_prompt = "\n".join(
+        str(m.get("content") or "") for m in pedido.get("messages") or []
+        if m.get("role") != "system")
+
+    qual = modo()
+    doc = _documento_do_prompt(texto_do_prompt)
+    campos = _campos_do_prompt(texto_do_prompt)
+
+    registro = {
+        "quando": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "documento": doc,
+        "modo": qual,
+        "campos_no_prompt": len(campos),
+        "objeto_no_prompt": bool(_fato(campos, "objeto")),
+        # TAMANHO, não conteúdo. É o que decide a conta da rodada
+        # operacional — o §20-E pede orçamento, e orçamento sem medida do
+        # prompt é chute. Caracteres, porque contar token exigiria o
+        # tokenizador do provedor e a ordem de grandeza é a mesma.
+        "caracteres_no_sistema": sum(
+            len(str(m.get("content") or ""))
+            for m in pedido.get("messages") or [] if m.get("role") == "system"),
+        "caracteres_no_usuario": len(texto_do_prompt),
+        # NUNCA o prompt inteiro: ele carrega os dados do processo e
+        # este registro vira anexo de relatório.
+    }
+    with _trava:
+        _respostas.append(registro)
+        # O app roda num processo e o roteiro de teste noutro; sem o
+        # livro em disco, quem confere a bateria não enxerga o que o
+        # Streamlit atendeu — e "a IA foi exercitada" viraria palavra.
+        try:
+            with open(_LIVRO, "a", encoding="utf-8") as saida:
+                saida.write(json.dumps(registro, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+
+    return 200, _resposta_json(_corpo(doc, campos, qual), qual == "vazia")
+
+
+# ---------------------------------------------------------------------------
+# Instalação
+# ---------------------------------------------------------------------------
+def _e_conversa(url) -> bool:
+    caminho = str(getattr(url, "path", "") or "")
+    return any(marca in caminho for marca in _CAMINHOS)
+
+
+# Marca no PRÓPRIO substituto, em vez de um dicionário paralelo dizendo
+# "já instalei".
+#
+# A versão anterior usava `if not modo() or _originais: return`, e isso
+# quebrou na CI: bastava `_originais` ficar com resíduo de uma execução
+# anterior para `instalar()` desistir em silêncio — e aí a chamada não
+# era atendida por fixture nenhuma e saía para a REDE. Trinta e quatro
+# provas falharam com "falha na comunicação", que é o defeito mais caro
+# possível numa bateria cujo critério é `chamadas pagas = 0`.
+#
+# Perguntar ao próprio `httpx` quem está instalado não tem esse
+# problema: a resposta vem de onde o efeito acontece, não de um registro
+# que pode divergir dele.
+_MARCA = "_govdocs_ia_simulada"
+
+
+# As bibliotecas HTTP de API idêntica que os SDKs usam. `httpx2` entrou
+# porque a `openai` 3.x migrou para ela — e enquanto este módulo
+# conhecia só `httpx`, a fixture não atendia e a chamada saía para a
+# REDE. Ver o comentário gêmeo em `sem_llm`.
+_BIBLIOTECAS_HTTP = ("httpx", "httpx2")
+
+
+def _modulo(nome: str):
+    try:
+        return __import__(nome)
+    except ImportError:
+        return None
+
+
+def _presentes() -> list[str]:
+    return [n for n in _BIBLIOTECAS_HTTP if _modulo(n) is not None]
+
+
+def ativo() -> bool:
+    """
+    A interceptação está de pé em TODAS as bibliotecas presentes?
+
+    Exigir todas, e não alguma: cobrir uma e deixar outra é o estado em
+    que a fixture responde "estou instalada" e o SDK sai pela porta da
+    outra — que foi exatamente o que aconteceu.
+    """
+    presentes = _presentes()
+    if not presentes:
+        return False
+    return all(
+        getattr(_modulo(n).HTTPTransport.handle_request, _MARCA, False)
+        for n in presentes)
+
+
+def instalar() -> None:
+    """Idempotente. Sem modo escolhido, não instala nada."""
+    if not modo():
+        return
+    for nome in _presentes():
+        modulo = _modulo(nome)
+        if getattr(modulo.HTTPTransport.handle_request, _MARCA, False):
+            continue
+        original = modulo.HTTPTransport.handle_request
+
+        def guardado(self, request, _orig=original, _mod=modulo):
+            if _e_conversa(request.url):
+                codigo, corpo = _atender(request.read())
+                return _mod.Response(
+                    codigo, json=corpo, request=request,
+                    headers={"content-type": "application/json"})
+            return _orig(self, request)
+
+        setattr(guardado, _MARCA, True)
+        _originais[nome] = original
+        modulo.HTTPTransport.handle_request = guardado
+
+
+def remover() -> None:
+    for nome in _BIBLIOTECAS_HTTP:
+        if nome not in _originais:
+            continue
+        modulo = _modulo(nome)
+        if modulo is not None:
+            modulo.HTTPTransport.handle_request = _originais[nome]
+        _originais.pop(nome, None)
+
+
+def autoteste() -> None:
+    """
+    Prova, AQUI E AGORA, que uma conversa é atendida por fixture.
+
+    Existe porque "instalei" e "intercepta" são afirmações diferentes, e
+    foi justamente a distância entre as duas que deixou a bateria sair
+    para a rede na CI. A prova é uma requisição de mentira pelo mesmo
+    caminho que o SDK usa; se ela não voltar da fixture, nada roda.
+
+    Levanta `RuntimeError` — nunca devolve falso em silêncio, que seria
+    repetir o erro que este método existe para impedir.
+    """
+    if not modo():
+        raise RuntimeError("GOVDOCS_IA_SIMULADA não está definido")
+
+    presentes = _presentes()
+    if not presentes:
+        raise RuntimeError(
+            "nenhuma biblioteca HTTP conhecida instalada: a fixture não "
+            f"tem onde atender (conhecidas: {_BIBLIOTECAS_HTTP})")
+
+    # UMA prova por biblioteca presente. Provar só numa deixaria
+    # exatamente o buraco que a `openai` 3.x abriu ao migrar de `httpx`
+    # para `httpx2`: a resposta vinha da que eu testei, e a chamada saía
+    # pela que eu não testei.
+    for nome in presentes:
+        modulo = _modulo(nome)
+        antes = quantas()
+        pedido = modulo.Request(
+            "POST", "https://api.openai.com/v1/chat/completions",
+            json={"messages": [{"role": "user", "content": "autoteste"}]})
+        resposta = modulo.HTTPTransport().handle_request(pedido)
+        if resposta.status_code != 200 or quantas() != antes + 1:
+            raise RuntimeError(
+                f"a IA simulada NÃO está interceptando em `{nome}` — a "
+                "próxima chamada sairia para a rede de verdade")
+        with _trava:
+            del _respostas[-1]   # o autoteste não é resposta da bateria
+
+
+def respostas() -> list[dict]:
+    with _trava:
+        return list(_respostas)
+
+
+def quantas() -> int:
+    with _trava:
+        return len(_respostas)
+
+
+def zerar() -> None:
+    with _trava:
+        _respostas.clear()

@@ -802,6 +802,75 @@ def test_allowlist_nao_pode_liberar_producao(producao_falsa, monkeypatch):
             f"https://{REF_PRODUCAO_FALSA}.supabase.co")
 
 
+# ---------------------------------------------------------------------------
+# A pilha LOCAL como ensaio — e a guarda continuando guarda
+#
+# Até esta rodada, as provas de contenção que atravessam o PostgREST só
+# rodavam com um projeto Supabase hospedado. Sem ele ficavam TODAS
+# puladas — e a camada que o ensaio SQL local declaradamente não cobre
+# (tradução HTTP→SQL, códigos PGRST, papel do JWT) ficava sem prova
+# nenhuma, com a suíte verde.
+#
+# `scripts/homologacao_stack.py` serve um PostgREST de verdade em
+# loopback, e ele passou a poder ser DECLARADO. As provas abaixo existem
+# para que isso não vire uma porta: o que mudou é o que pode ser
+# declarado, não o que é aceito sem declaração.
+# ---------------------------------------------------------------------------
+def test_loopback_declarado_e_aceito(monkeypatch):
+    import ensaio_seguranca as ensaio
+
+    monkeypatch.setenv("GOVDOCS_ENSAIO_PROJETO", ensaio.REFERENCIA_LOOPBACK)
+    assert (ensaio.exigir_ensaio("http://127.0.0.1:3001")
+            == "http://127.0.0.1:3001")
+
+
+def test_loopback_SEM_declaracao_continua_recusado(monkeypatch):
+    """
+    A mutação que importa. Se bastasse ser loopback, a allowlist teria
+    deixado de ser obrigatória para um caso — e "obrigatória exceto num
+    caso" é como toda allowlist deixa de servir para alguma coisa.
+    """
+    import ensaio_seguranca as ensaio
+
+    monkeypatch.delenv("GOVDOCS_ENSAIO_PROJETO", raising=False)
+    with pytest.raises(ProducaoRecusada):
+        ensaio.exigir_ensaio("http://127.0.0.1:3001")
+
+
+def test_loopback_declarado_nao_vira_curinga(monkeypatch):
+    """
+    Declarar `loopback` libera o loopback, e só ele. Host remoto,
+    credencial embutida, caminho e sufixo homográfico continuam tendo de
+    provar a própria identidade.
+    """
+    import ensaio_seguranca as ensaio
+
+    monkeypatch.setenv("GOVDOCS_ENSAIO_PROJETO", ensaio.REFERENCIA_LOOPBACK)
+    for url in ("http://10.0.0.7:3001",
+                "http://banco.prefeitura.gov.br",
+                "https://umensaio.supabase.co",
+                "http://127.0.0.1.exemplo.org:3001",
+                "http://usuario:senha@127.0.0.1:3001",
+                "http://127.0.0.1:3001/rest/v1/processos"):
+        with pytest.raises(ProducaoRecusada):
+            ensaio.exigir_ensaio(url)
+
+
+def test_producao_nao_escapa_por_causa_do_loopback(producao_falsa,
+                                                   monkeypatch):
+    """
+    A negação de produção vem antes de tudo e não depende da forma da
+    URL: com `loopback` declarado junto, a referência de produção
+    continua recusada.
+    """
+    monkeypatch.setenv(
+        "GOVDOCS_ENSAIO_PROJETO",
+        f"{producao_falsa.REFERENCIA_LOOPBACK},{REF_PRODUCAO_FALSA}")
+    with pytest.raises(ProducaoRecusada):
+        producao_falsa.exigir_ensaio(
+            f"https://{REF_PRODUCAO_FALSA}.supabase.co")
+
+
 def test_nenhum_cliente_e_construido_quando_a_guarda_falha(
         monkeypatch, ensaio_declarado):
     """
