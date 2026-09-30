@@ -661,7 +661,8 @@ def _ligar_flags(nomes: list[str]) -> None:
 
 
 TODAS_AS_FLAGS = ("cache_geracao", "contexto_canonico", "rag_enxuto",
-                  "regeneracao_parcial", "politica_de_modelo")
+                  "regeneracao_parcial", "politica_de_modelo",
+                  "clausulas_deterministicas")
 
 
 def principal() -> int:

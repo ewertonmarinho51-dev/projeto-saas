@@ -1,6 +1,6 @@
 {
   "rotulo": "depois",
-  "quando": "2026-09-30T13:22:01",
+  "quando": "2026-09-30T13:29:49",
   "tokenizador": "o200k_base (tiktoken)",
   "rag_simulado": {
     "chunks": 10,
@@ -16,37 +16,37 @@
           "documento": "dfd",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 5816,
+          "tokens_entrada": 5916,
           "tokens_sistema": 2280,
-          "tokens_usuario": 3536,
+          "tokens_usuario": 3636,
           "secoes_do_prompt": {
             "instrucoes": 1025,
             "formulario": 504,
-            "rag": 2007
+            "rag": 2107
           },
           "teto_de_saida_pedido": [
-            15000
+            9000
           ],
           "modelos_pedidos": [
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 11147,
-          "segundos": 1.68,
+          "segundos": 1.58,
           "falha": ""
         },
         {
           "documento": "etp",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 9378,
+          "tokens_entrada": 9478,
           "tokens_sistema": 2280,
-          "tokens_usuario": 7098,
+          "tokens_usuario": 7198,
           "secoes_do_prompt": {
             "instrucoes": 2039,
             "formulario": 539,
             "cadeia_anterior": 55,
             "contexto_canonico": 2483,
-            "rag": 1983
+            "rag": 2083
           },
           "teto_de_saida_pedido": [
             16384
@@ -55,7 +55,7 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 25382,
-          "segundos": 0.1,
+          "segundos": 0.09,
           "falha": ""
         },
         {
@@ -73,13 +73,13 @@
             "rag": 2025
           },
           "teto_de_saida_pedido": [
-            16384
+            12000
           ],
           "modelos_pedidos": [
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 11454,
-          "segundos": 0.09,
+          "segundos": 0.1,
           "falha": ""
         },
         {
@@ -103,18 +103,18 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 34966,
-          "segundos": 0.15,
+          "segundos": 0.1,
           "falha": ""
         }
       ],
       "total": {
         "requisicoes_de_conversa": 4,
-        "tokens_entrada": 40509,
-        "segundos": 2.02,
+        "tokens_entrada": 40709,
+        "segundos": 1.87,
         "secoes_do_prompt": {
           "instrucoes": 5153,
           "formulario": 2059,
-          "rag": 8031,
+          "rag": 8231,
           "cadeia_anterior": 147,
           "contexto_canonico": 16002
         }
@@ -128,37 +128,37 @@
           "documento": "dfd",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 5936,
+          "tokens_entrada": 6036,
           "tokens_sistema": 2280,
-          "tokens_usuario": 3656,
+          "tokens_usuario": 3756,
           "secoes_do_prompt": {
             "instrucoes": 1025,
             "formulario": 606,
-            "rag": 2025
+            "rag": 2125
           },
           "teto_de_saida_pedido": [
-            15000
+            9000
           ],
           "modelos_pedidos": [
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 12930,
-          "segundos": 0.1,
+          "segundos": 0.11,
           "falha": ""
         },
         {
           "documento": "etp",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 9501,
+          "tokens_entrada": 9601,
           "tokens_sistema": 2280,
-          "tokens_usuario": 7221,
+          "tokens_usuario": 7321,
           "secoes_do_prompt": {
             "instrucoes": 2039,
             "formulario": 641,
             "cadeia_anterior": 55,
             "contexto_canonico": 2466,
-            "rag": 2021
+            "rag": 2121
           },
           "teto_de_saida_pedido": [
             16384
@@ -167,7 +167,7 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 27165,
-          "segundos": 0.12,
+          "segundos": 0.11,
           "falha": ""
         },
         {
@@ -185,7 +185,7 @@
             "rag": 2025
           },
           "teto_de_saida_pedido": [
-            16384
+            12000
           ],
           "modelos_pedidos": [
             "gpt-5-mini"
@@ -215,18 +215,18 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 36744,
-          "segundos": 0.14,
+          "segundos": 0.1,
           "falha": ""
         }
       ],
       "total": {
         "requisicoes_de_conversa": 4,
-        "tokens_entrada": 40973,
-        "segundos": 0.46,
+        "tokens_entrada": 41173,
+        "segundos": 0.42,
         "secoes_do_prompt": {
           "instrucoes": 5153,
           "formulario": 2467,
-          "rag": 8114,
+          "rag": 8314,
           "cadeia_anterior": 147,
           "contexto_canonico": 15975
         }
@@ -240,37 +240,37 @@
           "documento": "dfd",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 5869,
+          "tokens_entrada": 5969,
           "tokens_sistema": 2280,
-          "tokens_usuario": 3589,
+          "tokens_usuario": 3689,
           "secoes_do_prompt": {
             "instrucoes": 1025,
             "formulario": 552,
-            "rag": 2012
+            "rag": 2112
           },
           "teto_de_saida_pedido": [
-            15000
+            9000
           ],
           "modelos_pedidos": [
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 43173,
-          "segundos": 0.18,
+          "segundos": 0.16,
           "falha": ""
         },
         {
           "documento": "etp",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 9438,
+          "tokens_entrada": 9538,
           "tokens_sistema": 2280,
-          "tokens_usuario": 7158,
+          "tokens_usuario": 7258,
           "secoes_do_prompt": {
             "instrucoes": 2039,
             "formulario": 587,
             "cadeia_anterior": 55,
             "contexto_canonico": 2487,
-            "rag": 1991
+            "rag": 2091
           },
           "teto_de_saida_pedido": [
             16384
@@ -279,7 +279,7 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 57407,
-          "segundos": 0.24,
+          "segundos": 0.13,
           "falha": ""
         },
         {
@@ -297,13 +297,13 @@
             "rag": 1993
           },
           "teto_de_saida_pedido": [
-            16384
+            12000
           ],
           "modelos_pedidos": [
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 11489,
-          "segundos": 0.13,
+          "segundos": 0.12,
           "falha": ""
         },
         {
@@ -333,12 +333,12 @@
       ],
       "total": {
         "requisicoes_de_conversa": 4,
-        "tokens_entrada": 40643,
-        "segundos": 0.68,
+        "tokens_entrada": 40843,
+        "segundos": 0.54,
         "secoes_do_prompt": {
           "instrucoes": 5153,
           "formulario": 2251,
-          "rag": 7962,
+          "rag": 8162,
           "cadeia_anterior": 147,
           "contexto_canonico": 16013
         }
@@ -349,7 +349,7 @@
     "cenario": "A",
     "pedidos_do_servidor": 2,
     "requisicoes_ao_provedor": 1,
-    "tokens_entrada": 5936
+    "tokens_entrada": 6036
   },
   "alteracao_de_um_campo": {
     "cenario": "A",
@@ -390,7 +390,7 @@
       "requisicoes": 1,
       "tokens_entrada": 13659,
       "teto_de_saida_pedido": [
-        10000
+        6000
       ],
       "modelos_pedidos": [
         "gpt-5-mini"
@@ -402,7 +402,7 @@
       "requisicoes": 1,
       "tokens_entrada": 13687,
       "teto_de_saida_pedido": [
-        10000
+        6000
       ],
       "modelos_pedidos": [
         "gpt-5-mini"
@@ -417,7 +417,7 @@
       "generativelanguage.googleapis.com": 3,
       "openrouter.ai": 3
     },
-    "segundos_ate_desistir": 19.1,
+    "segundos_ate_desistir": 18.9,
     "tentativas_por_modelo": 3
   }
 }

@@ -91,8 +91,18 @@ TAREFAS: dict[str, tuple[str, int]] = {
 # declarar aqui.
 TETO_PADRAO = 16384
 
-# Modelos de raciocínio gastam orçamento PENSANDO antes de escrever.
-FOLGA_DE_RACIOCINIO = 2.5
+# Modelos de raciocínio gastam orçamento PENSANDO antes de escrever, e o
+# teto cobre as duas coisas.
+#
+# A folga é 1,5 e não 2,5 porque os números de produção que calibram os
+# tetos JÁ INCLUEM o raciocínio: `completion_tokens` da OpenAI soma os
+# tokens de raciocínio aos de texto, e é ele que `registrar_geracao`
+# grava em `tokens_saida`. Multiplicar por 2,5 seria contar o raciocínio
+# duas vezes — e um teto inflado é um teto que não guarda nada.
+#
+# O que a folga cobre é o processo mais difícil que o maior já medido,
+# não um orçamento de raciocínio que a medição tivesse deixado de fora.
+FOLGA_DE_RACIOCINIO = 1.5
 _PREFIXOS_DE_RACIOCINIO = ("gpt-5", "o1", "o3", "o4")
 
 

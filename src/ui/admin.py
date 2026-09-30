@@ -576,11 +576,12 @@ def _render_revisao() -> None:
 # Custo de geração — cada medida é uma flag, e o rollback é desligá-la
 # ---------------------------------------------------------------------------
 def _render_custo_de_geracao() -> None:
-    from .. import cache_geracao, politica_ia, rag, regeneracao, resumo_processo
+    from .. import (cache_geracao, clausulas_deterministicas, politica_ia,
+                    rag, regeneracao, resumo_processo)
 
     st.markdown("##### Custo de geração")
     st.caption(
-        "Cinco medidas independentes, cada uma com sua flag. Todas "
+        "Seis medidas independentes, cada uma com sua flag. Todas "
         "desligadas, o consumo é exatamente o de antes. A linha de base "
         "medida e o efeito de cada uma estão em "
         "`docs/custo-de-geracao.md`."
@@ -617,6 +618,15 @@ def _render_custo_de_geracao() -> None:
          "cláusulas que a mudança alcança — e, se a resposta não passar "
          "na conferência, o documento inteiro é elaborado de novo. "
          "Desligada: qualquer alteração descarta tudo, como hoje."),
+        (clausulas_deterministicas.FLAG,
+         "Equipe de planejamento por cadastro (e não pelo modelo)",
+         "Ligada: a cláusula de EQUIPE DE PLANEJAMENTO do DFD e do ETP "
+         "deixa de ser escrita pelo modelo e passa a vir da portaria "
+         "cadastrada — a mesma que o bloco de assinaturas já usa, com a "
+         "data de criação do processo como referência. Sem portaria "
+         "cadastrada a pendência continua visível e a emissão continua "
+         "bloqueada. Desligada: o modelo escreve a cláusula, e sem "
+         "acesso ao cadastro ele só pode escrever [PREENCHER]."),
         (politica_ia.FLAG,
          "Política de modelo e teto de saída por tarefa",
          "Ligada: cada tarefa pede ao provedor o teto de saída calibrado "

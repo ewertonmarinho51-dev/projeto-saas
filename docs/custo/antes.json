@@ -1,6 +1,6 @@
 {
   "rotulo": "antes",
-  "quando": "2026-09-30T13:21:35",
+  "quando": "2026-09-30T13:25:59",
   "tokenizador": "o200k_base (tiktoken)",
   "rag_simulado": {
     "chunks": 10,
@@ -31,7 +31,7 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 11147,
-          "segundos": 1.73,
+          "segundos": 1.75,
           "falha": ""
         },
         {
@@ -54,7 +54,7 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 25382,
-          "segundos": 0.1,
+          "segundos": 0.09,
           "falha": ""
         },
         {
@@ -77,7 +77,7 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 11454,
-          "segundos": 0.14,
+          "segundos": 0.12,
           "falha": ""
         },
         {
@@ -100,14 +100,14 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 34966,
-          "segundos": 0.16,
+          "segundos": 0.1,
           "falha": ""
         }
       ],
       "total": {
         "requisicoes_de_conversa": 4,
         "tokens_entrada": 52825,
-        "segundos": 2.13,
+        "segundos": 2.06,
         "secoes_do_prompt": {
           "instrucoes": 5153,
           "formulario": 2059,
@@ -139,7 +139,7 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 12930,
-          "segundos": 0.15,
+          "segundos": 0.09,
           "falha": ""
         },
         {
@@ -162,7 +162,7 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 27165,
-          "segundos": 0.17,
+          "segundos": 0.1,
           "falha": ""
         },
         {
@@ -185,7 +185,7 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 11489,
-          "segundos": 0.16,
+          "segundos": 0.09,
           "falha": ""
         },
         {
@@ -208,14 +208,14 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 36744,
-          "segundos": 0.15,
+          "segundos": 0.11,
           "falha": ""
         }
       ],
       "total": {
         "requisicoes_de_conversa": 4,
         "tokens_entrada": 57276,
-        "segundos": 0.63,
+        "segundos": 0.39,
         "secoes_do_prompt": {
           "instrucoes": 5153,
           "formulario": 2467,
@@ -247,7 +247,7 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 43173,
-          "segundos": 0.15,
+          "segundos": 0.13,
           "falha": ""
         },
         {
@@ -270,7 +270,7 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 57407,
-          "segundos": 0.23,
+          "segundos": 0.14,
           "falha": ""
         },
         {
@@ -293,7 +293,7 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 11489,
-          "segundos": 0.23,
+          "segundos": 0.15,
           "falha": ""
         },
         {
@@ -323,7 +323,7 @@
       "total": {
         "requisicoes_de_conversa": 4,
         "tokens_entrada": 116538,
-        "segundos": 0.84,
+        "segundos": 0.65,
         "secoes_do_prompt": {
           "instrucoes": 5153,
           "formulario": 2251,
@@ -405,7 +405,7 @@
       "generativelanguage.googleapis.com": 3,
       "openrouter.ai": 3
     },
-    "segundos_ate_desistir": 18.9,
+    "segundos_ate_desistir": 19.0,
     "tentativas_por_modelo": 3
   }
 }

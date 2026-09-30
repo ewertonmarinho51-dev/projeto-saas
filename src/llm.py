@@ -894,6 +894,15 @@ def gerar_documento(doc_key: str, dados: dict,
     if instrucoes_extra:
         user_prompt += instrucoes_extra
 
+    # Conteúdo determinístico sai do modelo: a equipe de planejamento
+    # vem da portaria cadastrada, como o bloco de assinaturas já vinha.
+    # A instrução custa algumas dezenas de tokens de ENTRADA e poupa a
+    # cláusula inteira de SAÍDA — a troca certa, porque saída é mais
+    # cara que entrada em todo provedor em uso.
+    from . import clausulas_deterministicas
+
+    user_prompt += clausulas_deterministicas.instrucao_para_o_prompt(doc_key)
+
     # Cache: a mesma pergunta não se paga duas vezes.
     #
     # A chave é o hash dos DOIS PROMPTS já montados — formulário,
@@ -935,6 +944,7 @@ def gerar_documento(doc_key: str, dados: dict,
     texto = _percorrer_motores(doc_key, system_prompt, user_prompt,
                                rag_trace=rag_trace, avisar=progresso is None)
     # Injeta a tabela real da planilha (grande) no lugar da marca [[TABELA_ITENS]].
+    texto = clausulas_deterministicas.injetar(texto, doc_key)
     final = (texto if doc_key == "mapa_riscos" else
              planilha.injetar_tabela(texto, dados.get("itens")))
     # Guarda o texto FINAL (com a tabela já injetada), que é o que o
@@ -969,7 +979,7 @@ def regenerar_clausulas(doc_key: str, dados: dict,
     de coerência — sem ele, as cláusulas novas contradiriam as antigas,
     que é o defeito que esta função existe para não criar.
     """
-    from . import planilha, regeneracao
+    from . import clausulas_deterministicas, planilha, regeneracao
 
     if doc_key in templates_gov.TEMPLATES_OFICIAIS:
         raise regeneracao.RecorteRejeitado(
@@ -986,6 +996,11 @@ def regenerar_clausulas(doc_key: str, dados: dict,
     user_prompt += contexto_rag["bloco"]
     if instrucoes_extra:
         user_prompt += instrucoes_extra
+    # A mesma instrução da geração inteira: se a cláusula de equipe
+    # estiver entre as reescritas, ela continua vindo do cadastro. Sem
+    # isto, a atualização parcial desfaria a cláusula determinística e
+    # o documento voltaria a ter `[PREENCHER]` onde já tinha o nome.
+    user_prompt += clausulas_deterministicas.instrucao_para_o_prompt(doc_key)
     user_prompt += regeneracao.instrucoes_de_recorte(
         doc_key, pedidas, campos, texto_atual)
 
@@ -1010,7 +1025,8 @@ def regenerar_clausulas(doc_key: str, dados: dict,
     # A conferência acontece ANTES da injeção da tabela: o marcador
     # [[TABELA_ITENS]] pertence ao texto do modelo, e comparar cláusulas
     # já com a tabela dentro compararia a planilha, não a redação.
-    recomposto = regeneracao.aplicar(texto_atual, resposta, pedidas)
+    recomposto = clausulas_deterministicas.injetar(
+        regeneracao.aplicar(texto_atual, resposta, pedidas), doc_key)
     final = (recomposto if doc_key == "mapa_riscos" else
              planilha.injetar_tabela(recomposto, dados.get("itens")))
     cache_geracao.guardar(chave_cache, processo_id, doc_key, {
@@ -1086,6 +1102,12 @@ def _percorrer_motores(rotulo_registro: str, system_prompt: str,
     extras = {"rag_trace": rag_trace} if rag_trace is not None else {}
     for indice, (motor, chave) in enumerate(disponiveis):
         inicio = time.time()
+        # `_ultimo_uso` é global e só era ESCRITO por chamada
+        # bem-sucedida. Uma chamada que falhava registrava o modelo e os
+        # tokens da anterior — e agora que o registro tem uma coluna de
+        # CUSTO, isso deixaria de ser um metadado errado e passaria a ser
+        # dinheiro cobrado de uma chamada que não aconteceu.
+        _ultimo_uso.clear()
         try:
             texto = _chamar_motor(motor, system_prompt, user_prompt, chave,
                                   timeout=timeout, tentativas=tentativas,

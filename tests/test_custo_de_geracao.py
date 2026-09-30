@@ -279,6 +279,35 @@ def test_falha_desconhecida_continua_com_direito_a_retentativa():
     assert llm.vale_retentar(erro)
 
 
+def test_chamada_que_falha_nao_herda_os_tokens_da_anterior(monkeypatch):
+    """
+    `_ultimo_uso` é global e só era escrito por chamada bem-sucedida, de
+    modo que uma falha registrava o modelo e os tokens da geração
+    anterior. Era um metadado errado; com a coluna de CUSTO passaria a
+    ser dinheiro lançado numa chamada que não aconteceu.
+    """
+    registros = []
+    monkeypatch.setattr(llm, "motores_disponiveis",
+                        lambda: [("openai", "chave-de-ensaio")])
+    llm._ultimo_uso.update(modelo="gpt-5-mini", tokens_entrada=50_000,
+                           tokens_saida=9_000, request_id="req-anterior")
+
+    def falhar(*_a, **_k):
+        raise llm.ErroGeracaoIA("provedor fora")
+
+    monkeypatch.setattr(llm, "_chamar_motor", falhar)
+    monkeypatch.setattr(llm, "registrar_geracao",
+                        lambda *a, **k: registros.append(
+                            dict(modelo=llm._ultimo_uso.get("modelo"),
+                                 entrada=llm._ultimo_uso.get("tokens_entrada"))))
+
+    with pytest.raises(llm.ErroGeracaoIA):
+        llm._percorrer_motores("tr", "sistema", "usuário")
+
+    assert registros and registros[0] == {"modelo": None, "entrada": None}, (
+        f"a falha herdou a medição da chamada anterior: {registros}")
+
+
 def test_toda_tarefa_registrada_tem_operacao_declarada():
     """
     `operacao` é o que separa a REDAÇÃO do trabalho sobre o que já foi
