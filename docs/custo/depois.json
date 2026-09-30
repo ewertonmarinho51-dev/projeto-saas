@@ -1,6 +1,6 @@
 {
-  "rotulo": "antes",
-  "quando": "2026-09-30T13:21:35",
+  "rotulo": "depois",
+  "quando": "2026-09-30T13:22:01",
   "tokenizador": "o200k_base (tiktoken)",
   "rag_simulado": {
     "chunks": 10,
@@ -16,36 +16,37 @@
           "documento": "dfd",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 7952,
+          "tokens_entrada": 5816,
           "tokens_sistema": 2280,
-          "tokens_usuario": 5672,
+          "tokens_usuario": 3536,
           "secoes_do_prompt": {
             "instrucoes": 1025,
             "formulario": 504,
-            "rag": 4143
+            "rag": 2007
           },
           "teto_de_saida_pedido": [
-            16384
+            15000
           ],
           "modelos_pedidos": [
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 11147,
-          "segundos": 1.73,
+          "segundos": 1.68,
           "falha": ""
         },
         {
           "documento": "etp",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 11580,
+          "tokens_entrada": 9378,
           "tokens_sistema": 2280,
-          "tokens_usuario": 9300,
+          "tokens_usuario": 7098,
           "secoes_do_prompt": {
             "instrucoes": 2039,
             "formulario": 539,
-            "cadeia_anterior": 2536,
-            "rag": 4187
+            "cadeia_anterior": 55,
+            "contexto_canonico": 2483,
+            "rag": 1983
           },
           "teto_de_saida_pedido": [
             16384
@@ -61,14 +62,15 @@
           "documento": "mapa_riscos",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 14112,
+          "tokens_entrada": 10916,
           "tokens_sistema": 2280,
-          "tokens_usuario": 11832,
+          "tokens_usuario": 8636,
           "secoes_do_prompt": {
             "instrucoes": 516,
             "formulario": 508,
-            "cadeia_anterior": 8067,
-            "rag": 2742
+            "cadeia_anterior": 40,
+            "contexto_canonico": 5548,
+            "rag": 2025
           },
           "teto_de_saida_pedido": [
             16384
@@ -77,21 +79,22 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 11454,
-          "segundos": 0.14,
+          "segundos": 0.09,
           "falha": ""
         },
         {
           "documento": "tr",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 19181,
+          "tokens_entrada": 14399,
           "tokens_sistema": 2280,
-          "tokens_usuario": 16901,
+          "tokens_usuario": 12119,
           "secoes_do_prompt": {
             "instrucoes": 1573,
             "formulario": 508,
-            "cadeia_anterior": 10616,
-            "rag": 4205
+            "cadeia_anterior": 52,
+            "contexto_canonico": 7971,
+            "rag": 2016
           },
           "teto_de_saida_pedido": [
             16384
@@ -100,19 +103,20 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 34966,
-          "segundos": 0.16,
+          "segundos": 0.15,
           "falha": ""
         }
       ],
       "total": {
         "requisicoes_de_conversa": 4,
-        "tokens_entrada": 52825,
-        "segundos": 2.13,
+        "tokens_entrada": 40509,
+        "segundos": 2.02,
         "secoes_do_prompt": {
           "instrucoes": 5153,
           "formulario": 2059,
-          "rag": 15277,
-          "cadeia_anterior": 21219
+          "rag": 8031,
+          "cadeia_anterior": 147,
+          "contexto_canonico": 16002
         }
       }
     },
@@ -124,36 +128,37 @@
           "documento": "dfd",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 8072,
+          "tokens_entrada": 5936,
           "tokens_sistema": 2280,
-          "tokens_usuario": 5792,
+          "tokens_usuario": 3656,
           "secoes_do_prompt": {
             "instrucoes": 1025,
             "formulario": 606,
-            "rag": 4161
+            "rag": 2025
           },
           "teto_de_saida_pedido": [
-            16384
+            15000
           ],
           "modelos_pedidos": [
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 12930,
-          "segundos": 0.15,
+          "segundos": 0.1,
           "falha": ""
         },
         {
           "documento": "etp",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 12475,
+          "tokens_entrada": 9501,
           "tokens_sistema": 2280,
-          "tokens_usuario": 10195,
+          "tokens_usuario": 7221,
           "secoes_do_prompt": {
             "instrucoes": 2039,
             "formulario": 641,
-            "cadeia_anterior": 3333,
-            "rag": 4183
+            "cadeia_anterior": 55,
+            "contexto_canonico": 2466,
+            "rag": 2021
           },
           "teto_de_saida_pedido": [
             16384
@@ -162,21 +167,22 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 27165,
-          "segundos": 0.17,
+          "segundos": 0.12,
           "falha": ""
         },
         {
           "documento": "mapa_riscos",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 15823,
+          "tokens_entrada": 11016,
           "tokens_sistema": 2280,
-          "tokens_usuario": 13543,
+          "tokens_usuario": 8736,
           "secoes_do_prompt": {
             "instrucoes": 516,
             "formulario": 610,
-            "cadeia_anterior": 9676,
-            "rag": 2742
+            "cadeia_anterior": 40,
+            "contexto_canonico": 5546,
+            "rag": 2025
           },
           "teto_de_saida_pedido": [
             16384
@@ -185,21 +191,22 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 11489,
-          "segundos": 0.16,
+          "segundos": 0.1,
           "falha": ""
         },
         {
           "documento": "tr",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 20906,
+          "tokens_entrada": 14520,
           "tokens_sistema": 2280,
-          "tokens_usuario": 18626,
+          "tokens_usuario": 12240,
           "secoes_do_prompt": {
             "instrucoes": 1573,
             "formulario": 610,
-            "cadeia_anterior": 12217,
-            "rag": 4227
+            "cadeia_anterior": 52,
+            "contexto_canonico": 7963,
+            "rag": 2043
           },
           "teto_de_saida_pedido": [
             16384
@@ -208,19 +215,20 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 36744,
-          "segundos": 0.15,
+          "segundos": 0.14,
           "falha": ""
         }
       ],
       "total": {
         "requisicoes_de_conversa": 4,
-        "tokens_entrada": 57276,
-        "segundos": 0.63,
+        "tokens_entrada": 40973,
+        "segundos": 0.46,
         "secoes_do_prompt": {
           "instrucoes": 5153,
           "formulario": 2467,
-          "rag": 15313,
-          "cadeia_anterior": 25226
+          "rag": 8114,
+          "cadeia_anterior": 147,
+          "contexto_canonico": 15975
         }
       }
     },
@@ -232,36 +240,37 @@
           "documento": "dfd",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 8042,
+          "tokens_entrada": 5869,
           "tokens_sistema": 2280,
-          "tokens_usuario": 5762,
+          "tokens_usuario": 3589,
           "secoes_do_prompt": {
             "instrucoes": 1025,
             "formulario": 552,
-            "rag": 4185
+            "rag": 2012
           },
           "teto_de_saida_pedido": [
-            16384
+            15000
           ],
           "modelos_pedidos": [
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 43173,
-          "segundos": 0.15,
+          "segundos": 0.18,
           "falha": ""
         },
         {
           "documento": "etp",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 24350,
+          "tokens_entrada": 9438,
           "tokens_sistema": 2280,
-          "tokens_usuario": 22070,
+          "tokens_usuario": 7158,
           "secoes_do_prompt": {
             "instrucoes": 2039,
             "formulario": 587,
-            "cadeia_anterior": 15261,
-            "rag": 4184
+            "cadeia_anterior": 55,
+            "contexto_canonico": 2487,
+            "rag": 1991
           },
           "teto_de_saida_pedido": [
             16384
@@ -270,21 +279,22 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 57407,
-          "segundos": 0.23,
+          "segundos": 0.24,
           "falha": ""
         },
         {
           "documento": "mapa_riscos",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 39576,
+          "tokens_entrada": 10936,
           "tokens_sistema": 2280,
-          "tokens_usuario": 37296,
+          "tokens_usuario": 8656,
           "secoes_do_prompt": {
             "instrucoes": 516,
             "formulario": 556,
-            "cadeia_anterior": 33517,
-            "rag": 2708
+            "cadeia_anterior": 40,
+            "contexto_canonico": 5552,
+            "rag": 1993
           },
           "teto_de_saida_pedido": [
             16384
@@ -293,21 +303,22 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 11489,
-          "segundos": 0.23,
+          "segundos": 0.13,
           "falha": ""
         },
         {
           "documento": "tr",
           "requisicoes_de_conversa": 1,
           "requisicoes_bloqueadas": {},
-          "tokens_entrada": 44570,
+          "tokens_entrada": 14400,
           "tokens_sistema": 2280,
-          "tokens_usuario": 42290,
+          "tokens_usuario": 12120,
           "secoes_do_prompt": {
             "instrucoes": 1573,
             "formulario": 556,
-            "cadeia_anterior": 36063,
-            "rag": 4099
+            "cadeia_anterior": 52,
+            "contexto_canonico": 7974,
+            "rag": 1966
           },
           "teto_de_saida_pedido": [
             16384
@@ -316,19 +327,20 @@
             "gpt-5-mini"
           ],
           "caracteres_de_saida": 66986,
-          "segundos": 0.23,
+          "segundos": 0.13,
           "falha": ""
         }
       ],
       "total": {
         "requisicoes_de_conversa": 4,
-        "tokens_entrada": 116538,
-        "segundos": 0.84,
+        "tokens_entrada": 40643,
+        "segundos": 0.68,
         "secoes_do_prompt": {
           "instrucoes": 5153,
           "formulario": 2251,
-          "rag": 15176,
-          "cadeia_anterior": 84841
+          "rag": 7962,
+          "cadeia_anterior": 147,
+          "contexto_canonico": 16013
         }
       }
     }
@@ -336,25 +348,25 @@
   "repeticao_do_mesmo_pedido": {
     "cenario": "A",
     "pedidos_do_servidor": 2,
-    "requisicoes_ao_provedor": 2,
-    "tokens_entrada": 16144
+    "requisicoes_ao_provedor": 1,
+    "tokens_entrada": 5936
   },
   "alteracao_de_um_campo": {
     "cenario": "A",
     "campo_alterado": "prazo",
     "documentos_descartados_antes": 4,
-    "documentos_descartados_depois": 4,
+    "documentos_descartados_depois": 1,
     "por_documento": [
       {
         "documento": "dfd",
-        "descartado": true,
-        "clausulas_reescritas": 9,
+        "descartado": false,
+        "clausulas_reescritas": 2,
         "clausulas_no_documento": 9
       },
       {
         "documento": "etp",
-        "descartado": true,
-        "clausulas_reescritas": 18,
+        "descartado": false,
+        "clausulas_reescritas": 2,
         "clausulas_no_documento": 18
       },
       {
@@ -365,12 +377,12 @@
       },
       {
         "documento": "tr",
-        "descartado": true,
-        "clausulas_reescritas": 17,
+        "descartado": false,
+        "clausulas_reescritas": 7,
         "clausulas_no_documento": 17
       }
     ],
-    "fracao_de_clausulas_reescritas": 1.0
+    "fracao_de_clausulas_reescritas": 0.25
   },
   "auditoria_semantica": [
     {
@@ -378,7 +390,7 @@
       "requisicoes": 1,
       "tokens_entrada": 13659,
       "teto_de_saida_pedido": [
-        16384
+        10000
       ],
       "modelos_pedidos": [
         "gpt-5-mini"
@@ -390,7 +402,7 @@
       "requisicoes": 1,
       "tokens_entrada": 13687,
       "teto_de_saida_pedido": [
-        16384
+        10000
       ],
       "modelos_pedidos": [
         "gpt-5-mini"
@@ -405,7 +417,7 @@
       "generativelanguage.googleapis.com": 3,
       "openrouter.ai": 3
     },
-    "segundos_ate_desistir": 18.9,
+    "segundos_ate_desistir": 19.1,
     "tentativas_por_modelo": 3
   }
 }

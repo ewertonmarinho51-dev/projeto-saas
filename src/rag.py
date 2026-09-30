@@ -173,6 +173,36 @@ MAX_TEMAS = MAX_TEMAS_NUCLEO + MAX_TEMAS_COMPLEMENTARES
 TOP_K_TEMA = 3              # trechos por busca temática
 MAX_CHUNKS_PROMPT = 10      # teto de trechos enviados à IA
 
+# ---------------------------------------------------------------------------
+# RAG enxuto (flag `rag_enxuto`) — teto por TAMANHO, não só por contagem
+#
+# Contar trechos não controla o que se manda: dez trechos de 1.500
+# caracteres são dez vezes mais caros que dez de 150, e o teto de dez
+# aceita os dois igualmente. Medido com o tokenizador do provedor, o
+# bloco de RAG chegava a 4.600 tokens por documento — 31% da entrada de
+# um processo de 20 itens, e o segundo maior item da conta.
+#
+# O orçamento abaixo é calibrado pelo que produção de fato usou: a
+# telemetria (`docs/custo/producao.json`) mostra média de 2,9 a 4,0
+# referências por geração, ou seja ~4.000 a 5.300 caracteres. O teto de
+# 6.000 não corta o caso típico; corta o pior caso, que era o dobro
+# disso e chegava sem ninguém decidir.
+#
+# O que é cortado é sempre o de MENOR relevância, depois de a reserva
+# por tema já ter garantido uma vaga para cada tema prioritário — o
+# corte não pode calar um tema inteiro.
+# ---------------------------------------------------------------------------
+FLAG_RAG_ENXUTO = "rag_enxuto"
+ORCAMENTO_CARACTERES_RAG = 6000
+
+# Dois trechos que dizem a mesma coisa ocupam duas vagas e acrescentam
+# uma. Acontece de verdade: a base tem o mesmo dispositivo em fontes
+# diferentes (a lei, o manual que a transcreve, o acórdão que a cita).
+# Jaccard sobre janelas de 5 palavras, que é insensível a diferença de
+# pontuação e quebra de linha entre as cópias.
+SIMILARIDADE_DE_DUPLICATA = 0.6
+_PALAVRAS_POR_JANELA = 5
+
 # Piso de relevância por modo de busca. Escalas diferentes: similaridade
 # de cosseno (0..1) no vetorial; ts_rank (tipicamente < 0,1) no textual.
 # Conservadores e sobrescrevíveis em config_app (`rag_piso_vetorial` /
@@ -730,10 +760,65 @@ def _selecionar_com_reserva(ranking: list[dict],
         if id(trecho) not in vistos:
             escolhidos.append(trecho)
             vistos.add(id(trecho))
+    escolhidos = _enxugar(escolhidos)
     # ordem final de exibição: hierarquia da fonte e relevância
     return sorted(escolhidos,
                   key=lambda t: (_prioridade_fonte(t), t["score"]),
                   reverse=True)
+
+
+def _janelas(texto: str) -> set[tuple[str, ...]]:
+    palavras = (texto or "").lower().split()
+    return {tuple(palavras[i:i + _PALAVRAS_POR_JANELA])
+            for i in range(max(len(palavras) - _PALAVRAS_POR_JANELA + 1, 0))}
+
+
+def _quase_iguais(a: str, b: str) -> bool:
+    """Os dois trechos dizem a mesma coisa? (Jaccard sobre 5-gramas.)"""
+    ja, jb = _janelas(a), _janelas(b)
+    if not ja or not jb:
+        return False
+    comuns = len(ja & jb)
+    return comuns / min(len(ja), len(jb)) >= SIMILARIDADE_DE_DUPLICATA
+
+
+def _enxugar(escolhidos: list[dict]) -> list[dict]:
+    """
+    Tira o que se repete e o que não cabe no orçamento.
+
+    A ordem das duas operações importa: deduplicar DEPOIS de cortar pelo
+    orçamento gastaria vagas do orçamento com cópias e cortaria a
+    evidência nova que vinha atrás delas.
+
+    Com a flag desligada devolve a lista intacta — rollback é desligar a
+    flag, e o prompt volta a ser byte a byte o de antes.
+    """
+    if not db.flag_ativa(FLAG_RAG_ENXUTO):
+        return escolhidos
+
+    # Os de maior relevância primeiro, para que o que sobreviva ao corte
+    # seja sempre a melhor evidência — nunca a que estava no topo da
+    # lista por acaso de ordenação.
+    ordenados = sorted(escolhidos,
+                       key=lambda t: (_prioridade_fonte(t), t["score"]),
+                       reverse=True)
+    sem_copias: list[dict] = []
+    for trecho in ordenados:
+        conteudo = trecho.get("conteudo") or ""
+        if any(_quase_iguais(conteudo, outro.get("conteudo") or "")
+               for outro in sem_copias):
+            continue
+        sem_copias.append(trecho)
+
+    dentro_do_orcamento: list[dict] = []
+    gasto = 0
+    for trecho in sem_copias:
+        tamanho = len(trecho.get("conteudo") or "")
+        if dentro_do_orcamento and gasto + tamanho > ORCAMENTO_CARACTERES_RAG:
+            continue
+        dentro_do_orcamento.append(trecho)
+        gasto += tamanho
+    return dentro_do_orcamento
 
 
 # Como cada documento se descreve para a busca. O Mapa de Riscos entrou

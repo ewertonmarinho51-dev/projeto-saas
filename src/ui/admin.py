@@ -568,6 +568,96 @@ def _render_revisao() -> None:
             "estado ou chamada de IA do GovBot é iniciado.",
         ),
     ])
+    st.divider()
+    _render_custo_de_geracao()
+
+
+# ---------------------------------------------------------------------------
+# Custo de geração — cada medida é uma flag, e o rollback é desligá-la
+# ---------------------------------------------------------------------------
+def _render_custo_de_geracao() -> None:
+    from .. import cache_geracao, politica_ia, rag, regeneracao, resumo_processo
+
+    st.markdown("##### Custo de geração")
+    st.caption(
+        "Cinco medidas independentes, cada uma com sua flag. Todas "
+        "desligadas, o consumo é exatamente o de antes. A linha de base "
+        "medida e o efeito de cada uma estão em "
+        "`docs/custo-de-geracao.md`."
+    )
+    if not db.disponivel():
+        st.info("Configure o Supabase para gerenciar as flags de custo.")
+        return
+
+    _render_toggles_de_flags([
+        (cache_geracao.FLAG,
+         "Cache de geração (não pagar duas vezes pela mesma pergunta)",
+         "Ligada: clique duplo, rerun do Streamlit e reload da página "
+         "devolvem o documento já gerado, sem nova chamada. A chave é o "
+         "hash do pedido inteiro — mudou qualquer dado do processo, "
+         "mudou a chave e o documento é gerado de novo. Desligada: toda "
+         "solicitação vira chamada."),
+        (resumo_processo.FLAG,
+         "Contexto canônico (não reenviar o documento anterior inteiro)",
+         "Ligada: o próximo documento recebe as DECISÕES que herda do "
+         "anterior, sem as tabelas e sem as cláusulas que ele refaz por "
+         "conta própria. Documento que não segue a estrutura dos perfis "
+         "continua indo inteiro. Desligada: cadeia completa, como antes."),
+        (rag.FLAG_RAG_ENXUTO,
+         "Base de conhecimento enxuta (deduplicar e limitar por tamanho)",
+         "Ligada: trechos que dizem a mesma coisa deixam de ocupar duas "
+         "vagas, e o bloco de referências passa a ter teto por TAMANHO, "
+         "não só por contagem. O corte é sempre o de menor relevância, "
+         "depois de cada tema já ter uma vaga garantida. Desligada: até "
+         "dez trechos inteiros, de qualquer tamanho."),
+        (regeneracao.FLAG,
+         "Atualização por cláusula (não reescrever o documento inteiro)",
+         "Ligada: mudar um campo do formulário deixa de descartar os "
+         "cinco documentos. Cada documento oferece atualizar só as "
+         "cláusulas que a mudança alcança — e, se a resposta não passar "
+         "na conferência, o documento inteiro é elaborado de novo. "
+         "Desligada: qualquer alteração descarta tudo, como hoje."),
+        (politica_ia.FLAG,
+         "Política de modelo e teto de saída por tarefa",
+         "Ligada: cada tarefa pede ao provedor o teto de saída calibrado "
+         "pelas gerações reais (em vez de 16.384 para tudo), e as tarefas "
+         "de forma fixa — auditoria, correção, extração — podem correr no "
+         "modelo econômico. Nenhum documento da fase preparatória muda de "
+         "modelo. Desligada: um teto e um modelo para tudo."),
+    ])
+
+    st.markdown("###### Modelo econômico e preços")
+    st.caption(
+        "O modelo econômico fica VAZIO por padrão: sem ele, a política "
+        "de modelo só ajusta o teto de saída e nenhuma tarefa troca de "
+        "modelo sem que alguém tenha escolhido qual. Os preços servem "
+        "para a coluna `custo` de `geracoes` — sem eles o custo fica "
+        "NULO, e nunca um número presumido pelo código."
+    )
+    _campo_de_config(
+        "OPENAI_MODEL_ECONOMICO", "Modelo econômico (tarefas estruturadas)",
+        "Identificador de um modelo da OpenAI (ex.: gpt-4o-mini). Se ele "
+        "não existir na conta, a troca de modelo já existente cai de "
+        "volta para o principal e a tarefa não falha.")
+    st.caption(
+        "Preços em reais por MILHÃO de tokens, um par por modelo: "
+        "`PRECO_<MODELO>_ENTRADA` e `PRECO_<MODELO>_SAIDA` "
+        "(ex.: `PRECO_GPT_5_MINI_ENTRADA`)."
+    )
+
+
+def _campo_de_config(chave: str, rotulo: str, ajuda: str) -> None:
+    atual = db.obter_config(chave)
+    novo = st.text_input(rotulo, value=atual, help=ajuda,
+                         key=f"config_{chave}")
+    if novo.strip() == atual:
+        return
+    try:
+        db.salvar_config(chave, novo)
+    except db.ErroBanco as erro:
+        st.error(str(erro))
+        return
+    st.rerun()
 
 
 # ---------------------------------------------------------------------------

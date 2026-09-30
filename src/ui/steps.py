@@ -5,11 +5,13 @@ Telas de cada etapa do wizard:
   5 — Conclusão e exportação (.docx / .pdf / .zip)
 """
 
+import logging
+
 import streamlit as st
 
 from .. import (achados, auth, conhecimento, contexto, corretor, db,
                 explicacoes, export, familias, fatos, instituicional_bridge,
-                planilha, qualidade, rag, state)
+                llm, planilha, qualidade, rag, state)
 from . import components, revisao, signatarios
 from ..config import CAMPOS_FORMULARIO, DOCUMENTOS
 from ..llm import ErroGeracaoIA, gerar_documento
@@ -366,8 +368,11 @@ def render_formulario() -> None:
             )
             return
         if respostas != st.session_state.dados:
-            # Dados mudaram: documentos já gerados ficam obsoletos
-            state.invalidar_a_partir_de("formulario")
+            # Dados mudaram. O que pode ser atualizado por cláusula é
+            # PRESERVADO com um plano pendente; o resto é descartado
+            # como sempre foi. Com a flag de regeneração parcial
+            # desligada, descarta tudo — o comportamento de antes.
+            state.alteracao_do_formulario(st.session_state.dados, respostas)
         st.session_state.dados = respostas
         st.session_state.etapa = 1
         state.autosalvar()  # cria/atualiza o processo no Supabase
@@ -507,6 +512,9 @@ def render_etapa_documento(doc_key: str) -> None:
         _botao_voltar(meta)
         return
 
+    if _render_atualizacao_parcial(doc_key, meta, contexto):
+        return
+
     st.success("Rascunho gerado. Revise o documento antes de aprovar.")
     if erro:
         st.warning("A nova elaboração não foi concluída. A versão anterior foi preservada.")
@@ -551,6 +559,92 @@ def render_etapa_documento(doc_key: str) -> None:
         if st.session_state.documentos.get(doc_key) != texto_editado:
             state.invalidar_a_partir_de(doc_key)
         state.aprovar_e_avancar(doc_key, texto_editado)
+
+
+def _render_atualizacao_parcial(doc_key: str, meta: dict,
+                                contexto: str | None) -> bool:
+    """
+    Oferece atualizar SÓ as cláusulas que a mudança do formulário
+    alcançou. Devolve True quando a tela já foi tratada aqui.
+
+    Existe porque a alternativa era a única que havia: mudar a data
+    pretendida descartava os cinco documentos do processo.
+
+    As duas saídas ficam lado a lado, e a mais barata NÃO é automática:
+    reescrever duas cláusulas e manter quinze é uma decisão sobre o
+    documento, não uma otimização a ser aplicada sem que o servidor
+    saiba. Quem preferir o documento inteiro clica ao lado.
+    """
+    from .. import perfis, regeneracao
+
+    plano = state.plano_de_atualizacao(doc_key)
+    if not plano:
+        return False
+
+    numeros = plano["clausulas"]
+    titulos = {c["n"]: c["titulo"]
+               for c in perfis.PERFIS.get(doc_key, {}).get("clausulas", [])}
+    rotulos = ", ".join(
+        CAMPOS_FORMULARIO[c]["rotulo"] for c in plano["campos"]
+        if c in CAMPOS_FORMULARIO)
+
+    st.warning(
+        f"O formulário mudou depois que este documento foi elaborado "
+        f"({rotulos}). O texto atual ainda afirma o dado antigo.")
+    with st.expander(
+            f"Cláusulas alcançadas pela mudança ({len(numeros)} de "
+            f"{len(titulos)})", expanded=True):
+        for n in numeros:
+            st.markdown(f"- **{n}.** {titulos.get(n, '(sem título)')}")
+
+    parcial, inteiro = st.columns(2)
+    escolha = None
+    if parcial.button("Atualizar só estas cláusulas", type="primary",
+                      use_container_width=True, key=f"parcial_{doc_key}"):
+        escolha = "parcial"
+    if inteiro.button("Elaborar o documento inteiro de novo",
+                      use_container_width=True, key=f"inteiro_{doc_key}"):
+        escolha = "inteiro"
+    if escolha is None:
+        return True
+
+    state.limpar_plano(doc_key)
+    if escolha == "inteiro":
+        st.session_state.documentos.pop(doc_key, None)
+        _pedir_geracao(doc_key)
+        return True
+
+    import copy
+
+    try:
+        atualizado = llm.regenerar_clausulas(
+            doc_key, copy.deepcopy(st.session_state.dados), contexto,
+            st.session_state.documentos[doc_key], set(numeros),
+            plano["campos"])
+    except regeneracao.RecorteRejeitado as erro:
+        # Nunca aceitar meio documento. A recusa é dita na tela e o
+        # caminho volta a ser o de sempre — que é caro e está correto.
+        logging.getLogger("govdocs.geracao").warning(
+            "atualização parcial rejeitada em %s: %s", doc_key, erro)
+        st.warning(
+            "Não foi possível atualizar apenas os trechos afetados sem "
+            "risco de deixar o documento incoerente. Elaborando o "
+            "documento inteiro.")
+        st.session_state.documentos.pop(doc_key, None)
+        _pedir_geracao(doc_key)
+        return True
+    except ErroGeracaoIA as erro:
+        st.error(str(erro))
+        return True
+
+    st.session_state.documentos[doc_key] = atualizado
+    st.session_state.aprovados.discard(doc_key)
+    st.session_state.edicoes_pendentes.pop(doc_key, None)
+    st.session_state.pop(f"editor_{doc_key}", None)
+    st.session_state.setdefault("_documentos_obsoletos", {}).pop(doc_key, None)
+    state.autosalvar()
+    st.rerun()
+    return True
 
 
 def _botao_voltar(meta: dict) -> None:

@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import hashlib
 import json
 import pathlib
 import sys
@@ -181,12 +182,23 @@ _ENCHIMENTO = (
     "exatamente o que se fiscaliza, o que se recebe e o que se paga. ")
 
 
+_RE_TITULO_DE_CLAUSULA = __import__("re").compile(r"(?m)^#{1,3}\s*\d{1,2}[\.\-–]?\s")
+
+
 def _ate_o_tamanho_de_producao(texto: str, doc_key: str) -> str:
     """
     Completa a resposta da fixture até a PROSA ter o tamanho medido em
-    produção. Não toca no que a fixture escreveu — o acréscimo vai ao
-    final, depois do documento, e existe só para a cadeia pesar o que
-    pesa de verdade na etapa seguinte.
+    produção, DISTRIBUÍDO entre as cláusulas.
+
+    A distribuição não é detalhe. A primeira versão desta função
+    despejava o enchimento todo no fim do documento — e o fim do
+    documento é uma cláusula só. Como o contexto canônico seleciona
+    cláusulas, o peso inteiro caía fora da seleção e a economia medida
+    saía inflada: o recorte parecia jogar fora 90% do documento quando
+    jogava fora uma cláusula de enchimento.
+
+    Espalhando proporcionalmente, cada cláusula carrega sua parte, e o
+    que o recorte descarta é a fração real das cláusulas descartadas.
     """
     alvo = PROSA_DE_PRODUCAO.get(doc_key)
     if not alvo:
@@ -196,8 +208,25 @@ def _ate_o_tamanho_de_producao(texto: str, doc_key: str) -> str:
     faltam = alvo - prosa
     if faltam <= 0:
         return texto
-    corpo = _ENCHIMENTO * (faltam // len(_ENCHIMENTO) + 1)
-    return texto + "\n\n" + corpo[:faltam]
+
+    cortes = [m.start() for m in _RE_TITULO_DE_CLAUSULA.finditer(texto)]
+    if not cortes:
+        corpo = _ENCHIMENTO * (faltam // len(_ENCHIMENTO) + 1)
+        return texto + "\n\n" + corpo[:faltam]
+
+    pedacos = [texto[:cortes[0]]] if cortes[0] else []
+    for i, inicio in enumerate(cortes):
+        fim = cortes[i + 1] if i + 1 < len(cortes) else len(texto)
+        pedacos.append(texto[inicio:fim])
+
+    por_clausula = faltam // len(cortes)
+    corpo = _ENCHIMENTO * (por_clausula // len(_ENCHIMENTO) + 1)
+    saida = []
+    for pedaco in pedacos:
+        if _RE_TITULO_DE_CLAUSULA.match(pedaco):
+            pedaco = pedaco.rstrip() + "\n\n" + corpo[:por_clausula] + "\n\n"
+        saida.append(pedaco)
+    return "".join(saida)
 
 
 def _instalar_observador() -> None:
@@ -239,43 +268,89 @@ def _instalar_observador() -> None:
 # ---------------------------------------------------------------------------
 # RAG com tamanho de produção
 # ---------------------------------------------------------------------------
+# Assuntos distintos, para que os trechos sintéticos sejam DIFERENTES
+# uns dos outros.
+#
+# Não é adorno: a primeira versão gerava todos os trechos do mesmo
+# molde, mudando só o número. O deduplicador — que existe para tirar o
+# mesmo dispositivo recuperado por três fontes — enxergava dez cópias e
+# descartava nove. A "economia de RAG" medida era 79%, e quase toda ela
+# era a fixture se auto-deduplicando. Com assuntos distintos, o corte
+# passa a vir de onde ele realmente vem: do orçamento de tamanho.
+_ASSUNTOS = (
+    "a fase preparatória e o plano de contratações anual",
+    "o critério de julgamento e o modo de disputa",
+    "as condições de habilitação jurídica e fiscal",
+    "o recebimento provisório e definitivo do objeto",
+    "a ordem cronológica de pagamento e a liquidação",
+    "as infrações administrativas e as sanções aplicáveis",
+    "a garantia contratual e os seus limites",
+    "o reajuste por índice em contratos de fornecimento",
+    "a gestão e a fiscalização do contrato administrativo",
+    "o sistema de registro de preços e a adesão à ata",
+    "os impugnações e os recursos administrativos",
+    "o tratamento favorecido às microempresas",
+)
+
+
 def _chunk_sintetico(i: int) -> str:
-    """Trecho do tamanho medido na base real. Conteúdo é preenchimento."""
-    semente = (f"Trecho de referência {i} da base de conhecimento. "
-               "Dispositivo da Lei nº 14.133/2021 aplicável ao caso, com "
-               "a redação integral do artigo e seus parágrafos. ")
+    """Trecho do tamanho medido na base real, com assunto próprio."""
+    assunto = _ASSUNTOS[i % len(_ASSUNTOS)]
+    semente = (
+        f"Fonte {i}. Dispositivo que trata de {assunto}, com a redação do "
+        f"caput e dos parágrafos, a orientação de controle correspondente "
+        f"e o exemplo de aplicação ao caso concreto número {i}. ")
     repetido = semente * (CARACTERES_POR_CHUNK // len(semente) + 1)
     return repetido[:CARACTERES_POR_CHUNK]
 
 
 def _instalar_rag_de_tamanho_real() -> None:
-    from src import rag
+    """
+    Substitui a BUSCA, não a recuperação.
 
-    def recuperar(dados, doc_key):
-        temas = rag.temas_para(dados, doc_key) or ["geral"]
-        referencias = []
-        for i in range(CHUNKS_DEVOLVIDOS_PELA_BUSCA):
-            tema = temas[i % len(temas)]
-            rotulo = rag.TEMAS_JURIDICOS.get(tema, (tema,))[0]
-            referencias.append({
+    A diferença decide se a medição serve: trocar `rag.recuperar`
+    inteiro pularia o piso de relevância, a reserva por tema, a
+    deduplicação e o orçamento — que são justamente o código que muda
+    entre o antes e o depois. Trocando só o que a rede traria
+    (embeddings e RPC de busca), todo o resto roda de verdade.
+    """
+    from src import db, rag
+
+    db.disponivel = lambda: True
+
+    # A busca precisa ser DETERMINÍSTICA: a mesma consulta devolve os
+    # mesmos trechos. Um contador global parecia inofensivo e não era —
+    # o segundo pedido idêntico recebia outros trechos, o prompt saía
+    # diferente, a chave do cache mudava e a medição concluía que o
+    # cache não funciona. O que não funcionava era o dublê.
+    #
+    # O vetor carrega o hash da consulta, e o RPC deriva dele quais
+    # trechos devolver. É o que uma busca vetorial de verdade faz:
+    # mesma pergunta, mesma resposta.
+    def _embeddings(textos, para_consulta=False):
+        return [[float(int(hashlib.sha256(t.encode()).hexdigest()[:8], 16))]
+                for t in textos]
+
+    rag._gerar_embeddings = _embeddings  # noqa: SLF001
+
+    def _rpc(nome, argumentos):
+        qtd = int(argumentos.get("qtd") or 3)
+        vetor = argumentos.get("query_embedding") or [0.0]
+        semente = int(vetor[0]) if vetor else 0
+        brutos = []
+        for passo in range(qtd):
+            i = (semente + passo) % 9973      # primo: espalha sem colidir
+            brutos.append({
                 "conteudo": _chunk_sintetico(i),
                 "titulo": f"Fonte simulada {i + 1}",
                 "categoria": "lei",
-                "score": 0.9 - i * 0.01,
-                "tema": tema,
-                "tema_rotulo": rotulo,
+                "similaridade": 0.90 - (i % 10) * 0.01,
                 "documento_id": f"sim-{i + 1}",
                 "ordem": i,
             })
-        return {
-            "referencias": referencias,
-            "consultas": [{"tema": t, "texto": f"consulta {t}",
-                           "recuperados": rag.TOP_K_TEMA} for t in temas],
-            "modo": "vetorial", "piso": rag.PISO_VETORIAL_PADRAO,
-            "descartados": 0,
-        }
+        return brutos
 
-    rag.recuperar = recuperar
+    rag._executar_rpc = _rpc  # noqa: SLF001
 
 
 # ---------------------------------------------------------------------------
@@ -285,6 +360,37 @@ def _preparar_motores(llm) -> None:
     llm.obter_openai_key = lambda: CHAVE_DE_ENSAIO
     llm.obter_api_key = lambda: ""
     llm.obter_openrouter_key = lambda: ""
+
+
+class _SessaoDeMedicao:
+    """
+    `st` com um `session_state` que FUNCIONA fora do Streamlit.
+
+    Sem isto a medição do cache seria falsa em silêncio: fora de um
+    `streamlit run`, `st.session_state` não guarda nada, o cache de
+    sessão nunca acerta, e o roteiro concluiria que o cache não
+    funciona quando o que não funciona é o ambiente da medição.
+
+    O resto do módulo continua sendo o Streamlit de verdade — só o
+    dicionário de sessão é substituído.
+    """
+
+    def __init__(self, real):
+        self._real = real
+        self.session_state: dict = {}
+
+    def __getattr__(self, nome):
+        return getattr(self._real, nome)
+
+
+def _instalar_sessao() -> None:
+    import streamlit as st
+
+    from src import cache_geracao, llm
+
+    sessao = _SessaoDeMedicao(st)
+    llm.st = sessao
+    cache_geracao.st = sessao
 
 
 def medir_processo(cenario: dict) -> dict:
@@ -415,6 +521,86 @@ def medir_tempestade_de_retentativa() -> dict:
     }
 
 
+def medir_repeticao(cenario: dict) -> dict:
+    """
+    O MESMO documento pedido duas vezes: quantas chamadas saem?
+
+    É a medida mais direta de "eliminar chamadas duplicadas", que é a
+    prioridade 1 do pedido. Clique duplo, rerun e reload produzem
+    exatamente esta situação — pedido idêntico, processo inalterado.
+    """
+    from src import cache_geracao, llm
+
+    _preparar_motores(llm)
+    # Sessão limpa: os processos medidos antes desta função já passaram
+    # pelo mesmo DFD, e sem a limpeza a medição começaria com o cache
+    # quente — o primeiro pedido apareceria como zero chamada e o
+    # número não diria nada sobre repetição.
+    cache_geracao.st.session_state.pop(cache_geracao.CHAVE_NA_SESSAO, None)
+    sem_llm.zerar()
+    _medidas.clear()
+    for _ in range(2):
+        llm.gerar_documento("dfd", dict(cenario["dados"]), None)
+    return {
+        "cenario": cenario["id"],
+        "pedidos_do_servidor": 2,
+        "requisicoes_ao_provedor": len(_medidas),
+        "tokens_entrada": sum(m["tokens_sistema"] + m["tokens_usuario"]
+                              for m in _medidas),
+    }
+
+
+def medir_alteracao_de_um_campo(cenario: dict) -> dict:
+    """
+    Um campo do formulário muda: quanto do processo precisa ser refeito?
+
+    Mede as duas grandezas que decidem a conta:
+      * quantos DOCUMENTOS são descartados (antes: todos);
+      * que fração das CLÁUSULAS de cada documento preservado precisa
+        ser reescrita — que é a fração da SAÍDA que se paga.
+
+    A saída em tokens não é medida aqui (não há modelo respondendo);
+    o que se mede é a fração de cláusulas, e o relatório aplica essa
+    fração à saída real de produção dizendo que é o que está fazendo.
+    """
+    from src import perfis, regeneracao
+
+    campo = "prazo"
+    antes = dict(cenario["dados"])
+    depois = {**antes, campo: "Contratação pretendida para o segundo "
+                              "semestre de 2026."}
+    alterados = regeneracao.campos_alterados(antes, depois)
+    ligada = regeneracao.ativo()
+
+    por_documento = []
+    for doc_key in COM_IA:
+        # Com a flag desligada não existe plano nenhum: o formulário
+        # alterado descarta os documentos seguintes, que é o
+        # comportamento de hoje e o que a medição do "antes" tem de
+        # refletir.
+        pedidas = (regeneracao.clausulas_afetadas(doc_key, alterados)
+                   if ligada else None)
+        total = len(perfis.PERFIS.get(doc_key, {}).get("clausulas", []))
+        por_documento.append({
+            "documento": doc_key,
+            "descartado": pedidas is None,
+            "clausulas_reescritas": len(pedidas) if pedidas else total,
+            "clausulas_no_documento": total,
+        })
+    preservados = [d for d in por_documento if not d["descartado"]]
+    return {
+        "cenario": cenario["id"],
+        "campo_alterado": campo,
+        "documentos_descartados_antes": len(COM_IA),
+        "documentos_descartados_depois": len(por_documento) - len(preservados),
+        "por_documento": por_documento,
+        "fracao_de_clausulas_reescritas": round(
+            sum(d["clausulas_reescritas"] for d in preservados)
+            / max(sum(d["clausulas_no_documento"] for d in preservados), 1), 3)
+        if preservados else 1.0,
+    }
+
+
 def medir_auditoria_semantica(cenario: dict) -> dict:
     """
     O que a auditoria semântica manda por chamada.
@@ -454,17 +640,52 @@ def medir_auditoria_semantica(cenario: dict) -> dict:
     }
 
 
+def _ligar_flags(nomes: list[str]) -> None:
+    """
+    Liga as flags de custo para ESTA medição.
+
+    A medição declara a configuração que mede: sem isto, o roteiro
+    leria as flags do banco — que não existe aqui — e mediria sempre o
+    estado desligado, de modo que "antes" e "depois" dariam o mesmo
+    número e o relatório não provaria nada.
+
+    Só o que está em `nomes` é ligado. Toda flag fora da lista continua
+    respondendo o que responderia, que é `False`.
+    """
+    from src import db
+
+    ligadas = set(nomes)
+    original = db.flag_ativa
+    db.flag_ativa = lambda nome: nome in ligadas or (
+        False if nome in TODAS_AS_FLAGS else original(nome))
+
+
+TODAS_AS_FLAGS = ("cache_geracao", "contexto_canonico", "rag_enxuto",
+                  "regeneracao_parcial", "politica_de_modelo")
+
+
 def principal() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rotulo", default="antes")
     ap.add_argument("--saida", default="docs/custo/antes.json")
+    ap.add_argument(
+        "--flags", default="",
+        help="flags de custo a ligar nesta medição, separadas por vírgula; "
+             f"'todas' liga {', '.join(TODAS_AS_FLAGS)}")
     argumentos = ap.parse_args()
+
+    flags = ([] if not argumentos.flags else
+             list(TODAS_AS_FLAGS) if argumentos.flags == "todas" else
+             [f.strip() for f in argumentos.flags.split(",") if f.strip()])
+    if flags:
+        _ligar_flags(flags)
 
     sem_llm.instalar()
     ia_simulada.instalar()
     ia_simulada.autoteste()
     _instalar_observador()
     _instalar_rag_de_tamanho_real()
+    _instalar_sessao()
 
     relatorio = {
         "rotulo": argumentos.rotulo,
@@ -478,6 +699,8 @@ def principal() -> int:
         },
         "processos": [medir_processo(c) for c in (
             massas.CENARIO_F, massas.CENARIO_A, massas.cenario_g())],
+        "repeticao_do_mesmo_pedido": medir_repeticao(massas.CENARIO_A),
+        "alteracao_de_um_campo": medir_alteracao_de_um_campo(massas.CENARIO_A),
         "auditoria_semantica": [medir_auditoria_semantica(c) for c in (
             massas.CENARIO_A, massas.cenario_g())],
         "tempestade_de_retentativa": medir_tempestade_de_retentativa(),

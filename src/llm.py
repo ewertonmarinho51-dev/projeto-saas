@@ -80,10 +80,74 @@ def _telemetria_de_roteamento(rotulo: str, motor: str) -> dict:
         return {}
 
 
+# Rótulos que NÃO são documento: são trabalho sobre os documentos. A
+# lista é declarada para que uma tarefa nova apareça como "documento"
+# por omissão e alguém tenha de decidir — em vez de se esconder numa
+# heurística de nome.
+OPERACOES_DE_APOIO = {
+    "auditor": "auditoria",
+    "corretor": "correcao",
+    "revisao": "revisao",
+    "analista_parecer": "parecer",
+    "govbot": "assistente",
+    "pesquisa_precos": "pesquisa_precos",
+    "semantica_precos": "pesquisa_precos",
+}
+
+
+def _operacao_da_tarefa(tarefa: str) -> str:
+    return OPERACOES_DE_APOIO.get(tarefa, "documento")
+
+
+def _custo_do_registro(cache_hit: bool) -> float | None:
+    """
+    Custo em reais desta chamada, ou None quando o preço do modelo não
+    foi configurado. Acerto de cache custa zero, e zero é medida.
+    """
+    if cache_hit:
+        return 0.0
+    try:
+        from . import politica_ia
+
+        return politica_ia.custo_estimado(
+            _ultimo_uso.get("modelo", ""),
+            _ultimo_uso.get("tokens_entrada"),
+            _ultimo_uso.get("tokens_saida"))
+    except Exception:  # noqa: BLE001 — auditoria não derruba geração
+        return None
+
+
+def _identidade_para_o_registro() -> dict:
+    """
+    Quem gastou: tenant, secretaria e usuário.
+
+    Sai do CONTEXTO INSTITUCIONAL, que deriva da sessão autenticada —
+    nunca de campo do formulário. Sem isto, o controle de consumo
+    responde "quanto se gastou" e não responde "quem gastou", que é
+    metade da pergunta de quem administra o orçamento.
+
+    Blindado: o registro de consumo não pode derrubar a geração.
+    """
+    try:
+        from . import contexto
+
+        institucional = contexto.contexto_institucional()
+        return {
+            "tenant_id": institucional.get("tenant_id"),
+            "secretaria_id": institucional.get("secretaria_id"),
+            "usuario_id": institucional.get("usuario_id"),
+        }
+    except Exception:  # noqa: BLE001 — ver a docstring
+        return {}
+
+
 def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
                       erro: str = "", fallback: bool = False,
                       processo_id: str | None = None,
-                      rag_trace: dict | None = None) -> dict:
+                      rag_trace: dict | None = None,
+                      cache_hit: bool = False,
+                      tokens_evitados_entrada: int | None = None,
+                      tokens_evitados_saida: int | None = None) -> dict:
     """
     Grava o registro no log do servidor e no histórico da sessão.
 
@@ -115,6 +179,25 @@ def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
         # mecanismo: é usar o que já existia. Sem conteúdo dentro:
         # nada de prompt, resposta ou chave, e há prova disso.
         "roteamento": _telemetria_de_roteamento(doc_key, motor),
+        # ------------------------------------------------------------
+        # Controle de consumo (ETAPA 10). Toda chamada de IA passa por
+        # aqui — é o ponto único, e é por isso que ele responde às
+        # perguntas todas de uma vez: quem, em que processo, para qual
+        # documento, com qual operação, em que modelo, quanto gastou, se
+        # foi acerto de cache e quanto isso evitou.
+        #
+        # `operacao` distingue a REDAÇÃO do documento do trabalho de
+        # auditoria e correção sobre ele. Sem essa coluna, `documento`
+        # misturava "gerei o TR" com "auditei o bundle", e o custo por
+        # documento não podia ser apurado — em produção, 65 das 90
+        # chamadas bem-sucedidas eram de auditor e corretor.
+        # ------------------------------------------------------------
+        **_identidade_para_o_registro(),
+        "operacao": _operacao_da_tarefa(doc_key),
+        "cache_hit": bool(cache_hit),
+        "tokens_evitados_entrada": tokens_evitados_entrada,
+        "tokens_evitados_saida": tokens_evitados_saida,
+        "custo": _custo_do_registro(cache_hit),
     }
     _log.info("geracao %s", registro)
     historico = st.session_state.setdefault("registro_geracoes", [])
@@ -337,6 +420,79 @@ class _RespostaVazia(Exception):
     Sinaliza que vale a pena tentar o próximo modelo da lista."""
 
 
+# ---------------------------------------------------------------------------
+# Classificação do erro — o que a retentativa pode e o que ela não pode
+# ---------------------------------------------------------------------------
+# Até aqui QUALQUER falha que não fosse de modelo era repetida
+# `API_TENTATIVAS` vezes, com espera de 2s e 4s entre elas. Chave
+# inválida era repetida três vezes. Requisição malformada, três vezes.
+# Crédito esgotado, três vezes. Nenhuma delas melhora por repetição:
+# o resultado é a mesma recusa, três vezes o tempo de tela e — quando o
+# provedor cobra a requisição recusada — três vezes a conta.
+#
+# A classificação abaixo é por TEXTO do erro porque é o que os três
+# SDKs têm em comum; `_traduzir_erro` já lia o erro assim, e criar uma
+# segunda forma de lê-lo faria as duas divergirem.
+CLASSE_AUTENTICACAO = "autenticacao"   # 401/403 — chave inválida ou sem permissão
+CLASSE_CREDITO = "credito"             # cota/faturamento esgotado
+CLASSE_LIMITE = "limite"               # 429 de ritmo — passa com espera
+CLASSE_MODELO = "modelo"               # modelo inexistente/sem acesso
+CLASSE_VALIDACAO = "validacao"         # requisição malformada, contexto excedido
+CLASSE_VAZIA = "vazia"                 # respondeu sem conteúdo
+CLASSE_REDE = "rede"                   # timeout, conexão — transitório
+CLASSE_DESCONHECIDA = "desconhecida"
+
+# Só estas melhoram com repetir a MESMA requisição no MESMO modelo.
+CLASSES_QUE_VALEM_RETENTATIVA = (CLASSE_LIMITE, CLASSE_REDE,
+                                 CLASSE_DESCONHECIDA)
+
+
+def classificar_erro(exc: Exception) -> str:
+    """
+    Em que categoria cai esta falha. Decide retentativa e troca de modelo.
+
+    A ordem das perguntas importa: `insufficient_quota` também carrega
+    "429" na mensagem, e tratá-lo como limite de ritmo faria o sistema
+    esperar e repetir três vezes uma conta sem crédito — que só volta a
+    funcionar quando alguém pagar.
+    """
+    if isinstance(exc, _RespostaVazia):
+        return CLASSE_VAZIA
+    texto = f"{type(exc).__name__}: {exc}".lower()
+    if ("insufficient_quota" in texto or "billing" in texto
+            or "exceeded your current quota" in texto
+            or "credit" in texto and "insufficient" in texto):
+        return CLASSE_CREDITO
+    if ("invalid_api_key" in texto or "incorrect api key" in texto
+            or "api key" in texto or "api_key" in texto
+            or "unauthorized" in texto or "401" in texto
+            or "permission" in texto or "403" in texto):
+        return CLASSE_AUTENTICACAO
+    if _e_erro_de_modelo(exc):
+        return CLASSE_MODELO
+    # "400" solto NÃO entra: ele aparece em contagem de token e em id de
+    # requisição, e classificar por acidente uma falha de rede como
+    # requisição malformada tiraria dela a única retentativa que ajuda.
+    if ("context_length_exceeded" in texto or "maximum context" in texto
+            or "invalid_request_error" in texto
+            or "badrequest" in texto or "bad request" in texto
+            or "too many tokens" in texto):
+        return CLASSE_VALIDACAO
+    if ("rate limit" in texto or "429" in texto
+            or ("resource" in texto and "exhausted" in texto)
+            or "overloaded" in texto or "503" in texto):
+        return CLASSE_LIMITE
+    if ("timeout" in texto or "timed out" in texto or "deadline" in texto
+            or "connection" in texto or "connect" in texto):
+        return CLASSE_REDE
+    return CLASSE_DESCONHECIDA
+
+
+def vale_retentar(exc: Exception) -> bool:
+    """Repetir a MESMA requisição no MESMO modelo pode dar outro resultado?"""
+    return classificar_erro(exc) in CLASSES_QUE_VALEM_RETENTATIVA
+
+
 def _params_modelo_openai(modelo: str) -> dict:
     """
     Parâmetros extras por família de modelo. Modelos de raciocínio consomem
@@ -359,12 +515,41 @@ def _trocar_de_modelo(exc: Exception) -> bool:
     return isinstance(exc, _RespostaVazia) or _e_erro_de_modelo(exc)
 
 
+def _cabecalhos_de_idempotencia(system_prompt: str, user_prompt: str,
+                                modelo: str) -> dict:
+    """
+    `Idempotency-Key` derivada do próprio pedido.
+
+    Fecha o único caminho de cobrança duplicada que o cache local não
+    alcança: a resposta que o provedor GEROU e que não chegou até aqui
+    (timeout de leitura, conexão cortada). Do lado de cá parece que nada
+    aconteceu, e a retentativa pede a geração de novo — a segunda
+    cobrança de um documento que já existe do lado de lá.
+
+    Com a chave, a repetição devolve a resposta original. A chave cobre
+    o pedido inteiro, então um pedido DIFERENTE nunca é confundido com a
+    repetição de outro.
+    """
+    import hashlib
+
+    material = "\u0000".join((modelo or "", system_prompt or "",
+                              user_prompt or ""))
+    digest = hashlib.sha256(material.encode("utf-8")).hexdigest()
+    return {"Idempotency-Key": f"govdocs-{digest[:48]}"}
+
+
 def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
                         user_prompt: str,
-                        tentativas: int = API_TENTATIVAS) -> str:
+                        tentativas: int = API_TENTATIVAS,
+                        tarefa: str = "") -> str:
     """Uma chamada ao modelo indicado, com retentativas/backoff em falhas."""
+    from . import politica_ia
+
     ultima_excecao: Exception | None = None
     extra = _params_modelo_openai(modelo)
+    teto = politica_ia.teto_de_saida(tarefa, modelo)
+    cabecalhos = _cabecalhos_de_idempotencia(system_prompt, user_prompt,
+                                             modelo)
     for tentativa in range(1, tentativas + 1):
         try:
             resposta = cliente.chat.completions.create(
@@ -373,7 +558,8 @@ def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_completion_tokens=16384,
+                max_completion_tokens=teto,
+                extra_headers=cabecalhos,
                 **extra,
             )
             escolha = resposta.choices[0]
@@ -391,9 +577,12 @@ def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
             return texto
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
-            # Erro de modelo / resposta vazia não melhoram com retry no mesmo
-            # modelo — sobe já para trocar de modelo.
-            if _trocar_de_modelo(exc):
+            # Repetir só o que pode dar outro resultado. Chave inválida,
+            # crédito esgotado, requisição malformada, modelo inexistente
+            # e resposta vazia devolvem exatamente a mesma coisa na
+            # segunda e na terceira vez — e cada uma delas ainda é uma
+            # requisição, com o tempo de tela e a conta que vêm junto.
+            if not vale_retentar(exc):
                 raise
             if tentativa < tentativas:
                 time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
@@ -402,7 +591,8 @@ def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
 
 def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str,
                    timeout: float | None = None,
-                   tentativas: int = API_TENTATIVAS) -> str:
+                   tentativas: int = API_TENTATIVAS,
+                   tarefa: str = "") -> str:
     """
     Motor principal: OpenAI. Tenta o modelo configurado e, se ele não existir,
     não tiver acesso, ou devolver resposta vazia (comum em modelos de
@@ -421,14 +611,16 @@ def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str,
     cliente = OpenAI(api_key=api_key,
                      base_url=ai_gateway.base_url_para("openai"),
                      timeout=timeout or API_TIMEOUT_SEGUNDOS, max_retries=0)
-    modelos = _modelos_openai()
+    from . import politica_ia
+
+    modelos = politica_ia.modelos_para(tarefa, _modelos_openai(), "openai")
     ultima_excecao: Exception | None = None
     tentados: list[str] = []
     for i, modelo in enumerate(modelos):
         tentados.append(modelo)
         try:
             return _openai_uma_chamada(cliente, modelo, system_prompt,
-                                       user_prompt, tentativas)
+                                       user_prompt, tentativas, tarefa)
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
             # Troca de modelo em erro de modelo OU resposta vazia. Chave
@@ -445,7 +637,8 @@ def _chamar_openai(system_prompt: str, user_prompt: str, api_key: str,
 
 def _chamar_openrouter(system_prompt: str, user_prompt: str, api_key: str,
                        timeout: float | None = None,
-                       tentativas: int = API_TENTATIVAS) -> str:
+                       tentativas: int = API_TENTATIVAS,
+                       tarefa: str = "") -> str:
     """
     Terceiro motor: OpenRouter, pela API compatível com a da OpenAI.
 
@@ -481,7 +674,7 @@ def _chamar_openrouter(system_prompt: str, user_prompt: str, api_key: str,
         tentados.append(modelo)
         try:
             return _openai_uma_chamada(cliente, modelo, system_prompt,
-                                       user_prompt, tentativas)
+                                       user_prompt, tentativas, tarefa)
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
             if _trocar_de_modelo(exc) and i < len(modelos) - 1:
@@ -505,18 +698,23 @@ _CHAMADAS = {
 
 def _chamar_motor(motor: str, system_prompt: str, user_prompt: str,
                   api_key: str, timeout: float | None = None,
-                  tentativas: int = API_TENTATIVAS) -> str:
+                  tentativas: int = API_TENTATIVAS,
+                  tarefa: str = "") -> str:
     """Chama o motor nomeado. Indireção tardia para o teste poder trocar
     `_chamar_openai` por um dublê com `monkeypatch.setattr`."""
     return _CHAMADAS[motor](system_prompt, user_prompt, api_key,
-                            timeout=timeout, tentativas=tentativas)
+                            timeout=timeout, tentativas=tentativas,
+                            tarefa=tarefa)
 
 
 def _gemini_uma_chamada(cliente, types, modelo: str, system_prompt: str,
-                        user_prompt: str, tentativas: int = API_TENTATIVAS
-                        ) -> str:
+                        user_prompt: str, tentativas: int = API_TENTATIVAS,
+                        tarefa: str = "") -> str:
     """Uma chamada ao modelo indicado, com retentativas/backoff em falhas."""
+    from . import politica_ia
+
     ultima_excecao: Exception | None = None
+    teto = politica_ia.teto_de_saida(tarefa, modelo)
     for tentativa in range(1, tentativas + 1):
         try:
             resposta = cliente.models.generate_content(
@@ -525,7 +723,7 @@ def _gemini_uma_chamada(cliente, types, modelo: str, system_prompt: str,
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
                     temperature=0.3,
-                    max_output_tokens=16384,
+                    max_output_tokens=teto,
                 ),
             )
             texto = (resposta.text or "").strip()
@@ -541,7 +739,7 @@ def _gemini_uma_chamada(cliente, types, modelo: str, system_prompt: str,
             return texto
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
-            if _trocar_de_modelo(exc):
+            if not vale_retentar(exc):
                 raise
             if tentativa < tentativas:
                 time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
@@ -550,7 +748,8 @@ def _gemini_uma_chamada(cliente, types, modelo: str, system_prompt: str,
 
 def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str,
                    timeout: float | None = None,
-                   tentativas: int = API_TENTATIVAS) -> str:
+                   tentativas: int = API_TENTATIVAS,
+                   tarefa: str = "") -> str:
     """
     Fallback: Gemini. Tenta o modelo configurado e, se não existir/sem
     acesso, cai para modelos alternativos (gemini-1.5-flash etc.).
@@ -572,7 +771,7 @@ def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str,
         tentados.append(modelo)
         try:
             return _gemini_uma_chamada(cliente, types, modelo, system_prompt,
-                                       user_prompt, tentativas)
+                                       user_prompt, tentativas, tarefa)
         except Exception as exc:  # noqa: BLE001
             ultima_excecao = exc
             if _trocar_de_modelo(exc) and i < len(modelos) - 1:
@@ -695,6 +894,36 @@ def gerar_documento(doc_key: str, dados: dict,
     if instrucoes_extra:
         user_prompt += instrucoes_extra
 
+    # Cache: a mesma pergunta não se paga duas vezes.
+    #
+    # A chave é o hash dos DOIS PROMPTS já montados — formulário,
+    # planilha calculada, cadeia aprovada, RAG e diretrizes já estão
+    # dentro deles. É o que torna impossível o erro clássico deste tipo
+    # de cache: acrescentar uma fonte ao prompt e esquecer de somá-la à
+    # chave, passando a servir documento montado com contexto velho.
+    #
+    # A consulta vem ANTES de o `progresso` anunciar "GERANDO": um
+    # acerto de cache não gera coisa nenhuma, e anunciar geração seria
+    # mentir para quem está olhando a tela.
+    from . import cache_geracao
+
+    chave_cache = _chave_de_cache(system_prompt, user_prompt)
+    processo_id = st.session_state.get("processo_id")
+    guardado = cache_geracao.buscar(chave_cache, processo_id)
+    if guardado:
+        inicio = time.time()
+        _ultimo_uso.update(modelo=guardado.get("modelo", ""),
+                           tokens_entrada=0, tokens_saida=0, request_id="")
+        registrar_geracao(doc_key, guardado.get("motor", ""), inicio, "ok",
+                          rag_trace=rag_trace, cache_hit=True,
+                          tokens_evitados_entrada=guardado.get(
+                              "tokens_entrada"),
+                          tokens_evitados_saida=guardado.get("tokens_saida"))
+        _associar_rag_trace(doc_key, rag_trace, guardado["texto"])
+        if progresso:
+            progresso("GERANDO")
+        return guardado["texto"]
+
     # Motores em ordem de precedência, com queda AVISADA para o seguinte.
     # Toda geração — sucesso ou falha — entra no registro técnico.
     #
@@ -708,8 +937,108 @@ def gerar_documento(doc_key: str, dados: dict,
     # Injeta a tabela real da planilha (grande) no lugar da marca [[TABELA_ITENS]].
     final = (texto if doc_key == "mapa_riscos" else
              planilha.injetar_tabela(texto, dados.get("itens")))
+    # Guarda o texto FINAL (com a tabela já injetada), que é o que o
+    # acerto de cache devolve. Guardar o texto cru faria a tabela ser
+    # injetada uma vez no caminho normal e nenhuma no caminho do cache.
+    cache_geracao.guardar(chave_cache, processo_id, doc_key, {
+        "texto": final,
+        "motor": _ultimo_uso.get("motor", motor_ativo()),
+        "modelo": _ultimo_uso.get("modelo", ""),
+        "tokens_entrada": _ultimo_uso.get("tokens_entrada"),
+        "tokens_saida": _ultimo_uso.get("tokens_saida"),
+    })
     _associar_rag_trace(doc_key, rag_trace, final)
     return final
+
+
+def regenerar_clausulas(doc_key: str, dados: dict,
+                        contexto_anterior: str | None, texto_atual: str,
+                        pedidas: set[int], campos: list[str],
+                        instrucoes_extra: str = "", *,
+                        progresso=None) -> str:
+    """
+    Reescreve APENAS as cláusulas `pedidas` do documento vigente.
+
+    Levanta `regeneracao.RecorteRejeitado` quando a resposta não passa
+    na conferência — e o chamador então gera o documento inteiro, que é
+    o comportamento de hoje. Documento pela metade nunca sai daqui.
+
+    O ganho está na SAÍDA, que é onde a regeneração por blocos economiza
+    de verdade: o modelo escreve duas cláusulas em vez de dezessete. A
+    entrada cai menos, porque o documento vigente viaja como referência
+    de coerência — sem ele, as cláusulas novas contradiriam as antigas,
+    que é o defeito que esta função existe para não criar.
+    """
+    from . import planilha, regeneracao
+
+    if doc_key in templates_gov.TEMPLATES_OFICIAIS:
+        raise regeneracao.RecorteRejeitado(
+            "instrumento determinístico não tem regeneração parcial")
+    if not motores_disponiveis():
+        raise ErroGeracaoIA(
+            "Nenhuma chave de API configurada para atualizar o documento.")
+
+    system_prompt, user_prompt = montar_prompt(doc_key, dados,
+                                               contexto_anterior)
+    from . import rag
+
+    contexto_rag = rag.montar_contexto(dados, doc_key)
+    user_prompt += contexto_rag["bloco"]
+    if instrucoes_extra:
+        user_prompt += instrucoes_extra
+    user_prompt += regeneracao.instrucoes_de_recorte(
+        doc_key, pedidas, campos, texto_atual)
+
+    from . import cache_geracao
+
+    chave_cache = _chave_de_cache(system_prompt, user_prompt)
+    processo_id = st.session_state.get("processo_id")
+    guardado = cache_geracao.buscar(chave_cache, processo_id)
+    if guardado:
+        inicio = time.time()
+        _ultimo_uso.update(modelo=guardado.get("modelo", ""),
+                           tokens_entrada=0, tokens_saida=0, request_id="")
+        registrar_geracao(doc_key, guardado.get("motor", ""), inicio, "ok",
+                          cache_hit=True)
+        return guardado["texto"]
+
+    if progresso:
+        progresso("GERANDO")
+    resposta = _percorrer_motores(doc_key, system_prompt, user_prompt,
+                                  rag_trace=contexto_rag["trace"],
+                                  avisar=progresso is None)
+    # A conferência acontece ANTES da injeção da tabela: o marcador
+    # [[TABELA_ITENS]] pertence ao texto do modelo, e comparar cláusulas
+    # já com a tabela dentro compararia a planilha, não a redação.
+    recomposto = regeneracao.aplicar(texto_atual, resposta, pedidas)
+    final = (recomposto if doc_key == "mapa_riscos" else
+             planilha.injetar_tabela(recomposto, dados.get("itens")))
+    cache_geracao.guardar(chave_cache, processo_id, doc_key, {
+        "texto": final,
+        "motor": _ultimo_uso.get("motor", motor_ativo()),
+        "modelo": _ultimo_uso.get("modelo", ""),
+        "tokens_entrada": _ultimo_uso.get("tokens_entrada"),
+        "tokens_saida": _ultimo_uso.get("tokens_saida"),
+    })
+    return final
+
+
+def _chave_de_cache(system_prompt: str, user_prompt: str) -> str:
+    """
+    Chave do cache para o pedido montado.
+
+    O motor e a LISTA de modelos candidatos entram porque a resposta
+    depende deles: o mesmo prompt no Gemini e na OpenAI produz textos
+    diferentes, e servir um pelo outro seria trocar o autor do documento
+    sem dizer a ninguém.
+    """
+    from . import cache_geracao
+
+    motor = motor_ativo()
+    candidatos = {"openai": _modelos_openai, "gemini": _modelos_gemini,
+                  "openrouter": _modelos_openrouter}.get(motor)
+    modelos = ",".join(candidatos()) if candidatos else ""
+    return cache_geracao.chave(motor, modelos, system_prompt, user_prompt)
 
 
 ROTULOS_MOTOR = {
@@ -759,7 +1088,12 @@ def _percorrer_motores(rotulo_registro: str, system_prompt: str,
         inicio = time.time()
         try:
             texto = _chamar_motor(motor, system_prompt, user_prompt, chave,
-                                  timeout=timeout, tentativas=tentativas)
+                                  timeout=timeout, tentativas=tentativas,
+                                  tarefa=rotulo_registro)
+            # Qual motor respondeu de fato — o cache precisa saber, e
+            # `_ultimo_uso` é onde os executores já depositam o que a
+            # chamada revelou (modelo, tokens, request_id).
+            _ultimo_uso["motor"] = motor
             registrar_geracao(rotulo_registro, motor, inicio, "ok",
                               fallback=indice > 0, **extras)
             return texto

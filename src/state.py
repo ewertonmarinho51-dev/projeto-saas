@@ -8,7 +8,7 @@ aprovações) vive em st.session_state, inicializado aqui.
 
 import streamlit as st
 
-from . import contexto, db
+from . import cache_geracao, contexto, db
 from .config import (INSTRUMENTOS_DERIVADOS, SEQUENCIA_DOCUMENTOS, adota_srp,
                      exportaveis_do_processo, sequencia_do_processo,
                      CHAVE_FLUXO_MAPA, DOCUMENTOS)
@@ -37,14 +37,42 @@ def etapas() -> list[str]:
     return [f"{i}. {nome}" for i, nome in enumerate(nomes, 1)]
 
 
-def contexto_para_documento(doc_key: str) -> str | None:
-    """Toda a cadeia aprovada, sem promover rascunhos pendentes a fonte."""
+def cadeia_aprovada(doc_key: str) -> dict[str, str]:
+    """
+    {documento: texto} do que já foi APROVADO antes de `doc_key`.
+
+    Rascunho pendente não entra — a regra é a de sempre. Virou função
+    própria porque agora duas coisas leem a mesma cadeia: o contexto que
+    vai ao modelo e a chave do cache de geração. Se cada uma montasse a
+    sua, o cache poderia acertar com uma cadeia e o prompt sair com
+    outra.
+    """
     ordem = sequencia()
     anteriores = ordem[:ordem.index(doc_key)] if doc_key in ordem else ordem[:-1]
     docs = st.session_state.get("documentos") or {}
     aprovados = st.session_state.get("aprovados") or set()
-    return "\n\n".join(f"=== {DOCUMENTOS[d]['titulo']} aprovado ===\n{docs[d]}"
-                       for d in anteriores if d in docs and d in aprovados) or None
+    return {d: docs[d] for d in anteriores
+            if d in docs and d in aprovados and (docs[d] or "").strip()}
+
+
+def contexto_para_documento(doc_key: str) -> str | None:
+    """
+    O contexto do próximo documento.
+
+    Com a flag `contexto_canonico` ligada, apenas as DECISÕES que o
+    próximo documento herda (ver `resumo_processo`) — medido em 71% dos
+    tokens de entrada num processo de 210 itens. Desligada, a cadeia
+    inteira, byte a byte como antes.
+    """
+    from . import resumo_processo
+
+    aprovados = cadeia_aprovada(doc_key)
+    if not aprovados:
+        return None
+    if resumo_processo.ativo():
+        return resumo_processo.contexto_canonico(aprovados, doc_key)
+    return "\n\n".join(f"=== {DOCUMENTOS[d]['titulo']} aprovado ===\n{texto}"
+                       for d, texto in aprovados.items()) or None
 
 
 def inicializar() -> None:
@@ -295,6 +323,68 @@ def invalidar_a_partir_de(doc_key: str) -> None:
         descartar_documento(chave)
 
 
+CHAVE_PLANOS = "_atualizacao_parcial"
+
+
+def alteracao_do_formulario(antes: dict | None, depois: dict | None) -> None:
+    """
+    O formulário mudou: descartar o que precisa sair inteiro e PRESERVAR
+    o que dá para atualizar por cláusula.
+
+    Antes desta função, qualquer alteração no formulário descartava os
+    cinco documentos — corrigir a data pretendida custava a geração
+    inteira do processo. Agora cada documento é tratado pelo que a
+    alteração de fato alcança nele:
+
+      * `regeneracao.clausulas_afetadas` devolve as cláusulas → o
+        documento FICA, com um plano de atualização pendente;
+      * devolve None (campo que atravessa o documento, documento sem
+        mapa, alteração ampla demais) → descarte, como sempre foi.
+
+    Com a flag desligada, descarta tudo: o comportamento de hoje.
+    """
+    from . import regeneracao
+
+    campos = regeneracao.campos_alterados(antes, depois)
+    if not regeneracao.ativo() or not campos:
+        invalidar_a_partir_de("formulario")
+        return
+
+    planos: dict[str, dict] = {}
+    for doc_key in sequencia():
+        if doc_key not in (st.session_state.documentos or {}):
+            continue
+        pedidas = regeneracao.clausulas_afetadas(doc_key, campos)
+        if pedidas:
+            planos[doc_key] = {"clausulas": sorted(pedidas), "campos": campos}
+
+    for doc_key in sequencia():
+        if doc_key in planos:
+            # O documento continua existindo, mas NÃO continua aprovado:
+            # ele afirma um dado que mudou. Manter a aprovação faria o
+            # documento seguinte herdar como decidido algo que está
+            # desatualizado — e essa é a cadeia mentindo, que é pior que
+            # regerar demais.
+            st.session_state.aprovados.discard(doc_key)
+            st.session_state.setdefault("_documentos_obsoletos",
+                                        {})[doc_key] = "formulario"
+            continue
+        if doc_key in st.session_state.documentos:
+            st.session_state.setdefault("_documentos_obsoletos",
+                                        {})[doc_key] = "formulario"
+        descartar_documento(doc_key)
+    st.session_state[CHAVE_PLANOS] = planos
+
+
+def plano_de_atualizacao(doc_key: str) -> dict | None:
+    """Plano pendente deste documento, ou None."""
+    return (st.session_state.get(CHAVE_PLANOS) or {}).get(doc_key)
+
+
+def limpar_plano(doc_key: str) -> None:
+    (st.session_state.get(CHAVE_PLANOS) or {}).pop(doc_key, None)
+
+
 # Caches e marcadores que pertencem a UM processo (contratação) e são
 # limpos ao reiniciar. LISTA EXPLÍCITA — nunca limpar por prefixo "_":
 # há chaves "_" de estado GLOBAL da sessão (ex.: _modelo_chave/_modelo_img,
@@ -311,6 +401,8 @@ _CHAVES_DO_PROCESSO = (
     "_rag_trace",           # rastro do RAG por documento (lastro das citações)
     "registro_geracoes",    # histórico técnico das gerações
     "_documentos_obsoletos",
+    CHAVE_PLANOS,           # cláusulas pendentes de atualização parcial
+    cache_geracao.CHAVE_NA_SESSAO,   # textos já gerados neste processo
     "_geracao_erro", "_geracao_pedida", "_operacao_documento", "_rich_editors", "_revisao_geracao",
     "_geracao_sessao", "_ultima_geracao_concluida",
     CHAVE_FLUXO_MAPA,

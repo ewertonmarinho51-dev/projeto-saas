@@ -1830,6 +1830,26 @@ def _sql_da_0025() -> str:
             / "0025_multi_prefeituras_servidores_portarias.sql").read_text()
 
 
+def _sql_da_0028() -> str:
+    """
+    A 0028 traz a matriz de `cache_geracoes` — RLS ligada e FORÇADA,
+    três políticas nominais, grants explícitos e revoke de `anon` —,
+    pelo mesmo argumento da 0021 e da 0025.
+
+    Ela ainda está com `.NAO_APLICAR`, e por isso é lida pelo nome
+    completo. Quando for destravada, o nome muda e esta função tem de
+    mudar junto: as duas formas ficam aceitas para que a renomeação não
+    quebre a prova no mesmo instante em que a migração é aplicada.
+    """
+    migracoes = Path(__file__).resolve().parent.parent / "supabase/migrations"
+    for nome in ("0028_controle_de_consumo_e_cache.sql",
+                 "0028_controle_de_consumo_e_cache.sql.NAO_APLICAR"):
+        caminho = migracoes / nome
+        if caminho.exists():
+            return caminho.read_text()
+    raise AssertionError("a 0028 sumiu do repositório")
+
+
 def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     """
     Cobertura declarada = cobertura escrita. Tabela que não aparece em
@@ -1845,8 +1865,16 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
 
     O que NÃO se afrouxou: continua sendo obrigatório que toda tabela
     privada apareça em ALGUMA das duas.
+
+    A 0028 entra na mesma lista, ainda travada com `.NAO_APLICAR`.
+    Enquanto a trava existir, `cache_geracoes` nem sequer aparece no
+    inventário (ele lê `*.sql`) e a linha abaixo é inerte. Ela está
+    aqui para o dia da aplicação: sem isso, destravar a migração faria
+    ESTA prova de segurança falhar — e quem visse a falha entenderia
+    "tabela sem RLS" quando o caso é "matriz escrita noutro arquivo".
     """
-    coberto = _sql_da_0020() + _sql_da_0021() + _sql_da_0025()
+    coberto = (_sql_da_0020() + _sql_da_0021() + _sql_da_0025()
+               + _sql_da_0028())
     faltando = [t for t in TABELAS_PRIVADAS if t not in coberto]
     assert not faltando, f"sem matriz de RLS escrita: {faltando}"
 

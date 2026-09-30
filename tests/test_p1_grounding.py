@@ -303,8 +303,19 @@ def test_insert_sem_coluna_rag_trace_ainda_grava(monkeypatch):
     monkeypatch.setattr(db, "tenant_atual", lambda: "t1")
     db.registrar_geracao_bd({"documento": "tr", "motor": "openai",
                              "status": "ok", "rag_trace": {"modo": "textual"}})
-    assert len(tentativas) == 2                    # com e sem a coluna
-    assert "rag_trace" not in tentativas[1]
+    # A propriedade guardada é a DEGRADAÇÃO MONÓTONA — o insert começa
+    # com tudo e vai TIRANDO grupo de colunas até chegar ao formato base
+    # —, não o número de degraus. Contar degraus fixava o número de
+    # migrações com coluna opcional: a 0028 (controle de consumo)
+    # acrescentou uma, e esta prova falhava por uma mudança que ela não
+    # existe para guardar.
+    assert len(tentativas) >= 2, "o insert não degradou"
+    assert "rag_trace" in tentativas[0], "o primeiro degrau tem de tentar tudo"
+    for anterior, seguinte in zip(tentativas, tentativas[1:]):
+        assert set(seguinte) <= set(anterior), (
+            "um degrau acrescentou coluna em vez de tirar — a degradação "
+            "deixou de ser monótona e pode nunca chegar ao formato base")
+    assert "rag_trace" not in tentativas[-1]
 
 
 # --------------------------------------------------------------------------

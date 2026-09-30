@@ -1243,9 +1243,11 @@ def registrar_geracao_bd(registro: dict) -> None:
     }
     # Colunas OPCIONAIS, cada uma de uma migração diferente:
     #   `rag_trace`  (0011) — por que o sistema citou aquele artigo;
-    #   `roteamento` (0026) — sob qual política a tarefa correu.
+    #   `roteamento` (0026) — sob qual política a tarefa correu;
+    #   controle de consumo (0028) — quem gastou, em que operação,
+    #     se foi acerto de cache e quanto custou.
     #
-    # Um banco pode estar em qualquer ponto entre as duas, então o insert
+    # Um banco pode estar em qualquer ponto entre elas, então o insert
     # degrada em degraus: tenta com tudo, depois sem a mais nova, e por
     # fim só com as colunas que existem desde a 0006. Sem os degraus, um
     # banco sem a 0026 perderia TAMBÉM o `rag_trace`, e a correção de um
@@ -1256,9 +1258,19 @@ def registrar_geracao_bd(registro: dict) -> None:
     if registro.get("roteamento"):
         opcionais["roteamento"] = registro["roteamento"]
 
-    degraus = [{**linha, **opcionais}]
+    consumo = {
+        "operacao": registro.get("operacao", ""),
+        "secretaria_id": registro.get("secretaria_id"),
+        "usuario_id": registro.get("usuario_id"),
+        "cache_hit": bool(registro.get("cache_hit")),
+        "tokens_evitados_entrada": registro.get("tokens_evitados_entrada"),
+        "tokens_evitados_saida": registro.get("tokens_evitados_saida"),
+        "custo": registro.get("custo"),
+    }
+
+    degraus = [{**linha, **opcionais, **consumo}, {**linha, **opcionais}]
     if "roteamento" in opcionais:
-        degraus.append({k: v for k, v in degraus[0].items()
+        degraus.append({k: v for k, v in degraus[1].items()
                         if k != "roteamento"})
     if opcionais:
         degraus.append(linha)

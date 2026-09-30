@@ -193,8 +193,15 @@ def test_banco_sem_a_0026_grava_o_rag_trace_do_mesmo_jeito(monkeypatch):
         "roteamento": {"routing_enabled": True},
     })
 
-    assert len(tentativas) == 2, "o insert não degradou em degraus"
+    # Degraus, e degraus que só TIRAM coluna. O número deles não é a
+    # propriedade — ele é o número de migrações com coluna opcional, e
+    # fixá-lo fazia a 0028 (controle de consumo) quebrar uma prova que
+    # não existe para guardar isso.
+    assert len(tentativas) >= 2, "o insert não degradou em degraus"
     assert "roteamento" in tentativas[0]
+    for anterior, seguinte in zip(tentativas, tentativas[1:]):
+        assert set(seguinte) <= set(anterior), (
+            "um degrau acrescentou coluna em vez de tirar")
     gravada = tentativas[-1]
     assert "roteamento" not in gravada
     assert gravada["rag_trace"] == {"fontes": ["lei-14133"]}, (
