@@ -374,7 +374,7 @@ numa alteração de campo.
 
 | Suíte | Resultado |
 |---|---|
-| Suíte completa do projeto | **2.720 passaram, 133 puladas, 0 falhas** (8m56s) |
+| Suíte completa do projeto | **2.734 passaram, 133 puladas, 0 falhas** (8m10s) |
 | `test_resumo_processo.py` (novo, 22) | cada cláusula declarada atravessa; tabela não viaja; documento fora do padrão vai inteiro |
 | `test_regeneracao_por_clausula.py` (novo, 16) | recusa de cláusula a mais/a menos/fora do escopo; todo campo do formulário tem decisão declarada |
 | `test_custo_de_geracao.py` (novo, 33) | chave de cache por eixo; idempotência; tetos ≥ maior saída medida; classificação de erro por classe |
