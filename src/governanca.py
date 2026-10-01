@@ -337,6 +337,7 @@ FLAG_PUBLICACAO_GATE = "governance_publication_gate"
 # banco de produção conhecerem o nome errado.
 # ===========================================================================
 FLAG_PESQUISA_PRECOS = "price_research"
+FLAG_JEV_PRECOS = "jev_price_research"  # opt-in independente; ausente = OFF
 
 # Consolidação dos Documentos de Formalização de Demanda. Nasce
 # DESLIGADA: a etapa muda a ORIGEM da planilha orçamentária do processo,
