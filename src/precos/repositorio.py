@@ -690,3 +690,36 @@ def listar_eventos(pesquisa_id: str, limite: int = 200) -> list[dict]:
         raise
     except Exception as exc:  # noqa: BLE001
         raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+
+
+def contexto_decisao(pesquisa_id: str, item_id: str, referencia_id: str) -> tuple:
+    """Releitura autorizada por JWT + tenant + cadeia de vínculos completa."""
+    tenant = db.tenant_atual()
+    cliente = _cliente()
+    pesquisa = (cliente.table(TABELA_PESQUISAS).select("*")
+                .eq("id", pesquisa_id).eq("tenant_id", tenant).limit(1).execute()).data
+    item = (cliente.table(TABELA_ITENS).select("*").eq("id", item_id)
+            .eq("pesquisa_id", pesquisa_id).eq("tenant_id", tenant).limit(1).execute()).data
+    referencia = (cliente.table(TABELA_REFERENCIAS).select("*")
+                  .eq("id", referencia_id).eq("item_id", item_id)
+                  .eq("tenant_id", tenant).limit(1).execute()).data
+    if not pesquisa or not item or not referencia:
+        raise SemSessao("Referência indisponível neste contexto.")
+    return pesquisa[0], item[0], referencia[0]
+
+
+def evento_decisao(pesquisa_id: str, item_id: str, chave: str) -> dict | None:
+    """Cache durável no payload da trilha existente; sem limite de 200 eventos."""
+    resposta = (_cliente().table(TABELA_EVENTOS).select("payload")
+                .eq("tenant_id", db.tenant_atual()).eq("pesquisa_id", pesquisa_id)
+                .eq("item_id", item_id).eq("idempotency_key", chave)
+                .limit(1).execute())
+    return resposta.data[0]["payload"] if resposta.data else None
+
+
+def analises_do_item(item_id: str) -> list[dict]:
+    resposta = (_cliente().table(TABELA_EVENTOS).select("payload")
+                .eq("tenant_id", db.tenant_atual()).eq("item_id", item_id)
+                .eq("tipo", "busca_concluida").like("idempotency_key", "jev:result:%")
+                .order("criado_em", desc=True).limit(1000).execute())
+    return [r["payload"] for r in resposta.data or []]

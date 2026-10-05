@@ -421,7 +421,7 @@ def chamar(motor: Motor | None, pedido: str, dados_externos: dict, *,
     return proposta
 
 
-def motor_do_projeto() -> Motor | None:
+def motor_do_projeto(*, finalidade: str = "pesquisa_precos") -> Motor | None:
     """
     O motor de IA do GovDocs, quando há credencial — ou `None`.
 
@@ -444,7 +444,7 @@ def motor_do_projeto() -> Motor | None:
 
     def chamar_llm(sistema: str, usuario: str) -> str:
         return llm.chamar_ia_texto(sistema, usuario,
-                                   finalidade="pesquisa_precos")
+                                   finalidade=finalidade)
 
     return chamar_llm
 

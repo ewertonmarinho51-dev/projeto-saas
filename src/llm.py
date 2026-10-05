@@ -83,7 +83,9 @@ def _telemetria_de_roteamento(rotulo: str, motor: str) -> dict:
 def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
                       erro: str = "", fallback: bool = False,
                       processo_id: str | None = None,
-                      rag_trace: dict | None = None) -> dict:
+                      rag_trace: dict | None = None,
+                      uso: dict | None = None,
+                      decisao: dict | None = None) -> dict:
     """
     Grava o registro no log do servidor e no histórico da sessão.
 
@@ -95,16 +97,17 @@ def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
     `roteamento` responde a outra pergunta, que até aqui não tinha
     resposta: SOB QUAL POLÍTICA este documento foi gerado.
     """
+    uso = _ultimo_uso if uso is None else uso
     registro = {
         "quando": datetime.now().isoformat(timespec="seconds"),
         "processo": processo_id or st.session_state.get("processo_id") or "(novo)",
         "documento": doc_key,
         "motor": motor,
-        "modelo": _ultimo_uso.get("modelo", ""),
+        "modelo": uso.get("modelo", ""),
         "duracao_s": round(time.time() - inicio, 1),
-        "tokens_entrada": _ultimo_uso.get("tokens_entrada"),
-        "tokens_saida": _ultimo_uso.get("tokens_saida"),
-        "request_id": _ultimo_uso.get("request_id", ""),
+        "tokens_entrada": uso.get("tokens_entrada"),
+        "tokens_saida": uso.get("tokens_saida"),
+        "request_id": uso.get("request_id", ""),
         "status": status,                      # "ok" | "falha"
         "erro": (erro or "")[:300],            # sanitizado (sem chave/conteúdo)
         "fallback": fallback,
@@ -116,6 +119,9 @@ def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
         # nada de prompt, resposta ou chave, e há prova disso.
         "roteamento": _telemetria_de_roteamento(doc_key, motor),
     }
+    if decisao is not None:
+        # Metadados técnicos já minimizados pelo gateway, sem state/descrições.
+        registro["roteamento"].update(decisao)
     _log.info("geracao %s", registro)
     historico = st.session_state.setdefault("registro_geracoes", [])
     historico.append(registro)

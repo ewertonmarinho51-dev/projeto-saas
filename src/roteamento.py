@@ -41,6 +41,9 @@ from __future__ import annotations
 GERACAO_DE_DOCUMENTO = "document_generation"
 ANALISE_JURIDICA = "legal_analysis"
 PESQUISA_DE_PRECO = "price_research"
+DECISAO_DE_PRECO = "price_research_decision"
+GERACAO_DE_PRECO = "price_research_generation"
+JEV_MODEL = "typesafe/jev-1.13"
 RESPOSTA_COM_RAG = "rag_answer"
 CLASSIFICACAO = "classification"
 SEGUNDO_PLANO = "background"
@@ -67,8 +70,10 @@ PROCUREMENT_HIGH_ACCURACY = "PROCUREMENT_HIGH_ACCURACY"
 HIGH_ACCURACY = "HIGH_ACCURACY"
 FAST = "FAST"
 CHEAP = "CHEAP"
+TYPED_DECISION = "TYPED_DECISION"
 
 MOTORES_DO_GRUPO: dict[str, tuple[str, ...]] = {
+    TYPED_DECISION: ("openrouter",),
     # Só a OpenAI é homologada para documento oficial hoje, e isso é uma
     # AFIRMAÇÃO DE HOMOLOGAÇÃO, não uma preferência técnica: é o motor
     # com que a suíte de documentos foi construída e conferida. Gemini e
@@ -90,6 +95,12 @@ MOTORES_DO_GRUPO: dict[str, tuple[str, ...]] = {
 # funcionalidade; a restrição só vale onde alguém a declarou.
 # ---------------------------------------------------------------------------
 TIPO_DO_ROTULO: dict[str, str] = {
+    "price_research_decision": DECISAO_DE_PRECO,
+    "price_research_generation": GERACAO_DE_PRECO,
+    "price_reference_comparability": DECISAO_DE_PRECO,
+    "price_reference_mismatch": DECISAO_DE_PRECO,
+    "price_reference_semantic_score": DECISAO_DE_PRECO,
+    "catalog_candidate_selection": DECISAO_DE_PRECO,
     "dfd": GERACAO_DE_DOCUMENTO,
     "etp": GERACAO_DE_DOCUMENTO,
     "tr": GERACAO_DE_DOCUMENTO,
@@ -107,6 +118,8 @@ TIPO_DO_ROTULO: dict[str, str] = {
 }
 
 GRUPO_DO_TIPO: dict[str, str] = {
+    DECISAO_DE_PRECO: TYPED_DECISION,
+    GERACAO_DE_PRECO: HIGH_ACCURACY,
     GERACAO_DE_DOCUMENTO: PROCUREMENT_HIGH_ACCURACY,
     ANALISE_JURIDICA: HIGH_ACCURACY,
     PESQUISA_DE_PRECO: HIGH_ACCURACY,
@@ -119,7 +132,7 @@ GRUPO_DO_TIPO: dict[str, str] = {
 # geração FALHA — e falhar é a resposta certa: um edital gerado por
 # modelo não homologado é pior que um edital não gerado, porque o
 # primeiro é assinado.
-CRITICAS = (GERACAO_DE_DOCUMENTO, ANALISE_JURIDICA, PESQUISA_DE_PRECO)
+CRITICAS = (GERACAO_DE_DOCUMENTO, ANALISE_JURIDICA, PESQUISA_DE_PRECO, GERACAO_DE_PRECO)
 
 
 def tipo_da_tarefa(rotulo: str) -> str:
