@@ -101,7 +101,7 @@ Toda decisão do Jev permanece `status=manual_review` e `automatic_acceptance=Fa
 
 ## 11. Dataset de calibração
 
-`dataset_candidatos.json` possui cinco pares extraídos de `tests/fixtures/precos/compras_precos_praticados.json`. Ambos os lados apontam arquivo, SHA-256 do arquivo, índice e raw_hash canônico. Todos têm `human_label=null`. Os registros são alicates wattímetro do mesmo catálogo; não há cobertura rotulada de negativos, ambiguidades, embalagem/unidade, tamanho, potência ou escopo de serviço diferentes.
+`dataset_candidatos.json` possui cinco pares extraídos de `tests/fixtures/precos/compras_precos_praticados.json`. Ambos os lados apontam arquivo, SHA-256 do arquivo com quebras de linha normalizadas para LF, índice e raw_hash canônico. Todos têm `human_label=null`. Os registros são alicates wattímetro do mesmo catálogo; não há cobertura rotulada de negativos, ambiguidades, embalagem/unidade, tamanho, potência ou escopo de serviço diferentes.
 
 Logo, é um conjunto de candidatos com proveniência verificável, ainda não um dataset calibrado. `dataset.md` orienta revisão humana das fontes e proíbe interpretar null como negativo. É necessário ampliar o corpus com evidências reais e introduzir explicitamente a classe ambígua na política/runner se ela participar da homologação.
 
@@ -168,9 +168,11 @@ O tempo registrado originalmente por `pesquisar_item` cobre a etapa determiníst
 
 ## 20. Regressões e testes
 
-Inspeção estática: cálculos de preço, Decimal e adapters preservados; flag OFF não introduz o callback Jev; código não promove resultado do modelo à cesta. A checagem de sintaxe foi informada como concluída pela coordenação. Dependências runtime foram instaladas e a suíte completa estava em execução durante esta revisão; seu resultado final deve ser inserido abaixo antes de encerrar a entrega.
+Inspeção estática: cálculos de preço, Decimal e adapters preservados; flag OFF não introduz o callback Jev; código não promove resultado do modelo à cesta. A checagem de sintaxe foi concluída e as dependências runtime foram instaladas para executar a regressão.
 
 **Validação local em 01/10/2026:** 88 testes dirigidos aprovados em 4,14 s (adapter, decisões, gateway, benchmark e regressão de llm/roteamento). A primeira execução completa de `pytest -q tests` terminou com 2.456 aprovados, 329 pulados e 4 falhas em 315,96 s. As quatro falhas eram de ambiente: subprocessos sem Streamlit no caminho padrão e PyYAML ausente. Após criar ambiente virtual e instalar PyYAML, os 12 testes dos grupos afetados passaram em 4,74 s. Não se apresenta essa sequência como uma execução completa sem falhas.
+
+**Reexecução completa em 05/10/2026:** 2.468 aprovados, 329 pulados, zero falhas em 337,13 s. O primeiro CI teve 2.660 aprovados, 133 pulados e duas falhas de proveniência causadas por CRLF/LF. O hash da fixture foi normalizado para LF e foram acrescentadas provas para ambos os checkouts e para rejeição de conteúdo alterado. O resultado do CI no commit corrigido será registrado no PR.
 
 Ambiente: Python 3.12.14 no Windows; CI usa Python 3.11/Linux. Foram necessários UTF-8 e um ajuste exclusivamente no bootstrap local para diretórios temporários do Python herdarem as permissões do workspace, sem alterar código de produto para contornar o ambiente. Os skips incluem provas que exigem PostgreSQL/pgvector ou LibreOffice ausentes; não provam isolamento nem renderização institucional.
 
@@ -184,12 +186,12 @@ Os testes adicionados cobrem contrato Noul/Choice/Score, modelo/usage, resposta 
 - Reserva durável evita duplicidade e também impede reenvio automático após falha/crash com resultado desconhecido; operação de recuperação precisa ser documentada.
 - Retry em 429/5xx pode acarretar custo adicional não reportado; a telemetria não soma usage que o servidor não forneceu.
 - Orçamento/circuit breaker e limite global entre workers não estão comprovados pela integração atual.
-- Os achados de invalidação encontrados nesta revisão foram corrigidos no código: UI recompõe state/candidatos/modelo/schema/perguntas e a releitura pós-HTTP reaplica as barreiras. A execução dos testes dessa correção ainda precisa ser consolidada; leitura do código não equivale a uma bateria runtime aprovada.
+- Os achados de invalidação encontrados nesta revisão foram corrigidos no código: UI recompõe state/candidatos/modelo/schema/perguntas e a releitura pós-HTTP reaplica as barreiras. Os testes dirigidos dessas correções passaram; isso não substitui homologação com API e dados reais.
 - Persistência central best-effort não garante retention integral de custo/metadados em um banco sem as colunas existentes necessárias.
 
 ## 22. Pendências e decisão
 
-1. Concluir execução runtime/regressão e registrar resultados exatos, incluindo as correções dos achados de invalidação.
+1. Exigir CI verde no commit final antes de considerar qualquer merge; os resultados de regressão ficam na seção 20 e no PR.
 2. Rotular manualmente pares reais comparáveis/não comparáveis/ambíguos e ampliar cenários difíceis, sem inventar evidências.
 3. Executar bateria pequena real e gravar usage.cost, tokens, latência e modelo/snapshot retornados, sem expor a chave.
 4. Escolher thresholds com análise de falso positivo, separar calibração/validação e documentar política de confiança; manter aceitação automática desligada até essa evidência existir.
@@ -199,3 +201,7 @@ Os testes adicionados cobrem contrato Noul/Choice/Score, modelo/usage, resposta 
 8. Homologar seleção de catálogo a partir de candidatos reais, o funil dos casos duvidosos e a UI com estados stale e motivos contraditórios.
 
 **NÃO APTO PARA AUDITORIA.** O protótipo pode seguir em revisão e homologação com flag OFF; a ausência de calibração e benchmark real impede declarar cumprimento dos critérios finais ou ganhos econômicos. Nenhuma aprovação de merge, deploy, migration ou produção é inferida deste relatório.
+
+## Autorização de implantação — 05/10/2026
+
+O usuário autorizou merge e implantação em produção nesta data. A autorização substitui a restrição operacional anterior, mas não constitui calibração ou evidência de qualidade do modelo. A flag Jev permanece OFF até homologação real. Confirmada somente a presença da credencial OpenRouter no cadastro do ambiente de produção, sem ler seu valor. O VPS exige promoção explícita por tag; merge não comprova deploy.

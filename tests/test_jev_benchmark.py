@@ -64,3 +64,18 @@ def test_confusao_e_abstencao_ficam_explicitas():
     resumo = jev_benchmark.resumir(casos, respostas, respostas, 4)
     assert resumo["metrics_available"] is False
     assert resumo["jev"]["human_review"] == 1
+
+@pytest.mark.parametrize("eol", [b"\n", b"\r\n"])
+def test_proveniencia_independe_do_checkout_e_rejeita_conteudo_alterado(tmp_path, eol):
+    import hashlib
+    origem = ROOT / "tests/fixtures/precos/compras_precos_praticados.json"
+    normalizado = origem.read_bytes().replace(b"\r\n", b"\n")
+    fixture = tmp_path / "fonte.json"
+    fixture.write_bytes(normalizado.replace(b"\n", eol))
+    lado = dict(json.loads(DATASET.read_text(encoding="utf-8"))["candidates"][0]["item"])
+    lado["source_file"] = "fonte.json"
+    assert lado["source_sha256"] == hashlib.sha256(normalizado).hexdigest()
+    jev_benchmark._verificar_lado(tmp_path, lado)
+    fixture.write_bytes(fixture.read_bytes() + b" ")
+    with pytest.raises(jev_benchmark.ErroBenchmark, match="hash_da_fixture_diverge"):
+        jev_benchmark._verificar_lado(tmp_path, lado)

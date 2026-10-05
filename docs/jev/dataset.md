@@ -1,6 +1,6 @@
 # Dataset de calibração Jev
 
-`dataset_candidatos.json` contém cinco pares de candidatos extraídos da fixture oficial de preços praticados. Cada lado registra o arquivo de origem, seu SHA-256, o índice do registro e o `raw_hash` canônico. A leitura do dataset confere esses valores antes de qualquer benchmark.
+`dataset_candidatos.json` contém cinco pares de candidatos extraídos da fixture oficial de preços praticados. Cada lado registra o arquivo de origem, seu SHA-256 com quebras de linha normalizadas para LF, o índice do registro e o `raw_hash` canônico. A leitura do dataset confere esses valores antes de qualquer benchmark.
 
 Os cinco pares são candidatos, não exemplos rotulados: todos começam com `human_label: null`. Não há rótulos humanos nas fixtures existentes, portanto não é possível declarar positivos, negativos, casos difíceis, thresholds, precision ou recall.
 

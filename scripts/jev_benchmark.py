@@ -75,7 +75,7 @@ def _verificar_lado(base: Path, lado: Any) -> None:
         registro = registros[indice]
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
         raise ErroBenchmark("fixture_de_proveniencia_inacessivel") from exc
-    if hashlib.sha256(conteudo).hexdigest() != esperado:
+    if hashlib.sha256(conteudo.replace(b'\r\n', b'\n')).hexdigest() != esperado:
         raise ErroBenchmark("hash_da_fixture_diverge")
     if _hash_canonico(registro) != raw_hash:
         raise ErroBenchmark("raw_hash_do_registro_diverge")
