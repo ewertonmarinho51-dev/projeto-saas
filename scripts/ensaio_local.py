@@ -105,6 +105,27 @@ SEQUENCIA_EM_ENSAIO = (
     # declaração de ordem deste ensaio: migração que aparece só pelo
     # glob é migração cuja posição ninguém pensou.
     "0026_geracoes_roteamento.sql",
+    # A 0028 entra na sequência pelo motivo que este arquivo já previa
+    # por escrito ao falar da 0021: migração que PERDE o sufixo
+    # `.NAO_APLICAR` passa a casar com o glob numérico, e lá ela roda
+    # ANTES da 0020. As políticas da 0028 chamam `pode_ler_processo`,
+    # `tenant_do_jwt` e `e_admin` — no glob o ensaio quebrava com
+    # `function does not exist`, por um motivo que não tem nada a ver
+    # com o conteúdo dela. Foi exatamente o que aconteceu quando ela
+    # foi destravada, e a suíte pegou na primeira execução.
+    #
+    # Ela também depende da 0024, pela razão da 0025: é o `alter
+    # default privileges` estreitado lá que faz `cache_geracoes` NASCER
+    # sem TRUNCATE para `service_role` — conferido no catálogo de
+    # produção depois da aplicação.
+    #
+    # Fica ANTES da 0027 porque o que não é livre é a 0027 ser a
+    # última. A 0027 é indiferente a esta tabela: ela revoga DELETE de
+    # uma lista NOMEADA de treze tabelas da trilha, e `cache_geracoes`
+    # não está nela nem na lista de "usadas" que ela confere. E tem de
+    # continuar fora das duas: o `invalidar_processo` do cache APAGA, e
+    # o aplicativo fala como `service_role`.
+    "0028_controle_de_consumo_e_cache.sql",
     # A 0027 entra por ÚLTIMO e a posição é o conteúdo dela, como na
     # 0024: ela afirma algo sobre o estado FINAL dos privilégios. No
     # meio da sequência, a 0025 — que cria dez tabelas depois — poderia

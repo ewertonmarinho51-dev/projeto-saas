@@ -3,20 +3,25 @@ A 0028 aplicada de verdade, num PostgreSQL descartável.
 
 POR QUE ESTE ARQUIVO EXISTE
 
-A 0028 está com o sufixo `.NAO_APLICAR`, que é a trava contra aplicá-la
-em produção por engano. A trava impede o acidente e não responde à
-pergunta que importa: ela FUNCIONA?
+Ele nasceu quando a 0028 ainda tinha o sufixo `.NAO_APLICAR`, para
+responder a pergunta que a trava não responde: ela FUNCIONA? Aplicar num
+cluster local descartável era o único jeito de saber antes que alguém a
+aplicasse de verdade — o argumento que já governa as 0018/0019/0020
+neste repositório.
 
-Aplicar num cluster local descartável é o único jeito de saber antes
-que alguém a aplique de verdade — é o argumento que já governa as
-0018/0019/0020 neste repositório, e vale igual aqui.
+A 0028 foi aplicada em produção em 08/10/2026 e perdeu o sufixo, mas o
+arquivo continua valendo, e por duas razões:
 
-O que se mede: que o bloco de conferência da própria migração passa,
-que a tabela nasce com RLS, que nenhuma política é irrestrita, que o
-índice único existe (sem ele o upsert do cache não tem em que
-conflitar) e que as sete colunas novas de `geracoes` nascem NULLABLE —
-porque as 168 linhas anteriores correram sem esses dados, e inventar
-valor para elas seria afirmar o que ninguém mediu.
+  * ela entrou em `SEQUENCIA_EM_ENSAIO`, de modo que a fixture `banco`
+    já a aplica — e aplicá-la DE NOVO aqui é uma prova de
+    IDEMPOTÊNCIA de graça, que é o que separa uma migração reaplicável
+    de uma que trava o segundo passo de quem repetiu depois de uma
+    falha de rede;
+  * as asserções não são sobre o arquivo, são sobre o CATÁLOGO: RLS
+    ligada e forçada, nenhuma política irrestrita, `anon` sem grant,
+    índice único da chave, cascade do processo e as sete colunas
+    nuláveis. Elas continuam valendo a cada execução, contra qualquer
+    alteração futura que afrouxe alguma dessas garantias.
 """
 
 from __future__ import annotations
@@ -25,9 +30,28 @@ import pathlib
 
 import pytest
 
-MIGRACAO = (pathlib.Path(__file__).resolve().parent.parent
-            / "supabase" / "migrations"
-            / "0028_controle_de_consumo_e_cache.sql.NAO_APLICAR")
+_MIGRACOES = (pathlib.Path(__file__).resolve().parent.parent
+              / "supabase" / "migrations")
+
+
+def _arquivo_da_0028() -> pathlib.Path:
+    """
+    A 0028, pelo nome que ela tiver.
+
+    Os dois nomes são aceitos porque o sufixo `.NAO_APLICAR` sai no dia
+    da aplicação: amarrar a prova a um deles a quebraria exatamente no
+    commit que a destrava, por um motivo que não tem nada a ver com o
+    que ela mede.
+    """
+    for nome in ("0028_controle_de_consumo_e_cache.sql",
+                 "0028_controle_de_consumo_e_cache.sql.NAO_APLICAR"):
+        caminho = _MIGRACOES / nome
+        if caminho.exists():
+            return caminho
+    raise AssertionError("a 0028 sumiu do repositório")
+
+
+MIGRACAO = _arquivo_da_0028()
 
 COLUNAS_NOVAS = ("operacao", "secretaria_id", "usuario_id", "cache_hit",
                  "tokens_evitados_entrada", "tokens_evitados_saida", "custo")
@@ -36,11 +60,13 @@ COLUNAS_NOVAS = ("operacao", "secretaria_id", "usuario_id", "cache_hit",
 @pytest.fixture(scope="module")
 def banco_com_0028(banco):
     """
-    O schema real com a 0028 por cima.
+    O schema real com a 0028 aplicada.
 
-    Se a migração falhar, o erro sobe — o bloco `do $$` dela levanta
-    exceção quando não cumpre o que declara, e é exatamente isso que
-    esta prova quer ver acontecer (ou não acontecer).
+    A fixture `banco` já a aplica, porque ela está em
+    `SEQUENCIA_EM_ENSAIO`. Aplicá-la aqui de novo não é redundância: é
+    a prova de idempotência, e ela roda antes de todas as outras deste
+    arquivo. Se a migração não suportasse reaplicação, o erro subiria
+    aqui e nenhuma das asserções abaixo chegaria a correr.
     """
     with banco.cursor() as cursor:
         cursor.execute(MIGRACAO.read_text(encoding="utf-8"))
@@ -64,7 +90,15 @@ def test_e_idempotente(banco_com_0028):
     """
     Migração que só funciona uma vez trava qualquer reaplicação — e
     reaplicar é o que acontece quando alguém repete o passo depois de
-    uma falha de rede no meio.
+    uma falha no meio.
+
+    Isto não é hipótese: a aplicação em produção foi por partes, porque
+    o `apply_migration` do servidor deu timeout duas vezes sem aplicar
+    nada. Cada parte precisou ser reenviável.
+
+    A terceira aplicação. A fixture `banco` fez a primeira (a 0028 está
+    em `SEQUENCIA_EM_ENSAIO`), `banco_com_0028` fez a segunda, e esta é
+    a terceira — nenhuma delas pode levantar.
     """
     with banco_com_0028.cursor() as cursor:
         cursor.execute(MIGRACAO.read_text(encoding="utf-8"))
