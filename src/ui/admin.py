@@ -144,26 +144,57 @@ def _render_chaves() -> None:
         "As chaves ficam no banco e valem para todos os usuários. "
         "Campos vazios mantêm o valor atual; para remover, salve um espaço."
     )
+    _render_provedor_de_ia()
+
     motor = motor_ativo()
-    if motor:
-        st.success(f"Motor ativo: {'OpenAI (principal)' if motor == 'openai' else 'Gemini (fallback)'}")
+    escolhido = llm.provedor_declarado()
+    if motor and escolhido:
+        st.success(f"Geração em **{llm.ROTULOS_MOTOR[motor]}** — provedor "
+                   "único, sem queda para outro provedor.")
+    elif motor:
+        cadeia = " → ".join(llm.ROTULOS_MOTOR.get(m, m)
+                            for m, _ in llm.motores_disponiveis())
+        st.success(f"Geração em cascata: **{cadeia}**.")
+    elif escolhido:
+        st.error(llm._sem_motor())      # noqa: SLF001 — a mensagem exata
     else:
-        st.warning("Nenhuma chave configurada. A geração usará o Modo Demonstração.")
+        st.warning("Nenhuma chave configurada. A geração usará o Modo "
+                   "Demonstração.")
 
     # De onde vem cada chave ativa — o painel tem prioridade sobre o resto,
     # então uma chave antiga salva aqui sobrepõe a nova do secrets.toml.
-    origem_openai = llm.origem_chave("OPENAI_API_KEY", "openai_key_manual")
-    origem_gemini = llm.origem_chave("GOOGLE_API_KEY", "api_key_manual")
+    origens = {
+        "OpenAI": llm.origem_chave("OPENAI_API_KEY", "openai_key_manual"),
+        "Gemini": llm.origem_chave("GOOGLE_API_KEY", "api_key_manual"),
+        "OpenRouter": llm.origem_chave("OPENROUTER_API_KEY",
+                                       "openrouter_key_manual"),
+    }
     st.caption(
-        f"Chave OpenAI em uso: **{origem_openai or 'não configurada'}** · "
-        f"Chave Gemini em uso: **{origem_gemini or 'não configurada'}**. "
-        "Prioridade: painel do administrador > barra lateral > secrets.toml > "
-        "variável de ambiente."
+        " · ".join(f"{nome}: **{origem or 'não configurada'}**"
+                   for nome, origem in origens.items())
+        + ". Prioridade: painel do administrador > barra lateral > "
+          "secrets.toml > variável de ambiente."
     )
 
     with st.form("form_chaves"):
+        openrouter_key = st.text_input(
+            "OPENROUTER_API_KEY", type="password",
+            placeholder="definida (oculta)"
+            if db.obter_config("OPENROUTER_API_KEY") else "sk-or-...",
+            help="Uma conta e uma fatura para todos os modelos de TEXTO. "
+                 "Não serve ao índice vetorial — ver o campo de embeddings "
+                 "abaixo.",
+        )
+        openrouter_model = st.text_input(
+            "OPENROUTER_MODEL (opcional)",
+            value=db.obter_config("OPENROUTER_MODEL"),
+            placeholder=f"padrão: {llm.OPENROUTER_MODEL_PADRAO}",
+            help="Identificador completo, com fornecedor e sufixo. O "
+                 "sufixo `:free` é o endpoint gratuito; o MESMO "
+                 "identificador sem ele é o endpoint pago.",
+        )
         openai_key = st.text_input(
-            "OPENAI_API_KEY (motor principal)", type="password",
+            "OPENAI_API_KEY (opcional)", type="password",
             placeholder="sk-..." if not db.obter_config("OPENAI_API_KEY")
             else "definida (oculta)",
         )
@@ -172,7 +203,7 @@ def _render_chaves() -> None:
             placeholder="padrão: gpt-5-mini (cai p/ gpt-4o-mini se indisponível)",
         )
         gemini_key = st.text_input(
-            "GOOGLE_API_KEY (fallback, opcional)", type="password",
+            "GOOGLE_API_KEY (opcional)", type="password",
             placeholder="definida (oculta)" if db.obter_config("GOOGLE_API_KEY")
             else "",
         )
@@ -184,6 +215,8 @@ def _render_chaves() -> None:
                                  use_container_width=True):
             try:
                 for chave, valor in [
+                    ("OPENROUTER_API_KEY", openrouter_key),
+                    ("OPENROUTER_MODEL", openrouter_model),
                     ("OPENAI_API_KEY", openai_key),
                     ("OPENAI_MODEL", openai_model),
                     ("GOOGLE_API_KEY", gemini_key),
@@ -196,6 +229,8 @@ def _render_chaves() -> None:
             except db.ErroBanco as erro:
                 st.error(str(erro))
 
+    _render_chave_de_embeddings()
+
     st.divider()
     st.markdown("##### Testar conexão")
     st.caption(
@@ -203,15 +238,103 @@ def _render_chaves() -> None:
         "(chave, modelo ou cota). Se o modelo configurado não existir na sua "
         "conta, o sistema tenta modelos alternativos automaticamente."
     )
-    col_o, col_g = st.columns(2)
-    if col_o.button("Testar OpenAI", use_container_width=True):
-        with st.spinner("Chamando a OpenAI…"):
-            ok, msg = llm.testar_conexao("openai")
-        (st.success if ok else st.error)(msg)
-    if col_g.button("Testar Gemini", use_container_width=True):
-        with st.spinner("Chamando o Gemini…"):
-            ok, msg = llm.testar_conexao("gemini")
-        (st.success if ok else st.error)(msg)
+    colunas = st.columns(3)
+    for coluna, nome in zip(colunas, llm.PROVEDORES_DE_IA):
+        rotulo = llm.ROTULOS_MOTOR[nome]
+        if coluna.button(f"Testar {rotulo}", use_container_width=True,
+                         key=f"testar_{nome}"):
+            with st.spinner(f"Chamando o {rotulo}…"):
+                ok, msg = llm.testar_conexao(nome)
+            (st.success if ok else st.error)(msg)
+
+
+def _render_provedor_de_ia() -> None:
+    """
+    Quem gera o texto: um provedor escolhido, ou a cascata automática.
+
+    O seletor existe porque "quem está configurado" deixou de responder
+    "quem eu escolhi" no momento em que a chave da OpenAI passou a ser
+    necessária APENAS para o índice vetorial. Sem a escolha explícita,
+    manter aquela chave trazia a geração de volta para a OpenAI sem que
+    ninguém tivesse pedido.
+    """
+    rotulos = {"": "Cascata automática (OpenAI → Gemini → OpenRouter)"}
+    rotulos.update({nome: f"Só {llm.ROTULOS_MOTOR[nome]}"
+                    for nome in llm.PROVEDORES_DE_IA})
+    atual = llm.provedor_declarado()
+    opcoes = [""] + list(llm.PROVEDORES_DE_IA)
+    escolha = st.selectbox(
+        "Provedor de geração de texto", opcoes,
+        index=opcoes.index(atual) if atual in opcoes else 0,
+        format_func=lambda nome: rotulos[nome],
+        help="Provedor único: uma conta e uma fatura, e nenhuma queda "
+             "para outro provedor se ele ficar fora do ar — a resiliência "
+             "passa a ser a lista de modelos dele. Cascata: cai para o "
+             "provedor seguinte que tiver chave.",
+    )
+    if escolha != atual:
+        try:
+            db.salvar_config("IA_PROVEDOR", escolha)
+        except db.ErroBanco as erro:
+            st.error(str(erro))
+            return
+        st.rerun()
+
+
+def _render_chave_de_embeddings() -> None:
+    """
+    A chave do índice vetorial, separada da chave de geração.
+
+    Ela tem campo próprio porque responde a outra pergunta. A busca da
+    Base de Conhecimento compara vetores, e vetores de modelos
+    diferentes não são comparáveis: o índice está fixado em
+    `text-embedding-3-small` da OpenAI, e o OpenRouter não tem
+    substituto — ele não serve embedding nenhum.
+
+    Sem esta chave o sistema NÃO para: a busca cai para o modo textual.
+    Mas cai calada, e a precisão do lastro das citações cai com ela —
+    por isso o aviso é explícito aqui, e não só no log.
+    """
+    st.markdown("###### Índice vetorial da Base de Conhecimento")
+    st.caption(
+        "A busca por similaridade usa **text-embedding-3-small da "
+        "OpenAI** e não admite outro provedor: trocar o modelo de "
+        "embedding invalidaria todos os vetores já gravados e exigiria "
+        "reindexar a base inteira. O OpenRouter não serve embeddings. "
+        "Esta chave vale SÓ para a busca — ela não muda o provedor de "
+        "geração nem reativa a OpenAI para documentos."
+    )
+    atual = db.obter_config("OPENAI_EMBEDDINGS_KEY")
+    herdada = not atual and db.obter_config("OPENAI_API_KEY")
+    if herdada:
+        st.info(
+            "Em uso: a `OPENAI_API_KEY` configurada acima, por "
+            "compatibilidade. Para desligar a OpenAI da geração e "
+            "manter a busca funcionando, copie a chave para o campo "
+            "abaixo e depois limpe a `OPENAI_API_KEY`."
+        )
+    elif not atual:
+        st.warning(
+            "Não configurada: a busca está em modo TEXTUAL e novas "
+            "indexações ficam pendentes. Os documentos continuam sendo "
+            "gerados, com lastro de citação menos preciso."
+        )
+    nova = st.text_input(
+        "OPENAI_EMBEDDINGS_KEY", type="password",
+        placeholder="definida (oculta)" if atual else "sk-...",
+        key="config_embeddings",
+        help="Custo típico: as consultas de uma geração somam algumas "
+             "centenas de tokens de embedding. É a parte mais barata do "
+             "sistema, e a única que não pode ir para o OpenRouter.",
+    )
+    if nova.strip():
+        try:
+            db.salvar_config("OPENAI_EMBEDDINGS_KEY", nova)
+        except db.ErroBanco as erro:
+            st.error(str(erro))
+            return
+        st.success("Chave de embeddings salva.")
+        st.rerun()
 
 
 # ---------------------------------------------------------------------------

@@ -61,6 +61,33 @@ OPENROUTER_MODELOS_FALLBACK = [
     "google/gemma-4-26b-a4b-it:free",
 ]
 
+# ---------------------------------------------------------------------------
+# PROVEDOR ÚNICO DE GERAÇÃO (config_app: `IA_PROVEDOR`)
+#
+# Vazio — o padrão — mantém a cascata de sempre: OpenAI, Gemini,
+# OpenRouter, nessa ordem, filtrada por quem tem chave.
+#
+# Com um nome declarado, a geração usa SÓ aquele provedor, mesmo havendo
+# chave dos outros. A declaração existe porque a cascata responde "quem
+# está configurado?" e não responde "quem eu ESCOLHI?" — e as duas
+# perguntas deixam de ter a mesma resposta no instante em que uma chave
+# precisa continuar existindo para OUTRA finalidade.
+#
+# É exatamente o caso do índice vetorial. Ele exige a OpenAI (ver
+# `EMBEDDING_V2_PROVEDOR` abaixo) e não tem substituto no OpenRouter —
+# que não serve embedding algum: dos 467 modelos do catálogo em
+# 08/10/2026, nenhum produz vetor, e as modalidades de saída são apenas
+# texto, áudio e imagem. Sem esta declaração, manter a chave da OpenAI
+# para os embeddings traria a GERAÇÃO de volta para a OpenAI por efeito
+# colateral, e quem tivesse escolhido o OpenRouter não saberia.
+#
+# A contrapartida é explícita: provedor único NÃO tem queda para outro
+# provedor. A resiliência passa a ser a lista de modelos dele — a do
+# OpenRouter tem quatro — e um provedor inteiro fora do ar deixa de ter
+# plano B. Quem preferir o plano B deixa este campo vazio.
+# ---------------------------------------------------------------------------
+PROVEDORES_DE_IA = ("openai", "gemini", "openrouter")
+
 # Parâmetros de robustez das chamadas à API
 API_TIMEOUT_SEGUNDOS = 180  # documentos longos + planilhas grandes
 API_TENTATIVAS = 3          # nº de tentativas antes de desistir

@@ -1,15 +1,30 @@
 """
 Camada de integração com a IA.
 
-Motores, em ordem de prioridade:
-  1. OpenAI (PRINCIPAL) — chave em OPENAI_API_KEY (secrets/env/sidebar);
-  2. Google Gemini (fallback) — chave em GOOGLE_API_KEY;
-  3. Modo Demonstração — minutas-esqueleto offline, sem chave alguma.
+DOIS MODOS DE ESCOLHER O PROVEDOR
 
-Se o motor principal falhar após as retentativas e houver chave do
-Gemini, a geração cai automaticamente para o fallback (com aviso na
-interface). Todos os erros de API (timeout, chave inválida, cota,
-bloqueio de conteúdo) viram mensagens amigáveis.
+1. **Provedor único** (`IA_PROVEDOR` = openai | gemini | openrouter):
+   a geração usa SÓ aquele, mesmo havendo chave dos outros. É o modo de
+   quem quer uma fatura só. Não há queda para outro provedor: a
+   resiliência é a lista de modelos do provedor escolhido.
+
+2. **Cascata** (`IA_PROVEDOR` vazio — o padrão): OpenAI, depois Gemini,
+   depois OpenRouter, na ordem, filtrada por quem tem chave. O motor que
+   falha depois das retentativas cai para o seguinte, com aviso na tela.
+
+Sem chave alguma, a geração só acontece com o **Modo Demonstração**
+ligado explicitamente, e o que sai é minuta-esqueleto offline.
+
+O ÍNDICE VETORIAL NÃO SEGUE ESSA ESCOLHA
+
+Os embeddings exigem a OpenAI e não têm substituto (ver
+`obter_chave_de_embeddings` e `rag._gerar_embeddings`). A chave deles
+tem nome próprio — `OPENAI_EMBEDDINGS_KEY` — justamente para poder
+existir sem arrastar a GERAÇÃO de volta para a OpenAI.
+
+Todos os erros de API (timeout, chave inválida, cota, bloqueio de
+conteúdo) viram mensagens amigáveis, e a chave nunca aparece em
+nenhuma delas.
 """
 
 import logging
@@ -31,6 +46,7 @@ from .config import (
     OPENROUTER_BASE_URL,
     OPENROUTER_MODEL_PADRAO,
     OPENROUTER_MODELOS_FALLBACK,
+    PROVEDORES_DE_IA,
 )
 from . import ai_gateway, templates_gov
 from .prompts import dados_objetivos_do_formulario, montar_prompt
@@ -264,7 +280,7 @@ def obter_openai_key() -> str:
 
 
 def obter_api_key() -> str:
-    """Chave do fallback (Google Gemini) — também usada nos embeddings."""
+    """Chave do fallback (Google Gemini)."""
     return _ler_chave("GOOGLE_API_KEY", "api_key_manual")
 
 
@@ -273,28 +289,97 @@ def obter_openrouter_key() -> str:
     return _ler_chave("OPENROUTER_API_KEY", "openrouter_key_manual")
 
 
+def obter_chave_de_embeddings() -> str:
+    """
+    Chave do ÍNDICE VETORIAL, que é outra coisa que a chave de geração.
+
+    O índice exige a OpenAI: `EMBEDDING_V2_PROVEDOR` está fixado nela,
+    e trocar de provedor de embedding invalida todos os vetores já
+    gravados (reindexar a base inteira). O OpenRouter não é alternativa
+    — ele não serve embedding nenhum.
+
+    Por isso a chave do índice ganhou NOME PRÓPRIO. Enquanto ela se
+    chamava `OPENAI_API_KEY`, mantê-la para o índice colocava a OpenAI
+    de volta na cascata de GERAÇÃO sem que ninguém tivesse pedido: quem
+    escolhesse o OpenRouter como provedor continuaria gerando documento
+    na OpenAI por efeito colateral de uma chave que existia para a
+    busca.
+
+    `OPENAI_API_KEY` continua valendo como fonte, atrás da nova, para
+    que nenhuma instalação pare de indexar por causa desta mudança. A
+    compatibilidade passa por `obter_openai_key()` e não por uma
+    segunda leitura de `OPENAI_API_KEY`: duas leituras da mesma chave
+    divergiriam na primeira vez que alguém mexesse em uma só — e a
+    daquela função já cobre a barra lateral, que a outra esqueceria.
+    """
+    return _ler_chave("OPENAI_EMBEDDINGS_KEY", "") or obter_openai_key()
+
+
+def provedor_declarado() -> str:
+    """
+    O provedor ESCOLHIDO para a geração, ou '' para a cascata de sempre.
+
+    Nome fora de `PROVEDORES_DE_IA` é tratado como vazio: um erro de
+    digitação em `IA_PROVEDOR` não pode deixar o sistema sem provedor
+    nenhum e com a tela dizendo "nenhuma chave configurada".
+    """
+    nome = _ler_chave("IA_PROVEDOR", "").strip().lower()
+    return nome if nome in PROVEDORES_DE_IA else ""
+
+
 # Ordem de precedência dos motores. É a ÚNICA fonte da ordem: quem
 # adiciona motor mexe aqui, e `motor_ativo`, a geração de documento e a
 # revisão passam a enxergá-lo sem uma terceira cópia do mesmo try/except.
 def motores_disponiveis() -> list[tuple[str, str]]:
     """
-    [(motor, chave)] dos motores configurados, do principal ao último.
+    [(motor, chave)] dos motores a usar, do primeiro ao último.
 
-    OpenRouter vem por último de propósito — ver o comentário da escolha
-    em `config.py`. Motor sem chave não entra na lista.
+    Com `IA_PROVEDOR` declarado, a lista tem no máximo UM item: o
+    provedor escolhido. Sem ele, a cascata histórica — OpenAI, Gemini,
+    OpenRouter, nessa ordem, filtrada por quem tem chave. OpenRouter
+    vem por último na cascata de propósito: ver o comentário da escolha
+    em `config.py`.
     """
-    candidatos = (
-        ("openai", obter_openai_key()),
-        ("gemini", obter_api_key()),
-        ("openrouter", obter_openrouter_key()),
-    )
-    return [(motor, chave) for motor, chave in candidatos if chave]
+    chaves = {
+        "openai": obter_openai_key,
+        "gemini": obter_api_key,
+        "openrouter": obter_openrouter_key,
+    }
+    escolhido = provedor_declarado()
+    ordem = (escolhido,) if escolhido else PROVEDORES_DE_IA
+    return [(motor, chaves[motor]()) for motor in ordem if chaves[motor]()]
 
 
 def motor_ativo() -> str:
     """'openai' | 'gemini' | 'openrouter' | '' — motor da próxima geração."""
     disponiveis = motores_disponiveis()
     return disponiveis[0][0] if disponiveis else ""
+
+
+def _sem_motor() -> str:
+    """
+    A mensagem de "não há motor", que depende de POR QUE não há.
+
+    Declarar um provedor e esquecer a chave dele é um estado diferente
+    de não ter configurado nada, e mandar o servidor procurar a chave
+    errada é o que uma mensagem genérica faria.
+    """
+    escolhido = provedor_declarado()
+    if escolhido:
+        rotulo = ROTULOS_MOTOR.get(escolhido, escolhido)
+        return (
+            f"O provedor de IA escolhido é o {rotulo} (IA_PROVEDOR="
+            f"{escolhido}) e a chave dele não está configurada. Informe a "
+            f"chave do {rotulo} no painel do administrador, escolha outro "
+            "provedor, ou deixe IA_PROVEDOR vazio para voltar à cascata "
+            "automática entre os provedores configurados."
+        )
+    return (
+        "Nenhuma chave de API configurada. Informe a chave da OpenAI "
+        "(motor principal), do Google AI Studio ou do OpenRouter na "
+        "barra lateral / .streamlit/secrets.toml — ou ative o Modo "
+        "Demonstração."
+    )
 
 
 def _obter_modelo() -> str:
@@ -493,6 +578,41 @@ def vale_retentar(exc: Exception) -> bool:
     return classificar_erro(exc) in CLASSES_QUE_VALEM_RETENTATIVA
 
 
+# Modelos que PENSAM antes de escrever, por família.
+#
+# A lista é declarada porque a consequência de errar é assimétrica: um
+# modelo de raciocínio tratado como comum gasta o orçamento inteiro
+# pensando e devolve conteúdo VAZIO, e o documento não sai. O contrário
+# — um modelo comum receber `reasoning_effort` — é ignorado pelo
+# provedor.
+#
+# `nemotron-3` entrou quando o OpenRouter passou a ser provedor de
+# verdade e não terceiro na fila. Ela é modelo de raciocínio, aceita
+# `reasoning_effort` (conferido no catálogo do provedor em 08/10/2026,
+# campo `supported_parameters`), e sem o esforço baixo era a candidata
+# mais provável a devolver vazio num prompt de Termo de Referência.
+_FAMILIAS_DE_RACIOCINIO = ("gpt-5", "o1", "o3", "o4")
+_MARCAS_DE_RACIOCINIO = ("nemotron-3",)
+
+
+def e_modelo_de_raciocinio(modelo: str) -> bool:
+    """
+    Este modelo gasta orçamento de saída PENSANDO?
+
+    Casa por prefixo nas famílias da OpenAI e por marca no identificador
+    do OpenRouter, que vem com fornecedor na frente
+    (`nvidia/nemotron-3-ultra-550b-a55b:free`) e nunca casaria por
+    prefixo.
+
+    Fonte única: `politica_ia` lê daqui para calcular o teto de saída, e
+    `_params_modelo_openai` lê daqui para pedir esforço baixo. Duas
+    listas divergiriam, e a divergência apareceria como documento vazio.
+    """
+    ml = (modelo or "").lower()
+    return (ml.startswith(_FAMILIAS_DE_RACIOCINIO)
+            or any(marca in ml for marca in _MARCAS_DE_RACIOCINIO))
+
+
 def _params_modelo_openai(modelo: str) -> dict:
     """
     Parâmetros extras por família de modelo. Modelos de raciocínio consomem
@@ -500,11 +620,13 @@ def _params_modelo_openai(modelo: str) -> dict:
     o orçamento no raciocínio e devolver conteúdo VAZIO. Usamos esforço baixo
     (qualidade com orçamento p/ texto); se ainda vier vazio, a troca de
     modelo automática assume.
+
+    Vale para a OpenAI e para o OpenRouter, que documenta
+    `reasoning_effort` com a mesma semântica — é o que permite aos dois
+    motores reusarem `_openai_uma_chamada` sem um segundo conjunto de
+    parâmetros.
     """
-    ml = modelo.lower()
-    if ml.startswith("gpt-5"):
-        return {"reasoning_effort": "low"}
-    if ml.startswith(("o1", "o3", "o4")):
+    if e_modelo_de_raciocinio(modelo):
         return {"reasoning_effort": "low"}
     return {}
 
@@ -866,12 +988,7 @@ def gerar_documento(doc_key: str, dados: dict,
     # nenhuma, esse trabalho todo seria jogado fora, e a mensagem certa é
     # a desta tela — que menciona o Modo Demonstração como saída.
     if not motores_disponiveis():
-        raise ErroGeracaoIA(
-            "Nenhuma chave de API configurada. Informe a chave da OpenAI "
-            "(motor principal), do Google AI Studio ou do OpenRouter na "
-            "barra lateral / .streamlit/secrets.toml — ou ative o Modo "
-            "Demonstração."
-        )
+        raise ErroGeracaoIA(_sem_motor())
     system_prompt, user_prompt = montar_prompt(doc_key, dados, contexto_anterior)
 
     # RAG: anexa trechos relevantes da Base de Conhecimento (leis, acórdãos,
@@ -985,8 +1102,7 @@ def regenerar_clausulas(doc_key: str, dados: dict,
         raise regeneracao.RecorteRejeitado(
             "instrumento determinístico não tem regeneração parcial")
     if not motores_disponiveis():
-        raise ErroGeracaoIA(
-            "Nenhuma chave de API configurada para atualizar o documento.")
+        raise ErroGeracaoIA(_sem_motor())
 
     system_prompt, user_prompt = montar_prompt(doc_key, dados,
                                                contexto_anterior)
@@ -1082,9 +1198,7 @@ def _percorrer_motores(rotulo_registro: str, system_prompt: str,
     """
     disponiveis = motores_disponiveis()
     if not disponiveis:
-        raise ErroGeracaoIA(
-            "Nenhuma chave de API configurada. Informe a chave da OpenAI, "
-            "do Gemini ou do OpenRouter no painel do administrador.")
+        raise ErroGeracaoIA(_sem_motor())
 
     # A política de roteamento entra AQUI, e só aqui: este é o único
     # lugar do sistema onde a cascata de motores é decidida. Com

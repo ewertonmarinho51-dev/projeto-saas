@@ -162,13 +162,18 @@ def test_auditoria_e_correcao_sao_estruturadas():
         assert politica_ia.classe(tarefa) == politica_ia.ESTRUTURADA
 
 
+def _economicos(monkeypatch, **por_motor):
+    """Modelo econômico configurado por provedor, para esta prova."""
+    monkeypatch.setattr(politica_ia, "modelo_economico_configurado",
+                        lambda motor="openai": por_motor.get(motor, ""))
+
+
 def test_sem_modelo_economico_configurado_nada_troca(monkeypatch):
     """
     O padrão é inerte. Trocar o modelo de alguém sem que essa pessoa
     tenha escolhido o modelo novo seria decidir por ela.
     """
-    monkeypatch.setattr(politica_ia, "modelo_economico_configurado",
-                        lambda: "")
+    _economicos(monkeypatch)
     assert politica_ia.modelos_para(
         "auditor", ["gpt-5-mini", "gpt-4o-mini"], "openai") == \
         ["gpt-5-mini", "gpt-4o-mini"]
@@ -180,8 +185,7 @@ def test_o_modelo_economico_entra_na_frente_sem_remover_o_principal(monkeypatch)
     conta, a troca de modelo já existente cai de volta para ele — a
     tarefa não falha por causa de uma configuração errada.
     """
-    monkeypatch.setattr(politica_ia, "modelo_economico_configurado",
-                        lambda: "gpt-4o-mini")
+    _economicos(monkeypatch, openai="gpt-4o-mini")
     lista = politica_ia.modelos_para("auditor", ["gpt-5-mini", "gpt-4o"],
                                      "openai")
     assert lista[0] == "gpt-4o-mini"
@@ -189,18 +193,55 @@ def test_o_modelo_economico_entra_na_frente_sem_remover_o_principal(monkeypatch)
 
 
 def test_a_redacao_nunca_troca_de_modelo(monkeypatch):
-    monkeypatch.setattr(politica_ia, "modelo_economico_configurado",
-                        lambda: "gpt-4o-mini")
+    _economicos(monkeypatch, openai="gpt-4o-mini",
+                openrouter="google/gemma-4-26b-a4b-it:free")
     assert politica_ia.modelos_para("tr", ["gpt-5-mini"], "openai") == \
         ["gpt-5-mini"]
+    assert politica_ia.modelos_para(
+        "tr", ["nvidia/nemotron-3-ultra-550b-a55b:free"], "openrouter") == \
+        ["nvidia/nemotron-3-ultra-550b-a55b:free"]
 
 
-def test_o_modelo_economico_da_openai_nao_vaza_para_outro_motor(monkeypatch):
-    """`gpt-4o-mini` pedido ao Gemini é um modelo que não existe lá."""
-    monkeypatch.setattr(politica_ia, "modelo_economico_configurado",
-                        lambda: "gpt-4o-mini")
+def test_o_modelo_economico_de_um_provedor_nao_vaza_para_outro(monkeypatch):
+    """
+    `gpt-4o-mini` pedido ao Gemini é um modelo que não existe lá. Cada
+    provedor tem a sua configuração justamente por isso — e configurar
+    o econômico de um NÃO pode mexer na lista dos outros.
+    """
+    _economicos(monkeypatch, openai="gpt-4o-mini")
     assert politica_ia.modelos_para("auditor", ["gemini-2.5-flash"],
                                     "gemini") == ["gemini-2.5-flash"]
+    assert politica_ia.modelos_para(
+        "auditor", ["nvidia/nemotron-3-ultra-550b-a55b:free"],
+        "openrouter") == ["nvidia/nemotron-3-ultra-550b-a55b:free"]
+
+
+def test_a_politica_de_modelo_alcanca_o_openrouter(monkeypatch):
+    """
+    O defeito que esta prova fecha: `modelos_para` recusava tudo que não
+    fosse OpenAI. Era aceitável enquanto o OpenRouter era o terceiro da
+    fila e a redação corria na OpenAI; virou defeito silencioso no
+    instante em que ele passou a ser o provedor único — a política de
+    modelo simplesmente nunca se aplicava, e ninguém era avisado.
+    """
+    _economicos(monkeypatch, openrouter="google/gemma-4-26b-a4b-it:free")
+    lista = politica_ia.modelos_para(
+        "auditor", ["nvidia/nemotron-3-ultra-550b-a55b:free"], "openrouter")
+    assert lista[0] == "google/gemma-4-26b-a4b-it:free"
+    assert "nvidia/nemotron-3-ultra-550b-a55b:free" in lista
+
+
+def test_cada_provedor_tem_nome_de_configuracao_proprio():
+    """
+    Sem um nome por provedor, o identificador de um seria pedido ao
+    outro — e `gpt-4o-mini` no OpenRouter é um modelo inexistente.
+    """
+    from src.config import PROVEDORES_DE_IA
+
+    for motor in PROVEDORES_DE_IA:
+        assert motor in politica_ia.CONFIG_DO_MODELO_ECONOMICO
+    assert len(set(politica_ia.CONFIG_DO_MODELO_ECONOMICO.values())) == \
+        len(politica_ia.CONFIG_DO_MODELO_ECONOMICO)
 
 
 # ---------------------------------------------------------------------------

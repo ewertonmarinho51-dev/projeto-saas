@@ -103,7 +103,6 @@ TETO_PADRAO = 16384
 # O que a folga cobre é o processo mais difícil que o maior já medido,
 # não um orçamento de raciocínio que a medição tivesse deixado de fora.
 FOLGA_DE_RACIOCINIO = 1.5
-_PREFIXOS_DE_RACIOCINIO = ("gpt-5", "o1", "o3", "o4")
 
 
 def ativo() -> bool:
@@ -118,7 +117,19 @@ def classe(tarefa: str) -> str:
 
 
 def e_de_raciocinio(modelo: str) -> bool:
-    return (modelo or "").lower().startswith(_PREFIXOS_DE_RACIOCINIO)
+    """
+    Delega a `llm`, que é a fonte única.
+
+    Havia aqui uma segunda lista de prefixos, e ela já estava errada: os
+    identificadores do OpenRouter vêm com fornecedor na frente
+    (`nvidia/nemotron-3-ultra-550b-a55b:free`) e nunca casariam por
+    prefixo. O efeito seria silencioso e caro — a Nemotron é modelo de
+    raciocínio, receberia o teto sem folga, gastaria o orçamento
+    pensando e devolveria documento vazio.
+    """
+    from . import llm
+
+    return llm.e_modelo_de_raciocinio(modelo)
 
 
 def teto_de_saida(tarefa: str, modelo: str = "") -> int:
@@ -136,18 +147,32 @@ def teto_de_saida(tarefa: str, modelo: str = "") -> int:
     return min(teto, TETO_PADRAO)
 
 
-def modelo_economico_configurado() -> str:
-    """
-    Modelo da classe estruturada, do painel do administrador.
+# O modelo econômico é um identificador DO PROVEDOR: `gpt-4o-mini` não
+# existe no Gemini, e `google/gemma-4-31b-it:free` não existe na OpenAI.
+# Por isso há uma configuração por provedor, e não uma só — mandar o
+# identificador de um ao outro pediria um modelo inexistente.
+CONFIG_DO_MODELO_ECONOMICO = {
+    "openai": "OPENAI_MODEL_ECONOMICO",
+    "gemini": "GEMINI_MODEL_ECONOMICO",
+    "openrouter": "OPENROUTER_MODEL_ECONOMICO",
+}
 
-    Vazio = política de modelo inerte: a tarefa estruturada continua
-    correndo no modelo principal. É o padrão, e é deliberado — trocar o
-    modelo de alguém sem que essa pessoa tenha escolhido o modelo novo
-    seria decidir por ela.
+
+def modelo_economico_configurado(motor: str = "openai") -> str:
+    """
+    Modelo da classe estruturada NESTE provedor, do painel do admin.
+
+    Vazio = política de modelo inerte para ele: a tarefa estruturada
+    continua correndo no modelo principal. É o padrão, e é deliberado —
+    trocar o modelo de alguém sem que essa pessoa tenha escolhido o
+    modelo novo seria decidir por ela.
     """
     from . import llm
 
-    return llm._ler_chave("OPENAI_MODEL_ECONOMICO", "")  # noqa: SLF001
+    nome = CONFIG_DO_MODELO_ECONOMICO.get(motor)
+    if not nome:
+        return ""
+    return llm._ler_chave(nome, "")  # noqa: SLF001
 
 
 def modelos_para(tarefa: str, modelos_do_motor: list[str],
@@ -155,21 +180,25 @@ def modelos_para(tarefa: str, modelos_do_motor: list[str],
     """
     A lista de modelos a tentar, nesta ordem, para esta tarefa.
 
-    Só interfere quando TODAS estas condições valem, e nessa ordem:
+    Só interfere quando TODAS estas condições valem:
       1. a flag está ligada;
       2. a tarefa é da classe estruturada;
-      3. o motor é o da OpenAI (o modelo econômico é identificador
-         dela; mandá-lo ao Gemini pediria um modelo que não existe lá);
-      4. há um modelo econômico configurado.
+      3. há modelo econômico configurado PARA ESTE PROVEDOR.
+
+    A condição 3 substituiu um `motor != "openai"` que recusava tudo
+    fora da OpenAI. Era aceitável enquanto o OpenRouter era o terceiro
+    da fila e a redação corria na OpenAI; virou defeito no instante em
+    que ele passou a ser o provedor único, porque a política de modelo
+    simplesmente nunca se aplicava e ninguém era avisado.
 
     Fora disso devolve a lista intacta. O modelo principal permanece na
     lista, atrás do econômico: se o econômico não existir na conta, o
     `_RespostaVazia`/`_e_erro_de_modelo` já existente cai para ele
     sozinho, e a tarefa não falha por causa de uma configuração errada.
     """
-    if not ativo() or classe(tarefa) != ESTRUTURADA or motor != "openai":
+    if not ativo() or classe(tarefa) != ESTRUTURADA:
         return modelos_do_motor
-    economico = modelo_economico_configurado()
+    economico = modelo_economico_configurado(motor)
     if not economico:
         return modelos_do_motor
     return [economico] + [m for m in modelos_do_motor if m != economico]

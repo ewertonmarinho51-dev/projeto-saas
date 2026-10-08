@@ -348,21 +348,33 @@ def _gerar_embeddings(textos: list[str], para_consulta: bool) -> list[list[float
     """
     from .config import (EMBEDDING_V2_DIMENSOES, EMBEDDING_V2_MODELO,
                          EMBEDDING_V2_PROVEDOR)
-    from .llm import obter_openai_key
+    from .llm import obter_chave_de_embeddings
 
     if EMBEDDING_V2_PROVEDOR != "openai":  # pragma: no cover - guarda
         raise ErroRAG(
             f"Provedor de embedding não suportado: {EMBEDDING_V2_PROVEDOR!r}. "
             "Trocar de provedor exige reindexar toda a base.")
 
-    chave = obter_openai_key()
+    chave = obter_chave_de_embeddings()
     if not chave:
-        # Sem a chave do provedor do índice não se improvisa outro motor:
-        # o Gemini continua servindo à GERAÇÃO DE TEXTO, jamais ao índice.
+        # Sem a chave do provedor do índice não se improvisa outro
+        # motor. Vale para o Gemini, que serve à GERAÇÃO DE TEXTO e
+        # jamais ao índice, e vale igualmente para o OpenRouter — que
+        # não serve embedding nenhum: dos 467 modelos do catálogo em
+        # 08/10/2026, nenhum devolve vetor.
+        #
+        # A mensagem nomeia a chave DEDICADA porque é ela que resolve o
+        # caso de quem migrou a geração para outro provedor: a chave da
+        # OpenAI precisa continuar existindo para a busca, e dizer
+        # "configure OPENAI_API_KEY" mandaria o servidor reabrir
+        # exatamente a porta que ele acabou de fechar.
         st.warning(
-            "Chave da OpenAI ausente: o índice vetorial usa "
-            f"{EMBEDDING_V2_MODELO} e NÃO admite outro provedor. A busca "
-            "segue em modo textual e novas indexações ficam pendentes.")
+            "Chave de embeddings ausente: o índice vetorial usa "
+            f"{EMBEDDING_V2_MODELO} da OpenAI e NÃO admite outro "
+            "provedor. Informe OPENAI_EMBEDDINGS_KEY no painel do "
+            "administrador — ela serve SÓ à busca e não muda o provedor "
+            "de geração. Sem ela a busca segue em modo textual (menos "
+            "preciso) e novas indexações ficam pendentes.")
         return None
     try:
         from openai import OpenAI
