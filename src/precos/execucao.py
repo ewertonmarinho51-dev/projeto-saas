@@ -242,7 +242,7 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
                    perfil: PerfilNormativo = PADRAO,
                    filtros: dict | None = None,
                    piso: Decimal | None = None,
-                   motor_semantico=None) -> ResultadoItem:
+                   motor_semantico=None, termos_locais: bool = False) -> ResultadoItem:
     """
     O pipeline de um item, do zero à estimativa.
 
@@ -276,8 +276,12 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
     # Sem motor a lista sai vazia e o pipeline segue idêntico: a camada é
     # opcional de verdade, não um caminho feliz com fallback improvisado.
     from . import semantica
-    termos = tuple(semantica.sugerir_termos(motor_semantico, item))
-    if termos:
+    if termos_locais:
+        from .decisoes import termos_deterministicos
+        termos = termos_deterministicos(item)
+    else:
+        termos = tuple(semantica.sugerir_termos(motor_semantico, item))
+    if termos and not termos_locais:
         resultado.termos_semanticos = list(termos)
         resultado.ocorrencias.append(
             "busca ampliada com termos equivalentes sugeridos pela camada "
@@ -386,7 +390,7 @@ def executar_lote(pesquisa: dict, itens: list[dict],
                   fontes: list[FontePesquisaPreco], repositorio, *,
                   perfil: PerfilNormativo = PADRAO,
                   tamanho: int = LOTE_PADRAO,
-                  motor_semantico=None) -> tuple[Progresso, list[str]]:
+                  motor_semantico=None, triagem=None) -> tuple[Progresso, list[str]]:
     """
     Processa um lote e PERSISTE. Devolve (progresso, linhas do relato).
 
@@ -419,7 +423,8 @@ def executar_lote(pesquisa: dict, itens: list[dict],
 
             resultado = pesquisar_item(item, fontes, perfil=perfil,
                                        filtros=filtros,
-                                       motor_semantico=motor_semantico)
+                                       motor_semantico=motor_semantico,
+                                       termos_locais=triagem is not None)
 
             if resultado.falhou:
                 # `desfechos` e `erro` são gravados junto do estado: sem
@@ -437,8 +442,16 @@ def executar_lote(pesquisa: dict, itens: list[dict],
                 continue
 
             if resultado.referencias:
-                repositorio.registrar_referencias(item_id,
-                                                  resultado.referencias)
+                registradas = repositorio.registrar_referencias(
+                    item_id, resultado.referencias)
+                if triagem is not None:
+                    try:
+                        triagem(pesquisa, item, registradas, repositorio)
+                        resultado.ocorrencias.append(
+                            "confira a análise complementar e revise as fontes")
+                    except Exception:
+                        resultado.ocorrencias.append(
+                            "análise complementar indisponível; revise as referências")
 
             repositorio.mover_item(item_id, EstadoItem.CLASSIFICANDO,
                                    EstadoItem.BUSCANDO)

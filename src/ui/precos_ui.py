@@ -813,7 +813,7 @@ def _render_execucao() -> None:
         _, relato = execucao.executar_lote(
             pesquisa, itens, _fontes(), repo,
             perfil=perfil.obter(pesquisa.get("perfil_normativo")),
-            motor_semantico=_motor_semantico())
+            motor_semantico=_motor_semantico(), **_opcoes_triagem())
 
     acumulado = list(st.session_state.get(RELATO) or [])
     st.session_state[RELATO] = (acumulado + relato)[-40:]
@@ -828,7 +828,16 @@ def _motor_semantico():
     credencial devolve `None`, e o pipeline roda determinístico: a tela
     diz isso em vez de fingir que a IA participou.
     """
+    if _opcoes_triagem():
+        return None
     return precos_semantica.motor_do_projeto()
+
+
+def _opcoes_triagem():
+    from .. import db, governanca
+    from ..precos import decisoes
+    return ({"triagem": decisoes.revisar_item}
+            if db.flag_ativa(governanca.FLAG_JEV_PRECOS) else {})
 
 
 def _fontes():
@@ -951,6 +960,31 @@ def _render_explicacao(item: dict, referencias: list[dict]) -> None:
     """
     §21 — a explicação acima da lista, e os descartados NUNCA escondidos.
     """
+    if _opcoes_triagem():
+        st.info("A análise complementar está em calibração. Confirme a comparabilidade "
+                "nas fontes antes de concluir o item. Ela não aprova referências automaticamente.")
+        try:
+            from ..precos.decisoes import analise_atual
+            from ..ai_gateway import configuracao_decisao
+            modelo = configuracao_decisao()["model"]
+            analises = repo.analises_do_item(str(item["id"]))
+            atuais = {str(r["id"]): r for r in referencias}
+            vistos = set()
+            with st.expander("Análise de comparabilidade"):
+                for analise in analises:
+                    rid = str(analise.get("referencia_id"))
+                    ref = atuais.get(rid)
+                    identidade = (rid, tuple(analise.get("finalidades") or []))
+                    if (not ref or identidade in vistos
+                            or not analise_atual(analise, item, ref, referencias, modelo)):
+                        continue
+                    vistos.add(identidade)
+                    st.text(str(ref.get("descricao_original") or "Referência"))
+                    st.write(analise.get("explicacao", "Requer revisão humana."))
+                if not vistos:
+                    st.caption("Sem análise complementar válida registrada. Revise as fontes.")
+        except Exception:
+            st.warning("Não foi possível consultar a análise complementar. Revise as fontes.")
     contagem = filtros_mod.contar_por_status(referencias)
     na_cesta = contagem.get("selected", 0)
     st.markdown(

@@ -115,7 +115,7 @@ def _operacao_da_tarefa(tarefa: str) -> str:
     return OPERACOES_DE_APOIO.get(tarefa, "documento")
 
 
-def _custo_do_registro(cache_hit: bool) -> float | None:
+def _custo_do_registro(uso: dict, cache_hit: bool) -> float | None:
     """
     Custo em reais desta chamada, ou None quando o preço do modelo não
     foi configurado. Acerto de cache custa zero, e zero é medida.
@@ -126,9 +126,9 @@ def _custo_do_registro(cache_hit: bool) -> float | None:
         from . import politica_ia
 
         return politica_ia.custo_estimado(
-            _ultimo_uso.get("modelo", ""),
-            _ultimo_uso.get("tokens_entrada"),
-            _ultimo_uso.get("tokens_saida"))
+            uso.get("modelo", ""),
+            uso.get("tokens_entrada"),
+            uso.get("tokens_saida"))
     except Exception:  # noqa: BLE001 — auditoria não derruba geração
         return None
 
@@ -161,6 +161,8 @@ def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
                       erro: str = "", fallback: bool = False,
                       processo_id: str | None = None,
                       rag_trace: dict | None = None,
+                      uso: dict | None = None,
+                      decisao: dict | None = None,
                       cache_hit: bool = False,
                       tokens_evitados_entrada: int | None = None,
                       tokens_evitados_saida: int | None = None) -> dict:
@@ -175,16 +177,17 @@ def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
     `roteamento` responde a outra pergunta, que até aqui não tinha
     resposta: SOB QUAL POLÍTICA este documento foi gerado.
     """
+    uso = _ultimo_uso if uso is None else uso
     registro = {
         "quando": datetime.now().isoformat(timespec="seconds"),
         "processo": processo_id or st.session_state.get("processo_id") or "(novo)",
         "documento": doc_key,
         "motor": motor,
-        "modelo": _ultimo_uso.get("modelo", ""),
+        "modelo": uso.get("modelo", ""),
         "duracao_s": round(time.time() - inicio, 1),
-        "tokens_entrada": _ultimo_uso.get("tokens_entrada"),
-        "tokens_saida": _ultimo_uso.get("tokens_saida"),
-        "request_id": _ultimo_uso.get("request_id", ""),
+        "tokens_entrada": uso.get("tokens_entrada"),
+        "tokens_saida": uso.get("tokens_saida"),
+        "request_id": uso.get("request_id", ""),
         "status": status,                      # "ok" | "falha"
         "erro": (erro or "")[:300],            # sanitizado (sem chave/conteúdo)
         "fallback": fallback,
@@ -213,8 +216,15 @@ def registrar_geracao(doc_key: str, motor: str, inicio: float, status: str,
         "cache_hit": bool(cache_hit),
         "tokens_evitados_entrada": tokens_evitados_entrada,
         "tokens_evitados_saida": tokens_evitados_saida,
-        "custo": _custo_do_registro(cache_hit),
+        # O custo sai do MESMO `uso` que os tokens acima, e não da
+        # global. Lê-lo da global faria o custo de uma chamada injetada
+        # (é o que o parâmetro `uso` existe para permitir) ser calculado
+        # sobre os tokens de outra.
+        "custo": _custo_do_registro(uso, cache_hit),
     }
+    if decisao is not None:
+        # Metadados técnicos já minimizados pelo gateway, sem state/descrições.
+        registro["roteamento"].update(decisao)
     _log.info("geracao %s", registro)
     historico = st.session_state.setdefault("registro_geracoes", [])
     historico.append(registro)
