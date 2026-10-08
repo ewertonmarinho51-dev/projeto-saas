@@ -264,6 +264,19 @@ Nenhuma migração de banco, nenhuma reindexação, nenhuma perda.
 | `tests/test_provedor_unico.py` (nova, 23 provas) | escolha respeitada e exclusiva; nome inválido cai na cascata; mensagem nomeia o provedor sem chave; chave de embeddings separada, com precedência e compatibilidade; índice lê a chave certa; degradação textual avisa; Nemotron reconhecida como raciocínio; detecção com fonte única; painel cobre os três provedores |
 | `tests/test_llm.py` + `test_custo_de_geracao.py` | passam sem alteração de comportamento no padrão |
 
+### O scanner de segredos barrou a primeira entrega
+
+`docs/custo/producao.json` nomeava o projeto de produção ao explicar de
+onde a telemetria vinha. A referência identifica a instância real e está
+na lista de padrões que bloqueiam publicação — regra escrita na
+auditoria anterior, aplicada agora contra o meu próprio texto.
+
+Deixei passar porque não conferi o CI nos pushes anteriores da branch.
+A procedência do dado não se perdeu: a frase continua dizendo que a
+telemetria vem da tabela `public.geracoes` do projeto de produção, com
+a data da colheita e a janela dos registros. O que saiu foi só o
+identificador.
+
 ### Um defeito que a suíte pegou durante a implementação
 
 Três provas de segurança — as que impedem a chave de aparecer na tela
