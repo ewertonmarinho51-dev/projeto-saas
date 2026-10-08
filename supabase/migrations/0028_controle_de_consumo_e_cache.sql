@@ -1,13 +1,7 @@
 -- ############################################################
 -- ##  0028 — Controle de consumo de IA e cache de geração
 -- ##
--- ##  ESTADO: NÃO APLICADA. O sufixo `.NAO_APLICAR` é a trava, e é
--- ##  o mesmo mecanismo das 0018/0019/0020: enquanto ele estiver
--- ##  aí, nenhuma ferramenta do repositório aplica este arquivo e
--- ##  `cache_geracoes` fica fora do inventário de tabelas EM
--- ##  PRODUÇÃO — que é a verdade. Aplicar = renomear para `.sql`,
--- ##  rodar, conferir, e então atualizar `TABELAS_EM_PRODUCAO` em
--- ##  `tests/test_seguranca_contencao.py`.
+-- ##  ESTADO: APLICADA EM PRODUÇÃO em 08/10/2026.
 -- ##
 -- ##  O que faz: acrescenta SETE colunas NULLABLE a `geracoes` e
 -- ##  cria UMA tabela nova (`cache_geracoes`) com RLS. Não altera
@@ -15,8 +9,35 @@
 -- ##  tabela alguma que já exista, não mexe em grant de tabela
 -- ##  que já exista.
 -- ##
--- ##  Conferida contra um PostgreSQL local com o mesmo esquema.
--- ##  A aplicação em produção é decisão do operador.
+-- ##  MEDIÇÃO DEPOIS DA APLICAÇÃO — consulta ao catálogo logo após
+-- ##  rodar, não promessa escrita antes:
+-- ##
+-- ##    7 colunas novas, todas NULLABLE e sem default
+-- ##    168 linhas em `geracoes` preservadas; 0 alteradas
+-- ##    `cache_geracoes` com RLS LIGADA e FORÇADA
+-- ##    3 políticas nominais, 0 irrestritas
+-- ##    `authenticated`: SELECT, INSERT, DELETE · `anon`: nada
+-- ##    FK para `processos` com ON DELETE CASCADE
+-- ##    3 índices no cache, 2 índices novos em `geracoes`
+-- ##
+-- ##  COMO FOI APLICADA, e por que isso fica registrado: o
+-- ##  `apply_migration` do servidor deu timeout de 60s DUAS vezes,
+-- ##  com cargas de tamanhos diferentes, sem aplicar nada — medido
+-- ##  depois de cada tentativa, e por isso nenhuma retentativa foi
+-- ##  cega. A aplicação saiu por comandos menores, cada um
+-- ##  conferido antes do seguinte, e este bloco de conferência
+-- ##  rodou por último sem levantar exceção.
+-- ##
+-- ##  O preço disso é que a aplicação NÃO foi uma transação só.
+-- ##  Cada parte é idempotente e aditiva, e a ORDEM foi escolhida
+-- ##  para que a falha no meio deixasse a tabela FECHADA, não
+-- ##  aberta: RLS ligada e forçada ANTES de qualquer grant. Foi
+-- ##  exatamente o que aconteceu quando o bloco das políticas deu
+-- ##  timeout — a tabela ficou sem política e sem grant,
+-- ##  inalcançável, e não o contrário.
+-- ##
+-- ##  Antes de produção, aplicada e conferida contra um PostgreSQL
+-- ##  local descartável: `tests/test_migracao_0028.py`.
 -- ############################################################
 
 -- ===============================================================

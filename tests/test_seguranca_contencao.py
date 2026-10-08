@@ -1524,13 +1524,14 @@ requer_ensaio = pytest.mark.skipif(
 TABELAS_PRIVADAS = tabelas_do_inventario()
 
 # Confirmado por leitura do catálogo de produção em 15/08/2026, de novo
-# em 06/09/2026 e de novo em 18/09/2026 (somente SELECT em pg_tables;
-# nenhuma linha de dado foi lida). Os 28 do primeiro censo, mais as
-# quatro da 0021 (aplicada em 06/09/2026), mais as dez da 0025 (aplicada
-# em 18/09/2026) — a separação entre "está em produção" e "o repositório
-# descreve" deixou de existir para as catorze, e mantê-la faria o
-# inventário afirmar o contrário do que o catálogo mostra.
-TABELAS_EM_PRODUCAO = 42
+# em 06/09/2026, de novo em 18/09/2026 e de novo em 08/10/2026 (somente
+# SELECT em pg_tables e pg_policies; nenhuma linha de dado foi lida). Os
+# 28 do primeiro censo, mais as quatro da 0021 (aplicada em 06/09/2026),
+# mais as dez da 0025 (aplicada em 18/09/2026), mais `cache_geracoes` da
+# 0028 (aplicada em 08/10/2026) — a separação entre "está em produção" e
+# "o repositório descreve" deixou de existir para as quinze, e mantê-la
+# faria o inventário afirmar o contrário do que o catálogo mostra.
+TABELAS_EM_PRODUCAO = 43
 
 # As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
 # inclui, mas porque são as únicas cuja implantação esta suíte
@@ -1559,6 +1560,12 @@ TABELAS_DA_MULTI_PREFEITURA = frozenset({
     "portarias", "portaria_membros",
     "documento_identidades", "documento_signatarios",
 })
+
+# A única da 0028. Nomeada pela mesma razão das anteriores: a matriz de
+# RLS dela está no arquivo da 0028, não no da 0020, e exigir que ela
+# aparecesse na 0020 obrigaria a reescrever uma migração já auditada —
+# que é como uma matriz de segurança começa a divergir do banco.
+TABELAS_DO_CACHE_DE_GERACAO = frozenset({"cache_geracoes"})
 
 
 def test_o_inventario_cobre_todas_as_tabelas():
@@ -1878,10 +1885,11 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     faltando = [t for t in TABELAS_PRIVADAS if t not in coberto]
     assert not faltando, f"sem matriz de RLS escrita: {faltando}"
 
-    # E cada uma no seu lugar: nem a 0021 nem a 0025 podem ter
-    # silenciosamente assumido tabela que era da 0020.
+    # E cada uma no seu lugar: nem a 0021, nem a 0025, nem a 0028 podem
+    # ter silenciosamente assumido tabela que era da 0020.
     sql_0020 = _sql_da_0020()
-    proprias = TABELAS_DA_PESQUISA_DE_PRECOS | TABELAS_DA_MULTI_PREFEITURA
+    proprias = (TABELAS_DA_PESQUISA_DE_PRECOS | TABELAS_DA_MULTI_PREFEITURA
+                | TABELAS_DO_CACHE_DE_GERACAO)
     for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 
