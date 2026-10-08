@@ -234,12 +234,18 @@ busca está em modo textual — esta é a única parte da migração que
 **2. Escolher o modelo do OpenRouter.** `OPENROUTER_MODEL` =
 `openai/gpt-5-mini`, pela razão da seção 4.
 
-**3. Declarar o provedor.** Seletor "Provedor de geração de texto" →
-**Só OpenRouter**. É este passo que tira o Gemini da frente.
+**3. Testar o provedor ANTES de declará-lo.** Botão "Testar OpenRouter".
+Ele faz uma chamada mínima e mostra o erro técnico exato — chave, modelo
+ou cota — e funciona independentemente de qual provedor está declarado.
 
-**4. Testar antes de gerar documento.** Botão "Testar OpenRouter". Ele
-faz uma chamada mínima e mostra o erro técnico exato — chave, modelo ou
-cota.
+A ordem é esta de propósito, e a primeira versão deste documento a tinha
+ao contrário. Declarar o provedor antes de testá-lo faz o PRÓPRIO DEPLOY
+trocar o motor de geração sem que ninguém tenha confirmado que o novo
+responde. Testar primeiro custa um clique; errar a ordem custa descobrir
+pela tela de um servidor tentando gerar um DFD.
+
+**4. Declarar o provedor.** Seletor "Provedor de geração de texto" →
+**Só OpenRouter**. É este passo que tira o Gemini da frente.
 
 **5. Gerar UM processo e conferir o registro.** A tabela `geracoes`
 passa a dizer motor, modelo, tokens, custo e operação. Conferir que
