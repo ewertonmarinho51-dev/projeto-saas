@@ -1,0 +1,50 @@
+{
+  "_o_que_e": "Telemetria REAL de produção (tabela public.geracoes do projeto de produção), colhida por consulta agregada em 30/09/2026. Nenhum conteúdo de documento, prompt ou chave: só contagens. São gerações que realmente aconteceram, com modelo real respondendo — é a única fonte de TOKENS DE SAÍDA reais que este trabalho tem.",
+  "_janela": "13/07/2026 a 18/09/2026 — 168 registros, 4 processos",
+  "_advertencia": "As linhas de `edital` são anteriores à montagem determinística: hoje o edital e a ARP não passam por modelo nenhum. Ficam aqui porque são medida do que aconteceu, e apagá-las reescreveria o passado.",
+
+  "por_documento_sucesso": {
+    "dfd": {"n": 5, "modelo": "gpt-5-mini", "tokens_entrada_media": 6337, "tokens_entrada_min": 4995, "tokens_entrada_max": 8199, "tokens_saida_media": 3453, "tokens_saida_min": 2981, "tokens_saida_max": 4152, "duracao_s_media": 39.0},
+    "etp": {"n": 7, "modelo": "gpt-5-mini", "tokens_entrada_media": 36803, "tokens_entrada_min": 15965, "tokens_entrada_max": 75944, "tokens_saida_media": 7586, "tokens_saida_min": 7044, "tokens_saida_max": 8421, "duracao_s_media": 98.7},
+    "tr": {"n": 6, "modelo": "gpt-5-mini", "tokens_entrada_media": 26690, "tokens_entrada_min": 18986, "tokens_entrada_max": 35653, "tokens_saida_media": 9495, "tokens_saida_min": 9004, "tokens_saida_max": 10101, "duracao_s_media": 121.1},
+    "edital_historico": {"n": 7, "modelo": "gpt-5-mini", "tokens_entrada_media": 27371, "tokens_saida_media": 5381, "duracao_s_media": 69.8, "obs": "hoje é determinístico — zero chamadas"},
+    "mapa_riscos": {"n": 0, "obs": "nenhuma geração em produção: era o P0 corrigido na auditoria pré-operacional"}
+  },
+
+  "ciclo_de_revisao": {
+    "auditor": {"n_ok": 18, "modelo": "gpt-5-mini", "tokens_entrada_media": 23728, "tokens_saida_media": 2346, "duracao_s_media": 31.7},
+    "corretor": {"n_ok": 47, "modelo": "gpt-5-mini", "tokens_entrada_media": 23571, "tokens_entrada_max": 71865, "tokens_saida_media": 4755, "tokens_saida_max": 14905, "duracao_s_media": 61.3},
+    "corretor_gemini_fallback": {"n_ok": 7, "tokens_entrada_media": 39715, "tokens_saida_media": 6011}
+  },
+
+  "por_processo": [
+    {"processo": "46610544", "chamadas": 70, "ok": 53, "falhas": 17, "tokens_entrada": 1952533, "tokens_saida": 251573, "segundos": 4507, "documentos": "auditor,corretor,dfd,edital,etp,tr"},
+    {"processo": "00e646e6", "chamadas": 47, "ok": 37, "falhas": 10, "tokens_entrada": 612588, "tokens_saida": 211727, "segundos": 2046, "documentos": "auditor,corretor,dfd,edital,etp,tr"},
+    {"processo": "31f24595", "chamadas": 10, "ok": 9, "falhas": 1, "tokens_entrada": 177867, "tokens_saida": 57529, "segundos": 877, "documentos": "auditor,dfd,edital,etp,tr"},
+    {"processo": "3738aecd", "chamadas": 1, "ok": 0, "falhas": 1, "tokens_entrada": null, "tokens_saida": null, "segundos": 0, "documentos": "auditor"}
+  ],
+
+  "rag_enviado": {
+    "_medida": "jsonb_array_length(rag_trace->'referencias') das gerações com status ok",
+    "dfd": {"referencias_media": 4.00, "referencias_max": 10, "consultas_media": 1.60},
+    "etp": {"referencias_media": 2.86, "referencias_max": 10, "consultas_media": 2.29},
+    "tr": {"referencias_media": 3.33, "referencias_max": 10, "consultas_media": 2.67},
+    "edital": {"referencias_media": 2.86, "referencias_max": 10, "consultas_media": 2.29}
+  },
+
+  "base_de_conhecimento": {
+    "chunks": 5595,
+    "caracteres_medio": 1328,
+    "caracteres_mediana": 1394,
+    "caracteres_p90": 1499,
+    "caracteres_max": 1500
+  },
+
+  "tamanho_dos_documentos_guardados": {
+    "_medida": "length() sobre public.processos.documentos; `prosa` exclui as linhas de tabela",
+    "dfd": {"total_medio": 43934, "prosa_media": 10862, "prosa_min": 5280, "prosa_max": 15852},
+    "etp": {"total_medio": 59825, "prosa_media": 25096, "prosa_min": 15936, "prosa_max": 27673},
+    "tr": {"total_medio": 57549, "prosa_media": 34677, "prosa_min": 20804, "prosa_max": 40309},
+    "edital": {"total_medio": 39624, "prosa_media": 20133, "prosa_min": 19122, "prosa_max": 21643}
+  }
+}

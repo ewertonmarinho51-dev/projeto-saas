@@ -1,0 +1,411 @@
+{
+  "rotulo": "antes",
+  "quando": "2026-09-30T13:25:59",
+  "tokenizador": "o200k_base (tiktoken)",
+  "rag_simulado": {
+    "chunks": 10,
+    "caracteres_por_chunk": 1328,
+    "origem_do_tamanho": "medição de public.chunks_referencia (5.595 chunks, média 1.328 caracteres)"
+  },
+  "processos": [
+    {
+      "cenario": "F",
+      "titulo": "Aquisição com poucos itens",
+      "documentos": [
+        {
+          "documento": "dfd",
+          "requisicoes_de_conversa": 1,
+          "requisicoes_bloqueadas": {},
+          "tokens_entrada": 7952,
+          "tokens_sistema": 2280,
+          "tokens_usuario": 5672,
+          "secoes_do_prompt": {
+            "instrucoes": 1025,
+            "formulario": 504,
+            "rag": 4143
+          },
+          "teto_de_saida_pedido": [
+            16384
+          ],
+          "modelos_pedidos": [
+            "gpt-5-mini"
+          ],
+          "caracteres_de_saida": 11147,
+          "segundos": 1.75,
+          "falha": ""
+        },
+        {
+          "documento": "etp",
+          "requisicoes_de_conversa": 1,
+          "requisicoes_bloqueadas": {},
+          "tokens_entrada": 11580,
+          "tokens_sistema": 2280,
+          "tokens_usuario": 9300,
+          "secoes_do_prompt": {
+            "instrucoes": 2039,
+            "formulario": 539,
+            "cadeia_anterior": 2536,
+            "rag": 4187
+          },
+          "teto_de_saida_pedido": [
+            16384
+          ],
+          "modelos_pedidos": [
+            "gpt-5-mini"
+          ],
+          "caracteres_de_saida": 25382,
+          "segundos": 0.09,
+          "falha": ""
+        },
+        {
+          "documento": "mapa_riscos",
+          "requisicoes_de_conversa": 1,
+          "requisicoes_bloqueadas": {},
+          "tokens_entrada": 14112,
+          "tokens_sistema": 2280,
+          "tokens_usuario": 11832,
+          "secoes_do_prompt": {
+            "instrucoes": 516,
+            "formulario": 508,
+            "cadeia_anterior": 8067,
+            "rag": 2742
+          },
+          "teto_de_saida_pedido": [
+            16384
+          ],
+          "modelos_pedidos": [
+            "gpt-5-mini"
+          ],
+          "caracteres_de_saida": 11454,
+          "segundos": 0.12,
+          "falha": ""
+        },
+        {
+          "documento": "tr",
+          "requisicoes_de_conversa": 1,
+          "requisicoes_bloqueadas": {},
+          "tokens_entrada": 19181,
+          "tokens_sistema": 2280,
+          "tokens_usuario": 16901,
+          "secoes_do_prompt": {
+            "instrucoes": 1573,
+            "formulario": 508,
+            "cadeia_anterior": 10616,
+            "rag": 4205
+          },
+          "teto_de_saida_pedido": [
+            16384
+          ],
+          "modelos_pedidos": [
+            "gpt-5-mini"
+          ],
+          "caracteres_de_saida": 34966,
+          "segundos": 0.1,
+          "falha": ""
+        }
+      ],
+      "total": {
+        "requisicoes_de_conversa": 4,
+        "tokens_entrada": 52825,
+        "segundos": 2.06,
+        "secoes_do_prompt": {
+          "instrucoes": 5153,
+          "formulario": 2059,
+          "rag": 15277,
+          "cadeia_anterior": 21219
+        }
+      }
+    },
+    {
+      "cenario": "A",
+      "titulo": "Aquisição de materiais de expediente (tabela extensa)",
+      "documentos": [
+        {
+          "documento": "dfd",
+          "requisicoes_de_conversa": 1,
+          "requisicoes_bloqueadas": {},
+          "tokens_entrada": 8072,
+          "tokens_sistema": 2280,
+          "tokens_usuario": 5792,
+          "secoes_do_prompt": {
+            "instrucoes": 1025,
+            "formulario": 606,
+            "rag": 4161
+          },
+          "teto_de_saida_pedido": [
+            16384
+          ],
+          "modelos_pedidos": [
+            "gpt-5-mini"
+          ],
+          "caracteres_de_saida": 12930,
+          "segundos": 0.09,
+          "falha": ""
+        },
+        {
+          "documento": "etp",
+          "requisicoes_de_conversa": 1,
+          "requisicoes_bloqueadas": {},
+          "tokens_entrada": 12475,
+          "tokens_sistema": 2280,
+          "tokens_usuario": 10195,
+          "secoes_do_prompt": {
+            "instrucoes": 2039,
+            "formulario": 641,
+            "cadeia_anterior": 3333,
+            "rag": 4183
+          },
+          "teto_de_saida_pedido": [
+            16384
+          ],
+          "modelos_pedidos": [
+            "gpt-5-mini"
+          ],
+          "caracteres_de_saida": 27165,
+          "segundos": 0.1,
+          "falha": ""
+        },
+        {
+          "documento": "mapa_riscos",
+          "requisicoes_de_conversa": 1,
+          "requisicoes_bloqueadas": {},
+          "tokens_entrada": 15823,
+          "tokens_sistema": 2280,
+          "tokens_usuario": 13543,
+          "secoes_do_prompt": {
+            "instrucoes": 516,
+            "formulario": 610,
+            "cadeia_anterior": 9676,
+            "rag": 2742
+          },
+          "teto_de_saida_pedido": [
+            16384
+          ],
+          "modelos_pedidos": [
+            "gpt-5-mini"
+          ],
+          "caracteres_de_saida": 11489,
+          "segundos": 0.09,
+          "falha": ""
+        },
+        {
+          "documento": "tr",
+          "requisicoes_de_conversa": 1,
+          "requisicoes_bloqueadas": {},
+          "tokens_entrada": 20906,
+          "tokens_sistema": 2280,
+          "tokens_usuario": 18626,
+          "secoes_do_prompt": {
+            "instrucoes": 1573,
+            "formulario": 610,
+            "cadeia_anterior": 12217,
+            "rag": 4227
+          },
+          "teto_de_saida_pedido": [
+            16384
+          ],
+          "modelos_pedidos": [
+            "gpt-5-mini"
+          ],
+          "caracteres_de_saida": 36744,
+          "segundos": 0.11,
+          "falha": ""
+        }
+      ],
+      "total": {
+        "requisicoes_de_conversa": 4,
+        "tokens_entrada": 57276,
+        "segundos": 0.39,
+        "secoes_do_prompt": {
+          "instrucoes": 5153,
+          "formulario": 2467,
+          "rag": 15313,
+          "cadeia_anterior": 25226
+        }
+      }
+    },
+    {
+      "cenario": "G",
+      "titulo": "Processo com planilha extensa (210 itens)",
+      "documentos": [
+        {
+          "documento": "dfd",
+          "requisicoes_de_conversa": 1,
+          "requisicoes_bloqueadas": {},
+          "tokens_entrada": 8042,
+          "tokens_sistema": 2280,
+          "tokens_usuario": 5762,
+          "secoes_do_prompt": {
+            "instrucoes": 1025,
+            "formulario": 552,
+            "rag": 4185
+          },
+          "teto_de_saida_pedido": [
+            16384
+          ],
+          "modelos_pedidos": [
+            "gpt-5-mini"
+          ],
+          "caracteres_de_saida": 43173,
+          "segundos": 0.13,
+          "falha": ""
+        },
+        {
+          "documento": "etp",
+          "requisicoes_de_conversa": 1,
+          "requisicoes_bloqueadas": {},
+          "tokens_entrada": 24350,
+          "tokens_sistema": 2280,
+          "tokens_usuario": 22070,
+          "secoes_do_prompt": {
+            "instrucoes": 2039,
+            "formulario": 587,
+            "cadeia_anterior": 15261,
+            "rag": 4184
+          },
+          "teto_de_saida_pedido": [
+            16384
+          ],
+          "modelos_pedidos": [
+            "gpt-5-mini"
+          ],
+          "caracteres_de_saida": 57407,
+          "segundos": 0.14,
+          "falha": ""
+        },
+        {
+          "documento": "mapa_riscos",
+          "requisicoes_de_conversa": 1,
+          "requisicoes_bloqueadas": {},
+          "tokens_entrada": 39576,
+          "tokens_sistema": 2280,
+          "tokens_usuario": 37296,
+          "secoes_do_prompt": {
+            "instrucoes": 516,
+            "formulario": 556,
+            "cadeia_anterior": 33517,
+            "rag": 2708
+          },
+          "teto_de_saida_pedido": [
+            16384
+          ],
+          "modelos_pedidos": [
+            "gpt-5-mini"
+          ],
+          "caracteres_de_saida": 11489,
+          "segundos": 0.15,
+          "falha": ""
+        },
+        {
+          "documento": "tr",
+          "requisicoes_de_conversa": 1,
+          "requisicoes_bloqueadas": {},
+          "tokens_entrada": 44570,
+          "tokens_sistema": 2280,
+          "tokens_usuario": 42290,
+          "secoes_do_prompt": {
+            "instrucoes": 1573,
+            "formulario": 556,
+            "cadeia_anterior": 36063,
+            "rag": 4099
+          },
+          "teto_de_saida_pedido": [
+            16384
+          ],
+          "modelos_pedidos": [
+            "gpt-5-mini"
+          ],
+          "caracteres_de_saida": 66986,
+          "segundos": 0.23,
+          "falha": ""
+        }
+      ],
+      "total": {
+        "requisicoes_de_conversa": 4,
+        "tokens_entrada": 116538,
+        "segundos": 0.65,
+        "secoes_do_prompt": {
+          "instrucoes": 5153,
+          "formulario": 2251,
+          "rag": 15176,
+          "cadeia_anterior": 84841
+        }
+      }
+    }
+  ],
+  "repeticao_do_mesmo_pedido": {
+    "cenario": "A",
+    "pedidos_do_servidor": 2,
+    "requisicoes_ao_provedor": 2,
+    "tokens_entrada": 16144
+  },
+  "alteracao_de_um_campo": {
+    "cenario": "A",
+    "campo_alterado": "prazo",
+    "documentos_descartados_antes": 4,
+    "documentos_descartados_depois": 4,
+    "por_documento": [
+      {
+        "documento": "dfd",
+        "descartado": true,
+        "clausulas_reescritas": 9,
+        "clausulas_no_documento": 9
+      },
+      {
+        "documento": "etp",
+        "descartado": true,
+        "clausulas_reescritas": 18,
+        "clausulas_no_documento": 18
+      },
+      {
+        "documento": "mapa_riscos",
+        "descartado": true,
+        "clausulas_reescritas": 0,
+        "clausulas_no_documento": 0
+      },
+      {
+        "documento": "tr",
+        "descartado": true,
+        "clausulas_reescritas": 17,
+        "clausulas_no_documento": 17
+      }
+    ],
+    "fracao_de_clausulas_reescritas": 1.0
+  },
+  "auditoria_semantica": [
+    {
+      "cenario": "A",
+      "requisicoes": 1,
+      "tokens_entrada": 13659,
+      "teto_de_saida_pedido": [
+        16384
+      ],
+      "modelos_pedidos": [
+        "gpt-5-mini"
+      ],
+      "caracteres_dos_documentos": 88328
+    },
+    {
+      "cenario": "G",
+      "requisicoes": 1,
+      "tokens_entrada": 13687,
+      "teto_de_saida_pedido": [
+        16384
+      ],
+      "modelos_pedidos": [
+        "gpt-5-mini"
+      ],
+      "caracteres_dos_documentos": 179055
+    }
+  ],
+  "tempestade_de_retentativa": {
+    "requisicoes_em_uma_acao_que_falha": 9,
+    "por_host": {
+      "api.openai.com": 3,
+      "generativelanguage.googleapis.com": 3,
+      "openrouter.ai": 3
+    },
+    "segundos_ate_desistir": 19.0,
+    "tentativas_por_modelo": 3
+  }
+}

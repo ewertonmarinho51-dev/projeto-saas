@@ -1,0 +1,247 @@
+-- ############################################################
+-- ##  0028 — Controle de consumo de IA e cache de geração
+-- ##
+-- ##  ESTADO: NÃO APLICADA. O sufixo `.NAO_APLICAR` é a trava, e é
+-- ##  o mesmo mecanismo das 0018/0019/0020: enquanto ele estiver
+-- ##  aí, nenhuma ferramenta do repositório aplica este arquivo e
+-- ##  `cache_geracoes` fica fora do inventário de tabelas EM
+-- ##  PRODUÇÃO — que é a verdade. Aplicar = renomear para `.sql`,
+-- ##  rodar, conferir, e então atualizar `TABELAS_EM_PRODUCAO` em
+-- ##  `tests/test_seguranca_contencao.py`.
+-- ##
+-- ##  O que faz: acrescenta SETE colunas NULLABLE a `geracoes` e
+-- ##  cria UMA tabela nova (`cache_geracoes`) com RLS. Não altera
+-- ##  linha existente, não apaga nada, não muda política de
+-- ##  tabela alguma que já exista, não mexe em grant de tabela
+-- ##  que já exista.
+-- ##
+-- ##  Conferida contra um PostgreSQL local com o mesmo esquema.
+-- ##  A aplicação em produção é decisão do operador.
+-- ############################################################
+
+-- ===============================================================
+-- PARTE 1 — `geracoes` responde "quem gastou", não só "quanto"
+--
+-- A tabela registrava documento, motor, modelo, duração, tokens,
+-- status e fallback. Com isso dá para somar a conta e não dá para
+-- responder nenhuma das perguntas que um administrador de orçamento
+-- faz:
+--
+--   * qual secretaria consumiu o quê? (não havia secretaria)
+--   * quem pediu? (não havia usuário)
+--   * quanto disso foi REDAÇÃO de documento e quanto foi auditoria e
+--     correção sobre documento já escrito? (a coluna `documento`
+--     misturava "tr" com "auditor" e "corretor" — e em produção 65
+--     das 90 chamadas bem-sucedidas eram das duas últimas)
+--   * quanto custou em dinheiro? (não havia custo)
+--   * quantas chamadas o cache evitou? (não havia cache)
+--
+-- POR QUE COLUNAS, E NÃO UM jsonb COMO `rag_trace` E `roteamento`
+--
+-- Porque estes campos são o objeto de AGREGAÇÃO: soma por secretaria,
+-- por mês, por operação. jsonb serve ao rastro que se lê caso a caso;
+-- não serve a `group by`. As duas escolhas coexistem porque respondem
+-- a perguntas diferentes.
+-- ===============================================================
+
+alter table public.geracoes
+  add column if not exists operacao text,
+  add column if not exists secretaria_id uuid,
+  add column if not exists usuario_id uuid,
+  add column if not exists cache_hit boolean,
+  add column if not exists tokens_evitados_entrada integer,
+  add column if not exists tokens_evitados_saida integer,
+  add column if not exists custo numeric(12, 6);
+
+comment on column public.geracoes.operacao is
+  'documento | auditoria | correcao | revisao | parecer | assistente | '
+  'pesquisa_precos — separa a REDAÇÃO do trabalho sobre o que já foi '
+  'escrito. NULO nas linhas anteriores a esta migração, e tem de ser '
+  'assim: elas correram sem a distinção, e preencher agora seria '
+  'afirmar o que ninguém mediu.';
+
+comment on column public.geracoes.custo is
+  'Custo em reais, calculado a partir do preço configurado em '
+  'config_app (PRECO_<MODELO>_ENTRADA/SAIDA). NULO quando o preço não '
+  'foi informado — nunca um número presumido pelo código.';
+
+-- A pergunta de orçamento é "quanto esta secretaria gastou neste mês".
+create index if not exists idx_geracoes_consumo
+  on public.geracoes (tenant_id, secretaria_id, criado_em desc);
+
+-- E a de eficiência é "quanto o cache evitou". Parcial: o acerto é o
+-- caso minoritário e é o único que interessa nesta consulta.
+create index if not exists idx_geracoes_cache_hit
+  on public.geracoes (tenant_id, criado_em desc)
+  where cache_hit;
+
+
+-- ===============================================================
+-- PARTE 2 — `cache_geracoes`: a mesma pergunta não se paga duas vezes
+--
+-- Guarda o texto já gerado indexado pelo HASH DO PEDIDO (motor, lista
+-- de modelos e os dois prompts montados). Clique duplo, rerun do
+-- Streamlit e reload da página deixam de disparar chamada nova.
+--
+-- POR QUE O TEXTO INTEIRO, E NÃO SÓ O HASH
+--
+-- Porque um cache que só diz "esta pergunta já foi feita" não evita a
+-- chamada — ele só informa. O que evita a chamada é ter a resposta.
+--
+-- ISOLAMENTO
+--
+-- `tenant_id` + `processo_id`, com as MESMAS políticas de `geracoes`:
+-- ler segue a secretaria, escrever exige ser titular do processo ou
+-- admin. E vale o de sempre: o `service_role` do aplicativo tem
+-- BYPASSRLS, então a contenção real é o `.eq("tenant_id", ...)` do
+-- `cache_geracao.py`. A RLS aqui é a segunda camada, para o dia em que
+-- o aplicativo passar a falar como `authenticated`.
+-- ===============================================================
+
+create table if not exists public.cache_geracoes (
+  id            uuid primary key default gen_random_uuid(),
+  criado_em     timestamptz not null default now(),
+  tenant_id     uuid not null,
+  processo_id   uuid not null references public.processos(id)
+                  on delete cascade,
+  documento     text not null,
+  chave         text not null,
+  motor         text,
+  modelo        text,
+  texto         text not null,
+  tokens_entrada integer,
+  tokens_saida   integer
+);
+
+-- A chave é o hash do pedido: dois pedidos idênticos no mesmo tenant
+-- são a MESMA linha. O `on conflict` do upsert depende deste índice.
+create unique index if not exists idx_cache_geracoes_chave
+  on public.cache_geracoes (tenant_id, chave);
+
+-- Apagar o cache de um processo inteiro (botão "gerar de novo").
+create index if not exists idx_cache_geracoes_processo
+  on public.cache_geracoes (tenant_id, processo_id);
+
+alter table public.cache_geracoes enable row level security;
+alter table public.cache_geracoes force row level security;
+
+drop policy if exists "cache_geracoes_le"      on public.cache_geracoes;
+drop policy if exists "cache_geracoes_escreve" on public.cache_geracoes;
+drop policy if exists "cache_geracoes_apaga"   on public.cache_geracoes;
+
+create policy "cache_geracoes_le" on public.cache_geracoes
+  for select to authenticated
+  using (exists (select 1 from public.processos p
+                 where p.id = cache_geracoes.processo_id
+                   and public.pode_ler_processo(p.tenant_id,
+                                                p.secretaria_id)));
+
+create policy "cache_geracoes_escreve" on public.cache_geracoes
+  for insert to authenticated
+  with check (
+    cache_geracoes.tenant_id = public.tenant_do_jwt()
+    and exists (select 1 from public.processos p
+                where p.id = cache_geracoes.processo_id
+                  and p.tenant_id = cache_geracoes.tenant_id
+                  and public.pode_ler_processo(p.tenant_id, p.secretaria_id)
+                  and (p.auth_user_id = auth.uid() or public.e_admin())));
+
+-- Apagar é o "gerar de novo" do titular. Mesmo predicado da escrita:
+-- quem pode gravar no processo pode limpar o cache dele.
+create policy "cache_geracoes_apaga" on public.cache_geracoes
+  for delete to authenticated
+  using (
+    cache_geracoes.tenant_id = public.tenant_do_jwt()
+    and exists (select 1 from public.processos p
+                where p.id = cache_geracoes.processo_id
+                  and p.tenant_id = cache_geracoes.tenant_id
+                  and (p.auth_user_id = auth.uid() or public.e_admin())));
+
+grant select, insert, delete on public.cache_geracoes to authenticated;
+
+-- `anon` não alcança. Não é omissão: é a regra da 0019 e da 0020, e
+-- escrever a ausência aqui evita que o próximo leitor a interprete
+-- como esquecimento.
+revoke all on public.cache_geracoes from anon;
+
+
+-- ===============================================================
+-- CONFERÊNCIA — a migração falha se não cumpriu o que afirma
+--
+-- Mesmo padrão da 0024, 0025 e 0026: `add column if not exists` e
+-- `create table if not exists` que não fazem nada NÃO levantam erro.
+-- Um arquivo que declara estrutura precisa MEDIR que ela existe.
+-- ===============================================================
+do $$
+declare
+  faltando text;
+begin
+  -- 1. as sete colunas de consumo existem e são NULLABLE
+  select string_agg(c, ', ') into faltando
+  from unnest(array['operacao', 'secretaria_id', 'usuario_id', 'cache_hit',
+                    'tokens_evitados_entrada', 'tokens_evitados_saida',
+                    'custo']) as c
+  where not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'geracoes'
+      and column_name = c);
+  if faltando is not null then
+    raise exception 'A 0028 não criou em `geracoes`: %', faltando;
+  end if;
+
+  -- Nenhuma delas pode ter NOT NULL ou default: as 168 linhas
+  -- anteriores correram sem esses dados, e inventar valor para elas
+  -- seria afirmar o que ninguém mediu. NULO quer dizer "não
+  -- registrado", e é a verdade.
+  select string_agg(column_name, ', ') into faltando
+  from information_schema.columns
+  where table_schema = 'public' and table_name = 'geracoes'
+    and column_name in ('operacao', 'secretaria_id', 'usuario_id',
+                        'cache_hit', 'tokens_evitados_entrada',
+                        'tokens_evitados_saida', 'custo')
+    and (is_nullable = 'NO' or column_default is not null);
+  if faltando is not null then
+    raise exception
+      'A 0028 deixou com NOT NULL ou default: % — linha antiga passaria '
+      'a afirmar um consumo que ninguém mediu', faltando;
+  end if;
+
+  -- 2. a tabela de cache existe COM RLS. Uma tabela nova sem RLS num
+  -- banco multi-município é o defeito que a 0019 existiu para fechar.
+  if not exists (
+    select 1 from pg_tables
+    where schemaname = 'public' and tablename = 'cache_geracoes'
+      and rowsecurity) then
+    raise exception 'A 0028 criou `cache_geracoes` sem RLS ligada';
+  end if;
+
+  if (select count(*) from pg_policies
+      where schemaname = 'public' and tablename = 'cache_geracoes') < 3 then
+    raise exception
+      'A 0028 deixou `cache_geracoes` com menos de três políticas '
+      '(ler, escrever, apagar)';
+  end if;
+
+  -- 3. nenhuma política de `cache_geracoes` pode ser irrestrita.
+  -- `USING (true)` numa tabela que guarda documento de contratação
+  -- entregaria o rascunho de um município a outro.
+  if exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'cache_geracoes'
+      and (coalesce(qual, '') = 'true'
+           or coalesce(with_check, '') = 'true')) then
+    raise exception
+      'A 0028 criou política irrestrita em `cache_geracoes`';
+  end if;
+
+  -- 4. o índice único da chave existe — sem ele o upsert do
+  -- `cache_geracao.py` não tem em que conflitar e a tabela viraria um
+  -- log que cresce sem nunca acertar.
+  if not exists (
+    select 1 from pg_indexes
+    where schemaname = 'public' and tablename = 'cache_geracoes'
+      and indexname = 'idx_cache_geracoes_chave') then
+    raise exception 'A 0028 não criou o índice único (tenant_id, chave)';
+  end if;
+end
+$$;
