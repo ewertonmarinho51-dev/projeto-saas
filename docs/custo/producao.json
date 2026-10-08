@@ -1,5 +1,5 @@
 {
-  "_o_que_e": "Telemetria REAL de produção (tabela public.geracoes do projeto nxibohgoekphxblqtqku), colhida por consulta agregada em 30/09/2026. Nenhum conteúdo de documento, prompt ou chave: só contagens. São gerações que realmente aconteceram, com modelo real respondendo — é a única fonte de TOKENS DE SAÍDA reais que este trabalho tem.",
+  "_o_que_e": "Telemetria REAL de produção (tabela public.geracoes do projeto de produção), colhida por consulta agregada em 30/09/2026. Nenhum conteúdo de documento, prompt ou chave: só contagens. São gerações que realmente aconteceram, com modelo real respondendo — é a única fonte de TOKENS DE SAÍDA reais que este trabalho tem.",
   "_janela": "13/07/2026 a 18/09/2026 — 168 registros, 4 processos",
   "_advertencia": "As linhas de `edital` são anteriores à montagem determinística: hoje o edital e a ARP não passam por modelo nenhum. Ficam aqui porque são medida do que aconteceu, e apagá-las reescreveria o passado.",
 
