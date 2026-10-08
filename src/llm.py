@@ -599,17 +599,22 @@ def e_modelo_de_raciocinio(modelo: str) -> bool:
     """
     Este modelo gasta orçamento de saída PENSANDO?
 
-    Casa por prefixo nas famílias da OpenAI e por marca no identificador
-    do OpenRouter, que vem com fornecedor na frente
-    (`nvidia/nemotron-3-ultra-550b-a55b:free`) e nunca casaria por
-    prefixo.
+    O identificador é NORMALIZADO antes de comparar, e é aí que está a
+    razão desta função existir. No OpenRouter o mesmo modelo se chama
+    `openai/gpt-5-mini`, com o fornecedor na frente, e pode trazer
+    sufixo de endpoint (`:free`, `:batch`). Comparar o prefixo do
+    identificador cru reconhecia `gpt-5-mini` e NÃO reconhecia
+    `openai/gpt-5-mini` — o mesmo modelo, o mesmo raciocínio, o mesmo
+    risco de devolver vazio.
 
     Fonte única: `politica_ia` lê daqui para calcular o teto de saída, e
     `_params_modelo_openai` lê daqui para pedir esforço baixo. Duas
     listas divergiriam, e a divergência apareceria como documento vazio.
     """
     ml = (modelo or "").lower()
-    return (ml.startswith(_FAMILIAS_DE_RACIOCINIO)
+    # `fornecedor/modelo:endpoint` → `modelo`
+    nome = ml.rsplit("/", 1)[-1].split(":", 1)[0]
+    return (nome.startswith(_FAMILIAS_DE_RACIOCINIO)
             or any(marca in ml for marca in _MARCAS_DE_RACIOCINIO))
 
 

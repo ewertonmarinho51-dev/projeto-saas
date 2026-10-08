@@ -225,6 +225,45 @@ def test_a_nemotron_e_reconhecida_como_modelo_de_raciocinio():
         "nvidia/nemotron-3-super-120b-a12b:free")
 
 
+@pytest.mark.parametrize("identificador", [
+    "gpt-5-mini",                 # como a OpenAI o chama
+    "openai/gpt-5-mini",          # como o OpenRouter o chama
+    "openai/gpt-5-mini:batch",    # com sufixo de endpoint
+    "openai/gpt-5",
+    "openai/o3-mini",
+])
+def test_o_mesmo_modelo_e_reconhecido_nos_dois_provedores(identificador):
+    """
+    O defeito que esta prova fecha, e ele era meu.
+
+    `openai/gpt-5-mini` é o modelo RECOMENDADO para a migração: é o que
+    as 168 gerações de produção validaram, e pelo OpenRouter ele vem com
+    o fornecedor na frente. A primeira versão desta detecção comparava o
+    prefixo do identificador cru, de modo que reconhecia `gpt-5-mini` e
+    NÃO reconhecia `openai/gpt-5-mini`.
+
+    Consequência: o modelo que eu estava recomendando receberia o teto
+    de saída SEM a folga de raciocínio e sem `reasoning_effort: low`,
+    gastaria o orçamento pensando e devolveria documento VAZIO — o
+    defeito exato que a lista de famílias existe para evitar, no modelo
+    exato da recomendação.
+    """
+    assert llm.e_modelo_de_raciocinio(identificador)
+    assert llm._params_modelo_openai(identificador) == {
+        "reasoning_effort": "low"}
+
+
+def test_modelo_comum_com_fornecedor_na_frente_continua_comum():
+    """
+    A mutação simétrica: normalizar demais marcaria tudo como
+    raciocínio e desfaria a calibragem dos tetos.
+    """
+    for identificador in ("openai/gpt-4o-mini", "google/gemma-4-31b-it:free",
+                          "anthropic/claude-haiku-5.5",
+                          "mistralai/mistral-large-2512"):
+        assert not llm.e_modelo_de_raciocinio(identificador), identificador
+
+
 def test_modelo_sem_raciocinio_nao_recebe_esforco():
     """
     A mutação simétrica: marcar tudo como raciocínio infla o teto de
