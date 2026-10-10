@@ -44,7 +44,8 @@ from ..precos import (aplicacao, execucao, filtros as filtros_mod,
                       orientacao, perfil, relatorio)
 from ..precos import semantica as precos_semantica
 from ..precos import repositorio as repo
-from ..precos.estados import EstadoItem, EstadoPesquisa
+from ..precos.estados import (EstadoItem, EstadoPesquisa,
+                             pode_transitar_pesquisa)
 from . import components
 
 # Chaves de navegação interna do módulo.
@@ -694,8 +695,6 @@ def _barra_de_navegacao(pesquisa: dict, itens: list[dict]) -> None:
     """Ações da pesquisa, sempre visíveis, com o progresso ao lado."""
     progresso = execucao.progresso_de(itens)
     estado = str(pesquisa.get("estado") or "")
-    encerrada = estado in (EstadoPesquisa.ARQUIVADA.value,
-                           EstadoPesquisa.APLICADA.value)
 
     colunas = st.columns([2, 2, 2, 2, 2])
     with colunas[0]:
@@ -708,7 +707,7 @@ def _barra_de_navegacao(pesquisa: dict, itens: list[dict]) -> None:
             _ir(ITENS)
             st.rerun()
     with colunas[2]:
-        pode_pesquisar = bool(itens) and not encerrada
+        pode_pesquisar = bool(itens) and _pode_iniciar_execucao(estado)
         if st.button("Pesquisar preços", type="primary",
                      use_container_width=True, disabled=not pode_pesquisar,
                      help=("Adicione itens antes de pesquisar."
@@ -725,13 +724,29 @@ def _barra_de_navegacao(pesquisa: dict, itens: list[dict]) -> None:
         st.write(progresso.resumo())
 
 
+def _pode_iniciar_execucao(estado: str) -> bool:
+    atual = EstadoPesquisa(estado or EstadoPesquisa.RASCUNHO.value)
+    return (atual is EstadoPesquisa.EXECUTANDO
+            or pode_transitar_pesquisa(atual, EstadoPesquisa.NA_FILA))
+
+
 def _iniciar_execucao(pesquisa: dict, itens: list[dict]) -> None:
-    """Leva a pesquisa para a fila e abre a tela de execução."""
-    estado = str(pesquisa.get("estado") or EstadoPesquisa.RASCUNHO.value)
-    if estado != EstadoPesquisa.NA_FILA.value:
+    """Enfileira uma nova rodada ou retoma a execução pelo checkpoint."""
+    # O estado pode ter mudado desde o desenho da tela. Releia antes de
+    # decidir iniciar ou retomar, sem voltar uma execução para a fila.
+    atual = repo.obter_pesquisa(str(pesquisa["id"]))
+    if not atual:
+        st.warning("Esta pesquisa não está mais disponível.")
+        return
+    estado = str(atual.get("estado") or EstadoPesquisa.RASCUNHO.value)
+    if not itens or not _pode_iniciar_execucao(estado):
+        st.info("Esta pesquisa não permite iniciar uma busca neste estado.")
+        return
+    if estado not in (EstadoPesquisa.NA_FILA.value,
+                      EstadoPesquisa.EXECUTANDO.value):
         repo.mover_pesquisa(str(pesquisa["id"]), EstadoPesquisa.NA_FILA,
                             estado)
-    st.session_state[RELATO] = []
+        st.session_state[RELATO] = []
     _ir(EXECUCAO)
 
 

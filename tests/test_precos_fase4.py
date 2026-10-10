@@ -790,6 +790,71 @@ def test_a_execucao_processa_o_item_pendente(monkeypatch):
     assert len(cliente.tabelas["pesquisa_preco_referencias"]) == 6
 
 
+@pytest.mark.parametrize("estado", ["running", "queued", "draft", "partial", "review", "failed"])
+def test_clique_pesquisar_retoma_checkpoint_sem_refazer_item_completo(monkeypatch, estado):
+    from src.ui import precos_ui
+
+    monkeypatch.setenv("GOVDOCS_MODO_ABERTO", "1")
+    monkeypatch.setattr(db, "flag_ativa", lambda nome: nome == repo.FLAG)
+    cliente = ClientePrecosFalso()
+    pesquisa = _semear(cliente)
+    pesquisa["estado"] = estado
+    pendente = cliente.tabelas["pesquisa_preco_itens"][0]
+    pendente["estado"] = EstadoItem.PENDENTE.value
+    completo = dict(pendente, id="item-2", numero=2,
+                    estado=EstadoItem.COMPLETO.value, preco_estimado="99.00")
+    cliente.tabelas["pesquisa_preco_itens"].append(completo)
+    cliente.tabelas["pesquisa_preco_referencias"] = []
+    monkeypatch.setattr(db, "cliente_do_usuario", lambda: cliente)
+    monkeypatch.setattr(precos_ui, "_fontes", lambda: [_com_amostra(6)])
+    monkeypatch.setattr(precos_ui, "_motor_semantico", lambda: None)
+
+    at = AppTest.from_file(APP, default_timeout=90)
+    at.secrets["SUPABASE_URL"] = ""
+    at.secrets["SUPABASE_KEY"] = ""
+    at.session_state["pagina"] = "Pesquisa de Preços"
+    at.session_state[precos_ui.TELA] = precos_ui.ITENS
+    at.session_state[precos_ui.PESQUISA] = "pesq-1"
+    at.run()
+    assert not at.exception
+    next(b for b in at.button if b.label == "Pesquisar preços").click().run()
+
+    assert not at.exception
+    assert at.session_state[precos_ui.TELA] == precos_ui.ITENS
+    assert pendente["estado"] not in ("pending", "searching", "matching")
+    assert completo["estado"] == "complete"
+    assert completo["preco_estimado"] == "99.00"
+    referencias = cliente.tabelas["pesquisa_preco_referencias"]
+    assert len(referencias) == 6
+    assert {r["item_id"] for r in referencias} == {"item-1"}
+
+
+@pytest.mark.parametrize("estado", ["completed", "applied", "archived"])
+def test_botao_pesquisar_respeita_estados_sem_nova_busca(monkeypatch, estado):
+    from src.ui import precos_ui
+
+    at = _app_com_dados(monkeypatch, precos_ui.ITENS)
+    cliente = db.cliente_do_usuario()
+    cliente.tabelas["pesquisas_preco"][0]["estado"] = estado
+    at.run()
+    assert not at.exception
+    assert next(b for b in at.button if b.label == "Pesquisar preços").disabled
+
+
+def test_inicio_rele_estado_running_em_vez_do_rascunho_da_tela(monkeypatch):
+    from src.ui import precos_ui
+
+    sessao = {precos_ui.RELATO: ["checkpoint anterior"]}
+    monkeypatch.setattr(precos_ui.st, "session_state", sessao)
+    monkeypatch.setattr(repo, "obter_pesquisa", lambda _: {"id": "p", "estado": "running"})
+    def mover(*args, **kwargs):
+        pytest.fail("Retomar não deve reenfileirar a pesquisa em execução")
+    monkeypatch.setattr(repo, "mover_pesquisa", mover)
+    precos_ui._iniciar_execucao({"id": "p", "estado": "draft"}, [_item(1)])
+    assert sessao[precos_ui.TELA] == precos_ui.EXECUCAO
+    assert sessao[precos_ui.RELATO] == ["checkpoint anterior"]
+
+
 def test_duplicar_cria_pesquisa_nova_sem_herdar_preco(monkeypatch):
     """
     Duplicar ≠ revisar, e a diferença não é cosmética.
