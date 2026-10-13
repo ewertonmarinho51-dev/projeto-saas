@@ -60,9 +60,14 @@ if auth.precisa_configurar():
     login.render_configuracao_necessaria()
     st.stop()
 
+# Sessão do Supabase Auth perto do vencimento: renova no servidor; se não
+# der, encerra a sessão inteira e volta ao login com aviso (C08).
+if auth.usuario_logado() and not auth.garantir_sessao_valida():
+    st.rerun()
+
 if not auth.modo_aberto() and not auth.usuario_logado():
     try:
-        existe_admin = auth.tem_admin()
+        existe_admin = auth.tem_admin_em_cache()
     except auth.ErroAuth as erro:
         st.error(str(erro))
         st.info(

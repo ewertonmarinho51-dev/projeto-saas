@@ -213,16 +213,29 @@ def test_a_tela_mostra_o_rotulo_simples_e_nao_o_canonico(monkeypatch):
     assert "Objeto Detalhado da Contratação" not in texto
 
 
-def test_o_exemplo_aparece_abaixo_do_campo(monkeypatch):
+def test_o_exemplo_fica_na_ajuda_sob_demanda_e_nao_polui_a_tela(monkeypatch):
     """
-    O exemplo no placeholder sumia ao digitar a primeira letra. Abaixo do
-    campo ele fica — e é isso que esta prova fixa.
+    C05: o exemplo saiu da legenda permanente abaixo de cada campo — com
+    rótulo, placeholder e tooltip, eram quatro textos por campo. Ele
+    continua acessível, na ajuda do campo, para quem pedir.
     """
     at = _formulario_do_servidor(monkeypatch)
 
     legendas = " ".join(c.value for c in at.caption)
-    assert "Exemplo:" in legendas
-    assert "Secretaria de Educação" in legendas
+    assert "Exemplo:" not in legendas
+    ajudas = " ".join((w.help or "") for w in list(at.text_input)
+                      + list(at.text_area) + list(at.selectbox))
+    assert "Exemplo:" in ajudas
+    assert "Secretaria de Educação" in ajudas
+
+
+def test_modelo_de_execucao_comeca_sem_escolha_em_processo_novo(monkeypatch):
+    """C05: nada de SRP marcado por omissão — a escolha tem de ser expressa."""
+    at = _formulario_do_servidor(monkeypatch)
+
+    execucao = [w for w in at.selectbox
+                if w.label.startswith("Como a entrega vai acontecer")]
+    assert execucao and execucao[0].value is None
 
 
 def test_o_formulario_diz_quanto_falta_antes_de_submeter(monkeypatch):

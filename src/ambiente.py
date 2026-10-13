@@ -63,6 +63,60 @@ def rotulo() -> str:
     return ROTULOS[atual()]
 
 
+def versao() -> dict:
+    """Release e commit GRAVADOS NA IMAGEM (ver implantacao/Dockerfile)."""
+    return {
+        "release": (os.environ.get("GOVDOCS_RELEASE") or "").strip()
+        or "desconhecida",
+        "commit": (os.environ.get("GOVDOCS_COMMIT") or "").strip()
+        or "desconhecido",
+    }
+
+
+def diagnostico() -> list[tuple[str, str, str]]:
+    """
+    (serviço, estado, detalhe) por subsistema — para o ADMINISTRADOR.
+
+    O health do Streamlit só prova que o processo responde. Isto diz se
+    banco, Auth, OpenRouter, embeddings e Jev estão em condição de
+    trabalhar. Nada aqui carrega chave, token, URL de projeto ou
+    mensagem crua de exceção — falha vira referência de correlação.
+    """
+    from . import db, governanca, llm
+
+    linhas: list[tuple[str, str, str]] = []
+    v = versao()
+    linhas.append(("Versão", "ok" if v["commit"] != "desconhecido"
+                   else "atenção", f"{v['release']} · {v['commit'][:12]}"))
+    if db.em_manutencao():
+        linhas.append(("Banco", "falha", "em manutenção (credencial)"))
+    else:
+        try:
+            (db._cliente().table("config_app")  # noqa: SLF001
+             .select("chave").limit(1).execute())
+            linhas.append(("Banco", "ok", "consulta respondida"))
+        except Exception as exc:  # noqa: BLE001
+            linhas.append(("Banco", "falha", "referência "
+                           + db.registrar_incidente(exc, "diagnostico: banco")))
+    com_jwt = bool(db.sessao_do_usuario())
+    linhas.append(("Auth", "ok" if com_jwt else "atenção",
+                   "sessão Supabase Auth ativa" if com_jwt
+                   else "login legado (sem JWT)"))
+    chave = bool(llm.obter_openrouter_key())
+    exclusivo = llm.modo_exclusivo_openrouter()
+    linhas.append(("OpenRouter", "ok" if chave and exclusivo else "atenção",
+                   ("provedor exclusivo" if exclusivo else "não exclusivo")
+                   + (" · chave configurada" if chave else " · sem chave")))
+    rota = llm.rota_de_embeddings()
+    linhas.append(("Embeddings", "ok" if rota else "atenção",
+                   f"vetorial via {rota[0]}" if rota else "textual degradado"))
+    jev = db.flag_ativa(governanca.FLAG_JEV_PRECOS)
+    linhas.append(("Jev", "ok" if jev and chave else "desligado",
+                   "Decisions com revisão humana" if jev
+                   else "flag desligada"))
+    return linhas
+
+
 # Endereços que PROVAM não ser o Supabase hospedado. A pilha de
 # homologação local (`scripts/homologacao_stack.py`) serve o PostgREST
 # em loopback; nada que responda em loopback é o banco da Prefeitura.

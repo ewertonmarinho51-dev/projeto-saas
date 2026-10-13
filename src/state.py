@@ -414,14 +414,57 @@ _PREFIXOS_DO_PROCESSO = (
 )
 
 
-def _limpar_widgets_formulario() -> None:
+def _limpar_widgets_formulario(sessao=None) -> None:
     """Remove valores de widgets que não podem atravessar processos."""
+    sessao = st.session_state if sessao is None else sessao
     for chave in [
-        k for k in list(st.session_state.keys())
+        k for k in list(sessao.keys())
         if isinstance(k, str)
         and k.startswith(("govbot_campo_", "editor_", "rich_editor_"))
     ]:
-        st.session_state.pop(chave, None)
+        sessao.pop(chave, None)
+
+
+def _remover_chaves_do_processo(sessao=None) -> None:
+    """Estado transitório de UM processo: caches, widgets e uploads."""
+    sessao = st.session_state if sessao is None else sessao
+    _limpar_widgets_formulario(sessao)
+    for widget, marcador in (("upload_memorando", "_memorando_lido"),
+                             ("upload_itens", "_xlsx_lido")):
+        try:
+            if widget in sessao:
+                del sessao[widget]
+            sessao.pop(marcador, None)
+        except Exception:  # noqa: BLE001
+            # uploader não pôde ser limpo: mantém o marcador para o arquivo
+            # antigo não ser reimportado no novo processo
+            pass
+    for chave in _CHAVES_DO_PROCESSO:
+        sessao.pop(chave, None)
+    for chave in [k for k in list(sessao.keys())
+                  if isinstance(k, str)
+                  and k.startswith(_PREFIXOS_DO_PROCESSO)]:
+        sessao.pop(chave, None)
+
+
+# Estado da SESSÃO do usuário (não do processo) que também sai no logout.
+# `preferencia_visual` e semelhantes ficam: são da aba, não da pessoa.
+_CHAVES_DO_USUARIO = (
+    "edicoes_pendentes", "registro_geracoes", "pagina", "_save_status",
+    "api_key_manual", "openai_key_manual", "openrouter_key_manual",
+    "modo_demo", "_modelo_chave", "_modelo_img",
+)
+
+
+def limpar_estado_do_usuario(sessao=None) -> None:
+    """Chamado no logout: nada do usuário anterior atravessa a troca."""
+    sessao = st.session_state if sessao is None else sessao
+    _remover_chaves_do_processo(sessao)
+    for chave in _CHAVES_DO_USUARIO:
+        try:
+            sessao.pop(chave, None)
+        except Exception:  # noqa: BLE001 — widget já instanciado nesta execução
+            pass
 
 
 def reiniciar_processo() -> None:
@@ -442,26 +485,10 @@ def reiniciar_processo() -> None:
     st.session_state.aprovados = set()
     st.session_state.processo_id = None
     st.session_state["_save_status"] = "nao_salvo"
-    _limpar_widgets_formulario()
     # Estado TRANSITÓRIO do processo anterior (caches do ciclo/fatos/score,
     # escolha de família, uploads lidos, histórico de gerações) não pode
     # vazar para a próxima contratação.
-    for widget, marcador in (("upload_memorando", "_memorando_lido"),
-                             ("upload_itens", "_xlsx_lido")):
-        try:
-            if widget in st.session_state:
-                del st.session_state[widget]
-            st.session_state.pop(marcador, None)
-        except Exception:  # noqa: BLE001
-            # uploader não pôde ser limpo: mantém o marcador para o arquivo
-            # antigo não ser reimportado no novo processo
-            pass
-    for chave in _CHAVES_DO_PROCESSO:
-        st.session_state.pop(chave, None)
-    for chave in [k for k in list(st.session_state.keys())
-                  if isinstance(k, str)
-                  and k.startswith(_PREFIXOS_DO_PROCESSO)]:
-        st.session_state.pop(chave, None)
+    _remover_chaves_do_processo()
     ir_para(0)
 
 

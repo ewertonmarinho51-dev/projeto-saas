@@ -110,6 +110,13 @@ EMBEDDING_V2_MODELO = "text-embedding-3-small"
 EMBEDDING_V2_DIMENSOES = 768
 EMBEDDING_V2_VERSAO = "v2"
 
+# O MESMO modelo servido pelo OpenRouter (catálogo de embeddings consultado
+# em 13/10/2026: `openai/text-embedding-3-small`, 768 dimensões pedidas por
+# `dimensions`). Só entra no índice depois da prova de equivalência
+# (`scripts/prova_embeddings_openrouter.py`) e com a variável de ambiente
+# `GOVDOCS_EMBEDDINGS_OPENROUTER` ligada no servidor — ver `llm.rota_de_embeddings`.
+EMBEDDING_V2_MODELO_OPENROUTER = "openai/text-embedding-3-small"
+
 # Compatibilidade com o índice legado (coluna `embedding`), cuja origem
 # não pôde ser comprovada documentalmente — mantido apenas para leitura
 # até o corte para o V2.

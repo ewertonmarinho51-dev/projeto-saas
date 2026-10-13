@@ -148,6 +148,22 @@ div[data-testid="stElementContainer"]:has(.gc-topbar) {
     outline-offset: 2px !important;
 }
 
+/* C01 — UM indicador de foco por campo. O contorno acima, aplicado ao
+   <input> interno, somava-se ao halo do invólucro (`:focus-within`, mais
+   abaixo): eram as duas linhas azuis do campo de senha. Dentro dos
+   invólucros do BaseWeb quem sinaliza o foco é só o halo. */
+[data-baseweb="input"] input:focus-visible,
+[data-baseweb="base-input"] input:focus-visible,
+[data-baseweb="textarea"] textarea:focus-visible {
+    outline: none !important;
+}
+
+[data-baseweb="input"] [data-baseweb="base-input"],
+[data-baseweb="input"] [data-baseweb="base-input"]:focus-within {
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
 .gc-visually-hidden,
 .gc-style-marker,
 .gc-logout-marker,
