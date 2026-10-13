@@ -148,20 +148,17 @@ div[data-testid="stElementContainer"]:has(.gc-topbar) {
     outline-offset: 2px !important;
 }
 
-/* C01 — UM indicador de foco por campo. O contorno acima, aplicado ao
-   <input> interno, somava-se ao halo do invólucro (`:focus-within`, mais
-   abaixo): eram as duas linhas azuis do campo de senha. Dentro dos
-   invólucros do BaseWeb quem sinaliza o foco é só o halo. */
-[data-baseweb="input"] input:focus-visible,
-[data-baseweb="base-input"] input:focus-visible,
-[data-baseweb="textarea"] textarea:focus-visible {
+/* C01 — UM indicador de foco por campo. Medido no Streamlit 1.64 com foco
+   por teclado no campo de senha: o <input> recebia o contorno de 2,4px da
+   regra acima, e o invólucro somava borda azul + anel de 3px (mais abaixo)
+   — eram as linhas azuis sobrepostas. Dentro dos campos quem sinaliza o
+   foco passa a ser só o invólucro (ver o `:focus-within` dos campos). */
+[data-testid="stTextInputRootElement"] input:focus-visible,
+[data-testid="stTextAreaRootElement"] textarea:focus-visible,
+[data-testid="stNumberInputContainer"] input:focus-visible,
+[data-testid="stDateInputField"] input:focus-visible,
+.stSelectbox input:focus-visible {
     outline: none !important;
-}
-
-[data-baseweb="input"] [data-baseweb="base-input"],
-[data-baseweb="input"] [data-baseweb="base-input"]:focus-within {
-    border: 0 !important;
-    box-shadow: none !important;
 }
 
 .gc-visually-hidden,
@@ -838,13 +835,18 @@ button:disabled {
     box-shadow: none !important;
 }
 
+/* Uma linha só: a borda e um anel de 1px da MESMA cor se fundem num traço
+   contínuo de ~2px — visível para quem navega por teclado, sem o halo
+   claro que, ao lado da borda escura, lia-se como linha dupla. */
 .stTextInput [data-baseweb="input"]:focus-within,
 .stTextInput [data-testid="stTextInputRootElement"]:focus-within,
+.stTextArea [data-testid="stTextAreaRootElement"]:focus-within,
+.stNumberInput [data-testid="stNumberInputContainer"]:focus-within,
 .stNumberInput [data-baseweb="input"]:focus-within,
 .stSelectbox [data-baseweb="select"] > div:focus-within,
 .stTextArea [data-baseweb="textarea"]:focus-within {
     border-color: var(--gc-action) !important;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.13) !important;
+    box-shadow: 0 0 0 1px var(--gc-action) !important;
 }
 
 .stTextInput label p,

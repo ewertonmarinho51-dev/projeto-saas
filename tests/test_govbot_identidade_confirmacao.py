@@ -120,6 +120,11 @@ def test_sair_e_entrar_reais_revogam_buckets_e_nao_reidratam_outro_usuario(
     assert sessao["tenant_id"] is None
     assert sessao[db.CHAVE_DA_SESSAO] == ""
     assert sessao["dados"] == sessao["documentos"] == {}
+    # C08: rastro de RAG, cache de decisão, widgets e edições pendentes
+    # eram do processo de quem saiu e carregavam o texto dele.
+    assert "_rag_trace" not in sessao and "_decisao_cache" not in sessao
+    assert "edicoes_pendentes" not in sessao
+    assert segredo not in json.dumps(sessao, default=list, ensure_ascii=False)
 
     auth.entrar(_usuario(
         id="usuario-novo", auth_user_id="auth-novo", login="login-novo",
@@ -197,11 +202,7 @@ def test_mesma_identidade_e_processo_preservam_bucket_mesmo_com_token_novo(
     assert atual == antes
     assert sessao[govbot.CHAVE_RASCUNHO] == antes["form_draft"]
     assert segredo in sessao["govbot_campo_objeto"]
-    # C08: o rastro de RAG e o cache de decisão eram do processo de A e
-    # carregavam o texto dele. A versão anterior desta prova exigia que
-    # SOBREVIVESSEM ao logout — era a regressão escrita como requisito.
-    assert "_rag_trace" not in sessao and "_decisao_cache" not in sessao
-    assert segredo not in json.dumps(sessao, default=list, ensure_ascii=False)
+    assert sessao["_rag_trace"] and sessao["_decisao_cache"]
 
 
 def test_guardar_rascunho_apos_troca_preserva_a_captura_nova_e_revoga_a_antiga():

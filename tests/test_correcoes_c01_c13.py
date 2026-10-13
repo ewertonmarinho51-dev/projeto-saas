@@ -83,11 +83,11 @@ def test_c01_senha_nao_fica_no_estado_e_usuario_e_preservado(monkeypatch):
     at.button[0].click().run()
 
     assert any("incorretos" in e.value for e in at.error)
-    estado = {k: at.session_state[k] for k in at.session_state.filtered_state}
+    estado = dict(at.session_state.items())
     assert "SENHA-QUE-NAO-PODE-FICAR" not in json.dumps(
         estado, default=str, ensure_ascii=False)
-    assert at.text_input[0].value == "servidora"
-    assert at.text_input[1].value == ""
+    # o usuário volta como valor inicial do campo; a senha, não
+    assert at.session_state["_login_ultimo_usuario"] == "servidora"
 
 
 def test_c01_login_valido_entra(monkeypatch):
@@ -102,10 +102,16 @@ def test_c01_login_valido_entra(monkeypatch):
 
 
 def test_c01_um_unico_indicador_de_foco_nos_campos():
+    """
+    Seletores do Streamlit 1.64 (data-testid), conferidos no navegador:
+    o <input> fica sem contorno e o invólucro tem um traço só — sem o anel
+    claro de 3px que, ao lado da borda, lia-se como linha dupla.
+    """
     css = (RAIZ / "assets" / "govconnect.css").read_text(encoding="utf-8")
-    assert '[data-baseweb="input"] input:focus-visible' in css
-    trecho = css[css.index('[data-baseweb="input"] input:focus-visible'):]
-    assert "outline: none" in trecho[:300]
+    alvo = '[data-testid="stTextInputRootElement"] input:focus-visible'
+    assert alvo in css
+    assert "outline: none" in css[css.index(alvo):][:400]
+    assert "0 0 0 3px rgba(37, 99, 235, 0.13)" not in css
 
 
 def test_c04_admin_existente_fica_em_cache_curto_na_sessao(sessao, monkeypatch):
@@ -144,6 +150,15 @@ def test_c08_token_valido_nao_renova(sessao, monkeypatch):
                         lambda: pytest.fail("não devia renovar"))
     sessao[db.CHAVE_DA_SESSAO] = _jwt(5000)
     assert auth.garantir_sessao_valida(agora=1000)
+
+
+def test_c08_token_sem_prazo_legivel_nao_derruba_a_sessao(sessao, monkeypatch):
+    monkeypatch.setattr(auth, "_cliente_de_login",
+                        lambda: pytest.fail("não devia renovar"))
+    sessao[db.CHAVE_DA_SESSAO] = "token-opaco"
+    sessao.usuario = {"id": "u1"}
+    assert auth.garantir_sessao_valida(agora=1000)
+    assert sessao.usuario == {"id": "u1"}
 
 
 def test_c08_token_perto_do_fim_e_renovado_no_servidor(sessao, monkeypatch):

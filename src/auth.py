@@ -444,7 +444,9 @@ def garantir_sessao_valida(agora: float | None = None) -> bool:
         return True
     agora = time.time() if agora is None else agora
     expira = st.session_state.get(CHAVE_EXPIRA) or _expiracao_do_jwt(token)
-    if expira and expira - agora > MARGEM_RENOVACAO_S:
+    # Sem prazo legível não há como saber se está perto do fim: quem
+    # decide a validade é o servidor, a cada requisição.
+    if not expira or expira - agora > MARGEM_RENOVACAO_S:
         return True
     refresh = st.session_state.get(CHAVE_REFRESH) or ""
     nova = None
