@@ -122,3 +122,19 @@ def test_brand_digest_incorreto_nao_escreve(tmp_path):
     with pytest.raises(ValueError, match="digest"):
         overlay.planned_ui_patch(tmp_path.resolve(), spec)
     assert path.read_bytes() == before
+
+
+def test_mensagens_da_integracao_tem_catalogos_exigidos_e_portugues():
+    patches = overlay.ui_patches(PIN)
+    dialogs = next(p for p in patches if p["path"].endswith("/dialogs.rs"))
+    import re
+    keys = [re.search(r'"([^"]+)"', change["after"])[1]
+            for change in dialogs["replacements"][:3]]
+    assert len(set(keys)) == 3
+    for language in ("ru", "hu", "tr", "bg", "pt-br"):
+        catalog = next(p for p in patches if p["path"].endswith(f"/i18n/{language}.tsv"))
+        additions = "\n".join(change["after"] for change in catalog["replacements"])
+        entries = [line.split("\t") for line in additions.splitlines() if line.startswith("\t")]
+        for key in keys:
+            matches = [entry for entry in entries if len(entry) == 3 and entry[1] == key]
+            assert len(matches) == 1 and matches[0][2].strip()
