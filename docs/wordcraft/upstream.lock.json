@@ -1,0 +1,12 @@
+{
+  "repository": "https://github.com/storytold/wordcraft",
+  "commit": "533615620ef91ae57fa7aa4cd77fd98b2179e693",
+  "govconnect_base": "770f969882f9c6c2fb55d23b68385bf601e87012",
+  "upstream_version": "0.7.0",
+  "minimum_rust": "1.90",
+  "license": "MIT OR Apache-2.0",
+  "build_status": "NOT_BUILT",
+  "bridge_status": "PROTOCOL_ONLY_NOT_CONNECTED",
+  "canonical_format": "UNDECIDED_PENDING_ROUNDTRIP",
+  "production_rollout": false
+}
