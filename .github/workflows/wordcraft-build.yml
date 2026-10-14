@@ -145,6 +145,41 @@ jobs:
             echo "Unmodified upstream brand shell remains in the integration build"
             exit 1
           fi
+      - name: Assemble local integration test assets
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, pathlib, shutil
+          root = pathlib.Path('work-upstream/dist/web')
+          out = pathlib.Path('wordcraft-local-qa')
+          out.mkdir()
+          files = []
+          for source in sorted(root.rglob('*')):
+              if not source.is_file() or source.suffix not in {'.js', '.wasm'}:
+                  continue
+              relative = source.relative_to(root)
+              target = out / relative
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, target)
+              files.append({'path': str(relative), 'bytes': source.stat().st_size,
+                            'sha256': hashlib.sha256(source.read_bytes()).hexdigest()})
+          assert any(f['path'].endswith('.wasm') for f in files)
+          assert any(f['path'].endswith('.js') for f in files)
+          shutil.copytree('build-evidence/notices', out / 'notices')
+          shutil.copyfile('build-evidence/cargo-metadata.json', out / 'cargo-metadata.json')
+          pin = json.loads(pathlib.Path('docs/wordcraft/upstream.lock.json').read_text())
+          (out / 'qa-manifest.json').write_text(json.dumps({
+              'status': 'INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED',
+              'upstream_commit': pin['commit'],
+              'distribution_review': 'Complete dependency obligations and runtime fidelity review remain pending',
+              'files': files}, indent=2) + '\n')
+          PY
+      - name: Preserve assets for the local browser integration test
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordcraft-govconnect-local-qa
+          path: wordcraft-local-qa/
+          if-no-files-found: error
+          retention-days: 14
       - name: Preserve build evidence (no editor distribution or deploy)
         if: always()
         uses: actions/upload-artifact@v4

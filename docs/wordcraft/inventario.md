@@ -30,7 +30,7 @@ Branch: `feature/wordcraft-wasm-govconnect`. Produção não alterada.
 | `tests/test_wordcraft_protocol.py` | regressões negativas e lifecycle do contrato | pytest offline | sem dependência de LLM |
 | `tests/test_wordcraft_preflight.py` | impedir aprovação falsa com source/toolchain ausentes ou divergentes | pytest offline | pré-requisitos não certificam G1 |
 | `docs/wordcraft/upstream.lock.json` | manifesto de origem e versão auditada | preflight | hash Git não prova build |
-| `.github/workflows/wordcraft-build.yml` | ensaio de build upstream pinado em runner Linux, sem deploy ou segredos | cargo xtask ci, Trunk e hashes de lock/assets | gate 0; não prova integração GovConnect |
+| `.github/workflows/wordcraft-build.yml` | build pinado e artefato JS/WASM para ensaio local após checks, sem deploy ou segredos | cargo xtask ci, testes do adaptador/UI, Trunk, hashes e avisos | artefato interno com revisão de distribuição e G1 pendentes |
 | `vercel.json` | impedir auto-deploy da branch isolada por integração externa preexistente | configuração oficial git.deploymentEnabled por branch | controle de execução, não altera produção |
 | `integrations/wordcraft/govconnect.rs` | codec de checkpoint sem perda de media/passthrough e operações tipadas sobre a própria Session upstream | testes Rust de roundtrip, bytes inválidos e atomicidade | candidato experimental; não substitui patch/ACL/CAS |
 | `scripts/wordcraft_overlay.py` | aplicar biblioteca de integração ao SHA exato upstream sem reimplementar engine | hashes de entrada, caminhos confinados e aplicação idempotente | build isolado, sem produção |
