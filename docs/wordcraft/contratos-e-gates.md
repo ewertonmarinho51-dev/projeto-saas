@@ -6,7 +6,8 @@ O GovConnect continua dono de identidade, processo, fatos, aprovação, trilha e
 `src/wordcraft_protocol.py` é somente a fronteira de validação do protocolo; não é
 DocumentoService, CAS, RLS nem persistência. Não há import desse módulo no fluxo operacional.
 O campo experimental `gc-wordcraft-snapshot/v1` identifica o contêiner candidato do
-adaptador Rust, ainda pendente de compilação e testes. A validação Python do envelope
+adaptador Rust. Os 11 testes nativos passaram no run 38651115647; a API WASM integrada
+e o roundtrip do corpus ainda aguardam conclusão do build. A validação Python do envelope
 não valida o modelo documental: não enviar esses bytes diretamente ao banco.
 
 **JSON nativo isolado não é candidato seguro para documento institucional.** No SHA
@@ -14,14 +15,18 @@ inspecionado, `crates/doc/src/lib.rs::Document` usa `#[serde(skip)]` em `media` 
 `passthrough`. O `engine::io` abre JSON via `serde_json::from_slice`. Assim, serializar
 apenas o modelo omite imagens e partes de origem. Isso precisa de um contêiner que
 preserve esses campos ou DOCX com fidelidade demonstrada antes de escolher o canônico.
-É evidência estática, não teste Rust de roundtrip. Posições usam story/path/offset;
+O contêiner do adaptador preserva media/passthrough e tem testes nativos de roundtrip;
+isso ainda não prova a fidelidade de importação/exportação dos documentos institucionais.
+Posições usam story/path/offset;
 não foi comprovada estabilidade de IDs após inserção de parágrafos ou tabelas.
 
-## Fronteira implementada, ainda sem transporte
+## Fronteira implementada, ainda sem proprietário de persistência
 
 - Envelope fechado: protocol/request/instance/session/document/revision/event/sequence/nonce/payload.
 - Não aceita tenant, role, comandos, caminhos ou eventos ACK vindos do cliente.
-- Origin configurada, janela validada pelo host (`event.source`, a implementar), nonce e replay.
+- Origin configurada e nonce/replay no protocolo. O transporte atual é o estado do componente
+  Streamlit v2, não um listener público de postMessage. `source_ok` permanece uma condição
+  interna do chamador e nunca representa autenticação ou autorização do usuário.
 - Máximo 8 MiB decodificados, sequência inteira segura para JavaScript, hash SHA-256.
 - opening → ready → dirty → saving → saved somente com ACK confiável correlacionado.
 - Edição durante envio/erro continua dirty após confirmação do checkpoint anterior.
@@ -36,11 +41,12 @@ ocorrer em cada operação do backend, com JWT do usuário e transação de revi
 
 `apps/wordcraft-web/src/web.rs` constrói `WebShell { app, inbox, saves }`; o documento
 é aberto pela inbox e Save usa serviços de download/picker. `app.autosave = false`.
-Não existe neste código a API GovConnect proposta. Picker cancelado já possui guarda
+O overlay cria uma entrada explícita em `govconnect_browser.rs` com a própria Session,
+sem usar esse shell de picker/download. Picker cancelado já possui guarda
 própria, mas download concluído não significa commit no GovConnect.
 
-O wrapper deve substituir serviços de arquivos e desabilitar recursos externos no
-modo embutido, expor apenas operações tipadas e preservar a instância entre reruns.
+O wrapper usa Services::default, restringe recursos externos e expõe operações tipadas.
+O host conserva a instância entre reruns; a prova positiva com WASM real está pendente.
 Comandos de IA continuam passando pelo pipeline de patches canônico. Nenhum comando
 genérico de `Session::run` será exposto ao browser ou à LLM.
 
@@ -48,27 +54,32 @@ genérico de `Session::run` será exposto ao browser ou à LLM.
 
 | Gate | Estado | Evidência / dependência |
 |---|---|---|
-| 0 Auditoria | BLOCKED (parcial) | HEADs, código-chave e licenças lidos; fontes/build/SBOM completos ausentes |
-| 1 Vertical slice | BLOCKED | sem toolchain completo, WASM compilado ou ponte browser conectada |
+| 0 Auditoria | PARCIAL | baseline upstream reproduzido; SBOM e 13 avisos reunidos; revisão de distribuição incompleta |
+| 1 Vertical slice | EM EXECUÇÃO | 11 testes nativos passam; build integrado, navegador positivo e commit/ACK backend pendentes |
 | 2 Persistência | BLOCKED | depende de G1; sem CAS/RLS/roundtrip real |
-| 3 Exportação | BLOCKED | sem corpus comparativo WordCraft × legado |
+| 3 Exportação | PENDENTE | corpus sintético canônico gerado (3 DOCX/PDF, tabela de 210 itens); roundtrip e aprovação visual pendentes |
 | 4 GovBot/Patches | BLOCKED | regressão do aplicador passa; sem âncoras nativas homologadas |
 | 5 Seis capacidades | BLOCKED | serviços atuais preservados, integração contextual não implementada |
 | 6 Limpeza | BLOCKED | nenhuma substituição comprovada; nenhuma retirada autorizável |
 | 7 Homologação | BLOCKED | sem prova E2E, isolamento, emissão ou performance |
 
 Flags operacionais não foram alteradas. Não existe opção WordCraft habilitada.
-Não houve merge, deploy, migration aplicada, convite Auth ou consumo de IA paga.
+Não houve merge, migration aplicada, convite Auth ou consumo de IA paga. O primeiro
+push disparou uma integração Vercel preexistente, que falhou; o auto-deploy desta branch
+foi depois desabilitado em vercel.json. Não há evidência de implantação bem-sucedida.
 
 ## Retomada reproduzível
 
-1. Obter checkout completo do SHA em `upstream.lock.json`, com Cargo.lock e sub-recursos necessários.
-2. Disponibilizar Rust compatível (upstream requer 1.90+), target wasm32-unknown-unknown e Trunk;
-   fixar as versões efetivamente usadas no manifesto de build antes de declarar reprodução.
-3. Executar `python scripts/wordcraft_preflight.py --source CAMINHO` (apenas pré-requisitos).
-4. No upstream executar `cargo xtask ci`; na pasta apps/wordcraft-web, `trunk build --release`.
-5. Conservar log, hashes de Cargo.lock/assets/WASM, tamanho e ferramentas; auditar dependências e fontes.
-6. Adaptar shell Rust e host Streamlit segundo os contratos 02; provar abrir/editar/checkpoint/
+1. Usar a revisão pinada em `upstream.lock.json` e o overlay da mesma revisão GovConnect.
+2. Executar o workflow isolado wordcraft-build.yml: Rust 1.99.0, target wasm32 e Trunk
+   0.21.14 verificado por hash. O Windows local não tem o linker MSVC; WSL não instalado.
+3. A reutilização do baseline exige run, ZIP, pin e Cargo.lock exatos; qualquer falha
+   retorna aos gates upstream completos. Os testes/build da integração sempre executam.
+4. Preservar logs e artefatos. Instalar JS/WASM apenas em laboratório marcado usando
+   wordcraft_local_assets.py com SHA do ZIP e commit produtor verificados.
+5. Validar checkpoints no backend via wordcraft_native.py com Node 24 e SHA do manifesto
+   fixado pelo servidor; nunca aceitar caminhos/hashes do cliente como configuração.
+6. Conectar o proprietário backend e provar abrir/editar/checkpoint/
    ACK persistido/reabrir/exportar num documento sintético A4 antes de promover G1.
 
 Trunk exige obtenção de suas dependências de build; presença de executável não é prova
@@ -85,14 +96,16 @@ antes de consumir qualquer evento novo. Prefixos já consumidos podem reaparecer
 reruns. Lacunas, desordem e lote inválido não consomem estado. Limites: 256 eventos
 pendentes e 16 Mi caracteres de payload base64 no lote; limites individuais permanecem.
 
-O futuro renderer devolve `event_ack=ponte.sequence` após aceitação do lote, para o
+O renderer devolve `event_ack=ponte.sequence` após aceitação do lote, para o
 host retirar somente o prefixo consumido. Esse ACK de transporte não significa save.
 Gravação continua exigindo commit backend, revisão/hash e `confirmar_checkpoint`;
 somente então o renderer devolve `ack` de persistência. A fila não grava dados fora
 da memória do componente. Overflow exige reconciliação sem descartar o rascunho.
 
-Testes Node/Python cobrem coalescência simulada e atomicidade. Streamlit/browser real,
-timeout, desmontagem e callback persistido continuam pendentes do gate 1.
+Testes Node/Python cobrem coalescência simulada, atomicidade e falhas do IPC. O browser
+real mostrou somente a falha segura de asset ausente e a manutenção da instância no
+rerun (Streamlit 1.63 local). Isso não prova caret, undo, WASM ou persistência. A prova
+positiva, timeout e callback persistido continuam pendentes do gate 1.
 
 Todos os recursos da matriz 03 permanecem no estado **LEGADO MANTIDO PARA COMPATIBILIDADE**.
 O código novo é isolado e sem consumidores operacionais: reverter seu commit retira
