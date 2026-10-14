@@ -33,6 +33,18 @@ def test_overlay_idempotente(tmp_path, monkeypatch):
     assert first["status"] == "OVERLAY_APPLIED_NOT_COMPILED"
 
 
+def test_exemplo_qa_alheio_impede_overlay_sem_escrita_parcial(tmp_path, monkeypatch):
+    cargo = seed(tmp_path, monkeypatch)
+    example = cargo.parent / "examples/govconnect_fixture.rs"
+    example.parent.mkdir()
+    example.write_bytes(b"unrelated QA example")
+    before = cargo.read_bytes()
+    with pytest.raises(ValueError, match="unrelated QA"):
+        overlay.apply(tmp_path)
+    assert cargo.read_bytes() == before
+    assert not (cargo.parent / "src/govconnect.rs").exists()
+
+
 def test_sha_divergente_nao_altera_arquivo(tmp_path, monkeypatch):
     cargo = seed(tmp_path, monkeypatch)
     monkeypatch.setattr(overlay.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout="another"))
