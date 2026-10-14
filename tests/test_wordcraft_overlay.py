@@ -138,3 +138,11 @@ def test_mensagens_da_integracao_tem_catalogos_exigidos_e_portugues():
         for key in keys:
             matches = [entry for entry in entries if len(entry) == 3 and entry[1] == key]
             assert len(matches) == 1 and matches[0][2].strip()
+
+
+def test_shell_do_fork_nao_copia_icone_da_marca_upstream():
+    shell = next(p for p in overlay.ui_patches(PIN) if p["path"] == "apps/wordcraft-web/index.html")
+    replacement = next(r for r in shell["replacements"] if 'rel="icon"' in r["before"])
+    assert "wordcraft.ico" in replacement["before"]
+    assert "data-trunk" not in replacement["after"]
+    assert any("Editor GovConnect" in r["after"] for r in shell["replacements"])

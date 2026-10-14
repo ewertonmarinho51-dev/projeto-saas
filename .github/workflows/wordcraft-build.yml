@@ -139,6 +139,11 @@ jobs:
           set -o pipefail
           trunk build --release 2>&1 | tee ../../../build-evidence/govconnect-trunk.log
           grep -R -l 'GovConnectEditor' ../../dist/web/*.js > ../../../build-evidence/govconnect-api-exports.txt
+          test -z "$(find ../../dist/web -name '*.ico' -print -quit)"
+          if grep -E 'wordcraft\.ico|<title>WordCraft</title>|Loading WordCraft' ../../dist/web/index.html; then
+            echo "Unmodified upstream brand shell remains in the integration build"
+            exit 1
+          fi
       - name: Preserve build evidence (no editor distribution or deploy)
         if: always()
         uses: actions/upload-artifact@v4

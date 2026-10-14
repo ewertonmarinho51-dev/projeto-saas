@@ -94,6 +94,29 @@
           "after": "\tLanguage Preferences…\tЕзикови предпочитания…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tЗа редактора GovConnect\n\tGovConnect — based on WordCraft\tGovConnect — базиран на WordCraft\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect е независима интеграция, базирана на WordCraft от екипа на ArtCraft.\n"
         }
       ]
+    },
+    {
+      "path": "apps/wordcraft-web/index.html",
+      "before_sha256_lf": "7d8a341aa8e480065bbb68c8e81bc0c7a6cd872fb9cb4b1127eec33f28ae22a6",
+      "after_sha256_lf": "9ecad94cd3fedcb34b83bb45a2643d10ade210b0c8deedf6677f88824584d9fe",
+      "replacements": [
+        {
+          "before": "<html lang=\"en\">",
+          "after": "<html lang=\"pt-BR\">"
+        },
+        {
+          "before": "<title>WordCraft</title>",
+          "after": "<title>Editor GovConnect</title>"
+        },
+        {
+          "before": "  <link data-trunk rel=\"icon\" href=\"../../assets/app-icon/wordcraft.ico\" />\n",
+          "after": "  <!-- No upstream brand icon is copied into the independent integration. -->\n"
+        },
+        {
+          "before": "Loading WordCraft&hellip;",
+          "after": "Carregando editor GovConnect&hellip;"
+        }
+      ]
     }
   ]
 }
