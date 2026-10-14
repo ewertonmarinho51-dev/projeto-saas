@@ -6,6 +6,8 @@ on:
     paths:
       - .github/workflows/wordcraft-build.yml
       - docs/wordcraft/upstream.lock.json
+      - integrations/wordcraft/**
+      - scripts/wordcraft_overlay.py
   workflow_dispatch:
 
 permissions:
@@ -45,6 +47,13 @@ jobs:
           ref: ${{ steps.pin.outputs.sha }}
           path: work-upstream
           persist-credentials: false
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            work-upstream/target
+          key: wordcraft-linux-rust199-${{ steps.pin.outputs.sha }}
       - name: Install native build dependencies
         run: |
           sudo apt-get update
@@ -94,6 +103,20 @@ jobs:
           find dist/web -type f -printf '%s %p\n' | sort -nr > ../build-evidence/assets-size.txt
           find dist/web -type f -exec sha256sum {} + > ../build-evidence/assets-sha256.txt
           test -n "$(find dist/web -name '*.wasm' -print -quit)"
+      - name: Apply the isolated GovConnect adapter
+        run: |
+          python3 scripts/wordcraft_overlay.py --source work-upstream > build-evidence/overlay.json
+          rustfmt --edition 2024 work-upstream/apps/wordcraft-web/src/govconnect.rs
+          cp work-upstream/apps/wordcraft-web/src/govconnect.rs build-evidence/govconnect-formatted.rs
+      - name: Test the adapter against the real WordCraft engine
+        working-directory: work-upstream
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --locked -p wordcraft-web --lib 2>&1 | tee ../build-evidence/adapter-tests.log
+          cargo clippy --locked -p wordcraft-web --lib -- -D warnings 2>&1 | tee ../build-evidence/adapter-clippy.log
+          cargo check --locked -p wordcraft-web --lib --target wasm32-unknown-unknown 2>&1 | tee ../build-evidence/adapter-wasm.log
+          sha256sum --check ../build-evidence/Cargo.lock.sha256
       - name: Preserve build evidence (no editor distribution or deploy)
         if: always()
         uses: actions/upload-artifact@v4

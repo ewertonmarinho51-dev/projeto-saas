@@ -30,6 +30,9 @@ Branch: `feature/wordcraft-wasm-govconnect`. Produção não alterada.
 | `docs/wordcraft/upstream.lock.json` | manifesto de origem e versão auditada | preflight | hash Git não prova build |
 | `.github/workflows/wordcraft-build.yml` | ensaio de build upstream pinado em runner Linux, sem deploy ou segredos | cargo xtask ci, Trunk e hashes de lock/assets | gate 0; não prova integração GovConnect |
 | `vercel.json` | impedir auto-deploy da branch isolada por integração externa preexistente | configuração oficial git.deploymentEnabled por branch | controle de execução, não altera produção |
+| `integrations/wordcraft/govconnect.rs` | codec de checkpoint sem perda de media/passthrough e operações tipadas sobre a própria Session upstream | testes Rust de roundtrip, bytes inválidos e atomicidade | candidato experimental; não substitui patch/ACL/CAS |
+| `scripts/wordcraft_overlay.py` | aplicar biblioteca de integração ao SHA exato upstream sem reimplementar engine | hashes de entrada, caminhos confinados e aplicação idempotente | build isolado, sem produção |
+| `tests/test_wordcraft_overlay.py` | validar recusa de SHA/arquivos divergentes e confinamento do overlay | pytest sem rede | não substitui compilação Rust |
 
 Não foi escolhido formato canônico definitivo. JSON nativo existe em `engine::io`, mas
 roundtrip, IDs e fidelidade ainda precisam ser medidos. Não se grava novo documento como Markdown.
