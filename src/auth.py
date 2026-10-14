@@ -98,6 +98,30 @@ def tem_admin() -> bool:
         raise ErroAuth(_falha("consultar usuários", exc)) from exc
 
 
+_CHAVE_ADMIN_EXISTE = "_admin_existe_ate"
+TTL_ADMIN_EXISTE_S = 300
+
+
+def tem_admin_em_cache(agora: float | None = None) -> bool:
+    """
+    `tem_admin()` com memória curta NA SESSÃO, só para o resultado True.
+
+    A tela de login consultava o banco a cada execução anônima. Depois que
+    existe administrador ele não deixa de existir em minutos; o resultado
+    False (bootstrap) nunca é guardado, para o primeiro acesso não ficar
+    preso. Nada de usuário, token ou perfil entra aqui.
+    """
+    import time
+
+    agora = time.time() if agora is None else agora
+    if st.session_state.get(_CHAVE_ADMIN_EXISTE, 0) > agora:
+        return True
+    existe = tem_admin()
+    if existe:
+        st.session_state[_CHAVE_ADMIN_EXISTE] = agora + TTL_ADMIN_EXISTE_S
+    return existe
+
+
 def criar_usuario(nome: str, login: str, senha: str, papel: str) -> dict:
     try:
         db.exigir_operacional()   # manutenção fecha o bootstrap do admin
@@ -186,7 +210,46 @@ def _cliente_de_login():
         return None
 
 
+def _expiracao_do_jwt(token: str) -> float | None:
+    """`exp` do JWT, sem verificar assinatura — só para saber QUANDO renovar.
+
+    A validade quem decide é o servidor do Supabase a cada requisição;
+    aqui a leitura serve apenas para renovar antes de o token vencer em
+    vez de descobrir o vencimento numa operação do usuário.
+    """
+    import base64
+    import json
+
+    try:
+        carga = token.split(".")[1]
+        carga += "=" * (-len(carga) % 4)
+        exp = json.loads(base64.urlsafe_b64decode(carga)).get("exp")
+        return float(exp) if exp else None
+    except Exception:  # noqa: BLE001 — token opaco: renovação por refresh
+        return None
+
+
+def _dados_da_sessao(sessao) -> dict | None:
+    """access/refresh/expiração de uma resposta do GoTrue, ou None."""
+    corpo = getattr(sessao, "session", None)
+    token = getattr(corpo, "access_token", "") or ""
+    if not token:
+        return None
+    expira = getattr(corpo, "expires_at", None) or _expiracao_do_jwt(token)
+    return {"access_token": token,
+            "refresh_token": getattr(corpo, "refresh_token", "") or "",
+            "expires_at": float(expira) if expira else None}
+
+
 def autenticar_no_supabase(email: str, senha: str) -> tuple[str, str] | None:
+    """(access_token, auth_user_id) — ver `_sessao_no_supabase`."""
+    sessao = _sessao_no_supabase(email, senha)
+    if sessao is None:
+        return None
+    return sessao["access_token"], sessao["auth_user_id"]
+
+
+def _sessao_no_supabase(email: str, senha: str) -> dict | None:
     """
     (access_token, auth_user_id) do Supabase Auth — None se não deu.
 
@@ -232,11 +295,12 @@ def autenticar_no_supabase(email: str, senha: str) -> tuple[str, str] | None:
         except Exception:  # noqa: BLE001
             _log.info("supabase auth nao autenticou")
         return None
-    token = getattr(getattr(sessao, "session", None), "access_token", "")
+    dados = _dados_da_sessao(sessao)
     usuario = getattr(sessao, "user", None)
-    if not token or usuario is None:
+    if not dados or usuario is None:
         return None
-    return token, str(usuario.id)
+    dados["auth_user_id"] = str(usuario.id)
+    return dados
 
 
 def _usuario_por_auth_id(auth_user_id: str) -> dict | None:
@@ -264,10 +328,9 @@ def autenticar(login: str, senha: str) -> dict:
     except db.ErroBanco as erro:
         raise ErroAuth(str(erro)) from erro
 
-    sessao = autenticar_no_supabase(login.strip().lower(), senha)
+    sessao = _sessao_no_supabase(login.strip().lower(), senha)
     if sessao is not None:
-        token, auth_user_id = sessao
-        usuario = _usuario_por_auth_id(auth_user_id)
+        usuario = _usuario_por_auth_id(sessao["auth_user_id"])
         if usuario is None:
             raise ErroAuth(
                 "Conta autenticada, mas sem vínculo institucional neste "
@@ -275,7 +338,9 @@ def autenticar(login: str, senha: str) -> dict:
         if not usuario.get("ativo", True):
             raise ErroAuth("Usuário desativado. Procure o administrador.")
         usuario.pop("senha_hash", None)
-        usuario["_token"] = token
+        usuario["_token"] = sessao["access_token"]
+        usuario["_refresh"] = sessao["refresh_token"]
+        usuario["_expira"] = sessao["expires_at"]
         return usuario
 
     if exigir_supabase_auth():
@@ -354,6 +419,56 @@ def atualizar_usuario(usuario_id: str, **campos) -> None:
 # tela viraria moldura, e ninguém lê moldura.
 AVISO_LOGIN_LEGADO = "_aviso_login_legado"
 
+# Renovação da sessão do Supabase Auth (C08). O access token dura pouco
+# (1h no padrão do GoTrue); sem renovar, a sessão aberta passava a falhar
+# em silêncio nas operações com RLS no meio do expediente.
+CHAVE_REFRESH = "_supabase_refresh_token"
+CHAVE_EXPIRA = "_supabase_expira_em"
+MARGEM_RENOVACAO_S = 120
+AVISO_SESSAO_EXPIRADA = "Sua sessão expirou. Entre novamente para continuar."
+CHAVE_AVISO_SESSAO = "_aviso_sessao_encerrada"
+
+
+def garantir_sessao_valida(agora: float | None = None) -> bool:
+    """
+    Renova o access token perto do vencimento; False = sessão encerrada.
+
+    Sem token (login legado, modo aberto) não há o que renovar: True.
+    Falha na renovação encerra a sessão INTEIRA e pede novo login — nunca
+    segue com a credencial de servidor no lugar do JWT vencido.
+    """
+    import time
+
+    token = db.sessao_do_usuario()
+    if not token:
+        return True
+    agora = time.time() if agora is None else agora
+    expira = st.session_state.get(CHAVE_EXPIRA) or _expiracao_do_jwt(token)
+    # Sem prazo legível não há como saber se está perto do fim: quem
+    # decide a validade é o servidor, a cada requisição.
+    if not expira or expira - agora > MARGEM_RENOVACAO_S:
+        return True
+    refresh = st.session_state.get(CHAVE_REFRESH) or ""
+    nova = None
+    if refresh:
+        try:
+            cliente = _cliente_de_login()
+            if cliente is not None:
+                nova = _dados_da_sessao(cliente.auth.refresh_session(refresh))
+        except Exception as exc:  # noqa: BLE001
+            try:
+                db.registrar_incidente(exc, "auth: renovar sessao")
+            except Exception:  # noqa: BLE001
+                _log.info("renovacao de sessao recusada")
+    if not nova:
+        sair()
+        st.session_state[CHAVE_AVISO_SESSAO] = AVISO_SESSAO_EXPIRADA
+        return False
+    st.session_state[db.CHAVE_DA_SESSAO] = nova["access_token"]
+    st.session_state[CHAVE_REFRESH] = nova["refresh_token"] or refresh
+    st.session_state[CHAVE_EXPIRA] = nova["expires_at"]
+    return True
+
 
 def entrar(usuario: dict) -> None:
     """
@@ -369,11 +484,18 @@ def entrar(usuario: dict) -> None:
     inteira.
     """
     token = usuario.pop("_token", "")
+    refresh = usuario.pop("_refresh", "")
+    expira = usuario.pop("_expira", None)
     st.session_state.usuario = usuario
     if usuario.get("tenant_id"):
         st.session_state.tenant_id = usuario["tenant_id"]
     if token:
         st.session_state[db.CHAVE_DA_SESSAO] = token
+        # refresh e expiração ficam no estado do SERVIDOR (session_state
+        # não vai ao navegador) e fora do dicionário do usuário, pela
+        # mesma razão do token
+        st.session_state[CHAVE_REFRESH] = refresh
+        st.session_state[CHAVE_EXPIRA] = expira or _expiracao_do_jwt(token)
     elif usuario.get("auth_user_id"):
         # Entrou pelo legado TENDO conta de e-mail. É o caso em que o
         # app funciona quase inteiro e a Pesquisa de Preços não abre —
@@ -474,6 +596,8 @@ def sair() -> None:
     # o token sai PRIMEIRO e sempre: uma sessão encerrada que deixasse
     # o JWT para trás continuaria autorizando requisições
     st.session_state[db.CHAVE_DA_SESSAO] = ""
+    for chave in (CHAVE_REFRESH, CHAVE_EXPIRA):
+        st.session_state.pop(chave, None)
     if "govbot" in st.session_state or "govbot_form_draft" in st.session_state:
         from .govbot import limpar_sessao
 
@@ -484,3 +608,9 @@ def sair() -> None:
     st.session_state.aprovados = set()
     st.session_state.processo_id = None
     st.session_state.etapa = 0
+    # C08: quem entrar depois NA MESMA ABA não pode herdar nada de quem
+    # saiu — rascunho, editor, upload, cache de geração, rastro de RAG,
+    # chave digitada na barra lateral, página aberta.
+    from . import state
+
+    state.limpar_estado_do_usuario(st.session_state)

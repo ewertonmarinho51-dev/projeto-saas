@@ -396,13 +396,11 @@ def render_sidebar() -> None:
                 st.rerun()
 
         with st.expander("Ambiente"):
+            from ..llm import ROTULOS_MOTOR
+
             motor = motor_ativo()
-            if motor == "openai":
-                st.caption("Motor de IA: OpenAI (principal)")
-            elif motor == "gemini":
-                st.caption("Motor de IA: Gemini (fallback)")
-            else:
-                st.caption("Motor de IA: não configurado")
+            st.caption("Motor de IA: "
+                       + ROTULOS_MOTOR.get(motor, "não configurado"))
             if auth.eh_admin():
                 st.toggle(
                     "Modo Demonstração (sem IA)",

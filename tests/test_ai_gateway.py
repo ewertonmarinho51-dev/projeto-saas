@@ -98,19 +98,31 @@ def test_tarefa_de_segundo_plano_usa_todos(monkeypatch):
                                    DISPONIVEIS) == DISPONIVEIS
 
 
-def test_a_politica_nunca_deixa_a_tarefa_sem_motor(monkeypatch):
+def test_tarefa_critica_sem_motor_homologado_fica_sem_motor(monkeypatch):
     """
-    Se a chave do motor homologado não estiver preenchida, a política
-    devolve a lista original em vez de lista vazia.
-
-    Política que derruba funcionalidade porque uma chave não foi
-    configurada é política que alguém arranca na primeira sexta-feira.
-    A recusa dura existe, é `exigir_homologado`, e é uma decisão
-    separada e explícita.
+    C10: sem o motor homologado configurado, o edital NÃO desce para o
+    que estiver disponível — a lista sai vazia e a geração falha com
+    mensagem clara. Devolver a lista original era o rebaixamento
+    silencioso que a política existe para impedir.
     """
     monkeypatch.setenv(ai_gateway.VAR_ROTEAMENTO, "true")
     so_gemini = [("gemini", "k2")]
-    assert ai_gateway.motores_para("edital", so_gemini) == so_gemini
+    assert ai_gateway.motores_para("edital", so_gemini) == []
+
+
+def test_tarefa_de_apoio_sem_motor_do_grupo_mantem_a_lista(monkeypatch):
+    """Estreitar por acidente uma tarefa NÃO crítica não protege ato algum."""
+    monkeypatch.setenv(ai_gateway.VAR_ROTEAMENTO, "true")
+    so_openrouter = [("openrouter", "k3")]
+    assert ai_gateway.motores_para("classificacao",
+                                   so_openrouter) == so_openrouter
+
+
+def test_finalidades_reais_de_analise_nao_caem_no_grupo_barato():
+    """`analista_parecer` e a pesquisa de preços circulam em `llm.py`."""
+    for rotulo in ("analista_parecer", "pesquisa_precos", "semantica_precos"):
+        assert roteamento.grupo_da_tarefa(rotulo) != roteamento.CHEAP, rotulo
+        assert roteamento.e_critica(rotulo), rotulo
 
 
 def test_a_ordem_do_operador_e_preservada(monkeypatch):

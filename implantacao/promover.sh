@@ -21,8 +21,10 @@ cd "$REPO"
 
 # --- que versão está no ar ------------------------------------
 if [[ "${1:-}" == "--atual" ]]; then
-  echo "versão no ar: $(git describe --tags --exact-match 2>/dev/null \
+  echo "checkout do host: $(git describe --tags --exact-match 2>/dev/null \
       || git rev-parse --short HEAD)"
+  echo "imagem em execução: $(cd "$COMPOSE_DIR" && docker compose exec -T app \
+      sh -c 'echo "$GOVDOCS_RELEASE ($GOVDOCS_COMMIT)"' 2>/dev/null || echo '?')"
   exit 0
 fi
 
@@ -57,6 +59,12 @@ fi
 echo "promovendo $ANTERIOR -> $TAG"
 git checkout --detach "$TAG"
 
+# A revisão vai para DENTRO da imagem (ver o Dockerfile): é ela, e não
+# o Git do host, que responde "que versão está no ar?".
+export GOVDOCS_RELEASE="$TAG"
+GOVDOCS_COMMIT="$(git rev-parse HEAD)"
+export GOVDOCS_COMMIT
+
 cd "$COMPOSE_DIR"
 docker compose up -d --build
 
@@ -70,7 +78,14 @@ echo -n "aguardando o app responder"
 for _ in $(seq 1 30); do
   if curl -fsS "https://$DOMINIO/_stcore/health" >/dev/null 2>&1; then
     echo
-    echo "OK: $TAG no ar e respondendo."
+    servida="$(docker compose exec -T app printenv GOVDOCS_COMMIT 2>/dev/null || true)"
+    if [[ "$servida" != "$GOVDOCS_COMMIT" ]]; then
+      echo "ERRO: o app responde, mas a imagem em execução é '${servida:-?}'," >&2
+      echo "      e não o commit da tag ($GOVDOCS_COMMIT)." >&2
+      echo "para voltar: sudo $0 $ANTERIOR" >&2
+      exit 1
+    fi
+    echo "OK: $TAG ($GOVDOCS_COMMIT) no ar e respondendo."
     exit 0
   fi
   echo -n "."

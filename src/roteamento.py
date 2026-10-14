@@ -108,6 +108,11 @@ TIPO_DO_ROTULO: dict[str, str] = {
     "edital": GERACAO_DE_DOCUMENTO,
     "arp": GERACAO_DE_DOCUMENTO,
     "parecer": ANALISE_JURIDICA,
+    # Finalidades REAIS que circulam em `llm.py` e não estavam aqui (C10):
+    # sem a entrada, caíam em SEGUNDO_PLANO, o grupo mais barato.
+    "analista_parecer": ANALISE_JURIDICA,
+    "pesquisa_precos": PESQUISA_DE_PRECO,
+    "semantica_precos": PESQUISA_DE_PRECO,
     "corretor": ANALISE_JURIDICA,
     "auditor": ANALISE_JURIDICA,
     "revisao": ANALISE_JURIDICA,
@@ -161,20 +166,24 @@ def motores_permitidos(rotulo: str,
     ela reflete a preferência do operador (motor principal, fallback), e
     reordenar aqui seria a política decidindo algo que não é dela.
 
-    O filtro NUNCA devolve lista vazia quando havia motor disponível: se
-    nenhum motor do grupo estiver configurado, devolve a lista original.
-    A alternativa seria uma tarefa que para de funcionar porque a chave
-    do motor homologado não está preenchida — política derrubando
-    funcionalidade, que é o oposto do que ela existe para fazer. Quem
-    precisa de recusa dura é `exigir_homologado`, abaixo, e essa recusa é
-    uma decisão explícita.
+    Tarefa NÃO crítica sem motor do grupo configurado recebe a lista
+    original: estreitar por acidente uma funcionalidade de apoio não
+    protege ato nenhum.
+
+    Tarefa CRÍTICA sem motor homologado recebe lista VAZIA, e quem chama
+    falha com mensagem clara (C10). A versão anterior devolvia a lista
+    original também aqui — exatamente o rebaixamento silencioso que a
+    política existe para impedir: um edital gerado por motor não
+    homologado é pior que um edital não gerado, porque é assinado.
     """
     if not restringir or not disponiveis:
         return list(disponiveis)
 
     permitidos = MOTORES_DO_GRUPO[grupo_da_tarefa(rotulo)]
     filtrados = [par for par in disponiveis if par[0] in permitidos]
-    return filtrados or list(disponiveis)
+    if filtrados or e_critica(rotulo):
+        return filtrados
+    return list(disponiveis)
 
 
 def exigir_homologado(rotulo: str, motor: str, *, restringir: bool) -> None:
