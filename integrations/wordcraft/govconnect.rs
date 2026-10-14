@@ -141,7 +141,12 @@ pub fn load_bytes(bytes: &[u8]) -> Result<Document, String> {
     let mut doc: Document = serde_json::from_value(doc_value.clone()).map_err(|_| "invalid document model".to_string())?;
     // Serde's permissive model decoder otherwise drops unknown nested fields.
     // Compare JSON values, not bytes: object order is irrelevant to this check.
-    if serde_json::to_value(&doc).map_err(|_| "model cannot be serialized".to_string())? != doc_value {
+    // Use the same bounded writer as snapshots. to_value promotes f32 directly
+    // to f64 and can spuriously change 0.1 into 0.10000000149011612.
+    let mut normalized = BoundedBytes(Vec::new());
+    serde_json::to_writer(&mut normalized, &doc).map_err(|_| "model cannot be serialized".to_string())?;
+    let normalized_value: Value = serde_json::from_slice(&normalized.0).map_err(|_| "model JSON invalid".to_string())?;
+    if normalized_value != doc_value {
         return Err("checkpoint contains unsupported or noncanonical model fields".into());
     }
     for (name, target) in [("media", &mut doc.media), ("passthrough", &mut doc.passthrough)] {
@@ -299,6 +304,18 @@ mod tests {
             assert!(load_into(&mut live, &bytes).is_err());
             assert_eq!(serialize(&live.doc).unwrap(), before);
         }
+    }
+
+    #[test]
+    fn fractional_page_geometry_keeps_the_snapshot_writer_precision() {
+        let mut doc = example();
+        doc.last_section.page_w = 595.3;
+        doc.last_section.page_h = 841.89;
+        doc.last_section.margin_left = 42.1;
+        let bytes = serialize(&doc).unwrap();
+        let loaded = load_bytes(&bytes).unwrap();
+        assert_eq!(loaded, doc);
+        assert_eq!(serialize(&loaded).unwrap(), bytes);
     }
 
     #[test]

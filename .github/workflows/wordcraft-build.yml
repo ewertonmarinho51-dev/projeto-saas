@@ -148,7 +148,7 @@ jobs:
       - name: Assemble local integration test assets
         run: |
           python3 - <<'PY'
-          import hashlib, json, pathlib, shutil
+          import hashlib, json, os, pathlib, shutil
           root = pathlib.Path('work-upstream/dist/web')
           out = pathlib.Path('wordcraft-local-qa')
           out.mkdir()
@@ -170,6 +170,7 @@ jobs:
           (out / 'qa-manifest.json').write_text(json.dumps({
               'status': 'INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED',
               'upstream_commit': pin['commit'],
+              'govconnect_commit': os.environ['GITHUB_SHA'],
               'distribution_review': 'Complete dependency obligations and runtime fidelity review remain pending',
               'files': files}, indent=2) + '\n')
           PY
@@ -180,7 +181,7 @@ jobs:
           path: wordcraft-local-qa/
           if-no-files-found: error
           retention-days: 14
-      - name: Preserve build evidence (no editor distribution or deploy)
+      - name: Preserve build evidence (no deploy)
         if: always()
         uses: actions/upload-artifact@v4
         with:
