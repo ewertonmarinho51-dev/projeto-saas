@@ -82,14 +82,20 @@ fn validate_doc(doc: &Document) -> Result<(), String> {
     for part in doc.parts.values() {
         validate_blocks(&part.blocks, 0)?;
     }
-    for assets in [&doc.media, &doc.passthrough] {
+    for (assets, passthrough) in [(&doc.media, false), (&doc.passthrough, true)] {
         if assets.len() > 1024 {
             return Err("too many snapshot assets".into());
         }
         for (key, bytes) in assets {
+            // These exact keys are bookkeeping, not OPC paths. The pinned
+            // docx::package reader creates them for embedded parts/custom XML.
+            // Keep them only in passthrough; never allow arbitrary ':' paths.
+            let metadata =
+                passthrough && matches!(key.as_str(), "wordcraft:embedded.parts" | "wordcraft:customXml.roots" | "wordcraft:vbaProject.related");
             if key.is_empty()
                 || key.len() > 240
-                || key.contains(['\\', ':'])
+                || key.contains('\\')
+                || (key.contains(':') && !metadata)
                 || key.starts_with('/')
                 || key.split('/').any(|s| matches!(s, "" | "." | ".."))
                 || bytes.len() > MAX_BYTES
@@ -241,6 +247,25 @@ mod tests {
         let back = load_bytes(&bytes).unwrap();
         assert_eq!(back, doc);
         assert_eq!(serialize(&back).unwrap(), bytes);
+    }
+
+    #[test]
+    fn pinned_docx_bookkeeping_is_preserved_only_in_passthrough() {
+        for key in ["wordcraft:embedded.parts", "wordcraft:customXml.roots", "wordcraft:vbaProject.related"] {
+            let mut doc = example();
+            doc.passthrough.insert(key.into(), Arc::new(b"synthetic metadata".to_vec()));
+            let bytes = serialize(&doc).unwrap();
+            let back = load_bytes(&bytes).unwrap();
+            assert_eq!(back, doc);
+            assert_eq!(serialize(&back).unwrap(), bytes);
+            doc.media.insert(key.into(), Arc::new(vec![1]));
+            assert!(serialize(&doc).is_err(), "metadata is not a media filename");
+        }
+        for key in ["wordcraft:unknown", "wordcraft:embedded.parts/../outside", "C:/file", "https://example.invalid/file"] {
+            let mut doc = example();
+            doc.passthrough.insert(key.into(), Arc::new(vec![1]));
+            assert!(serialize(&doc).is_err(), "only exact pinned bookkeeping keys may contain a colon");
+        }
     }
 
     #[test]

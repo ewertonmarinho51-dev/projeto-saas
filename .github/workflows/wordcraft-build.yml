@@ -21,7 +21,9 @@ permissions:
 
 concurrency:
   group: wordcraft-build-${{ github.ref }}
-  cancel-in-progress: false
+  # A new source revision supersedes the old one; never restart an unchanged
+  # revision merely because observing its logs took too long.
+  cancel-in-progress: true
 
 jobs:
   upstream:
