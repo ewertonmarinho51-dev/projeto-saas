@@ -33,6 +33,8 @@ Branch: `feature/wordcraft-wasm-govconnect`. Produção não alterada.
 | `integrations/wordcraft/govconnect.rs` | codec de checkpoint sem perda de media/passthrough e operações tipadas sobre a própria Session upstream | testes Rust de roundtrip, bytes inválidos e atomicidade | candidato experimental; não substitui patch/ACL/CAS |
 | `scripts/wordcraft_overlay.py` | aplicar biblioteca de integração ao SHA exato upstream sem reimplementar engine | hashes de entrada, caminhos confinados e aplicação idempotente | build isolado, sem produção |
 | `tests/test_wordcraft_overlay.py` | validar recusa de SHA/arquivos divergentes e confinamento do overlay | pytest sem rede | não substitui compilação Rust |
+| `integrations/wordcraft/govconnect_browser.rs` | API WASM explícita sobre o mesmo WordApp/Session, sem picker/download e sem reinicialização por rerun | compilação WASM, smoke test de browser e ACK/checkpoint | G1 candidato; transporte/backend ainda necessários |
+| `integrations/wordcraft/main.rs` | entrada WASM controlada: inicialização explícita pelo host; sem shell de arquivos original | build do binário e export da classe GovConnectEditor | não distribui marcas nem ativa editor |
 
 Não foi escolhido formato canônico definitivo. JSON nativo existe em `engine::io`, mas
 roundtrip, IDs e fidelidade ainda precisam ser medidos. Não se grava novo documento como Markdown.

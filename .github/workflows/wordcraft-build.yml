@@ -105,8 +105,8 @@ jobs:
           test -n "$(find dist/web -name '*.wasm' -print -quit)"
       - name: Apply the isolated GovConnect adapter
         run: |
-          python3 scripts/wordcraft_overlay.py --source work-upstream > build-evidence/overlay.json
-          rustfmt --edition 2024 work-upstream/apps/wordcraft-web/src/govconnect.rs
+          python3 scripts/wordcraft_overlay.py --source work-upstream --browser > build-evidence/overlay.json
+          rustfmt --edition 2024 work-upstream/apps/wordcraft-web/src/govconnect.rs work-upstream/apps/wordcraft-web/src/govconnect_browser.rs work-upstream/apps/wordcraft-web/src/main.rs
           cp work-upstream/apps/wordcraft-web/src/govconnect.rs build-evidence/govconnect-formatted.rs
       - name: Test the adapter against the real WordCraft engine
         working-directory: work-upstream
@@ -115,8 +115,15 @@ jobs:
           set -o pipefail
           cargo test --locked -p wordcraft-web --lib 2>&1 | tee ../build-evidence/adapter-tests.log
           cargo clippy --locked -p wordcraft-web --lib -- -D warnings 2>&1 | tee ../build-evidence/adapter-clippy.log
-          cargo check --locked -p wordcraft-web --lib --target wasm32-unknown-unknown 2>&1 | tee ../build-evidence/adapter-wasm.log
+          cargo check --locked -p wordcraft-web --target wasm32-unknown-unknown 2>&1 | tee ../build-evidence/adapter-wasm.log
           sha256sum --check ../build-evidence/Cargo.lock.sha256
+      - name: Build the explicit GovConnect WASM API
+        working-directory: work-upstream/apps/wordcraft-web
+        shell: bash
+        run: |
+          set -o pipefail
+          trunk build --release 2>&1 | tee ../../../build-evidence/govconnect-trunk.log
+          grep -R -l 'GovConnectEditor' ../../dist/web/*.js > ../../../build-evidence/govconnect-api-exports.txt
       - name: Preserve build evidence (no editor distribution or deploy)
         if: always()
         uses: actions/upload-artifact@v4

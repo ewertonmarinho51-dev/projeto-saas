@@ -151,6 +151,18 @@ pub enum UserEdit {
     Redo,
 }
 
+/// Remove file/session/environment actions from the embedded ribbon and shortcut registry.
+/// The host owns opening, checkpoints and authorized exports. No provider/network automation.
+pub fn restrict_embedded_session(session: &mut Session) {
+    let specs = session.registry.all().iter().filter(|spec| {
+        !["file.", "font.", "mailings.", "tools.", "zotero."].iter().any(|prefix| spec.id.starts_with(prefix))
+    }).cloned().collect();
+    session.registry = Arc::new(wordcraft_engine::Registry::new(specs));
+    session.autosave = false;
+    session.path = None;
+    session.user_dict_path = None;
+}
+
 pub fn command(session: &mut Session, edit: UserEdit) -> Result<Value, String> {
     let (id, params) = match edit {
         UserEdit::InsertText(text) | UserEdit::SelectText(text) if text.len() > 100_000 => {
@@ -272,6 +284,19 @@ mod tests {
             }),
         };
         assert!(validate_object(&graphic, 0).is_err());
+    }
+
+    #[test]
+    fn embedded_registry_denies_files_and_environment_but_keeps_typing() {
+        let mut session = Session::new(Document::new());
+        restrict_embedded_session(&mut session);
+        for id in ["file.new", "file.open", "file.save", "font.add", "tools.macros", "mailings.finish"] {
+            assert!(session.registry.get(id).is_none(), "{id}");
+            assert!(session.run(id, &json!({})).is_err(), "{id}");
+        }
+        command(&mut session, UserEdit::InsertText("ação".into())).unwrap();
+        command(&mut session, UserEdit::Undo).unwrap();
+        assert!(session.path.is_none() && session.user_dict_path.is_none() && !session.autosave);
     }
 
     #[test]

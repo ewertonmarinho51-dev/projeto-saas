@@ -69,3 +69,25 @@ def test_nao_sobrescreve_adaptador_alheio(tmp_path, monkeypatch):
 def test_caminho_confinado(tmp_path):
     with pytest.raises(ValueError, match="escaped"):
         overlay.contained(tmp_path.resolve(), "../outside")
+
+
+def test_browser_entrypoint_idempotente(tmp_path, monkeypatch):
+    cargo = seed(tmp_path, monkeypatch)
+    main = cargo.parent / "src/main.rs"
+    main.write_bytes(b"fn main() { /* fixture */ }\n")
+    monkeypatch.setattr(overlay, "MAIN_SHA", hashlib.sha256(main.read_bytes()).hexdigest())
+    first = overlay.apply(tmp_path, browser=True)
+    assert overlay.apply(tmp_path, browser=True) == first
+    assert first["browser_bridge"]
+    assert (cargo.parent / "src/govconnect_browser.rs").is_file()
+
+
+def test_browser_divergente_recusa_antes_de_qualquer_escrita(tmp_path, monkeypatch):
+    cargo = seed(tmp_path, monkeypatch)
+    main = cargo.parent / "src/main.rs"
+    main.write_bytes(b"unrelated browser change")
+    before = cargo.read_bytes()
+    with pytest.raises(ValueError, match="main.rs"):
+        overlay.apply(tmp_path, browser=True)
+    assert cargo.read_bytes() == before
+    assert not (cargo.parent / "src/govconnect.rs").exists()
