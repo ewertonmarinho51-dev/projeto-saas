@@ -1284,9 +1284,7 @@ def _chave_de_cache(system_prompt: str, user_prompt: str,
     diferentes, e servir um pelo outro seria trocar o autor do documento
     sem dizer a ninguém.
     """
-    from . import cache_geracao
-
-    from . import politica_ia
+    from . import cache_geracao, politica_ia
 
     motor = motor_ativo()
     candidatos = {"openai": _modelos_openai, "gemini": _modelos_gemini,
@@ -1298,6 +1296,13 @@ def _chave_de_cache(system_prompt: str, user_prompt: str,
              if candidatos else [])
     tetos = ",".join(str(politica_ia.teto_de_saida(tarefa, m)) for m in lista)
     modelos = ",".join(lista) + (f"|teto={tetos}" if tetos else "")
+    # A política de ROTEAMENTO também: o acerto de cache volta antes de
+    # `_percorrer_motores` filtrar os motores. Sem isto, um documento
+    # crítico gerado com a política desligada continuaria sendo servido
+    # depois de o operador ligá-la — por um motor que ela agora recusa.
+    permitidos = [m for m, _ in ai_gateway.motores_para(tarefa, [(motor, "")])]
+    modelos += f"|rota={'on' if ai_gateway.roteamento_ligado() else 'off'}:" \
+               f"{','.join(permitidos) or '-'}"
     return cache_geracao.chave(motor, modelos, system_prompt, user_prompt)
 
 

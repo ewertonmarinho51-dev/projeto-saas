@@ -396,6 +396,25 @@ def test_c10_cache_muda_quando_a_politica_muda(monkeypatch):
     assert antes != depois
 
 
+def test_c10_cache_muda_quando_o_roteamento_e_ligado(monkeypatch):
+    """Revisão do PR #47: o acerto de cache vem antes do filtro de motores."""
+    from src import ai_gateway
+
+    monkeypatch.setattr(llm, "motor_ativo", lambda: "gemini")
+    monkeypatch.setattr(llm, "_modelos_gemini", lambda: ["gemini-2.5-flash"])
+    monkeypatch.setattr(politica_ia, "ativo", lambda: False)
+    monkeypatch.setenv(ai_gateway.VAR_ROTEAMENTO, "false")
+    desligada = llm._chave_de_cache("s", "u", "edital")
+    monkeypatch.setenv(ai_gateway.VAR_ROTEAMENTO, "true")
+    ligada = llm._chave_de_cache("s", "u", "edital")
+    assert desligada != ligada
+
+
+def test_c01_campo_de_data_tem_o_traco_de_foco_substituto():
+    css = (RAIZ / "assets" / "govconnect.css").read_text(encoding="utf-8")
+    assert '.stDateInput [data-testid="stDateInputField"]:focus-within' in css
+
+
 def test_c10_tarefa_critica_sem_motor_homologado_falha_com_mensagem(monkeypatch):
     from src import ai_gateway
 

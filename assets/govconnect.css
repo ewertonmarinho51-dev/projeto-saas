@@ -843,6 +843,8 @@ button:disabled {
 .stTextArea [data-testid="stTextAreaRootElement"]:focus-within,
 .stNumberInput [data-testid="stNumberInputContainer"]:focus-within,
 .stNumberInput [data-baseweb="input"]:focus-within,
+.stDateInput [data-testid="stDateInputField"]:focus-within,
+.stDateInput [data-baseweb="input"]:focus-within,
 .stSelectbox [data-baseweb="select"] > div:focus-within,
 .stTextArea [data-baseweb="textarea"]:focus-within {
     border-color: var(--gc-action) !important;
