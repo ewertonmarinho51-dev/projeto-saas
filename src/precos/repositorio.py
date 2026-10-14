@@ -474,6 +474,34 @@ def listar_itens(pesquisa_id: str) -> list[dict]:
         raise db._traduzir_erro(exc) from exc  # noqa: SLF001
 
 
+def definir_catalogo(item: dict, codigo: str, tipo: str = "CATMAT") -> dict:
+    """
+    Grava o CATMAT/CATSER ESCOLHIDO PELO SERVIDOR e devolve o item à fila.
+
+    A escolha é humana (ver `precos.catalogo`): o sistema sugere, nunca
+    grava sozinho. Item já pesquisado volta a BUSCANDO — a mesma porta do
+    "Buscar mais" — para a próxima rodada consultar o código novo.
+    """
+    codigo = str(codigo or "").strip()
+    tipo = str(tipo or "").upper()
+    if not codigo.isdigit() or tipo not in ("CATMAT", "CATSER"):
+        raise db.ErroBanco("Informe um código CATMAT/CATSER numérico.")
+    atual = EstadoItem(item.get("estado") or EstadoItem.PENDENTE)
+    campos = {"codigo": codigo, "tipo_catalogo": tipo, "erro": None}
+    if atual in (EstadoItem.PENDENTE, EstadoItem.BUSCANDO):
+        try:
+            resposta = (_cliente().table(TABELA_ITENS)
+                        .update(campos).eq("id", str(item["id"])).execute())
+            if not resposta.data:
+                raise db.ErroBanco("Não foi possível alterar este item.")
+            return resposta.data[0]
+        except db.ErroBanco:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+    return mover_item(str(item["id"]), EstadoItem.BUSCANDO, atual, **campos)
+
+
 def mover_item(item_id: str, destino: EstadoItem,
                atual: EstadoItem | str, **campos) -> dict:
     """

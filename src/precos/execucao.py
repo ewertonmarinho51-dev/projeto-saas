@@ -59,10 +59,40 @@ from .perfil import PADRAO, PerfilNormativo
 # reruns e fica mais lento no total.
 LOTE_PADRAO = 5
 
-# Janela temporal padrão da consulta. Preço de dois anos atrás não
-# descreve o mercado de hoje; abrir demais enche a amostra de referência
-# velha que o fator de temporalidade vai penalizar de qualquer modo.
-JANELA_PADRAO_DIAS = 365
+# Janela temporal da consulta: 180 dias, que é a validade das cotações
+# adotada pelo órgão (orientação do operador, 14/10/2026). É também o
+# TETO: uma pesquisa gravada antes com 365 dias passa a consultar 180,
+# porque referência além disso não sustenta o preço estimado. O
+# relatório mostra a janela efetiva, não a pedida.
+JANELA_PADRAO_DIAS = 180
+JANELA_MAXIMA_DIAS = 180
+
+
+def janela_efetiva(filtros: dict | None) -> int:
+    """Dias consultados de fato: o pedido, limitado à validade."""
+    pedida = int((filtros or {}).get("janela_dias") or JANELA_PADRAO_DIAS)
+    return max(1, min(pedida, JANELA_MAXIMA_DIAS))
+
+
+TIPOS_DE_CATALOGO = ("CATMAT", "CATSER")
+
+
+def codigo_de_catalogo(item: dict) -> str | None:
+    """
+    O código do item SÓ quando ele é código de catálogo.
+
+    A planilha do processo tem uma coluna "código" que muitas vezes é o
+    número sequencial do item (1, 2, 3…). Mandar "1" à API como CATMAT
+    devolvia zero registros depois de 51 s — e a pesquisa travava. Vale
+    como catálogo o código com tipo declarado, ou o que tem a forma de um
+    (só dígitos, 5 ou mais).
+    """
+    codigo = str(item.get("codigo") or "").strip()
+    if not codigo:
+        return None
+    if str(item.get("tipo_catalogo") or "").upper() in TIPOS_DE_CATALOGO:
+        return codigo
+    return codigo if codigo.isdigit() and len(codigo) >= 5 else None
 
 # Quantas referências pedir por item a cada fonte.
 LIMITE_POR_FONTE = 100
@@ -175,12 +205,12 @@ def consulta_do_item(item: dict, filtros: dict | None = None,
     hoje = filtros.get("data_base") or date.today()
     if isinstance(hoje, str):
         hoje = date.fromisoformat(hoje[:10])
-    dias = int(filtros.get("janela_dias") or JANELA_PADRAO_DIAS)
+    dias = janela_efetiva(filtros)
     return Consulta(
         descricao=str(item.get("descricao") or ""),
         unidade=item.get("unidade") or None,
         quantidade=float(quantidade) if quantidade is not None else None,
-        codigo_catalogo=item.get("codigo") or None,
+        codigo_catalogo=codigo_de_catalogo(item),
         tipo_catalogo=item.get("tipo_catalogo") or None,
         material_ou_servico=("S" if item.get("tipo_catalogo") == "CATSER"
                              else "M"),
@@ -366,7 +396,7 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
     ranqueadas = matching.ordenar_por_comparabilidade(
         normalizadas,
         descricao=str(item.get("descricao") or ""),
-        codigo_catalogo=item.get("codigo") or None,
+        codigo_catalogo=codigo_de_catalogo(item),
         quantidade=_decimal(item.get("quantidade")),
         uf=filtros.get("uf") or None,
         data_base=data_base,
