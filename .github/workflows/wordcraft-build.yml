@@ -149,15 +149,32 @@ jobs:
           python3 scripts/wordcraft_overlay.py --source work-upstream --browser > build-evidence/overlay.json
           rustfmt --edition 2024 --config-path integrations/wordcraft/rustfmt.toml work-upstream/apps/wordcraft-web/src/govconnect.rs work-upstream/apps/wordcraft-web/src/govconnect_browser.rs work-upstream/apps/wordcraft-web/src/main.rs
           cp work-upstream/apps/wordcraft-web/src/govconnect.rs build-evidence/govconnect-formatted.rs
-      - name: Test the adapter against the real WordCraft engine
+      - name: Check integration source formatting
+        working-directory: work-upstream
+        run: cargo fmt --all -- --check
+      - name: Test the native checkpoint codec
         working-directory: work-upstream
         shell: bash
         run: |
           set -o pipefail
-          cargo fmt --all -- --check
           cargo test --locked -p wordcraft-web --lib 2>&1 | tee ../build-evidence/adapter-tests.log
+      - name: Regress the modified editor UI and language catalogs
+        working-directory: work-upstream
+        shell: bash
+        run: |
+          set -o pipefail
           cargo test --locked -p wordcraft-ui-egui 2>&1 | tee ../build-evidence/adapter-ui-regression.log
+      - name: Lint every native adapter target
+        working-directory: work-upstream
+        shell: bash
+        run: |
+          set -o pipefail
           cargo clippy --locked -p wordcraft-web --all-targets -- -D warnings 2>&1 | tee ../build-evidence/adapter-clippy.log
+      - name: Check the explicit WASM API types
+        working-directory: work-upstream
+        shell: bash
+        run: |
+          set -o pipefail
           cargo check --locked -p wordcraft-web --target wasm32-unknown-unknown 2>&1 | tee ../build-evidence/adapter-wasm.log
           sha256sum --check ../build-evidence/Cargo.lock.sha256
       - name: Roundtrip the verified synthetic DOCX corpus through the real adapter
