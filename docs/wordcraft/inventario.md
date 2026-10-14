@@ -29,6 +29,7 @@ Branch: `feature/wordcraft-wasm-govconnect`. Produção não alterada.
 | `tests/test_wordcraft_preflight.py` | impedir aprovação falsa com source/toolchain ausentes ou divergentes | pytest offline | pré-requisitos não certificam G1 |
 | `docs/wordcraft/upstream.lock.json` | manifesto de origem e versão auditada | preflight | hash Git não prova build |
 | `.github/workflows/wordcraft-build.yml` | ensaio de build upstream pinado em runner Linux, sem deploy ou segredos | cargo xtask ci, Trunk e hashes de lock/assets | gate 0; não prova integração GovConnect |
+| `vercel.json` | impedir auto-deploy da branch isolada por integração externa preexistente | configuração oficial git.deploymentEnabled por branch | controle de execução, não altera produção |
 
 Não foi escolhido formato canônico definitivo. JSON nativo existe em `engine::io`, mas
 roundtrip, IDs e fidelidade ainda precisam ser medidos. Não se grava novo documento como Markdown.
