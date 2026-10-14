@@ -20,11 +20,11 @@ impl eframe::App for EditorApp {
     fn as_any_mut(&mut self) -> Option<&mut dyn Any> {
         Some(self)
     }
-    fn raw_input_hook(&mut self, ctx: &egui::Context, input: &mut egui::RawInput) {
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, input: &mut egui::RawInput) {
         // Documents/assets enter only through the explicitly authorized host API.
         input.dropped_files.clear();
         input.hovered_files.clear();
-        self.app.raw_input_hook(ctx, input);
+        self.app.raw_input_hook(input);
     }
 }
 
