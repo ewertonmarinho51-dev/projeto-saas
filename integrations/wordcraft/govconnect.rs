@@ -138,7 +138,12 @@ pub fn load_bytes(bytes: &[u8]) -> Result<Document, String> {
     if !doc_value.get("body").is_some_and(Value::is_array) {
         return Err("missing document body".into());
     }
-    let mut doc: Document = serde_json::from_value(doc_value).map_err(|_| "invalid document model".to_string())?;
+    let mut doc: Document = serde_json::from_value(doc_value.clone()).map_err(|_| "invalid document model".to_string())?;
+    // Serde's permissive model decoder otherwise drops unknown nested fields.
+    // Compare JSON values, not bytes: object order is irrelevant to this check.
+    if serde_json::to_value(&doc).map_err(|_| "model cannot be serialized".to_string())? != doc_value {
+        return Err("checkpoint contains unsupported or noncanonical model fields".into());
+    }
     for (name, target) in [("media", &mut doc.media), ("passthrough", &mut doc.passthrough)] {
         let value = root.remove(name).ok_or("missing assets")?;
         *target = serde_json::from_value::<BTreeMap<String, Arc<Vec<u8>>>>(value).map_err(|_| "invalid assets".to_string())?;
@@ -278,6 +283,21 @@ mod tests {
                 _ => value["media"]["../outside"] = json!([1, 2]),
             }
             assert!(load_bytes(&serde_json::to_vec(&value).unwrap()).is_err());
+        }
+    }
+
+    #[test]
+    fn unknown_model_fields_cannot_be_silently_discarded() {
+        for nested in [false, true] {
+            let mut value: Value = serde_json::from_slice(&serialize(&example()).unwrap()).unwrap();
+            let target = if nested { &mut value["document"]["body"][0] } else { &mut value["document"] };
+            target["unsupported_future_field"] = json!({"text": "must not disappear"});
+            let bytes = serde_json::to_vec(&value).unwrap();
+            assert!(load_bytes(&bytes).is_err());
+            let mut live = Session::new(example());
+            let before = serialize(&live.doc).unwrap();
+            assert!(load_into(&mut live, &bytes).is_err());
+            assert_eq!(serialize(&live.doc).unwrap(), before);
         }
     }
 

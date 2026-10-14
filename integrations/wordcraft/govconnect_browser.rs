@@ -53,6 +53,13 @@ fn error(message: impl AsRef<str>) -> JsValue {
     JsValue::from_str(message.as_ref())
 }
 
+/// Pure model validation, also callable by a pinned server-side WASM runner.
+/// Success grants no ACL, persistence, approval or trust to browser-side claims.
+#[wasm_bindgen]
+pub fn validate_checkpoint(bytes: Vec<u8>) -> Result<(), JsValue> {
+    adapter::load_bytes(&bytes).map(|_| ()).map_err(error)
+}
+
 impl GovConnectEditor {
     fn with_session<T>(&self, action: impl FnOnce(&mut Session) -> Result<T, String>) -> Result<T, JsValue> {
         if !self.started {
