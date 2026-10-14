@@ -17,6 +17,36 @@ CARGO_SHA = "eda03c9e096f2a45cd55e5e5001e8f0850ceacf107864705cdd9c16928bfc8e0"
 LIB_SECTION = '\n[lib]\nname = "govconnect_wordcraft"\npath = "src/govconnect.rs"\n'
 MAIN_PATH = "apps/wordcraft-web/src/main.rs"
 MAIN_SHA = "7aabe7a19c7443a09874079a612a03803313c76e92fa83036941bbabd0021e4d"
+CATALOG_CODES = frozenset({"bg", "cs", "de", "es", "et", "fr", "hu", "it", "ja", "pl", "pt-br", "ru",
+                           "sr", "sr-latn", "tr", "uk", "zh-hans", "zh-hant"})
+
+
+def validate_catalog_parity(catalogs: dict[str, bytes]) -> None:
+    """Cheap pre-check of pinned upstream key-set contracts; Rust audit still runs."""
+    if catalogs.keys() != CATALOG_CODES:
+        raise ValueError("Integration labels must cover all pinned UI catalogs")
+    keys = {}
+    for code, content in catalogs.items():
+        entries = []
+        for line in content.decode("utf-8").splitlines():
+            if not line.strip() or line.startswith("#"):
+                continue
+            columns = line.split("\t")
+            if len(columns) != 3:
+                raise ValueError("Unexpected pinned catalog row shape")
+            entries.append(columns[1])
+        keys[code] = set(entries)
+    for code in ("pt-br", "uk", "sr", "sr-latn", "cs", "de"):
+        if keys[code] != keys["zh-hans"]:
+            raise ValueError(f"Catalog key parity differs: {code}/zh-hans")
+    if keys["tr"] != keys["ru"]:
+        raise ValueError("Catalog key parity differs: tr/ru")
+    for code in ("es", "tr", "et", "zh-hans"):
+        if not keys[code].issubset(keys["it"]):
+            raise ValueError(f"Italian catalog lacks keys from {code}")
+    for code in CATALOG_CODES - {"pl", "it", "hu", "bg"}:
+        if not keys[code].issubset(keys["pl"]):
+            raise ValueError(f"Polish catalog lacks keys from {code}")
 
 
 def contained(source: Path, relative: str) -> Path:
@@ -86,7 +116,13 @@ def apply(source: Path, *, browser=False):
         if module.exists() and module.read_bytes() != module_bytes:
             raise ValueError("An unrelated browser integration file already exists")
         writes.extend([(main, replacement), (module, module_bytes)])
-        writes.extend(planned_ui_patch(source, spec) for spec in ui_patches(pin))
+        patches = ui_patches(pin)
+        ui_writes = [planned_ui_patch(source, spec) for spec in patches]
+        if patches:
+            catalogs = {Path(spec["path"]).stem: content for spec, (_, content) in zip(patches, ui_writes)
+                        if "/i18n/" in spec["path"] and spec["path"].endswith(".tsv")}
+            validate_catalog_parity(catalogs)
+        writes.extend(ui_writes)
     # Every target is validated before writing any of them.
     for path, content in writes:
         path.parent.mkdir(parents=True, exist_ok=True)

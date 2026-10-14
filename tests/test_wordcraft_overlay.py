@@ -143,13 +143,21 @@ def test_mensagens_da_integracao_tem_catalogos_exigidos_e_portugues():
     keys = [re.search(r'"([^"]+)"', change["after"])[1]
             for change in dialogs["replacements"][:3]]
     assert len(set(keys)) == 3
-    for language in ("ru", "hu", "tr", "bg", "pt-br"):
+    for language in overlay.CATALOG_CODES:
         catalog = next(p for p in patches if p["path"].endswith(f"/i18n/{language}.tsv"))
         additions = "\n".join(change["after"] for change in catalog["replacements"])
         entries = [line.split("\t") for line in additions.splitlines() if line.startswith("\t")]
         for key in keys:
             matches = [entry for entry in entries if len(entry) == 3 and entry[1] == key]
             assert len(matches) == 1 and matches[0][2].strip()
+
+
+def test_paridade_dos_catalogos_falha_antes_da_compilacao():
+    catalogs = {code: b"\tShared label\tTranslated label\n" for code in overlay.CATALOG_CODES}
+    overlay.validate_catalog_parity(catalogs)
+    catalogs["pt-br"] += b"\tNew integration label\tTraducao\n"
+    with pytest.raises(ValueError, match="parity"):
+        overlay.validate_catalog_parity(catalogs)
 
 
 def test_shell_do_fork_nao_copia_icone_da_marca_upstream():
