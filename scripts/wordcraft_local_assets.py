@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 from pathlib import Path
 import re
@@ -34,17 +35,20 @@ def install(archive: Path, lab: Path, *, artifact_sha256: str, producer_commit: 
     pin = json.loads((ROOT / "docs/wordcraft/upstream.lock.json").read_text(encoding="utf-8"))["commit"]
     if not re.fullmatch(r"[0-9a-f]{40}", producer_commit) or not re.fullmatch(r"[0-9a-f]{64}", artifact_sha256):
         raise ValueError("Expected CI commit and artifact digest are mandatory")
-    if archive.stat().st_size > MAX_ARCHIVE or hashlib.sha256(archive.read_bytes()).hexdigest() != artifact_sha256:
+    with archive.open("rb") as stream:
+        raw_archive = stream.read(MAX_ARCHIVE + 1)
+    if len(raw_archive) > MAX_ARCHIVE or hashlib.sha256(raw_archive).hexdigest() != artifact_sha256:
         raise ValueError("Artifact archive size or digest differs")
     plan = []
-    with zipfile.ZipFile(archive) as bundle:
+    with zipfile.ZipFile(io.BytesIO(raw_archive)) as bundle:
         entries = bundle.infolist()
         if (len(entries) > 256 or len({item.filename for item in entries}) != len(entries)
                 or sum(item.file_size for item in entries) > MAX_TOTAL):
             raise ValueError("Artifact archive is ambiguous or too large")
         for item in entries:
             safe_name(item.filename.rstrip("/"))
-        manifest = json.loads(bundle.read("qa-manifest.json"))
+        raw_manifest = bundle.read("qa-manifest.json")
+        manifest = json.loads(raw_manifest)
         if (manifest.get("status") != "INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED"
                 or manifest.get("upstream_commit") != pin
                 or manifest.get("govconnect_commit") != producer_commit):
@@ -82,7 +86,7 @@ def install(archive: Path, lab: Path, *, artifact_sha256: str, producer_commit: 
                 raise ValueError("Notice text digest differs")
             content.decode("utf-8")
             plan.append(("notices/" + relative, content))
-        plan.extend([("notices/manifest.json", notices_bytes), ("qa-manifest.json", bundle.read("qa-manifest.json"))])
+        plan.extend([("notices/manifest.json", notices_bytes), ("qa-manifest.json", raw_manifest)])
     destination = lab / "static/wordcraft"
     resolved = destination.resolve()
     if not resolved.is_relative_to(lab) or resolved == lab:
@@ -107,6 +111,7 @@ def install(archive: Path, lab: Path, *, artifact_sha256: str, producer_commit: 
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
     return {"status": "STAGED_FOR_LOCAL_QA_ONLY", "producer_commit": producer_commit,
+            "manifest_sha256": hashlib.sha256(raw_manifest).hexdigest(),
             "artifact_sha256": artifact_sha256, "module_url": "/app/static/wordcraft/" + modules[0],
             "wasm_url": "/app/static/wordcraft/" + binaries[0]}
 

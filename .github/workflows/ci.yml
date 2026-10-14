@@ -121,7 +121,7 @@ jobs:
           git diff --exit-code -- editor.bundle.js
 
       - name: Testar protocolo e lifecycle do host WordCraft
-        run: node --test assets/wordcraft_editor/host.test.mjs
+        run: node --test assets/wordcraft_editor/host.test.mjs assets/wordcraft_editor/validate.test.mjs
 
       - uses: actions/setup-python@v5
         with:

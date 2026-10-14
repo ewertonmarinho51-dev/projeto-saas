@@ -50,6 +50,7 @@ def test_instalacao_idempotente_so_copia_assets_e_avisos(tmp_path, monkeypatch):
     assert assets.install(archive, lab, **kwargs) == result
     target = lab / "static/wordcraft"
     assert (target / "notices/manifest.json").is_file()
+    assert result["manifest_sha256"] == hashlib.sha256((target / "qa-manifest.json").read_bytes()).hexdigest()
     assert not (target / "checkpoint.json").exists()
     assert not (target / "cargo-metadata.json").exists()
 

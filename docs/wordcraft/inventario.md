@@ -24,6 +24,9 @@ Branch: `feature/wordcraft-wasm-govconnect`. Produção não alterada.
 | Módulo | Responsabilidade exclusiva / consumidores | Teste | Risco / gate |
 |---|---|---|---|
 | `src/wordcraft_protocol.py` | validar envelopes e respostas da ponte; futura UI; sem gravar, autorizar ou aplicar patches | schema fechado, nonce, escopo, replay, ACK | alto; fundação independente, não prova G1 |
+| `src/wordcraft_native.py` | executar validador do mesmo motor em processo isolado, sem documento em arquivo ou credenciais no ambiente filho | rejeição/timeout/erro de runtime e resultado fechado | valida modelo, não concede ACL nem confirma save |
+| `assets/wordcraft_editor/validate.mjs` | worker Node para validar bytes pelo WASM pinado, sem WordApp/canvas | hashes do manifesto/assets, input limitado e rejeição de modelo | depende de artefato compilado; não é segundo parser do documento |
+| `assets/wordcraft_editor/validate.test.mjs`, `tests/test_wordcraft_native.py` | provar fail-closed do worker/IPC e não vazamento do payload/credenciais | Node/pytest offline | aprovação positiva real depende do WASM do CI |
 | `src/ui/wordcraft_editor.py` | registrar/montar host v2 com instância estável e callback obrigatório do proprietário backend | contrato de abertura, chave estável e renderer simulado | não grava nem concede ACL; sem consumidor operacional até G1 |
 | `tests/test_wordcraft_renderer.py` | recusar abertura divergente e preservar montagem/callback entre reruns | pytest offline | não equivale a navegador com WASM real |
 | `scripts/wordcraft_preflight.py` | verificar fontes/ferramentas e prova criptográfica do baseline upstream imutável; não aprova o adaptador | SHA/ZIP/run/lockfile exatos e falhas negativas | somente baseline pode ser reutilizado; integração sempre recompilada/testada |

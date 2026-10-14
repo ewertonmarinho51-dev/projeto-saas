@@ -1,0 +1,101 @@
+// Server-side worker. It never instantiates the canvas/WordApp or returns document text.
+import {readFile, realpath, stat} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {isAbsolute, relative, resolve, sep} from 'node:path';
+import {fileURLToPath, pathToFileURL} from 'node:url';
+import {maxBytes} from './host.mjs';
+
+export class ModelRejected extends Error {}
+const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+const hashPattern = /^[0-9a-f]{64}$/;
+
+export async function readInput(stream) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of stream) {
+    size += chunk.length;
+    if (size > maxBytes) throw new ModelRejected('Checkpoint exceeds its byte bound.');
+    chunks.push(chunk);
+  }
+  if (!size) throw new ModelRejected('Empty checkpoint.');
+  return Buffer.concat(chunks);
+}
+
+export async function verifyBundle(bundle, manifestHash) {
+  if (!hashPattern.test(manifestHash)) throw new Error('Pinned manifest hash required.');
+  const root = await realpath(bundle);
+  const manifestPath = resolve(root, 'qa-manifest.json');
+  if ((await stat(manifestPath)).size > 128 * 1024) throw new Error('Manifest exceeds its byte bound.');
+  const raw = await readFile(manifestPath);
+  if (digest(raw) !== manifestHash) throw new Error('Manifest hash differs.');
+  const manifest = JSON.parse(raw);
+  if (manifest.status !== 'INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED'
+      || !/^[0-9a-f]{40}$/.test(manifest.upstream_commit)
+      || !/^[0-9a-f]{40}$/.test(manifest.govconnect_commit)
+      || !Array.isArray(manifest.files) || manifest.files.length < 2 || manifest.files.length > 100) {
+    throw new Error('Unexpected engine manifest.');
+  }
+  let total = 0;
+  const files = new Map();
+  for (const entry of manifest.files) {
+    const name = entry.path;
+    if (typeof name !== 'string' || !/^[a-zA-Z0-9._/-]+$/.test(name)
+        || name.split('/').some(part => ['', '.', '..'].includes(part))
+        || !/\.(js|wasm)$/.test(name) || files.has(name)
+        || !Number.isSafeInteger(entry.bytes) || entry.bytes <= 0 || entry.bytes > 80 * 1024 * 1024
+        || !hashPattern.test(entry.sha256)) throw new Error('Unexpected engine asset.');
+    total += entry.bytes;
+    if (total > 200 * 1024 * 1024) throw new Error('Engine assets exceed their byte bound.');
+    const path = await realpath(resolve(root, name));
+    const confined = relative(root, path);
+    if (!confined || isAbsolute(confined) || confined === '..' || confined.startsWith('..' + sep)) {
+      throw new Error('Engine asset escaped the bundle.');
+    }
+    if ((await stat(path)).size !== entry.bytes) throw new Error('Engine asset size differs.');
+    const bytes = await readFile(path);
+    if (digest(bytes) !== entry.sha256) throw new Error('Engine asset hash differs.');
+    files.set(name, {path, bytes});
+  }
+  const modules = [...files.keys()].filter(name => !name.includes('/') && name.endsWith('.js'));
+  const wasm = [...files.keys()].filter(name => !name.includes('/') && name.endsWith('.wasm'));
+  if (modules.length !== 1 || wasm.length !== 1) throw new Error('Ambiguous engine entry points.');
+  return {modulePath: files.get(modules[0]).path, wasmBytes: files.get(wasm[0]).bytes};
+}
+
+export async function validate(content, bundle, manifestHash) {
+  if (!(content instanceof Uint8Array) || !content.length || content.length > maxBytes) {
+    throw new ModelRejected('Invalid checkpoint byte bound.');
+  }
+  const {modulePath, wasmBytes} = await verifyBundle(bundle, manifestHash);
+  const engine = await import(pathToFileURL(modulePath).href);
+  if (typeof engine.default !== 'function' || typeof engine.validate_checkpoint !== 'function') {
+    throw new Error('Required native validation API missing.');
+  }
+  await engine.default({module_or_path: wasmBytes});
+  let result;
+  try { result = engine.validate_checkpoint(content); }
+  catch (error) {
+    if (typeof error === 'string') throw new ModelRejected('Native model rejected.');
+    throw new Error('Native engine failed.');
+  }
+  if (result !== undefined) throw new Error('Unexpected native validation result.');
+}
+
+async function main() {
+  try {
+    const args = process.argv.slice(2);
+    if (args.length !== 4 || args[0] !== '--bundle' || args[2] !== '--manifest-sha256') {
+      throw new Error('Explicit pinned bundle required.');
+    }
+    const content = await readInput(process.stdin);
+    await validate(content, args[1], args[3]);
+    process.stdout.write('{"valid":true}\n');
+  } catch (error) {
+    // Never echo the document or native exception text to logs/IPC.
+    const rejected = error instanceof ModelRejected;
+    process.stdout.write(JSON.stringify({valid: false, code: rejected ? 'MODEL_REJECTED' : 'ENGINE_UNAVAILABLE'}) + '\n');
+    process.exitCode = rejected ? 2 : 3;
+  }
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

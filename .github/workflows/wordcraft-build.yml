@@ -11,6 +11,8 @@ on:
       - scripts/wordcraft_notices.py
       - scripts/wordcraft_corpus.py
       - tests/fixtures/wordcraft/**
+      - assets/wordcraft_editor/validate.mjs
+      - src/wordcraft_native.py
   workflow_dispatch:
 
 permissions:
@@ -33,6 +35,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - name: Read pinned upstream revision
         id: pin
         shell: bash
@@ -92,6 +97,7 @@ jobs:
           rustc --version > ../build-evidence/tools.txt
           cargo --version >> ../build-evidence/tools.txt
           trunk --version >> ../build-evidence/tools.txt
+          node --version >> ../build-evidence/tools.txt
       - name: Verify upstream and embedded font notices
         run: |
           python3 scripts/wordcraft_notices.py --metadata build-evidence/cargo-metadata.json --upstream work-upstream --out build-evidence/notices > build-evidence/notices-check.json
@@ -214,6 +220,27 @@ jobs:
               'govconnect_commit': os.environ['GITHUB_SHA'],
               'distribution_review': 'Complete dependency obligations and runtime fidelity review remain pending',
               'files': files}, indent=2) + '\n')
+          PY
+      - name: Validate real native checkpoints through the server IPC
+        run: |
+          python3 - <<'PY'
+          import hashlib, pathlib, shutil
+          from src.wordcraft_native import validar, ModeloRecusado
+          bundle = pathlib.Path('wordcraft-local-qa').resolve()
+          kwargs = {'node': pathlib.Path(shutil.which('node')), 'bundle': bundle,
+                    'manifest_sha256': hashlib.sha256((bundle / 'qa-manifest.json').read_bytes()).hexdigest()}
+          checkpoints = sorted(pathlib.Path('build-evidence/corpus-roundtrip').glob('*/checkpoint.json'))
+          assert len(checkpoints) == 3
+          for path in checkpoints:
+              validar(path.read_bytes(), **kwargs)
+          try:
+              validar(b'{"invalid_native_document":true}', **kwargs)
+          except ModeloRecusado:
+              pass
+          else:
+              raise AssertionError('Server engine accepted an invalid model')
+          pathlib.Path('build-evidence/native-server-validation.txt').write_text(
+              '3 real native checkpoints accepted; invalid model rejected; no document payload logged\n')
           PY
       - name: Preserve assets for the local browser integration test
         uses: actions/upload-artifact@v4
