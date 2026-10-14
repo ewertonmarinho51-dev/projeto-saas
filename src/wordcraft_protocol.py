@@ -17,7 +17,8 @@ from uuid import UUID
 PROTOCOL = "gc-wordcraft/v1"
 MAX_BYTES = 8 * 1024 * 1024
 MAX_EVENTS = 10_000
-EVENTS = frozenset({"document.loaded", "document.changed", "document.checkpoint"})
+EVENTS = frozenset({"document.loaded", "document.changed", "document.checkpoint", "document.retry"})
+CHECKPOINT_SCHEMA = "gc-wordcraft-snapshot/v1"
 FIELDS = frozenset({"protocol", "request_id", "instance_id", "session_id",
                     "document_id", "expected_revision", "event", "sequence",
                     "nonce", "payload"})
@@ -135,11 +136,18 @@ class Ponte:
             if self.state not in {"ready", "dirty", "saved", "saving", "error"}:
                 raise ErroPonte("Documento indisponível para edição.")
             next_state = (self.state if self._pending else "dirty")
+        elif kind == "document.retry":
+            _campos(payload, {"request_id"})
+            if (self.state != "error" or not self._pending
+                    or payload["request_id"] != self._pending.request_id):
+                raise ErroPonte("Retry não corresponde ao checkpoint pendente.")
+            checkpoint = self._pending
+            next_state = "saving"
         else:
             _campos(payload, {"content_hash", "content_base64", "schema_version"})
             if self.state != "dirty" or self._pending:
                 raise ErroPonte("Checkpoint indisponível neste estado.")
-            if payload["schema_version"] != "wordcraft-native/v1":
+            if payload["schema_version"] != CHECKPOINT_SCHEMA:
                 raise ErroPonte("Schema não suportado.")
             digest = _hash(payload["content_hash"])
             encoded = payload["content_base64"]
@@ -161,7 +169,7 @@ class Ponte:
         self.state = next_state
         if kind == "document.changed" and self._pending:
             self._changed_while_saving = True
-        if checkpoint:
+        if checkpoint and kind == "document.checkpoint":
             self._pending = checkpoint
             self._changed_while_saving = False
         return checkpoint

@@ -37,7 +37,7 @@ def abrir(p):
 def checkpoint(p):
     return receber(p, evento(p, "checkpoint", {
         "content_hash": DIGEST, "content_base64": base64.b64encode(CONTENT).decode(),
-        "schema_version": "wordcraft-native/v1"}))
+        "schema_version": "gc-wordcraft-snapshot/v1"}))
 
 
 def sujo(p):
@@ -104,7 +104,7 @@ def test_bytes_limitados_e_integridade(ponte, field, value):
     sujo(ponte)
     payload = {"content_hash": DIGEST,
                "content_base64": base64.b64encode(CONTENT).decode(),
-               "schema_version": "wordcraft-native/v1"}
+               "schema_version": "gc-wordcraft-snapshot/v1"}
     payload[field] = value
     with pytest.raises(ErroPonte):
         receber(ponte, evento(ponte, "checkpoint", payload))
@@ -130,6 +130,29 @@ def test_retry_preserva_id_e_bytes_sem_ack_falso(ponte):
     assert ponte.repetir_checkpoint() is cp
     ponte.confirmar_checkpoint(request_id=cp.request_id, revision=1, content_hash=DIGEST)
     assert ponte.state == "dirty"
+
+
+def test_retry_tipado_preserva_edicoes_novas_e_identidade_original(ponte):
+    sujo(ponte)
+    cp = checkpoint(ponte)
+    ponte.falhar_checkpoint(request_id=cp.request_id)
+    receber(ponte, evento(ponte, "changed"))
+    retry = evento(ponte, "retry", {"request_id": cp.request_id})
+    assert receber(ponte, retry) is cp
+    assert ponte.state == "saving"
+    with pytest.raises(ErroPonte):
+        receber(ponte, retry)
+    ponte.confirmar_checkpoint(request_id=cp.request_id, revision=1, content_hash=DIGEST)
+    assert ponte.state == "dirty"
+
+
+def test_retry_de_outro_request_nao_consumido(ponte):
+    sujo(ponte)
+    cp = checkpoint(ponte)
+    ponte.falhar_checkpoint(request_id=cp.request_id)
+    with pytest.raises(ErroPonte):
+        receber(ponte, evento(ponte, "retry", {"request_id": str(uuid4())}))
+    assert ponte.state == "error"
 
 
 def test_alteracao_durante_gravacao_continua_suja(ponte):

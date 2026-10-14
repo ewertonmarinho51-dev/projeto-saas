@@ -35,6 +35,9 @@ Branch: `feature/wordcraft-wasm-govconnect`. Produção não alterada.
 | `tests/test_wordcraft_overlay.py` | validar recusa de SHA/arquivos divergentes e confinamento do overlay | pytest sem rede | não substitui compilação Rust |
 | `integrations/wordcraft/govconnect_browser.rs` | API WASM explícita sobre o mesmo WordApp/Session, sem picker/download e sem reinicialização por rerun | compilação WASM, smoke test de browser e ACK/checkpoint | G1 candidato; transporte/backend ainda necessários |
 | `integrations/wordcraft/main.rs` | entrada WASM controlada: inicialização explícita pelo host; sem shell de arquivos original | build do binário e export da classe GovConnectEditor | não distribui marcas nem ativa editor |
+| `assets/wordcraft_editor/host.mjs` | host v2: instância estável, eventos tipados, debounce, retry e ACK correlacionado | testes Node de lifecycle e futuro browser com WASM real | sem persistência/ACL própria |
+| `assets/wordcraft_editor/host.test.mjs` | rejeição de ACK divergente, conflito, retry e preservação de instância | node --test, sem LLM/rede | não equivale a teste de interface |
+| `.github/workflows/ci.yml` (existente) | executar as provas do novo host no CI canônico do produto | Node existente, sem novas dependências | preserva testes/bundle/export/RLS atuais |
 
 Não foi escolhido formato canônico definitivo. JSON nativo existe em `engine::io`, mas
 roundtrip, IDs e fidelidade ainda precisam ser medidos. Não se grava novo documento como Markdown.

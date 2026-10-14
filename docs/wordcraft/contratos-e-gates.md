@@ -5,8 +5,9 @@
 O GovConnect continua dono de identidade, processo, fatos, aprovação, trilha e emissão.
 `src/wordcraft_protocol.py` é somente a fronteira de validação do protocolo; não é
 DocumentoService, CAS, RLS nem persistência. Não há import desse módulo no fluxo operacional.
-O campo experimental `wordcraft-native/v1` identifica bytes candidatos, ainda sem
-validador estrutural nativo: não enviar esses bytes diretamente ao banco.
+O campo experimental `gc-wordcraft-snapshot/v1` identifica o contêiner candidato do
+adaptador Rust, ainda pendente de compilação e testes. A validação Python do envelope
+não valida o modelo documental: não enviar esses bytes diretamente ao banco.
 
 **JSON nativo isolado não é candidato seguro para documento institucional.** No SHA
 inspecionado, `crates/doc/src/lib.rs::Document` usa `#[serde(skip)]` em `media` e

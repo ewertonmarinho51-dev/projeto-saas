@@ -120,6 +120,9 @@ jobs:
           pnpm build
           git diff --exit-code -- editor.bundle.js
 
+      - name: Testar protocolo e lifecycle do host WordCraft
+        run: node --test assets/wordcraft_editor/host.test.mjs
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
