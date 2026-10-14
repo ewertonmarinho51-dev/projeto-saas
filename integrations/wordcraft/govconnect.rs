@@ -35,11 +35,19 @@ fn validate_object(object: &InlineObject, depth: usize) -> Result<(), String> {
         return Err("nested objects exceed snapshot limit".into());
     }
     match object {
-        InlineObject::Image { ole: Some(_), .. } => return Err("embedded OLE requires the original DOCX compatibility path".into()),
-        InlineObject::Graphic { graphic, .. } if graphic.source.is_some() => return Err("opaque graphics require the original DOCX compatibility path".into()),
+        InlineObject::Image { ole: Some(_), .. } => {
+            return Err("embedded OLE requires the original DOCX compatibility path".into());
+        }
+        InlineObject::Graphic { graphic, .. } if graphic.source.is_some() => {
+            return Err("opaque graphics require the original DOCX compatibility path".into());
+        }
         InlineObject::Group { children, .. } => {
-            if children.len() > 1000 { return Err("too many grouped objects".into()); }
-            for child in children { validate_object(&child.obj, depth + 1)?; }
+            if children.len() > 1000 {
+                return Err("too many grouped objects".into());
+            }
+            for child in children {
+                validate_object(&child.obj, depth + 1)?;
+            }
         }
         _ => {}
     }
@@ -53,7 +61,9 @@ fn validate_blocks(blocks: &[Arc<Block>], depth: usize) -> Result<(), String> {
     for block in blocks {
         match block.as_ref() {
             Block::Para(p) => {
-                for object in &p.objects { validate_object(object, 0)?; }
+                for object in &p.objects {
+                    validate_object(object, 0)?;
+                }
             }
             Block::Table(table) => {
                 for row in &table.rows {
@@ -77,8 +87,11 @@ fn validate_doc(doc: &Document) -> Result<(), String> {
             return Err("too many snapshot assets".into());
         }
         for (key, bytes) in assets {
-            if key.is_empty() || key.len() > 240 || key.contains(['\\', ':'])
-                || key.starts_with('/') || key.split('/').any(|s| matches!(s, "" | "." | ".."))
+            if key.is_empty()
+                || key.len() > 240
+                || key.contains(['\\', ':'])
+                || key.starts_with('/')
+                || key.split('/').any(|s| matches!(s, "" | "." | ".."))
                 || bytes.len() > MAX_BYTES
             {
                 return Err("invalid snapshot asset".into());
@@ -110,9 +123,14 @@ pub fn load_bytes(bytes: &[u8]) -> Result<Document, String> {
         return Err("checkpoint size invalid".into());
     }
     let value: Value = serde_json::from_slice(bytes).map_err(|_| "invalid checkpoint JSON".to_string())?;
-    let Value::Object(mut root) = value else { return Err("checkpoint must be an object".into()); };
-    if root.len() != 4 || root.get("schema").and_then(Value::as_str) != Some(SCHEMA)
-        || !root.contains_key("document") || !root.contains_key("media") || !root.contains_key("passthrough")
+    let Value::Object(mut root) = value else {
+        return Err("checkpoint must be an object".into());
+    };
+    if root.len() != 4
+        || root.get("schema").and_then(Value::as_str) != Some(SCHEMA)
+        || !root.contains_key("document")
+        || !root.contains_key("media")
+        || !root.contains_key("passthrough")
     {
         return Err("checkpoint schema or fields invalid".into());
     }
@@ -154,9 +172,13 @@ pub enum UserEdit {
 /// Remove file/session/environment actions from the embedded ribbon and shortcut registry.
 /// The host owns opening, checkpoints and authorized exports. No provider/network automation.
 pub fn restrict_embedded_session(session: &mut Session) {
-    let specs = session.registry.all().iter().filter(|spec| {
-        !["file.", "font.", "mailings.", "tools.", "zotero."].iter().any(|prefix| spec.id.starts_with(prefix))
-    }).cloned().collect();
+    let specs = session
+        .registry
+        .all()
+        .iter()
+        .filter(|spec| !["file.", "font.", "mailings.", "tools.", "zotero."].iter().any(|prefix| spec.id.starts_with(prefix)))
+        .cloned()
+        .collect();
     session.registry = Arc::new(wordcraft_engine::Registry::new(specs));
     session.autosave = false;
     session.path = None;
@@ -184,7 +206,10 @@ pub enum ExportFormat {
 
 /// Byte export only, no file names/URLs/clipboard/print commands supplied by callers.
 pub fn export(session: &Session, format: ExportFormat) -> Result<Vec<u8>, String> {
-    let name = match format { ExportFormat::Docx => "document.docx", ExportFormat::Pdf => "document.pdf" };
+    let name = match format {
+        ExportFormat::Docx => "document.docx",
+        ExportFormat::Pdf => "document.pdf",
+    };
     wordcraft_engine::io::save_bytes(name, &session.doc)
 }
 
@@ -267,20 +292,33 @@ mod tests {
     #[test]
     fn opaque_objects_are_refused_before_data_can_be_lost() {
         let object = InlineObject::Image {
-            media: "preview.png".into(), w: 10.0, h: 10.0, alt: String::new(),
-            float: Default::default(), crop: [0.0; 4],
+            media: "preview.png".into(),
+            w: 10.0,
+            h: 10.0,
+            alt: String::new(),
+            float: Default::default(),
+            crop: [0.0; 4],
             ole: Some(Arc::new(wordcraft_doc::graphic::Embedded::default())),
         };
         assert!(validate_object(&object, 0).is_err());
         let group = InlineObject::Group {
-            w: 10.0, h: 10.0, float: Default::default(), ch_w: 10.0, ch_h: 10.0,
-            children: vec![wordcraft_doc::para::GroupChild { x: 0.0, y: 0.0, obj: object }], canvas: None,
+            w: 10.0,
+            h: 10.0,
+            float: Default::default(),
+            ch_w: 10.0,
+            ch_h: 10.0,
+            children: vec![wordcraft_doc::para::GroupChild { x: 0.0, y: 0.0, obj: object }],
+            canvas: None,
         };
         assert!(validate_object(&group, 0).is_err());
         let graphic = InlineObject::Graphic {
-            w: 10.0, h: 10.0, alt: String::new(), float: Default::default(),
+            w: 10.0,
+            h: 10.0,
+            alt: String::new(),
+            float: Default::default(),
             graphic: Arc::new(wordcraft_doc::graphic::Graphic {
-                source: Some(Arc::new(wordcraft_doc::graphic::Embedded::default())), ..Default::default()
+                source: Some(Arc::new(wordcraft_doc::graphic::Embedded::default())),
+                ..Default::default()
             }),
         };
         assert!(validate_object(&graphic, 0).is_err());

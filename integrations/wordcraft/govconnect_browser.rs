@@ -61,7 +61,9 @@ impl GovConnectEditor {
         // EditorApp implements as_any_mut, so WebRunner's concrete-app downcast is valid.
         let mut app = self.runner.app_mut::<EditorApp>().ok_or_else(|| error("editor unavailable"))?;
         let result = action(&mut app.app.session).map_err(error);
-        if let Some(ctx) = &self.context { ctx.request_repaint(); }
+        if let Some(ctx) = &self.context {
+            ctx.request_repaint();
+        }
         result
     }
 }
@@ -75,7 +77,9 @@ impl GovConnectEditor {
 
     /// Start once with an authorized checkpoint; caller provides the actual canvas (shadow DOM safe).
     pub async fn start(&mut self, canvas: web_sys::HtmlCanvasElement, bytes: Vec<u8>, webgl: bool) -> Result<(), JsValue> {
-        if self.started { return Err(error("editor already started")); }
+        if self.started {
+            return Err(error("editor already started"));
+        }
         let doc = adapter::load_bytes(&bytes).map_err(error)?;
         let mut options = eframe::WebOptions::default();
         if webgl && let eframe::egui_wgpu::WgpuSetup::CreateNew(create) = &mut options.wgpu_options.wgpu_setup {
@@ -83,16 +87,22 @@ impl GovConnectEditor {
         }
         let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
         let captured_in = captured.clone();
-        self.runner.start(canvas, options, Box::new(move |cc| {
-            captured_in.replace(Some(cc.egui_ctx.clone()));
-            let mut session = Session::new(doc);
-            adapter::restrict_embedded_session(&mut session);
-            let mut app = WordApp::new(session, Services::default());
-            app.autosave = false;
-            app.ui.show_discord = false;
-            app.ui.language = "pt-br".into();
-            Ok(Box::new(EditorApp { app }))
-        })).await?;
+        self.runner
+            .start(
+                canvas,
+                options,
+                Box::new(move |cc| {
+                    captured_in.replace(Some(cc.egui_ctx.clone()));
+                    let mut session = Session::new(doc);
+                    adapter::restrict_embedded_session(&mut session);
+                    let mut app = WordApp::new(session, Services::default());
+                    app.autosave = false;
+                    app.ui.show_discord = false;
+                    app.ui.language = "pt-br".into();
+                    Ok(Box::new(EditorApp { app }))
+                }),
+            )
+            .await?;
         self.context = captured.borrow().clone();
         self.started = true;
         Ok(())
@@ -100,9 +110,13 @@ impl GovConnectEditor {
 
     /// Reload only a clean document. A dirty/conflicted draft needs explicit reconciliation first.
     pub fn load_bytes(&mut self, bytes: Vec<u8>) -> Result<(), JsValue> {
-        if self.pending.is_some() { return Err(error("checkpoint pending; reconcile before reload")); }
+        if self.pending.is_some() {
+            return Err(error("checkpoint pending; reconcile before reload"));
+        }
         self.with_session(|session| {
-            if session.dirty { return Err("unsaved local edits; reconcile before reload".into()); }
+            if session.dirty {
+                return Err("unsaved local edits; reconcile before reload".into());
+            }
             adapter::load_into(session, &bytes)?;
             adapter::restrict_embedded_session(session);
             Ok(())
@@ -115,9 +129,13 @@ impl GovConnectEditor {
 
     /// Retry returns exactly the bytes of the same request, even when typing continued.
     pub fn checkpoint(&mut self, request_id: String) -> Result<Vec<u8>, JsValue> {
-        if request_id.len() != 36 || !request_id.is_ascii() { return Err(error("invalid request id")); }
+        if request_id.len() != 36 || !request_id.is_ascii() {
+            return Err(error("invalid request id"));
+        }
         if let Some(pending) = &self.pending {
-            if pending.id == request_id { return Ok(pending.bytes.clone()); }
+            if pending.id == request_id {
+                return Ok(pending.bytes.clone());
+            }
             return Err(error("another checkpoint is still pending"));
         }
         let bytes = self.serialize()?;
@@ -129,7 +147,9 @@ impl GovConnectEditor {
     /// This changes browser state only; it grants no backend approval or persistence.
     pub fn acknowledge_checkpoint(&mut self, request_id: String) -> Result<(), JsValue> {
         let pending = self.pending.as_ref().ok_or_else(|| error("no checkpoint pending"))?;
-        if pending.id != request_id { return Err(error("ACK request mismatch")); }
+        if pending.id != request_id {
+            return Err(error("ACK request mismatch"));
+        }
         let saved = pending.bytes.clone();
         self.with_session(|session| {
             session.dirty = adapter::serialize(&session.doc)? != saved;

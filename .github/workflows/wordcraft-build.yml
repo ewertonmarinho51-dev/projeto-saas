@@ -106,7 +106,7 @@ jobs:
       - name: Apply the isolated GovConnect adapter
         run: |
           python3 scripts/wordcraft_overlay.py --source work-upstream --browser > build-evidence/overlay.json
-          rustfmt --edition 2024 work-upstream/apps/wordcraft-web/src/govconnect.rs work-upstream/apps/wordcraft-web/src/govconnect_browser.rs work-upstream/apps/wordcraft-web/src/main.rs
+          rustfmt --edition 2024 --config-path integrations/wordcraft/rustfmt.toml work-upstream/apps/wordcraft-web/src/govconnect.rs work-upstream/apps/wordcraft-web/src/govconnect_browser.rs work-upstream/apps/wordcraft-web/src/main.rs
           cp work-upstream/apps/wordcraft-web/src/govconnect.rs build-evidence/govconnect-formatted.rs
       - name: Test the adapter against the real WordCraft engine
         working-directory: work-upstream
@@ -114,7 +114,7 @@ jobs:
         run: |
           set -o pipefail
           cargo test --locked -p wordcraft-web --lib 2>&1 | tee ../build-evidence/adapter-tests.log
-          cargo clippy --locked -p wordcraft-web --lib -- -D warnings 2>&1 | tee ../build-evidence/adapter-clippy.log
+          cargo clippy --locked -p wordcraft-web --all-targets -- -D warnings 2>&1 | tee ../build-evidence/adapter-clippy.log
           cargo check --locked -p wordcraft-web --target wasm32-unknown-unknown 2>&1 | tee ../build-evidence/adapter-wasm.log
           sha256sum --check ../build-evidence/Cargo.lock.sha256
       - name: Build the explicit GovConnect WASM API
