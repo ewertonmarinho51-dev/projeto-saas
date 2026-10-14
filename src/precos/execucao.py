@@ -320,6 +320,7 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
     consulta = consulta_do_item(item, filtros, termos)
 
     coletadas: list[Referencia] = []
+    pdms_inferidos: set[str] = set()
     de_preco: set[str] = set()
     for fonte in fontes:
         fid = getattr(getattr(fonte, "fonte", None), "id", "") or repr(fonte)
@@ -335,6 +336,7 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
             continue
         resultado.desfechos[fid] = busca.desfecho.value
         coletadas.extend(busca.referencias)
+        pdms_inferidos.update(getattr(busca, "pdms_inferidos", None) or ())
         resultado.ocorrencias.extend(busca.ocorrencias)
 
     resultado._de_preco = frozenset(de_preco)
@@ -388,7 +390,8 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
     resultado.encontradas = len(unicas)
 
     unidade = str(item.get("unidade") or "")
-    normalizadas = [unidades.normalizar(r, unidade) for r in unicas]
+    conteudo = unidades.conteudo_declarado(item.get("descricao"))
+    normalizadas = [unidades.normalizar(r, unidade, conteudo) for r in unicas]
 
     data_base = filtros.get("data_base")
     if isinstance(data_base, str):
@@ -400,6 +403,7 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
         quantidade=_decimal(item.get("quantidade")),
         uf=filtros.get("uf") or None,
         data_base=data_base,
+        pdms_item=frozenset(pdms_inferidos),
     )
     resultado.referencias = ranqueadas
 

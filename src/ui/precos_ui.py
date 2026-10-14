@@ -608,20 +608,21 @@ CHAVE_SUGESTOES = "_precos_sugestoes_catmat"
 
 def _render_definir_catmat(item: dict) -> None:
     """
-    O servidor escolhe o CATMAT do item; o sistema só sugere.
+    Fixar o CATMAT do item — OPCIONAL.
 
-    A API oficial de preços só consulta pelo código do catálogo. Sem ele
-    o item não tem como ser pesquisado — e a planilha costuma trazer o
-    número sequencial ou um código interno do município.
+    Sem código, a pesquisa infere os CATMAT pela descrição e
+    especificação (ver `ComprasGovAdapter.pesquisar`). Fixar um código é
+    para quando o servidor quer restringir a pesquisa àquele item exato
+    do catálogo. O sistema sugere; quem escolhe é o servidor.
     """
     from ..precos import catalogo as catalogo_mod
 
     item_id = str(item["id"])
     sugestoes = st.session_state.setdefault(CHAVE_SUGESTOES, {})
-    with st.popover("Definir CATMAT", use_container_width=False):
-        st.caption("A pesquisa de preços oficial consulta pelo código do "
-                   "catálogo (CATMAT). Escolha um sugerido ou informe o "
-                   "código.")
+    with st.popover("CATMAT (opcional)", use_container_width=False):
+        st.caption("Não é obrigatório: a pesquisa usa a descrição e a "
+                   "especificação do item. Fixe um CATMAT apenas para "
+                   "restringir a pesquisa a um item exato do catálogo.")
         if st.button("Sugerir pelo catálogo oficial", key=f"sug_{item_id}"):
             with st.spinner("Consultando o catálogo de materiais… (a "
                             "primeira consulta do dia monta o índice e "
@@ -662,12 +663,11 @@ def _render_definir_catmat(item: dict) -> None:
                 st.error(str(erro))
 
 
-@st.cache_resource(show_spinner=False)
 def _catalogo():
-    """Um índice por processo do servidor (e em disco por 7 dias)."""
-    from ..precos.catalogo import Catalogo
+    """O MESMO índice da busca por descrição (processo + disco, 7 dias)."""
+    from ..precos.catalogo import padrao
 
-    return Catalogo()
+    return padrao()
 
 
 def _render_tabela_de_itens(pesquisa: dict, itens: list[dict]) -> None:
