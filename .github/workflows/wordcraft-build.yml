@@ -9,6 +9,8 @@ on:
       - integrations/wordcraft/**
       - scripts/wordcraft_overlay.py
       - scripts/wordcraft_notices.py
+      - scripts/wordcraft_corpus.py
+      - tests/fixtures/wordcraft/**
   workflow_dispatch:
 
 permissions:
@@ -152,6 +154,25 @@ jobs:
           cargo clippy --locked -p wordcraft-web --all-targets -- -D warnings 2>&1 | tee ../build-evidence/adapter-clippy.log
           cargo check --locked -p wordcraft-web --target wasm32-unknown-unknown 2>&1 | tee ../build-evidence/adapter-wasm.log
           sha256sum --check ../build-evidence/Cargo.lock.sha256
+      - name: Roundtrip the verified synthetic DOCX corpus through the real adapter
+        working-directory: work-upstream
+        run: |
+          python3 - <<'PY'
+          import importlib.util, pathlib, subprocess, sys
+          root = pathlib.Path('..').resolve()
+          sys.path.insert(0, str(root))
+          spec = importlib.util.spec_from_file_location('wordcraft_corpus', root / 'scripts/wordcraft_corpus.py')
+          corpus = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(corpus)
+          inputs = root / 'tests/fixtures/wordcraft'
+          manifest = corpus.verify_inputs(inputs)
+          output = root / 'build-evidence/corpus-roundtrip'
+          for item in manifest['files']:
+              source = inputs / item['path']
+              subprocess.run(['cargo', 'run', '--locked', '-p', 'wordcraft-web', '--example',
+                              'govconnect_fixture', '--', str(source), str(output / source.stem)], check=True)
+          corpus.compare_roundtrip(inputs, output)
+          PY
       - name: Build the explicit GovConnect WASM API
         working-directory: work-upstream/apps/wordcraft-web
         shell: bash

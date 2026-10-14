@@ -62,6 +62,59 @@ def inspect_docx(data: bytes) -> dict:
                 "text": text}
 
 
+def text_blocks(data: bytes) -> dict:
+    """Read semantic text boundaries, ignoring run splits and layout whitespace."""
+    result = {"body": [], "headers": [], "footers": [], "links": []}
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        for name in archive.namelist():
+            group = ("body" if name == "word/document.xml" else
+                     "headers" if name.startswith("word/header") and name.endswith(".xml") else
+                     "footers" if name.startswith("word/footer") and name.endswith(".xml") else None)
+            if group:
+                root = ET.fromstring(archive.read(name))
+                blocks = [" ".join("".join(t.text or "" for t in p.iter(W + "t")).split()) for p in root.iter(W + "p")]
+                result[group].extend(block for block in blocks if block)
+            if name.startswith("word/_rels/") and name.endswith(".rels"):
+                for relation in ET.fromstring(archive.read(name)):
+                    if relation.get("Type", "").endswith("/hyperlink"):
+                        result["links"].append(relation.get("Target"))
+    for group in ("headers", "footers", "links"):
+        result[group].sort()
+    return result
+
+
+def verify_inputs(inputs: Path) -> dict:
+    manifest = json.loads((inputs / "inputs.json").read_text(encoding="utf-8"))
+    if manifest.get("synthetic_only") is not True or len(manifest["files"]) != 3:
+        raise ValueError("Only the reviewed synthetic corpus can enter this QA path")
+    for item in manifest["files"]:
+        name = item["path"]
+        if Path(name).name != name or "\\" in name or ":" in name or not name.endswith(".docx"):
+            raise ValueError("Invalid synthetic fixture path")
+        data = (inputs / name).read_bytes()
+        if len(data) > 8 * 1024 * 1024 or hashlib.sha256(data).hexdigest() != item["sha256"]:
+            raise ValueError("Synthetic fixture digest differs")
+    return manifest
+
+
+def compare_roundtrip(inputs: Path, output: Path) -> dict:
+    manifest = verify_inputs(inputs)
+    report = {"status": "SEMANTIC_ROUNDTRIP_CHECKED_VISUAL_REVIEW_PENDING", "cases": []}
+    for item in manifest["files"]:
+        name = Path(item["path"]).stem
+        before = text_blocks((inputs / item["path"]).read_bytes())
+        after = text_blocks((output / name / "roundtrip.docx").read_bytes())
+        if before != after:
+            raise ValueError(f"WordCraft roundtrip changed semantic text or links: {name}")
+        if name.startswith("02"):
+            model_text = (output / name / "model.txt").read_text(encoding="utf-8")
+            if any(code not in model_text for code in manifest["oracle"]["codes"]):
+                raise ValueError("Native model dropped a synthetic item")
+        report["cases"].append({"name": name, "semantic_text_and_links": "PASS", "visual_review": "PENDING"})
+    (output / "comparison.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return report
+
+
 def generate(output: Path, *, pdf=False) -> dict:
     if pdf and motor_pdf() != "libreoffice":
         raise ValueError("Visual reference requires the real institutional LibreOffice engine")
@@ -121,5 +174,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--pdf", action="store_true", help="Require the institutional LibreOffice engine")
+    parser.add_argument("--compare-roundtrip", action="store_true")
+    parser.add_argument("--inputs", type=Path)
     args = parser.parse_args()
-    print(json.dumps(generate(args.out, pdf=args.pdf), ensure_ascii=False, indent=2))
+    if args.compare_roundtrip:
+        if args.inputs is None:
+            parser.error("--compare-roundtrip needs --inputs")
+        result = compare_roundtrip(args.inputs, args.out)
+    else:
+        result = generate(args.out, pdf=args.pdf)
+    print(json.dumps(result, ensure_ascii=False, indent=2))

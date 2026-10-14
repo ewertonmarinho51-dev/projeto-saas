@@ -35,3 +35,28 @@ def test_pdf_nao_aceita_fallback_como_referencia(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="LibreOffice"):
         corpus.generate(tmp_path / "corpus", pdf=True)
     assert not (tmp_path / "corpus").exists()
+
+
+def test_fixtures_versionadas_sao_sinteticas_e_byte_identicas_ao_manifesto():
+    inputs = Path(__file__).resolve().parent / "fixtures/wordcraft"
+    manifest = corpus.verify_inputs(inputs)
+    assert manifest["source_run"] == 38620142140
+    assert manifest["oracle"]["items"] == 210
+    table = corpus.text_blocks((inputs / "02-tabela-210-itens.docx").read_bytes())
+    assert len(table["links"]) == 210
+    assert all(code in "\n".join(table["body"]) for code in manifest["oracle"]["codes"])
+
+
+def test_comparador_recusa_texto_perdido_no_retorno(tmp_path):
+    inputs = Path(__file__).resolve().parent / "fixtures/wordcraft"
+    manifest = corpus.verify_inputs(inputs)
+    for item in manifest["files"]:
+        target = tmp_path / Path(item["path"]).stem
+        target.mkdir()
+        (target / "roundtrip.docx").write_bytes((inputs / item["path"]).read_bytes())
+        (target / "model.txt").write_text("\n".join(manifest["oracle"]["codes"]), encoding="utf-8")
+    assert len(corpus.compare_roundtrip(inputs, tmp_path)["cases"]) == 3
+    broken = corpus.gerar_docx("Ensaio", "Texto deliberadamente perdido")
+    (tmp_path / "01-texto-listas-links/roundtrip.docx").write_bytes(broken)
+    with pytest.raises(ValueError, match="changed semantic"):
+        corpus.compare_roundtrip(inputs, tmp_path)

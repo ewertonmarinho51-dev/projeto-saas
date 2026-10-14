@@ -70,6 +70,11 @@ def apply(source: Path, *, browser=False):
     if lib.exists() and lib.read_bytes() != adapter:
         raise ValueError("An unrelated integration file already exists")
     writes = [(cargo, base + section), (lib, adapter)]
+    example = contained(source, "apps/wordcraft-web/examples/govconnect_fixture.rs")
+    example_bytes = (ROOT / "integrations/wordcraft/govconnect_fixture.rs").read_bytes()
+    if example.exists() and example.read_bytes() != example_bytes:
+        raise ValueError("An unrelated QA example already exists")
+    writes.append((example, example_bytes))
     if browser:
         main = contained(source, MAIN_PATH)
         main_bytes = main.read_bytes().replace(b"\r\n", b"\n")
@@ -84,6 +89,7 @@ def apply(source: Path, *, browser=False):
         writes.extend(planned_ui_patch(source, spec) for spec in ui_patches(pin))
     # Every target is validated before writing any of them.
     for path, content in writes:
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
     return {"upstream_sha": pin, "adapter_sha256": hashlib.sha256(adapter).hexdigest(),
             "cargo_sha256": hashlib.sha256(base + section).hexdigest(),
