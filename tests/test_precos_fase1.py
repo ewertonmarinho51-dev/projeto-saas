@@ -157,30 +157,31 @@ def test_consulta_sem_codigo_e_valida():
     assert not consulta.tem_codigo
 
 
-def test_sem_codigo_orienta_a_informar_o_catmat_sem_chamar_a_api():
+def test_sem_codigo_nunca_usa_o_endpoint_lento_de_contratacoes():
     """
-    14/10/2026: o caminho por descrição pedia a janela inteira de
-    contratações e filtrava aqui — 180 dias passavam de 100 s e o item
-    travava ~2 min antes de dar erro. Sem CATMAT/CATSER não há consulta
-    viável: o adapter diz o que falta, na hora, e não é falha da fonte.
+    14/10/2026: o caminho antigo por descrição pedia a janela inteira de
+    contratações — 180 dias passavam de 100 s. A busca por descrição usa
+    o catálogo (PDM) e a pesquisa de preços, nunca aquele endpoint.
     """
-    def nunca(_url):
-        raise AssertionError("sem código não deve chamar a API")
+    urls: list[str] = []
 
-    resultado = ComprasGovAdapter(abrir_url=nunca).pesquisar(
+    def espia(url):
+        urls.append(url)
+        return json.dumps({"resultado": [], "totalPaginas": 0})
+
+    ComprasGovAdapter(abrir_url=espia).pesquisar(
         Consulta(descricao="CANETA ESFEROGRÁFICA AZUL"))
-    assert resultado.referencias == [] and resultado.chamadas == 0
-    assert not resultado.houve_falha
-    assert any("CATMAT" in o for o in resultado.ocorrencias)
+    assert not any("2_consultarItensContratacoes" in u for u in urls)
 
 
-def test_codigo_sem_preco_orienta_e_nao_e_falha():
-    """Número da planilha ou código interno: zero registros, recado claro."""
+def test_codigo_sem_preco_segue_pela_descricao_e_nao_e_falha():
+    """Número da planilha ou código interno: zero registros não trava."""
     resultado = ComprasGovAdapter(
-        abrir_url=_leitor({"resultado": [], "totalRegistros": 0})).pesquisar(
+        abrir_url=_leitor({"resultado": [], "totalRegistros": 0,
+                           "totalPaginas": 0})).pesquisar(
         Consulta(descricao="CANETA", codigo_catalogo="011246"))
-    assert not resultado.houve_falha
-    assert any("011246" in o and "CATMAT" in o for o in resultado.ocorrencias)
+    assert any("011246" in o and "descrição" in o
+               for o in resultado.ocorrencias)
 
 
 def test_com_codigo_usa_o_caminho_preciso(precos_praticados):

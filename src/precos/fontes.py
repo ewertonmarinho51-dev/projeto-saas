@@ -132,6 +132,10 @@ class ResultadoBusca:
     falha: str | None = None
     chamadas: int = 0
     total_disponivel: int | None = None
+    # Grupos do catálogo (PDM) que a fonte inferiu da DESCRIÇÃO do item.
+    # O matching usa como evidência de que a referência é o mesmo tipo
+    # de produto (ver `matching.comparar`).
+    pdms_inferidos: list[str] = field(default_factory=list)
 
     @property
     def houve_falha(self) -> bool:

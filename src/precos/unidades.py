@@ -38,6 +38,9 @@ _CANONICAS = {
     "CAIXA": ("CAIXA", ("CX", "CAIXA", "CAIXAS")),
     "PACOTE": ("PACOTE", ("PCT", "PACOTE", "PACOTES", "PC.")),
     "RESMA": ("RESMA", ("RM", "RESMA", "RESMAS")),
+    # "EMB" é como o Compras.gov registra o papel A4 (14/10/2026: 436 de
+    # 517 compras do PDM 19746), sempre com a capacidade em folhas.
+    "EMBALAGEM": ("EMBALAGEM", ("EMB", "EMBALAGEM", "EMBALAGENS")),
     "ROLO": ("ROLO", ("RL", "ROLO", "ROLOS")),
     "FRASCO": ("FRASCO", ("FR", "FRASCO", "FRASCOS")),
     "JOGO": ("JOGO", ("JG", "JOGO", "JOGOS", "KIT", "CONJUNTO", "CJ")),
@@ -59,7 +62,8 @@ for _canonica, (_nome, _siglas) in _CANONICAS.items():
 
 # Unidades que EMBALAM outras: só elas admitem fator de embalagem. Não faz
 # sentido perguntar quantas unidades há dentro de um quilograma.
-EMBALAGENS = {"CAIXA", "PACOTE", "RESMA", "ROLO", "JOGO", "CARTELA",
+EMBALAGENS = {"CAIXA", "PACOTE", "RESMA", "EMBALAGEM", "ROLO", "JOGO",
+              "CARTELA",
               "ESTOJO", "BLOCO", "FRASCO"}
 
 # Conversões de GRANDEZA, onde o fator é uma constante física e não
@@ -97,19 +101,55 @@ def canonizar(sigla: str | None) -> str | None:
     return _POR_SIGLA.get(texto)
 
 
+def conteudo_declarado(descricao: str | None) -> Decimal | None:
+    """
+    Quantos itens a embalagem DO PROCESSO contém, quando a especificação
+    diz ("pacote contendo 500 folhas", "caixa com 50 unidades").
+
+    Só o que está escrito: sem a frase, `None`, e nenhuma conversão entre
+    embalagens é tentada.
+    """
+    import re
+
+    texto = unicodedata.normalize("NFKD", str(descricao or "").upper())
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    achado = re.search(
+        r"(?:CONTENDO|COM|C/)\s*(\d+(?:[.,]\d+)?)\s*"
+        r"(?:FOLHAS|FLS?|UNIDADES|UNID|UND|UN|PECAS)\b", texto)
+    if not achado:
+        return None
+    valor = Decimal(achado.group(1).replace(",", "."))
+    return valor if valor > 0 else None
+
+
 def fator_de_conversao(origem: str | None, destino: str | None,
-                       capacidade: Decimal | None) -> tuple[Decimal | None, str]:
+                       capacidade: Decimal | None,
+                       conteudo_destino: Decimal | None = None
+                       ) -> tuple[Decimal | None, str]:
     """
     Quantas unidades de DESTINO cabem em uma de ORIGEM.
 
     Devolve `(fator, motivo)`. Fator `None` significa **não converter** —
     e o motivo diz por quê, em português, para ir direto ao relatório.
+
+    `conteudo_destino` é quantos itens a embalagem do PROCESSO contém,
+    quando a especificação declara. Com ele, embalagem converte para
+    embalagem pela quantidade de dentro: EMB de 100 folhas é 1/5 de um
+    pacote de 500 folhas; caixa de 12 canetas não é a caixa de 50.
     """
     o, d = canonizar(origem), canonizar(destino)
     if o is None or d is None:
         return None, MOTIVO_DESCONHECIDA
+    ambos = (capacidade is not None and capacidade > 0
+             and conteudo_destino is not None and conteudo_destino > 0)
     if o == d:
+        if o in EMBALAGENS and ambos and capacidade != conteudo_destino:
+            return capacidade / conteudo_destino, ""
         return Decimal(1), ""
+    if o in EMBALAGENS and d in EMBALAGENS:
+        if not ambos:
+            return None, MOTIVO_SEM_FATOR
+        return capacidade / conteudo_destino, ""
 
     fator = _FATOR_DE_GRANDEZA.get((o, d))
     if fator is not None:
@@ -131,8 +171,8 @@ def fator_de_conversao(origem: str | None, destino: str | None,
     return None, MOTIVO_INCOMPATIVEL
 
 
-def normalizar(referencia: Referencia, unidade_do_processo: str | None
-               ) -> Referencia:
+def normalizar(referencia: Referencia, unidade_do_processo: str | None,
+               conteudo_do_processo: Decimal | None = None) -> Referencia:
     """
     Preenche `unidade_normalizada` e `valor_unitario_normalizado` — ou
     recusa e diz por quê.
@@ -158,7 +198,7 @@ def normalizar(referencia: Referencia, unidade_do_processo: str | None
 
     fator, motivo = fator_de_conversao(
         referencia.unidade_original, unidade_do_processo,
-        referencia.capacidade_embalagem)
+        referencia.capacidade_embalagem, conteudo_do_processo)
 
     if fator is None:
         referencia.unidade_normalizada = None

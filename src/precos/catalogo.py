@@ -33,10 +33,12 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
 import time
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from functools import lru_cache
 
 from .compras_gov import _sem_acento, _tokens
 
@@ -65,12 +67,20 @@ class ErroCatalogo(RuntimeError):
 
 
 class Catalogo:
-    def __init__(self, abrir_url=None, arquivo_indice: str = ARQUIVO_INDICE,
+    def __init__(self, abrir_url=None,
+                 arquivo_indice: str | None = ARQUIVO_INDICE,
                  agora=time.time) -> None:
         self._abrir = abrir_url or self._abrir_url
+        # None = sem disco (testes): o índice vale só para esta instância
         self._arquivo = arquivo_indice
         self._agora = agora
         self._pdms: list[dict] | None = None
+        # Itens por PDM e sugestões por descrição, em memória: a pesquisa
+        # de uma planilha repete PDMs (dez canetas, vinte papéis) e a
+        # mesma descrição volta a cada retomada.
+        self._itens_do_pdm: dict[str, list[dict]] = {}
+        self._sugestoes: dict[str, list[Candidato]] = {}
+        self._trava = threading.Lock()
 
     @staticmethod
     def _abrir_url(url: str) -> str:
@@ -95,12 +105,19 @@ class Catalogo:
     def pdms(self) -> list[dict]:
         if self._pdms is not None:
             return self._pdms
+        with self._trava:
+            if self._pdms is None:
+                self._pdms = self._carregar_pdms()
+        return self._pdms
+
+    def _carregar_pdms(self) -> list[dict]:
         try:
+            if not self._arquivo:
+                raise OSError("sem índice em disco")
             with open(self._arquivo, encoding="utf-8") as arquivo:
                 guardado = json.load(arquivo)
             if self._agora() - guardado["gerado_em"] < VALIDADE_INDICE_S:
-                self._pdms = guardado["pdms"]
-                return self._pdms
+                return guardado["pdms"]
         except (OSError, ValueError, KeyError):
             pass
         pdms: list[dict] = []
@@ -117,44 +134,77 @@ class Catalogo:
             pagina += 1
         if not pdms:
             raise ErroCatalogo("o catálogo devolveu a lista de PDMs vazia")
-        try:
-            with open(self._arquivo, "w", encoding="utf-8") as arquivo:
-                json.dump({"gerado_em": self._agora(), "pdms": pdms}, arquivo)
-        except OSError:
-            pass   # sem disco gravável, o índice vale só para este processo
-        self._pdms = pdms
+        if self._arquivo:
+            try:
+                with open(self._arquivo, "w", encoding="utf-8") as arquivo:
+                    json.dump({"gerado_em": self._agora(), "pdms": pdms},
+                              arquivo)
+            except OSError:
+                pass   # sem disco gravável, o índice vale só neste processo
         return pdms
+
+    def _itens(self, codigo_pdm: str) -> list[dict]:
+        if codigo_pdm not in self._itens_do_pdm:
+            dados = self._obter("/4_consultarItemMaterial", {
+                "pagina": 1, "tamanhoPagina": PAGINA_PDM,
+                "codigoPdm": codigo_pdm, "statusItem": "true"})
+            self._itens_do_pdm[codigo_pdm] = dados.get("resultado") or []
+        return self._itens_do_pdm[codigo_pdm]
 
     # ------------------------------------------------------------------
     # sugestão
     # ------------------------------------------------------------------
     def sugerir(self, descricao: str) -> list[Candidato]:
         """Até `MAX_CANDIDATOS` CATMAT para a descrição, do mais aderente."""
+        chave = " ".join(sorted(_termos(descricao)))
+        if chave not in self._sugestoes:
+            self._sugestoes[chave] = self._sugerir(descricao)
+        return list(self._sugestoes[chave])
+
+    def _ranquear_pdms(self, descricao: str) -> list[tuple[float, bool, dict]]:
+        """(pontuação, mesmo substantivo, pdm), do mais provável ao menos."""
         termos = _termos(descricao)
         if not termos:
             return []
         primeira = _primeira_palavra(descricao)
+        radicais = {t[:6] for t in termos if len(t) >= 6}
         ranqueados = []
         for pdm in self.pdms():
-            nome = _tokens(pdm["nome"])
+            nome = _termos(pdm["nome"])
             if not nome or not (nome & termos):
                 continue
             # o nome do PDM é curto e específico: pesa quanto DELE está
             # na descrição, e o substantivo inicial decide empates
             # ("CANETA esferográfica…" contra "CARTUCHO caneta…")
-            comuns = len(nome & termos)
+            # radical de 6 letras também conta: "formato" A4 é o PDM
+            # "PAPEL PARA IMPRESSÃO FORMATADO", não "papel impressão livro"
+            comuns = sum(1 for n in nome if n in termos or (
+                len(n) >= 6 and n[:6] in radicais))
             casa = comuns / len(nome)
-            bonus = 0.5 if primeira and primeira == _primeira_palavra(pdm["nome"]) else 0
+            mesmo = bool(primeira) and primeira == _primeira_palavra(pdm["nome"])
             # mais termos em comum vence; cobertura e substantivo desempatam
-            ranqueados.append((comuns + casa + bonus, pdm))
-        ranqueados.sort(key=lambda par: (-par[0], par[1]["nome"]))
+            ranqueados.append((comuns + casa + (0.5 if mesmo else 0), mesmo, pdm))
+        ranqueados.sort(key=lambda t: (-t[0], t[2]["nome"]))
+        return ranqueados
 
+    def pdms_para(self, descricao: str, limite: int = 2) -> list[dict]:
+        """
+        Os grupos do catálogo (PDM) que a descrição descreve.
+
+        Só entra PDM com o MESMO substantivo da descrição: "CLIPES… em
+        arame de aço" é CLIPE, não ARAME — e preço de arame por quilo
+        num item de clipes é o tipo de erro que a cesta não pode ter.
+        """
+        return [pdm for _, mesmo, pdm in self._ranquear_pdms(descricao)
+                if mesmo][:limite]
+
+    def _sugerir(self, descricao: str) -> list[Candidato]:
+        termos = _termos(descricao)
+        if not termos:
+            return []
         candidatos: list[Candidato] = []
-        for _, pdm in ranqueados[:MAX_PDMS]:
-            dados = self._obter("/4_consultarItemMaterial", {
-                "pagina": 1, "tamanhoPagina": PAGINA_PDM,
-                "codigoPdm": pdm["codigo"], "statusItem": "true"})
-            for bruto in dados.get("resultado") or []:
+        for _, _, pdm in self._ranquear_pdms(descricao)[:MAX_PDMS]:
+            for bruto in self._itens(pdm["codigo"]):
                 texto = str(bruto.get("descricaoItem") or "")
                 do_item = _termos(texto)
                 if not do_item:
@@ -173,6 +223,12 @@ class Catalogo:
         return unicos[:MAX_CANDIDATOS]
 
 
+@lru_cache(maxsize=1)
+def padrao() -> Catalogo:
+    """O catálogo do processo: um índice compartilhado por todas as buscas."""
+    return Catalogo()
+
+
 def _termos(texto: str) -> set[str]:
     """
     Os termos de `_tokens` e mais os curtos COM dígito (A4, 75, 2B).
@@ -185,9 +241,21 @@ def _termos(texto: str) -> set[str]:
     curtos = {p.strip(".:,;") for p in _sem_acento(texto).split()
               if len(p.strip(".:,;")) <= 2
               and any(ch.isdigit() for ch in p)}
-    return _tokens(texto) | {c for c in curtos if c}
+    return {_singular(t) for t in _tokens(texto)} | {c for c in curtos if c}
+
+
+def _singular(palavra: str) -> str:
+    """
+    Plural regular em -S, dos dois lados da comparação.
+
+    O catálogo nomeia no singular (CLIPE, PASTA); a planilha escreve no
+    plural ("CLIPES METÁLICOS"). Grosseiro de propósito — e aplicado
+    igual à descrição e ao catálogo, então "LÁPIS"→"LAPI" casa com
+    "LAPI" do outro lado.
+    """
+    return palavra[:-1] if len(palavra) > 4 and palavra.endswith("S") else palavra
 
 
 def _primeira_palavra(texto: str) -> str:
     palavras = _sem_acento(texto).replace(",", " ").split()
-    return palavras[0].strip(".:") if palavras else ""
+    return _singular(palavras[0].strip(".:")) if palavras else ""
