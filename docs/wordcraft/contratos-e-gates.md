@@ -76,6 +76,24 @@ de build. Testes Python de contrato não certificam segurança do transporte nem
 
 ## Substituição e rollback
 
+### Entrega de eventos pelo componente v2
+
+O estado `edit` transporta `{events: [envelope, ...]}` com todos os eventos ainda
+não consumidos, em sequência. Isso preserva checkpoint/changed quando atualizações
+de estado são coalescidas. `Ponte.receber_lote` valida o lote inteiro em uma cópia
+antes de consumir qualquer evento novo. Prefixos já consumidos podem reaparecer em
+reruns. Lacunas, desordem e lote inválido não consomem estado. Limites: 256 eventos
+pendentes e 16 Mi caracteres de payload base64 no lote; limites individuais permanecem.
+
+O futuro renderer devolve `event_ack=ponte.sequence` após aceitação do lote, para o
+host retirar somente o prefixo consumido. Esse ACK de transporte não significa save.
+Gravação continua exigindo commit backend, revisão/hash e `confirmar_checkpoint`;
+somente então o renderer devolve `ack` de persistência. A fila não grava dados fora
+da memória do componente. Overflow exige reconciliação sem descartar o rascunho.
+
+Testes Node/Python cobrem coalescência simulada e atomicidade. Streamlit/browser real,
+timeout, desmontagem e callback persistido continuam pendentes do gate 1.
+
 Todos os recursos da matriz 03 permanecem no estado **LEGADO MANTIDO PARA COMPATIBILIDADE**.
 O código novo é isolado e sem consumidores operacionais: reverter seu commit retira
 a fundação sem tocar documentos. Não existe ainda rollback de documentos WordCraft

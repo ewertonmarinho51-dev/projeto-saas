@@ -45,6 +45,41 @@ def sujo(p):
     receber(p, evento(p, "changed"))
 
 
+def lote(p):
+    loaded = evento(p, "loaded", {"content_hash": DIGEST})
+    changed = evento(p, "changed"); changed["sequence"] = 2
+    cp = evento(p, "checkpoint", {"content_hash": DIGEST,
+        "content_base64": base64.b64encode(CONTENT).decode(), "schema_version": "gc-wordcraft-snapshot/v1"})
+    cp["sequence"] = 3
+    during = evento(p, "changed"); during["sequence"] = 4
+    return {"events": [loaded, changed, cp, during]}
+
+
+def test_lote_coalescido_preserva_checkpoint_e_edicao_durante_save(ponte):
+    batch = lote(ponte)
+    cp = ponte.receber_lote(batch, origin=ponte.origin, source_ok=True)
+    assert cp.content == CONTENT and ponte.sequence == 4
+    assert ponte.receber_lote(batch, origin=ponte.origin, source_ok=True) is None
+    ponte.confirmar_checkpoint(request_id=cp.request_id, revision=1, content_hash=DIGEST)
+    assert ponte.state == "dirty"
+    # A rerun may still carry the consumed old-revision prefix after its persisted ACK.
+    assert ponte.receber_lote(batch, origin=ponte.origin, source_ok=True) is None
+    assert ponte.state == "dirty" and ponte.revision == 1
+
+
+@pytest.mark.parametrize("case", ["gap", "order", "bad_hash", "scope", "origin"])
+def test_lote_invalido_e_atomico(ponte, case):
+    batch = lote(ponte)
+    if case == "gap": batch["events"].pop(1)
+    if case == "order": batch["events"].reverse()
+    if case == "bad_hash": batch["events"][2]["payload"]["content_hash"] = "0" * 64
+    if case == "scope": batch["events"][-1]["document_id"] = str(uuid4())
+    before = deepcopy(ponte)
+    with pytest.raises(ErroPonte):
+        ponte.receber_lote(batch, origin="https://attacker.invalid" if case == "origin" else ponte.origin, source_ok=True)
+    assert ponte == before
+
+
 def test_ack_so_apos_persistencia_e_reabertura(ponte):
     sujo(ponte)
     cp = checkpoint(ponte)

@@ -1,8 +1,34 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EditorController, assetURL, fromBase64, toBase64, sha256} from './host.mjs';
+import {EditorController, EventOutbox, assetURL, fromBase64, toBase64, sha256} from './host.mjs';
 
 const bytes = new TextEncoder().encode('synthetic transport fixture; not a native document corpus');
+
+test('coalesced Streamlit state retains every event until backend consumption', () => {
+  let latest;
+  const outbox = new EventOutbox((key, value) => { latest = value; });
+  outbox.push('edit', {sequence: 1, event: 'document.loaded'});
+  outbox.push('edit', {sequence: 2, event: 'document.changed'});
+  outbox.push('edit', {sequence: 3, event: 'document.checkpoint'});
+  assert.deepEqual(latest.events.map(e => e.sequence), [1, 2, 3]);
+  outbox.acknowledge(2);
+  assert.deepEqual(latest.events.map(e => e.sequence), [3]);
+  assert.throws(() => outbox.acknowledge(4));
+  assert.throws(() => outbox.acknowledge(1));
+  assert.deepEqual(outbox.events.map(e => e.sequence), [3]);
+  outbox.acknowledge(3);
+  assert.equal(outbox.events.length, 0);
+  outbox.push('edit', {sequence: 4, event: 'document.changed'});
+  assert.deepEqual(latest.events.map(e => e.sequence), [4]);
+});
+
+test('outbox applies backpressure without dropping unconsumed events', () => {
+  const outbox = new EventOutbox(() => {});
+  for (let sequence = 1; sequence <= 256; sequence++) outbox.push('edit', {sequence});
+  assert.throws(() => outbox.push('edit', {sequence: 257}));
+  assert.equal(outbox.events.length, 256);
+  assert.equal(outbox.last, 256);
+});
 async function setup() {
   const data = {instance_id: crypto.randomUUID(), session_id: crypto.randomUUID(), document_id: crypto.randomUUID(),
     nonce: 'n'.repeat(64), revision: 0, content_hash: await sha256(bytes)};

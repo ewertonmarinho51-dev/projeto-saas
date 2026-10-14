@@ -10,6 +10,7 @@ import base64
 import binascii
 import hashlib
 import hmac
+import copy
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -172,6 +173,52 @@ class Ponte:
         if checkpoint and kind == "document.checkpoint":
             self._pending = checkpoint
             self._changed_while_saving = False
+        return checkpoint
+
+    def receber_lote(self, batch: dict, *, origin: str, source_ok: bool) -> Checkpoint | None:
+        """Aceita estado coalescido sem perder eventos ou consumir lote inválido.
+
+        O renderer devolve ``event_ack=self.sequence`` somente após este método
+        aceitar o lote. Isso confirma transporte, nunca gravação ou aprovação.
+        Prefixos já consumidos podem reaparecer em reruns; eventos novos mantêm
+        todas as validações de receber. No máximo um checkpoint por lote.
+        """
+        if source_ok is not True or origin != self.origin:
+            raise ErroPonte("Origem ou janela recusada.")
+        _campos(batch, {"events"})
+        events = batch["events"]
+        if not isinstance(events, list) or not 1 <= len(events) <= 256:
+            raise ErroPonte("Lote vazio ou excessivo.")
+        candidate = copy.deepcopy(self)
+        checkpoint = None
+        previous = 0
+        encoded_size = 0
+        for event in events:
+            _campos(event, FIELDS)
+            request_id = _uuid(event["request_id"])
+            payload = event["payload"]
+            if isinstance(payload, dict) and isinstance(payload.get("content_base64"), str):
+                encoded_size += len(payload["content_base64"])
+                if encoded_size > 2 * MAX_BYTES:
+                    raise ErroPonte("Lote excede limite de bytes.")
+            sequence = _inteiro(event["sequence"], 1)
+            if sequence <= previous:
+                raise ErroPonte("Lote fora de ordem.")
+            previous = sequence
+            if sequence <= self.sequence:
+                if (request_id not in self._seen
+                        or any(event[key] != getattr(self, key) for key in
+                               ("instance_id", "session_id", "document_id", "nonce"))):
+                    raise ErroPonte("Prefixo do lote não pertence a esta instância.")
+                continue
+            if sequence != candidate.sequence + 1:
+                raise ErroPonte("Lote perdeu um evento.")
+            accepted = candidate.receber(event, origin=origin, source_ok=source_ok)
+            if accepted is not None:
+                if checkpoint is not None:
+                    raise ErroPonte("Mais de um checkpoint no lote.")
+                checkpoint = accepted
+        self.__dict__.update(candidate.__dict__)
         return checkpoint
 
     def confirmar_checkpoint(self, *, request_id: str, revision: int, content_hash: str):

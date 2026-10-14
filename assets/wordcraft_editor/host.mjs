@@ -32,6 +32,33 @@ export function assetURL(value, base) {
   return url.href;
 }
 
+// State updates can be coalesced by Streamlit. Every update therefore carries
+// all unconsumed events, rather than relying on callback delivery per emission.
+export class EventOutbox {
+  constructor(send) { this.send = send; this.events = []; this.consumed = 0; this.last = 0; this.buffered = 0; }
+  push(key, event) {
+    const size = JSON.stringify(event).length;
+    if (key !== 'edit' || event.sequence !== this.last + 1 || this.events.length >= 256 || this.buffered + size > 2 * maxBytes) {
+      throw new Error('Transporte precisa de reconciliação; nenhum evento foi descartado.');
+    }
+    this.events.push(event);
+    this.buffered += size;
+    this.last = event.sequence;
+    this.flush();
+  }
+  flush() { if (this.events.length) this.send('edit', {events: this.events.slice()}); }
+  acknowledge(sequence) {
+    if (sequence === undefined) return;
+    if (!Number.isSafeInteger(sequence) || sequence < this.consumed || sequence > this.last) {
+      throw new Error('Confirmação de consumo inválida.');
+    }
+    this.consumed = sequence;
+    this.events = this.events.filter(event => event.sequence > sequence);
+    this.buffered = this.events.reduce((sum, event) => sum + JSON.stringify(event).length, 0);
+    this.flush();
+  }
+}
+
 export class EditorController {
   constructor(native, data, send) {
     for (const key of ['instance_id', 'session_id', 'document_id']) if (!uuidPattern.test(data[key])) throw new Error('Escopo inválido.');
@@ -53,7 +80,8 @@ export class EditorController {
     if (this.disposed) throw new Error('Instância encerrada.');
     const message = {protocol, ...this.scope, request_id: crypto.randomUUID(),
       expected_revision: this.revision, sequence: ++this.sequence, event, payload};
-    this.send('edit', message);
+    try { this.send('edit', message); }
+    catch (error) { this.state = 'conflict'; throw error; }
     return message;
   }
   async loaded(bytes) {
@@ -90,14 +118,15 @@ export class EditorController {
       const envelope = {protocol, ...this.scope, request_id: id, expected_revision: this.revision,
         sequence: ++this.sequence, event: 'document.checkpoint', payload: {
           schema_version: checkpointSchema, content_hash: digest, content_base64: toBase64(bytes)}};
-      this.send('edit', envelope);
+      try { this.send('edit', envelope); }
+      catch (error) { this.state = 'conflict'; throw error; }
       // Changes during hashing may have arrived before checkpoint on the backend.
       // Reassert dirty after it, so its ACK cannot conceal a newer native edit.
       if (this.native.generation() !== generation) this.publish('document.changed', {});
       return envelope;
     } catch (error) {
       // Native pending bytes remain available; do not pretend a save occurred.
-      this.state = 'error';
+      if (this.state !== 'conflict') this.state = 'error';
       throw error;
     }
   }
@@ -154,6 +183,8 @@ export default function render(component) {
     }
     instance.data = data;
     root.__instance.send = setStateValue;
+    try { instance.outbox.acknowledge(data.event_ack); }
+    catch { if (instance.controller) instance.controller.state = 'conflict'; }
     root.__instance.controller?.receive(data);
     instance.update?.();
     if (instance.controller?.state === 'dirty') instance.schedule?.();
@@ -164,6 +195,7 @@ export default function render(component) {
   const retry = document.createElement('button'); retry.textContent = 'Tentar salvar novamente'; retry.disabled = true;
   root.append(status, canvas, retry);
   const instance = {data, send: setStateValue, controller: null, native: null, starting: false, timer: null, disposed: false}; root.__instance = instance;
+  instance.outbox = new EventOutbox((...args) => instance.send(...args));
   const update = () => { if (instance.controller) { status.textContent = labels[instance.controller.state]; retry.disabled = instance.controller.state !== 'error'; } };
   const unload = event => { if (instance.controller && !['ready', 'saved'].includes(instance.controller.state)) { event.preventDefault(); event.returnValue = ''; } };
   window.addEventListener('beforeunload', unload);
@@ -193,7 +225,7 @@ export default function render(component) {
     try { await native.start(canvas, bytes, Boolean(data.webgl)); }
     finally { instance.starting = false; }
     if (instance.disposed) { native.dispose(); return; }
-    const controller = new EditorController(native, data, (...args) => instance.send(...args));
+    const controller = new EditorController(native, data, (...args) => instance.outbox.push(...args));
     instance.controller = controller;
     await controller.loaded(bytes);
     controller.receive(instance.data);
