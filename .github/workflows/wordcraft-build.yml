@@ -1,0 +1,104 @@
+name: WordCraft pinned upstream build
+
+on:
+  push:
+    branches: [feature/wordcraft-wasm-govconnect]
+    paths:
+      - .github/workflows/wordcraft-build.yml
+      - docs/wordcraft/upstream.lock.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wordcraft-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  upstream:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_TERM_COLOR: never
+      WORDCRAFT_NO_PREFS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read pinned upstream revision
+        id: pin
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          lock = json.load(open('docs/wordcraft/upstream.lock.json'))
+          assert lock['repository'] == 'https://github.com/storytold/wordcraft'
+          assert re.fullmatch('[0-9a-f]{40}', lock['commit'])
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f"sha={lock['commit']}\n")
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: storytold/wordcraft
+          ref: ${{ steps.pin.outputs.sha }}
+          path: work-upstream
+          persist-credentials: false
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev libgl1-mesa-dev libudev-dev libasound2-dev libfontconfig1-dev libwayland-dev libxkbcommon-dev pkg-config
+      - name: Install pinned Rust and wasm target
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal --component clippy,rustfmt --target wasm32-unknown-unknown
+          rustup default 1.99.0
+          rustc --version
+          cargo --version
+      - name: Install checksum-verified Trunk 0.21.14
+        run: |
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 -o "$RUNNER_TEMP/trunk.tar.gz" https://github.com/trunk-rs/trunk/releases/download/v0.21.14/trunk-x86_64-unknown-linux-gnu.tar.gz
+          echo "f2b4680cd239693a646a2795e4633c625328d7b2a044fbe749fa3a2fe9e7036b  $RUNNER_TEMP/trunk.tar.gz" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/trunk.tar.gz" -C "$HOME/.cargo/bin" trunk
+          trunk --version
+      - name: Fetch locked dependencies and record provenance
+        working-directory: work-upstream
+        env:
+          EXPECTED_SHA: ${{ steps.pin.outputs.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          mkdir -p ../build-evidence
+          git rev-parse HEAD > ../build-evidence/upstream-sha.txt
+          sha256sum Cargo.lock > ../build-evidence/Cargo.lock.sha256
+          cargo fetch --locked
+          cargo metadata --locked --format-version 1 > ../build-evidence/cargo-metadata.json
+          rustc --version > ../build-evidence/tools.txt
+          cargo --version >> ../build-evidence/tools.txt
+          trunk --version >> ../build-evidence/tools.txt
+      - name: Run upstream quality gates
+        working-directory: work-upstream
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo xtask ci 2>&1 | tee ../build-evidence/upstream-ci.log
+      - name: Build upstream browser shell
+        working-directory: work-upstream/apps/wordcraft-web
+        shell: bash
+        run: |
+          set -o pipefail
+          trunk build --release 2>&1 | tee ../../../build-evidence/trunk-build.log
+      - name: Verify unchanged lock and measure assets
+        working-directory: work-upstream
+        run: |
+          sha256sum --check ../build-evidence/Cargo.lock.sha256
+          find dist/web -type f -printf '%s %p\n' | sort -nr > ../build-evidence/assets-size.txt
+          find dist/web -type f -exec sha256sum {} + > ../build-evidence/assets-sha256.txt
+          test -n "$(find dist/web -name '*.wasm' -print -quit)"
+      - name: Preserve build evidence (no editor distribution or deploy)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordcraft-upstream-build-evidence
+          path: build-evidence/
+          if-no-files-found: warn
+          retention-days: 14
