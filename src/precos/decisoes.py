@@ -88,7 +88,9 @@ def impedimento(item: dict, referencia: dict, pesquisa: dict) -> str:
     try:
         data = date.fromisoformat(str(referencia.get("data_compra") or "")[:10])
         base = date.fromisoformat(str(pesquisa.get("data_base") or date.today())[:10])
-        if not 0 <= (base - data).days <= 365:
+        from .execucao import JANELA_MAXIMA_DIAS
+
+        if not 0 <= (base - data).days <= JANELA_MAXIMA_DIAS:
             return "Referência fora da janela de datas da triagem."
     except ValueError:
         return "Data da referência ausente ou inválida."
@@ -291,7 +293,11 @@ def revisar_item(pesquisa: dict, item: dict, referencias: list[dict], repo) -> l
         except Exception:
             resultados.append({"status": "manual_review", "referencia_id": referencia.get("id"),
                                "explicacao": "Análise indisponível; requer revisão humana."})
-    if referencias and not item.get("codigo"):
+    from .execucao import codigo_de_catalogo
+
+    # Número sequencial da planilha não é catálogo: o item ainda precisa
+    # da escolha do CATMAT/CATSER entre os candidatos.
+    if referencias and not codigo_de_catalogo(item):
         try:
             resultados.append(revisar_referencia(
                 str(pesquisa["id"]), str(item["id"]), str(referencias[0]["id"]),

@@ -646,10 +646,20 @@ def test_os_termos_ampliam_a_busca_sem_mudar_o_preco():
     payload = json.dumps({"resultado": [registro], "totalRegistros": 1})
     adapter = ComprasGovAdapter(abrir_url=lambda url: payload)
 
-    sem_termos = adapter.pesquisar(Consulta(descricao="CANETA ESFEROGRAFICA"))
+    # O filtro por descrição deixou de ser chamado por `pesquisar` (a
+    # janela inteira não responde a tempo — ver compras_gov), mas a regra
+    # dele continua valendo para quem o usar: exercitada direto.
+    def buscar(consulta):
+        resultado = ResultadoBusca(fonte=adapter.fonte)
+        adapter._por_descricao(consulta, resultado)  # noqa: SLF001
+        return resultado
+
+    from src.precos.fontes import ResultadoBusca
+
+    sem_termos = buscar(Consulta(descricao="CANETA ESFEROGRAFICA"))
     assert not sem_termos.referencias, "não casaria sem sinônimo"
 
-    com_termos = adapter.pesquisar(Consulta(
+    com_termos = buscar(Consulta(
         descricao="CANETA ESFEROGRAFICA",
         termos_alternativos=("TINTA AZUL",)))
     assert len(com_termos.referencias) == 1

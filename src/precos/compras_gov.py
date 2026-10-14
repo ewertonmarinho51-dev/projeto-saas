@@ -58,7 +58,7 @@ FONTE_ITENS = Fonte(
 # atravessar um 429 ou um 5xx momentâneo sem derrubar a pesquisa inteira.
 TENTATIVAS = 3
 RECUO_INICIAL_S = 1.0
-TIMEOUT_S = 45
+TIMEOUT_S = 30
 
 
 def _sem_acento(texto: str) -> str:
@@ -139,7 +139,15 @@ class ComprasGovAdapter(FontePesquisaPreco):
                     f"{self.fonte.nome} respondeu HTTP {erro.code} em "
                     f"{caminho}")
                 return None
-            except (urllib.error.URLError, TimeoutError, OSError):
+            except TimeoutError:
+                # Esgotar o tempo de leitura não é soluço de rede: é a API
+                # lenta para ESTA consulta, e repetir multiplicava a espera
+                # (3 × 45 s por item). Falha uma vez e segue.
+                resultado.falhar(
+                    f"{self.fonte.nome} não respondeu em {TIMEOUT_S} s em "
+                    f"{caminho}")
+                return None
+            except (urllib.error.URLError, OSError):
                 if tentativa < TENTATIVAS:
                     time.sleep(recuo)
                     recuo *= 2
@@ -174,7 +182,17 @@ class ComprasGovAdapter(FontePesquisaPreco):
         resultado = ResultadoBusca(fonte=self.fonte)
         if consulta.tem_codigo:
             self._por_codigo(consulta, resultado)
-        self._por_descricao(consulta, resultado)
+            return resultado
+        # Sem CATMAT/CATSER não há consulta viável. O caminho por descrição
+        # pedia TODAS as contratações da janela e filtrava o texto aqui:
+        # medido em 14/10/2026 a partir do VPS, 30 dias levavam 42 s, 365
+        # dias 51 s e 180 dias passavam de 100 s — acima do timeout, com o
+        # item preso ~2 min e terminando em erro. Dizer o que falta, na
+        # hora, é melhor que travar a tela para não achar nada.
+        resultado.registrar(
+            "item sem código CATMAT/CATSER: a API oficial de preços só "
+            "consulta pelo código do catálogo. Informe o CATMAT/CATSER do "
+            "item (ou escolha um dos sugeridos) e pesquise novamente")
         return resultado
 
     def _por_codigo(self, consulta: Consulta,
@@ -199,6 +217,14 @@ class ComprasGovAdapter(FontePesquisaPreco):
         for bruto in dados.get("resultado") or []:
             resultado.referencias.append(
                 _referencia_de_preco_praticado(bruto))
+        if not resultado.referencias:
+            # Zero NÃO é falha da fonte: ou o código não é CATMAT (número
+            # da planilha, código interno do município), ou não houve
+            # compra no período. Os dois pedem a mesma ação do servidor.
+            resultado.registrar(
+                f"nenhum preço praticado para o código {consulta.codigo_catalogo} "
+                "na janela consultada: confira se ele é o CATMAT/CATSER do "
+                "item (ou escolha um dos sugeridos)")
 
     def _por_descricao(self, consulta: Consulta,
                        resultado: ResultadoBusca) -> None:

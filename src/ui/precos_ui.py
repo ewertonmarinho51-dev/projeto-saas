@@ -599,6 +599,77 @@ def _salvar_importados(pesquisa: dict, itens_canonicos: list[dict]) -> None:
     repo.salvar_itens(str(pesquisa["id"]), registros)
 
 
+# Item ainda sem preço formado: o CATMAT pode ser definido ou trocado.
+ESTADOS_COM_CATMAT_EDITAVEL = frozenset({
+    EstadoItem.PENDENTE.value, EstadoItem.INCOMPLETO.value,
+    EstadoItem.ERRO.value})
+CHAVE_SUGESTOES = "_precos_sugestoes_catmat"
+
+
+def _render_definir_catmat(item: dict) -> None:
+    """
+    O servidor escolhe o CATMAT do item; o sistema só sugere.
+
+    A API oficial de preços só consulta pelo código do catálogo. Sem ele
+    o item não tem como ser pesquisado — e a planilha costuma trazer o
+    número sequencial ou um código interno do município.
+    """
+    from ..precos import catalogo as catalogo_mod
+
+    item_id = str(item["id"])
+    sugestoes = st.session_state.setdefault(CHAVE_SUGESTOES, {})
+    with st.popover("Definir CATMAT", use_container_width=False):
+        st.caption("A pesquisa de preços oficial consulta pelo código do "
+                   "catálogo (CATMAT). Escolha um sugerido ou informe o "
+                   "código.")
+        if st.button("Sugerir pelo catálogo oficial", key=f"sug_{item_id}"):
+            with st.spinner("Consultando o catálogo de materiais… (a "
+                            "primeira consulta do dia monta o índice e "
+                            "leva cerca de 1 minuto)"):
+                try:
+                    sugestoes[item_id] = [
+                        c.__dict__ for c in _catalogo().sugerir(
+                            str(item.get("descricao") or ""))]
+                except catalogo_mod.ErroCatalogo as erro:
+                    st.error(f"{erro}. Tente de novo ou informe o código.")
+        candidatos = sugestoes.get(item_id)
+        escolhido = ""
+        if candidatos == []:
+            st.info("Nenhum candidato encontrado pela descrição. Informe o "
+                    "CATMAT abaixo.")
+        elif candidatos:
+            opcoes = {c["codigo"]: c for c in candidatos}
+            escolhido = st.radio(
+                "Candidatos", list(opcoes), key=f"cand_{item_id}",
+                format_func=lambda cod: (
+                    f"{cod} · aderência {opcoes[cod]['aderencia']:.0%} · "
+                    f"{opcoes[cod]['descricao'][:140]}")) or ""
+            if opcoes[escolhido]["aderencia"] < catalogo_mod.ADERENCIA_BAIXA:
+                st.warning("Aderência baixa: confira a especificação antes "
+                           "de usar este código.")
+        manual = st.text_input("Ou informe o CATMAT", key=f"man_{item_id}",
+                               placeholder="ex.: 275111")
+        codigo = manual.strip() or escolhido
+        if st.button("Usar este CATMAT", type="primary",
+                     key=f"usar_{item_id}", disabled=not codigo):
+            try:
+                repo.definir_catalogo(item, codigo, "CATMAT")
+                sugestoes.pop(item_id, None)
+                st.success("CATMAT gravado. Clique em Pesquisar preços para "
+                           "consultar este item.")
+                st.rerun()
+            except db.ErroBanco as erro:
+                st.error(str(erro))
+
+
+@st.cache_resource(show_spinner=False)
+def _catalogo():
+    """Um índice por processo do servidor (e em disco por 7 dias)."""
+    from ..precos.catalogo import Catalogo
+
+    return Catalogo()
+
+
 def _render_tabela_de_itens(pesquisa: dict, itens: list[dict]) -> None:
     """A tabela do §18, com o estado e o preço de cada item."""
     for item in itens:
@@ -610,6 +681,9 @@ def _render_tabela_de_itens(pesquisa: dict, itens: list[dict]) -> None:
             if item.get("codigo"):
                 st.caption(f"{item.get('tipo_catalogo') or 'código'} "
                            f"{item.get('codigo')}")
+            if (not item.get("tipo_catalogo")
+                    and estado in ESTADOS_COM_CATMAT_EDITAVEL):
+                _render_definir_catmat(item)
         colunas[2].write(str(item.get("unidade") or "—"))
         colunas[3].write(_texto_quantidade(item.get("quantidade")))
         colunas[4].write(ROTULO_ITEM.get(estado, estado))
@@ -782,7 +856,12 @@ def _render_execucao() -> None:
     # depois. Prometer "pesquisa com IA" e rodar determinístico seria a
     # mentira mais fácil de contar aqui — e a mais difícil de o servidor
     # detectar, porque o resultado tem a mesma cara.
-    if _motor_semantico() is not None:
+    if _opcoes_triagem():
+        st.caption(
+            "Triagem Jev ATIVA: as referências encontradas passam por "
+            "análise tipada com revisão humana obrigatória. A camada de "
+            "sinônimos fica desligada nesta modalidade.")
+    elif _motor_semantico() is not None:
         st.caption(
             "Camada semântica ATIVA: a IA sugere termos equivalentes para "
             "ampliar a busca, e só isso. Ela não informa preço, não "
