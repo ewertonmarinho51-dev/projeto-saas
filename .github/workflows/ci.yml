@@ -162,3 +162,15 @@ jobs:
           GOVDOCS_ENSAIO_PG_DSN: >-
             postgresql://postgres:postgres@localhost:5432/postgres
         run: python -m pytest -q
+
+      - name: Gerar referências sintéticas de fidelidade WordCraft
+        if: github.ref == 'refs/heads/feature/wordcraft-wasm-govconnect'
+        run: python scripts/wordcraft_corpus.py --out wordcraft-corpus --pdf
+
+      - name: Preservar corpus sintético para inspeção visual
+        if: github.ref == 'refs/heads/feature/wordcraft-wasm-govconnect' && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordcraft-synthetic-fidelity-inputs
+          path: wordcraft-corpus/
+          retention-days: 14

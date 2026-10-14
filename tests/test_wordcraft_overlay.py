@@ -20,6 +20,7 @@ def seed(tmp_path, monkeypatch):
     (cargo.parent / "src").mkdir()
     monkeypatch.setattr(overlay, "CARGO_SHA", hashlib.sha256(cargo.read_bytes()).hexdigest())
     monkeypatch.setattr(overlay.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout=PIN))
+    monkeypatch.setattr(overlay, "ui_patches", lambda pin: [])
     return cargo
 
 
@@ -91,3 +92,33 @@ def test_browser_divergente_recusa_antes_de_qualquer_escrita(tmp_path, monkeypat
         overlay.apply(tmp_path, browser=True)
     assert cargo.read_bytes() == before
     assert not (cargo.parent / "src/govconnect.rs").exists()
+
+
+def brand_fixture(tmp_path):
+    path = tmp_path / "ui.rs"
+    path.write_bytes(b"commercial_link(); copyright();\n")
+    result = b"independent_source(); copyright();\n"
+    return path, {"path": "ui.rs", "before_sha256_lf": hashlib.sha256(path.read_bytes()).hexdigest(),
+                  "after_sha256_lf": hashlib.sha256(result).hexdigest(),
+                  "replacements": [{"before": "commercial_link()", "after": "independent_source()"}]}
+
+
+def test_brand_preserva_copyright_e_recusa_drift(tmp_path):
+    path, spec = brand_fixture(tmp_path)
+    target, content = overlay.planned_ui_patch(tmp_path.resolve(), spec)
+    assert target == path.resolve() and b"copyright()" in content
+    assert b"commercial_link" not in content
+    path.write_bytes(content)
+    assert overlay.planned_ui_patch(tmp_path.resolve(), spec)[1] == content
+    path.write_bytes(content + b"unrelated edit")
+    with pytest.raises(ValueError, match="audited"):
+        overlay.planned_ui_patch(tmp_path.resolve(), spec)
+
+
+def test_brand_digest_incorreto_nao_escreve(tmp_path):
+    path, spec = brand_fixture(tmp_path)
+    before = path.read_bytes()
+    spec["after_sha256_lf"] = "0" * 64
+    with pytest.raises(ValueError, match="digest"):
+        overlay.planned_ui_patch(tmp_path.resolve(), spec)
+    assert path.read_bytes() == before

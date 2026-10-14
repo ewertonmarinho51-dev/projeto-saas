@@ -1,0 +1,44 @@
+{
+  "schema": "gc-wordcraft-ui-patches/v1",
+  "upstream_commit": "533615620ef91ae57fa7aa4cd77fd98b2179e693",
+  "patches": [
+    {
+      "path": "crates/ui-egui/src/dialogs.rs",
+      "before_sha256_lf": "1670cf523d8882672d16ef55fe1584f08e38b9bf6f3874be414d2fa0ba6eec8e",
+      "after_sha256_lf": "7f3f9a5dc7b28f61e1dbb187a27d36bf88baf3721f31d15c980f42c2b5b8ab86",
+      "replacements": [
+        {
+          "before": "Dialog::About { .. } => \"About WordCraft\",",
+          "after": "Dialog::About { .. } => \"Sobre o editor GovConnect\","
+        },
+        {
+          "before": "ui.label(egui::RichText::new(tl!(\"WordCraft\")).font(semibold(22.0)));",
+          "after": "ui.label(egui::RichText::new(tl!(\"GovConnect — baseado em WordCraft\")).font(semibold(22.0)));"
+        },
+        {
+          "before": "ui.label(tl!(\n                        \"A free, open-source word processor written from scratch in Rust.\\nPart of the Crafting Apps from the ArtCraft team.\"\n                    ));",
+          "after": "ui.label(tl!(\"GovConnect: integração independente baseada em WordCraft, da equipe ArtCraft.\"));"
+        },
+        {
+          "before": "ui.hyperlink_to(tl!(\"getartcraft.com/apps/wordcraft\"), \"https://getartcraft.com/apps/wordcraft\");",
+          "after": "// Upstream commercial promotion is omitted in the independent GovConnect integration."
+        },
+        {
+          "before": "ui.hyperlink_to(tl!(\"Join us on Discord: discord.gg/artcraft\"), \"https://discord.gg/artcraft\");",
+          "after": "// Upstream community promotion is omitted; source and copyright attribution remain below."
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/lib.rs",
+      "before_sha256_lf": "49f79d0536447fc89d266f0f71607a20d1053e93cd2f6f6a70ec4ad8d1fa1dd6",
+      "after_sha256_lf": "e455c89997e880d70b403616a559567e0f4611951cb287e0f87b1bcc1ebad26d",
+      "replacements": [
+        {
+          "before": "self.canvas.open_url = Some(\"https://discord.gg/artcraft\".into());",
+          "after": "self.canvas.open_url = None;"
+        }
+      ]
+    }
+  ]
+}

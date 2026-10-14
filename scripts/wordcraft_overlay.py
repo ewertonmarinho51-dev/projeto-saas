@@ -26,6 +26,32 @@ def contained(source: Path, relative: str) -> Path:
     return path
 
 
+def ui_patches(pin: str) -> list[dict]:
+    manifest = json.loads((ROOT / "integrations/wordcraft/ui-patches.json").read_text(encoding="utf-8"))
+    if manifest.get("schema") != "gc-wordcraft-ui-patches/v1" or manifest.get("upstream_commit") != pin:
+        raise ValueError("Brand patch manifest does not match the audited pin")
+    return manifest["patches"]
+
+
+def planned_ui_patch(source: Path, spec: dict) -> tuple[Path, bytes]:
+    path = contained(source, spec["path"])
+    data = path.read_bytes().replace(b"\r\n", b"\n")
+    digest = hashlib.sha256(data).hexdigest()
+    if digest == spec["after_sha256_lf"]:
+        return path, data
+    if digest != spec["before_sha256_lf"]:
+        raise ValueError("UI source differs from the audited bytes")
+    text = data.decode("utf-8")
+    for change in spec["replacements"]:
+        if not change["before"] or text.count(change["before"]) != 1:
+            raise ValueError("Brand replacement is missing or ambiguous")
+        text = text.replace(change["before"], change["after"], 1)
+    result = text.encode("utf-8")
+    if hashlib.sha256(result).hexdigest() != spec["after_sha256_lf"]:
+        raise ValueError("Patched UI digest differs from the reviewed result")
+    return path, result
+
+
 def apply(source: Path, *, browser=False):
     source = source.resolve(strict=True)
     pin = json.loads((ROOT / "docs/wordcraft/upstream.lock.json").read_text(encoding="utf-8"))["commit"]
@@ -55,6 +81,7 @@ def apply(source: Path, *, browser=False):
         if module.exists() and module.read_bytes() != module_bytes:
             raise ValueError("An unrelated browser integration file already exists")
         writes.extend([(main, replacement), (module, module_bytes)])
+        writes.extend(planned_ui_patch(source, spec) for spec in ui_patches(pin))
     # Every target is validated before writing any of them.
     for path, content in writes:
         path.write_bytes(content)

@@ -1,0 +1,13 @@
+{
+  "package": "epaint_default_fonts",
+  "version": "0.36.2",
+  "source": "https://github.com/emilk/egui/tree/0.36.2/crates/epaint_default_fonts/fonts",
+  "files": [
+    "Hack-Regular.txt",
+    "OFL.txt",
+    "UFL.txt",
+    "emoji-icon-font-mit-license.txt"
+  ],
+  "comparison": "UTF-8, CRLF normalized to LF, one final newline; compare to Cargo-resolved package before bundling",
+  "scope": "License texts only. No new font binaries or brand assets redistributed."
+}

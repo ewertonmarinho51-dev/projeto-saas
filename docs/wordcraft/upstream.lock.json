@@ -5,8 +5,10 @@
   "upstream_version": "0.7.0",
   "minimum_rust": "1.90",
   "license": "MIT OR Apache-2.0",
-  "build_status": "NOT_BUILT",
-  "bridge_status": "PROTOCOL_ONLY_NOT_CONNECTED",
+  "build_status": "UPSTREAM_BASELINE_VERIFIED_ADAPTER_BUILD_PENDING",
+  "baseline_run": 38609146859,
+  "baseline_artifact_sha256": "27104a0fbe6dc1286b18249d831a8ac8251cf58bded63ea4029f1471551c16ac",
+  "bridge_status": "EXPERIMENTAL_WASM_AND_HOST_NOT_CONNECTED_TO_BACKEND",
   "canonical_format": "UNDECIDED_PENDING_ROUNDTRIP",
   "production_rollout": false
 }

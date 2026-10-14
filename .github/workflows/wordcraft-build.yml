@@ -8,6 +8,7 @@ on:
       - docs/wordcraft/upstream.lock.json
       - integrations/wordcraft/**
       - scripts/wordcraft_overlay.py
+      - scripts/wordcraft_notices.py
   workflow_dispatch:
 
 permissions:
@@ -84,6 +85,9 @@ jobs:
           rustc --version > ../build-evidence/tools.txt
           cargo --version >> ../build-evidence/tools.txt
           trunk --version >> ../build-evidence/tools.txt
+      - name: Verify upstream and embedded font notices
+        run: |
+          python3 scripts/wordcraft_notices.py --metadata build-evidence/cargo-metadata.json --upstream work-upstream --out build-evidence/notices > build-evidence/notices-check.json
       - name: Run upstream quality gates
         working-directory: work-upstream
         shell: bash
@@ -113,7 +117,9 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          cargo fmt --all -- --check
           cargo test --locked -p wordcraft-web --lib 2>&1 | tee ../build-evidence/adapter-tests.log
+          cargo test --locked -p wordcraft-ui-egui 2>&1 | tee ../build-evidence/adapter-ui-regression.log
           cargo clippy --locked -p wordcraft-web --all-targets -- -D warnings 2>&1 | tee ../build-evidence/adapter-clippy.log
           cargo check --locked -p wordcraft-web --target wasm32-unknown-unknown 2>&1 | tee ../build-evidence/adapter-wasm.log
           sha256sum --check ../build-evidence/Cargo.lock.sha256
