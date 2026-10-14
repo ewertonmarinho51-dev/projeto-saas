@@ -80,6 +80,7 @@ class Ponte:
     _seen: set[str] = field(default_factory=set, init=False, repr=False)
     _pending: Checkpoint | None = field(default=None, init=False, repr=False)
     _changed_while_saving: bool = field(default=False, init=False, repr=False)
+    _last_ack: tuple[str, int, str] | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
         if not isinstance(self.origin, str):
@@ -232,8 +233,21 @@ class Ponte:
             raise ErroPonte("ACK não corresponde ao checkpoint persistido.")
         self.revision = revision
         self.content_hash = content_hash
+        self._last_ack = (request_id, revision, content_hash)
         self._pending = None
         self.state = "dirty" if self._changed_while_saving else "saved"
+
+    def ack_persistido(self) -> dict | None:
+        """Cópia da última confirmação aceita do proprietário backend."""
+        if self._last_ack is None:
+            return None
+        request_id, revision, content_hash = self._last_ack
+        return dict(request_id=request_id, revision=revision, content_hash=content_hash)
+
+    def falha_pendente(self) -> dict | None:
+        if self._pending is None or self.state not in {"error", "conflict"}:
+            return None
+        return dict(request_id=self._pending.request_id, conflict=self.state == "conflict")
 
     def falhar_checkpoint(self, *, request_id: str, conflict: bool = False):
         """Não descarta bytes: falha transitória permite retry do mesmo checkpoint."""
