@@ -166,20 +166,19 @@ def _opcoes(sugeridos: tuple[str, ...], atual: str) -> list[str]:
 
 def _render_chaves() -> None:
     st.caption(
-        "Toda a IA do sistema passa pelo **OpenRouter**: documentos, "
-        "auditoria, correção, pareceres, GovBot, pesquisa de preços, "
-        "busca na Base de Conhecimento e Jev."
+        "Uma chave do **OpenRouter** atende documentos, auditoria, "
+        "correção, pareceres, GovBot, pesquisa de preços, busca na Base de "
+        "Conhecimento e Jev, quando ele é o provedor exclusivo."
     )
     exclusivo = llm.modo_exclusivo_openrouter()
     configurada = bool(llm.obter_openrouter_key())
     if exclusivo and configurada:
         st.success("OpenRouter ativo como provedor exclusivo.")
     elif not configurada:
-        st.error("Chave do OpenRouter não configurada: a geração está "
-                 "parada até que ela seja informada.")
+        st.error("Chave do OpenRouter não configurada.")
     else:
-        st.warning("A chave está configurada, mas o OpenRouter ainda não é o "
-                   "provedor exclusivo. Salve o formulário abaixo para ativá-lo.")
+        st.info("Chave do OpenRouter configurada. O provedor exclusivo "
+                "ainda não foi ativado (ver abaixo).")
 
     atual_principal = db.obter_config("OPENROUTER_MODEL")
     atual_economico = db.obter_config("OPENROUTER_MODEL_ECONOMICO")
@@ -212,13 +211,43 @@ def _render_chaves() -> None:
                 db.salvar_config("OPENROUTER_MODEL", (principal or "").strip())
                 db.salvar_config("OPENROUTER_MODEL_ECONOMICO",
                                  (economico or "").strip())
-                db.salvar_config("IA_PROVEDOR", "openrouter")
                 st.success("Configuração salva.")
                 st.rerun()
             except db.ErroBanco as erro:
                 st.error(str(erro))
 
+    _render_ativacao_exclusiva(exclusivo, configurada)
     _render_diagnostico_de_ia()
+
+
+def _render_ativacao_exclusiva(exclusivo: bool, configurada: bool) -> None:
+    """
+    Ativar o OpenRouter como provedor exclusivo é ato SEPARADO de salvar a
+    chave, e fica bloqueado enquanto a política de roteamento exigir motor
+    homologado que ele não é: ativar ali pararia a geração de documentos
+    oficiais com "nenhum motor homologado".
+    """
+    st.markdown("###### Provedor exclusivo")
+    if exclusivo:
+        if st.button("Voltar à cascata de provedores",
+                     key="ia_exclusivo_desligar"):
+            try:
+                db.salvar_config("IA_PROVEDOR", "")
+                st.rerun()
+            except db.ErroBanco as erro:
+                st.error(str(erro))
+        return
+    impedimento = llm.impedimento_ao_modo_exclusivo()
+    if impedimento:
+        st.warning(impedimento)
+    if st.button("Usar o OpenRouter como provedor exclusivo",
+                 key="ia_exclusivo_ligar", type="primary",
+                 disabled=bool(impedimento) or not configurada):
+        try:
+            db.salvar_config("IA_PROVEDOR", "openrouter")
+            st.rerun()
+        except db.ErroBanco as erro:
+            st.error(str(erro))
 
 
 def _render_diagnostico_de_ia() -> None:

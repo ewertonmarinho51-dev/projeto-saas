@@ -408,6 +408,29 @@ def test_c10_tarefa_critica_sem_motor_homologado_falha_com_mensagem(monkeypatch)
         llm._percorrer_motores("edital", "s", "u")
 
 
+def test_c06_exclusivo_bloqueado_com_roteamento_e_sem_homologacao(monkeypatch):
+    """Produção roda com o roteamento LIGADO (/etc/govdocs/env, 14/10)."""
+    from src import ai_gateway
+
+    monkeypatch.setenv(ai_gateway.VAR_ROTEAMENTO, "true")
+    motivo = llm.impedimento_ao_modo_exclusivo()
+    assert "PROCUREMENT_HIGH_ACCURACY" in motivo and "homolog" in motivo
+    monkeypatch.setenv(ai_gateway.VAR_ROTEAMENTO, "false")
+    assert llm.impedimento_ao_modo_exclusivo() == ""
+
+
+def test_c06_salvar_a_chave_nao_ativa_o_provedor_exclusivo():
+    import inspect
+
+    from src.ui import admin
+
+    fonte = inspect.getsource(admin._render_chaves)
+    assert '"IA_PROVEDOR"' not in fonte
+    ativacao = inspect.getsource(admin._render_ativacao_exclusiva)
+    assert "impedimento_ao_modo_exclusivo" in ativacao
+    assert "disabled=bool(impedimento)" in ativacao
+
+
 # ---------------------------------------------------------------------------
 # C13 — versão gravada na imagem
 # ---------------------------------------------------------------------------

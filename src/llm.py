@@ -342,6 +342,30 @@ def modo_exclusivo_openrouter() -> bool:
     return provedor_declarado() == "openrouter"
 
 
+def impedimento_ao_modo_exclusivo() -> str:
+    """
+    Por que o OpenRouter NÃO pode ser o provedor exclusivo agora — ou "".
+
+    Com o roteamento ligado, tarefas críticas só aceitam motor homologado
+    no grupo delas. Sem o OpenRouter nesses grupos, o modo exclusivo
+    deixaria documento oficial, parecer e pesquisa de preços sem motor.
+    """
+    from . import roteamento
+
+    if not ai_gateway.roteamento_ligado():
+        return ""
+    grupos = sorted({roteamento.GRUPO_DO_TIPO[t] for t in roteamento.CRITICAS
+                     if "openrouter" not in roteamento.MOTORES_DO_GRUPO[
+                         roteamento.GRUPO_DO_TIPO[t]]})
+    if not grupos:
+        return ""
+    return ("O OpenRouter ainda não é motor homologado para "
+            f"{', '.join(grupos)}, e a política de roteamento está ligada "
+            "no servidor. Ativá-lo como exclusivo pararia a geração de "
+            "documentos oficiais. Homologue-o antes "
+            "(scripts/homologacao_modelo.py).")
+
+
 def rota_de_embeddings() -> tuple[str, str] | None:
     """
     (rota, chave) para gerar embeddings do índice v2, ou None.
