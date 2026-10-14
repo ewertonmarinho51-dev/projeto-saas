@@ -107,6 +107,15 @@ jobs:
           find dist/web -type f -printf '%s %p\n' | sort -nr > ../build-evidence/assets-size.txt
           find dist/web -type f -exec sha256sum {} + > ../build-evidence/assets-sha256.txt
           test -n "$(find dist/web -name '*.wasm' -print -quit)"
+      - name: Cache the verified baseline before testing the integration
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            work-upstream/target
+          key: wordcraft-linux-rust199-${{ steps.pin.outputs.sha }}
       - name: Apply the isolated GovConnect adapter
         run: |
           python3 scripts/wordcraft_overlay.py --source work-upstream --browser > build-evidence/overlay.json
