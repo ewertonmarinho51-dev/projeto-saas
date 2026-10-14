@@ -1,6 +1,8 @@
 """O preflight nunca deve transformar ausência de prova em build aprovado."""
 import importlib.util
 from pathlib import Path
+import hashlib
+import zipfile
 
 import pytest
 
@@ -54,3 +56,48 @@ def test_rust_antigo_bloqueado(tmp_path, monkeypatch):
     monkeypatch.setattr(preflight, "run", lambda *a, **k: (0, "rustc 1.70.0"))
     r = preflight.inspect(tmp_path)
     assert "tool:rust_version_below_minimum" in r["blockers"]
+
+
+def baseline_fixture(tmp_path, monkeypatch, *, evidence_sha="a" * 40):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "Cargo.lock").write_bytes(b"synthetic locked input\n")
+    digest = hashlib.sha256((source / "Cargo.lock").read_bytes()).hexdigest()
+    archive = tmp_path / "baseline.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("upstream-sha.txt", evidence_sha + "\n")
+        bundle.writestr("Cargo.lock.sha256", digest + "  Cargo.lock\n")
+    lock = {"commit": "a" * 40, "baseline_run": 123, "baseline_govconnect_commit": "b" * 40,
+            "baseline_artifact_sha256": hashlib.sha256(archive.read_bytes()).hexdigest()}
+    metadata = {"id": 123, "head_sha": "b" * 40, "status": "completed", "conclusion": "success",
+                "repository": {"full_name": "ewertonmarinho51-dev/projeto-saas"}}
+    monkeypatch.setattr(preflight, "run", lambda args, cwd=None: (0, "a" * 40) if "rev-parse" in args else (0, ""))
+    return archive, metadata, source, lock
+
+
+def test_reuso_baseline_verifica_prova_sem_aprovar_adaptador(tmp_path, monkeypatch):
+    args = baseline_fixture(tmp_path, monkeypatch)
+    result = preflight.verify_baseline(*args)
+    assert result["status"] == "BASELINE_EVIDENCE_VERIFIED_NOT_ADAPTER_APPROVED"
+    assert result["gate1"] == "NOT_RUN"
+
+
+@pytest.mark.parametrize("case", ["run_failed", "run_sha", "repository", "archive", "lock", "dirty", "head"])
+def test_baseline_divergente_nao_e_reutilizado(tmp_path, monkeypatch, case):
+    archive, metadata, source, lock = baseline_fixture(tmp_path, monkeypatch)
+    if case == "run_failed": metadata["conclusion"] = "failure"
+    if case == "run_sha": metadata["head_sha"] = "c" * 40
+    if case == "repository": metadata["repository"]["full_name"] = "another/repository"
+    if case == "archive": archive.write_bytes(archive.read_bytes() + b"altered")
+    if case == "lock": (source / "Cargo.lock").write_bytes(b"changed input")
+    if case == "dirty":
+        monkeypatch.setattr(preflight, "run", lambda args, cwd=None: (0, "a" * 40) if "rev-parse" in args else (0, " M source"))
+    if case == "head": monkeypatch.setattr(preflight, "run", lambda *args, **kwargs: (0, "wrong-sha"))
+    with pytest.raises(ValueError):
+        preflight.verify_baseline(archive, metadata, source, lock)
+
+
+def test_baseline_zip_de_outro_upstream_e_rejeitado(tmp_path, monkeypatch):
+    args = baseline_fixture(tmp_path, monkeypatch, evidence_sha="c" * 40)
+    with pytest.raises(ValueError, match="another upstream"):
+        preflight.verify_baseline(*args)

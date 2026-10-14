@@ -26,7 +26,7 @@ Branch: `feature/wordcraft-wasm-govconnect`. Produção não alterada.
 | `src/wordcraft_protocol.py` | validar envelopes e respostas da ponte; futura UI; sem gravar, autorizar ou aplicar patches | schema fechado, nonce, escopo, replay, ACK | alto; fundação independente, não prova G1 |
 | `src/ui/wordcraft_editor.py` | registrar/montar host v2 com instância estável e callback obrigatório do proprietário backend | contrato de abertura, chave estável e renderer simulado | não grava nem concede ACL; sem consumidor operacional até G1 |
 | `tests/test_wordcraft_renderer.py` | recusar abertura divergente e preservar montagem/callback entre reruns | pytest offline | não equivale a navegador com WASM real |
-| `scripts/wordcraft_preflight.py` | verificar fontes pinadas, ferramentas e assets; build local futuro/CI | executável sem serviços e sem segredos | baixo; não substitui compilação |
+| `scripts/wordcraft_preflight.py` | verificar fontes/ferramentas e prova criptográfica do baseline upstream imutável; não aprova o adaptador | SHA/ZIP/run/lockfile exatos e falhas negativas | somente baseline pode ser reutilizado; integração sempre recompilada/testada |
 | `tests/test_wordcraft_protocol.py` | regressões negativas e lifecycle do contrato | pytest offline | sem dependência de LLM |
 | `tests/test_wordcraft_preflight.py` | impedir aprovação falsa com source/toolchain ausentes ou divergentes | pytest offline | pré-requisitos não certificam G1 |
 | `docs/wordcraft/upstream.lock.json` | manifesto de origem e versão auditada | preflight | hash Git não prova build |

@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = ("Cargo.toml", "Cargo.lock", "AGENTS.md", "LICENSE-MIT", "LICENSE-APACHE",
@@ -73,10 +74,53 @@ def inspect(source: Path):
             "gate1": "NOT_RUN", "production_changed": False}
 
 
+def verify_baseline(archive: Path, run_metadata: dict, source: Path, lock: dict) -> dict:
+    """Verify immutable prior evidence, never substitute for adapter checks/build."""
+    if (run_metadata.get("id") != lock["baseline_run"]
+            or run_metadata.get("status") != "completed" or run_metadata.get("conclusion") != "success"
+            or run_metadata.get("head_sha") != lock["baseline_govconnect_commit"]
+            or (run_metadata.get("repository") or {}).get("full_name") != "ewertonmarinho51-dev/projeto-saas"):
+        raise ValueError("Baseline run identity or successful conclusion differs")
+    code, head = run(["git", "rev-parse", "HEAD"], source)
+    if code or head != lock["commit"]:
+        raise ValueError("Current upstream checkout differs from the baseline pin")
+    code, changed = run(["git", "status", "--porcelain"], source)
+    if code or changed:
+        raise ValueError("Baseline reuse requires an unmodified upstream checkout")
+    if archive.stat().st_size > 5 * 1024 * 1024:
+        raise ValueError("Baseline evidence archive exceeds its bounded size")
+    if hashlib.sha256(archive.read_bytes()).hexdigest() != lock["baseline_artifact_sha256"]:
+        raise ValueError("Baseline artifact digest differs")
+    with zipfile.ZipFile(archive) as bundle:
+        entries = bundle.infolist()
+        if (len(entries) > 100 or len({e.filename for e in entries}) != len(entries)
+                or sum(e.file_size for e in entries) > 16 * 1024 * 1024):
+            raise ValueError("Baseline archive contents exceed their bounds")
+        if bundle.read("upstream-sha.txt").decode("ascii").strip() != lock["commit"]:
+            raise ValueError("Baseline evidence belongs to another upstream")
+        recorded = bundle.read("Cargo.lock.sha256").decode("ascii").strip()
+        match = re.fullmatch(r"([0-9a-f]{64})\s+Cargo\.lock", recorded)
+        current = hashlib.sha256((source / "Cargo.lock").read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+        if match is None or match[1] != current:
+            raise ValueError("Baseline lockfile differs from the current pinned input")
+    return {"status": "BASELINE_EVIDENCE_VERIFIED_NOT_ADAPTER_APPROVED", "upstream_commit": head,
+            "baseline_run": lock["baseline_run"], "artifact_sha256": lock["baseline_artifact_sha256"],
+            "gate1": "NOT_RUN"}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--baseline-zip", type=Path)
+    parser.add_argument("--run-metadata", type=Path)
     args = parser.parse_args()
+    if args.baseline_zip or args.run_metadata:
+        if not args.baseline_zip or not args.run_metadata:
+            parser.error("baseline verification needs both archive and run metadata")
+        lock = json.loads((ROOT / "docs/wordcraft/upstream.lock.json").read_text(encoding="utf-8"))
+        result = verify_baseline(args.baseline_zip, json.loads(args.run_metadata.read_text(encoding="utf-8")), args.source, lock)
+        print(json.dumps(result, indent=2))
+        return 0
     result = inspect(args.source)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 2 if result["blockers"] else 0

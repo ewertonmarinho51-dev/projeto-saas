@@ -7,6 +7,8 @@
   "license": "MIT OR Apache-2.0",
   "build_status": "UPSTREAM_BASELINE_VERIFIED_ADAPTER_BUILD_PENDING",
   "baseline_run": 38609146859,
+  "baseline_artifact_id": 11919580294,
+  "baseline_govconnect_commit": "750299ec186579f74a40803f161bed8199771df7",
   "baseline_artifact_sha256": "27104a0fbe6dc1286b18249d831a8ac8251cf58bded63ea4029f1471551c16ac",
   "bridge_status": "EXPERIMENTAL_WASM_AND_HOST_NOT_CONNECTED_TO_BACKEND",
   "canonical_format": "UNDECIDED_PENDING_ROUNDTRIP",
