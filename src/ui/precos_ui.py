@@ -309,6 +309,12 @@ def _render_banco() -> None:
                            execucao.JANELA_MAXIMA_DIAS,
                            execucao.JANELA_PADRAO_DIAS, step=30,
                            help="Limitada à validade das cotações (180 dias).")
+        contratacao_pncp = st.text_input(
+            "Contratação similar no PNCP (opcional)",
+            placeholder="nº de controle 00000000000000-1-000000/2026 "
+                        "ou link do edital",
+            help="Os itens homologados dessa contratação entram como "
+                 "referências, com o mesmo cálculo de comparabilidade.")
         consultar = st.form_submit_button("Consultar preços", type="primary",
                                           use_container_width=True)
     if consultar:
@@ -320,8 +326,17 @@ def _render_banco() -> None:
                 "codigo": codigo.strip() or None,
                 "tipo_catalogo": "CATMAT" if codigo.strip() else None}
         filtros = {"janela_dias": janela, "uf": uf.strip().upper() or None}
+        fontes = list(_fontes())
+        if contratacao_pncp.strip():
+            from ..precos import pncp as pncp_mod
+
+            if pncp_mod.controle_da_entrada(contratacao_pncp) is None:
+                st.error("Contratação do PNCP não reconhecida: informe o "
+                         "número de controle ou o link do edital.")
+                return
+            fontes.append(pncp_mod.PNCPContratacao(contratacao_pncp))
         with st.spinner("Consultando fontes oficiais…"):
-            coleta = busca_mod.coletar(item, _fontes(), filtros=filtros)
+            coleta = busca_mod.coletar(item, fontes, filtros=filtros)
         st.session_state[BANCO_ITEM] = {**item, "filtros": filtros}
         st.session_state[BANCO_COLETA] = coleta
         # Pré-seleção pela regra da cesta automática. O servidor ajusta.
@@ -340,6 +355,7 @@ def _render_banco() -> None:
 
 def _render_banco_resultado(item: dict, coleta) -> None:
     from ..precos import compras_gov
+    from ..precos import pncp as pncp_mod
 
     st.divider()
     fontes_txt = " · ".join(
@@ -409,7 +425,9 @@ def _render_banco_resultado(item: dict, coleta) -> None:
                                              ref.natureza_valor.value))
         colunas[3].caption(str(ref.data_compra or "data não informada"))
         colunas[4].write(f"{comp.percentual}% comparável")
-        url = compras_gov.url_de_verificacao(ref.bruto)
+        url = (pncp_mod.url_de_verificacao(ref.bruto)
+               if ref.fonte.id == pncp_mod.FONTE_PNCP.id
+               else compras_gov.url_de_verificacao(ref.bruto))
         if url:
             colunas[4].markdown(f"[verificar na fonte]({url})")
     if len(coleta.referencias) > BANCO_LIMITE_LINHAS:

@@ -66,6 +66,49 @@ class Coleta:
                 and comp.score >= piso}
 
 
+def _mesma_compra(ref: Referencia) -> tuple | None:
+    """
+    Identidade MATERIAL da observação: a compra (idCompra do Compras.gov),
+    o fornecedor e o preço. O PNCP publica a mesma compra com outro id;
+    o `idCompra` vem no link do sistema de origem (`pncp._id_compra_de_origem`).
+    """
+    bruto = ref.bruto or {}
+    compra = (bruto.get("idCompraOrigem") if ref.fonte.id == "pncp"
+              else bruto.get("idCompra"))
+    if not compra or not ref.ni_fornecedor or ref.valor_unitario_original is None:
+        return None
+    return (str(compra), str(ref.ni_fornecedor), ref.valor_unitario_original)
+
+
+def fundir_entre_portais(referencias: list[Referencia],
+                         ocorrencias: list[str]) -> list[Referencia]:
+    """
+    A mesma compra vista no Compras.gov E no PNCP conta UMA vez (IDX-02):
+    fica a primeira (a ordem das fontes é a da prioridade), e a outra
+    vira evidência registrada no motivo — não segundo preço na cesta.
+    """
+    vistas: dict[tuple, Referencia] = {}
+    saida: list[Referencia] = []
+    fundidas = 0
+    for ref in referencias:
+        chave = _mesma_compra(ref)
+        if chave is not None and chave in vistas:
+            if vistas[chave].fonte.id != ref.fonte.id:
+                vistas[chave].com_motivo(
+                    f"mesma compra também publicada em {ref.fonte.nome} "
+                    f"({ref.referencia_externa or ref.id_externo})")
+                fundidas += 1
+                continue
+        if chave is not None:
+            vistas.setdefault(chave, ref)
+        saida.append(ref)
+    if fundidas:
+        ocorrencias.append(
+            f"{fundidas} referência(s) era(m) a mesma compra em dois portais "
+            "— contada(s) uma vez")
+    return saida
+
+
 def _decimal(valor) -> Decimal | None:
     if valor in (None, ""):
         return None
@@ -132,7 +175,8 @@ def coletar(item: dict, fontes: list[FontePesquisaPreco], *,
     # Procedência ANTES de tudo; depois o mesmo registro visto em dois
     # caminhos (ou duas fontes) vira um só (§55, "não somar espelhados").
     coleta.brutas = len(coletadas)
-    unicas = conferir_procedencia(deduplicar(coletadas))
+    unicas = conferir_procedencia(
+        fundir_entre_portais(deduplicar(coletadas), coleta.ocorrencias))
     coleta.unicas = len(unicas)
 
     unidade = str(item.get("unidade") or "")
