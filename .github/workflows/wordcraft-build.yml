@@ -276,7 +276,10 @@ jobs:
           const engine = await import(pathToFileURL(bundle.modulePath).href);
           await engine.default({module_or_path: bundle.wasmBytes});
           const base = 'build-evidence/corpus-roundtrip';
-          for (const name of await readdir(base)) {
+          const cases = ['01-texto-listas-links', '02-tabela-210-itens', '03-timbrado-assinaturas'];
+          const directories = (await readdir(base, {withFileTypes:true})).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
+          if (JSON.stringify(directories) !== JSON.stringify(cases)) throw new Error('Synthetic corpus directory inventory differs');
+          for (const name of cases) {
             const bytes = await readFile(`${base}/${name}/checkpoint.json`);
             for (const format of ['docx', 'pdf']) {
               const result = engine.export_checkpoint(bytes, format);
