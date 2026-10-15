@@ -46,7 +46,7 @@ sem usar esse shell de picker/download. Picker cancelado já possui guarda
 própria, mas download concluído não significa commit no GovConnect.
 
 O wrapper usa Services::default, restringe recursos externos e expõe operações tipadas.
-O host conserva a instância entre reruns; o laboratório local comprovou abertura, edição, commit, ACK e recarga com WASM real. A exportação da revisão editada continua pendente.
+O host conserva a instância entre reruns; o laboratório local comprovou abertura, edição, commit, ACK e recarga com WASM real. As revisões editadas de texto, timbrado e tabela foram exportadas em DOCX/PDF pelo owner autenticado no laboratório.
 Comandos de IA continuam passando pelo pipeline de patches canônico. Nenhum comando
 genérico de `Session::run` será exposto ao browser ou à LLM.
 
@@ -55,7 +55,7 @@ genérico de `Session::run` será exposto ao browser ou à LLM.
 | Gate | Estado | Evidência / dependência |
 |---|---|---|
 | 0 Auditoria | PARCIAL | baseline upstream reproduzido; SBOM e 13 avisos reunidos; revisão de distribuição incompleta |
-| 1 Vertical slice | EM EXECUÇÃO | 12 testes nativos passam; build 896 aprovado; navegador local abriu/editou/gravou/reabriu texto e célula; exportação da revisão editada pendente |
+| 1 Vertical slice | PASS LOCAL LIMITADO | build 240 aprovado; navegador abriu/editou/gravou/recarregou/exportou texto, timbrado A4 e tabela de 210 itens; ver g1-evidencias.md; não certifica produção/G3/G7 |
 | 2 Persistência | PARCIAL | owner mínimo para G1 implementado; 13 testes SQL reais de CAS/RLS/histórico; migração de legado e homologação definitivas pendentes |
 | 3 Exportação | PENDENTE | corpus sintético canônico gerado (3 DOCX/PDF, tabela de 210 itens); roundtrip e aprovação visual pendentes |
 | 4 GovBot/Patches | BLOCKED | regressão do aplicador passa; sem âncoras nativas homologadas |
@@ -79,7 +79,7 @@ foi depois desabilitado em vercel.json. Não há evidência de implantação bem
    wordcraft_local_assets.py com SHA do ZIP e commit produtor verificados.
 5. Validar checkpoints no backend via wordcraft_native.py com Node 24 e SHA do manifesto
    fixado pelo servidor; nunca aceitar caminhos/hashes do cliente como configuração.
-6. Usar DocumentoService e concluir a exportação da revisão persistida editada; abrir/editar/checkpoint/ACK/reabrir já foi observado no laboratório A4 e tabela sintética.
+6. Usar DocumentoService; o percurso abrir/editar/checkpoint/ACK/reabrir/exportar foi observado nos três casos sintéticos. Ampliar a homologação conforme G2–G7.
 
 Trunk exige obtenção de suas dependências de build; presença de executável não é prova
 de build. Testes Python de contrato não certificam segurança do transporte nem RLS.

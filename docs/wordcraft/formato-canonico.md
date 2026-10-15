@@ -20,7 +20,7 @@ recusados; continuam no caminho legado, sem conversão silenciosa.
 - No navegador local, texto e descrição de célula foram editados, validados no
   servidor, commitados no PostgreSQL e reabertos após reload com o mesmo SHA-256.
 - Isso ainda não certifica toda fidelidade visual, imagens institucionais,
-  comentários/revisões, exportação de documentos alterados ou performance de 100 páginas.
+  comentários/revisões ou performance de 100 páginas. As revisões editadas dos três casos sintéticos foram exportadas em DOCX/PDF; detalhes em g1-evidencias.md.
 
 O DOCX como fonte única exigiria repetir importação/exportação a cada checkpoint
 e vincular patches a posições reconstruídas. O contêiner evita esse ciclo para a
