@@ -14,6 +14,7 @@ import subprocess
 from .wordcraft_protocol import MAX_BYTES
 
 WORKER = Path(__file__).resolve().parents[1] / "assets/wordcraft_editor/validate.mjs"
+MAX_EXPORT_BYTES = 64 * 1024 * 1024
 
 
 class ModeloRecusado(ValueError):
@@ -31,7 +32,7 @@ def _closed_object(pairs):
     return result
 
 
-def validar(content: bytes, *, node: Path, bundle: Path, manifest_sha256: str) -> None:
+def _invoke(content: bytes, *, node: Path, bundle: Path, manifest_sha256: str, extra=()):
     if not isinstance(content, bytes) or not content or len(content) > MAX_BYTES:
         raise ModeloRecusado("Checkpoint vazio ou excessivo.")
     if not isinstance(manifest_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", manifest_sha256):
@@ -42,11 +43,15 @@ def validar(content: bytes, *, node: Path, bundle: Path, manifest_sha256: str) -
     environment = {name: os.environ[name] for name in ("SystemRoot", "WINDIR", "TEMP", "TMP") if name in os.environ}
     try:
         result = subprocess.run([str(node), str(WORKER), "--bundle", str(bundle),
-                                 "--manifest-sha256", manifest_sha256],
+                                 "--manifest-sha256", manifest_sha256, *extra],
                                 input=content, capture_output=True, timeout=30,
                                 env=environment, cwd=bundle, check=False)
     except (OSError, subprocess.TimeoutExpired):
         raise MotorIndisponivel("Não foi possível concluir a validação nativa.") from None
+    return result
+
+
+def _validation_response(result):
     if len(result.stdout) > 1024:
         raise MotorIndisponivel("Resposta nativa excede o contrato.")
     try:
@@ -60,3 +65,22 @@ def validar(content: bytes, *, node: Path, bundle: Path, manifest_sha256: str) -
             and response["valid"] is False and response["code"] == "MODEL_REJECTED"):
         raise ModeloRecusado("O motor recusou o modelo do checkpoint.")
     raise MotorIndisponivel("O motor não confirmou a validade do checkpoint.")
+
+
+def validar(content: bytes, *, node: Path, bundle: Path, manifest_sha256: str) -> None:
+    _validation_response(_invoke(content, node=node, bundle=bundle, manifest_sha256=manifest_sha256))
+
+
+def exportar(content: bytes, *, formato: str, node: Path, bundle: Path, manifest_sha256: str) -> bytes:
+    if formato not in {"docx", "pdf"}:
+        raise ModeloRecusado("Formato de exportação não autorizado.")
+    result = _invoke(content, node=node, bundle=bundle, manifest_sha256=manifest_sha256,
+                     extra=("--export-format", formato))
+    if result.returncode != 0:
+        _validation_response(result)
+    output = result.stdout
+    signature = b"%PDF-" if formato == "pdf" else b"PK\x03\x04"
+    if (not isinstance(output, bytes) or not 0 < len(output) <= MAX_EXPORT_BYTES
+            or not output.startswith(signature)):
+        raise MotorIndisponivel("O motor não confirmou o artefato solicitado.")
+    return output

@@ -59,7 +59,6 @@ Branch: `feature/wordcraft-wasm-govconnect`. Produção não alterada.
 | `assets/wordcraft_editor/host.test.mjs` | rejeição de ACK divergente, conflito, retry e preservação de instância | node --test, sem LLM/rede | não equivale a teste de interface |
 | `.github/workflows/ci.yml` (existente) | executar as provas do novo host no CI canônico do produto | Node existente, sem novas dependências | preserva testes/bundle/export/RLS atuais |
 
-Não foi escolhido formato canônico definitivo. JSON nativo existe em `engine::io`, mas
-roundtrip, IDs e fidelidade ainda precisam ser medidos. Não se grava novo documento como Markdown.
+O container gc-wordcraft-snapshot/v1 foi escolhido para G1 em formato-canonico.md, preservando media/passthrough. IDs estáveis e fidelidade institucional ainda precisam de homologação. Não se grava novo documento como Markdown.
 Nenhum backend novo de patches, tenants, IA, processos ou assinaturas será criado.
 Nenhuma remoção de legado antes da prova de substituição e do aceite correspondente.

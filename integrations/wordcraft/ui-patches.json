@@ -260,6 +260,17 @@
           "after": "\tLanguage Preferences…\t語言喜好設定…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\t關於 GovConnect 編輯器\n\tGovConnect — based on WordCraft\tGovConnect — 以 WordCraft 為基礎\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect 是以 ArtCraft 團隊的 WordCraft 為基礎的獨立整合。\n"
         }
       ]
+    },
+    {
+      "path": "crates/ui-egui/src/chrome.rs",
+      "before_sha256_lf": "8a4ec75728fdbe0ff0f129e63b63197b7770f0d621c1660fa39478ad16056c99",
+      "after_sha256_lf": "1609be700038ada2cc77d31f633367b5b427e9fa44ccfdfa292fec558db71652",
+      "replacements": [
+        {
+          "before": "                \"WordCraft\".to_string()\n            } else {\n                format!(\n                    \"{} — {}\",",
+          "after": "                \"WordCraft\".to_string()\n            } else if app.session.registry.get(\"file.save\").is_none() {\n                // Embedded persistence is acknowledged by the host, not a local file path.\n                format!(\"{} — GovConnect\", app.title_stem())\n            } else {\n                format!(\n                    \"{} — {}\","
+        }
+      ]
     }
   ]
 }

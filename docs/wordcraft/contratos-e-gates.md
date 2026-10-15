@@ -46,7 +46,7 @@ sem usar esse shell de picker/download. Picker cancelado já possui guarda
 própria, mas download concluído não significa commit no GovConnect.
 
 O wrapper usa Services::default, restringe recursos externos e expõe operações tipadas.
-O host conserva a instância entre reruns; a prova positiva com WASM real está pendente.
+O host conserva a instância entre reruns; o laboratório local comprovou abertura, edição, commit, ACK e recarga com WASM real. A exportação da revisão editada continua pendente.
 Comandos de IA continuam passando pelo pipeline de patches canônico. Nenhum comando
 genérico de `Session::run` será exposto ao browser ou à LLM.
 
@@ -55,8 +55,8 @@ genérico de `Session::run` será exposto ao browser ou à LLM.
 | Gate | Estado | Evidência / dependência |
 |---|---|---|
 | 0 Auditoria | PARCIAL | baseline upstream reproduzido; SBOM e 13 avisos reunidos; revisão de distribuição incompleta |
-| 1 Vertical slice | EM EXECUÇÃO | 11 testes nativos passam; build integrado, navegador positivo e commit/ACK backend pendentes |
-| 2 Persistência | BLOCKED | depende de G1; sem CAS/RLS/roundtrip real |
+| 1 Vertical slice | EM EXECUÇÃO | 12 testes nativos passam; build 896 aprovado; navegador local abriu/editou/gravou/reabriu texto e célula; exportação da revisão editada pendente |
+| 2 Persistência | PARCIAL | owner mínimo para G1 implementado; 13 testes SQL reais de CAS/RLS/histórico; migração de legado e homologação definitivas pendentes |
 | 3 Exportação | PENDENTE | corpus sintético canônico gerado (3 DOCX/PDF, tabela de 210 itens); roundtrip e aprovação visual pendentes |
 | 4 GovBot/Patches | BLOCKED | regressão do aplicador passa; sem âncoras nativas homologadas |
 | 5 Seis capacidades | BLOCKED | serviços atuais preservados, integração contextual não implementada |
@@ -64,7 +64,7 @@ genérico de `Session::run` será exposto ao browser ou à LLM.
 | 7 Homologação | BLOCKED | sem prova E2E, isolamento, emissão ou performance |
 
 Flags operacionais não foram alteradas. Não existe opção WordCraft habilitada.
-Não houve merge, migration aplicada, convite Auth ou consumo de IA paga. O primeiro
+Não houve merge, migration remota, convite Auth ou consumo de IA paga. A migration 20261015035015 foi aplicada somente ao PostgreSQL descartável em loopback. O primeiro
 push disparou uma integração Vercel preexistente, que falhou; o auto-deploy desta branch
 foi depois desabilitado em vercel.json. Não há evidência de implantação bem-sucedida.
 
@@ -79,8 +79,7 @@ foi depois desabilitado em vercel.json. Não há evidência de implantação bem
    wordcraft_local_assets.py com SHA do ZIP e commit produtor verificados.
 5. Validar checkpoints no backend via wordcraft_native.py com Node 24 e SHA do manifesto
    fixado pelo servidor; nunca aceitar caminhos/hashes do cliente como configuração.
-6. Conectar o proprietário backend e provar abrir/editar/checkpoint/
-   ACK persistido/reabrir/exportar num documento sintético A4 antes de promover G1.
+6. Usar DocumentoService e concluir a exportação da revisão persistida editada; abrir/editar/checkpoint/ACK/reabrir já foi observado no laboratório A4 e tabela sintética.
 
 Trunk exige obtenção de suas dependências de build; presença de executável não é prova
 de build. Testes Python de contrato não certificam segurança do transporte nem RLS.
@@ -102,14 +101,18 @@ Gravação continua exigindo commit backend, revisão/hash e `confirmar_checkpoi
 somente então o renderer devolve `ack` de persistência. A fila não grava dados fora
 da memória do componente. Overflow exige reconciliação sem descartar o rascunho.
 
-Testes Node/Python cobrem coalescência simulada, atomicidade e falhas do IPC. O browser
-real mostrou somente a falha segura de asset ausente e a manutenção da instância no
-rerun (Streamlit 1.63 local). Isso não prova caret, undo, WASM ou persistência. A prova
-positiva, timeout e callback persistido continuam pendentes do gate 1.
+Testes Node/Python cobrem coalescência simulada, atomicidade, falhas do IPC e evento
+changed emitido antes do ACK mas entregue depois dele. O laboratório real usa
+PostgreSQL/PostgREST em loopback, JWT sintético verificado e o bundle 896 pinado.
+Texto: revisão 2 reaberta com hash idêntico. Tabela: revisão 3 reaberta após edição
+real de célula, hash e82d3f9b2f7e229c7074d4d16bfdcdc7d9a81c3096833b9de1c6d76c26a4fd5f.
+Isso não certifica GoTrue, staging, exportação editada, fidelidade institucional ou G7.
+O título nativo ainda exibe estado baseado em arquivo local; o estado de persistência
+válido é o confirmado pelo host. Essa divergência visual permanece pendente.
 
 Todos os recursos da matriz 03 permanecem no estado **LEGADO MANTIDO PARA COMPATIBILIDADE**.
 O código novo é isolado e sem consumidores operacionais: reverter seu commit retira
 a fundação sem tocar documentos. Não existe ainda rollback de documentos WordCraft
-porque nenhum documento foi migrado/criado nesse formato. Para futura ativação:
+para documentos de produção; somente documentos sintéticos foram criados no laboratório. Histórico sintético fica preservado no banco local. Para futura ativação:
 preservar bytes originais, revisões, snapshots e artefatos antes de trocar UI; flag
 isolada não fornece rollback de dados. Retirar TipTap ou exportadores agora seria incorreto.

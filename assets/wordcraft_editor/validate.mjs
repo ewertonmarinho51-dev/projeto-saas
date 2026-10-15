@@ -8,6 +8,7 @@ import {maxBytes} from './host.mjs';
 export class ModelRejected extends Error {}
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const hashPattern = /^[0-9a-f]{64}$/;
+export const maxExportBytes = 64 * 1024 * 1024;
 
 export async function readInput(stream) {
   const chunks = [];
@@ -62,7 +63,7 @@ export async function verifyBundle(bundle, manifestHash) {
   return {modulePath: files.get(modules[0]).path, wasmBytes: files.get(wasm[0]).bytes};
 }
 
-export async function validate(content, bundle, manifestHash) {
+async function loadEngine(content, bundle, manifestHash) {
   if (!(content instanceof Uint8Array) || !content.length || content.length > maxBytes) {
     throw new ModelRejected('Invalid checkpoint byte bound.');
   }
@@ -72,6 +73,11 @@ export async function validate(content, bundle, manifestHash) {
     throw new Error('Required native validation API missing.');
   }
   await engine.default({module_or_path: wasmBytes});
+  return engine;
+}
+
+export async function validate(content, bundle, manifestHash) {
+  const engine = await loadEngine(content, bundle, manifestHash);
   let result;
   try { result = engine.validate_checkpoint(content); }
   catch (error) {
@@ -81,15 +87,41 @@ export async function validate(content, bundle, manifestHash) {
   if (result !== undefined) throw new Error('Unexpected native validation result.');
 }
 
+export async function exportCheckpoint(content, bundle, manifestHash, format) {
+  if (!['docx', 'pdf'].includes(format)) throw new ModelRejected('Unsupported export format.');
+  const engine = await loadEngine(content, bundle, manifestHash);
+  if (typeof engine.export_checkpoint !== 'function') throw new Error('Native export API missing.');
+  let result;
+  try { result = engine.export_checkpoint(content, format); }
+  catch (error) {
+    if (typeof error === 'string') throw new ModelRejected('Native export rejected.');
+    throw new Error('Native export failed.');
+  }
+  if (!(result instanceof Uint8Array) || !result.length || result.length > maxExportBytes) {
+    throw new Error('Unexpected native export size.');
+  }
+  const bytes = Buffer.from(result);
+  if (format === 'pdf' ? bytes.subarray(0, 5).toString() !== '%PDF-'
+      : !bytes.subarray(0, 4).equals(Buffer.from([80, 75, 3, 4]))) {
+    throw new Error('Unexpected native export format.');
+  }
+  return bytes;
+}
+
 async function main() {
   try {
     const args = process.argv.slice(2);
-    if (args.length !== 4 || args[0] !== '--bundle' || args[2] !== '--manifest-sha256') {
+    if (![4, 6].includes(args.length) || args[0] !== '--bundle' || args[2] !== '--manifest-sha256'
+        || (args.length === 6 && args[4] !== '--export-format')) {
       throw new Error('Explicit pinned bundle required.');
     }
     const content = await readInput(process.stdin);
-    await validate(content, args[1], args[3]);
-    process.stdout.write('{"valid":true}\n');
+    if (args.length === 6) {
+      process.stdout.write(await exportCheckpoint(content, args[1], args[3], args[5]));
+    } else {
+      await validate(content, args[1], args[3]);
+      process.stdout.write('{"valid":true}\n');
+    }
   } catch (error) {
     // Never echo the document or native exception text to logs/IPC.
     const rejected = error instanceof ModelRejected;

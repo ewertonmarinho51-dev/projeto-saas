@@ -4,9 +4,15 @@ import {mkdtemp, writeFile, rm, rmdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
-import {ModelRejected, readInput, verifyBundle} from './validate.mjs';
+import {ModelRejected, readInput, verifyBundle, exportCheckpoint} from './validate.mjs';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
+
+test('unapproved export formats never load or execute an engine', async () => {
+  for (const format of ['html', '../file', '', 'DOCX']) {
+    await assert.rejects(exportCheckpoint(new Uint8Array([1]), '/nonexistent', 'a'.repeat(64), format), ModelRejected);
+  }
+});
 
 test('worker input has a byte bound and never treats empty input as valid', async () => {
   async function* empty() {}

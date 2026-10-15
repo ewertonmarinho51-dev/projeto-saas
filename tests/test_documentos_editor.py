@@ -135,3 +135,26 @@ def test_corrupt_persisted_bytes_are_not_loaded(setup):
     with pytest.raises(owner.ErroDocumento, match="Hash"):
         service.abrir(state["head"]["id"])
     assert state["native_calls"] == []
+
+
+def test_export_is_bound_to_the_exact_authorized_persisted_revision(setup, monkeypatch):
+    service, state, checkpoint = setup
+    seen = []
+    def render(payload, **kwargs):
+        seen.append((payload, kwargs))
+        return b"%PDF-synthetic artifact"
+    monkeypatch.setattr(owner, "exportar", render)
+    artifact = service.exportar(state["head"]["id"], expected_revision=1,
+                                content_hash=checkpoint.content_hash, formato="pdf")
+    assert seen[0][0] == checkpoint.content and artifact.source_hash == checkpoint.content_hash
+    assert artifact.revision == 1 and artifact.engine_build == "a" * 64
+    assert artifact.content_hash == hashlib.sha256(artifact.payload).hexdigest()
+    assert "synthetic artifact" not in repr(artifact)
+
+
+def test_stale_export_does_not_execute_the_exporter(setup, monkeypatch):
+    service, state, checkpoint = setup
+    monkeypatch.setattr(owner, "exportar", lambda *args, **kwargs: pytest.fail("stale revision"))
+    with pytest.raises(owner.ConflitoDocumento):
+        service.exportar(state["head"]["id"], expected_revision=2,
+                         content_hash=checkpoint.content_hash, formato="pdf")

@@ -67,6 +67,38 @@ def test_lote_coalescido_preserva_checkpoint_e_edicao_durante_save(ponte):
     assert ponte.state == "dirty" and ponte.revision == 1
 
 
+def test_changed_emitted_during_save_can_arrive_after_the_persisted_ack(ponte):
+    sujo(ponte)
+    pending = checkpoint(ponte)
+    delayed = evento(ponte, "changed")  # Emitted with the pre-ACK revision.
+    ponte.confirmar_checkpoint(request_id=pending.request_id, revision=1, content_hash=DIGEST)
+    assert receber(ponte, delayed) is None
+    assert ponte.state == "dirty" and ponte.revision == 1 and ponte.content_hash == DIGEST
+    assert checkpoint(ponte).expected_revision == 1
+
+
+def test_late_dirty_notice_does_not_allow_an_old_checkpoint(ponte):
+    sujo(ponte)
+    pending = checkpoint(ponte)
+    delayed = evento(ponte, "changed")
+    ponte.confirmar_checkpoint(request_id=pending.request_id, revision=1, content_hash=DIGEST)
+    receber(ponte, delayed)
+    stale = evento(ponte, "checkpoint", {"content_hash": DIGEST,
+        "content_base64": base64.b64encode(CONTENT).decode(), "schema_version": "gc-wordcraft-snapshot/v1"})
+    stale["expected_revision"] = 0
+    with pytest.raises(ErroPonte, match="Revisão"):
+        receber(ponte, stale)
+    assert ponte.state == "dirty" and ponte.revision == 1
+
+
+def test_old_changed_without_a_local_persisted_ack_is_rejected(ponte):
+    abrir(ponte)
+    ponte.revision = 1  # Reopened persisted state, not a local ACK of this instance.
+    old = evento(ponte, "changed"); old["expected_revision"] = 0
+    with pytest.raises(ErroPonte, match="Revisão"):
+        receber(ponte, old)
+
+
 @pytest.mark.parametrize("case", ["gap", "order", "bad_hash", "scope", "origin"])
 def test_lote_invalido_e_atomico(ponte, case):
     batch = lote(ponte)

@@ -11,7 +11,7 @@ import re
 from uuid import NAMESPACE_URL, uuid5
 
 from . import db
-from .wordcraft_native import validar
+from .wordcraft_native import validar, exportar
 from .wordcraft_protocol import Checkpoint, MAX_BYTES, _uuid, _hash
 
 SCHEMA = "gc-wordcraft-snapshot/v1"
@@ -48,6 +48,17 @@ class Recibo:
     revision: int
     content_hash: str
     replayed: bool
+
+
+@dataclass(frozen=True)
+class Artefato:
+    document_id: str
+    revision: int
+    source_hash: str
+    formato: str
+    content_hash: str
+    engine_build: str
+    payload: bytes = field(repr=False)
 
 
 def _execute(query):
@@ -172,3 +183,18 @@ class DocumentoService:
         head = self._head(user, document_id)
         return self._commit(document_id=document_id, process_id=head["processo_id"], tipo=head["tipo"],
                             checkpoint=checkpoint, context=context)
+
+    def exportar(self, document_id: str, *, expected_revision: int, content_hash: str, formato: str) -> Artefato:
+        """Export an exact persisted draft; never approves or marks official emission."""
+        if formato not in {"docx", "pdf"}:
+            raise ErroDocumento("Formato documental não autorizado.")
+        document = self.abrir(document_id)
+        if (type(expected_revision) is not int or document.revision != expected_revision
+                or document.content_hash != content_hash):
+            raise ConflitoDocumento("A revisão persistida mudou antes da exportação.")
+        try:
+            payload = exportar(document.payload, formato=formato, **self._native)
+        except Exception:
+            raise ErroDocumento("O motor não confirmou a exportação documental.") from None
+        return Artefato(document.id, document.revision, document.content_hash, formato,
+                        hashlib.sha256(payload).hexdigest(), self._native["manifest_sha256"], payload)

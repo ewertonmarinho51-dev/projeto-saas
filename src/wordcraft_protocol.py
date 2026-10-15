@@ -123,10 +123,16 @@ class Ponte:
             raise ErroPonte("Replay recusado.")
         if len(self._seen) >= MAX_EVENTS:
             raise ErroPonte("Renovação controlada da sessão necessária.")
-        if revision != self.revision:
+        kind = event["event"]
+        # A pure dirty notice can have been emitted while the previous commit
+        # was in flight. Consuming it after that ACK is conservative: it carries
+        # no document bytes and grants no write, approval or revision advance.
+        late_changed = (kind == "document.changed" and self.state in {"saved", "dirty"}
+                        and self._pending is None and self._last_ack is not None
+                        and self._last_ack[1] == self.revision and revision == self.revision - 1)
+        if revision != self.revision and not late_changed:
             raise ErroPonte("Revisão divergente; recarregar de forma controlada.")
         payload = event["payload"]
-        kind = event["event"]
         checkpoint = None
         if kind == "document.loaded":
             _campos(payload, {"content_hash"})

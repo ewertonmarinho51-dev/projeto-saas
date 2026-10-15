@@ -63,3 +63,31 @@ def test_bytes_excessivos_e_runtime_ausente_nao_executam_processo(runtime, monke
         native.validar(b"x" * (native.MAX_BYTES + 1), **runtime)
     with pytest.raises(native.MotorIndisponivel):
         native.validar(CONTENT, **{**runtime, "node": Path("relative-node")})
+
+
+@pytest.mark.parametrize("formato,data", [("docx", b"PK\x03\x04synthetic"), ("pdf", b"%PDF-synthetic")])
+def test_export_ipc_is_binary_bounded_and_typed(runtime, monkeypatch, formato, data):
+    seen = {}
+    def fake(args, **kwargs):
+        seen.update(args=args, **kwargs)
+        return SimpleNamespace(returncode=0, stdout=data, stderr=CONTENT)
+    monkeypatch.setattr(native.subprocess, "run", fake)
+    assert native.exportar(CONTENT, formato=formato, **runtime) == data
+    assert seen["args"][-2:] == ["--export-format", formato]
+    assert seen["input"] == CONTENT
+    assert set(seen["env"]) <= {"SystemRoot", "WINDIR", "TEMP", "TMP"}
+
+
+@pytest.mark.parametrize("code,data", [(0, b""), (0, b'{"valid":true}'),
+                                      (0, b"PK\x03\x04not a PDF"), (3, b"%PDF-not success")])
+def test_ambiguous_export_never_returns_an_artifact(runtime, monkeypatch, code, data):
+    monkeypatch.setattr(native.subprocess, "run", lambda *args, **kwargs:
+                        SimpleNamespace(returncode=code, stdout=data, stderr=CONTENT))
+    with pytest.raises(native.MotorIndisponivel):
+        native.exportar(CONTENT, formato="pdf", **runtime)
+
+
+def test_unapproved_export_does_not_start_a_process(runtime, monkeypatch):
+    monkeypatch.setattr(native.subprocess, "run", lambda *args, **kwargs: pytest.fail("must not execute"))
+    with pytest.raises(native.ModeloRecusado):
+        native.exportar(CONTENT, formato="html", **runtime)
