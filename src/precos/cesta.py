@@ -79,12 +79,18 @@ def recalcular(linhas: list[dict], *, perfil: PerfilNormativo,
                     if str(linha.get("status")) == SELECIONADA]
     com_preco = [r for r in selecionadas
                  if r.valor_unitario_normalizado is not None]
-    cesta = estatistica.Cesta(selecionadas=com_preco)
+    de_preco = [r for r in com_preco if r.serve_de_preco]
+    cesta = estatistica.Cesta(selecionadas=de_preco)
     if len(com_preco) < len(selecionadas):
         cesta.motivos.append(
             f"{len(selecionadas) - len(com_preco)} referência(s) marcada(s) "
             "sem preço normalizado (unidade não comprovada) ficaram fora "
             "do cálculo")
+    if len(de_preco) < len(com_preco):
+        cesta.motivos.append(
+            f"{len(com_preco) - len(de_preco)} referência(s) marcada(s) com "
+            "valor que não é preço praticado (ex.: estimativa de outro "
+            "órgão) ficaram fora do cálculo")
     return estatistica.estimar(cesta, perfil=perfil, justificativa=justificativa,
                                regras=regras)
 
@@ -112,7 +118,31 @@ def validas_na_cesta(linhas: list[dict]) -> int:
     return sum(1 for linha in linhas
                if str(linha.get("status")) == SELECIONADA
                and _decimal(linha.get("valor_unitario_normalizado"))
-               is not None)
+               is not None
+               and referencia_da_linha(linha).serve_de_preco)
+
+
+def na_cesta_do_item(item: dict) -> int | None:
+    """
+    O N de "N/3" a partir do que o item JÁ gravou (`estatisticas`), sem
+    reler referências: a tabela de 210 itens não pode fazer 210 consultas
+    para desenhar um indicador. `None` = o item ainda não foi pesquisado.
+    """
+    gravado = item.get("estatisticas")
+    if not isinstance(gravado, dict) or "selecionadas" not in gravado:
+        return None
+    try:
+        return int(gravado["selecionadas"])
+    except (TypeError, ValueError):
+        return None
+
+
+def indicador(item: dict, minimo: int = 3) -> str:
+    """ "3/3 ✓", "2/3" ou "—" (não pesquisado)."""
+    n = na_cesta_do_item(item)
+    if n is None:
+        return "—"
+    return f"{n}/{minimo} ✓" if n >= minimo else f"{n}/{minimo}"
 
 
 ESTADOS_RECALCULAVEIS = frozenset({EstadoItem.EM_REVISAO.value,
@@ -160,10 +190,17 @@ def salvar_consulta_como_pesquisa(
         "quantidade": item.get("quantidade")}])
     item_id = str(linha_item["id"])
 
+    # A tela manda chaves; quem decide se a chave pode compor cesta é o
+    # servidor. Natureza não comparável ou unidade não comprovada ficam
+    # CANDIDATAS mesmo que venham marcadas.
     for referencia, _comp in coleta.referencias:
-        referencia.status = (StatusReferencia.SELECIONADA
-                             if referencia.chave_dedupe in selecionados
+        apta = (referencia.chave_dedupe in selecionados
+                and referencia.valor_unitario_normalizado is not None
+                and referencia.serve_de_preco)
+        referencia.status = (StatusReferencia.SELECIONADA if apta
                              else StatusReferencia.CANDIDATA)
+    escolhidas = sum(1 for r, _ in coleta.referencias
+                     if r.status is StatusReferencia.SELECIONADA)
     repositorio.mover_pesquisa(pesquisa_id, EstadoPesquisa.NA_FILA,
                                EstadoPesquisa.RASCUNHO)
     repositorio.mover_pesquisa(pesquisa_id, EstadoPesquisa.EXECUTANDO,
@@ -185,10 +222,10 @@ def salvar_consulta_como_pesquisa(
     repositorio.registrar_evento(
         pesquisa_id, "pesquisa_criada", ator=auth_user_id,
         descricao=f"Banco de Preços: consulta salva com "
-                  f"{len(selecionados)} referência(s) escolhida(s) de "
+                  f"{escolhidas} referência(s) escolhida(s) de "
                   f"{coleta.unicas} encontrada(s)",
         payload={"origem": "banco_de_precos", "brutas": coleta.brutas,
-                 "unicas": coleta.unicas, "selecionadas": len(selecionados),
+                 "unicas": coleta.unicas, "selecionadas": escolhidas,
                  "valor": None if estimativa.valor_unitario is None
                  else format(estimativa.valor_unitario, "f")})
     return {"pesquisa_id": pesquisa_id, "item_id": item_id,

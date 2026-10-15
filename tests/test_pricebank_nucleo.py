@@ -220,3 +220,10 @@ def test_singular_do_catalogo(plural, singular):
     from src.precos import catalogo
 
     assert catalogo._singular(plural) == singular
+
+
+def test_indicador_n_de_3_sai_do_que_o_item_gravou():
+    assert cesta.indicador({"estatisticas": {"selecionadas": 4}}) == "4/3 ✓"
+    assert cesta.indicador({"estatisticas": {"selecionadas": 2}}) == "2/3"
+    assert cesta.indicador({"estado": "pending"}) == "—"
+    assert cesta.indicador({"estatisticas": None}) == "—"

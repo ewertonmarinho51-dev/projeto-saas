@@ -53,6 +53,9 @@ TELA = "precos_tela"
 PESQUISA = "precos_pesquisa_id"
 ITEM = "precos_item_id"
 RELATO = "precos_relato"
+# Itens que falharam NESTA execução: não voltam à fila até o próximo
+# clique em "Pesquisar" (ver `execucao.proximo_lote`).
+TENTADOS = "precos_tentados"
 
 LISTA, NOVA, ITENS, EXECUCAO, REVISAO, RESUMO, BANCO = (
     "lista", "nova", "itens", "execucao", "revisao", "resumo", "banco")
@@ -321,12 +324,9 @@ def _render_banco() -> None:
             coleta = busca_mod.coletar(item, _fontes(), filtros=filtros)
         st.session_state[BANCO_ITEM] = {**item, "filtros": filtros}
         st.session_state[BANCO_COLETA] = coleta
-        # Pré-seleção: as comparáveis acima do piso. O servidor ajusta.
-        piso = estatistica.PISO_COMPARABILIDADE
-        st.session_state[BANCO_SELECAO] = {
-            ref.chave_dedupe for ref, comp in coleta.referencias
-            if ref.valor_unitario_normalizado is not None
-            and comp.score >= piso}
+        # Pré-seleção pela regra da cesta automática. O servidor ajusta.
+        st.session_state[BANCO_SELECAO] = coleta.pre_selecao(
+            estatistica.PISO_COMPARABILIDADE)
         st.session_state[BANCO_CHAVE] = uuid.uuid4().hex
 
     coleta = st.session_state.get(BANCO_COLETA)
@@ -360,7 +360,8 @@ def _render_banco_resultado(item: dict, coleta) -> None:
     selecao: set[str] = st.session_state.setdefault(BANCO_SELECAO, set())
     escolhidas = [ref for ref, _ in coleta.referencias
                   if ref.chave_dedupe in selecao
-                  and ref.valor_unitario_normalizado is not None]
+                  and ref.valor_unitario_normalizado is not None
+                  and ref.serve_de_preco]
     m4.metric("Na cesta", f"{len(escolhidas)}/3")
 
     if not coleta.referencias:
@@ -378,13 +379,18 @@ def _render_banco_resultado(item: dict, coleta) -> None:
     for ref, comp in coleta.referencias[:BANCO_LIMITE_LINHAS]:
         chave = ref.chave_dedupe
         colunas = st.columns([0.5, 4, 1.6, 1.4, 1.2])
-        sem_preco = ref.valor_unitario_normalizado is None
+        if ref.valor_unitario_normalizado is None:
+            impedimento = "Unidade não comprovada: sem preço comparável."
+        elif not ref.serve_de_preco:
+            impedimento = (f"{ref.rotulo_da_natureza.capitalize()} não é "
+                           "preço praticado e não forma cesta.")
+        else:
+            impedimento = None
         marcado = colunas[0].checkbox(
             "Na cesta", value=chave in selecao, key=f"banco_sel_{chave}",
-            label_visibility="collapsed", disabled=sem_preco,
-            help=("Unidade não comprovada: sem preço comparável."
-                  if sem_preco else None))
-        if marcado and not sem_preco:
+            label_visibility="collapsed", disabled=bool(impedimento),
+            help=impedimento)
+        if marcado and not impedimento:
             selecao.add(chave)
         else:
             selecao.discard(chave)
@@ -894,7 +900,14 @@ def _catalogo():
 
 
 def _render_tabela_de_itens(pesquisa: dict, itens: list[dict]) -> None:
-    """A tabela do §18, com o estado e o preço de cada item."""
+    """A tabela do §18, com o estado, a cesta N/3 e o preço de cada item."""
+    from ..precos import cesta as cesta_mod
+
+    minimo = perfil.obter(pesquisa.get("perfil_normativo")).minimo_referencias
+    com_tres = sum(1 for i in itens
+                   if (cesta_mod.na_cesta_do_item(i) or 0) >= minimo)
+    st.caption(f"{com_tres} de {len(itens)} item(ns) com {minimo}+ preços "
+               "comparáveis na cesta.")
     for item in itens:
         estado = str(item.get("estado") or EstadoItem.PENDENTE.value)
         colunas = st.columns([1, 4, 1, 1, 2, 2, 2])
@@ -910,6 +923,7 @@ def _render_tabela_de_itens(pesquisa: dict, itens: list[dict]) -> None:
         colunas[2].write(str(item.get("unidade") or "—"))
         colunas[3].write(_texto_quantidade(item.get("quantidade")))
         colunas[4].write(ROTULO_ITEM.get(estado, estado))
+        colunas[4].caption(f"cesta {cesta_mod.indicador(item, minimo)}")
         colunas[5].write(_moeda(item.get("preco_estimado")))
         with colunas[6]:
             revisavel = estado in (
@@ -1044,6 +1058,8 @@ def _iniciar_execucao(pesquisa: dict, itens: list[dict]) -> None:
         repo.mover_pesquisa(str(pesquisa["id"]), EstadoPesquisa.NA_FILA,
                             estado)
         st.session_state[RELATO] = []
+    # cada clique é uma nova tentativa para quem falhou na anterior
+    st.session_state[TENTADOS] = set()
     _ir(EXECUCAO)
 
 
@@ -1116,7 +1132,8 @@ def _render_execucao() -> None:
         st.rerun()
         return
 
-    if progresso.terminou:
+    tentados = st.session_state.setdefault(TENTADOS, set())
+    if not execucao.proximo_lote(itens, ja_tentados=tentados):
         _encerrar_execucao(pesquisa, itens)
         st.rerun()
         return
@@ -1130,7 +1147,8 @@ def _render_execucao() -> None:
         _, relato = execucao.executar_lote(
             pesquisa, itens, _fontes(), repo,
             perfil=perfil.obter(pesquisa.get("perfil_normativo")),
-            motor_semantico=_motor_semantico(), **_opcoes_triagem())
+            motor_semantico=_motor_semantico(), tentados=tentados,
+            **_opcoes_triagem())
 
     acumulado = list(st.session_state.get(RELATO) or [])
     st.session_state[RELATO] = (acumulado + relato)[-40:]

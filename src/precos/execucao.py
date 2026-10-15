@@ -167,17 +167,37 @@ A_PROCESSAR = frozenset({
 })
 
 
-def proximo_lote(itens: list[dict], tamanho: int = LOTE_PADRAO) -> list[dict]:
-    """
-    Os próximos itens a processar, na ordem da planilha.
+# Prioridade na fila: o que o processo largou no meio, depois o que nunca
+# rodou, e a falha técnica POR ÚLTIMO. Antes o `error` entrava pela ordem
+# da planilha, à frente dos pendentes: com os itens 1–5 sempre falhando,
+# todo lote era [1..5] de novo e uma pesquisa de 210 itens não andava.
+_PRIORIDADE = {
+    EstadoItem.BUSCANDO.value: 0, EstadoItem.CLASSIFICANDO.value: 0,
+    EstadoItem.PENDENTE.value: 1, EstadoItem.ERRO.value: 2,
+}
 
-    Ordem estável de propósito: o servidor acompanha a barra vendo o
-    item 1, 2, 3… Uma fila embaralhada faria o progresso parecer
-    aleatório e tornaria impossível dizer onde parou.
+
+def proximo_lote(itens: list[dict], tamanho: int = LOTE_PADRAO, *,
+                 ja_tentados: frozenset[str] | set[str] = frozenset()
+                 ) -> list[dict]:
+    """
+    Os próximos itens a processar: interrompidos, pendentes, falhas.
+
+    Dentro de cada grupo, a ordem da planilha — estável de propósito: o
+    servidor acompanha a barra vendo o item 1, 2, 3…
+
+    `ja_tentados` são os itens que FALHARAM nesta execução — inclusive o
+    que ficou em `searching` porque nem o registro do erro foi gravado. A
+    falha técnica tem uma nova tentativa por execução (por clique em
+    "Pesquisar"), não uma por lote. Sem isso, uma fonte fora do ar para
+    um item faria a tela repetir a mesma chamada até o fim dos tempos.
     """
     fila = [i for i in itens
-            if str(i.get("estado") or EstadoItem.PENDENTE.value) in A_PROCESSAR]
-    fila.sort(key=lambda i: int(i.get("numero") or 0))
+            if str(i.get("estado") or EstadoItem.PENDENTE.value) in A_PROCESSAR
+            and str(i.get("id")) not in ja_tentados]
+    fila.sort(key=lambda i: (
+        _PRIORIDADE[str(i.get("estado") or EstadoItem.PENDENTE.value)],
+        int(i.get("numero") or 0)))
     return fila[:max(1, tamanho)]
 
 
@@ -347,9 +367,6 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
     # todas elas falharam, é falha técnica: o item volta para a fila e se
     # repete. Se responderam e não trouxeram nada, aí sim é o mercado
     # falando, e repetir amanhã dá o mesmo.
-    # Falha técnica NÃO é amostra insuficiente: se todas as fontes de
-    # PREÇO falharam, o item volta para a fila; se responderam vazio, é o
-    # mercado falando (ver `busca.coletar`).
     if coleta.erro:
         resultado.erro = coleta.erro
         resultado.duracao_s = time.monotonic() - inicio
@@ -377,7 +394,8 @@ def executar_lote(pesquisa: dict, itens: list[dict],
                   fontes: list[FontePesquisaPreco], repositorio, *,
                   perfil: PerfilNormativo = PADRAO,
                   tamanho: int = LOTE_PADRAO,
-                  motor_semantico=None, triagem=None) -> tuple[Progresso, list[str]]:
+                  motor_semantico=None, triagem=None,
+                  tentados: set[str] | None = None) -> tuple[Progresso, list[str]]:
     """
     Processa um lote e PERSISTE. Devolve (progresso, linhas do relato).
 
@@ -397,7 +415,10 @@ def executar_lote(pesquisa: dict, itens: list[dict],
        preço para revisar.
     """
     filtros = dict(pesquisa.get("filtros") or {})
-    lote = proximo_lote(itens, tamanho)
+    # `tentados` vive na execução (a tela o guarda na sessão): o item que
+    # falhar aqui não volta à fila até o próximo clique em "Pesquisar".
+    tentados = tentados if tentados is not None else set()
+    lote = proximo_lote(itens, tamanho, ja_tentados=tentados)
     relato: list[str] = []
     por_id = {str(i.get("id")): i for i in itens}
 
@@ -427,6 +448,7 @@ def executar_lote(pesquisa: dict, itens: list[dict],
                                        desfechos=resultado.desfechos,
                                        erro=resultado.erro)
                 por_id[item_id]["estado"] = EstadoItem.ERRO.value
+                tentados.add(item_id)
                 relato.append(
                     f"Item {resultado.numero:02d}  !  {resultado.erro}")
                 continue
@@ -460,6 +482,7 @@ def executar_lote(pesquisa: dict, itens: list[dict],
                 por_id[item_id]["estado"] = EstadoItem.ERRO.value
             except Exception:  # noqa: BLE001 — já estamos no caminho de erro
                 pass
+            tentados.add(item_id)
             relato.append(
                 f"Item {int(item.get('numero') or 0):02d}  !  "
                 f"falha ao processar ({type(exc).__name__})")

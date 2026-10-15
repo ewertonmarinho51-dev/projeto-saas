@@ -26,7 +26,8 @@ from decimal import Decimal, InvalidOperation
 from . import matching, unidades
 from . import fontes as fontes_mod
 from .fontes import Desfecho, FontePesquisaPreco
-from .modelo import Referencia, conferir_procedencia, deduplicar
+from .modelo import (NATUREZAS_COMPARAVEIS, Referencia,
+                     conferir_procedencia, deduplicar)
 
 
 @dataclass
@@ -49,10 +50,20 @@ class Coleta:
         return self.brutas - self.unicas
 
     def elegiveis(self, piso: Decimal) -> int:
-        """Candidatas com preço normalizado e comparabilidade ≥ piso."""
-        return sum(1 for ref, comp in self.referencias
-                   if ref.valor_unitario_normalizado is not None
-                   and comp.score >= piso)
+        """Quantas a cesta automática aceitaria (ver `pre_selecao`)."""
+        return len(self.pre_selecao(piso))
+
+    def pre_selecao(self, piso: Decimal) -> set[str]:
+        """
+        As chaves que `estatistica.selecionar_cesta` poria na cesta: preço
+        normalizado, natureza de preço (não estimativa de outro órgão) e
+        comparabilidade ≥ piso. A consulta manual parte da MESMA regra da
+        automática; o servidor ajusta a partir daí.
+        """
+        return {ref.chave_dedupe for ref, comp in self.referencias
+                if ref.valor_unitario_normalizado is not None
+                and ref.natureza_valor in NATUREZAS_COMPARAVEIS
+                and comp.score >= piso}
 
 
 def _decimal(valor) -> Decimal | None:

@@ -15,9 +15,21 @@ from src import db
 from src.precos import repositorio as repo
 from src.precos.estados import EstadoItem
 from tests.conftest import ClientePrecosFalso
-from tests.test_precos_fase4 import _com_amostra
+from src.precos.modelo import NaturezaValor
+from tests.test_precos_fase4 import FONTE_OFICIAL, _FonteFalsa, _referencia
 
 APP = str(Path(__file__).resolve().parents[1] / "app.py")
+
+
+def _homologada(ident, valor):
+    ref = _referencia(FONTE_OFICIAL, ident, valor)
+    ref.natureza_valor = NaturezaValor.HOMOLOGADO
+    return ref
+
+
+def _fonte_com(n):
+    return _FonteFalsa(FONTE_OFICIAL, [_homologada(f"r{i}", str(10 + i))
+                                       for i in range(n)])
 
 
 def _app(monkeypatch):
@@ -30,7 +42,7 @@ def _app(monkeypatch):
                    "pesquisa_preco_referencias", "pesquisa_preco_eventos"):
         cliente.tabelas.setdefault(tabela, [])
     monkeypatch.setattr(db, "cliente_do_usuario", lambda: cliente)
-    monkeypatch.setattr(precos_ui, "_fontes", lambda: [_com_amostra(5)])
+    monkeypatch.setattr(precos_ui, "_fontes", lambda: [_fonte_com(5)])
 
     at = AppTest.from_file(APP, default_timeout=90)
     at.secrets["SUPABASE_URL"] = ""

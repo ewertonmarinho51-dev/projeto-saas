@@ -80,12 +80,15 @@ def test_a_fila_pega_erro_e_deixa_incompleto_de_fora():
     fila (retry); `incomplete` já rodou e o mercado não tinha referência
     bastante — refazer sozinho gastaria a API para chegar ao mesmo
     lugar. Repetir um incompleto é decisão do revisor.
+
+    O erro vem DEPOIS do pendente (15/10/2026): à frente, uma falha
+    permanente nos primeiros itens prendia a fila nos mesmos itens.
     """
     itens = [_item(1, EstadoItem.ERRO.value),
              _item(2, EstadoItem.INCOMPLETO.value),
              _item(3, EstadoItem.COMPLETO.value),
              _item(4, EstadoItem.PENDENTE.value)]
-    assert [i["numero"] for i in execucao.proximo_lote(itens, 10)] == [1, 4]
+    assert [i["numero"] for i in execucao.proximo_lote(itens, 10)] == [4, 1]
 
 
 def test_o_lote_e_pequeno_de_proposito():
