@@ -70,12 +70,30 @@ Do diretório raiz desta tarefa, iniciar o cluster existente:
 & work/toolchain/postgresql-16.15-5/pgsql/bin/pg_ctl.exe -D work/wordcraft-pg/data -l work/wordcraft-pg/server.log -o '-h 127.0.0.1 -p 55439 -c timezone=UTC' -w start
 ```
 
-O roteiro de QA work/run_local_backend_qa.py reutiliza as funções existentes;
-configurar PYTHONPATH para o diretório absoluto work/pg-deps e PYTHONUTF8=1, usando
-Python 3.12 com as dependências do produto. --http-only seleciona apenas o grupo HTTP.
-Os caminhos de runtime e o banco de QA são explícitos no roteiro. Ele não busca
-secrets de projetos hospedados. Não executar montar() sobre um banco parcialmente
-preparado: o helper existente considera banco já existente como reaproveitável.
+O orquestrador versionado scripts/ensaio_http_local.py reutiliza as funções existentes.
+Ele cria banco próprio com nome aleatório, além de um login efêmero membro de
+authenticator, sem trocar a senha desse papel existente. Ao final encerra PostgREST
+e gateway, apaga seu banco e seu login, e verifica que o banco desapareceu. A execução
+real desse caminho passou nos 55 testes; consulta de catálogo confirmou zero bancos
+http_qa_* e zero logins http_login_* restantes. Não há busca de secrets hospedados.
+
+Com Python do projeto e as dependências de teste, do checkout GovConnect:
+
+```powershell
+$env:PYTHONUTF8='1'
+$env:PYTHONPATH=(Resolve-Path ../pg-deps).Path
+python scripts/ensaio_http_local.py --dsn 'postgresql://postgres@127.0.0.1:55439/postgres' --postgrest ../toolchain/postgrest-12.2.12/postgrest.exe --pg-bin ../toolchain/postgresql-16.15-5/pgsql/bin --work-dir ../http-qa-canonical
+```
+
+O CI também executa esse orquestrador após a suíte principal, usando a imagem
+pgvector/pgvector:pg16 já existente e PostgREST Linux oficial 12.2.12. O arquivo Linux
+é verificado contra SHA-256 5de4092f1719da3353c40bf96c8dec6913f2254a7cd0b61cc05f233153b557d5
+antes de extrair; o JUnit é preservado como artefato. A prova no CI ainda aguarda seu
+primeiro run. O DSN do serviço efêmero é explícito; JWTs só existem no processo filho.
+
+Não executar montar() sobre um banco parcialmente preparado: o helper existente
+considera banco já existente como reaproveitável. O novo orquestrador evita esse
+caminho com nomes novos por execução, e não aceita nome de banco vindo do chamador.
 
 Encerrar ao terminar:
 

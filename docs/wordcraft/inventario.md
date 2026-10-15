@@ -23,6 +23,7 @@ Branch: `feature/wordcraft-wasm-govconnect`. Produção não alterada.
 
 | Módulo | Responsabilidade exclusiva / consumidores | Teste | Risco / gate |
 |---|---|---|---|
+| `scripts/ensaio_http_local.py` | orquestrar schema/harness PostgREST existentes e provas HTTP em banco local descartável; nenhum backend documental novo | executar os testes reais de catálogo/anon/servidor, limpar processos e banco | somente loopback; sem GoTrue/Storage; CI e laboratório Windows |
 | `src/wordcraft_protocol.py` | validar envelopes e respostas da ponte; futura UI; sem gravar, autorizar ou aplicar patches | schema fechado, nonce, escopo, replay, ACK | alto; fundação independente, não prova G1 |
 | `src/wordcraft_native.py` | executar validador do mesmo motor em processo isolado, sem documento em arquivo ou credenciais no ambiente filho | rejeição/timeout/erro de runtime e resultado fechado | valida modelo, não concede ACL nem confirma save |
 | `assets/wordcraft_editor/validate.mjs` | worker Node para validar bytes pelo WASM pinado, sem WordApp/canvas | hashes do manifesto/assets, input limitado e rejeição de modelo | depende de artefato compilado; não é segundo parser do documento |

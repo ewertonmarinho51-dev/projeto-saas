@@ -163,6 +163,33 @@ jobs:
             postgresql://postgres:postgres@localhost:5432/postgres
         run: python -m pytest -q
 
+      - name: Provar contenção HTTP com PostgREST local
+        env:
+          GOVDOCS_ENSAIO_PG_DSN: >-
+            postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/govconnect-http-bin"
+          curl --fail --location --silent --show-error --retry 2 \
+            --connect-timeout 15 --max-time 120 \
+            https://github.com/PostgREST/postgrest/releases/download/v12.2.12/postgrest-v12.2.12-linux-static-x86-64.tar.xz \
+            -o "$RUNNER_TEMP/govconnect-http-bin/postgrest.tar.xz"
+          echo "5de4092f1719da3353c40bf96c8dec6913f2254a7cd0b61cc05f233153b557d5  $RUNNER_TEMP/govconnect-http-bin/postgrest.tar.xz" | sha256sum --check
+          tar -xJf "$RUNNER_TEMP/govconnect-http-bin/postgrest.tar.xz" \
+            -C "$RUNNER_TEMP/govconnect-http-bin" postgrest
+          python scripts/ensaio_http_local.py --dsn "$GOVDOCS_ENSAIO_PG_DSN" \
+            --postgrest "$RUNNER_TEMP/govconnect-http-bin/postgrest" \
+            --work-dir "$RUNNER_TEMP/govconnect-http"
+
+      - name: Preservar prova HTTP local
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: http-containment-local
+          path: ${{ runner.temp }}/govconnect-http/http.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Gerar referências sintéticas de fidelidade WordCraft
         if: github.ref == 'refs/heads/feature/wordcraft-wasm-govconnect'
         run: python scripts/wordcraft_corpus.py --out wordcraft-corpus --pdf
