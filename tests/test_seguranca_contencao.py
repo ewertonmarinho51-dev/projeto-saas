@@ -2210,10 +2210,12 @@ def canario_descartavel(cliente_servidor):
 @pytest.fixture()
 def catalogo(cliente_servidor):
     """Auditoria de catálogo — a prova de CONFIGURAÇÃO das 28 tabelas."""
-    from ensaio_seguranca import auditar_catalogo
+    from ensaio_seguranca import auditar_catalogo, FASE_DEFINITIVA
 
     try:
-        return auditar_catalogo(cliente_servidor)
+        # The canonical rehearsal applies 0020: authenticated has explicit RLS
+        # access. Phase A would misclassify those deliberate grants as anon leaks.
+        return auditar_catalogo(cliente_servidor, fase=FASE_DEFINITIVA)
     except Exception as erro:  # noqa: BLE001
         pytest.fail(f"preparação falhou: {erro}")
 
@@ -2229,8 +2231,11 @@ def test_catalogo_nao_tem_policy_nem_grant_para_anon(catalogo):
 
 
 @requer_ensaio
-def test_catalogo_nao_tem_tabela_sem_rls(catalogo):
-    assert [a for a in catalogo if a.get("tipo") == "tabela_sem_rls"] == []
+def test_catalogo_nao_tem_tabela_privada_sem_rls(catalogo):
+    # ensaio_objeto_novo intentionally has no RLS: HTTP tests prove its lack of
+    # grants independently of policies. The product inventory must all have RLS.
+    assert [a for a in catalogo if a.get("tipo") == "tabela_sem_rls"
+            and a.get("objeto") in TABELAS_PRIVADAS] == []
 
 
 @requer_ensaio
@@ -2252,6 +2257,13 @@ def test_catalogo_nao_tem_funcao_executavel_por_anon(catalogo):
 def test_catalogo_nao_tem_default_privilege_aberto(catalogo):
     """A causa da recorrência: objeto futuro nascendo aberto."""
     assert [a for a in catalogo if a.get("tipo") == "default_privilege"] == []
+
+
+@requer_ensaio
+def test_catalogo_authenticated_tem_policy_e_with_check(catalogo):
+    """Phase B must check its added constraints, not only stop flagging grants."""
+    assert [a for a in catalogo if a.get("tipo") in
+            {"escrita_sem_with_check", "grant_sem_policy"}] == []
 
 
 @requer_ensaio
@@ -2354,8 +2366,8 @@ def test_servidor_continua_operando(cliente_servidor):
     Com a credencial de servidor, as operações legítimas seguem — é o
     que separa "contido" de "quebrado".
     """
-    for tabela in ("usuarios", "config_app", "processos"):
-        resposta = cliente_servidor.table(tabela).select("id").limit(1) \
+    for tabela, chave in (("usuarios", "id"), ("config_app", "chave"), ("processos", "id")):
+        resposta = cliente_servidor.table(tabela).select(chave).limit(1) \
             .execute()
         assert hasattr(resposta, "data")   # consultou sem erro de permissão
 
