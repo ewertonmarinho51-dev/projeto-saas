@@ -73,6 +73,10 @@ def test_consulta_mostra_contagens_cesta_e_media(monkeypatch):
     assert metricas["Na cesta"].endswith("/3")
     assert "Média aritmética (método padrão)" in metricas
     assert "Mediana (diagnóstico)" in metricas
+    legendas = " ".join(c.value for c in at.caption)
+    assert "respondeu com preços" in legendas
+    assert "success_with_prices" not in legendas
+    assert "01/06/2026" in legendas
 
 
 def test_salvar_cria_pesquisa_no_mesmo_dominio_e_abre_a_revisao(monkeypatch):
@@ -134,3 +138,28 @@ def test_contratacao_pncp_invalida_avisa_e_nao_consulta(monkeypatch):
     assert not at.exception
     assert any("não reconhecida" in e.value for e in at.error)
     assert not at.metric
+
+
+def test_revisao_paginada_e_conclusao_com_pendencia_exige_justificativa(monkeypatch):
+    """Cesta grande desenha 25 por vez; média provisória não conclui calada."""
+    from src.ui import precos_ui
+
+    at, cliente = _app(monkeypatch)
+    valores = [str(10 + i % 5) for i in range(39)] + ["9000"]
+    monkeypatch.setattr(precos_ui, "_fontes", lambda: [_FonteFalsa(
+        FONTE_OFICIAL, [_homologada(f"r{i}", v) for i, v in enumerate(valores)])])
+    at.run()
+    _consultar(at)
+    next(b for b in at.button if b.label == "Salvar como pesquisa").click().run()
+    assert not at.exception
+    assert at.session_state[precos_ui.TELA] == precos_ui.REVISAO
+
+    detalhes = [e for e in at.expander if e.label == "Ver detalhes"]
+    assert len(detalhes) == precos_ui.POR_PAGINA_REVISAO
+    assert any(b.label == "Mostrar mais 15" for b in at.button)
+    assert any("PROVISÓRIO" in w.value for w in at.warning)
+
+    next(b for b in at.button if b.label == "Concluir este item").click().run()
+    assert any("análise crítica" in e.value for e in at.error)
+    [item] = cliente.tabelas["pesquisa_preco_itens"]
+    assert item["estado"] == "review", "não concluiu sem justificativa"

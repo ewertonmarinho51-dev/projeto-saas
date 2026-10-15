@@ -220,6 +220,11 @@ class Cesta:
 # sozinha: cesta montada com item pouco comparável é indefensável.
 PISO_COMPARABILIDADE = Decimal("0.5")
 
+# Coeficiente de variação acima do qual a série é "dispersa". É o mesmo
+# corte que a regra antiga usava para trocar média por mediana; na regra
+# da média ele não troca nada — marca a estimativa como provisória.
+CV_DISPERSAO = Decimal("0.25")
+
 
 def selecionar_cesta(
     ranqueadas: list[tuple[Referencia, Comparabilidade]],
@@ -301,10 +306,19 @@ class Estimativa:
     anomalias: list[Anomalia] = field(default_factory=list)
     memoria: list[str] = field(default_factory=list)
     perfil_id: str = PADRAO.id
+    # O que o REVISOR precisa decidir antes de concluir o item: a média é
+    # de referências "elegíveis e aprovadas", e discrepante ou série
+    # dispersa ainda não aprovados tornam o número provisório.
+    pendencias: list[str] = field(default_factory=list)
 
     @property
     def concluida(self) -> bool:
         return self.status == "CONCLUIDO"
+
+    @property
+    def provisoria(self) -> bool:
+        """Tem valor, mas depende de análise crítica humana (ver `pendencias`)."""
+        return bool(self.pendencias)
 
     def valor_total(self, quantidade: Decimal | None) -> Decimal | None:
         if self.valor_unitario is None or quantidade is None:
@@ -323,6 +337,7 @@ class Estimativa:
             if self.estatisticas else None,
             "selecionadas": len(self.cesta.selecionadas),
             "descartadas": len(self.cesta.descartadas),
+            "pendencias": list(self.pendencias),
             "anomalias": [{
                 "valor": format(a.valor, "f"),
                 "criterio": a.criterio,
@@ -394,7 +409,7 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
             f"coeficiente de variação {estatisticas.coeficiente_variacao:.2f} "
             "apenas como diagnóstico")
     elif metodo == METODO_AUTOMATICO:
-        disperso = estatisticas.coeficiente_variacao > Decimal("0.25")
+        disperso = estatisticas.coeficiente_variacao > CV_DISPERSAO
         escolhido = "mediana" if disperso else "media"
         memoria.append(
             f"método escolhido automaticamente: {escolhido} — coeficiente "
@@ -455,7 +470,30 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
             f"{len(anomalias)} candidato(s) discrepante(s) sinalizado(s) "
             "para revisão; nenhum foi excluído automaticamente")
 
+    # Análise crítica pendente — só nas regras da média. Na regra antiga a
+    # dispersão já levava à mediana; na nova, a média de uma cesta com
+    # discrepante NÃO DECIDIDO é provisória: medido em 15/10/2026 na
+    # planilha real de 210 itens, um único registro errado da fonte levou
+    # a média de uma divisória de fichário a R$ 30.002,33 (planilha:
+    # R$ 14,90). Nada é excluído aqui; o revisor exclui com motivo ou
+    # mantém com justificativa (IN 65/2021, art. 6º, § 3º, onde aplicável).
+    pendencias: list[str] = []
+    if regras == REGRAS_MEDIA_PADRAO and escolhido == "media":
+        if anomalias:
+            pendencias.append(
+                f"{len(anomalias)} preço(s) discrepante(s) aguardam decisão: "
+                "excluir com motivo ou manter com justificativa")
+        if estatisticas.coeficiente_variacao > CV_DISPERSAO:
+            pendencias.append(
+                f"dispersão elevada (coeficiente de variação "
+                f"{estatisticas.coeficiente_variacao:.2f} > "
+                f"{CV_DISPERSAO}): a média pode não representar o mercado; "
+                "examine a cesta antes de concluir")
+        if pendencias:
+            memoria.append("valor PROVISÓRIO até a análise crítica: "
+                           + "; ".join(pendencias))
+
     return Estimativa(
         valor_unitario=valor, metodo=escolhido, status=status,
         estatisticas=estatisticas, cesta=cesta, anomalias=anomalias,
-        memoria=memoria, perfil_id=perfil.id)
+        memoria=memoria, perfil_id=perfil.id, pendencias=pendencias)

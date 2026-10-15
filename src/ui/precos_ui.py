@@ -262,6 +262,8 @@ BANCO_ITEM = "_banco_item"
 BANCO_SELECAO = "_banco_selecao"
 BANCO_CHAVE = "_banco_chave"
 BANCO_LIMITE_LINHAS = 60
+# referências desenhadas por vez na revisão do item (ver _render_resultados)
+POR_PAGINA_REVISAO = 25
 
 ROTULO_NATUREZA = {
     "praticado": "Praticado", "homologado": "Homologado",
@@ -269,8 +271,14 @@ ROTULO_NATUREZA = {
     "estimado_origem": "Estimado (origem)", "proposta": "Proposta",
     "outro": "Outro",
 }
-ROTULO_DESFECHO = {"ok": "respondeu", "vazio": "respondeu sem resultado",
-                   "falha": "INDISPONÍVEL"}
+ROTULO_DESFECHO = {"success_with_prices": "respondeu com preços",
+                   "success_empty": "respondeu sem preço",
+                   "evidence_only": "só evidência, sem preço",
+                   "failure": "INDISPONÍVEL"}
+NOME_FONTE = {"compras_gov_precos": "Compras.gov (preços praticados)",
+              "compras_gov_itens": "Compras.gov (itens de contratações)",
+              "pncp": "PNCP",
+              "cotacao_direta": "Cotação direta"}
 
 
 def _render_banco() -> None:
@@ -359,7 +367,7 @@ def _render_banco_resultado(item: dict, coleta) -> None:
 
     st.divider()
     fontes_txt = " · ".join(
-        f"{fid}: {ROTULO_DESFECHO.get(desfecho, desfecho)}"
+        f"{NOME_FONTE.get(fid, fid)}: {ROTULO_DESFECHO.get(desfecho, desfecho)}"
         for fid, desfecho in sorted(coleta.desfechos.items()))
     st.caption(f"Fontes consultadas — {fontes_txt or 'nenhuma'}")
     if coleta.erro:
@@ -389,7 +397,7 @@ def _render_banco_resultado(item: dict, coleta) -> None:
     estimativa = estatistica.estimar(
         estatistica.Cesta(selecionadas=escolhidas),
         regras=estatistica.REGRAS_MEDIA_PADRAO)
-    _render_banco_cesta(estimativa)
+    _render_banco_cesta(estimativa, selecao)
 
     st.markdown("###### Referências (por comparabilidade, não por preço)")
     for ref, comp in coleta.referencias[:BANCO_LIMITE_LINHAS]:
@@ -423,7 +431,8 @@ def _render_banco_resultado(item: dict, coleta) -> None:
             f"{ref.unidade_original or ''}")
         colunas[3].write(ROTULO_NATUREZA.get(ref.natureza_valor.value,
                                              ref.natureza_valor.value))
-        colunas[3].caption(str(ref.data_compra or "data não informada"))
+        colunas[3].caption(ref.data_compra.strftime("%d/%m/%Y")
+                           if ref.data_compra else "data não informada")
         colunas[4].write(f"{comp.percentual}% comparável")
         url = (pncp_mod.url_de_verificacao(ref.bruto)
                if ref.fonte.id == pncp_mod.FONTE_PNCP.id
@@ -437,13 +446,14 @@ def _render_banco_resultado(item: dict, coleta) -> None:
     _render_banco_salvar(item, coleta, selecao)
 
 
-def _render_banco_cesta(estimativa) -> None:
+def _render_banco_cesta(estimativa, selecao: set[str]) -> None:
     est = estimativa.estatisticas
     if est is None:
         st.warning("Cesta vazia: marque as referências comparáveis.")
         return
     a, b, c = st.columns(3)
-    a.metric("Média aritmética (método padrão)",
+    a.metric("Média provisória (análise crítica pendente)"
+             if estimativa.provisoria else "Média aritmética (método padrão)",
              _moeda(estimativa.valor_unitario))
     b.metric("Mediana (diagnóstico)", _moeda(est.mediana))
     c.metric("Coef. de variação", f"{est.coeficiente_variacao:.2f}")
@@ -451,9 +461,26 @@ def _render_banco_cesta(estimativa) -> None:
         st.warning(f"{est.quantidade}/3 — a cesta ainda não tem três preços "
                    "comparáveis. Não conclua sem ampliar a busca ou "
                    "registrar a exceção prevista no perfil.")
+    if estimativa.provisoria:
+        st.warning("Valor provisório: " + "; ".join(estimativa.pendencias)
+                   + ".")
     if estimativa.anomalias:
-        st.info(f"{len(estimativa.anomalias)} preço(s) discrepante(s) "
-                "sinalizado(s) para revisão — nenhum foi excluído.")
+        # do mais distante para o menos: o erro grosseiro vem primeiro;
+        # "\$" porque o markdown do Streamlit lê "$…$" como fórmula
+        mais_distantes = sorted(estimativa.anomalias, key=lambda a: -abs(
+            a.distancia_da_mediana_pct))
+        valores = ", ".join(_moeda(a.valor).replace("$", "\\$")
+                            for a in mais_distantes[:8])
+        st.caption(f"Discrepantes sinalizados: {valores}"
+                   + (" …" if len(estimativa.anomalias) > 8 else "")
+                   + " — nenhum foi tirado da cesta pelo sistema.")
+        if st.button(f"Tirar os {len(estimativa.anomalias)} discrepante(s) "
+                     "da cesta", key="banco_tirar_discrepantes"):
+            for anomalia in estimativa.anomalias:
+                chave = anomalia.referencia.chave_dedupe
+                selecao.discard(chave)
+                st.session_state[f"banco_sel_{chave}"] = False
+            st.rerun()
 
 
 def _render_banco_salvar(item: dict, coleta, selecao: set[str]) -> None:
@@ -1530,13 +1557,28 @@ def _render_resultados(item: dict, referencias: list[dict],
         st.caption("Nenhuma referência atende aos filtros escolhidos.")
         return
 
-    for linha in visiveis:
+    # Paginada: cada referência são ~30 elementos na tela, e uma cesta de
+    # 283 referências (caso real, 15/10/2026) levava mais de 80 s para
+    # desenhar — com o botão de concluir lá no fim. Os filtros continuam
+    # valendo sobre a lista INTEIRA; a página só limita o que se desenha.
+    chave = f"_precos_mostrar_{item['id']}"
+    limite = int(st.session_state.get(chave) or POR_PAGINA_REVISAO)
+    for linha in visiveis[:limite]:
         _render_referencia(item, linha)
+    if len(visiveis) > limite:
+        st.caption(f"Mostrando {limite} de {len(visiveis)} referência(s).")
+        if st.button(f"Mostrar mais {min(POR_PAGINA_REVISAO, len(visiveis) - limite)}",
+                     key=f"mais_{item['id']}"):
+            st.session_state[chave] = limite + POR_PAGINA_REVISAO
+            st.rerun()
 
 
 def _render_referencia(item: dict, linha: dict) -> None:
+    from ..precos import cesta as cesta_mod
+
     status = str(linha.get("status") or "")
-    na_cesta = status == "selected"
+    # `warning` é discrepante sinalizado que CONTINUA na cesta até decisão
+    na_cesta = status in cesta_mod.NA_CESTA
     score = _decimal(linha.get("score"))
     percentual = f"{score:.0%}" if score is not None else "—"
 
@@ -1664,15 +1706,27 @@ def _render_encerramento_do_item(item: dict) -> None:
         st.caption(f"Situação do item: {ROTULO_ITEM.get(estado, estado)}.")
         return
 
+    from ..precos import cesta as cesta_mod
+
     st.divider()
+    pendencias = cesta_mod.pendencias_do_item(item)
+    if pendencias:
+        st.warning("Valor PROVISÓRIO — análise crítica pendente: "
+                   + "; ".join(pendencias) + ".")
+        _render_excluir_discrepantes(item)
     with st.form(f"concluir_{item['id']}"):
         justificativa = st.text_area(
-            "Observação do revisor (opcional)",
+            "Justificativa do revisor (obrigatória)" if pendencias
+            else "Observação do revisor (opcional)",
             help="Registre aqui por que aceitou a cesta como está — por "
                  "exemplo, ao manter um discrepante sinalizado.")
         concluir = st.form_submit_button("Concluir este item",
                                          type="primary")
     if concluir:
+        erro = cesta_mod.validar_conclusao(item, justificativa)
+        if erro:
+            st.error(erro)
+            return
         repo.confirmar_item(str(item["id"]), atual=EstadoItem.EM_REVISAO,
                             justificativa=justificativa.strip())
         repo.registrar_evento(
@@ -1680,6 +1734,41 @@ def _render_encerramento_do_item(item: dict) -> None:
             item_id=str(item["id"]), descricao=justificativa.strip())
         _ir(ITENS, **{ITEM: None})
         st.rerun()
+
+
+def _render_excluir_discrepantes(item: dict) -> None:
+    """Exclusão em lote dos discrepantes sinalizados — por clique e motivo."""
+    from ..precos import cesta as cesta_mod
+
+    pesquisa = _pesquisa_atual() or {}
+    perfil_atual = perfil.obter(pesquisa.get("perfil_normativo"))
+    alvos = cesta_mod.discrepantes(
+        repo.listar_referencias(str(item["id"])), perfil=perfil_atual,
+        regras=str(pesquisa.get("versao_regras") or ""))
+    if not alvos:
+        return
+    with st.form(f"discrepantes_{item['id']}"):
+        valores = ", ".join(
+            _moeda(linha.get("valor_unitario_normalizado")).replace("$", "\\$")
+            for linha, _ in alvos[:8])
+        st.caption(f"Discrepantes sinalizados agora: {valores}"
+                   + (" …" if len(alvos) > 8 else ""))
+        motivo = st.text_input(
+            "Motivo da exclusão (obrigatório)",
+            value="preço excessivamente elevado ou inexequível em relação "
+                  "à série, conforme critério estatístico")
+        excluir = st.form_submit_button(
+            f"Excluir os {len(alvos)} discrepante(s) da cesta")
+    if not excluir:
+        return
+    try:
+        cesta_mod.excluir_discrepantes(
+            pesquisa, item, repo, perfil=perfil_atual, motivo=motivo,
+            ator=_identidade()[0] or None)
+    except ValueError as erro:
+        st.error(str(erro))
+        return
+    st.rerun()
 
 
 # ---------------------------------------------------------------------------

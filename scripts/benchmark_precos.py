@@ -112,6 +112,12 @@ def main() -> int:
             "metodo": est.metodo if est else None,
             "valor": str(est.valor_unitario) if est and est.valor_unitario
             is not None else None,
+            "mediana": str(est.estatisticas.mediana) if est and est.estatisticas
+            else None,
+            # análise crítica pendente (média provisória); ausente no código
+            # anterior a 15/10/2026, por isso o getattr
+            "pendencias": list(getattr(est, "pendencias", []) or []) if est
+            else [],
             "valor_planilha": bruto.get("valor_unitario"),
             "erro_de_fonte": bool(resultado.erro),
             "chamadas": {k: chamadas.get(k, 0) - antes.get(k, 0)
@@ -137,6 +143,10 @@ def main() -> int:
         "itens_com_referencia": sum(1 for x in linhas if x["encontradas"]),
         "itens_3_mais_na_cesta": sum(1 for x in linhas if x["na_cesta"] >= 3),
         "itens_concluidos": sum(1 for x in linhas if x["status"] == "CONCLUIDO"),
+        "itens_concluidos_sem_pendencia": sum(
+            1 for x in linhas if x["status"] == "CONCLUIDO" and not x["pendencias"]),
+        "itens_concluidos_provisorios": sum(
+            1 for x in linhas if x["status"] == "CONCLUIDO" and x["pendencias"]),
         "itens_com_erro_de_fonte": sum(1 for x in linhas if x["erro_de_fonte"]),
         "metodos": {m: sum(1 for x in linhas if x["metodo"] == m)
                     for m in {x["metodo"] for x in linhas}},

@@ -227,3 +227,55 @@ def test_indicador_n_de_3_sai_do_que_o_item_gravou():
     assert cesta.indicador({"estatisticas": {"selecionadas": 2}}) == "2/3"
     assert cesta.indicador({"estado": "pending"}) == "—"
     assert cesta.indicador({"estatisticas": None}) == "—"
+
+
+# ---------------------------------------------------------------------------
+# análise crítica: média de referências APROVADAS (pacote 08, BAS-04)
+# ---------------------------------------------------------------------------
+def test_erro_grosseiro_da_fonte_torna_a_media_provisoria_mesmo_com_tres():
+    """Medido em 15/10/2026: divisória de fichário com média R$ 30.002,33."""
+    e = estimar(Cesta(selecionadas=[_ref(v, v) for v in ("14.00", "16.00", "90000.00")]),
+                regras=estatistica.REGRAS_MEDIA_PADRAO)
+    assert e.concluida and e.provisoria
+    assert any("dispersão elevada" in p for p in e.pendencias)
+    assert any("PROVISÓRIO" in m for m in e.memoria)
+    assert e.para_relatorio()["pendencias"] == e.pendencias
+
+
+def test_serie_homogenea_nao_tem_pendencia():
+    e = estimar(Cesta(selecionadas=[_ref(v, v) for v in ("20.00", "22.00", "24.00")]),
+                regras=estatistica.REGRAS_MEDIA_PADRAO)
+    assert not e.provisoria and e.pendencias == []
+
+
+def test_discrepante_sinalizado_gera_pendencia_sem_sair_da_cesta():
+    valores = ("20.00", "21.00", "22.00", "23.00", "200.00")
+    e = estimar(Cesta(selecionadas=[_ref(v, v) for v in valores]),
+                regras=estatistica.REGRAS_MEDIA_PADRAO)
+    assert any("discrepante" in p for p in e.pendencias)
+    assert len(e.cesta.selecionadas) == 5
+
+
+def test_regra_antiga_nao_ganha_pendencia():
+    e = estimar(Cesta(selecionadas=[_ref(v, v) for v in ("14.00", "16.00", "90000.00")]),
+                regras=estatistica.REGRAS_LEGADAS)
+    assert e.metodo == "mediana" and e.pendencias == []
+
+
+def test_referencia_sinalizada_continua_na_cesta_no_recalculo():
+    """Antes, o primeiro clique na revisão tirava o `warning` calado."""
+    linhas = [_linha("20.00"), _linha("22.00"), _linha("24.00"),
+              _linha("200.00", status="warning")]
+    e = cesta.recalcular(linhas, perfil=perfil.LEI_14133,
+                         regras=estatistica.REGRAS_MEDIA_PADRAO)
+    assert e.valor_unitario == Decimal("66.50")
+    assert cesta.validas_na_cesta(linhas) == 4
+
+
+def test_concluir_com_pendencia_exige_justificativa():
+    item = {"estatisticas": {"pendencias": ["1 preço(s) discrepante(s)"]}}
+    assert cesta.validar_conclusao(item, "")
+    assert cesta.validar_conclusao(item, "ok")
+    assert cesta.validar_conclusao(
+        item, "Mantido: o preço alto é de compra emergencial documentada") is None
+    assert cesta.validar_conclusao({"estatisticas": {}}, "") is None

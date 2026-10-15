@@ -24,6 +24,10 @@ from .modelo import Fonte, NaturezaValor, Referencia
 from .perfil import PerfilNormativo
 
 SELECIONADA = "selected"
+# `warning` é a referência DA CESTA que o motor sinalizou como discrepante:
+# continua dentro até o revisor decidir. Contá-la fora seria excluí-la em
+# silêncio no primeiro recálculo — exatamente o que o pacote proíbe.
+NA_CESTA = frozenset({SELECIONADA, "warning"})
 
 
 def _decimal(valor) -> Decimal | None:
@@ -84,7 +88,7 @@ def recalcular(linhas: list[dict], *, perfil: PerfilNormativo,
     unidade comprovada não compõe média nenhuma, mesmo marcada.
     """
     selecionadas = [referencia_da_linha(linha) for linha in linhas
-                    if str(linha.get("status")) == SELECIONADA]
+                    if str(linha.get("status")) in NA_CESTA]
     com_preco = [r for r in selecionadas
                  if r.valor_unitario_normalizado is not None]
     de_preco = [r for r in com_preco if _compoe_cesta(r)]
@@ -124,7 +128,7 @@ def recalcular_e_gravar(pesquisa: dict, item: dict, repositorio, *,
 def validas_na_cesta(linhas: list[dict]) -> int:
     """Quantas referências selecionadas têm preço normalizado — o N de "N/3"."""
     return sum(1 for linha in linhas
-               if str(linha.get("status")) == SELECIONADA
+               if str(linha.get("status")) in NA_CESTA
                and _decimal(linha.get("valor_unitario_normalizado"))
                is not None
                and _compoe_cesta(referencia_da_linha(linha)))
@@ -151,6 +155,83 @@ def indicador(item: dict, minimo: int = 3) -> str:
     if n is None:
         return "—"
     return f"{n}/{minimo} ✓" if n >= minimo else f"{n}/{minimo}"
+
+
+def pendencias_do_item(item: dict) -> list[str]:
+    """As pendências de análise crítica que a estimativa gravada declarou."""
+    gravado = item.get("estatisticas")
+    if not isinstance(gravado, dict):
+        return []
+    return [str(p) for p in (gravado.get("pendencias") or [])]
+
+
+MINIMO_JUSTIFICATIVA = 15
+
+
+def validar_conclusao(item: dict, justificativa: str) -> str | None:
+    """
+    Concluir item com pendência de análise crítica exige justificativa —
+    é o "manter com justificativa" do discrepante. Devolve o erro, ou None.
+    """
+    if pendencias_do_item(item) and \
+            len(str(justificativa or "").strip()) < MINIMO_JUSTIFICATIVA:
+        return ("Este item tem pendência de análise crítica. Exclua os "
+                "discrepantes com motivo ou justifique por que a cesta "
+                "deve ser mantida como está.")
+    return None
+
+
+def discrepantes(linhas: list[dict], *, perfil: PerfilNormativo,
+                 regras: str) -> list[tuple[dict, str]]:
+    """
+    `(linha, critério)` das referências DA CESTA que o detector sinaliza
+    agora, sobre a seleção gravada. Só aponta: quem exclui é o revisor.
+    """
+    estimativa = recalcular(linhas, perfil=perfil, regras=regras)
+    por_chave = {(str(linha.get("fonte_id") or ""),
+                  str(linha.get("id_externo") or "")): linha
+                 for linha in linhas}
+    saida = []
+    # do mais distante da mediana para o menos: o erro grosseiro primeiro
+    for anomalia in sorted(estimativa.anomalias,
+                           key=lambda a: -abs(a.distancia_da_mediana_pct)):
+        chave = (anomalia.referencia.fonte.id, anomalia.referencia.id_externo)
+        if chave in por_chave:
+            saida.append((por_chave[chave], anomalia.criterio))
+    return saida
+
+
+def excluir_discrepantes(pesquisa: dict, item: dict, repositorio, *,
+                         perfil: PerfilNormativo, motivo: str,
+                         ator: str | None = None) -> estatistica.Estimativa:
+    """
+    O ato HUMANO de excluir, de uma vez, os discrepantes sinalizados — com
+    o motivo do revisor registrado em cada referência e no evento. Depois
+    refaz o preço. A série menor pode revelar outro discrepante: ele será
+    sinalizado, não excluído — cada exclusão é um clique de alguém.
+    """
+    if len(str(motivo or "").strip()) < MINIMO_JUSTIFICATIVA:
+        raise ValueError("registre o motivo da exclusão (critério e por quê)")
+    regras = str(pesquisa.get("versao_regras") or estatistica.REGRAS_LEGADAS)
+    linhas = repositorio.listar_referencias(str(item["id"]))
+    alvos = discrepantes(linhas, perfil=perfil, regras=regras)
+    for linha, criterio in alvos:
+        repositorio.reclassificar_referencia(
+            str(linha["id"]), "rejected",
+            f"{motivo.strip()} (sinalizada pelo critério {criterio})")
+    estimativa = recalcular_e_gravar(pesquisa, item, repositorio,
+                                     perfil=perfil)
+    repositorio.registrar_evento(
+        str(pesquisa["id"]), "referencia_excluida", ator=ator,
+        item_id=str(item["id"]), descricao=motivo.strip(),
+        payload={"referencias": [str(linha["id"]) for linha, _ in alvos],
+                 "lote": "discrepantes",
+                 "preco_recalculado": None if estimativa.valor_unitario is None
+                 else format(estimativa.valor_unitario, "f"),
+                 "metodo": estimativa.metodo,
+                 "status_da_cesta": estimativa.status,
+                 "pendencias": list(estimativa.pendencias)})
+    return estimativa
 
 
 ESTADOS_RECALCULAVEIS = frozenset({EstadoItem.EM_REVISAO.value,

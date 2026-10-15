@@ -13,6 +13,8 @@ from __future__ import annotations
 from decimal import Decimal
 from io import BytesIO
 
+import pytest
+
 from src import db, export
 from src.precos import aplicacao, busca, cesta, perfil, relatorio
 from src.precos import repositorio as repo
@@ -147,3 +149,40 @@ def test_valor_estimado_marcado_na_tela_nao_entra_na_cesta(monkeypatch):
     [item] = repo.listar_itens(salvo["pesquisa_id"])
     # 20/22/24/200 → 66,50; o 5,00 estimado ficou fora
     assert Decimal(str(item["preco_estimado"])) == Decimal("66.50")
+
+
+def test_exclusao_humana_dos_discrepantes_refaz_o_preco_e_registra(monkeypatch):
+    """O revisor clica, registra o motivo; o sistema exclui e recalcula."""
+    cliente = ClientePrecosFalso()
+    monkeypatch.setattr(db, "cliente_do_usuario", lambda: cliente)
+    valores = ("20.00", "21.00", "22.00", "23.00", "24.00", "500.00")
+    fonte = _FonteFalsa(FONTE_OFICIAL, [_homologada(f"r{i}", v)
+                                        for i, v in enumerate(valores)])
+    coleta = busca.coletar(dict(ITEM, id="c", numero=1), [fonte])
+    salvo = cesta.salvar_consulta_como_pesquisa(
+        repositorio=repo, nome="com discrepante", item=ITEM, coleta=coleta,
+        selecionados=coleta.pre_selecao(Decimal("0")),
+        perfil=perfil.LEI_14133, auth_user_id="u1")
+    pesquisa = repo.obter_pesquisa(salvo["pesquisa_id"])
+    [item] = repo.listar_itens(salvo["pesquisa_id"])
+    assert cesta.pendencias_do_item(item), "média com 500,00 é provisória"
+    assert cesta.validar_conclusao(item, "")
+
+    with pytest.raises(ValueError):
+        cesta.excluir_discrepantes(pesquisa, item, repo,
+                                   perfil=perfil.LEI_14133, motivo="")
+    estimativa = cesta.excluir_discrepantes(
+        pesquisa, item, repo, perfil=perfil.LEI_14133,
+        motivo="preço 20× acima da série, sem justificativa de mercado")
+    assert estimativa.valor_unitario == Decimal("22.00")
+    assert not estimativa.provisoria
+
+    [linha] = [r for r in cliente.tabelas["pesquisa_preco_referencias"]
+               if r["id_externo"] == "r5"]
+    assert linha["status"] == "rejected"
+    assert any("20× acima" in m for m in linha["motivos"])
+    [item] = repo.listar_itens(salvo["pesquisa_id"])
+    assert not cesta.pendencias_do_item(item)
+    evento = [e for e in cliente.tabelas["pesquisa_preco_eventos"]
+              if e["payload"].get("lote") == "discrepantes"]
+    assert len(evento) == 1
