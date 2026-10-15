@@ -1262,7 +1262,76 @@ def _render_revisao() -> None:
     _render_painel_estatistico(pesquisa, item, referencias)
     escolhidos = _render_filtros(referencias)
     _render_resultados(item, referencias, escolhidos)
+    _render_cotacao(pesquisa, item)
     _render_encerramento_do_item(item)
+
+
+def _render_cotacao(pesquisa: dict, item: dict) -> None:
+    """
+    Cotação direta com fornecedor (art. 23, § 1º, IV): registra a proposta
+    recebida, com solicitação formal, justificativa e comprovante, na
+    MESMA cesta. Nada é enviado ao fornecedor por aqui.
+    """
+    from ..precos import cesta as cesta_mod
+    from ..precos import cotacao
+
+    if str(item.get("estado")) not in cesta_mod.ESTADOS_RECALCULAVEIS:
+        return
+    with st.expander("Registrar cotação de fornecedor"):
+        st.caption("Para a pesquisa direta com fornecedores: no mínimo três, "
+                   "com solicitação formal e orçamentos de até 6 meses. O "
+                   "comprovante é registrado pela impressão digital "
+                   "(SHA-256); o arquivo segue nos autos do processo.")
+        with st.form(f"cotacao_{item['id']}", clear_on_submit=True):
+            a, b = st.columns([2, 1])
+            fornecedor = a.text_input("Fornecedor (razão social)")
+            cnpj = b.text_input("CNPJ")
+            c, d, e = st.columns(3)
+            valor = c.text_input("Valor unitário (R$)")
+            unidade = d.text_input("Unidade cotada",
+                                   value=str(item.get("unidade") or ""))
+            data_cotacao = e.date_input("Data da cotação", value=date.today(),
+                                        format="DD/MM/YYYY")
+            solicitacao = st.text_input(
+                "Solicitação formal", placeholder="Ex.: Ofício nº 12/2026, "
+                "de 01/10/2026, enviado por e-mail")
+            justificativa = st.text_area(
+                "Justificativa da escolha do fornecedor", height=70)
+            arquivo = st.file_uploader("Proposta recebida (PDF ou imagem)",
+                                       type=["pdf", "png", "jpg", "jpeg"])
+            enviar = st.form_submit_button("Registrar cotação", type="primary")
+        if not enviar:
+            return
+        try:
+            comprovante = cotacao.Comprovante.de(
+                arquivo.name if arquivo else "",
+                arquivo.getvalue() if arquivo else b"")
+            referencia = cotacao.montar(
+                item, fornecedor=fornecedor, cnpj=cnpj,
+                data_cotacao=data_cotacao, valor_unitario=valor,
+                unidade=unidade, solicitacao=solicitacao,
+                justificativa=justificativa, comprovante=comprovante,
+                data_base=_data_base(pesquisa),
+                registrado_por=_identidade()[0])
+            cotacao.registrar(pesquisa, item, referencia, repo,
+                              perfil=perfil.obter(
+                                  pesquisa.get("perfil_normativo")),
+                              ator=_identidade()[0])
+        except cotacao.ErroCotacao as erro:
+            st.error(f"Cotação não registrada: {erro}.")
+            return
+        except db.ErroBanco as erro:
+            st.error(str(erro))
+            return
+        st.success("Cotação registrada e preço do item recalculado.")
+        st.rerun()
+
+
+def _data_base(pesquisa: dict) -> date:
+    try:
+        return date.fromisoformat(str(pesquisa.get("data_base") or "")[:10])
+    except ValueError:
+        return date.today()
 
 
 def _cabecalho_do_item(pesquisa: dict, item: dict) -> None:

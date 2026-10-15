@@ -53,7 +53,7 @@ def referencia_da_linha(linha: dict) -> Referencia:
                     nome=str(linha.get("fonte_nome") or ""),
                     tipo=str(linha.get("fonte_tipo") or "outro")),
         id_externo=str(linha.get("id_externo") or ""),
-        bruto={},
+        bruto=dict(linha.get("bruto") or {}),
         descricao_original=str(linha.get("descricao_original") or ""),
         unidade_original=linha.get("unidade_original"),
         valor_unitario_original=_decimal(linha.get("valor_unitario_original")),
@@ -64,6 +64,14 @@ def referencia_da_linha(linha: dict) -> Referencia:
         valor_unitario_normalizado=_decimal(
             linha.get("valor_unitario_normalizado")),
     )
+
+
+def _compoe_cesta(referencia: Referencia) -> bool:
+    """Preço praticado/homologado/contratado/adjudicado, ou cotação direta
+    registrada com a trilha do art. 23, § 1º, IV (`cotacao.admissivel`)."""
+    from . import cotacao
+
+    return referencia.serve_de_preco or cotacao.admissivel(referencia)
 
 
 def recalcular(linhas: list[dict], *, perfil: PerfilNormativo,
@@ -79,7 +87,7 @@ def recalcular(linhas: list[dict], *, perfil: PerfilNormativo,
                     if str(linha.get("status")) == SELECIONADA]
     com_preco = [r for r in selecionadas
                  if r.valor_unitario_normalizado is not None]
-    de_preco = [r for r in com_preco if r.serve_de_preco]
+    de_preco = [r for r in com_preco if _compoe_cesta(r)]
     cesta = estatistica.Cesta(selecionadas=de_preco)
     if len(com_preco) < len(selecionadas):
         cesta.motivos.append(
@@ -119,7 +127,7 @@ def validas_na_cesta(linhas: list[dict]) -> int:
                if str(linha.get("status")) == SELECIONADA
                and _decimal(linha.get("valor_unitario_normalizado"))
                is not None
-               and referencia_da_linha(linha).serve_de_preco)
+               and _compoe_cesta(referencia_da_linha(linha)))
 
 
 def na_cesta_do_item(item: dict) -> int | None:

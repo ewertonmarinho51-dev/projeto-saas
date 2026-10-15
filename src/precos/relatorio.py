@@ -485,6 +485,10 @@ def _analise_do_item(item: dict,
     saida.append("")
     saida.append(_tabela_de_referencias(selecionadas))
     saida.append("")
+    cotacoes = _cotacoes_diretas(selecionadas + descartadas)
+    if cotacoes:
+        saida.append(cotacoes)
+        saida.append("")
 
     # §31.14 — o que ficou de fora NUNCA some do relatório.
     saida.append(f"**Referências desconsideradas ({len(descartadas)})** — "
@@ -525,6 +529,36 @@ def _analise_do_item(item: dict,
                  f"{_moeda(item.get('preco_total'))}")
     saida.append("")
     return saida
+
+
+def _cotacoes_diretas(linhas: list[dict]) -> str:
+    """
+    A trilha do art. 23, § 1º, IV, para cada cotação direta do item:
+    fornecedor, CNPJ, data, solicitação formal, justificativa da escolha
+    e a impressão digital do comprovante juntado aos autos.
+    """
+    cotacoes = [linha for linha in linhas
+                if str(linha.get("fonte_id")) == "cotacao_direta"]
+    if not cotacoes:
+        return ""
+    saida = [f"**Cotações diretas com fornecedores ({len(cotacoes)})** — "
+             "Lei 14.133/2021, art. 23, § 1º, IV", "",
+             "| Fornecedor | CNPJ | Data | Unitário | Solicitação formal | "
+             "Justificativa | Comprovante (SHA-256) |",
+             "|---|---|---|---|---|---|---|"]
+    for linha in cotacoes:
+        bruto = linha.get("bruto") or {}
+        comprovante = bruto.get("comprovante") or {}
+        saida.append("| " + " | ".join([
+            _texto(linha.get("fornecedor")),
+            _texto(linha.get("ni_fornecedor")),
+            _data(linha.get("data_compra")),
+            _moeda(linha.get("valor_unitario_original")),
+            _texto(bruto.get("solicitacao_formal")),
+            _texto(bruto.get("justificativa_escolha")),
+            _texto(comprovante.get("sha256")),
+        ]) + " |")
+    return "\n".join(saida)
 
 
 def _tabela_de_referencias(linhas: list[dict],
