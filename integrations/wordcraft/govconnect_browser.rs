@@ -60,6 +60,13 @@ pub fn validate_checkpoint(bytes: Vec<u8>) -> Result<(), JsValue> {
     adapter::load_bytes(&bytes).map(|_| ()).map_err(error)
 }
 
+/// Pure DOCX import. The server admits the ZIP/OPC package before invoking WASM.
+/// Returns the same native checkpoint used by editing, validation and export.
+#[wasm_bindgen]
+pub fn import_docx(bytes: Vec<u8>) -> Result<Vec<u8>, JsValue> {
+    adapter::import_docx(&bytes).map_err(error)
+}
+
 /// Server-side export of the exact validated revision; no canvas or download side channel.
 #[wasm_bindgen]
 pub fn export_checkpoint(bytes: Vec<u8>, format: &str) -> Result<Vec<u8>, JsValue> {

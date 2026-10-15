@@ -108,15 +108,43 @@ export async function exportCheckpoint(content, bundle, manifestHash, format) {
   return bytes;
 }
 
+// The Python admission boundary must run preflight_docx before starting this
+// worker. This API never accepts a filename, path, URL or arbitrary format.
+export async function importDocx(content, bundle, manifestHash) {
+  if (!(content instanceof Uint8Array) || content.length < 4
+      || !Buffer.from(content.subarray(0, 4)).equals(Buffer.from([80, 75, 3, 4]))) {
+    throw new ModelRejected('DOCX ZIP signature required.');
+  }
+  const engine = await loadEngine(content, bundle, manifestHash);
+  if (typeof engine.import_docx !== 'function') throw new Error('Native import API missing.');
+  let result;
+  try { result = engine.import_docx(content); }
+  catch (error) {
+    if (typeof error === 'string') throw new ModelRejected('Native import rejected.');
+    throw new Error('Native import failed.');
+  }
+  if (!(result instanceof Uint8Array) || !result.length || result.length > maxBytes) {
+    throw new Error('Unexpected native checkpoint size.');
+  }
+  // Reopen through the same model validator before trusting any returned bytes.
+  try {
+    if (engine.validate_checkpoint(result) !== undefined) throw new Error('Unexpected native validation result.');
+  } catch { throw new Error('Imported native checkpoint failed validation.'); }
+  return Buffer.from(result);
+}
+
 async function main() {
   try {
     const args = process.argv.slice(2);
     if (![4, 6].includes(args.length) || args[0] !== '--bundle' || args[2] !== '--manifest-sha256'
-        || (args.length === 6 && args[4] !== '--export-format')) {
+        || (args.length === 6 && !['--export-format', '--import-format'].includes(args[4]))
+        || (args[4] === '--import-format' && args[5] !== 'docx')) {
       throw new Error('Explicit pinned bundle required.');
     }
     const content = await readInput(process.stdin);
-    if (args.length === 6) {
+    if (args[4] === '--import-format') {
+      process.stdout.write(await importDocx(content, args[1], args[3]));
+    } else if (args.length === 6) {
       process.stdout.write(await exportCheckpoint(content, args[1], args[3], args[5]));
     } else {
       await validate(content, args[1], args[3]);

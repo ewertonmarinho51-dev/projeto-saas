@@ -170,6 +170,21 @@ pub fn load_into(session: &mut Session, bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+/// DOCX bytes only; the trusted backend must admit ZIP/OPC parts before calling.
+/// The fixed internal name selects the existing importer, never a client path.
+/// Importing neither replaces a live session nor acknowledges persistence.
+pub fn import_docx(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    if bytes.is_empty() || bytes.len() > MAX_BYTES || !bytes.starts_with(b"PK\x03\x04") {
+        return Err("DOCX byte bound or signature invalid".into());
+    }
+    let doc = wordcraft_engine::io::open_bytes("document.docx", bytes)?;
+    let checkpoint = serialize(&doc)?;
+    if load_bytes(&checkpoint)? != doc {
+        return Err("imported checkpoint changed the native document".into());
+    }
+    Ok(checkpoint)
+}
+
 /// Selection is context, never an authorization decision. Paths are revision-bound.
 pub fn selection(session: &Session) -> Result<Value, String> {
     let positions = serde_json::to_value(&session.sel).map_err(|e| e.to_string())?;
@@ -406,5 +421,26 @@ mod tests {
         let bytes = export(&s, ExportFormat::Docx).unwrap();
         let back = wordcraft_engine::io::open_bytes("x.docx", &bytes).unwrap();
         assert!(String::from_utf8(wordcraft_engine::io::save_bytes("x.txt", &back).unwrap()).unwrap().contains("Nova Licitação"));
+    }
+
+    #[test]
+    fn imported_docx_uses_the_existing_codec_and_keeps_the_original_session() {
+        let session = Session::new(example());
+        let before = serialize(&session.doc).unwrap();
+        let docx = export(&session, ExportFormat::Docx).unwrap();
+        let checkpoint = import_docx(&docx).unwrap();
+        let document = load_bytes(&checkpoint).unwrap();
+        let text = wordcraft_engine::io::save_bytes("document.txt", &document).unwrap();
+        assert!(String::from_utf8(text).unwrap().contains("Município — contratação pública"));
+        assert_eq!(serialize(&document).unwrap(), checkpoint);
+        assert_eq!(serialize(&session.doc).unwrap(), before);
+    }
+
+    #[test]
+    fn docx_import_never_falls_back_to_text_json_or_an_unbounded_input() {
+        for bytes in [b"plain text".as_slice(), b"{}", b"%PDF-document", b"PK\x03\x04invalid ZIP", b""] {
+            assert!(import_docx(bytes).is_err());
+        }
+        assert!(import_docx(&vec![0; MAX_BYTES + 1]).is_err());
     }
 }

@@ -207,6 +207,7 @@ jobs:
           grep -R -l 'GovConnectEditor' ../../dist/web/*.js > ../../../build-evidence/govconnect-api-exports.txt
           grep -R -l 'validate_checkpoint' ../../dist/web/*.js >> ../../../build-evidence/govconnect-api-exports.txt
           grep -R -l 'export_checkpoint' ../../dist/web/*.js >> ../../../build-evidence/govconnect-api-exports.txt
+          grep -R -l 'import_docx' ../../dist/web/*.js >> ../../../build-evidence/govconnect-api-exports.txt
           test -z "$(find ../../dist/web -name '*.ico' -print -quit)"
           if grep -E 'wordcraft\.ico|<title>WordCraft</title>|Loading WordCraft' ../../dist/web/index.html; then
             echo "Unmodified upstream brand shell remains in the integration build"
@@ -299,6 +300,61 @@ jobs:
           await writeFile('build-evidence/native-server-export.txt',
             '3 snapshots exported as DOCX/PDF by pure WASM; unapproved format rejected; fidelity approval pending\n');
           JS
+      - name: Import verified DOCX through server admission and the pure WASM API
+        run: |
+          python3 - <<'PY'
+          import hashlib, importlib.util, json, pathlib, shutil
+          from src.wordcraft_native import importar_docx, validar, exportar, ModeloRecusado
+          spec = importlib.util.spec_from_file_location('wordcraft_corpus', 'scripts/wordcraft_corpus.py')
+          corpus = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(corpus)
+          inputs = pathlib.Path('tests/fixtures/wordcraft')
+          manifest = corpus.verify_inputs(inputs)
+          bundle = pathlib.Path('wordcraft-local-qa').resolve()
+          kwargs = {'node': pathlib.Path(shutil.which('node')), 'bundle': bundle,
+                    'manifest_sha256': hashlib.sha256((bundle / 'qa-manifest.json').read_bytes()).hexdigest()}
+          base = pathlib.Path('build-evidence/server-import-roundtrip')
+          base.mkdir()
+          cases = []
+          for item in manifest['files']:
+              source = inputs / item['path']
+              original = source.read_bytes()
+              checkpoint = importar_docx(original, **kwargs)
+              validar(checkpoint, **kwargs)
+              out = base / source.stem
+              out.mkdir()
+              (out / 'checkpoint.json').write_bytes(checkpoint)
+              artifacts = {}
+              for format in ('docx', 'pdf'):
+                  artifact = exportar(checkpoint, formato=format, **kwargs)
+                  (out / ('roundtrip.' + format)).write_bytes(artifact)
+                  artifacts[format] = hashlib.sha256(artifact).hexdigest()
+              before = corpus.text_blocks(original)
+              first_docx = (out / 'roundtrip.docx').read_bytes()
+              if corpus.text_blocks(first_docx) != before:
+                  raise AssertionError('Server DOCX import/export changed text or links')
+              second_checkpoint = importar_docx(first_docx, **kwargs)
+              validar(second_checkpoint, **kwargs)
+              second_docx = exportar(second_checkpoint, formato='docx', **kwargs)
+              if corpus.text_blocks(second_docx) != before:
+                  raise AssertionError('Reimported DOCX changed text or links')
+              if source.stem.startswith('02'):
+                  text = json.dumps(json.loads(checkpoint), ensure_ascii=False)
+                  if any(code not in text for code in manifest['oracle']['codes']):
+                      raise AssertionError('Imported native checkpoint dropped an item code')
+              cases.append({'case': source.stem, 'source_sha256': hashlib.sha256(original).hexdigest(),
+                            'checkpoint_sha256': hashlib.sha256(checkpoint).hexdigest(),
+                            'artifacts_sha256': artifacts, 'reimport_semantic_text_and_links': 'PASS'})
+          try:
+              importar_docx(b'PK\x03\x04invalid synthetic DOCX', **kwargs)
+          except ModeloRecusado:
+              pass
+          else:
+              raise AssertionError('Invalid DOCX was accepted')
+          (base / 'comparison.json').write_text(json.dumps({
+              'status': 'NATIVE_IMPORT_ROUNDTRIP_CHECKED_VISUAL_REVIEW_PENDING',
+              'cases': cases}, indent=2) + '\n')
+          PY
       - name: Preserve assets for the local browser integration test
         uses: actions/upload-artifact@v4
         with:
