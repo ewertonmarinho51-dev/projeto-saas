@@ -36,7 +36,7 @@ def setup(monkeypatch):
         "media": {}, "passthrough": {}}).encode()
     identity = {"sub": str(uuid4()), "role": "authenticated", "app_metadata": {"tenant_id": str(uuid4())}}
     head = dict(id=str(uuid4()), processo_id=str(uuid4()), tipo="dfd", revision=1,
-                content_hash=hashlib.sha256(payload).hexdigest(), status="rascunho")
+                content_hash=hashlib.sha256(payload).hexdigest(), status="rascunho", tenant_id=identity["app_metadata"]["tenant_id"])
     checkpoint = Checkpoint(str(uuid4()), 1, head["content_hash"], payload)
     state = {"context": identity, "server_calls": [], "native_calls": [], "head": head}
     row = dict(payload="\\x" + payload.hex(), content_hash=head["content_hash"],
@@ -51,8 +51,12 @@ def setup(monkeypatch):
 
         def table(self, name):
             if name == "processos":
-                return Query([state.get("process", {"id": head["processo_id"], "documentos": {"dfd": "Original\r\n**legado**"}})])
-            return Query([state["head"]] if name == "documentos_editor" else [state["row"]])
+                return Query([state.get("process", {"id": head["processo_id"], "tenant_id": head["tenant_id"],
+                    "secretaria_id": None, "criado_em": "2026-01-20T12:00:00Z", "dados": {},
+                    "documentos": {"dfd": "Original\r\n**legado**"}})])
+            if name == "documentos_editor":
+                return Query([state["head"]])
+            return Query([state["row"]] if name == "documentos_editor_revisoes" else [])
 
     class Server:
         def rpc(self, name, params):
@@ -64,6 +68,7 @@ def setup(monkeypatch):
                           validation_provenance="server_manifest_sha256",
                           block_index_sha256=params["p_block_index_sha256"], index_mode=params["p_index_mode"],
                           restored_from_revision=params["p_restored_from_revision"],
+                          institutional_snapshot_sha256=params["p_institutional_snapshot_sha256"],
                           original_hash=hashlib.sha256(bytes.fromhex(params["p_original_payload"][2:])).hexdigest()
                             if params["p_original_payload"] else None)
             if state.get("persist"):
@@ -75,6 +80,8 @@ def setup(monkeypatch):
                     index_mode=params["p_index_mode"], restored_from_revision=params["p_restored_from_revision"],
                     original_format=params["p_original_format"], original_payload=params["p_original_payload"],
                     original_hash=result["original_hash"], conversion_report=params["p_conversion_report"])
+                state["row"].update(institutional_snapshot=params["p_institutional_snapshot"],
+                    institutional_snapshot_sha256=params["p_institutional_snapshot_sha256"])
                 state["row"].update(operation_id=params["p_operation"], revision=result["revision"])
             return Query(state.get("server_result", [result]))
 

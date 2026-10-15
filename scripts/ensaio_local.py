@@ -139,6 +139,7 @@ SEQUENCIA_EM_ENSAIO = (
     "20261015035015_documentos_editor.sql",
     "20261015045831_documentos_editor_proveniencia.sql",
     "20261015122441_documentos_editor_persistencia_g2.sql",
+    "20261015124841_documentos_editor_snapshot_institucional.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

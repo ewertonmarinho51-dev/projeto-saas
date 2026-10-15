@@ -51,7 +51,7 @@ def seed_scenario(banco):
 
 def commit(banco, scenario, *, expected=0, payload=b"opaque SQL fixture", operation=None, claims=None,
            build="a" * 64, legacy=False, provenance_only=False, original=None, restored=None,
-           index=None, mode=None):
+           index=None, mode=None, g2_only=False):
     from psycopg.types.json import Jsonb
     if not legacy and not provenance_only:
         if mode is None:
@@ -68,6 +68,22 @@ def commit(banco, scenario, *, expected=0, payload=b"opaque SQL fixture", operat
                 "revision": expected + 1, "content_hash": hashlib.sha256(payload).hexdigest(),
                 "engine_manifest_sha256": build, "blocos": [], "invalidacoes": [], "areas_nao_enderecaveis": []},
                 sort_keys=True, separators=(",", ":")).encode()
+    institutional = None
+    if not legacy and not provenance_only and not g2_only:
+        if expected:
+            with banco.cursor() as lookup:
+                lookup.execute("select institutional_snapshot from public.documentos_editor_revisoes "
+                               "where document_id=%s and revision=%s", (scenario["doc"], restored or expected))
+                previous = lookup.fetchone()
+                if previous and previous[0] is not None:
+                    institutional = bytes(previous[0])
+        if institutional is None:
+            metadata = scenario["owner"]["app_metadata"]
+            institutional = json.dumps({"schema": "gc-wordcraft-institutional/v1", "phase": "draft_reference",
+                "application": "reference_only", "document_id": str(scenario["doc"]), "processo_id": str(scenario["process"]),
+                "tenant_id": metadata["tenant_id"], "secretaria_id": metadata.get("secretaria_id"), "doc_key": "dfd",
+                "captured_for_revision": expected + 1, "reference_date": "2026-01-20", "identity": {},
+                "signatories": [], "portaria": None, "signature_block": ""}, sort_keys=True, separators=(",", ":")).encode()
     with role(banco, "service_role") as cursor:
         params = (scenario["doc"], scenario["process"], "dfd", expected, operation or scenario["operation"],
                   payload, hashlib.sha256(payload).hexdigest(), Jsonb(claims or scenario["owner"]))
@@ -77,6 +93,8 @@ def commit(banco, scenario, *, expected=0, payload=b"opaque SQL fixture", operat
             params += (index, hashlib.sha256(index).hexdigest(), mode,
                        original[0] if original else None, original[1] if original else None,
                        Jsonb(original[2]) if original else None, restored)
+        if institutional is not None:
+            params += (institutional, hashlib.sha256(institutional).hexdigest())
         cursor.execute("select * from public.documento_editor_checkpoint(" + ",".join(["%s"] * len(params)) + ")", params)
         result = cursor.fetchone()
         cursor.execute("select auth.jwt()->>'role'")
@@ -169,7 +187,7 @@ def test_public_roles_cannot_bypass_the_native_validation_owner(banco, scenario)
     for name in ("anon", "authenticated"):
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             with role(banco, name, scenario["owner"] if name == "authenticated" else None) as cursor:
-                cursor.execute("select * from public.documento_editor_checkpoint(" + ",".join(["null"] * 16) + ")")
+                cursor.execute("select * from public.documento_editor_checkpoint(" + ",".join(["null"] * 18) + ")")
 
 
 def test_revoked_profile_loses_read_and_commit_with_old_claims(banco, scenario):
@@ -232,7 +250,7 @@ def test_only_new_private_signature_exists_and_cannot_omit_build(banco):
                        "has_function_privilege('service_role',oid,'execute') "
                        "from pg_proc where pronamespace='public'::regnamespace "
                        "and proname='documento_editor_checkpoint'")
-        assert cursor.fetchall() == [(16, False, ['search_path=""'], False, False, True)]
+        assert cursor.fetchall() == [(18, False, ['search_path=""'], False, False, True)]
 
 
 def test_even_direct_server_insert_cannot_create_an_unrecorded_new_revision(banco, scenario):
@@ -267,7 +285,8 @@ def test_migration_preserves_legacy_revision_without_retroattributing_a_build(en
             with monkeypatch.context() as legacy_schema:
                 legacy_schema.setattr(harness, "SEQUENCIA_EM_ENSAIO",
                     tuple(item for item in harness.SEQUENCIA_EM_ENSAIO if item not in {
-                        migration, "20261015122441_documentos_editor_persistencia_g2.sql"}))
+                        migration, "20261015122441_documentos_editor_persistencia_g2.sql",
+                        "20261015124841_documentos_editor_snapshot_institucional.sql"}))
                 harness.preparar(connection)
             old = seed_scenario(connection)
             before = commit(connection, old, legacy=True)
@@ -291,6 +310,7 @@ def test_migration_preserves_legacy_revision_without_retroattributing_a_build(en
                 cursor.execute("select block_index,block_index_sha256,index_mode from public.documentos_editor_revisoes "
                                "where document_id=%s order by revision", (old["doc"],))
                 assert cursor.fetchall() == [(None, None, None), (None, None, None)]
+                cursor.execute((harness.MIGRACOES / "20261015124841_documentos_editor_snapshot_institucional.sql").read_text(encoding="utf-8"))
             assert commit(connection, old, expected=2, operation=uuid4())[8] == "rebuilt_missing_index"
     finally:
         harness.descartar_banco(dsn_base, name)

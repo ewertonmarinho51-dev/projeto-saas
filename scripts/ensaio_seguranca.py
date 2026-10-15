@@ -271,6 +271,7 @@ RPCS = {
         "p_block_index": "\\x7b7d", "p_block_index_sha256": hashlib.sha256(b"{}").hexdigest(),
         "p_index_mode": "initial", "p_original_format": None, "p_original_payload": None,
         "p_conversion_report": None, "p_restored_from_revision": None,
+        "p_institutional_snapshot": "\\x7b7d", "p_institutional_snapshot_sha256": hashlib.sha256(b"{}").hexdigest(),
     },
 }
 
