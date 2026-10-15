@@ -356,6 +356,9 @@ FONTES_REGISTRADAS: dict[str, str] = {
     "compras_gov_precos": "sistema_oficial",
     "compras_gov_itens": "contratacao_similar",
     "pncp": "sistema_oficial",
+    # cotação registrada pelo servidor (art. 23, § 1º, IV): não é sistema
+    # oficial e não ganha prioridade de um — ver `cotacao.py`
+    "cotacao_direta": "outro",
 }
 
 TIPO_NAO_REGISTRADO = "outro"

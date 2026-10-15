@@ -1,0 +1,3390 @@
+{
+  "resumo": {
+    "quando": "2026-10-15T14:21:31+00:00",
+    "itens": 210,
+    "total_s": 883.7,
+    "p50_s": 1.92,
+    "p95_s": 14.74,
+    "itens_por_minuto": 14.26,
+    "cobertura_bruta_media": 339.0,
+    "itens_com_referencia": 187,
+    "itens_3_mais_na_cesta": 91,
+    "itens_concluidos": 91,
+    "itens_com_erro_de_fonte": 1,
+    "metodos": {
+      "null": 1,
+      "media": 121,
+      "automatico": 88
+    },
+    "chamadas_total": {
+      "compras_gov_itens": 604,
+      "pncp": 0
+    },
+    "chamadas_por_item": {
+      "compras_gov_itens": 2.88,
+      "pncp": 0.0
+    }
+  },
+  "itens": [
+    {
+      "numero": 1,
+      "descricao": "ALFINETE PARA MURAL ESPECIFICAÇÃO: corpo em aço com tratamen",
+      "segundos": 2.8,
+      "encontradas": 51,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "3.34",
+      "valor_planilha": 18.21,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 2,
+      "descricao": "ALMOFADA PARA CARIMBO 12 x 9cm ESPECIFICAÇÃO: almofada para ",
+      "segundos": 12.32,
+      "encontradas": 283,
+      "na_cesta": 32,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "4.86",
+      "valor_planilha": 15.75,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 3,
+      "descricao": "APAGADOR PARA QUADRO BRANCO ESPECIFICAÇÃO: Corpo resistente,",
+      "segundos": 6.0,
+      "encontradas": 311,
+      "na_cesta": 301,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "5.48",
+      "valor_planilha": 20.2,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 4,
+      "descricao": "APONTADOR COM DEPÓSITO ESPECIFICAÇÃO: Corpo plástico resiste",
+      "segundos": 5.31,
+      "encontradas": 430,
+      "na_cesta": 193,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "3.23",
+      "valor_planilha": 4.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 5,
+      "descricao": "BALÕES PCT. C/ 50 UNID ESPECIFICAÇÃO: TAMANHO Nº 7 - LISO",
+      "segundos": 3.41,
+      "encontradas": 192,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 13.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 6,
+      "descricao": "BARBANTE CRU - 8 FIOS. ESPECIFICAÇÃO: Barbante cru, confecci",
+      "segundos": 11.6,
+      "encontradas": 435,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 26.99,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 7,
+      "descricao": "BARBANTE CRU 250G ESPECIFICAÇÃO: Em algodão ou material equi",
+      "segundos": 1.83,
+      "encontradas": 435,
+      "na_cesta": 31,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "17.56",
+      "valor_planilha": 12.7,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 8,
+      "descricao": "BASTÃO DE COLA QUENTE FINA ESPECIFICAÇÃO:",
+      "segundos": 2.08,
+      "encontradas": 53,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "0.58",
+      "valor_planilha": 0.87,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 9,
+      "descricao": "BASTÃO DE COLA QUENTE GROSSA ESPECIFICAÇÃO:",
+      "segundos": 1.56,
+      "encontradas": 53,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "0.58",
+      "valor_planilha": 1.81,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 10,
+      "descricao": "BATERIA ALCALINA 9V ESPECIFICAÇÃO: tensão nominal padrão, em",
+      "segundos": 11.21,
+      "encontradas": 126,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 29.95,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 11,
+      "descricao": "BATERIA LITHIUM 3V CR2032 ESPECIFICAÇÃO:",
+      "segundos": 1.2,
+      "encontradas": 126,
+      "na_cesta": 57,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "37.39",
+      "valor_planilha": 2.58,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 12,
+      "descricao": "BLOCO AUTOADESIVO 38X50 ESPECIFICAÇÃO: Bloco de notas autoad",
+      "segundos": 2.42,
+      "encontradas": 21,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 4.13,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 13,
+      "descricao": "BLOCO AUTOADESIVO 76X76 ESPECIFICAÇÃO: Bloco de notas autoad",
+      "segundos": 1.09,
+      "encontradas": 21,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 8.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 14,
+      "descricao": "BOBINA TÉRMICA 80X40 ESPECIFICAÇÃO: Papel térmico de boa leg",
+      "segundos": 3.98,
+      "encontradas": 234,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 4.33,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 15,
+      "descricao": "BORRACHA BRANCA.. ESPECIFICAÇÃO: Macia para escrita a lápis,",
+      "segundos": 19.3,
+      "encontradas": 500,
+      "na_cesta": 348,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "11.26",
+      "valor_planilha": 1.7,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 16,
+      "descricao": "BORRACHA PONTEIRA. ESPECIFICAÇÃO: Cor branca. produzida em b",
+      "segundos": 2.96,
+      "encontradas": 1,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 0.63,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 17,
+      "descricao": "CADERNO BROCHURA 96 FLS - CAPA DURA PEQUENO ESPECIFICAÇÃO:",
+      "segundos": 19.99,
+      "encontradas": 499,
+      "na_cesta": 158,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "29.99",
+      "valor_planilha": 8.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 18,
+      "descricao": "CADERNO BROCHURA 96FLS - CAPA DURA GRANDE ESPECIFICAÇÃO:",
+      "segundos": 1.74,
+      "encontradas": 499,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 14.7,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 19,
+      "descricao": "CADERNO CAPA DURA C/ 12 MAT. ESPECIFICAÇÃO:",
+      "segundos": 1.67,
+      "encontradas": 499,
+      "na_cesta": 9,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "13.44",
+      "valor_planilha": 34.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 20,
+      "descricao": "CADERNO CAPA DURA C/ ARAME 96FLS ESPECIFICAÇÃO: C/ 1 MATÉRIA",
+      "segundos": 0.52,
+      "encontradas": 1,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "38.90",
+      "valor_planilha": 14.2,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 1,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 21,
+      "descricao": "CAIXA ARQUIVO MORTO ESPECIFICAÇÃO: Em polipropileno ou mater",
+      "segundos": 24.93,
+      "encontradas": 999,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "6.60",
+      "valor_planilha": 7.66,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 22,
+      "descricao": "CAIXA ORGANIZADORA CRISTAL PARA 6 PASTA SUSPENSA ECOLÓGICAS.",
+      "segundos": 5.29,
+      "encontradas": 757,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "27.65",
+      "valor_planilha": 36.7,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 23,
+      "descricao": "CALCULADORA DE MESA 12D ESPECIFICAÇÃO: visor inclinado, míni",
+      "segundos": 9.14,
+      "encontradas": 282,
+      "na_cesta": 103,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "39.95",
+      "valor_planilha": 49.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 24,
+      "descricao": "CANETA ESFEROGRAFICA ESPECIFICAÇÃO: corpo em resina termoplá",
+      "segundos": 2.72,
+      "encontradas": 502,
+      "na_cesta": 362,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "4.32",
+      "valor_planilha": 0.94,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 25,
+      "descricao": "CANETA HIDROCOR C/ 12 UNIDADES ESPECIFICAÇÃO:",
+      "segundos": 2.23,
+      "encontradas": 56,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 5.99,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 26,
+      "descricao": "CAPA PARA ENCADERNAÇÃO. ESPECIFICAÇÃO: transparente, formato",
+      "segundos": 13.5,
+      "encontradas": 314,
+      "na_cesta": 134,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "6.52",
+      "valor_planilha": 0.6,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 27,
+      "descricao": "CLIPE N° 1/0 ESPECIFICAÇÃO: Em arame de aço galvanizado ou n",
+      "segundos": 11.05,
+      "encontradas": 502,
+      "na_cesta": 18,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "2.97",
+      "valor_planilha": 3.75,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 28,
+      "descricao": "CLIPE N° 2/0 ESPECIFICAÇÃO: Em arame de aço galvanizado ou n",
+      "segundos": 2.15,
+      "encontradas": 502,
+      "na_cesta": 59,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "3.62",
+      "valor_planilha": 3.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 29,
+      "descricao": "CLIPE N° 3/0 ESPECIFICAÇÃO: em arame de aço galvanizado ou n",
+      "segundos": 1.92,
+      "encontradas": 502,
+      "na_cesta": 38,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "4.04",
+      "valor_planilha": 3.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 30,
+      "descricao": "CLIPE N° 4/0 ESPECIFICAÇÃO: em arame de aço galvanizado ou n",
+      "segundos": 1.45,
+      "encontradas": 502,
+      "na_cesta": 68,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "6.47",
+      "valor_planilha": 3.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 31,
+      "descricao": "CLIPE N° 6/0 ESPECIFICAÇÃO: Em arame de aço galvanizado ou n",
+      "segundos": 1.52,
+      "encontradas": 502,
+      "na_cesta": 50,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "4.04",
+      "valor_planilha": 3.78,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 32,
+      "descricao": "CLIPE N° 8/0 ESPECIFICAÇÃO: Em arame de aço galvanizado ou n",
+      "segundos": 1.41,
+      "encontradas": 502,
+      "na_cesta": 56,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "4.48",
+      "valor_planilha": 3.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 33,
+      "descricao": "COLA BASTÃO 8G. ESPECIFICAÇÃO: Não tóxica, secagem rápida, a",
+      "segundos": 14.74,
+      "encontradas": 500,
+      "na_cesta": 40,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "15.16",
+      "valor_planilha": 2.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 34,
+      "descricao": "COLA BRANCA (KG) ESPECIFICAÇÃO:",
+      "segundos": 1.74,
+      "encontradas": 500,
+      "na_cesta": 13,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "50.58",
+      "valor_planilha": 45.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 35,
+      "descricao": "COLA BRANCA 90G ESPECIFICAÇÃO: Líquida à base de PVA, não tó",
+      "segundos": 2.28,
+      "encontradas": 500,
+      "na_cesta": 57,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "10.65",
+      "valor_planilha": 2.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 36,
+      "descricao": "COLA COLORIDA CX C/ 06 UNIDADES ESPECIFICAÇÃO: 23G CADA",
+      "segundos": 1.56,
+      "encontradas": 500,
+      "na_cesta": 5,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "23.75",
+      "valor_planilha": 14.92,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 37,
+      "descricao": "COLA ISOPOR 1KG ESPECIFICAÇÃO:",
+      "segundos": 1.59,
+      "encontradas": 500,
+      "na_cesta": 4,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "79.15",
+      "valor_planilha": 65.42,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 38,
+      "descricao": "COLA P/ E.V.A 90 GR. ESPECIFICAÇÃO:",
+      "segundos": 1.54,
+      "encontradas": 500,
+      "na_cesta": 108,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "14.43",
+      "valor_planilha": 5.6,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 39,
+      "descricao": "COLA PARA ISOPOR 90g ESPECIFICAÇÃO: Embalagem com 90 ml, com",
+      "segundos": 1.58,
+      "encontradas": 500,
+      "na_cesta": 14,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "4.67",
+      "valor_planilha": 8.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 40,
+      "descricao": "COLCHETE BAILARINA N° 10 ESPECIFICAÇÃO: Em chapa metálica la",
+      "segundos": 14.37,
+      "encontradas": 304,
+      "na_cesta": 26,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "8.40",
+      "valor_planilha": 12.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 41,
+      "descricao": "COLCHETE BAILARINA N° 15 ESPECIFICAÇÃO: Em chapa metálica la",
+      "segundos": 1.57,
+      "encontradas": 304,
+      "na_cesta": 26,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "9.08",
+      "valor_planilha": 34.99,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 42,
+      "descricao": "COLCHETE BAILARINA N° 6 ESPECIFICAÇÃO: Em chapa metálica lat",
+      "segundos": 2.6,
+      "encontradas": 304,
+      "na_cesta": 16,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "7.18",
+      "valor_planilha": 8.36,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 43,
+      "descricao": "CONTRACAPA PARA ENCADERNAÇÃO ESPECIFICAÇÃO: formato A4, em P",
+      "segundos": 0.49,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 0.57,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 1,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 44,
+      "descricao": "CORDÃO PARA CRACHA ESPECIFICAÇÃO: ROLO COM 100MT",
+      "segundos": 2.14,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 70.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 45,
+      "descricao": "CORRETIVO EM FITA ESPECIFICAÇÃO: largura aproximada de 5 mm,",
+      "segundos": 37.4,
+      "encontradas": 475,
+      "na_cesta": 130,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "5.38",
+      "valor_planilha": 7.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 46,
+      "descricao": "CORRETIVO LÍQUIDO 18ML. ESPECIFICAÇÃO: à base d?água, secage",
+      "segundos": 1.97,
+      "encontradas": 475,
+      "na_cesta": 178,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "1.87",
+      "valor_planilha": 4.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 47,
+      "descricao": "ELÁSTICO Nº 18. ESPECIFICAÇÃO: Super elásticos resistentes, ",
+      "segundos": 4.18,
+      "encontradas": 376,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 19.99,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 48,
+      "descricao": "ENVELOPE AMARELO 260MMX360MM ESPECIFICAÇÃO:",
+      "segundos": 10.96,
+      "encontradas": 578,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 0.75,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 49,
+      "descricao": "ENVELOPE AMARELO MÉDIO. ESPECIFICAÇÃO: Formatos como Kraft 1",
+      "segundos": 4.34,
+      "encontradas": 211,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 0.35,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 50,
+      "descricao": "ENVELOPE BRANCO 260MMX360MM ESPECIFICAÇÃO:",
+      "segundos": 2.32,
+      "encontradas": 578,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 1.06,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 51,
+      "descricao": "ENVELOPE OFÍCIO/CARTA ESPECIFICAÇÃO: Aproximadamente 114 x 2",
+      "segundos": 2.4,
+      "encontradas": 578,
+      "na_cesta": 58,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "7.36",
+      "valor_planilha": 0.27,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 52,
+      "descricao": "ENVELOPE OURO 162MMX229MM ESPECIFICAÇÃO:",
+      "segundos": 1.71,
+      "encontradas": 578,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 0.31,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 53,
+      "descricao": "ENVELOPE PARA CONVITE. ESPECIFICAÇÃO: Cores diversas, medind",
+      "segundos": 2.81,
+      "encontradas": 578,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "78.00",
+      "valor_planilha": 0.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 54,
+      "descricao": "ENVELOPE SACO BRANCO 260X360 ESPECIFICAÇÃO: gramatura compat",
+      "segundos": 1.61,
+      "encontradas": 578,
+      "na_cesta": 11,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "19.99",
+      "valor_planilha": 0.83,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 55,
+      "descricao": "ENVELOPE SACO KRAFT 260X360 ESPECIFICAÇÃO: gramatura compatí",
+      "segundos": 1.67,
+      "encontradas": 578,
+      "na_cesta": 12,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "25.41",
+      "valor_planilha": 0.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 56,
+      "descricao": "ESPIRAL PARA ENCADERNAÇÃO 12MM ESPECIFICAÇÃO: plástico, paco",
+      "segundos": 12.36,
+      "encontradas": 392,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "30.98",
+      "valor_planilha": 23.15,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 57,
+      "descricao": "ESPIRAL PARA ENCADERNAÇÃO 17MM ESPECIFICAÇÃO: plástico, paco",
+      "segundos": 1.75,
+      "encontradas": 392,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "42.62",
+      "valor_planilha": 31.68,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 58,
+      "descricao": "ESPIRAL PARA ENCADERNAÇÃO 20MM ESPECIFICAÇÃO: plástico, paco",
+      "segundos": 1.65,
+      "encontradas": 392,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "46.00",
+      "valor_planilha": 31.68,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 59,
+      "descricao": "ESPIRAL PARA ENCADERNAÇÃO 25MM ESPECIFICAÇÃO: plástico, paco",
+      "segundos": 1.75,
+      "encontradas": 392,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 31.68,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 60,
+      "descricao": "ESPIRAL PARA ENCADERNAÇÃO 33MM ESPECIFICAÇÃO: plástico, paco",
+      "segundos": 1.78,
+      "encontradas": 392,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 31.68,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 61,
+      "descricao": "ESPIRAL PARA ENCADERNAÇÃO 7MM ESPECIFICAÇÃO: plástico, pacot",
+      "segundos": 1.61,
+      "encontradas": 392,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "16.80",
+      "valor_planilha": 21.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 62,
+      "descricao": "ESPIRAL PARA ENCADERNAÇÃO 9MM ESPECIFICAÇÃO: plástico, pacot",
+      "segundos": 1.82,
+      "encontradas": 392,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 18.29,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 63,
+      "descricao": "ESTILETE ESTREITO 9MM ESPECIFICAÇÃO: Retrátil, corpo resiste",
+      "segundos": 27.1,
+      "encontradas": 541,
+      "na_cesta": 96,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "3.28",
+      "valor_planilha": 2.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 64,
+      "descricao": "ESTILETE LARGO 18MM. ESPECIFICAÇÃO: Retrátil, corpo resisten",
+      "segundos": 2.11,
+      "encontradas": 541,
+      "na_cesta": 264,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "5.73",
+      "valor_planilha": 4.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 65,
+      "descricao": "ETIQUETA AUTOADESIVA A4 ESPECIFICAÇÃO: Compatível com impres",
+      "segundos": 7.06,
+      "encontradas": 781,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 92.7,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 66,
+      "descricao": "ETIQUETAS ADESIVAS PARA CONVITES FORMATO REDONDO. ESPECIFICA",
+      "segundos": 1.78,
+      "encontradas": 781,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 5.65,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 67,
+      "descricao": "EVA COLORIDO ESPECIFICAÇÃO: 40x50cm",
+      "segundos": 0.43,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 2.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 1,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 68,
+      "descricao": "EVA COM GLITER CORES VARIADAS ESPECIFICAÇÃO: tamanho 41cm x ",
+      "segundos": 0.43,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 6.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 1,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 69,
+      "descricao": "EXTRATOR DE GRAMPO ALAVANCA ESPECIFICAÇÃO: Em aço inox ou aç",
+      "segundos": 20.98,
+      "encontradas": 371,
+      "na_cesta": 317,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "15.81",
+      "valor_planilha": 6.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 70,
+      "descricao": "EXTRATOR DE GRAMPO PIRANHA ESPECIFICAÇÃO: corpo resistente, ",
+      "segundos": 1.86,
+      "encontradas": 371,
+      "na_cesta": 167,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "2.65",
+      "valor_planilha": 5.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 71,
+      "descricao": "FITA ADESIVA 12X40 ESPECIFICAÇÃO: 12X40MM CORES DIVERSAS",
+      "segundos": 25.36,
+      "encontradas": 500,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 11.26,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 72,
+      "descricao": "FITA ADESIVA 12X40. ESPECIFICAÇÃO: transparente, em filme pl",
+      "segundos": 1.71,
+      "encontradas": 526,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 4.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 73,
+      "descricao": "FITA ADESIVA 19X50 ESPECIFICAÇÃO: transparente, em filme plá",
+      "segundos": 1.88,
+      "encontradas": 526,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 2.71,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 74,
+      "descricao": "FITA ADESIVA 45X50. ESPECIFICAÇÃO: Transparente, em filme pl",
+      "segundos": 1.98,
+      "encontradas": 526,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 7.13,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 75,
+      "descricao": "FITA ADESIVA DUPLA FACE ESPECIFICAÇÃO: 18mm X 30m de papel",
+      "segundos": 1.06,
+      "encontradas": 500,
+      "na_cesta": 11,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "10.21",
+      "valor_planilha": 9.2,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 2,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 76,
+      "descricao": "FITA ADESIVA, TRANSPARENTE, DIMENSÃO 50MM X 50M ESPECIFICAÇÃ",
+      "segundos": 6.24,
+      "encontradas": 670,
+      "na_cesta": 201,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "9.87",
+      "valor_planilha": 9.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 77,
+      "descricao": "FITA CREPE 18X50. ESPECIFICAÇÃO: adesão adequada e remoção c",
+      "segundos": 2.18,
+      "encontradas": 134,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 7.2,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 78,
+      "descricao": "FITA CREPE 25X50 ESPECIFICAÇÃO: adesão adequada e remoção co",
+      "segundos": 1.3,
+      "encontradas": 134,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 10.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 79,
+      "descricao": "FITA CREPE 48X50 ESPECIFICAÇÃO: adesão adequada e remoção co",
+      "segundos": 1.65,
+      "encontradas": 134,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 16.7,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 80,
+      "descricao": "FITA DE CETIM 2CM CORES VARIADAS ESPECIFICAÇÃO: peça com 10m",
+      "segundos": 4.44,
+      "encontradas": 627,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 14.7,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 81,
+      "descricao": "FITA DUPLA FACE 18X30 ESPECIFICAÇÃO: largura aproximada de 1",
+      "segundos": 1.73,
+      "encontradas": 627,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 12.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 82,
+      "descricao": "FITA DUPLA FACE MASSA ADESIVA 19MM X 1.5M. ESPECIFICAÇÃO: Fi",
+      "segundos": 1.9,
+      "encontradas": 500,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "56.39",
+      "valor_planilha": 16.98,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 83,
+      "descricao": "FITA GOMADA 50X50 ESPECIFICAÇÃO: em papel, para fechamento d",
+      "segundos": 1.3,
+      "encontradas": 129,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 30.85,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 84,
+      "descricao": "FITA MÉTRICA - 150CM ESPECIFICAÇÃO: EM POLIESTER",
+      "segundos": 3.31,
+      "encontradas": 47,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 8.2,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 85,
+      "descricao": "FITA MÉTRICA FLEXÍVEL FORTE E PRECISA. ESPECIFICAÇÃO: Comume",
+      "segundos": 1.7,
+      "encontradas": 44,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 3.3,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 86,
+      "descricao": "FITA ZEBRADA 70MMX200M ESPECIFICAÇÃO:",
+      "segundos": 2.07,
+      "encontradas": 627,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 35.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 87,
+      "descricao": "FITA ZEBRADA. ESPECIFICAÇÃO: fita zebrada na cor laranja 70m",
+      "segundos": 2.44,
+      "encontradas": 627,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 28.2,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 88,
+      "descricao": "FITILHO PLÁSTICO - ROLO 1KG. ESPECIFICAÇÃO: Fitilho plástico",
+      "segundos": 1.37,
+      "encontradas": 123,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 21.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 2,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 89,
+      "descricao": "GIZ DE CERA C/ 12 ESPECIFICAÇÃO: de 95g colorido",
+      "segundos": 6.65,
+      "encontradas": 316,
+      "na_cesta": 155,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "8.85",
+      "valor_planilha": 8.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 90,
+      "descricao": "GIZ DE CERA ESTACA AZUL ESPECIFICAÇÃO: caixa com 12 unidades",
+      "segundos": 1.69,
+      "encontradas": 316,
+      "na_cesta": 107,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "7.64",
+      "valor_planilha": 6.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 91,
+      "descricao": "GRAMPEADOR DE MESA 23/8 100FLS ESPECIFICAÇÃO:",
+      "segundos": 33.26,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "ERRO",
+      "metodo": null,
+      "valor": null,
+      "valor_planilha": 99.9,
+      "erro_de_fonte": true,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 92,
+      "descricao": "GRAMPEADOR DE MESA ESPECIFICAÇÃO: base antiderrapante, estru",
+      "segundos": 10.31,
+      "encontradas": 611,
+      "na_cesta": 269,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "15.53",
+      "valor_planilha": 32.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 93,
+      "descricao": "GRAMPEADOR DE PRESSÃO 106/06 ESPECIFICAÇÃO: Capacidade 240 f",
+      "segundos": 1.78,
+      "encontradas": 611,
+      "na_cesta": 9,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "85.46",
+      "valor_planilha": 116.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 94,
+      "descricao": "GRAMPEADOR GRANDE CAPACIDADE ESPECIFICAÇÃO: estrutura metáli",
+      "segundos": 2.12,
+      "encontradas": 611,
+      "na_cesta": 60,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "47.18",
+      "valor_planilha": 149.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 95,
+      "descricao": "GRAMPEADOR PARA PAPEL ESPECIFICAÇÃO: base 17cm, capacidade d",
+      "segundos": 1.82,
+      "encontradas": 611,
+      "na_cesta": 291,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "16.80",
+      "valor_planilha": 44.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 96,
+      "descricao": "GRAMPEADOR TIPO ALICATE ESPECIFICAÇÃO: estrutura metálica ou",
+      "segundos": 1.92,
+      "encontradas": 611,
+      "na_cesta": 268,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "16.72",
+      "valor_planilha": 49.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 97,
+      "descricao": "GRAMPO 23/13 ESPECIFICAÇÃO: galvanizado, caixa padrão de mer",
+      "segundos": 2.4,
+      "encontradas": 241,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 36.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 98,
+      "descricao": "GRAMPO 23/8 ESPECIFICAÇÃO: galvanizado, caixa padrão de merc",
+      "segundos": 2.3,
+      "encontradas": 241,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 33.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 99,
+      "descricao": "GRAMPO 24/10 ESPECIFICAÇÃO: galvanizado, caixa padrão de mer",
+      "segundos": 1.35,
+      "encontradas": 241,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 9.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 100,
+      "descricao": "GRAMPO 26/6. ESPECIFICAÇÃO: galvanizado, caixa padrão de mer",
+      "segundos": 1.46,
+      "encontradas": 241,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 9.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 101,
+      "descricao": "GRAMPO PARA GRAMPEADOR 106/6 CX C/ 3500 ESPECIFICAÇÃO:",
+      "segundos": 12.87,
+      "encontradas": 499,
+      "na_cesta": 11,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "13.37",
+      "valor_planilha": 21.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 102,
+      "descricao": "GRAMPO PARA GRAMPEADOR 24/10 CX COM 5000 ESPECIFICAÇÃO:",
+      "segundos": 2.24,
+      "encontradas": 499,
+      "na_cesta": 20,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "0.34",
+      "valor_planilha": 28.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 103,
+      "descricao": "GRAMPO TRILHO PLÁSTICO ESPECIFICAÇÃO: estendido para documen",
+      "segundos": 3.86,
+      "encontradas": 396,
+      "na_cesta": 33,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "12.54",
+      "valor_planilha": 15.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 104,
+      "descricao": "LANTERNA DE MÃO PEQUENA - PILHA 3A ESPECIFICAÇÃO:",
+      "segundos": 2.03,
+      "encontradas": 72,
+      "na_cesta": 4,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "159.90",
+      "valor_planilha": 69.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 105,
+      "descricao": "LAPIS PRETO Nº 02 ESPECIFICAÇÃO:",
+      "segundos": 12.89,
+      "encontradas": 638,
+      "na_cesta": 147,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "5.24",
+      "valor_planilha": 1.19,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 106,
+      "descricao": "LIGA ELÁSTICA 100G ESPECIFICAÇÃO: de látex ou material equiv",
+      "segundos": 1.42,
+      "encontradas": 3,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 5.32,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 107,
+      "descricao": "LIVRO ATA 100 FLS ESPECIFICAÇÃO: capa dura e folhas internas",
+      "segundos": 7.15,
+      "encontradas": 480,
+      "na_cesta": 294,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "13.09",
+      "valor_planilha": 16.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 108,
+      "descricao": "LIVRO ATA 200 FLS ESPECIFICAÇÃO: capa dura e folhas internas",
+      "segundos": 2.7,
+      "encontradas": 480,
+      "na_cesta": 95,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "24.87",
+      "valor_planilha": 31.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 109,
+      "descricao": "LIVRO ATA 50FLS ESPECIFICAÇÃO:",
+      "segundos": 2.43,
+      "encontradas": 534,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 12.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 110,
+      "descricao": "LIVRO PROTOCOLO 100 FLS ESPECIFICAÇÃO: Capa dura, folhas num",
+      "segundos": 5.47,
+      "encontradas": 219,
+      "na_cesta": 145,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "16.90",
+      "valor_planilha": 21.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 111,
+      "descricao": "LÁPIS BORRACHA ESPECIFICAÇÃO: Apagador em formato de lápis.",
+      "segundos": 1.85,
+      "encontradas": 221,
+      "na_cesta": 114,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "5.91",
+      "valor_planilha": 6.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 112,
+      "descricao": "LÁPIS DE COR GRANDE CX C/ 12 UNIDADES ESPECIFICAÇÃO:",
+      "segundos": 7.65,
+      "encontradas": 504,
+      "na_cesta": 103,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "8.41",
+      "valor_planilha": 44.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 113,
+      "descricao": "MALETA ARQUIVO ESPECIFICAÇÃO: em polipropileno resistente, c",
+      "segundos": 1.92,
+      "encontradas": 75,
+      "na_cesta": 17,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "85.64",
+      "valor_planilha": 96.8,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 114,
+      "descricao": "MARCA TEXTO PONTA CHATA (CORES DIVERSAS) A BASE DE AGUA SECA",
+      "segundos": 0.59,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 1.99,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 1,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 115,
+      "descricao": "MARCADOR DE TEXTO. ESPECIFICAÇÃO: ponta chanfrada, traço apr",
+      "segundos": 2.31,
+      "encontradas": 151,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 4.8,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 116,
+      "descricao": "MARCADOR PARA QUADRO BRANCO. ESPECIFICAÇÃO: ponta redonda ou",
+      "segundos": 2.37,
+      "encontradas": 151,
+      "na_cesta": 9,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "39.54",
+      "valor_planilha": 5.22,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 117,
+      "descricao": "MARCADOR PERMANENTE-CORES VARIADAS ESPECIFICAÇÃO: Ponta chan",
+      "segundos": 1.48,
+      "encontradas": 151,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 4.88,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 118,
+      "descricao": "MASSA DE MODELAR GRANDE C/12 ESPECIFICAÇÃO: NO MINIMO 180G.",
+      "segundos": 2.43,
+      "encontradas": 188,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "2.49",
+      "valor_planilha": 6.7,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 119,
+      "descricao": "MOLHA-DEDO ESPECIFICAÇÃO: em pasta, não tóxico, não mancha, ",
+      "segundos": 3.03,
+      "encontradas": 133,
+      "na_cesta": 37,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "2.51",
+      "valor_planilha": 4.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 2,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 120,
+      "descricao": "ORGANIZADOR DE MESA ESPECIFICAÇÃO: porta-canetas, clips e le",
+      "segundos": 2.68,
+      "encontradas": 236,
+      "na_cesta": 22,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "43.16",
+      "valor_planilha": 18.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 121,
+      "descricao": "ORGANIZADOR TRIPLO PARA CORRESPONDÊNCIA ESPECIFICAÇÃO: tipo ",
+      "segundos": 1.54,
+      "encontradas": 236,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "30.00",
+      "valor_planilha": 76.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 122,
+      "descricao": "PAPEL 40 KG ESPECIFICAÇÃO:",
+      "segundos": 1.43,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 2.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 123,
+      "descricao": "PAPEL A4 COLORIDO - GRAMATURA 180G ESPECIFICAÇÃO: PACOTE COM",
+      "segundos": 1.23,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 49.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 124,
+      "descricao": "PAPEL CARBONO A4 CX C/100 ESPECIFICAÇÃO:",
+      "segundos": 1.83,
+      "encontradas": 76,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "39.90",
+      "valor_planilha": 48.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 125,
+      "descricao": "PAPEL CARMIM - CORES VARIADAS ESPECIFICAÇÃO: MARROM, PRETO, ",
+      "segundos": 1.29,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 4.45,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 126,
+      "descricao": "PAPEL CARTOLINA CORES VARIADAS ESPECIFICAÇÃO:",
+      "segundos": 8.59,
+      "encontradas": 207,
+      "na_cesta": 107,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "221.60",
+      "valor_planilha": 1.32,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 127,
+      "descricao": "PAPEL CARTÃO COM BRILHO ESPECIFICAÇÃO: CORES DIVERSAS",
+      "segundos": 5.66,
+      "encontradas": 337,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 8.48,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 128,
+      "descricao": "PAPEL CARTÃO CORES VARIADAS ESPECIFICAÇÃO: cor, preto, verme",
+      "segundos": 1.29,
+      "encontradas": 337,
+      "na_cesta": 29,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "1.75",
+      "valor_planilha": 2.49,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 2,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 129,
+      "descricao": "PAPEL CONTACT CORES DIVERSAS - ROLO COM 25MT ESPECIFICAÇÃO:",
+      "segundos": 1.35,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 199.75,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 130,
+      "descricao": "PAPEL CONTACT CORES DIVERSAS ESPECIFICAÇÃO:",
+      "segundos": 1.71,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 9.45,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 131,
+      "descricao": "PAPEL CONTACT TRANSPARENTE (MT) ESPECIFICAÇÃO:",
+      "segundos": 0.87,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 4.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 2,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 132,
+      "descricao": "PAPEL CREPOM_CORES VARIADAS ESPECIFICAÇÃO: rolo 48cm x 2metr",
+      "segundos": 2.48,
+      "encontradas": 242,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 3.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 133,
+      "descricao": "PAPEL FOTOGRÁFICO GLOSSY. ESPECIFICAÇÃO: Tamanho A4, cor bra",
+      "segundos": 3.83,
+      "encontradas": 338,
+      "na_cesta": 36,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "23.69",
+      "valor_planilha": 42.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 134,
+      "descricao": "PAPEL MADEIRA ESPECIFICAÇÃO:",
+      "segundos": 1.09,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 1.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 2,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 135,
+      "descricao": "PAPEL OFÍCIO 2. ESPECIFICAÇÃO: aproximadamente 216 x 330 mm,",
+      "segundos": 1.1,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 44.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 136,
+      "descricao": "PAPEL PARANÁ ESPECIFICAÇÃO:",
+      "segundos": 1.24,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 12.58,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 137,
+      "descricao": "PAPEL PLOTTER 075G L 610 ESPECIFICAÇÃO: rolo com 50 metros.",
+      "segundos": 1.53,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 59.6,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 138,
+      "descricao": "PAPEL SULFITE A3 ESPECIFICAÇÃO: branco, 297 x 420 mm, gramat",
+      "segundos": 1.83,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 77.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 139,
+      "descricao": "PAPEL SULFITE A4 - PACOTE COM 100 FOLHAS ESPECIFICAÇÃO: CORE",
+      "segundos": 0.97,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 12.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 140,
+      "descricao": "PAPEL SULFITE A4 ESPECIFICAÇÃO: branco, 210 x 297 mm, gramat",
+      "segundos": 0.98,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 34.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 141,
+      "descricao": "PAPEL SULFITE COLORIDO A4 ESPECIFICAÇÃO: gramatura mínima co",
+      "segundos": 1.75,
+      "encontradas": 49,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 12.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 142,
+      "descricao": "PAPEL VERGÊ (CORES VARIADAS) ESPECIFICAÇÃO: PACOTE COM 50 UN",
+      "segundos": 10.15,
+      "encontradas": 331,
+      "na_cesta": 11,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "36.19",
+      "valor_planilha": 12.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 143,
+      "descricao": "PASTA ABA ELASTICO OFICIO CRISTAL 335X245X40mm ESPECIFICAÇÃO",
+      "segundos": 2.8,
+      "encontradas": 249,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 9.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 144,
+      "descricao": "PASTA ABA ELÁSTICO FINA ESPECIFICAÇÃO: em polipropileno ou c",
+      "segundos": 2.06,
+      "encontradas": 249,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 5.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 145,
+      "descricao": "PASTA ABA ELÁSTICO LARGA ESPECIFICAÇÃO: dorso largo aproxima",
+      "segundos": 1.8,
+      "encontradas": 249,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 8.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 146,
+      "descricao": "PASTA AZ LOMBO FINO. ESPECIFICAÇÃO: em cartão rígido revesti",
+      "segundos": 1.39,
+      "encontradas": 249,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 26.8,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 147,
+      "descricao": "PASTA AZ LOMBO LARGO: ESPECIFICAÇÃO: em cartão rígido revest",
+      "segundos": 1.74,
+      "encontradas": 249,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 26.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 148,
+      "descricao": "PASTA CATÁLOGO 100 ENVS ESPECIFICAÇÃO: formato A4 ou ofício,",
+      "segundos": 1.54,
+      "encontradas": 249,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 45.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 149,
+      "descricao": "PASTA CATÁLOGO 50 ENVS ESPECIFICAÇÃO: formato A4 ou ofício, ",
+      "segundos": 1.56,
+      "encontradas": 249,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 24.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 150,
+      "descricao": "PASTA CATÁLOGO TIPO YES. ESPECIFICAÇÃO: Com 50 folhas, taman",
+      "segundos": 1.91,
+      "encontradas": 249,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 18.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 151,
+      "descricao": "PASTA COM ABA E ELASTICO PLASTICO TRANSPARENTE ESPECIFICAÇÃO",
+      "segundos": 1.4,
+      "encontradas": 98,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "0.17",
+      "valor_planilha": 17.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 2,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 152,
+      "descricao": "PASTA COM ELÁSTICO ESPECIFICAÇÃO: Características: material:",
+      "segundos": 1.47,
+      "encontradas": 249,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 5.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 153,
+      "descricao": "PASTA COM GRAMPO TRILHO ESPECIFICAÇÃO: em cartão ou poliprop",
+      "segundos": 2.19,
+      "encontradas": 249,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 2.95,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 154,
+      "descricao": "PASTA EM L ESPECIFICAÇÃO: transparente, formato A4 ou ofício",
+      "segundos": 1.25,
+      "encontradas": 98,
+      "na_cesta": 3,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "36.94",
+      "valor_planilha": 0.99,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 155,
+      "descricao": "PASTA ENVELOPE COM BOTÃO. ESPECIFICAÇÃO: Transparente, em po",
+      "segundos": 1.28,
+      "encontradas": 98,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "3.50",
+      "valor_planilha": 9.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 156,
+      "descricao": "PASTA L ESPECIFICAÇÃO: PASTA TRANSPARENTE SEM DIVISÓRIA, FEC",
+      "segundos": 1.39,
+      "encontradas": 98,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "3.50",
+      "valor_planilha": 0.99,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 157,
+      "descricao": "PASTA SANFONADA 12 DIV. ESPECIFICAÇÃO: formato A4 ou ofício,",
+      "segundos": 1.66,
+      "encontradas": 249,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 25.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 158,
+      "descricao": "PASTA SUSPENSA: ESPECIFICAÇÃO: em cartão resistente, com has",
+      "segundos": 1.56,
+      "encontradas": 249,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 3.07,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 159,
+      "descricao": "PERCEVEJO LATONADO ESPECIFICAÇÃO: em aço com tratamento anti",
+      "segundos": 2.68,
+      "encontradas": 126,
+      "na_cesta": 5,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "2.06",
+      "valor_planilha": 9.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 2,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 160,
+      "descricao": "PERFURADOR 2 FUROS 25 FLS ESPECIFICAÇÃO: metálico, com base ",
+      "segundos": 12.72,
+      "encontradas": 465,
+      "na_cesta": 187,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "62.07",
+      "valor_planilha": 49.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 161,
+      "descricao": "PERFURADOR 2 FUROS 60/70 FLS ESPECIFICAÇÃO: metálico, com ba",
+      "segundos": 1.51,
+      "encontradas": 465,
+      "na_cesta": 230,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "64.99",
+      "valor_planilha": 139.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 162,
+      "descricao": "PERFURADOR DE PAPEL 2 FUROS P/100 FOLHAS ESPECIFICAÇÃO: FERR",
+      "segundos": 1.77,
+      "encontradas": 465,
+      "na_cesta": 265,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "115.00",
+      "valor_planilha": 250.6,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 163,
+      "descricao": "PILHA ALCALINA AA ESPECIFICAÇÃO: embalagem com 2 unidades e ",
+      "segundos": 7.5,
+      "encontradas": 790,
+      "na_cesta": 82,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "12.40",
+      "valor_planilha": 4.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 164,
+      "descricao": "PILHA ALCALINA AAA ESPECIFICAÇÃO: embalagem com 2 unidades e",
+      "segundos": 1.94,
+      "encontradas": 790,
+      "na_cesta": 90,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "12.22",
+      "valor_planilha": 4.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 165,
+      "descricao": "PILHA GRANDE ALCALINA ESPECIFICAÇÃO: EMBALAGEM COM 02 UNIDAD",
+      "segundos": 2.01,
+      "encontradas": 790,
+      "na_cesta": 38,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "4.45",
+      "valor_planilha": 44.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 166,
+      "descricao": "PINCEL ATOMICO - CORES CX 12X1 ESPECIFICAÇÃO:",
+      "segundos": 15.66,
+      "encontradas": 813,
+      "na_cesta": 107,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "20.62",
+      "valor_planilha": 58.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 167,
+      "descricao": "PINCEL CHATO ARTISTICO Nº 00 ESPECIFICAÇÃO: Cerdas: Natural,",
+      "segundos": 4.64,
+      "encontradas": 708,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "2.00",
+      "valor_planilha": 3.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 168,
+      "descricao": "PINCEL CHATO ARTISTICO Nº 02 ESPECIFICAÇÃO: Cerdas: Natural,",
+      "segundos": 2.09,
+      "encontradas": 708,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "2.13",
+      "valor_planilha": 3.8,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 169,
+      "descricao": "PINCEL CHATO ARTISTICO Nº 04 ESPECIFICAÇÃO: Cerdas: Natural,",
+      "segundos": 2.08,
+      "encontradas": 708,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "2.13",
+      "valor_planilha": 4.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 170,
+      "descricao": "PINCEL CHATO ARTISTICO Nº 06 ESPECIFICAÇÃO: Cerdas: Natural,",
+      "segundos": 1.81,
+      "encontradas": 708,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "2.13",
+      "valor_planilha": 4.2,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 171,
+      "descricao": "PINCEL CHATO ARTISTICO Nº 08 ESPECIFICAÇÃO: Cerdas: Natural,",
+      "segundos": 1.7,
+      "encontradas": 708,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "2.72",
+      "valor_planilha": 4.5,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 172,
+      "descricao": "PINCEL CHATO ARTISTICO Nº 10 ESPECIFICAÇÃO: Cerdas: Natural,",
+      "segundos": 1.8,
+      "encontradas": 708,
+      "na_cesta": 3,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "2.21",
+      "valor_planilha": 5.3,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 173,
+      "descricao": "PINCEL CHATO ARTISTICO Nº 12 ESPECIFICAÇÃO: Cerdas: Natural,",
+      "segundos": 1.81,
+      "encontradas": 708,
+      "na_cesta": 4,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "2.25",
+      "valor_planilha": 6.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 174,
+      "descricao": "PINCEL CHATO ARTISTICO Nº 14 ESPECIFICAÇÃO: Cerdas: Natural,",
+      "segundos": 1.97,
+      "encontradas": 708,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "1.73",
+      "valor_planilha": 6.6,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 175,
+      "descricao": "PINCEL CHATO ARTISTICO Nº 16 ESPECIFICAÇÃO: Cerdas: Natural,",
+      "segundos": 2.01,
+      "encontradas": 708,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "1.75",
+      "valor_planilha": 7.8,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 176,
+      "descricao": "PINCEL CHATO ARTISTICO Nº 18 ESPECIFICAÇÃO: Cerdas: Natural,",
+      "segundos": 1.73,
+      "encontradas": 708,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "1.99",
+      "valor_planilha": 12.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 177,
+      "descricao": "PINCEL CHATO ARTISTICO Nº 24 ESPECIFICAÇÃO: Cerdas: Natural,",
+      "segundos": 1.76,
+      "encontradas": 708,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "5.00",
+      "valor_planilha": 14.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 178,
+      "descricao": "PINCEL P/ QUADRO MAGNÉTICO CORES VARIADAS ESPECIFICAÇÃO: Sis",
+      "segundos": 23.94,
+      "encontradas": 813,
+      "na_cesta": 223,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "3.34",
+      "valor_planilha": 18.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 179,
+      "descricao": "PISTOLA PARA COLA QUENTE FINA ESPECIFICAÇÃO: Caracteristica:",
+      "segundos": 3.47,
+      "encontradas": 375,
+      "na_cesta": 1,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "11.00",
+      "valor_planilha": 28.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 180,
+      "descricao": "PISTOLA PARA COLA QUENTE GROSSA ESPECIFICAÇÃO: Caracteristic",
+      "segundos": 1.46,
+      "encontradas": 375,
+      "na_cesta": 4,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "13.18",
+      "valor_planilha": 42.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 181,
+      "descricao": "POUCH PLÁSTICO PARA PLASTIFICAÇÃO A3 - 303X426 0,05MM. ESPEC",
+      "segundos": 0.43,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 214.8,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 1,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 182,
+      "descricao": "POUCH PLÁSTICO PARA PLASTIFICAÇÃO A4 - 220X307 0,03175 MIC. ",
+      "segundos": 0.41,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 48.99,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 1,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 183,
+      "descricao": "PRANCHETA A4/OFÍCIO ESPECIFICAÇÃO: em acrílico, poliestireno",
+      "segundos": 1.44,
+      "encontradas": 16,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 23.7,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 184,
+      "descricao": "PRENDEDOR DE PAPEL (GRAMPOMOL) 25mm. ESPECIFICAÇÃO: Tamanho ",
+      "segundos": 5.93,
+      "encontradas": 300,
+      "na_cesta": 3,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "15.24",
+      "valor_planilha": 14.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 185,
+      "descricao": "PRENDEDOR DE PAPEL (GRAMPOMOL) 35mm. ESPECIFICAÇÃO: Tamanho ",
+      "segundos": 1.54,
+      "encontradas": 300,
+      "na_cesta": 3,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "15.24",
+      "valor_planilha": 13.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 186,
+      "descricao": "PRENDEDOR TIPO BINDER ESPECIFICAÇÃO: corpo metálico com abas",
+      "segundos": 2.19,
+      "encontradas": 182,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 42.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 187,
+      "descricao": "QUADRO BRANCO MAGNÉTICO MOLDURA ALUMÍNIO 120 X 90CM ESPECIFI",
+      "segundos": 4.61,
+      "encontradas": 472,
+      "na_cesta": 257,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "642.64",
+      "valor_planilha": 329.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 188,
+      "descricao": "QUADRO DE AVISO FELTRO 100X80 ESPECIFICAÇÃO: Quadro feltro s",
+      "segundos": 4.82,
+      "encontradas": 334,
+      "na_cesta": 35,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "275.43",
+      "valor_planilha": 185.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 189,
+      "descricao": "REFIL PARA ESTILETE 18MM ESPECIFICAÇÃO: lâmina segmentada, c",
+      "segundos": 4.1,
+      "encontradas": 412,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 5.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 190,
+      "descricao": "REFIL PARA ESTILETE 9MM ESPECIFICAÇÃO: lâmina segmentada, ca",
+      "segundos": 1.61,
+      "encontradas": 412,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 9.31,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 191,
+      "descricao": "RÉGUA 30CM: ESPECIFICAÇÃO: em plástico resistente, graduação",
+      "segundos": 1.38,
+      "encontradas": 1,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 2.8,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 192,
+      "descricao": "RÉGUA 50CM: ESPECIFICAÇÃO: em plástico resistente, graduação",
+      "segundos": 1.2,
+      "encontradas": 1,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 6.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 193,
+      "descricao": "RÉGUA COLORIDA. ESPECIFICAÇÃO: Corpo flexível inquebrável, e",
+      "segundos": 1.32,
+      "encontradas": 16,
+      "na_cesta": 5,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "42.26",
+      "valor_planilha": 3.8,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 194,
+      "descricao": "RÉGUA EM PLÁSTICO INCOLOR 30 CM ESPECIFICAÇÃO: Graduada, med",
+      "segundos": 1.84,
+      "encontradas": 1,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 2.8,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 195,
+      "descricao": "TELA DE NYLON FINA ESPECIFICAÇÃO:",
+      "segundos": 4.41,
+      "encontradas": 338,
+      "na_cesta": 8,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "80.03",
+      "valor_planilha": 7.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 196,
+      "descricao": "TESOURA DE ESCRITÓRIO 21CM ESPECIFICAÇÃO: em aço inox, cabo ",
+      "segundos": 5.21,
+      "encontradas": 683,
+      "na_cesta": 27,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "8.75",
+      "valor_planilha": 20.57,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 197,
+      "descricao": "TESOURA DE PICOTAR 21 CM ESPECIFICAÇÃO: com lamina em aço in",
+      "segundos": 1.89,
+      "encontradas": 683,
+      "na_cesta": 111,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "9.05",
+      "valor_planilha": 93.0,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 198,
+      "descricao": "TESOURA ESCOLAR ESPECIFICAÇÃO: em lâmina de aço inox, com ca",
+      "segundos": 0.54,
+      "encontradas": 2,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "4.52",
+      "valor_planilha": 4.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 1,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 199,
+      "descricao": "TINTA GUACHE CX C/ 06 UND ESPECIFICAÇÃO: no mínimo 15ml cada",
+      "segundos": 13.39,
+      "encontradas": 578,
+      "na_cesta": 11,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "5.25",
+      "valor_planilha": 5.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 200,
+      "descricao": "TINTA PARA CARIMBO 40ML ESPECIFICAÇÃO: cores conforme necess",
+      "segundos": 11.34,
+      "encontradas": 510,
+      "na_cesta": 39,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "6.74",
+      "valor_planilha": 6.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 201,
+      "descricao": "TINTA PARA TECIDO (250 ML) ESPECIFICAÇÃO: CORES VARIADAS ama",
+      "segundos": 2.89,
+      "encontradas": 531,
+      "na_cesta": 20,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "23.46",
+      "valor_planilha": 24.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 202,
+      "descricao": "TINTA REABASTECEDOR P/ PINCEL P/ QUADRO BRANCO 500ml ESPECIF",
+      "segundos": 1.37,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 169.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 203,
+      "descricao": "TNT CORES DIVERSAS ESPECIFICAÇÃO:",
+      "segundos": 11.8,
+      "encontradas": 418,
+      "na_cesta": 55,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "20.84",
+      "valor_planilha": 3.29,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 1,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 204,
+      "descricao": "FITA ADESIVA LARGA 50X50MM",
+      "segundos": 1.66,
+      "encontradas": 500,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 6.99,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 205,
+      "descricao": "GRAMPO 9/14",
+      "segundos": 2.16,
+      "encontradas": 241,
+      "na_cesta": 2,
+      "status": "INCOMPLETO",
+      "metodo": "media",
+      "valor": "13.45",
+      "valor_planilha": 39.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 206,
+      "descricao": "PAPEL A4 RECICLADO:",
+      "segundos": 1.02,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 23.14,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 207,
+      "descricao": "VISOR COM ETIQUETA PARA PASTA",
+      "segundos": 1.64,
+      "encontradas": 19,
+      "na_cesta": 7,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "8.41",
+      "valor_planilha": 16.15,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 208,
+      "descricao": "DIVISÓRIA PARA FICHÁRIO",
+      "segundos": 2.91,
+      "encontradas": 134,
+      "na_cesta": 3,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "30002.33",
+      "valor_planilha": 14.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 209,
+      "descricao": "ESPIRAL PARA ENCADERNAÇÃO 14MM",
+      "segundos": 5.84,
+      "encontradas": 392,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 18.69,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 210,
+      "descricao": "BORRACHA PONTEIRA (UND)",
+      "segundos": 1.51,
+      "encontradas": 24,
+      "na_cesta": 9,
+      "status": "CONCLUIDO",
+      "metodo": "media",
+      "valor": "191.80",
+      "valor_planilha": 0.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    }
+  ]
+}

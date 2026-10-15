@@ -558,6 +558,42 @@ def registrar_estimativa(item_id: str, estimativa, *,
         justificativa="\n".join(estimativa.memoria))
 
 
+def atualizar_estimativa(item: dict, estimativa, *,
+                         quantidade: Decimal | None = None) -> dict:
+    """
+    Regrava a estimativa depois de a seleção da cesta mudar na revisão.
+
+    Mesma regra de `registrar_estimativa` — cesta que fecha o perfil vai
+    para REVISÃO, que não fecha vai para INCOMPLETO —, mas partindo de um
+    item que JÁ foi revisado: se o estado não muda, grava sem transição.
+    """
+    atual = EstadoItem(item.get("estado") or EstadoItem.EM_REVISAO)
+    destino = (EstadoItem.EM_REVISAO if estimativa.concluida
+               else EstadoItem.INCOMPLETO)
+    campos = {
+        "metodo": estimativa.metodo if estimativa.valor_unitario is not None
+        else None,
+        "preco_estimado": estimativa.valor_unitario,
+        "preco_total": estimativa.valor_total(quantidade),
+        "estatisticas": estimativa.para_relatorio(),
+        "justificativa": "\n".join(estimativa.memoria),
+    }
+    if destino is not atual:
+        return mover_item(str(item["id"]), destino, atual, **campos)
+    for chave in ("preco_estimado", "preco_total"):
+        campos[chave] = _numero(campos[chave])
+    try:
+        resposta = (_cliente().table(TABELA_ITENS)
+                    .update(campos).eq("id", str(item["id"])).execute())
+        if not resposta.data:
+            raise db.ErroBanco("Não foi possível alterar este item.")
+        return resposta.data[0]
+    except db.ErroBanco:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+
+
 def confirmar_item(item_id: str, *, atual: EstadoItem | str = EstadoItem.EM_REVISAO,
                    justificativa: str = "") -> dict:
     """

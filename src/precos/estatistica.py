@@ -83,6 +83,8 @@ class Estatisticas:
     q3: Decimal
     iqr: Decimal
     mad: Decimal
+    # a soma entra na memória de cálculo da média ("soma ÷ n")
+    soma: Decimal = ZERO
 
     def para_relatorio(self) -> dict:
         return {k: (v if isinstance(v, int) else format(v, "f"))
@@ -124,7 +126,7 @@ def calcular(valores: list[Decimal]) -> Estatisticas | None:
         amplitude=ordenados[-1] - ordenados[0],
         desvio_padrao=desvio,
         coeficiente_variacao=(desvio / media) if media else ZERO,
-        q1=q1, q3=q3, iqr=q3 - q1, mad=mad,
+        q1=q1, q3=q3, iqr=q3 - q1, mad=mad, soma=soma,
     )
 
 
@@ -218,6 +220,11 @@ class Cesta:
 # sozinha: cesta montada com item pouco comparável é indefensável.
 PISO_COMPARABILIDADE = Decimal("0.5")
 
+# Coeficiente de variação acima do qual a série é "dispersa". É o mesmo
+# corte que a regra antiga usava para trocar média por mediana; na regra
+# da média ele não troca nada — marca a estimativa como provisória.
+CV_DISPERSAO = Decimal("0.25")
+
 
 def selecionar_cesta(
     ranqueadas: list[tuple[Referencia, Comparabilidade]],
@@ -299,10 +306,19 @@ class Estimativa:
     anomalias: list[Anomalia] = field(default_factory=list)
     memoria: list[str] = field(default_factory=list)
     perfil_id: str = PADRAO.id
+    # O que o REVISOR precisa decidir antes de concluir o item: a média é
+    # de referências "elegíveis e aprovadas", e discrepante ou série
+    # dispersa ainda não aprovados tornam o número provisório.
+    pendencias: list[str] = field(default_factory=list)
 
     @property
     def concluida(self) -> bool:
         return self.status == "CONCLUIDO"
+
+    @property
+    def provisoria(self) -> bool:
+        """Tem valor, mas depende de análise crítica humana (ver `pendencias`)."""
+        return bool(self.pendencias)
 
     def valor_total(self, quantidade: Decimal | None) -> Decimal | None:
         if self.valor_unitario is None or quantidade is None:
@@ -321,6 +337,7 @@ class Estimativa:
             if self.estatisticas else None,
             "selecionadas": len(self.cesta.selecionadas),
             "descartadas": len(self.cesta.descartadas),
+            "pendencias": list(self.pendencias),
             "anomalias": [{
                 "valor": format(a.valor, "f"),
                 "criterio": a.criterio,
@@ -331,6 +348,20 @@ class Estimativa:
 
 
 METODO_AUTOMATICO = "automatico"
+
+# Versões das REGRAS de escolha do método, gravadas em
+# `pesquisas_preco.versao_regras` na criação da pesquisa.
+#
+# * REGRAS_LEGADAS ("") — o automático escolhia média ou mediana pelo
+#   coeficiente de variação. Pesquisas criadas assim continuam assim: o
+#   método padrão mudar NÃO reprocessa pesquisa já feita (Banco de Preços,
+#   15/10/2026).
+# * REGRAS_MEDIA_PADRAO — o automático é a MÉDIA ARITMÉTICA SIMPLES dos
+#   preços unitários selecionados. Mediana, CV e dispersão viram só
+#   diagnóstico; discrepante gera alerta, nunca troca de método nem
+#   exclusão automática.
+REGRAS_LEGADAS = ""
+REGRAS_MEDIA_PADRAO = "2026-10-15.media-aritmetica"
 
 
 def _aplicar_metodo(metodo: str, e: Estatisticas) -> Decimal:
@@ -343,15 +374,18 @@ def _aplicar_metodo(metodo: str, e: Estatisticas) -> Decimal:
 
 def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
             metodo: str = METODO_AUTOMATICO,
-            justificativa: str | None = None) -> Estimativa:
+            justificativa: str | None = None,
+            regras: str = REGRAS_LEGADAS) -> Estimativa:
     """
     Forma o preço estimado a partir da cesta.
 
-    O método automático escolhe **mediana** quando a série é dispersa e
-    **média** quando é homogênea. A razão é estatística, não jurídica: a
-    mediana resiste a valores extremos, e é justamente com dispersão alta
-    que os extremos distorcem a média. Com série homogênea a média usa
-    toda a informação disponível.
+    `regras` diz qual política o AUTOMÁTICO segue (ver
+    `REGRAS_MEDIA_PADRAO`): média aritmética simples nas pesquisas novas;
+    média/mediana pelo coeficiente de variação nas criadas antes.
+
+    Método pedido que o perfil não admite NÃO cai em outro em silêncio:
+    a estimativa sai sem valor, INCOMPLETA, com o impedimento e os
+    métodos admitidos na memória.
     """
     estatisticas = calcular(cesta.valores)
     memoria: list[str] = []
@@ -365,18 +399,32 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
     anomalias = detectar_anomalias(cesta.selecionadas, estatisticas)
 
     escolhido = metodo
-    if metodo == METODO_AUTOMATICO:
-        disperso = estatisticas.coeficiente_variacao > Decimal("0.25")
+    if metodo == METODO_AUTOMATICO and regras == REGRAS_MEDIA_PADRAO:
+        escolhido = "media"
+        memoria.append(
+            "método padrão: média aritmética simples dos preços unitários "
+            f"selecionados (soma {estatisticas.soma.quantize(CENTAVO, ROUND_HALF_UP)} "
+            f"÷ {estatisticas.quantidade}); mediana "
+            f"{estatisticas.mediana.quantize(CENTAVO, ROUND_HALF_UP)} e "
+            f"coeficiente de variação {estatisticas.coeficiente_variacao:.2f} "
+            "apenas como diagnóstico")
+    elif metodo == METODO_AUTOMATICO:
+        disperso = estatisticas.coeficiente_variacao > CV_DISPERSAO
         escolhido = "mediana" if disperso else "media"
         memoria.append(
             f"método escolhido automaticamente: {escolhido} — coeficiente "
             f"de variação {estatisticas.coeficiente_variacao:.2f} "
             f"({'série dispersa' if disperso else 'série homogênea'})")
-    elif metodo not in perfil.metodos_permitidos:
+    if escolhido not in perfil.metodos_permitidos:
         memoria.append(
-            f"método '{metodo}' não é permitido pelo perfil {perfil.nome}; "
-            "aplicada a mediana")
-        escolhido = "mediana"
+            f"método '{escolhido}' não é admitido pelo perfil {perfil.nome}"
+            f" — admitidos: {', '.join(perfil.metodos_permitidos)}. "
+            "Nenhum outro método foi aplicado em seu lugar; escolha um "
+            "método admitido e registre a decisão")
+        return Estimativa(
+            valor_unitario=None, metodo=escolhido, status="INCOMPLETO",
+            estatisticas=estatisticas, cesta=cesta, anomalias=anomalias,
+            memoria=memoria, perfil_id=perfil.id)
 
     valor = _aplicar_metodo(escolhido, estatisticas)
     memoria.append(
@@ -422,7 +470,30 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
             f"{len(anomalias)} candidato(s) discrepante(s) sinalizado(s) "
             "para revisão; nenhum foi excluído automaticamente")
 
+    # Análise crítica pendente — só nas regras da média. Na regra antiga a
+    # dispersão já levava à mediana; na nova, a média de uma cesta com
+    # discrepante NÃO DECIDIDO é provisória: medido em 15/10/2026 na
+    # planilha real de 210 itens, um único registro errado da fonte levou
+    # a média de uma divisória de fichário a R$ 30.002,33 (planilha:
+    # R$ 14,90). Nada é excluído aqui; o revisor exclui com motivo ou
+    # mantém com justificativa (IN 65/2021, art. 6º, § 3º, onde aplicável).
+    pendencias: list[str] = []
+    if regras == REGRAS_MEDIA_PADRAO and escolhido == "media":
+        if anomalias:
+            pendencias.append(
+                f"{len(anomalias)} preço(s) discrepante(s) aguardam decisão: "
+                "excluir com motivo ou manter com justificativa")
+        if estatisticas.coeficiente_variacao > CV_DISPERSAO:
+            pendencias.append(
+                f"dispersão elevada (coeficiente de variação "
+                f"{estatisticas.coeficiente_variacao:.2f} > "
+                f"{CV_DISPERSAO}): a média pode não representar o mercado; "
+                "examine a cesta antes de concluir")
+        if pendencias:
+            memoria.append("valor PROVISÓRIO até a análise crítica: "
+                           + "; ".join(pendencias))
+
     return Estimativa(
         valor_unitario=valor, metodo=escolhido, status=status,
         estatisticas=estatisticas, cesta=cesta, anomalias=anomalias,
-        memoria=memoria, perfil_id=perfil.id)
+        memoria=memoria, perfil_id=perfil.id, pendencias=pendencias)
