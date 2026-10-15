@@ -72,3 +72,18 @@ testes anteriores. Rustfmt passou localmente. Os testes de overlay/coleção Pyt
 passaram (28). Os testes Rust e a prova da API pura nas três fixtures estão
 preparados no workflow e aguardam execução no CI. Não confundir teste preparado
 com resultado de compilação, undo no navegador ou G4 completo.
+
+O build `39fec20` passou de fato: 24 testes nativos, regressões UI/Clippy,
+compilação WASM e aplicação/exportação pura nas três fixtures. O erro inicial
+E0277 ao formatar o digest da versão pinada foi corrigido convertendo seus bytes
+para hexadecimal; não houve troca de dependência ou relaxamento do lock.
+
+O incremento seguinte reutiliza o mesmo comando em `apply_session_patch` e expõe
+`GovConnectEditor.apply_text_patch` sobre a Session existente. O wrapper recusa
+canvas dirty e checkpoint pendente; o comando verifica revisão e hash do modelo
+atual e mantém a pilha de undo anterior. Dois testes Rust novos verificam grupo
+de undo independente e preservação de conteúdo/seleção/dirty/histórico na falha.
+Esses novos testes ainda precisam do próximo CI. A chamada não autentica nem
+persiste e ainda não está conectada ao fluxo operacional. O host e o owner devem
+correlacionar plano autorizado, bytes esperados e CAS antes de alegar aplicação
+confirmada; a prova de Undo no canvas continua pendente.

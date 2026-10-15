@@ -214,6 +214,20 @@ impl GovConnectEditor {
         self.with_session(|session| adapter::command(session, UserEdit::SelectText(text)).map(|_| ()))
     }
 
+    /// Apply only to a clean, acknowledged canvas. The caller still owns
+    /// backend policy/approval/CAS; this method never claims a saved revision.
+    pub fn apply_text_patch(&mut self, current_revision: u32, plan_json: &str) -> Result<(), JsValue> {
+        if self.pending.is_some() {
+            return Err(error("checkpoint pending; reconcile before patch"));
+        }
+        self.with_session(|session| {
+            if session.dirty {
+                return Err("unsaved local edits; reconcile before patch".into());
+            }
+            adapter::apply_session_patch(session, current_revision, plan_json.as_bytes())
+        })
+    }
+
     pub fn bold(&self) -> Result<(), JsValue> {
         self.with_session(|session| adapter::command(session, UserEdit::Bold).map(|_| ()))
     }

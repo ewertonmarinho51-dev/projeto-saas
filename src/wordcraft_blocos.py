@@ -11,10 +11,12 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Callable
 from uuid import UUID, uuid5
 
 from .blocos import hash_texto
+from . import achados, perfis, validacao
 from .wordcraft_native import validar
 from .wordcraft_protocol import CHECKPOINT_SCHEMA, MAX_BYTES, _hash, _inteiro, _uuid
 
@@ -404,3 +406,191 @@ def resolver_ancora(indice: IndiceNativo, block_id: str, *, document_id: str, re
         raise ErroAncora("Âncora ausente, ambígua ou com hash divergente.")
     _caminho(matches[0].caminho)
     return matches[0].caminho
+
+
+# Read-only adapter for the existing audit/patch policy. These are paragraph
+# views, including paragraphs inside native cells, never a Markdown source.
+CLAUSE_STYLES = frozenset({"GovDocsClausula", "Heading1", "Heading2", "Heading3"})
+INSTITUTIONAL_STYLES = frozenset({"GovDocsTitulo", "GovDocsNota", "Header", "Footer"})
+
+
+@dataclass(frozen=True)
+class DocumentoNativo:
+    checkpoint: bytes
+    indice: IndiceNativo
+
+
+@dataclass(frozen=True)
+class BlocoGovernado:
+    path: str
+    tipo: str
+    clausula: int | None
+    conteudo: str
+    hash: str
+    ancora: BlocoNativo
+    bloqueio: str | None
+
+    def canonico(self) -> dict:
+        return {"path": self.path, "tipo": self.tipo, "clausula": self.clausula,
+                "conteudo": self.conteudo, "hash": self.hash}
+
+
+@dataclass(frozen=True)
+class ProjecaoNativa:
+    documento: str
+    document_id: str
+    revision: int
+    content_hash: str
+    engine_manifest_sha256: str
+    blocos: tuple[BlocoGovernado, ...]
+    texto_analise: str
+    areas_nao_cobertas: tuple[str, ...]
+    impedimentos_autocorrecao: tuple[str, ...]
+
+    @property
+    def apto_analise(self) -> bool:
+        return not self.areas_nao_cobertas
+
+    @property
+    def apto_autocorrecao(self) -> bool:
+        return self.apto_analise and not self.impedimentos_autocorrecao
+
+    def snapshot_documento(self) -> dict:
+        return {"documento": self.documento, "hash": self.content_hash,
+                "blocos": [block.canonico() for block in self.blocos]}
+
+    def vinculo(self) -> dict:
+        return {"documentId": self.document_id, "revision": self.revision,
+                "sourceHash": self.content_hash,
+                "engineManifestSha256": self.engine_manifest_sha256}
+
+
+def _modelo_validado(content: bytes) -> dict:
+    """Read only; callers must first validate bytes/index with the native API."""
+    return json.loads(content, object_pairs_hook=_objeto_fechado,
+                      parse_constant=_constante_invalida)
+
+
+def _bloco_modelo(root: dict, caminho: CaminhoNativo) -> dict:
+    blocks = (root["document"]["body"] if caminho.parte is None else
+              root["document"]["parts"][str(caminho.parte)]["blocks"])
+    block = blocks[caminho.indices[0]]
+    for offset in range(1, len(caminho.indices), 3):
+        row, cell, child = caminho.indices[offset:offset + 3]
+        block = block["rows"][row]["cells"][cell]["blocks"][child]
+    return block
+
+
+def _texto_inline(text: str) -> bool:
+    # Matches the native command's explicit prohibition of controls/separators.
+    return (isinstance(text, str) and not any(ord(c) < 32 or 127 <= ord(c) <= 159
+            or c in "\u2028\u2029\ufffc" for c in text))
+
+
+def _paragrafo_uniforme(block: dict) -> bool:
+    text, runs = block.get("text"), block.get("runs")
+    paragraph_props, mark = block.get("props", {}), block.get("mark", {})
+    if (not isinstance(text, str) or not text or not _texto_inline(text)
+            or block.get("objects") or not isinstance(runs, list) or not runs
+            or any(paragraph_props.get(k) is not None for k in ("fmtChange", "numChange"))
+            or any(mark.get(k) is not None for k in ("ins", "del", "fmtChange"))):
+        return False
+    props = runs[0].get("props", {})
+    if not isinstance(props, dict) or any(props.get(k) is not None for k in ("ins", "del", "fmtChange")):
+        return False
+    data, end = text.encode("utf-8"), 0
+    try:
+        for run in runs:
+            size = run.get("len")
+            if type(size) is not int or size <= 0 or run.get("props", {}) != props:
+                return False
+            end += size
+            data[:end].decode("utf-8", errors="strict")
+        return end == len(data)
+    except (UnicodeError, AttributeError):
+        return False
+
+
+def projetar_documento(doc_key: str, content: bytes, *, indice: IndiceNativo,
+                       node: Path, bundle: Path, manifest_sha256: str) -> ProjecaoNativa:
+    """Governed analysis view from exact native bytes and a backend-owned index.
+
+    A complete textual view is distinct from eligibility for automatic editing.
+    Unknown object text/auxiliary regions fail coverage explicitly.
+    """
+    if not isinstance(doc_key, str) or re.fullmatch(r"[a-z][a-z0-9_]{0,63}", doc_key) is None:
+        raise ErroAncora("Chave de documento inválida para projeção.")
+    validar_indice(indice, content, node=node, bundle=bundle, manifest_sha256=manifest_sha256)
+    root = _modelo_validado(content)
+    result, gaps, impediments = [], list(indice.areas_nao_enderecaveis), []
+    clause, section, occurrences = None, "preambulo", Counter()
+    signature_section = False
+    settings = root["document"].get("settings", {})
+    if settings.get("trackChanges") or settings.get("protection") is not None:
+        impediments.append("documento_protegido_ou_tracking")
+    for anchor in indice.blocos:
+        if anchor.tipo != "para":
+            continue  # Table geometry remains in the native model/index.
+        block = _bloco_modelo(root, anchor.caminho)
+        text, style = block["text"], block.get("props", {}).get("style")
+        if not isinstance(text, str):
+            raise ErroAncora("Parágrafo sem texto reconhecível na projeção.")
+        if block.get("objects") or "\ufffc" in text:
+            gaps.append(f"objeto:{anchor.block_id}")
+        body = anchor.story_kind == "body"
+        top_level = body and len(anchor.caminho.indices) == 1
+        heading = style in CLAUSE_STYLES
+        match = validacao._RE_CLAUSULA.fullmatch("## " + text) if heading else None
+        if top_level and match:
+            clause = int(match.group(1))
+            occurrences[clause] += 1
+            suffix = str(clause) if occurrences[clause] == 1 else f"{clause}.{occurrences[clause]}"
+            section = f"clausula/{suffix}"
+            signature_section = False
+            if occurrences[clause] > 1:
+                impediments.append("numeracao_ambigua")
+        elif top_level and heading:
+            # Do not let an unnumbered heading silently inherit FIXED policy.
+            clause, section = None, "preambulo"
+            signature_section = False
+        elif top_level and (validacao._RE_CLAUSULA.fullmatch(text)
+                            or validacao._RE_CLAUSULA.fullmatch("## " + text)):
+            impediments.append("titulo_sem_estilo_comprovado")
+        if body and (style == "GovDocsAssinatura" or "____" in text):
+            signature_section = True
+        block_clause, block_section = (clause, section) if body else (None, "institucional")
+        view_text = "## " + text if heading and body else text
+        reason = ("institucional" if not body or style in INSTITUTIONAL_STYLES else
+                  "titulo" if heading else "assinatura" if signature_section else
+                  "preambulo" if block_clause is None else
+                  "paragrafo_nao_suportado" if not _paragrafo_uniforme(block) else None)
+        result.append(BlocoGovernado(f"{doc_key}/{block_section}/{anchor.block_id}",
+                    "titulo" if heading and body else "paragrafo", block_clause, view_text,
+                    hash_texto(view_text), anchor, reason))
+    fixed = perfis.clausulas_fixas(doc_key)
+    if fixed and not set(fixed).issubset(occurrences):
+        # Partial numbering must not disguise a later fixed/signature region as
+        # ordinary text belonging to an editable earlier clause.
+        impediments.append("perfil_fixed_sem_estrutura")
+    # The Markdown policy helper receives numbered clauses only. Native
+    # unnumbered headings (e.g. ASSINATURAS) and their following paragraphs are
+    # already blocked as heading/preamble, and must not introduce None into its
+    # numbered-clause set.
+    blocked = set(achados.caminhos_bloqueados(doc_key,
+                  [b.canonico() for b in result if b.clausula is not None]))
+    result = tuple(BlocoGovernado(b.path, b.tipo, b.clausula, b.conteudo, b.hash, b.ancora,
+                   "clausula_bloqueada" if b.path in blocked else b.bloqueio) for b in result)
+    return ProjecaoNativa(doc_key, indice.document_id, indice.revision, indice.content_hash,
+            indice.engine_manifest_sha256, result, "\n\n".join(b.conteudo for b in result),
+            tuple(sorted(set(gaps))), tuple(sorted(set(impediments))))
+
+
+def snapshot_nativo(projecoes: dict[str, ProjecaoNativa], *, versao: int) -> dict:
+    """Canonical policy snapshot whose bundle hash binds native revision/build."""
+    _inteiro(versao, minimum=1)
+    if (not isinstance(projecoes, dict) or not projecoes
+            or any(not isinstance(p, ProjecaoNativa) or key != p.documento for key, p in projecoes.items())):
+        raise ErroAncora("Projeções inválidas para snapshot nativo.")
+    bindings = {key: projecoes[key].vinculo() for key in sorted(projecoes)}
+    return {"versao": versao, "hash": _fingerprint(bindings),
+            "documentos": {key: value.snapshot_documento() for key, value in projecoes.items()}}

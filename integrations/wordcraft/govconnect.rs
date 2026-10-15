@@ -229,6 +229,23 @@ fn apply_native_patch(session: &mut Session, request: NativePatchRequest) -> Res
     result
 }
 
+/// The same typed command on an existing work session, preserving its undo history.
+/// This validates a source binding, never backend authorization or persistence.
+pub fn apply_session_patch(session: &mut Session, current_revision: u32, plan_json: &[u8]) -> Result<(), String> {
+    let mut apply = || -> Result<(), String> {
+        if plan_json.is_empty() || plan_json.len() > MAX_PATCH_BYTES {
+            return Err(patch_error());
+        }
+        let plan: NativePatchPlan = serde_json::from_slice(plan_json).map_err(|_| patch_error())?;
+        let observed_source_hash = sha256(&serialize(&session.doc)?);
+        if plan.source_hash != observed_source_hash {
+            return Err(patch_error());
+        }
+        apply_native_patch(session, NativePatchRequest { current_revision, observed_source_hash, plan })
+    };
+    apply().map_err(|_| patch_error())
+}
+
 /// Apply a closed, server-authorized text plan to a copy using the native engine.
 /// ACL/policy/diff approval/CAS remain GovConnect responsibilities. Errors are closed.
 pub fn apply_patch(bytes: &[u8], current_revision: u32, plan_json: &[u8]) -> Result<Vec<u8>, String> {
@@ -236,6 +253,8 @@ pub fn apply_patch(bytes: &[u8], current_revision: u32, plan_json: &[u8]) -> Res
         if bytes.is_empty() || bytes.len() > MAX_BYTES || plan_json.is_empty() || plan_json.len() > MAX_PATCH_BYTES {
             return Err(patch_error());
         }
+        // Exact input bytes remain part of the pure IPC contract, even if a
+        // semantically equal JSON container would serialize differently.
         let plan: NativePatchPlan = serde_json::from_slice(plan_json).map_err(|_| patch_error())?;
         let observed_source_hash = sha256(bytes);
         if plan.source_hash != observed_source_hash {
@@ -725,6 +744,46 @@ mod tests {
         assert_eq!(serialize(&session.doc).unwrap(), bytes);
         command(&mut session, UserEdit::Redo).unwrap();
         assert_eq!(serialize(&session.doc).unwrap(), applied);
+    }
+
+    #[test]
+    fn session_patch_keeps_prior_history_and_is_one_independent_undo_group() {
+        let mut session = Session::new(Document::from_text("Texto original preservado."));
+        restrict_embedded_session(&mut session);
+        command(&mut session, UserEdit::SelectText("original".into())).unwrap();
+        command(&mut session, UserEdit::InsertText("manual".into())).unwrap();
+        let original = serialize(&session.doc).unwrap();
+        let prior_depth = session.undo_depth();
+        assert!(prior_depth > 0);
+        let plan = patch_plan(&original, vec![replace(StoryRef::Body, vec![0], 0, "Texto", "Trecho")]);
+        apply_session_patch(&mut session, 1, &serde_json::to_vec(&plan).unwrap()).unwrap();
+        let applied = serialize(&session.doc).unwrap();
+        assert_eq!(session.undo_depth(), prior_depth + 1);
+        assert_eq!(session.doc.para(StoryRef::Body, &Path::top(0)).unwrap().text, "Trecho manual preservado.");
+        command(&mut session, UserEdit::Undo).unwrap();
+        assert_eq!(serialize(&session.doc).unwrap(), original);
+        assert_eq!(session.undo_depth(), prior_depth);
+        command(&mut session, UserEdit::Redo).unwrap();
+        assert_eq!(serialize(&session.doc).unwrap(), applied);
+    }
+
+    #[test]
+    fn session_patch_failure_keeps_document_selection_dirty_and_prior_history() {
+        let mut session = Session::new(Document::from_text("Texto original preservado."));
+        restrict_embedded_session(&mut session);
+        command(&mut session, UserEdit::SelectText("original".into())).unwrap();
+        command(&mut session, UserEdit::InsertText("manual".into())).unwrap();
+        let original = serialize(&session.doc).unwrap();
+        let depth = session.undo_depth();
+        let selection = session.sel.clone();
+        let dirty = session.dirty;
+        let mut plan = patch_plan(&original, vec![replace(StoryRef::Body, vec![0], 0, "Texto", "Trecho")]);
+        plan["source_revision"] = json!(2);
+        assert!(apply_session_patch(&mut session, 1, &serde_json::to_vec(&plan).unwrap()).is_err());
+        assert_eq!(serialize(&session.doc).unwrap(), original);
+        assert_eq!(session.undo_depth(), depth);
+        assert_eq!(session.sel, selection);
+        assert_eq!(session.dirty, dirty);
     }
 
     #[test]
