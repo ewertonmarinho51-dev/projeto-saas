@@ -60,6 +60,19 @@ pub fn validate_checkpoint(bytes: Vec<u8>) -> Result<(), JsValue> {
     adapter::load_bytes(&bytes).map(|_| ()).map_err(error)
 }
 
+/// Server-side export of the exact validated revision; no canvas or download side channel.
+#[wasm_bindgen]
+pub fn export_checkpoint(bytes: Vec<u8>, format: &str) -> Result<Vec<u8>, JsValue> {
+    let format = match format {
+        "docx" => ExportFormat::Docx,
+        "pdf" => ExportFormat::Pdf,
+        _ => return Err(error("unsupported export format")),
+    };
+    let mut session = Session::new(adapter::load_bytes(&bytes).map_err(error)?);
+    adapter::restrict_embedded_session(&mut session);
+    adapter::export(&session, format).map_err(error)
+}
+
 impl GovConnectEditor {
     fn with_session<T>(&self, action: impl FnOnce(&mut Session) -> Result<T, String>) -> Result<T, JsValue> {
         if !self.started {

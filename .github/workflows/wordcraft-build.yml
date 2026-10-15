@@ -206,6 +206,7 @@ jobs:
           trunk build --release 2>&1 | tee ../../../build-evidence/govconnect-trunk.log
           grep -R -l 'GovConnectEditor' ../../dist/web/*.js > ../../../build-evidence/govconnect-api-exports.txt
           grep -R -l 'validate_checkpoint' ../../dist/web/*.js >> ../../../build-evidence/govconnect-api-exports.txt
+          grep -R -l 'export_checkpoint' ../../dist/web/*.js >> ../../../build-evidence/govconnect-api-exports.txt
           test -z "$(find ../../dist/web -name '*.ico' -print -quit)"
           if grep -E 'wordcraft\.ico|<title>WordCraft</title>|Loading WordCraft' ../../dist/web/index.html; then
             echo "Unmodified upstream brand shell remains in the integration build"
@@ -261,6 +262,40 @@ jobs:
           pathlib.Path('build-evidence/native-server-validation.txt').write_text(
               '3 real native checkpoints accepted; invalid model rejected; no document payload logged\n')
           PY
+      - name: Export exact native checkpoints through the pure WASM API
+        run: |
+          node --input-type=module <<'JS'
+          import {readFile, writeFile, readdir} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          import {resolve} from 'node:path';
+          import {pathToFileURL} from 'node:url';
+          import {verifyBundle} from './assets/wordcraft_editor/validate.mjs';
+          const root = resolve('wordcraft-local-qa');
+          const pin = createHash('sha256').update(await readFile(root + '/qa-manifest.json')).digest('hex');
+          const bundle = await verifyBundle(root, pin);
+          const engine = await import(pathToFileURL(bundle.modulePath).href);
+          await engine.default({module_or_path: bundle.wasmBytes});
+          const base = 'build-evidence/corpus-roundtrip';
+          for (const name of await readdir(base)) {
+            const bytes = await readFile(`${base}/${name}/checkpoint.json`);
+            for (const format of ['docx', 'pdf']) {
+              const result = engine.export_checkpoint(bytes, format);
+              const output = Buffer.from(result);
+              if (!output.length || output.length > 64 * 1024 * 1024
+                  || (format === 'pdf' ? output.subarray(0, 5).toString() !== '%PDF-'
+                    : !output.subarray(0, 4).equals(Buffer.from([80, 75, 3, 4])))) {
+                throw new Error('Unexpected pure native export');
+              }
+              await writeFile(`${base}/${name}/wasm-roundtrip.${format}`, output);
+            }
+          }
+          let rejected = false;
+          try { engine.export_checkpoint(await readFile(`${base}/01-texto-listas-links/checkpoint.json`), 'html'); }
+          catch { rejected = true; }
+          if (!rejected) throw new Error('Unapproved export format was accepted');
+          await writeFile('build-evidence/native-server-export.txt',
+            '3 snapshots exported as DOCX/PDF by pure WASM; unapproved format rejected; fidelity approval pending\n');
+          JS
       - name: Preserve assets for the local browser integration test
         uses: actions/upload-artifact@v4
         with:
