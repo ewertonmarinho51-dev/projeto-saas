@@ -82,7 +82,7 @@ Com Python do projeto e as dependências de teste, do checkout GovConnect:
 ```powershell
 $env:PYTHONUTF8='1'
 $env:PYTHONPATH=(Resolve-Path ../pg-deps).Path
-python scripts/ensaio_http_local.py --dsn 'postgresql://postgres@127.0.0.1:55439/postgres' --postgrest ../toolchain/postgrest-12.2.12/postgrest.exe --pg-bin ../toolchain/postgresql-16.15-5/pgsql/bin --work-dir ../http-qa-canonical
+python scripts/ensaio_http_local.py --dsn 'postgresql://postgres@localhost:55439/postgres' --postgrest ../toolchain/postgrest-12.2.12/postgrest.exe --pg-bin ../toolchain/postgresql-16.15-5/pgsql/bin --work-dir ../http-qa-canonical
 ```
 
 O CI também executa esse orquestrador após a suíte principal, usando a imagem
