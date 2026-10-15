@@ -74,3 +74,21 @@ Nenhuma remoção de legado antes da prova de substituição e do aceite corresp
 O runner substitui os roteiros avulsos de `work/` na reprodução da prova; não cria
 outro sistema de processos, autenticação ou persistência. Segredos sintéticos ficam
 somente em memória dos processos; o estado de retomada contém apenas nomes/UUIDs/hashes.
+
+## Ampliação G2/G3/G4 — 15/10/2026
+
+| Componente | Responsabilidade exclusiva e reuso | Prova e limite |
+|---|---|---|
+| `src/wordcraft_blocos.py` | índice derivado do checkpoint validado pelo motor, identidade conservadora e resolução por revisão/hash; não armazena documento alternativo | unicidade, duplicatas, histórias/células aninhadas e invalidação explícita; sem seleção confiável fornecida pelo browser |
+| `scripts/wordcraft_benchmark.py` | medir admissão e exportação nos três inputs pinados, usando o worker existente | amostras frias por processo; não mede navegador, memória ou orçamento G7 |
+| `scripts/wordcraft_distribution_notices.py` | reunir textos reais da closure Cargo filtrada para WASM e registrar ausência/expressões de licença | hashes, paths confinados e revisão explícita; metadata não é link map nem aprovação legal |
+| `scripts/wordcraft_corpus.py --full-corpus` | ampliar o gerador existente aos doze cenários C01–C12, sem trocar fixtures G1 | oráculos Decimal por célula e QA estrutural; sementes de governança não aprovam owner/patch/RLS |
+| `DocumentoService` + migrations aditivas G2 | preservar originais, índices e restauração na revisão imutável existente; snapshot institucional vem das fontes canônicas | CAS atômico, histórico privado, ausência histórica não preenchida artificialmente; aprovação nativa ainda não integrada |
+| `scripts/wordcraft_libreoffice_qa.py` (planejado) | comparar DOCX sintéticos com distribuição oficial extraída em workspace e perfil exclusivo | execução real headless, sem instalação global ou alteração no exportador do produto |
+| `src/patches.py` (adaptação planejada) | manter uma entrada de regras/escopo/FIXED e traduzir âncoras nativas verificadas para comandos limitados do mesmo motor | cópia, hash/revisão, escopo, diff e pós-condições; nunca editar JSON como motor alternativo |
+| `GovConnect apply_patch` (adaptador Rust planejado) | comando puro tipado sobre Session upstream, sem save/ACL próprios | lote atômico de substituição textual, stale/UTF-8/estrutura/formato recusados; undo no documento vivo exige prova separada |
+
+A decisão pré-código específica está em `persistencia-g2.md`,
+`snapshot-institucional.md`, `corpus-g3.md`, `benchmark.md`,
+`licencas-distribuicao.md` e `patches-nativos.md`. Este inventário consolidado
+não retrodata a execução dessas provas nem encerra os gates correspondentes.
