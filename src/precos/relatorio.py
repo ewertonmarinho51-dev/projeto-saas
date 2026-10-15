@@ -772,6 +772,23 @@ def resumido(pesquisa: dict, itens: list[dict],
 # ---------------------------------------------------------------------------
 # §33 — memória analítica em XLSX
 # ---------------------------------------------------------------------------
+_INICIO_DE_FORMULA = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _linha_segura(celulas: list) -> list:
+    """
+    Texto que a planilha leria como FÓRMULA vira texto literal (SEC-03).
+
+    O openpyxl grava como fórmula qualquer string que comece com "=";
+    descrição, órgão e fornecedor vêm da fonte ou do servidor (cotação
+    direta), e um "=HYPERLINK(...)" ali executaria ao abrir o arquivo. O
+    apóstrofo inicial é a marca de texto do próprio Excel. Números são
+    gravados como números e não passam por aqui.
+    """
+    return ["'" + c if isinstance(c, str) and c.startswith(_INICIO_DE_FORMULA)
+            else c for c in celulas]
+
+
 def xlsx_analitico(pesquisa: dict, itens: list[dict],
                    referencias: dict[str, list[dict]]) -> bytes:
     """
@@ -794,7 +811,7 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
                 "Valor total", "Referências", "Na cesta"])
     for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
         lista = referencias.get(str(item.get("id")), [])
-        aba.append([
+        aba.append(_linha_segura([
             int(item.get("numero") or 0),
             str(item.get("codigo") or ""),
             str(item.get("tipo_catalogo") or ""),
@@ -806,8 +823,10 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
             _float(item.get("preco_estimado")),
             _float(item.get("preco_total")),
             len(lista),
-            sum(1 for r in lista if str(r.get("status")) == "selected"),
-        ])
+            # `warning` é discrepante que continua na cesta até decisão
+            sum(1 for r in lista
+                if str(r.get("status")) in ("selected", "warning")),
+        ]))
     for coluna, largura in zip("ABCDEFGHIJKL",
                               (6, 12, 10, 48, 10, 12, 12, 10, 14, 14, 12, 10)):
         aba.column_dimensions[coluna].width = largura
@@ -823,7 +842,7 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
     for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
         numero = int(item.get("numero") or 0)
         for linha in referencias.get(str(item.get("id")), []):
-            detalhe.append([
+            detalhe.append(_linha_segura([
                 numero,
                 _ROTULO_STATUS.get(str(linha.get("status")),
                                    str(linha.get("status") or "")),
@@ -848,7 +867,7 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
                 str(linha.get("id_externo") or ""),
                 str(linha.get("raw_hash") or ""),
                 "; ".join(str(m) for m in (linha.get("motivos") or [])),
-            ])
+            ]))
     for coluna, largura in zip(
             ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"],
             (6, 22, 22, 20, 28, 6, 18, 28, 14, 12, 48)):

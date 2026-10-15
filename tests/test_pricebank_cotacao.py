@@ -139,3 +139,24 @@ def test_unidade_cotada_sem_conversao_comprovada_e_recusada(monkeypatch):
     with pytest.raises(cotacao.ErroCotacao, match="não converte"):
         cotacao.registrar(pesquisa, item, _montar(unidade="CAIXA"), repo,
                           perfil=perfil.LEI_14133)
+
+
+def test_fornecedor_com_formula_nao_vira_formula_no_xlsx(monkeypatch):
+    """SEC-03: texto digitado ou vindo da fonte nunca executa na planilha."""
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    _, pesquisa, item = _pesquisa_com_duas(monkeypatch)
+    hostil = '=HYPERLINK("http://exemplo.invalid","clique")'
+    cotacao.registrar(pesquisa, item, _montar(fornecedor=hostil), repo,
+                      perfil=perfil.LEI_14133)
+    [item] = repo.listar_itens(str(pesquisa["id"]))
+    referencias = {str(item["id"]): repo.listar_referencias(str(item["id"]))}
+    planilha = load_workbook(BytesIO(
+        relatorio.xlsx_analitico(pesquisa, [item], referencias)))
+    celulas = [c for linha in planilha["Referências"].iter_rows()
+               for c in linha if isinstance(c.value, str) and "HYPERLINK" in c.value]
+    assert celulas, "o fornecedor está na planilha"
+    assert all(c.data_type == "s" and not c.value.startswith("=")
+               for c in celulas)
