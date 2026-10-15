@@ -203,6 +203,7 @@ class ComprasGovAdapter(FontePesquisaPreco):
         resultado = ResultadoBusca(fonte=self.fonte)
         if consulta.tem_codigo:
             self._por_codigo(consulta, resultado, avisar_vazio=False)
+            resultado.codigo_confirmado = bool(resultado.referencias)
             if resultado.referencias or resultado.houve_falha:
                 return resultado
             resultado.registrar(
@@ -365,6 +366,26 @@ class ComprasGovAdapter(FontePesquisaPreco):
                             {"pagina": 1, "tamanhoPagina": PAGINA_MINIMA},
                             resultado)
         return bool(dados)
+
+
+def url_de_verificacao(bruto: dict) -> str | None:
+    """
+    Link OFICIAL que devolve exatamente este registro de preço praticado.
+
+    A própria API de Dados Abertos aceita filtrar por compra
+    (`idCompra`) e código do item: o resultado é o registro da referência,
+    com preço, órgão e fornecedor — verificado em 15/10/2026 (1 registro,
+    mesmo `idItemCompra`). Serve de evidência reprodutível no relatório;
+    `None` quando o registro não traz os dois identificadores.
+    """
+    compra, codigo = bruto.get("idCompra"), bruto.get("codigoItemCatalogo")
+    if not compra or not codigo:
+        return None
+    caminho = ("3_consultarServico" if bruto.get("codigoServico")
+               else "1_consultarMaterial")
+    return (f"{BASE}/modulo-pesquisa-preco/{caminho}?pagina=1"
+            f"&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo={codigo}"
+            f"&idCompra={compra}")
 
 
 def _iso(valor: date | None) -> str | None:

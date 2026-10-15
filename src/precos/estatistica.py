@@ -83,6 +83,8 @@ class Estatisticas:
     q3: Decimal
     iqr: Decimal
     mad: Decimal
+    # a soma entra na memória de cálculo da média ("soma ÷ n")
+    soma: Decimal = ZERO
 
     def para_relatorio(self) -> dict:
         return {k: (v if isinstance(v, int) else format(v, "f"))
@@ -124,7 +126,7 @@ def calcular(valores: list[Decimal]) -> Estatisticas | None:
         amplitude=ordenados[-1] - ordenados[0],
         desvio_padrao=desvio,
         coeficiente_variacao=(desvio / media) if media else ZERO,
-        q1=q1, q3=q3, iqr=q3 - q1, mad=mad,
+        q1=q1, q3=q3, iqr=q3 - q1, mad=mad, soma=soma,
     )
 
 
@@ -332,6 +334,20 @@ class Estimativa:
 
 METODO_AUTOMATICO = "automatico"
 
+# Versões das REGRAS de escolha do método, gravadas em
+# `pesquisas_preco.versao_regras` na criação da pesquisa.
+#
+# * REGRAS_LEGADAS ("") — o automático escolhia média ou mediana pelo
+#   coeficiente de variação. Pesquisas criadas assim continuam assim: o
+#   método padrão mudar NÃO reprocessa pesquisa já feita (Banco de Preços,
+#   15/10/2026).
+# * REGRAS_MEDIA_PADRAO — o automático é a MÉDIA ARITMÉTICA SIMPLES dos
+#   preços unitários selecionados. Mediana, CV e dispersão viram só
+#   diagnóstico; discrepante gera alerta, nunca troca de método nem
+#   exclusão automática.
+REGRAS_LEGADAS = ""
+REGRAS_MEDIA_PADRAO = "2026-10-15.media-aritmetica"
+
 
 def _aplicar_metodo(metodo: str, e: Estatisticas) -> Decimal:
     if metodo == "media":
@@ -343,15 +359,18 @@ def _aplicar_metodo(metodo: str, e: Estatisticas) -> Decimal:
 
 def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
             metodo: str = METODO_AUTOMATICO,
-            justificativa: str | None = None) -> Estimativa:
+            justificativa: str | None = None,
+            regras: str = REGRAS_LEGADAS) -> Estimativa:
     """
     Forma o preço estimado a partir da cesta.
 
-    O método automático escolhe **mediana** quando a série é dispersa e
-    **média** quando é homogênea. A razão é estatística, não jurídica: a
-    mediana resiste a valores extremos, e é justamente com dispersão alta
-    que os extremos distorcem a média. Com série homogênea a média usa
-    toda a informação disponível.
+    `regras` diz qual política o AUTOMÁTICO segue (ver
+    `REGRAS_MEDIA_PADRAO`): média aritmética simples nas pesquisas novas;
+    média/mediana pelo coeficiente de variação nas criadas antes.
+
+    Método pedido que o perfil não admite NÃO cai em outro em silêncio:
+    a estimativa sai sem valor, INCOMPLETA, com o impedimento e os
+    métodos admitidos na memória.
     """
     estatisticas = calcular(cesta.valores)
     memoria: list[str] = []
@@ -365,18 +384,32 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
     anomalias = detectar_anomalias(cesta.selecionadas, estatisticas)
 
     escolhido = metodo
-    if metodo == METODO_AUTOMATICO:
+    if metodo == METODO_AUTOMATICO and regras == REGRAS_MEDIA_PADRAO:
+        escolhido = "media"
+        memoria.append(
+            "método padrão: média aritmética simples dos preços unitários "
+            f"selecionados (soma {estatisticas.soma.quantize(CENTAVO, ROUND_HALF_UP)} "
+            f"÷ {estatisticas.quantidade}); mediana "
+            f"{estatisticas.mediana.quantize(CENTAVO, ROUND_HALF_UP)} e "
+            f"coeficiente de variação {estatisticas.coeficiente_variacao:.2f} "
+            "apenas como diagnóstico")
+    elif metodo == METODO_AUTOMATICO:
         disperso = estatisticas.coeficiente_variacao > Decimal("0.25")
         escolhido = "mediana" if disperso else "media"
         memoria.append(
             f"método escolhido automaticamente: {escolhido} — coeficiente "
             f"de variação {estatisticas.coeficiente_variacao:.2f} "
             f"({'série dispersa' if disperso else 'série homogênea'})")
-    elif metodo not in perfil.metodos_permitidos:
+    if escolhido not in perfil.metodos_permitidos:
         memoria.append(
-            f"método '{metodo}' não é permitido pelo perfil {perfil.nome}; "
-            "aplicada a mediana")
-        escolhido = "mediana"
+            f"método '{escolhido}' não é admitido pelo perfil {perfil.nome}"
+            f" — admitidos: {', '.join(perfil.metodos_permitidos)}. "
+            "Nenhum outro método foi aplicado em seu lugar; escolha um "
+            "método admitido e registre a decisão")
+        return Estimativa(
+            valor_unitario=None, metodo=escolhido, status="INCOMPLETO",
+            estatisticas=estatisticas, cesta=cesta, anomalias=anomalias,
+            memoria=memoria, perfil_id=perfil.id)
 
     valor = _aplicar_metodo(escolhido, estatisticas)
     memoria.append(

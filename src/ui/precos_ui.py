@@ -40,8 +40,8 @@ from decimal import Decimal, InvalidOperation
 import streamlit as st
 
 from .. import auth, contexto, db, planilha
-from ..precos import (aplicacao, execucao, filtros as filtros_mod,
-                      orientacao, perfil, relatorio)
+from ..precos import (aplicacao, estatistica, execucao,
+                      filtros as filtros_mod, orientacao, perfil, relatorio)
 from ..precos import semantica as precos_semantica
 from ..precos import repositorio as repo
 from ..precos.estados import (EstadoItem, EstadoPesquisa,
@@ -54,8 +54,8 @@ PESQUISA = "precos_pesquisa_id"
 ITEM = "precos_item_id"
 RELATO = "precos_relato"
 
-LISTA, NOVA, ITENS, EXECUCAO, REVISAO, RESUMO = (
-    "lista", "nova", "itens", "execucao", "revisao", "resumo")
+LISTA, NOVA, ITENS, EXECUCAO, REVISAO, RESUMO, BANCO = (
+    "lista", "nova", "itens", "execucao", "revisao", "resumo", "banco")
 
 # Rótulos dos estados. O vocabulário do banco é inglês (§42); o que o
 # servidor lê é português — e a tradução mora num lugar só.
@@ -177,6 +177,8 @@ def render_precos() -> None:
             _render_revisao()
         elif tela == RESUMO:
             _render_resumo()
+        elif tela == BANCO:
+            _render_banco()
         else:
             _render_lista()
     except repo.SemSessao as erro:
@@ -250,6 +252,220 @@ def _exigir_sessao() -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Banco de Preços — consulta manual sobre o MESMO motor da automática
+# ---------------------------------------------------------------------------
+BANCO_COLETA = "_banco_coleta"
+BANCO_ITEM = "_banco_item"
+BANCO_SELECAO = "_banco_selecao"
+BANCO_CHAVE = "_banco_chave"
+BANCO_LIMITE_LINHAS = 60
+
+ROTULO_NATUREZA = {
+    "praticado": "Praticado", "homologado": "Homologado",
+    "contratado": "Contratado", "adjudicado": "Adjudicado",
+    "estimado_origem": "Estimado (origem)", "proposta": "Proposta",
+    "outro": "Outro",
+}
+ROTULO_DESFECHO = {"ok": "respondeu", "vazio": "respondeu sem resultado",
+                   "falha": "INDISPONÍVEL"}
+
+
+def _render_banco() -> None:
+    """
+    Pesquisa manual de preços: termo → candidatos → cesta → pesquisa.
+
+    Usa `busca.coletar` — o serviço da Pesquisa Automática — e a cesta é
+    calculada por `estatistica.estimar` com a mesma regra (média
+    aritmética). "Salvar como pesquisa" grava na MESMA entidade, e dali
+    seguem revisão, relatórios e aplicação ao processo já existentes.
+    """
+    import uuid
+
+    from ..precos import busca as busca_mod
+
+    components.render_section_heading(
+        "Banco de Preços",
+        "Consulte preços praticados em compras públicas oficiais, escolha "
+        "as referências comparáveis e forme a cesta.")
+    if st.button("← Minhas pesquisas"):
+        _ir(LISTA)
+        st.rerun()
+
+    with st.form("banco_consulta"):
+        descricao = st.text_area(
+            "Item (descrição e especificação)",
+            placeholder="Ex.: CANETA ESFEROGRÁFICA AZUL, ponta média 1,0 mm, "
+                        "corpo plástico transparente",
+            height=90)
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+        unidade = c1.text_input("Unidade", placeholder="UNIDADE, CAIXA…")
+        quantidade = c2.text_input("Quantidade (opcional)")
+        codigo = c3.text_input("CATMAT (opcional)")
+        uf = c4.text_input("UF (opcional)", max_chars=2)
+        janela = st.slider("Janela de compras (dias)", 30,
+                           execucao.JANELA_MAXIMA_DIAS,
+                           execucao.JANELA_PADRAO_DIAS, step=30,
+                           help="Limitada à validade das cotações (180 dias).")
+        consultar = st.form_submit_button("Consultar preços", type="primary",
+                                          use_container_width=True)
+    if consultar:
+        if len(descricao.strip()) < 3:
+            st.error("Descreva o item a pesquisar.")
+            return
+        item = {"id": "banco", "numero": 1, "descricao": descricao.strip(),
+                "unidade": unidade.strip(), "quantidade": quantidade.strip(),
+                "codigo": codigo.strip() or None,
+                "tipo_catalogo": "CATMAT" if codigo.strip() else None}
+        filtros = {"janela_dias": janela, "uf": uf.strip().upper() or None}
+        with st.spinner("Consultando fontes oficiais…"):
+            coleta = busca_mod.coletar(item, _fontes(), filtros=filtros)
+        st.session_state[BANCO_ITEM] = {**item, "filtros": filtros}
+        st.session_state[BANCO_COLETA] = coleta
+        # Pré-seleção: as comparáveis acima do piso. O servidor ajusta.
+        piso = estatistica.PISO_COMPARABILIDADE
+        st.session_state[BANCO_SELECAO] = {
+            ref.chave_dedupe for ref, comp in coleta.referencias
+            if ref.valor_unitario_normalizado is not None
+            and comp.score >= piso}
+        st.session_state[BANCO_CHAVE] = uuid.uuid4().hex
+
+    coleta = st.session_state.get(BANCO_COLETA)
+    item = st.session_state.get(BANCO_ITEM)
+    if coleta is None or item is None:
+        st.caption("Os resultados aparecem aqui, com a fonte, a data e o "
+                   "link oficial de cada preço.")
+        return
+    _render_banco_resultado(item, coleta)
+
+
+def _render_banco_resultado(item: dict, coleta) -> None:
+    from ..precos import compras_gov
+
+    st.divider()
+    fontes_txt = " · ".join(
+        f"{fid}: {ROTULO_DESFECHO.get(desfecho, desfecho)}"
+        for fid, desfecho in sorted(coleta.desfechos.items()))
+    st.caption(f"Fontes consultadas — {fontes_txt or 'nenhuma'}")
+    if coleta.erro:
+        st.error(coleta.erro)
+        return
+    for ocorrencia in coleta.ocorrencias[:3]:
+        st.caption(f"• {ocorrencia}")
+
+    piso = estatistica.PISO_COMPARABILIDADE
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Encontradas", coleta.brutas)
+    m2.metric("Sem duplicatas", coleta.unicas)
+    m3.metric("Comparáveis", coleta.elegiveis(piso))
+    selecao: set[str] = st.session_state.setdefault(BANCO_SELECAO, set())
+    escolhidas = [ref for ref, _ in coleta.referencias
+                  if ref.chave_dedupe in selecao
+                  and ref.valor_unitario_normalizado is not None]
+    m4.metric("Na cesta", f"{len(escolhidas)}/3")
+
+    if not coleta.referencias:
+        st.info("As fontes responderam, mas não há compra registrada para "
+                "esse tipo de material na janela. Detalhe a especificação "
+                "ou informe o CATMAT.")
+        return
+
+    estimativa = estatistica.estimar(
+        estatistica.Cesta(selecionadas=escolhidas),
+        regras=estatistica.REGRAS_MEDIA_PADRAO)
+    _render_banco_cesta(estimativa)
+
+    st.markdown("###### Referências (por comparabilidade, não por preço)")
+    for ref, comp in coleta.referencias[:BANCO_LIMITE_LINHAS]:
+        chave = ref.chave_dedupe
+        colunas = st.columns([0.5, 4, 1.6, 1.4, 1.2])
+        sem_preco = ref.valor_unitario_normalizado is None
+        marcado = colunas[0].checkbox(
+            "Na cesta", value=chave in selecao, key=f"banco_sel_{chave}",
+            label_visibility="collapsed", disabled=sem_preco,
+            help=("Unidade não comprovada: sem preço comparável."
+                  if sem_preco else None))
+        if marcado and not sem_preco:
+            selecao.add(chave)
+        else:
+            selecao.discard(chave)
+        with colunas[1]:
+            st.write(ref.descricao_original[:160] or "—")
+            orgao = " / ".join(x for x in (ref.orgao, ref.uf) if x)
+            fornecedor = f" · fornecedor {ref.fornecedor}" if ref.fornecedor else ""
+            st.caption(f"{orgao or 'órgão não informado'}{fornecedor}")
+        colunas[2].write(
+            f"{_moeda(ref.valor_unitario_normalizado)} / "
+            f"{ref.unidade_normalizada or item.get('unidade') or '—'}")
+        colunas[2].caption(
+            f"original {_moeda(ref.valor_unitario_original)} "
+            f"{ref.unidade_original or ''}")
+        colunas[3].write(ROTULO_NATUREZA.get(ref.natureza_valor.value,
+                                             ref.natureza_valor.value))
+        colunas[3].caption(str(ref.data_compra or "data não informada"))
+        colunas[4].write(f"{comp.percentual}% comparável")
+        url = compras_gov.url_de_verificacao(ref.bruto)
+        if url:
+            colunas[4].markdown(f"[verificar na fonte]({url})")
+    if len(coleta.referencias) > BANCO_LIMITE_LINHAS:
+        st.caption(f"Mostrando as {BANCO_LIMITE_LINHAS} mais comparáveis de "
+                   f"{len(coleta.referencias)}.")
+
+    _render_banco_salvar(item, coleta, selecao)
+
+
+def _render_banco_cesta(estimativa) -> None:
+    est = estimativa.estatisticas
+    if est is None:
+        st.warning("Cesta vazia: marque as referências comparáveis.")
+        return
+    a, b, c = st.columns(3)
+    a.metric("Média aritmética (método padrão)",
+             _moeda(estimativa.valor_unitario))
+    b.metric("Mediana (diagnóstico)", _moeda(est.mediana))
+    c.metric("Coef. de variação", f"{est.coeficiente_variacao:.2f}")
+    if estimativa.status != "CONCLUIDO":
+        st.warning(f"{est.quantidade}/3 — a cesta ainda não tem três preços "
+                   "comparáveis. Não conclua sem ampliar a busca ou "
+                   "registrar a exceção prevista no perfil.")
+    if estimativa.anomalias:
+        st.info(f"{len(estimativa.anomalias)} preço(s) discrepante(s) "
+                "sinalizado(s) para revisão — nenhum foi excluído.")
+
+
+def _render_banco_salvar(item: dict, coleta, selecao: set[str]) -> None:
+    from ..precos import cesta as cesta_mod
+
+    st.divider()
+    with st.form("banco_salvar"):
+        nome = st.text_input("Nome da pesquisa",
+                             value=item["descricao"][:80])
+        salvar = st.form_submit_button(
+            "Salvar como pesquisa", type="primary",
+            help="Cria a pesquisa com este item e a cesta escolhida; a "
+                 "revisão, os relatórios e a aplicação ao processo seguem "
+                 "o fluxo normal.")
+    if not salvar:
+        return
+    if not nome.strip():
+        st.error("Dê um nome à pesquisa.")
+        return
+    auth_user_id, secretaria_id = _identidade()
+    resultado = cesta_mod.salvar_consulta_como_pesquisa(
+        repositorio=repo, nome=nome.strip(), item=item, coleta=coleta,
+        selecionados=set(selecao),
+        perfil=perfil.obter(None), auth_user_id=auth_user_id,
+        secretaria_id=secretaria_id,
+        filtros=dict(item.get("filtros") or {}),
+        idempotency_key=f"banco:{st.session_state.get(BANCO_CHAVE)}")
+    for chave in (BANCO_COLETA, BANCO_ITEM, BANCO_SELECAO, BANCO_CHAVE):
+        st.session_state.pop(chave, None)
+    destino = REVISAO if resultado.get("item_id") else ITENS
+    _ir(destino, **{PESQUISA: resultado["pesquisa_id"],
+                    ITEM: resultado.get("item_id")})
+    st.rerun()
+
+
+# ---------------------------------------------------------------------------
 # §29 — Lista de pesquisas
 # ---------------------------------------------------------------------------
 def _render_lista() -> None:
@@ -257,12 +473,18 @@ def _render_lista() -> None:
         "Minhas pesquisas",
         "Cada linha é uma pesquisa de preços com histórico próprio.")
 
-    esquerda, direita = st.columns([3, 1])
+    esquerda, meio, direita = st.columns([3, 1, 1])
     with esquerda:
         recorte = st.radio(
             "Recorte", options=["Todas", *RECORTES],
             horizontal=True, key="precos_recorte",
             label_visibility="collapsed")
+    with meio:
+        if st.button("Banco de Preços", use_container_width=True,
+                     help="Consultar preços de um item sem criar pesquisa; "
+                          "a cesta escolhida pode virar pesquisa depois."):
+            _ir(BANCO)
+            st.rerun()
     with direita:
         if st.button("Nova pesquisa", type="primary",
                      use_container_width=True):
@@ -473,6 +695,7 @@ def _render_nova() -> None:
             local_referencia=local.strip(), data_base=data_base,
             perfil_normativo=perfil_id,
             filtros={"janela_dias": execucao.JANELA_PADRAO_DIAS},
+            versao_regras=estatistica.REGRAS_MEDIA_PADRAO,
         )
         repo.registrar_evento(
             str(criada["id"]), "pesquisa_criada",
@@ -1263,11 +1486,26 @@ def _render_motivo(item: dict, linha: dict, na_cesta: bool) -> None:
     repo.reclassificar_referencia(
         str(linha["id"]), "rejected" if na_cesta else "selected",
         motivo.strip())
+    # A seleção mudou: o preço do item é refeito pela cesta GRAVADA, com o
+    # mesmo cálculo do pipeline (antes ficava o preço da máquina). O novo
+    # valor viaja no MESMO evento da inclusão/exclusão — a trilha mostra o
+    # ato e a consequência juntos.
+    pesquisa = _pesquisa_atual() or {}
+    from ..precos import cesta as cesta_mod
+
+    estimativa = cesta_mod.recalcular_e_gravar(
+        pesquisa, item, repo,
+        perfil=perfil.obter(pesquisa.get("perfil_normativo")))
     repo.registrar_evento(
         str(st.session_state.get(PESQUISA)),
         "referencia_excluida" if na_cesta else "referencia_incluida",
         item_id=str(item["id"]), descricao=motivo.strip(),
-        payload={"referencia": str(linha["id"])})
+        payload={"referencia": str(linha["id"]),
+                 "preco_recalculado": None
+                 if estimativa.valor_unitario is None
+                 else format(estimativa.valor_unitario, "f"),
+                 "metodo": estimativa.metodo,
+                 "status_da_cesta": estimativa.status})
     st.session_state[f"motivo_aberto_{linha['id']}"] = False
     st.rerun()
 

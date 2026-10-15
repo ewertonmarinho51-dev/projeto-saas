@@ -253,6 +253,8 @@ def _singular(palavra: str) -> str:
     igual à descrição e ao catálogo, então "LÁPIS"→"LAPI" casa com
     "LAPI" do outro lado.
     """
+    if len(palavra) > 4 and palavra.endswith(("OES", "AES")):
+        return palavra[:-3] + "AO"          # BALÕES → BALAO (sem acento)
     return palavra[:-1] if len(palavra) > 4 and palavra.endswith("S") else palavra
 
 

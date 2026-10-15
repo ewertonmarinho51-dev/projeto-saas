@@ -43,11 +43,10 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
-from . import estatistica, matching, unidades
+from . import estatistica, matching
 from .estados import EstadoItem, EstadoPesquisa, estado_derivado
-from . import fontes as fontes_mod
 from .fontes import Consulta, Desfecho, FontePesquisaPreco
-from .modelo import Referencia, conferir_procedencia, deduplicar
+from .modelo import Referencia
 from .perfil import PADRAO, PerfilNormativo
 
 # Quantos itens por script run.
@@ -272,7 +271,8 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
                    perfil: PerfilNormativo = PADRAO,
                    filtros: dict | None = None,
                    piso: Decimal | None = None,
-                   motor_semantico=None, termos_locais: bool = False) -> ResultadoItem:
+                   motor_semantico=None, termos_locais: bool = False,
+                   regras: str = estatistica.REGRAS_MEDIA_PADRAO) -> ResultadoItem:
     """
     O pipeline de um item, do zero à estimativa.
 
@@ -317,29 +317,15 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
             "busca ampliada com termos equivalentes sugeridos pela camada "
             f"semântica: {', '.join(termos)}")
 
-    consulta = consulta_do_item(item, filtros, termos)
+    # A COLETA é o serviço único de busca (`busca.coletar`), o mesmo do
+    # Banco de Preços manual: fontes, procedência, deduplicação, unidade
+    # e comparabilidade não têm segunda implementação.
+    from . import busca
 
-    coletadas: list[Referencia] = []
-    pdms_inferidos: set[str] = set()
-    de_preco: set[str] = set()
-    for fonte in fontes:
-        fid = getattr(getattr(fonte, "fonte", None), "id", "") or repr(fonte)
-        nome = getattr(getattr(fonte, "fonte", None), "nome", "fonte")
-        if fontes_mod.fornece_preco(fonte):
-            de_preco.add(fid)
-        try:
-            busca = fonte.pesquisar(consulta)
-        except Exception as exc:  # noqa: BLE001 — adapter nenhum derruba a pesquisa
-            resultado.desfechos[fid] = Desfecho.FALHA.value
-            resultado.ocorrencias.append(
-                f"{nome}: indisponível no momento ({type(exc).__name__})")
-            continue
-        resultado.desfechos[fid] = busca.desfecho.value
-        coletadas.extend(busca.referencias)
-        pdms_inferidos.update(getattr(busca, "pdms_inferidos", None) or ())
-        resultado.ocorrencias.extend(busca.ocorrencias)
-
-    resultado._de_preco = frozenset(de_preco)
+    coleta = busca.coletar(item, fontes, filtros=filtros, termos=termos)
+    resultado.desfechos.update(coleta.desfechos)
+    resultado.ocorrencias.extend(coleta.ocorrencias)
+    resultado._de_preco = coleta.de_preco
 
     # ------------------------------------------------------------------
     # Falha técnica NÃO é amostra insuficiente
@@ -361,50 +347,16 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
     # todas elas falharam, é falha técnica: o item volta para a fila e se
     # repete. Se responderam e não trouxeram nada, aí sim é o mercado
     # falando, e repetir amanhã dá o mesmo.
-    falharam = [fid for fid in de_preco
-                if resultado.desfechos.get(fid) == Desfecho.FALHA.value]
-    if de_preco and len(falharam) == len(de_preco):
-        resultado.erro = (
-            "as fontes de preço não responderam "
-            f"({', '.join(sorted(falharam))}) — isto é falha técnica, não "
-            "ausência de preço no mercado; o item volta para a fila")
+    # Falha técnica NÃO é amostra insuficiente: se todas as fontes de
+    # PREÇO falharam, o item volta para a fila; se responderam vazio, é o
+    # mercado falando (ver `busca.coletar`).
+    if coleta.erro:
+        resultado.erro = coleta.erro
         resultado.duracao_s = time.monotonic() - inicio
         return resultado
 
-    if not de_preco:
-        # Nenhuma fonte de preço configurada. Também é falha técnica, e
-        # de configuração: sem ela a pesquisa não pode dar certo nunca, e
-        # deixar sair `incomplete` culparia o mercado por um erro nosso.
-        resultado.erro = (
-            "nenhuma fonte capaz de fornecer preço foi configurada para "
-            "esta pesquisa")
-        resultado.duracao_s = time.monotonic() - inicio
-        return resultado
-
-    # A procedência é conferida ANTES de qualquer outra coisa: é aqui
-    # que o dado externo deixa de ser "o que a fonte disse ser" e passa
-    # a ser o que o módulo aceita. Uma fonte não registrada que se
-    # declarasse sistema oficial entraria na cesta à frente de uma
-    # contratação similar verdadeira (§55).
-    unicas = conferir_procedencia(deduplicar(coletadas))
-    resultado.encontradas = len(unicas)
-
-    unidade = str(item.get("unidade") or "")
-    conteudo = unidades.conteudo_declarado(item.get("descricao"))
-    normalizadas = [unidades.normalizar(r, unidade, conteudo) for r in unicas]
-
-    data_base = filtros.get("data_base")
-    if isinstance(data_base, str):
-        data_base = date.fromisoformat(data_base[:10])
-    ranqueadas = matching.ordenar_por_comparabilidade(
-        normalizadas,
-        descricao=str(item.get("descricao") or ""),
-        codigo_catalogo=codigo_de_catalogo(item),
-        quantidade=_decimal(item.get("quantidade")),
-        uf=filtros.get("uf") or None,
-        data_base=data_base,
-        pdms_item=frozenset(pdms_inferidos),
-    )
+    resultado.encontradas = coleta.unicas
+    ranqueadas = coleta.referencias
     resultado.referencias = ranqueadas
 
     cesta = estatistica.selecionar_cesta(
@@ -412,7 +364,8 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
         piso if piso is not None else estatistica.PISO_COMPARABILIDADE)
     resultado.estimativa = estatistica.estimar(
         cesta, perfil=perfil,
-        metodo=str(filtros.get("metodo") or estatistica.METODO_AUTOMATICO))
+        metodo=str(filtros.get("metodo") or estatistica.METODO_AUTOMATICO),
+        regras=regras)
     resultado.duracao_s = time.monotonic() - inicio
     return resultado
 
@@ -455,10 +408,13 @@ def executar_lote(pesquisa: dict, itens: list[dict],
             repositorio.mover_item(item_id, EstadoItem.BUSCANDO, estado_atual)
             por_id[item_id]["estado"] = EstadoItem.BUSCANDO.value
 
-            resultado = pesquisar_item(item, fontes, perfil=perfil,
-                                       filtros=filtros,
-                                       motor_semantico=motor_semantico,
-                                       termos_locais=triagem is not None)
+            resultado = pesquisar_item(
+                item, fontes, perfil=perfil, filtros=filtros,
+                motor_semantico=motor_semantico,
+                termos_locais=triagem is not None,
+                # a regra com que a PESQUISA foi criada, não a de hoje
+                regras=str(pesquisa.get("versao_regras") or
+                           estatistica.REGRAS_LEGADAS))
 
             if resultado.falhou:
                 # `desfechos` e `erro` são gravados junto do estado: sem

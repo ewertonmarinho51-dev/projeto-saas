@@ -136,6 +136,10 @@ class ResultadoBusca:
     # O matching usa como evidência de que a referência é o mesmo tipo
     # de produto (ver `matching.comparar`).
     pdms_inferidos: list[str] = field(default_factory=list)
+    # A consulta pelo código do item trouxe preço: o código É de catálogo.
+    # Sem isso, um código interno do município passaria por CATMAT na
+    # comparabilidade e zeraria a identidade de toda referência.
+    codigo_confirmado: bool = False
 
     @property
     def houve_falha(self) -> bool:
