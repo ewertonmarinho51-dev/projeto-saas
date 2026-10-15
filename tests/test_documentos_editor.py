@@ -1,6 +1,7 @@
 """Owner contract tests with transport/native stubs; real engine/RLS are separate."""
 from dataclasses import replace
 import hashlib
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -21,13 +22,18 @@ class Query:
         return SimpleNamespace(data=self.result)
 
     def select(self, *args): return self
-    def eq(self, *args): return self
+    def eq(self, *args):
+        if args[0] == "operation_id" and isinstance(self.result, list):
+            self.result = [row for row in self.result if row.get("operation_id") == args[1]]
+        return self
     def limit(self, *args): return self
 
 
 @pytest.fixture
 def setup(monkeypatch):
-    payload = b"opaque unit fixture, not a native document"
+    payload = json.dumps({"schema": owner.SCHEMA, "document": {"body": [
+        {"kind": "para", "text": "Synthetic unit paragraph", "runs": [{"len": 24}]}], "parts": {}},
+        "media": {}, "passthrough": {}}).encode()
     identity = {"sub": str(uuid4()), "role": "authenticated", "app_metadata": {"tenant_id": str(uuid4())}}
     head = dict(id=str(uuid4()), processo_id=str(uuid4()), tipo="dfd", revision=1,
                 content_hash=hashlib.sha256(payload).hexdigest(), status="rascunho")
@@ -44,6 +50,8 @@ def setup(monkeypatch):
             return Query(state["context"])
 
         def table(self, name):
+            if name == "processos":
+                return Query([state.get("process", {"id": head["processo_id"], "documentos": {"dfd": "Original\r\n**legado**"}})])
             return Query([state["head"]] if name == "documentos_editor" else [state["row"]])
 
     class Server:
@@ -53,12 +61,27 @@ def setup(monkeypatch):
             result = dict(document_id=params["p_document"], revision=params["p_expected_revision"] + 1,
                           content_hash=params["p_content_hash"], operation_id=params["p_operation"], replayed=False,
                           engine_build_sha256=params["p_engine_build_sha256"],
-                          validation_provenance="server_manifest_sha256")
+                          validation_provenance="server_manifest_sha256",
+                          block_index_sha256=params["p_block_index_sha256"], index_mode=params["p_index_mode"],
+                          restored_from_revision=params["p_restored_from_revision"],
+                          original_hash=hashlib.sha256(bytes.fromhex(params["p_original_payload"][2:])).hexdigest()
+                            if params["p_original_payload"] else None)
+            if state.get("persist"):
+                state["head"] = dict(head, id=params["p_document"], revision=result["revision"], content_hash=result["content_hash"])
+                state["row"] = dict(payload=params["p_payload"], content_hash=result["content_hash"],
+                    editor_schema_version=owner.SCHEMA, wordcraft_commit=owner.UPSTREAM,
+                    engine_build_sha256=params["p_engine_build_sha256"], validation_provenance="server_manifest_sha256",
+                    block_index=params["p_block_index"], block_index_sha256=params["p_block_index_sha256"],
+                    index_mode=params["p_index_mode"], restored_from_revision=params["p_restored_from_revision"],
+                    original_format=params["p_original_format"], original_payload=params["p_original_payload"],
+                    original_hash=result["original_hash"], conversion_report=params["p_conversion_report"])
+                state["row"].update(operation_id=params["p_operation"], revision=result["revision"])
             return Query(state.get("server_result", [result]))
 
     monkeypatch.setattr(owner.db, "cliente_do_usuario", lambda: User())
     monkeypatch.setattr(owner.db, "_cliente", lambda: Server())
     monkeypatch.setattr(owner, "validar", lambda value, **kwargs: state["native_calls"].append(value))
+    monkeypatch.setattr(owner.blocos, "validar", lambda value, **kwargs: state["native_calls"].append(value))
     service = owner.DocumentoService(node=Path("C:/server/node.exe"), bundle=Path("C:/server/bundle"), manifest_sha256="a" * 64)
     return service, state, checkpoint
 
@@ -69,7 +92,7 @@ def test_commit_uses_verified_context_and_returns_only_correlated_receipt(setup)
     assert receipt.revision == 2 and receipt.request_id == checkpoint.request_id
     assert state["server_calls"][0]["p_claims"] is state["context"]
     assert state["server_calls"][0]["p_process"] == state["head"]["processo_id"]
-    assert state["native_calls"] == [checkpoint.content]
+    assert state["native_calls"] and all(value == checkpoint.content for value in state["native_calls"])
     assert state["server_calls"][0]["p_engine_build_sha256"] == "a" * 64
     assert receipt.engine_build == "a" * 64 and receipt.validation_provenance == "server_manifest_sha256"
     assert "payload" not in repr(receipt)
@@ -210,3 +233,110 @@ def test_invalid_trusted_manifest_is_rejected_when_configuring_the_owner(manifes
     with pytest.raises(owner.ErroDocumento, match="Manifesto"):
         owner.DocumentoService(node=Path("C:/server/node.exe"), bundle=Path("C:/server/bundle"),
                                manifest_sha256=manifest)
+
+
+def test_commit_persists_derived_index_and_keeps_only_conservative_identities(setup):
+    service, state, checkpoint = setup
+    state["persist"] = True
+    first = service.checkpoint(state["head"]["id"], checkpoint)
+    document = service.abrir(state["head"]["id"])
+    assert first.index_mode == document.index_mode == "rebuilt_missing_index"
+    initial_id = document.index.blocos[0].block_id
+    value = json.loads(checkpoint.content)
+    value["document"]["body"].append({"kind": "para", "text": "Inserido", "runs": [{"len": 8}]})
+    content = json.dumps(value).encode()
+    next_checkpoint = Checkpoint(str(uuid4()), 2, hashlib.sha256(content).hexdigest(), content)
+    receipt = service.checkpoint(document.id, next_checkpoint)
+    assert receipt.index_mode == "reconciled"
+    assert service.abrir(document.id).index.blocos[0].block_id == initial_id
+
+
+def test_build_change_explicitly_rebuilds_index_and_invalidates_known_previous_ids(setup):
+    service, state, checkpoint = setup
+    state["persist"] = True
+    service.checkpoint(state["head"]["id"], checkpoint)
+    old = service.abrir(state["head"]["id"])
+    next_service = owner.DocumentoService(node=Path("C:/server/node.exe"), bundle=Path("C:/server/bundle"), manifest_sha256="b" * 64)
+    receipt = next_service.checkpoint(old.id, replace(checkpoint, request_id=str(uuid4()), expected_revision=2))
+    document = next_service.abrir(old.id)
+    assert receipt.index_mode == "rebuilt_build"
+    assert document.index.blocos[0].block_id != old.index.blocos[0].block_id
+    assert document.index.invalidacoes == (owner.blocos.Invalidacao(old.index.blocos[0].block_id, "build_alterado"),)
+
+
+def test_markdown_import_reads_and_preserves_authorized_legacy_bytes_and_uses_canonical_docx(setup, monkeypatch):
+    import io
+    from zipfile import ZipFile
+    service, state, checkpoint = setup
+    state["persist"] = True
+    imported = []
+    monkeypatch.setattr(owner, "importar_docx", lambda data, **kwargs: imported.append(data) or checkpoint.content)
+    document = service.importar_legado(processo_id=state["head"]["processo_id"], tipo="dfd",
+        operation_id=str(uuid4()), formato="markdown")
+    source = service.original(document.id, 1)
+    assert source.payload == b"Original\r\n**legado**"
+    assert source.content_hash == hashlib.sha256(source.payload).hexdigest()
+    assert source.relatorio["fidelity"] == "pending_manual_review"
+    assert source.relatorio["pipeline"] == "govconnect_docx_wordcraft"
+    with ZipFile(io.BytesIO(imported[0])) as package:
+        xml = package.read("word/document.xml").decode()
+        assert "DOCUMENTO DE FORMALIZAÇÃO DA DEMANDA" in xml and "legado" in xml
+    assert state["server_calls"][0]["p_original_format"] == "markdown"
+
+
+def test_docx_import_preserves_uploaded_original_and_never_uses_claimed_index_or_source(setup, monkeypatch):
+    service, state, checkpoint = setup
+    state["persist"] = True
+    source = b"Synthetic DOCX fixture; importer is explicitly stubbed here"
+    monkeypatch.setattr(owner, "importar_docx", lambda data, **kwargs: checkpoint.content if data == source else pytest.fail("different bytes"))
+    document = service.importar_legado(processo_id=state["head"]["processo_id"], tipo="dfd",
+        operation_id=str(uuid4()), formato="docx", original_docx=source)
+    assert service.original(document.id, 1).payload == source
+    with pytest.raises(TypeError):
+        service.checkpoint(document.id, checkpoint, index={"forged": True})
+
+
+def test_failed_native_import_leaves_original_process_and_revision_store_untouched(setup, monkeypatch):
+    service, state, _ = setup
+    def refused(*args, **kwargs):
+        raise RuntimeError("private source body should not escape")
+    monkeypatch.setattr(owner, "importar_docx", refused)
+    with pytest.raises(owner.ErroDocumento, match="original legado preservado") as error:
+        service.importar_legado(processo_id=state["head"]["processo_id"], tipo="dfd",
+            operation_id=str(uuid4()), formato="docx", original_docx=b"synthetic")
+    assert "private" not in str(error.value) and state["server_calls"] == []
+
+
+def test_restore_uses_authorized_historical_bytes_and_returns_new_cas_revision(setup):
+    service, state, checkpoint = setup
+    state["head"]["revision"] = 2
+    receipt = service.restaurar(state["head"]["id"], source_revision=1, expected_revision=2, operation_id=str(uuid4()))
+    assert receipt.revision == 3 and receipt.restored_from_revision == 1
+    assert bytes.fromhex(state["server_calls"][0]["p_payload"][2:]) == checkpoint.content
+    assert state["server_calls"][0]["p_original_payload"] is None
+
+
+def test_index_hash_corruption_is_rejected_before_any_mutation(setup):
+    service, state, checkpoint = setup
+    state["row"].update(block_index="\\x7b7d", block_index_sha256="b" * 64, index_mode="initial")
+    with pytest.raises(owner.ErroDocumento, match="Índice"):
+        service.checkpoint(state["head"]["id"], checkpoint)
+    assert state["server_calls"] == []
+
+
+def test_import_retry_uses_the_exact_committed_checkpoint_without_reconverting(setup, monkeypatch):
+    service, state, checkpoint = setup
+    state["persist"] = True
+    operation = str(uuid4())
+    source = b"Synthetic DOCX original"
+    monkeypatch.setattr(owner, "importar_docx", lambda *args, **kwargs: checkpoint.content)
+    document = service.importar_legado(processo_id=state["head"]["processo_id"], tipo="dfd", operation_id=operation,
+                                      formato="docx", original_docx=source)
+    monkeypatch.setattr(owner, "importar_docx", lambda *args, **kwargs: pytest.fail("committed import must not reconvert"))
+    retried = service.importar_legado(processo_id=document.processo_id, tipo="dfd", operation_id=operation,
+                                    formato="docx", original_docx=source)
+    assert retried.payload == document.payload
+    assert state["server_calls"][0] == state["server_calls"][1]
+    with pytest.raises(owner.ConflitoDocumento):
+        service.importar_legado(processo_id=document.processo_id, tipo="dfd", operation_id=operation,
+                                formato="docx", original_docx=b"different")

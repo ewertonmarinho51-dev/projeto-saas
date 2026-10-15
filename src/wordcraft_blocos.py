@@ -21,6 +21,7 @@ from .wordcraft_protocol import CHECKPOINT_SCHEMA, MAX_BYTES, _hash, _inteiro, _
 INDEX_SCHEMA = "gc-wordcraft-block-index/v1"
 MAX_BLOCOS = 20_000
 MAX_DEPTH = 32
+MAX_INDEX_BYTES = 8 * 1024 * 1024
 PART_KINDS = frozenset({"header", "footer", "footnote", "endnote", "comment", "textBox"})
 
 
@@ -64,6 +65,72 @@ class IndiceNativo:
     areas_nao_enderecaveis: tuple[str, ...] = ()
     invalidacoes: tuple[Invalidacao, ...] = ()
     schema: str = INDEX_SCHEMA
+
+
+def desserializar_indice(content: bytes) -> IndiceNativo:
+    """Decode a bounded closed sidecar; native validation is still mandatory."""
+    try:
+        if not isinstance(content, bytes) or not 0 < len(content) <= MAX_INDEX_BYTES:
+            raise ValueError()
+        root = json.loads(content, object_pairs_hook=_objeto_fechado, parse_constant=_constante_invalida)
+        if (not isinstance(root, dict) or root.keys() != {"schema", "document_id", "revision", "content_hash",
+                "engine_manifest_sha256", "blocos", "areas_nao_enderecaveis", "invalidacoes"}
+                or root["schema"] != INDEX_SCHEMA):
+            raise ValueError()
+        _metadata(root["document_id"], root["revision"], root["content_hash"], root["engine_manifest_sha256"])
+        blocks, invalidations = [], []
+        if not isinstance(root["blocos"], list) or len(root["blocos"]) > MAX_BLOCOS:
+            raise ValueError()
+        for item in root["blocos"]:
+            if not isinstance(item, dict) or item.keys() != {"block_id", "parte", "indices", "story_kind", "tipo", "content_hash"}:
+                raise ValueError()
+            _uuid(item["block_id"])
+            _hash(item["content_hash"])
+            if not isinstance(item["indices"], list):
+                raise ValueError()
+            path = CaminhoNativo(item["parte"], tuple(item["indices"]))
+            _caminho(path)
+            if (item["tipo"] not in {"para", "table"} or item["story_kind"] not in PART_KINDS | {"body"}
+                    or (path.parte is None) != (item["story_kind"] == "body")):
+                raise ValueError()
+            blocks.append(BlocoNativo(item["block_id"], path, item["story_kind"], item["tipo"], item["content_hash"]))
+        if not isinstance(root["invalidacoes"], list) or len(root["invalidacoes"]) > MAX_BLOCOS:
+            raise ValueError()
+        for item in root["invalidacoes"]:
+            if not isinstance(item, dict) or item.keys() != {"block_id", "motivo"}:
+                raise ValueError()
+            _uuid(item["block_id"])
+            if item["motivo"] not in {"ambigua", "sem_correspondencia", "build_alterado"}:
+                raise ValueError()
+            invalidations.append(Invalidacao(item["block_id"], item["motivo"]))
+        uncovered = root["areas_nao_enderecaveis"]
+        if (not isinstance(uncovered, list) or len(uncovered) > MAX_BLOCOS
+                or any(not isinstance(s, str) or not 0 < len(s) <= 200 for s in uncovered)
+                or len(set(uncovered)) != len(uncovered)
+                or len({b.block_id for b in blocks}) != len(blocks)
+                or len({b.caminho for b in blocks}) != len(blocks)
+                or len({b.block_id for b in invalidations}) != len(invalidations)
+                or {b.block_id for b in blocks} & {b.block_id for b in invalidations}):
+            raise ValueError()
+        return IndiceNativo(root["document_id"], root["revision"], root["content_hash"],
+            root["engine_manifest_sha256"], tuple(blocks), tuple(uncovered), tuple(invalidations))
+    except (ValueError, KeyError, TypeError, UnicodeError, RecursionError, OverflowError):
+        raise ErroAncora("Índice serializado inválido.") from None
+
+
+def serializar_indice(indice: IndiceNativo) -> bytes:
+    """Canonical bytes for hashing/storage, never a second document source."""
+    if not isinstance(indice, IndiceNativo):
+        raise ErroAncora("Índice não reconhecido.")
+    value = {"schema": indice.schema, "document_id": indice.document_id, "revision": indice.revision,
+        "content_hash": indice.content_hash, "engine_manifest_sha256": indice.engine_manifest_sha256,
+        "blocos": [{"block_id": b.block_id, "parte": b.caminho.parte, "indices": list(b.caminho.indices),
+            "story_kind": b.story_kind, "tipo": b.tipo, "content_hash": b.content_hash} for b in indice.blocos],
+        "areas_nao_enderecaveis": list(indice.areas_nao_enderecaveis),
+        "invalidacoes": [{"block_id": b.block_id, "motivo": b.motivo} for b in indice.invalidacoes]}
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    desserializar_indice(encoded)
+    return encoded
 
 
 @dataclass(frozen=True)

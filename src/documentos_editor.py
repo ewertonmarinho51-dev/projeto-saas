@@ -4,14 +4,16 @@ No operational consumer is enabled. Reuses the existing user's JWT client and
 private server client. Only verified user context reaches the internal commit RPC.
 Draft commits never approve documents or overwrite legacy process documents.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import hashlib
+import json
 from pathlib import Path
 import re
 from uuid import NAMESPACE_URL, uuid5
 
 from . import db
-from .wordcraft_native import validar, exportar
+from . import wordcraft_blocos as blocos
+from .wordcraft_native import validar, exportar, importar_docx
 from .wordcraft_protocol import Checkpoint, MAX_BYTES, _uuid, _hash
 
 SCHEMA = "gc-wordcraft-snapshot/v1"
@@ -41,6 +43,9 @@ class Documento:
     payload: bytes = field(repr=False)
     engine_build: str | None = None
     validation_provenance: str = "legacy_unrecorded"
+    index: blocos.IndiceNativo | None = field(default=None, repr=False)
+    index_mode: str = "legacy_unrecorded"
+    restored_from_revision: int | None = None
 
 
 @dataclass(frozen=True)
@@ -52,6 +57,19 @@ class Recibo:
     replayed: bool
     engine_build: str
     validation_provenance: str
+    index_hash: str
+    index_mode: str
+    restored_from_revision: int | None
+    original_hash: str | None
+    index: blocos.IndiceNativo = field(repr=False)
+
+
+@dataclass(frozen=True)
+class FonteOriginal:
+    formato: str
+    content_hash: str
+    payload: bytes = field(repr=False)
+    relatorio: dict = field(repr=False)
 
 
 @dataclass(frozen=True)
@@ -136,12 +154,16 @@ class DocumentoService:
     def abrir(self, document_id: str) -> Documento:
         user, _ = self._session()
         head = self._head(user, document_id)
-        revision = head["revision"]
+        return self._revision(user, head, head["revision"])
+
+    def _revision(self, user, head, revision):
         if type(revision) is not int or revision < 1:
             raise ErroDocumento("Revisão documental inválida.")
+        document_id = head["id"]
         row = _one(_execute(user.table("documentos_editor_revisoes")
                             .select("payload,content_hash,editor_schema_version,wordcraft_commit,"
-                                    "engine_build_sha256,validation_provenance")
+                                    "engine_build_sha256,validation_provenance,block_index,block_index_sha256,"
+                                    "index_mode,restored_from_revision")
                             .eq("document_id", document_id).eq("revision", revision).limit(1)))
         engine_build, provenance = _provenance(row)
         encoded = row.get("payload")
@@ -154,13 +176,35 @@ class DocumentoService:
         except ValueError:
             raise ErroDocumento("Payload documental inválido.") from None
         digest = hashlib.sha256(payload).hexdigest()
-        if digest != row.get("content_hash") or digest != head.get("content_hash"):
+        if digest != row.get("content_hash") or (revision == head["revision"] and digest != head.get("content_hash")):
             raise ErroDocumento("Hash documental divergente.")
         self._validate(payload)
+        index = None
+        mode = row.get("index_mode")
+        if row.get("block_index") is None:
+            if row.get("block_index_sha256") is not None or mode is not None:
+                raise ErroDocumento("Índice documental incompleto.")
+            mode = "legacy_unrecorded"
+        else:
+            try:
+                encoded_index = bytes.fromhex(row["block_index"][2:]) if row["block_index"].startswith("\\x") else b""
+                if hashlib.sha256(encoded_index).hexdigest() != row.get("block_index_sha256"):
+                    raise ValueError()
+                index = blocos.desserializar_indice(encoded_index)
+                if ((index.document_id, index.revision, index.content_hash, index.engine_manifest_sha256)
+                        != (document_id, revision, digest, engine_build)
+                        or mode not in {"initial", "reconciled", "rebuilt_missing_index", "rebuilt_build"}):
+                    raise ValueError()
+                if engine_build == self._native["manifest_sha256"]:
+                    blocos.validar_indice(index, payload, **self._native)
+            except Exception:
+                raise ErroDocumento("Índice documental divergente.") from None
         return Documento(head["id"], head["processo_id"], head["tipo"], revision,
-                         digest, head["status"], payload, engine_build, provenance)
+                         digest, head["status"], payload, engine_build, provenance, index, mode,
+                         row.get("restored_from_revision"))
 
-    def _commit(self, *, document_id, process_id, tipo, checkpoint, context):
+    def _commit(self, *, document_id, process_id, tipo, checkpoint, context, user,
+                original=None, restored_from=None):
         _uuid(document_id)
         _uuid(process_id)
         _uuid(checkpoint.request_id)
@@ -169,24 +213,52 @@ class DocumentoService:
                 or type(checkpoint.expected_revision) is not int or checkpoint.expected_revision < 0
                 or hashlib.sha256(checkpoint.content).hexdigest() != checkpoint.content_hash):
             raise ErroDocumento("Contrato de checkpoint divergente.")
-        self._validate(checkpoint.content)
+        base = None
+        if checkpoint.expected_revision:
+            base = self._revision(user, self._head(user, document_id), checkpoint.expected_revision)
+        try:
+            if base and base.index and base.engine_build == self._native["manifest_sha256"]:
+                index = blocos.reconciliar_indice(base.index, base.payload, checkpoint.content,
+                    revision=checkpoint.expected_revision + 1, content_hash=checkpoint.content_hash, **self._native)
+                index_mode = "reconciled"
+            else:
+                index = blocos.construir_indice(checkpoint.content, document_id=document_id,
+                    revision=checkpoint.expected_revision + 1, content_hash=checkpoint.content_hash, **self._native)
+                index_mode = "initial" if base is None else "rebuilt_missing_index"
+                if base and base.index:
+                    index_mode = "rebuilt_build"
+                    index = replace(index, invalidacoes=tuple(blocos.Invalidacao(b.block_id, "build_alterado") for b in base.index.blocos))
+            encoded_index = blocos.serializar_indice(index)
+        except Exception:
+            raise ErroDocumento("O motor não confirmou o índice da revisão.") from None
+        index_hash = hashlib.sha256(encoded_index).hexdigest()
         row = _one(_execute(db._cliente().rpc("documento_editor_checkpoint", {
             "p_document": document_id, "p_process": process_id, "p_tipo": tipo,
             "p_expected_revision": checkpoint.expected_revision, "p_operation": checkpoint.request_id,
             "p_payload": "\\x" + checkpoint.content.hex(), "p_content_hash": checkpoint.content_hash,
             "p_claims": context,
             "p_engine_build_sha256": self._native["manifest_sha256"],
+            "p_block_index": "\\x" + encoded_index.hex(), "p_block_index_sha256": index_hash,
+            "p_index_mode": index_mode, "p_original_format": original.formato if original else None,
+            "p_original_payload": "\\x" + original.payload.hex() if original else None,
+            "p_conversion_report": original.relatorio if original else None,
+            "p_restored_from_revision": restored_from,
         })))
         if (row.keys() != {"document_id", "revision", "content_hash", "operation_id", "replayed",
-                          "engine_build_sha256", "validation_provenance"}
+                          "engine_build_sha256", "validation_provenance", "block_index_sha256",
+                          "index_mode", "restored_from_revision", "original_hash"}
                 or row["document_id"] != document_id or row["operation_id"] != checkpoint.request_id
                 or type(row["revision"]) is not int or row["revision"] != checkpoint.expected_revision + 1
                 or row["content_hash"] != checkpoint.content_hash or type(row["replayed"]) is not bool
                 or row["engine_build_sha256"] != self._native["manifest_sha256"]
-                or row["validation_provenance"] != "server_manifest_sha256"):
+                or row["validation_provenance"] != "server_manifest_sha256"
+                or row["block_index_sha256"] != index_hash or row["index_mode"] != index_mode
+                or row["restored_from_revision"] != restored_from
+                or row["original_hash"] != (original.content_hash if original else None)):
             raise ErroDocumento("Resposta de commit documental divergente.")
         return Recibo(document_id, row["operation_id"], row["revision"], row["content_hash"], row["replayed"],
-                      row["engine_build_sha256"], row["validation_provenance"])
+                      row["engine_build_sha256"], row["validation_provenance"], index_hash, index_mode,
+                      restored_from, row["original_hash"], index)
 
     def criar(self, *, processo_id: str, tipo: str, payload: bytes, operation_id: str) -> Documento:
         _uuid(processo_id)
@@ -200,7 +272,7 @@ class DocumentoService:
             raise ErroDocumento("Payload documental inválido.")
         checkpoint = Checkpoint(operation_id, 0, hashlib.sha256(payload).hexdigest(), payload)
         self._commit(document_id=document_id, process_id=processo_id, tipo=tipo,
-                     checkpoint=checkpoint, context=context)
+                     checkpoint=checkpoint, context=context, user=user)
         return self.abrir(document_id)
 
     def checkpoint(self, document_id: str, checkpoint: Checkpoint) -> Recibo:
@@ -209,7 +281,93 @@ class DocumentoService:
         user, context = self._session()
         head = self._head(user, document_id)
         return self._commit(document_id=document_id, process_id=head["processo_id"], tipo=head["tipo"],
-                            checkpoint=checkpoint, context=context)
+                            checkpoint=checkpoint, context=context, user=user)
+
+    def abrir_revisao(self, document_id: str, revision: int) -> Documento:
+        user, _ = self._session()
+        return self._revision(user, self._head(user, document_id), revision)
+
+    def restaurar(self, document_id: str, *, source_revision: int, expected_revision: int,
+                  operation_id: str) -> Recibo:
+        user, context = self._session()
+        head = self._head(user, document_id)
+        if (type(expected_revision) is not int or type(source_revision) is not int
+                or not 1 <= source_revision <= expected_revision):
+            raise ErroDocumento("Revisão de restauração inválida.")
+        source = self._revision(user, head, source_revision)
+        checkpoint = Checkpoint(operation_id, expected_revision, source.content_hash, source.payload)
+        return self._commit(document_id=document_id, process_id=head["processo_id"], tipo=head["tipo"],
+            checkpoint=checkpoint, context=context, user=user, restored_from=source_revision)
+
+    def importar_legado(self, *, processo_id: str, tipo: str, operation_id: str,
+                        formato: str, original_docx: bytes | None = None) -> Documento:
+        """Single explicit import. Markdown always comes from authorized legacy storage."""
+        from .config import DOCUMENTOS
+        from .export import gerar_docx
+        _uuid(processo_id)
+        _uuid(operation_id)
+        if tipo not in DOCUMENTOS or formato not in {"markdown", "docx"}:
+            raise ErroDocumento("Fonte legada não suportada.")
+        user, context = self._session()
+        process = _one(_execute(user.table("processos").select("id,documentos").eq("id", processo_id).limit(1)))
+        if formato == "markdown":
+            if original_docx is not None:
+                raise ErroDocumento("Markdown deve vir do processo autorizado.")
+            documents = process.get("documentos")
+            text = documents.get(tipo) if isinstance(documents, dict) else None
+            if not isinstance(text, str) or not text:
+                raise ErroDocumento("Original Markdown ausente.")
+            original = text.encode("utf-8")
+            if len(original) > MAX_BYTES:
+                raise ErroDocumento("Original excede o limite documental.")
+        else:
+            original = original_docx
+            if not isinstance(original, bytes) or not 0 < len(original) <= MAX_BYTES:
+                raise ErroDocumento("Original DOCX inválido ou excessivo.")
+        report = {"schema": "gc-wordcraft-import/v1", "source_format": formato,
+            "source_sha256": hashlib.sha256(original).hexdigest(), "fidelity": "pending_manual_review",
+            "pipeline": "govconnect_docx_wordcraft" if formato == "markdown" else "wordcraft_docx"}
+        source = FonteOriginal(formato, report["source_sha256"], original, report)
+        doc_id = str(uuid5(NAMESPACE_URL, "govconnect-document:" + processo_id + ":" + tipo))
+        recorded = _execute(user.table("documentos_editor_revisoes").select("revision,original_format,original_payload,original_hash,conversion_report")
+            .eq("document_id", doc_id).eq("operation_id", operation_id).limit(1))
+        if recorded:
+            row = _one(recorded)
+            if (row.get("revision") != 1 or row.get("original_format") != formato
+                    or row.get("original_payload") != "\\x" + original.hex()
+                    or row.get("original_hash") != source.content_hash or row.get("conversion_report") != report):
+                raise ConflitoDocumento("Operação de importação já vinculada a outra fonte.")
+            content = self._revision(user, self._head(user, doc_id), 1).payload
+        else:
+            try:
+                docx = gerar_docx(DOCUMENTOS[tipo]["titulo"], text) if formato == "markdown" else original
+                content = importar_docx(docx, **self._native)
+            except Exception:
+                raise ErroDocumento("Importação recusada pelo motor; original legado preservado.") from None
+        checkpoint = Checkpoint(operation_id, 0, hashlib.sha256(content).hexdigest(), content)
+        self._commit(document_id=doc_id, process_id=processo_id, tipo=tipo, checkpoint=checkpoint,
+                     context=context, user=user, original=source)
+        return self.abrir(doc_id)
+
+    def original(self, document_id: str, revision: int) -> FonteOriginal:
+        user, _ = self._session()
+        self._revision(user, self._head(user, document_id), revision)
+        row = _one(_execute(user.table("documentos_editor_revisoes")
+            .select("original_format,original_payload,original_hash,conversion_report")
+            .eq("document_id", document_id).eq("revision", revision).limit(1)))
+        try:
+            if not isinstance(row["original_payload"], str) or not row["original_payload"].startswith("\\x"):
+                raise ValueError()
+            payload = bytes.fromhex(row["original_payload"][2:])
+            if (row["original_format"] not in {"markdown", "docx"} or not 0 < len(payload) <= MAX_BYTES
+                    or hashlib.sha256(payload).hexdigest() != row["original_hash"]
+                    or not isinstance(row["conversion_report"], dict)
+                    or row["conversion_report"].get("source_sha256") != row["original_hash"]
+                    or row["conversion_report"].get("source_format") != row["original_format"]):
+                raise ValueError()
+            return FonteOriginal(row["original_format"], row["original_hash"], payload, row["conversion_report"])
+        except (ValueError, TypeError, KeyError):
+            raise ErroDocumento("Original não registrado ou divergente.") from None
 
     def exportar(self, document_id: str, *, expected_revision: int, content_hash: str, formato: str) -> Artefato:
         """Export an exact persisted draft; never approves or marks official emission."""

@@ -268,6 +268,9 @@ RPCS = {
         "p_expected_revision": 0, "p_operation": "00000000-0000-0000-0000-000000000001",
         "p_payload": "\\x7b7d", "p_content_hash": hashlib.sha256(b"{}").hexdigest(), "p_claims": {},
         "p_engine_build_sha256": "a" * 64,
+        "p_block_index": "\\x7b7d", "p_block_index_sha256": hashlib.sha256(b"{}").hexdigest(),
+        "p_index_mode": "initial", "p_original_format": None, "p_original_payload": None,
+        "p_conversion_report": None, "p_restored_from_revision": None,
     },
 }
 

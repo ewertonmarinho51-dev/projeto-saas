@@ -363,3 +363,31 @@ def test_native_model_unknown_to_projection_has_no_silent_partial_index(native):
     with pytest.raises(anchors.ErroAncora, match="Story nativa sem adaptador"):
         build(snapshot([paragraph("Corpo")],
                        parts={"1": {"kind": "futureStory", "blocks": [paragraph("não ignorar")]}}), native)
+
+
+def test_index_codec_roundtrip_preserves_ids_paths_and_invalidation_without_document_text(native):
+    content = snapshot([paragraph("Conteúdo privado"), paragraph("Remover")])
+    old = build(content, native)
+    new = reconcile(old, content, snapshot([paragraph("Conteúdo privado")]), native)
+    encoded = anchors.serializar_indice(new)
+    assert anchors.desserializar_indice(encoded) == new
+    assert anchors.serializar_indice(anchors.desserializar_indice(encoded)) == encoded
+    assert b"Conte" not in encoded and b"Remover" not in encoded
+
+
+@pytest.mark.parametrize("mutation", ["extra", "duplicate", "path", "story", "invalidation"])
+def test_index_codec_rejects_forged_ambiguous_or_unaddressable_sidecars(native, mutation):
+    index = build(snapshot([paragraph("A"), paragraph("B")]), native)
+    value = json.loads(anchors.serializar_indice(index))
+    if mutation == "extra":
+        value["allow_command"] = "anything"
+    elif mutation == "duplicate":
+        value["blocos"][1]["block_id"] = value["blocos"][0]["block_id"]
+    elif mutation == "path":
+        value["blocos"][0]["indices"] = [0, 0]
+    elif mutation == "story":
+        value["blocos"][0]["story_kind"] = "header"
+    else:
+        value["invalidacoes"] = [{"block_id": value["blocos"][0]["block_id"], "motivo": "ambigua"}]
+    with pytest.raises(anchors.ErroAncora, match="serializado"):
+        anchors.desserializar_indice(json.dumps(value).encode())

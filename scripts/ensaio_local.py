@@ -138,6 +138,7 @@ SEQUENCIA_EM_ENSAIO = (
     # última.
     "20261015035015_documentos_editor.sql",
     "20261015045831_documentos_editor_proveniencia.sql",
+    "20261015122441_documentos_editor_persistencia_g2.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
@@ -387,7 +388,7 @@ def preparar(conexao) -> dict:
 
         for arquivo in migracoes_do_schema():
             try:
-                cursor.execute(arquivo.read_text())
+                cursor.execute(arquivo.read_text(encoding="utf-8"))
             except Exception as erro:  # noqa: BLE001
                 raise EnsaioLocal(
                     f"{arquivo.name}: {type(erro).__name__}: {erro}") from erro
@@ -395,7 +396,7 @@ def preparar(conexao) -> dict:
 
         for alvo in sequencia_em_ensaio():
             try:
-                cursor.execute(alvo.read_text())
+                cursor.execute(alvo.read_text(encoding="utf-8"))
             except Exception as erro:  # noqa: BLE001
                 raise EnsaioLocal(
                     f"{alvo.name}: {type(erro).__name__}: {erro}") from erro

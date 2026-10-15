@@ -85,7 +85,9 @@ def receive():
             st.session_state.document = replace(st.session_state.document, revision=receipt.revision,
                                                  content_hash=receipt.content_hash, payload=checkpoint.content,
                                                  engine_build=receipt.engine_build,
-                                                 validation_provenance=receipt.validation_provenance)
+                                                 validation_provenance=receipt.validation_provenance,
+                                                 index=receipt.index, index_mode=receipt.index_mode,
+                                                 restored_from_revision=receipt.restored_from_revision)
             st.session_state.backend_message = "Commit confirmado no PostgreSQL; ACK correlacionado à operação."
     except Exception as error:
         if checkpoint is not None:
@@ -99,6 +101,7 @@ st.button("Reexecutar montagem")
 st.caption("Instância " + bridge.instance_id + " · estado backend: " + bridge.state)
 st.caption("Revisão persistida: " + str(document.revision) + " · SHA-256 " + document.content_hash)
 st.caption("Build da revisão: " + (document.engine_build or "não registrado") + " · " + document.validation_provenance)
+st.caption("Índice derivado: " + document.index_mode + " · " + str(len(document.index.blocos) if document.index else 0) + " blocos")
 st.caption(st.session_state.backend_message)
 from src.ui.wordcraft_editor import render_editor
 render_editor(bridge, document.payload,
