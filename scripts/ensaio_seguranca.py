@@ -267,6 +267,7 @@ RPCS = {
         "p_process": "00000000-0000-0000-0000-000000000001", "p_tipo": "dfd",
         "p_expected_revision": 0, "p_operation": "00000000-0000-0000-0000-000000000001",
         "p_payload": "\\x7b7d", "p_content_hash": hashlib.sha256(b"{}").hexdigest(), "p_claims": {},
+        "p_engine_build_sha256": "a" * 64,
     },
 }
 

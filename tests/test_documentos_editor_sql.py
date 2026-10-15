@@ -20,6 +20,10 @@ def role(connection, name, claims=None):
 
 @pytest.fixture
 def scenario(banco):
+    return seed_scenario(banco)
+
+
+def seed_scenario(banco):
     from psycopg.types.json import Jsonb
     result = {"doc": uuid4(), "operation": uuid4()}
     with banco.cursor() as cursor:
@@ -45,12 +49,15 @@ def scenario(banco):
     return result
 
 
-def commit(banco, scenario, *, expected=0, payload=b"opaque SQL fixture", operation=None, claims=None):
+def commit(banco, scenario, *, expected=0, payload=b"opaque SQL fixture", operation=None, claims=None,
+           build="a" * 64, legacy=False):
     from psycopg.types.json import Jsonb
     with role(banco, "service_role") as cursor:
-        cursor.execute("select * from public.documento_editor_checkpoint(%s,%s,'dfd',%s,%s,%s,%s,%s)",
-                       (scenario["doc"], scenario["process"], expected, operation or scenario["operation"],
-                        payload, hashlib.sha256(payload).hexdigest(), Jsonb(claims or scenario["owner"])))
+        params = (scenario["doc"], scenario["process"], expected, operation or scenario["operation"],
+                  payload, hashlib.sha256(payload).hexdigest(), Jsonb(claims or scenario["owner"]))
+        suffix = ")" if legacy else ",%s)"
+        cursor.execute("select * from public.documento_editor_checkpoint(%s,%s,'dfd',%s,%s,%s,%s,%s" + suffix,
+                       params if legacy else (*params, build))
         result = cursor.fetchone()
         cursor.execute("select auth.jwt()->>'role'")
         assert cursor.fetchone()[0] == "service_role", "actor claims must not leak to the next request"
@@ -61,7 +68,8 @@ def test_commit_retry_and_immutable_revision(banco, scenario):
     first = commit(banco, scenario)
     retry = commit(banco, scenario)
     assert first[1] == retry[1] == 1
-    assert first[-1] is False and retry[-1] is True
+    assert first[4] is False and retry[4] is True
+    assert first[5:] == retry[5:] == ("a" * 64, "server_manifest_sha256")
     with banco.cursor() as cursor:
         cursor.execute("select payload from public.documentos_editor_revisoes where document_id=%s", (scenario["doc"],))
         rows = cursor.fetchall()
@@ -141,7 +149,7 @@ def test_public_roles_cannot_bypass_the_native_validation_owner(banco, scenario)
     for name in ("anon", "authenticated"):
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             with role(banco, name, scenario["owner"] if name == "authenticated" else None) as cursor:
-                cursor.execute("select * from public.documento_editor_checkpoint(null,null,null,null,null,null,null,null)")
+                cursor.execute("select * from public.documento_editor_checkpoint(null,null,null,null,null,null,null,null,null)")
 
 
 def test_revoked_profile_loses_read_and_commit_with_old_claims(banco, scenario):
@@ -170,3 +178,93 @@ def test_context_is_verified_and_excludes_user_metadata(banco, scenario):
     with role(banco, "authenticated", claims) as cursor:
         cursor.execute("select public.documento_editor_contexto()")
         assert cursor.fetchone()[0] == scenario["owner"]
+
+
+def test_same_operation_cannot_rewrite_its_original_validation_build(banco, scenario):
+    import psycopg
+    original = commit(banco, scenario, build="a" * 64)
+    with pytest.raises(psycopg.errors.SerializationFailure):
+        commit(banco, scenario, build="b" * 64)
+    assert commit(banco, scenario, build="a" * 64)[5:] == original[5:]
+    next_receipt = commit(banco, scenario, expected=1, operation=uuid4(), build="b" * 64)
+    assert next_receipt[1] == 2 and next_receipt[5] == "b" * 64
+    with banco.cursor() as cursor:
+        cursor.execute("select revision,engine_build_sha256 from public.documentos_editor_revisoes "
+                       "where document_id=%s order by revision", (scenario["doc"],))
+        assert cursor.fetchall() == [(1, "a" * 64), (2, "b" * 64)]
+
+
+@pytest.mark.parametrize("build", [None, "", "a" * 63, "A" * 64, "../invalid"])
+def test_new_commit_requires_valid_build_before_any_write(banco, scenario, build):
+    import psycopg
+    with pytest.raises(psycopg.errors.InvalidParameterValue):
+        commit(banco, scenario, build=build)
+    with banco.cursor() as cursor:
+        cursor.execute("select count(*) from public.documentos_editor where id=%s", (scenario["doc"],))
+        assert cursor.fetchone()[0] == 0
+
+
+def test_only_new_private_signature_exists_and_cannot_omit_build(banco):
+    with banco.cursor() as cursor:
+        cursor.execute("select pronargs,prosecdef,proconfig,"
+                       "has_function_privilege('anon',oid,'execute'),"
+                       "has_function_privilege('authenticated',oid,'execute'),"
+                       "has_function_privilege('service_role',oid,'execute') "
+                       "from pg_proc where pronamespace='public'::regnamespace "
+                       "and proname='documento_editor_checkpoint'")
+        assert cursor.fetchall() == [(9, False, ['search_path=""'], False, False, True)]
+
+
+def test_even_direct_server_insert_cannot_create_an_unrecorded_new_revision(banco, scenario):
+    import psycopg
+    commit(banco, scenario)
+    with pytest.raises(psycopg.errors.CheckViolation):
+        with role(banco, "service_role") as cursor:
+            cursor.execute("insert into public.documentos_editor_revisoes "
+                           "(document_id,revision,source_revision,operation_id,payload,content_hash,created_by) "
+                           "select document_id,2,1,%s,payload,content_hash,created_by "
+                           "from public.documentos_editor_revisoes where document_id=%s", (uuid4(), scenario["doc"]))
+    with banco.cursor() as cursor:
+        cursor.execute("select count(*) from public.documentos_editor_revisoes where document_id=%s", (scenario["doc"],))
+        assert cursor.fetchone()[0] == 1
+
+
+def test_migration_preserves_legacy_revision_without_retroattributing_a_build(ensaio_sql, monkeypatch):
+    """Apply exact migration after committing through the former schema/API."""
+    import os
+    import sys
+    from pathlib import Path
+    import psycopg
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import ensaio_local as harness
+    migration = "20261015045831_documentos_editor_proveniencia.sql"
+    dsn_base = os.environ["GOVDOCS_ENSAIO_PG_DSN"]
+    harness.exigir_dsn_local(dsn_base)
+    dsn, name = harness.criar_banco_descartavel(dsn_base)
+    try:
+        with psycopg.connect(dsn, autocommit=True) as connection:
+            with monkeypatch.context() as legacy_schema:
+                legacy_schema.setattr(harness, "SEQUENCIA_EM_ENSAIO",
+                    tuple(item for item in harness.SEQUENCIA_EM_ENSAIO if item != migration))
+                harness.preparar(connection)
+            old = seed_scenario(connection)
+            before = commit(connection, old, legacy=True)
+            with connection.cursor() as cursor:
+                cursor.execute((harness.MIGRACOES / migration).read_text(encoding="utf-8"))
+                cursor.execute("select revision,payload,content_hash,operation_id,engine_build_sha256,validation_provenance "
+                               "from public.documentos_editor_revisoes where document_id=%s", (old["doc"],))
+                row = cursor.fetchone()
+                assert (row[0], bytes(row[1]), row[2], row[3]) == (before[1], b"opaque SQL fixture", before[2], old["operation"])
+                assert row[4:] == (None, "legacy_unrecorded")
+            # Retrying an operation whose original build is unknown cannot invent
+            # provenance. A distinct next revision can record today's validator.
+            with pytest.raises(psycopg.errors.SerializationFailure):
+                commit(connection, old)
+            assert commit(connection, old, expected=1, operation=uuid4())[5:] == ("a" * 64, "server_manifest_sha256")
+            with connection.cursor() as cursor:
+                cursor.execute("select engine_build_sha256,validation_provenance "
+                               "from public.documentos_editor_revisoes where document_id=%s and revision=1", (old["doc"],))
+                assert cursor.fetchone() == (None, "legacy_unrecorded")
+    finally:
+        harness.descartar_banco(dsn_base, name)

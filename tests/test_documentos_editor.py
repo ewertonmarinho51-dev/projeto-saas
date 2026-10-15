@@ -34,7 +34,8 @@ def setup(monkeypatch):
     checkpoint = Checkpoint(str(uuid4()), 1, head["content_hash"], payload)
     state = {"context": identity, "server_calls": [], "native_calls": [], "head": head}
     row = dict(payload="\\x" + payload.hex(), content_hash=head["content_hash"],
-               editor_schema_version=owner.SCHEMA, wordcraft_commit=owner.UPSTREAM)
+               editor_schema_version=owner.SCHEMA, wordcraft_commit=owner.UPSTREAM,
+               engine_build_sha256=None, validation_provenance="legacy_unrecorded")
     state["row"] = row
 
     class User:
@@ -50,7 +51,9 @@ def setup(monkeypatch):
             assert name == "documento_editor_checkpoint"
             state["server_calls"].append(params)
             result = dict(document_id=params["p_document"], revision=params["p_expected_revision"] + 1,
-                          content_hash=params["p_content_hash"], operation_id=params["p_operation"], replayed=False)
+                          content_hash=params["p_content_hash"], operation_id=params["p_operation"], replayed=False,
+                          engine_build_sha256=params["p_engine_build_sha256"],
+                          validation_provenance="server_manifest_sha256")
             return Query(state.get("server_result", [result]))
 
     monkeypatch.setattr(owner.db, "cliente_do_usuario", lambda: User())
@@ -67,6 +70,8 @@ def test_commit_uses_verified_context_and_returns_only_correlated_receipt(setup)
     assert state["server_calls"][0]["p_claims"] is state["context"]
     assert state["server_calls"][0]["p_process"] == state["head"]["processo_id"]
     assert state["native_calls"] == [checkpoint.content]
+    assert state["server_calls"][0]["p_engine_build_sha256"] == "a" * 64
+    assert receipt.engine_build == "a" * 64 and receipt.validation_provenance == "server_manifest_sha256"
     assert "payload" not in repr(receipt)
 
 
@@ -74,6 +79,7 @@ def test_open_rechecks_native_bytes_and_hash(setup):
     service, state, checkpoint = setup
     document = service.abrir(state["head"]["id"])
     assert document.payload == checkpoint.content and document.revision == 1
+    assert document.engine_build is None and document.validation_provenance == "legacy_unrecorded"
     assert checkpoint.content.decode() not in repr(document)
     assert state["native_calls"] == [checkpoint.content]
 
@@ -148,6 +154,7 @@ def test_export_is_bound_to_the_exact_authorized_persisted_revision(setup, monke
                                 content_hash=checkpoint.content_hash, formato="pdf")
     assert seen[0][0] == checkpoint.content and artifact.source_hash == checkpoint.content_hash
     assert artifact.revision == 1 and artifact.engine_build == "a" * 64
+    assert artifact.source_engine_build is None and artifact.source_validation_provenance == "legacy_unrecorded"
     assert artifact.content_hash == hashlib.sha256(artifact.payload).hexdigest()
     assert "synthetic artifact" not in repr(artifact)
 
@@ -158,3 +165,48 @@ def test_stale_export_does_not_execute_the_exporter(setup, monkeypatch):
     with pytest.raises(owner.ConflitoDocumento):
         service.exportar(state["head"]["id"], expected_revision=2,
                          content_hash=checkpoint.content_hash, formato="pdf")
+
+
+def test_recorded_validation_build_survives_open_and_export_with_a_new_runtime(setup, monkeypatch):
+    service, state, checkpoint = setup
+    state["row"].update(engine_build_sha256="b" * 64, validation_provenance="server_manifest_sha256")
+    document = service.abrir(state["head"]["id"])
+    monkeypatch.setattr(owner, "exportar", lambda *args, **kwargs: b"%PDF-export by current runtime")
+    artifact = service.exportar(document.id, expected_revision=1, content_hash=checkpoint.content_hash, formato="pdf")
+    assert document.engine_build == artifact.source_engine_build == "b" * 64
+    assert artifact.source_validation_provenance == "server_manifest_sha256"
+    assert artifact.engine_build == "a" * 64
+    assert artifact.source_hash == document.content_hash
+
+
+@pytest.mark.parametrize("build,provenance", [(None, "server_manifest_sha256"),
+    ("a" * 64, "legacy_unrecorded"), ("A" * 64, "server_manifest_sha256"), (None, None)])
+def test_incoherent_persisted_provenance_fails_before_native_load(setup, build, provenance):
+    service, state, _ = setup
+    state["row"].update(engine_build_sha256=build, validation_provenance=provenance)
+    with pytest.raises(owner.ErroDocumento, match="Proveniência"):
+        service.abrir(state["head"]["id"])
+    assert state["native_calls"] == []
+
+
+def test_runtime_manifest_is_not_taken_from_verified_jwt_metadata(setup):
+    service, state, checkpoint = setup
+    state["context"]["app_metadata"]["engine_build_sha256"] = "b" * 64
+    receipt = service.checkpoint(state["head"]["id"], checkpoint)
+    assert receipt.engine_build == state["server_calls"][0]["p_engine_build_sha256"] == "a" * 64
+
+
+def test_receipt_with_another_build_is_not_accepted_as_an_ack(setup):
+    service, state, checkpoint = setup
+    state["server_result"] = [dict(document_id=state["head"]["id"], revision=2,
+        content_hash=checkpoint.content_hash, operation_id=checkpoint.request_id, replayed=True,
+        engine_build_sha256="b" * 64, validation_provenance="server_manifest_sha256")]
+    with pytest.raises(owner.ErroDocumento, match="commit"):
+        service.checkpoint(state["head"]["id"], checkpoint)
+
+
+@pytest.mark.parametrize("manifest", [None, "", "A" * 64, "a" * 63, 42])
+def test_invalid_trusted_manifest_is_rejected_when_configuring_the_owner(manifest):
+    with pytest.raises(owner.ErroDocumento, match="Manifesto"):
+        owner.DocumentoService(node=Path("C:/server/node.exe"), bundle=Path("C:/server/bundle"),
+                               manifest_sha256=manifest)

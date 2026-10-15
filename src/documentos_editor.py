@@ -39,6 +39,8 @@ class Documento:
     content_hash: str
     status: str
     payload: bytes = field(repr=False)
+    engine_build: str | None = None
+    validation_provenance: str = "legacy_unrecorded"
 
 
 @dataclass(frozen=True)
@@ -48,6 +50,8 @@ class Recibo:
     revision: int
     content_hash: str
     replayed: bool
+    engine_build: str
+    validation_provenance: str
 
 
 @dataclass(frozen=True)
@@ -59,6 +63,8 @@ class Artefato:
     content_hash: str
     engine_build: str
     payload: bytes = field(repr=False)
+    source_engine_build: str | None = None
+    source_validation_provenance: str = "legacy_unrecorded"
 
 
 def _execute(query):
@@ -79,9 +85,23 @@ def _one(rows):
     return rows[0]
 
 
+def _provenance(row):
+    """Historical validation and today's runtime are distinct facts."""
+    build = row.get("engine_build_sha256")
+    provenance = row.get("validation_provenance")
+    if build is None and provenance == "legacy_unrecorded":
+        return build, provenance
+    if (isinstance(build, str) and re.fullmatch(r"[0-9a-f]{64}", build)
+            and provenance == "server_manifest_sha256"):
+        return build, provenance
+    raise ErroDocumento("Proveniência documental inválida.")
+
+
 class DocumentoService:
     def __init__(self, *, node: Path, bundle: Path, manifest_sha256: str):
         # Configuration is supplied by the trusted server, never component data.
+        if not isinstance(manifest_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", manifest_sha256):
+            raise ErroDocumento("Manifesto documental pinado obrigatório.")
         self._native = dict(node=node, bundle=bundle, manifest_sha256=manifest_sha256)
 
     def _session(self):
@@ -120,8 +140,10 @@ class DocumentoService:
         if type(revision) is not int or revision < 1:
             raise ErroDocumento("Revisão documental inválida.")
         row = _one(_execute(user.table("documentos_editor_revisoes")
-                            .select("payload,content_hash,editor_schema_version,wordcraft_commit")
+                            .select("payload,content_hash,editor_schema_version,wordcraft_commit,"
+                                    "engine_build_sha256,validation_provenance")
                             .eq("document_id", document_id).eq("revision", revision).limit(1)))
+        engine_build, provenance = _provenance(row)
         encoded = row.get("payload")
         if (not isinstance(encoded, str) or not encoded.startswith("\\x")
                 or not 2 < len(encoded) <= 2 * MAX_BYTES + 2
@@ -136,7 +158,7 @@ class DocumentoService:
             raise ErroDocumento("Hash documental divergente.")
         self._validate(payload)
         return Documento(head["id"], head["processo_id"], head["tipo"], revision,
-                         digest, head["status"], payload)
+                         digest, head["status"], payload, engine_build, provenance)
 
     def _commit(self, *, document_id, process_id, tipo, checkpoint, context):
         _uuid(document_id)
@@ -153,13 +175,18 @@ class DocumentoService:
             "p_expected_revision": checkpoint.expected_revision, "p_operation": checkpoint.request_id,
             "p_payload": "\\x" + checkpoint.content.hex(), "p_content_hash": checkpoint.content_hash,
             "p_claims": context,
+            "p_engine_build_sha256": self._native["manifest_sha256"],
         })))
-        if (row.keys() != {"document_id", "revision", "content_hash", "operation_id", "replayed"}
+        if (row.keys() != {"document_id", "revision", "content_hash", "operation_id", "replayed",
+                          "engine_build_sha256", "validation_provenance"}
                 or row["document_id"] != document_id or row["operation_id"] != checkpoint.request_id
                 or type(row["revision"]) is not int or row["revision"] != checkpoint.expected_revision + 1
-                or row["content_hash"] != checkpoint.content_hash or type(row["replayed"]) is not bool):
+                or row["content_hash"] != checkpoint.content_hash or type(row["replayed"]) is not bool
+                or row["engine_build_sha256"] != self._native["manifest_sha256"]
+                or row["validation_provenance"] != "server_manifest_sha256"):
             raise ErroDocumento("Resposta de commit documental divergente.")
-        return Recibo(document_id, row["operation_id"], row["revision"], row["content_hash"], row["replayed"])
+        return Recibo(document_id, row["operation_id"], row["revision"], row["content_hash"], row["replayed"],
+                      row["engine_build_sha256"], row["validation_provenance"])
 
     def criar(self, *, processo_id: str, tipo: str, payload: bytes, operation_id: str) -> Documento:
         _uuid(processo_id)
@@ -197,4 +224,5 @@ class DocumentoService:
         except Exception:
             raise ErroDocumento("O motor não confirmou a exportação documental.") from None
         return Artefato(document.id, document.revision, document.content_hash, formato,
-                        hashlib.sha256(payload).hexdigest(), self._native["manifest_sha256"], payload)
+                        hashlib.sha256(payload).hexdigest(), self._native["manifest_sha256"], payload,
+                        document.engine_build, document.validation_provenance)
