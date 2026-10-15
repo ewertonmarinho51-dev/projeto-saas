@@ -196,7 +196,12 @@ def subir_postgrest(dsn: str, segredo: str) -> subprocess.Popen:
     processo = subprocess.Popen(
         [BINARIO_PGRST], env=ambiente,
         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    _esperar_porta(PORTA_PGRST, processo=processo)
+    try:
+        _esperar_porta(PORTA_PGRST, processo=processo)
+    except BaseException:
+        # Until this helper returns, its caller cannot own/clean up the child.
+        _encerrar(processo)
+        raise
     return processo
 
 
@@ -208,7 +213,11 @@ def subir_adaptador() -> subprocess.Popen:
          "--porta", str(PORTA_ADAPTADOR),
          "--destino", f"http://127.0.0.1:{PORTA_PGRST}"],
         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    _esperar_porta(PORTA_ADAPTADOR, processo=processo)
+    try:
+        _esperar_porta(PORTA_ADAPTADOR, processo=processo)
+    except BaseException:
+        _encerrar(processo)
+        raise
     return processo
 
 

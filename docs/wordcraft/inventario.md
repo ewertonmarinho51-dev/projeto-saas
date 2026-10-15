@@ -62,3 +62,15 @@ Branch: `feature/wordcraft-wasm-govconnect`. Produção não alterada.
 O container gc-wordcraft-snapshot/v1 foi escolhido para G1 em formato-canonico.md, preservando media/passthrough. IDs estáveis e fidelidade institucional ainda precisam de homologação. Não se grava novo documento como Markdown.
 Nenhum backend novo de patches, tenants, IA, processos ou assinaturas será criado.
 Nenhuma remoção de legado antes da prova de substituição e do aceite correspondente.
+
+## Laboratório reproduzível após G1 — inventário antes do código
+
+| Componente planejado | Responsabilidade | Reuso e prova |
+|---|---|---|
+| `scripts/wordcraft_lab.py` | preparar banco sintético próprio e servir laboratório somente em loopback; reabrir o mesmo banco em restart | `homologacao_local`, `homologacao_stack`, marcador do instalador e owner existente; DSN/paths/portas validados antes de mutações |
+| `integrations/wordcraft/lab/app.py`, `server.py` | página de ensaio do componente real, commit/ACK e download de revisão persistida | `auth.entrar`, `DocumentoService`, `Ponte`, renderer; não entra nos consumidores operacionais |
+| `tests/test_wordcraft_lab.py` | recusar configuração remota, namespaces alheios, alteração do manifesto e corpus não verificado | sem banco nos testes de contrato; execução real local separada |
+
+O runner substitui os roteiros avulsos de `work/` na reprodução da prova; não cria
+outro sistema de processos, autenticação ou persistência. Segredos sintéticos ficam
+somente em memória dos processos; o estado de retomada contém apenas nomes/UUIDs/hashes.
