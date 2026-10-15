@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tomllib
 from urllib.parse import urlsplit
 
@@ -219,12 +220,23 @@ def collect(*, metadata_path: Path, upstream: Path, registry: Path, git: Path, o
     lock_raw = _read(upstream / "Cargo.lock", 4 * 1024 * 1024)
     lock_lf = lock_raw.replace(b"\r\n", b"\n")
     pinned_lock = (_git(upstream, "show", "HEAD:Cargo.lock") + "\n").encode("utf-8")
+    lock_mode = "PINNED_UPSTREAM"
     if lock_lf != pinned_lock:
-        raise ValueError("Cargo.lock differs from the pinned upstream")
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from scripts.wordcraft_overlay import LOCK_BEFORE_SHA, LOCK_AFTER_SHA, validate_lock_delta
+        if _hash(pinned_lock) != LOCK_BEFORE_SHA or _hash(lock_lf) != LOCK_AFTER_SHA:
+            raise ValueError("Cargo.lock differs from the approved upstream/integration hashes")
+        validate_lock_delta(pinned_lock, lock_lf)
+        lock_mode = "APPROVED_INTEGRATION_DIRECT_DEPENDENCY_DELTA"
     lock = tomllib.loads(lock_raw.decode("utf-8"))
     locked = {(item["name"], item["version"], item.get("source")) for item in lock["package"]}
     raw = _read(metadata_path, 12 * 1024 * 1024)
     root, packages = closure(json.loads(raw))
+    if lock_mode == "APPROVED_INTEGRATION_DIRECT_DEPENDENCY_DELTA":
+        direct = {item["name"] for item in root["dependencies"] if item["kind"] in {None, "build"}}
+        if not {"serde", "sha2"} <= direct:
+            raise ValueError("Integrated lock requires refreshed filtered Cargo metadata")
     if Path(root["manifest_path"]).resolve() != upstream / "apps/wordcraft-web/Cargo.toml":
         raise ValueError("The graph root does not belong to the audited checkout")
     files, records = {}, []
@@ -287,6 +299,8 @@ def collect(*, metadata_path: Path, upstream: Path, registry: Path, git: Path, o
     review_records = [item for item in records if item["review"]]
     manifest = {"schema": "gc-wordcraft-distribution-notices/v1", "status": "DISTRIBUTION_REVIEW_REQUIRED",
         "upstream_commit": pin, "cargo_lock_sha256_lf": _hash(lock_lf), "metadata_sha256": _hash(raw),
+        "cargo_lock_upstream_sha256_lf": _hash(pinned_lock), "cargo_lock_mode": lock_mode,
+        "cargo_lock_delta": ["wordcraft-web direct serde", "wordcraft-web direct sha2"] if lock_mode != "PINNED_UPSTREAM" else [],
         "scope": {"root": "wordcraft-web", "asserted_metadata_filter": "wasm32-unknown-unknown",
             "edges": ["normal", "build"], "dev_only_edges": "excluded",
             "link_map": False, "metadata_filter_attested_by_json": False,

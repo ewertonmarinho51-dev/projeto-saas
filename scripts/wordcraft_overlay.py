@@ -10,11 +10,74 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 CARGO_PATH = "apps/wordcraft-web/Cargo.toml"
 CARGO_SHA = "eda03c9e096f2a45cd55e5e5001e8f0850ceacf107864705cdd9c16928bfc8e0"
 LIB_SECTION = '\n[lib]\nname = "govconnect_wordcraft"\npath = "src/govconnect.rs"\n'
+DEPENDENCIES = '[dependencies]\nserde = { workspace = true }\nsha2 = { workspace = true }\n'
+LOCK_BEFORE_SHA = "4cd08e46c389033f3f3d031026c3f674f74765899790e9f05b475557377bff68"
+LOCK_AFTER_SHA = "e6b2bae022650e4fdc2dacdcb3ba90e7f3037e6a8cfa2a87dfa6b25be2883170"
+LOCK_WEB_BEFORE = '''[[package]]
+name = "wordcraft-web"
+version = "0.7.0"
+dependencies = [
+ "eframe",
+ "egui",
+ "js-sys",
+ "log",
+ "rfd",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wordcraft-doc",
+ "wordcraft-engine",
+ "wordcraft-fonts",
+ "wordcraft-ui-egui",
+]
+'''
+LOCK_WEB_AFTER = LOCK_WEB_BEFORE.replace(' "serde_json",\n', ' "serde",\n "serde_json",\n "sha2",\n')
+
+
+def integrated_cargo(base: bytes) -> bytes:
+    marker = b"[dependencies]\n"
+    if base.count(marker) != 1:
+        raise ValueError("Pinned dependency table is missing or ambiguous")
+    return base.replace(marker, DEPENDENCIES.encode(), 1) + LIB_SECTION.encode()
+
+
+def validate_lock_delta(before: bytes, after: bytes) -> None:
+    previous, current = (tomllib.loads(raw.decode("utf-8")) for raw in (before, after))
+    old_entries = [item for item in previous["package"] if item["name"] == "wordcraft-web"]
+    new_entries = [item for item in current["package"] if item["name"] == "wordcraft-web"]
+    if len(old_entries) != 1 or len(new_entries) != 1:
+        raise ValueError("Lock delta has an ambiguous root package")
+    old, new = old_entries[0], new_entries[0]
+    if (old["version"] != "0.7.0" or new["dependencies"] != sorted([*old["dependencies"], "serde", "sha2"])):
+        raise ValueError("Lock delta is not the two approved direct dependencies")
+    new["dependencies"] = old["dependencies"]
+    if previous != current:
+        raise ValueError("Lock delta changed another package, version, source or checksum")
+
+
+def integrated_lock(raw: bytes) -> bytes:
+    raw = raw.replace(b"\r\n", b"\n")
+    digest = hashlib.sha256(raw).hexdigest()
+    before, after = LOCK_WEB_BEFORE.encode(), LOCK_WEB_AFTER.encode()
+    if digest == LOCK_AFTER_SHA:
+        if raw.count(after) != 1:
+            raise ValueError("Integrated lock package differs")
+        validate_lock_delta(raw.replace(after, before, 1), raw)
+        return raw
+    if digest != LOCK_BEFORE_SHA or raw.count(before) != 1:
+        raise ValueError("Cargo.lock differs from the audited upstream/integration bytes")
+    result = raw.replace(before, after, 1)
+    if hashlib.sha256(result).hexdigest() != LOCK_AFTER_SHA:
+        raise ValueError("Integrated Cargo.lock hash differs")
+    validate_lock_delta(raw, result)
+    return result
 MAIN_PATH = "apps/wordcraft-web/src/main.rs"
 MAIN_SHA = "7aabe7a19c7443a09874079a612a03803313c76e92fa83036941bbabd0021e4d"
 CATALOG_CODES = frozenset({"bg", "cs", "de", "es", "et", "fr", "hu", "it", "ja", "pl", "pt-br", "ru",
@@ -93,13 +156,18 @@ def apply(source: Path, *, browser=False):
     original = cargo.read_bytes().replace(b"\r\n", b"\n")
     section = LIB_SECTION.encode()
     base = original[:-len(section)] if original.endswith(section) else original
+    if base.count(DEPENDENCIES.encode()) == 1:
+        base = base.replace(DEPENDENCIES.encode(), b"[dependencies]\n", 1)
     if hashlib.sha256(base).hexdigest() != CARGO_SHA:
         raise ValueError("Upstream Cargo.toml differs from the audited bytes")
     lib = contained(source, "apps/wordcraft-web/src/govconnect.rs")
     adapter = (ROOT / "integrations/wordcraft/govconnect.rs").read_bytes()
     if lib.exists() and lib.read_bytes() != adapter:
         raise ValueError("An unrelated integration file already exists")
-    writes = [(cargo, base + section), (lib, adapter)]
+    cargo_bytes = integrated_cargo(base)
+    lock = contained(source, "Cargo.lock")
+    lock_bytes = integrated_lock(lock.read_bytes())
+    writes = [(cargo, cargo_bytes), (lock, lock_bytes), (lib, adapter)]
     example = contained(source, "apps/wordcraft-web/examples/govconnect_fixture.rs")
     example_bytes = (ROOT / "integrations/wordcraft/govconnect_fixture.rs").read_bytes()
     if example.exists() and example.read_bytes() != example_bytes:
@@ -128,7 +196,10 @@ def apply(source: Path, *, browser=False):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
     return {"upstream_sha": pin, "adapter_sha256": hashlib.sha256(adapter).hexdigest(),
-            "cargo_sha256": hashlib.sha256(base + section).hexdigest(),
+            "cargo_sha256": hashlib.sha256(cargo_bytes).hexdigest(),
+            "cargo_lock_upstream_sha256_lf": LOCK_BEFORE_SHA,
+            "cargo_lock_integration_sha256_lf": hashlib.sha256(lock_bytes).hexdigest(),
+            "cargo_lock_delta": "wordcraft-web direct dependencies: serde and sha2 only; versions/source/checksums unchanged",
             "browser_bridge": browser,
             "status": "OVERLAY_APPLIED_NOT_COMPILED"}
 

@@ -81,6 +81,24 @@ separadores históricos, nomes de arquivos, limites de herança por repositório
 recusa de licença de pacote vizinho, hashes e proteção contra sobrescrita. A coleta
 real foi executada localmente, sem rede adicional.
 
+## Lock da integração G4
+
+O incremento de patches adiciona dependências diretas `serde` e `sha2` a
+`wordcraft-web`. Ambas já pertenciam à closure conservadora de 251 pacotes; não
+há nova versão/source/checksum proposta. A alteração da lista direta exige um
+delta explícito no lock, aprovado pelo integrador e validado pelo overlay:
+SHA-256 LF integrado
+`e6b2bae022650e4fdc2dacdcb3ba90e7f3037e6a8cfa2a87dfa6b25be2883170`.
+
+O coletor preserva o hash do baseline upstream separado e aceita somente esse
+delta exato. Ao encontrar o lock integrado, exige metadata filtrado regenerado
+com `serde` e `sha2` nas dependências diretas do root; recusa silenciosamente
+reutilizar metadata anterior. A contagem após integração deve ser observada de
+novo, ainda que os dois nós já existam. O workflow prepara
+`cargo-metadata-wasm-integration.json`, a nova coleta e os hashes integrados;
+sua execução ainda está pendente. O artefato `wasm-03` acima permanece evidência
+do lock upstream anterior, sem ser renomeado como resultado da integração G4.
+
 Comando reproduzível, a partir da raiz do produto, com destino novo:
 
 ```powershell

@@ -7,13 +7,247 @@ use std::collections::BTreeMap;
 use std::io::{self, Write};
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use wordcraft_doc::{Block, Document, InlineObject};
-use wordcraft_engine::Session;
+use sha2::{Digest, Sha256};
+use wordcraft_doc::{Block, Document, InlineObject, Paragraph, Path, Pos, StoryRef};
+use wordcraft_engine::{CmdError, CommandSpec, Session};
 
 pub const SCHEMA: &str = "gc-wordcraft-snapshot/v1";
 pub const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_DEPTH: usize = 32;
+const PATCH_SCHEMA: &str = "gc-wordcraft-native-patch/v1";
+const PATCH_COMMAND: &str = "govconnect.apply_patch";
+const MAX_PATCH_BYTES: usize = 1024 * 1024;
+const MAX_PATCH_OPERATIONS: usize = 32;
+const MAX_PATCH_TEXT: usize = 100 * 1024;
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct NativePatchPlan {
+    schema: String,
+    source_hash: String,
+    source_revision: u32,
+    operations: Vec<NativeReplacement>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct NativeReplacement {
+    op: String,
+    story: StoryRef,
+    path: Path,
+    start_byte: usize,
+    end_byte: usize,
+    old_text: String,
+    new_text: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct NativePatchRequest {
+    current_revision: u32,
+    observed_source_hash: String,
+    plan: NativePatchPlan,
+}
+
+fn patch_error() -> String {
+    "native patch refused".into()
+}
+
+fn sha256(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn inline_patch_text(text: &str) -> bool {
+    !text.chars().any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}' | '\u{FFFC}'))
+}
+
+fn uniform_patch_paragraph(para: &Paragraph) -> bool {
+    let Some(first) = para.runs.first() else { return false };
+    if !para.objects.is_empty()
+        || para.text.contains('\u{FFFC}')
+        || first.props.ins.is_some()
+        || first.props.del.is_some()
+        || first.props.fmt_change.is_some()
+    {
+        return false;
+    }
+    let mut end = 0_usize;
+    for run in &para.runs {
+        let Some(next) = end.checked_add(run.len) else { return false };
+        if run.len == 0 || run.props != first.props || !para.text.is_char_boundary(next) {
+            return false;
+        }
+        end = next;
+    }
+    end == para.text.len()
+}
+
+/// Validate against the source, then order edits backwards. No positional guesses.
+fn patch_operations(doc: &Document, request: &NativePatchRequest) -> Result<Vec<NativeReplacement>, String> {
+    let plan = &request.plan;
+    if plan.schema != PATCH_SCHEMA
+        || request.current_revision == 0
+        || plan.source_revision != request.current_revision
+        || plan.source_hash != request.observed_source_hash
+        || plan.source_hash.len() != 64
+        || !plan.source_hash.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        || plan.operations.is_empty()
+        || plan.operations.len() > MAX_PATCH_OPERATIONS
+        || doc.settings.track_changes
+        || doc.settings.protection.is_some()
+    {
+        return Err(patch_error());
+    }
+    let mut text_bytes = 0_usize;
+    for operation in &plan.operations {
+        text_bytes = text_bytes.checked_add(operation.new_text.len()).ok_or_else(patch_error)?;
+        if operation.op != "replace_text"
+            || operation.path.0.is_empty()
+            || operation.path.0.len() > 1 + 3 * MAX_DEPTH
+            || operation.path.0.len() % 3 != 1
+            || operation.start_byte >= operation.end_byte
+            || operation.old_text.len() > MAX_PATCH_TEXT
+            || text_bytes > MAX_PATCH_TEXT
+            || !inline_patch_text(&operation.old_text)
+            || !inline_patch_text(&operation.new_text)
+        {
+            return Err(patch_error());
+        }
+        let para = doc.para(operation.story, &operation.path).ok_or_else(patch_error)?;
+        if !uniform_patch_paragraph(para) || para.text.get(operation.start_byte..operation.end_byte) != Some(operation.old_text.as_str()) {
+            return Err(patch_error());
+        }
+    }
+    let mut operations = plan.operations.clone();
+    operations.sort_by(|a, b| (&a.story, &a.path, a.start_byte).cmp(&(&b.story, &b.path, b.start_byte)));
+    for pair in operations.windows(2) {
+        let [first, next] = pair else { return Err(patch_error()) };
+        if first.story == next.story && first.path == next.path && next.start_byte < first.end_byte {
+            return Err(patch_error());
+        }
+    }
+    operations.reverse();
+    Ok(operations)
+}
+
+/// Compare the native result, masking only authorized paragraphs in a check copy.
+/// This never constructs or applies a document patch by rewriting JSON.
+fn verify_native_patch(before: &Document, after: &Document, operations: &[NativeReplacement]) -> Result<(), String> {
+    let mut paragraphs = BTreeMap::new();
+    let mut expected_text = BTreeMap::new();
+    for operation in operations {
+        let key = (operation.story, operation.path.clone());
+        let original = before.para(operation.story, &operation.path).ok_or_else(patch_error)?;
+        paragraphs.entry(key.clone()).or_insert_with(|| original.clone());
+        let expected = expected_text.entry(key).or_insert_with(|| original.text.clone());
+        if expected.get(operation.start_byte..operation.end_byte) != Some(operation.old_text.as_str()) {
+            return Err(patch_error());
+        }
+        // A text-only postcondition oracle. The real edit goes through Session::run.
+        expected.replace_range(operation.start_byte..operation.end_byte, &operation.new_text);
+    }
+    let mut outside = after.clone();
+    for ((story, path), original) in paragraphs {
+        let result = after.para(story, &path).ok_or_else(patch_error)?;
+        let expected = expected_text.get(&(story, path.clone())).ok_or_else(patch_error)?;
+        let style = original.runs.first().ok_or_else(patch_error)?;
+        let mut run_bytes = 0_usize;
+        for run in &result.runs {
+            run_bytes = run_bytes.checked_add(run.len).ok_or_else(patch_error)?;
+            if run.props != style.props || !result.text.is_char_boundary(run_bytes) {
+                return Err(patch_error());
+            }
+        }
+        if result.text != *expected
+            || run_bytes != result.text.len()
+            || result.props != original.props
+            || result.mark != original.mark
+            || result.objects != original.objects
+            || result.section != original.section
+        {
+            return Err(patch_error());
+        }
+        *outside.para_mut(story, &path).map_err(|_| patch_error())? = original;
+    }
+    if outside != *before {
+        return Err(patch_error());
+    }
+    let snapshot = serialize(after)?;
+    if load_bytes(&snapshot)? != *after {
+        return Err(patch_error());
+    }
+    Ok(())
+}
+
+fn native_patch_command(session: &mut Session, value: &Value) -> wordcraft_engine::CmdResult {
+    let apply = || -> Result<(Document, wordcraft_engine::Selection), String> {
+        let request: NativePatchRequest = serde_json::from_value(value.clone()).map_err(|_| patch_error())?;
+        let operations = patch_operations(&session.doc, &request)?;
+        let mut copy = Session::new(session.doc.clone());
+        restrict_embedded_session(&mut copy);
+        copy.author = session.author.clone();
+        copy.prefs.typing_replaces_selection = true;
+        copy.prefs.overtype = false;
+        copy.prefs.autocorrect.enabled = false;
+        for operation in &operations {
+            let para = session.doc.para(operation.story, &operation.path).ok_or_else(patch_error)?;
+            copy.pending = Some(para.runs.first().ok_or_else(patch_error)?.props.clone());
+            let anchor = Pos::new(operation.story, operation.path.clone(), operation.start_byte);
+            let focus = Pos::new(operation.story, operation.path.clone(), operation.end_byte);
+            copy.run("select.range", &json!({"anchor": anchor, "focus": focus})).map_err(|_| patch_error())?;
+            if copy.sel.anchor != anchor || copy.sel.focus != focus {
+                return Err(patch_error());
+            }
+            copy.run("text.insert", &json!({"text": operation.new_text, "raw": true})).map_err(|_| patch_error())?;
+        }
+        verify_native_patch(&session.doc, &copy.doc, &operations)?;
+        Ok((copy.doc, copy.sel))
+    };
+    let (document, selection) = apply().map_err(|_| CmdError::Failed(patch_error()))?;
+    session.doc = document;
+    session.sel = selection;
+    Ok(json!({"applied": true}))
+}
+
+/// Internal work-session batch. The public pure API never changes a live editor.
+fn apply_native_patch(session: &mut Session, request: NativePatchRequest) -> Result<(), String> {
+    let before = session.doc.clone();
+    let operations = patch_operations(&before, &request)?;
+    let params = serde_json::to_value(&request).map_err(|_| patch_error())?;
+    let snapshot = session.edit_snapshot();
+    let original_registry = session.registry.clone();
+    let mut specs: Vec<_> = original_registry.all().iter().filter(|spec| spec.id != PATCH_COMMAND).cloned().collect();
+    specs.push(CommandSpec::new(PATCH_COMMAND, "GovConnect patch", "GovConnect", native_patch_command));
+    session.registry = Arc::new(wordcraft_engine::Registry::new(specs));
+    let result = session.run(PATCH_COMMAND, &params).map_err(|_| patch_error()).and_then(|_| verify_native_patch(&before, &session.doc, &operations));
+    session.registry = original_registry;
+    if result.is_err() {
+        session.restore(snapshot);
+    }
+    result
+}
+
+/// Apply a closed, server-authorized text plan to a copy using the native engine.
+/// ACL/policy/diff approval/CAS remain GovConnect responsibilities. Errors are closed.
+pub fn apply_patch(bytes: &[u8], current_revision: u32, plan_json: &[u8]) -> Result<Vec<u8>, String> {
+    let apply = || -> Result<Vec<u8>, String> {
+        if bytes.is_empty() || bytes.len() > MAX_BYTES || plan_json.is_empty() || plan_json.len() > MAX_PATCH_BYTES {
+            return Err(patch_error());
+        }
+        let plan: NativePatchPlan = serde_json::from_slice(plan_json).map_err(|_| patch_error())?;
+        let observed_source_hash = sha256(bytes);
+        if plan.source_hash != observed_source_hash {
+            return Err(patch_error());
+        }
+        let mut session = Session::new(load_bytes(bytes)?);
+        restrict_embedded_session(&mut session);
+        apply_native_patch(&mut session, NativePatchRequest { current_revision, observed_source_hash, plan })?;
+        serialize(&session.doc)
+    };
+    apply().map_err(|_| patch_error())
+}
 
 struct BoundedBytes(Vec<u8>);
 
@@ -442,5 +676,259 @@ mod tests {
             assert!(import_docx(bytes).is_err());
         }
         assert!(import_docx(&vec![0; MAX_BYTES + 1]).is_err());
+    }
+
+    fn replace(story: StoryRef, path: Vec<u32>, start: usize, old: &str, new: &str) -> Value {
+        json!({"op":"replace_text", "story":story, "path":path, "start_byte":start,
+            "end_byte":start + old.len(), "old_text":old, "new_text":new})
+    }
+
+    fn patch_plan(bytes: &[u8], operations: Vec<Value>) -> Value {
+        json!({"schema":PATCH_SCHEMA, "source_hash":sha256(bytes), "source_revision":1,
+            "operations":operations})
+    }
+
+    #[test]
+    fn patch_replaces_native_utf8_ranges_backwards_without_offset_drift() {
+        let original = Document::from_text("Ação pública e órgão seguro.");
+        let bytes = serialize(&original).unwrap();
+        let plan = patch_plan(
+            &bytes,
+            vec![
+                replace(StoryRef::Body, vec![0], "Ação pública e ".len(), "órgão", "município"),
+                replace(StoryRef::Body, vec![0], 0, "Ação", "Atuação"),
+            ],
+        );
+        let result = apply_patch(&bytes, 1, &serde_json::to_vec(&plan).unwrap()).unwrap();
+        let document = load_bytes(&result).unwrap();
+        assert_eq!(document.para(StoryRef::Body, &Path::top(0)).unwrap().text, "Atuação pública e município seguro.");
+        assert_eq!(serialize(&original).unwrap(), bytes, "pure apply never changes the source");
+    }
+
+    #[test]
+    fn patch_batch_is_one_native_work_session_undo_and_redo() {
+        let bytes = serialize(&Document::from_text("Primeiro alvo.\nSegundo alvo.")).unwrap();
+        let plan = patch_plan(
+            &bytes,
+            vec![replace(StoryRef::Body, vec![0], 0, "Primeiro", "Novo primeiro"), replace(StoryRef::Body, vec![1], 0, "Segundo", "Novo segundo")],
+        );
+        let mut session = Session::new(load_bytes(&bytes).unwrap());
+        restrict_embedded_session(&mut session);
+        let request = NativePatchRequest { current_revision: 1, observed_source_hash: sha256(&bytes), plan: serde_json::from_value(plan).unwrap() };
+        apply_native_patch(&mut session, request).unwrap();
+        let applied = serialize(&session.doc).unwrap();
+        assert_ne!(applied, bytes);
+        assert_eq!(session.undo_depth(), 1);
+        assert_eq!(session.undo_label(), Some("GovConnect patch"));
+        assert!(session.registry.get(PATCH_COMMAND).is_none());
+        command(&mut session, UserEdit::Undo).unwrap();
+        assert_eq!(serialize(&session.doc).unwrap(), bytes);
+        command(&mut session, UserEdit::Redo).unwrap();
+        assert_eq!(serialize(&session.doc).unwrap(), applied);
+    }
+
+    #[test]
+    fn patch_preserves_uniform_bold_format_and_other_blocks_assets_and_stories() {
+        let mut doc = example();
+        let bold = wordcraft_doc::props::CharProps { bold: Some(true), ..Default::default() };
+        let mut paragraph = Paragraph::with_text("Texto autorizado permanece.", bold.clone());
+        paragraph.props.style = Some("Heading1".into());
+        doc.body.insert(0, wordcraft_doc::para_block(paragraph));
+        doc.parts.insert(
+            7,
+            wordcraft_doc::Part {
+                kind: wordcraft_doc::PartKind::Header,
+                blocks: vec![wordcraft_doc::para_block(Paragraph::with_text("Cabeçalho preservado", Default::default()))],
+                ..Default::default()
+            },
+        );
+        let bytes = serialize(&doc).unwrap();
+        let plan = patch_plan(&bytes, vec![replace(StoryRef::Body, vec![0], "Texto ".len(), "autorizado", "corrigido")]);
+        let result = load_bytes(&apply_patch(&bytes, 1, &serde_json::to_vec(&plan).unwrap()).unwrap()).unwrap();
+        let paragraph = result.para(StoryRef::Body, &Path::top(0)).unwrap();
+        assert_eq!(paragraph.text, "Texto corrigido permanece.");
+        assert_eq!(paragraph.props.style.as_deref(), Some("Heading1"));
+        assert!(paragraph.runs.iter().all(|run| run.props == bold));
+        let request = NativePatchRequest { current_revision: 1, observed_source_hash: sha256(&bytes), plan: serde_json::from_value(plan).unwrap() };
+        verify_native_patch(&doc, &result, &patch_operations(&doc, &request).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn patch_edits_a_table_cell_without_changing_table_geometry_or_neighbor_cells() {
+        let mut doc = Document::new();
+        let mut table = wordcraft_doc::Table::new(2, 2, 432.0);
+        table.rows[0].cells[0].blocks = vec![wordcraft_doc::para_block(Paragraph::with_text("Célula autorizada", Default::default()))];
+        table.rows[1].cells[1].blocks = vec![wordcraft_doc::para_block(Paragraph::with_text("Vizinha intacta", Default::default()))];
+        doc.body = vec![Arc::new(Block::Table(table.clone()))];
+        doc.ensure_nonempty();
+        let bytes = serialize(&doc).unwrap();
+        let plan = patch_plan(&bytes, vec![replace(StoryRef::Body, vec![0, 0, 0, 0], "Célula ".len(), "autorizada", "corrigida")]);
+        let result = load_bytes(&apply_patch(&bytes, 1, &serde_json::to_vec(&plan).unwrap()).unwrap()).unwrap();
+        assert_eq!(result.para(StoryRef::Body, &Path(vec![0, 0, 0, 0])).unwrap().text, "Célula corrigida");
+        let mut actual = result.table(StoryRef::Body, &Path::top(0)).unwrap().clone();
+        actual.rows[0].cells[0] = table.rows[0].cells[0].clone();
+        assert_eq!(actual, table);
+    }
+
+    #[test]
+    fn patch_stale_hash_revision_and_second_operation_failure_leave_source_and_undo_intact() {
+        let bytes = serialize(&Document::from_text("Primeiro alvo.\nSegundo alvo.")).unwrap();
+        let good = patch_plan(&bytes, vec![replace(StoryRef::Body, vec![0], 0, "Primeiro", "Novo")]);
+        let mut plans = Vec::new();
+        let mut hash = good.clone();
+        hash["source_hash"] = json!("0".repeat(64));
+        plans.push(hash);
+        let mut revision = good.clone();
+        revision["source_revision"] = json!(2);
+        plans.push(revision);
+        let mut second = good.clone();
+        second["operations"].as_array_mut().unwrap().push(replace(StoryRef::Body, vec![1], 0, "Texto divergente", "Novo"));
+        plans.push(second);
+        for plan in plans {
+            assert_eq!(apply_patch(&bytes, 1, &serde_json::to_vec(&plan).unwrap()).unwrap_err(), "native patch refused");
+            let mut session = Session::new(load_bytes(&bytes).unwrap());
+            let request =
+                NativePatchRequest { current_revision: 1, observed_source_hash: sha256(&bytes), plan: serde_json::from_value(plan).unwrap() };
+            assert!(apply_native_patch(&mut session, request).is_err());
+            assert_eq!(serialize(&session.doc).unwrap(), bytes);
+            assert_eq!(session.undo_depth(), 0);
+        }
+    }
+
+    #[test]
+    fn patch_refuses_overlapping_utf8_boundaries_control_characters_and_unknown_fields() {
+        let bytes = serialize(&Document::from_text("Ação pública segura")).unwrap();
+        let good = patch_plan(&bytes, vec![replace(StoryRef::Body, vec![0], 0, "Ação", "Atuação")]);
+        let mut plans = Vec::new();
+        let mut overlap = good.clone();
+        overlap["operations"].as_array_mut().unwrap().push(replace(StoryRef::Body, vec![0], 0, "Ação", "Outra"));
+        plans.push(overlap);
+        let mut utf8 = good.clone();
+        utf8["operations"][0]["end_byte"] = json!(2);
+        plans.push(utf8);
+        let mut unknown = good.clone();
+        unknown["tenant_id"] = json!("untrusted");
+        plans.push(unknown);
+        let mut operation = good.clone();
+        operation["operations"][0]["command"] = json!("file.open");
+        plans.push(operation);
+        let mut path = good.clone();
+        path["operations"][0]["path"] = json!([0, 0]);
+        plans.push(path);
+        let mut missing = good.clone();
+        missing["operations"][0]["path"] = json!([999]);
+        plans.push(missing);
+        let mut table = good.clone();
+        table["operations"][0]["op"] = json!("insert_table");
+        plans.push(table);
+        for forbidden in ["linha\nnova", "coluna\ttab", "novo\rparágrafo", "objeto\u{FFFC}", "separador\u{2029}"] {
+            let mut text = good.clone();
+            text["operations"][0]["new_text"] = json!(forbidden);
+            plans.push(text);
+        }
+        for plan in plans {
+            assert!(apply_patch(&bytes, 1, &serde_json::to_vec(&plan).unwrap()).is_err());
+        }
+        let mut duplicate = serde_json::to_vec(&good).unwrap();
+        duplicate.pop();
+        duplicate.extend_from_slice(b",\"source_revision\":1}");
+        assert!(apply_patch(&bytes, 1, &duplicate).is_err());
+        assert!(apply_patch(&bytes, 0, &serde_json::to_vec(&good).unwrap()).is_err());
+    }
+
+    #[test]
+    fn patch_refuses_mixed_runs_objects_tracking_and_protected_documents() {
+        let mut mixed = Document::new();
+        let mut paragraph = Paragraph::with_text("Texto ", Default::default());
+        paragraph.insert_text(paragraph.len(), "misto", &wordcraft_doc::props::CharProps { bold: Some(true), ..Default::default() }).unwrap();
+        mixed.body = vec![wordcraft_doc::para_block(paragraph)];
+        let mut objects = Document::from_text("Texto simples");
+        objects
+            .para_mut(StoryRef::Body, &Path::top(0))
+            .unwrap()
+            .insert_object(0, InlineObject::Field { instr: "PAGE".into(), result: "1".into(), locked: false, code: false }, &Default::default())
+            .unwrap();
+        let mut tracking = Document::from_text("Texto simples");
+        tracking.settings.track_changes = true;
+        let mut protected = Document::from_text("Texto simples");
+        protected.settings.protection = Some("readOnly".into());
+        for doc in [mixed, objects, tracking, protected] {
+            let bytes = serialize(&doc).unwrap();
+            let text = &doc.para(StoryRef::Body, &Path::top(0)).unwrap().text;
+            let start = text.find("Texto").unwrap();
+            let plan = patch_plan(&bytes, vec![replace(StoryRef::Body, vec![0], start, "Texto", "Trecho")]);
+            assert!(apply_patch(&bytes, 1, &serde_json::to_vec(&plan).unwrap()).is_err());
+        }
+    }
+
+    #[test]
+    fn patch_limits_and_unauthorized_native_side_effects_are_rejected() {
+        let bytes = serialize(&Document::from_text("Texto simples")).unwrap();
+        let good = patch_plan(&bytes, vec![replace(StoryRef::Body, vec![0], 0, "Texto", "Trecho")]);
+        let mut empty = good.clone();
+        empty["operations"] = json!([]);
+        let mut excessive = good.clone();
+        excessive["operations"] = json!(vec![good["operations"][0].clone(); MAX_PATCH_OPERATIONS + 1]);
+        let mut large = good.clone();
+        large["operations"][0]["new_text"] = json!("x".repeat(MAX_PATCH_TEXT + 1));
+        for plan in [empty, excessive, large] {
+            assert!(apply_patch(&bytes, 1, &serde_json::to_vec(&plan).unwrap()).is_err());
+        }
+        assert!(apply_patch(&bytes, 1, &vec![b' '; MAX_PATCH_BYTES + 1]).is_err());
+        let applied = apply_patch(&bytes, 1, &serde_json::to_vec(&good).unwrap()).unwrap();
+        let request = NativePatchRequest { current_revision: 1, observed_source_hash: sha256(&bytes), plan: serde_json::from_value(good).unwrap() };
+        let original = load_bytes(&bytes).unwrap();
+        let operations = patch_operations(&original, &request).unwrap();
+        let mut changed = load_bytes(&applied).unwrap();
+        changed.core.title = "Unauthorized metadata".into();
+        assert!(verify_native_patch(&original, &changed, &operations).is_err());
+    }
+
+    #[test]
+    fn patch_native_postcondition_failure_after_valid_edits_keeps_original_history() {
+        let bold = wordcraft_doc::props::CharProps { bold: Some(true), ..Default::default() };
+        let mut paragraph = Paragraph::with_text("Primeiro", bold);
+        // A legal paragraph can have a different paragraph-mark format. Native
+        // whole-paragraph replacement changes that mark; the adapter must refuse
+        // the entire batch instead of silently broadening its formatting scope.
+        paragraph.mark = Default::default();
+        let mut doc = Document::from_text("unused\nSegundo alvo");
+        doc.body[0] = wordcraft_doc::para_block(paragraph);
+        let bytes = serialize(&doc).unwrap();
+        let plan = patch_plan(
+            &bytes,
+            vec![replace(StoryRef::Body, vec![0], 0, "Primeiro", "Novo"), replace(StoryRef::Body, vec![1], 0, "Segundo", "Outro")],
+        );
+        let request = NativePatchRequest { current_revision: 1, observed_source_hash: sha256(&bytes), plan: serde_json::from_value(plan).unwrap() };
+        assert!(patch_operations(&doc, &request).is_ok(), "preconditions pass before the native postcondition rejects");
+        let mut session = Session::new(doc);
+        assert!(apply_native_patch(&mut session, request).is_err());
+        assert_eq!(serialize(&session.doc).unwrap(), bytes);
+        assert_eq!(session.undo_depth(), 0);
+        assert!(!session.dirty);
+    }
+
+    #[test]
+    fn patch_deletes_a_range_and_can_address_a_real_header_story() {
+        let mut doc = Document::from_text("Texto simples preservado");
+        doc.parts.insert(
+            7,
+            wordcraft_doc::Part {
+                kind: wordcraft_doc::PartKind::Header,
+                blocks: vec![wordcraft_doc::para_block(Paragraph::with_text("Órgão antigo", Default::default()))],
+                ..Default::default()
+            },
+        );
+        let bytes = serialize(&doc).unwrap();
+        let plan = patch_plan(
+            &bytes,
+            vec![
+                replace(StoryRef::Body, vec![0], "Texto ".len(), "simples ", ""),
+                replace(StoryRef::Part(7), vec![0], "Órgão ".len(), "antigo", "novo"),
+            ],
+        );
+        let result = load_bytes(&apply_patch(&bytes, 1, &serde_json::to_vec(&plan).unwrap()).unwrap()).unwrap();
+        assert_eq!(result.para(StoryRef::Body, &Path::top(0)).unwrap().text, "Texto preservado");
+        assert_eq!(result.para(StoryRef::Part(7), &Path::top(0)).unwrap().text, "Órgão novo");
     }
 }

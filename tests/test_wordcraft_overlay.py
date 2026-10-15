@@ -16,9 +16,14 @@ PIN = "533615620ef91ae57fa7aa4cd77fd98b2179e693"
 def seed(tmp_path, monkeypatch):
     cargo = tmp_path / overlay.CARGO_PATH
     cargo.parent.mkdir(parents=True)
-    cargo.write_bytes(b"[package]\nname = 'fixture'\n")
+    cargo.write_bytes(b"[package]\nname = 'fixture'\n\n[dependencies]\nserde_json = { workspace = true }\n")
     (cargo.parent / "src").mkdir()
     monkeypatch.setattr(overlay, "CARGO_SHA", hashlib.sha256(cargo.read_bytes()).hexdigest())
+    lock = ("version = 4\n\n" + overlay.LOCK_WEB_BEFORE).encode()
+    (tmp_path / "Cargo.lock").write_bytes(lock)
+    monkeypatch.setattr(overlay, "LOCK_BEFORE_SHA", hashlib.sha256(lock).hexdigest())
+    integrated = lock.replace(overlay.LOCK_WEB_BEFORE.encode(), overlay.LOCK_WEB_AFTER.encode(), 1)
+    monkeypatch.setattr(overlay, "LOCK_AFTER_SHA", hashlib.sha256(integrated).hexdigest())
     monkeypatch.setattr(overlay.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout=PIN))
     monkeypatch.setattr(overlay, "ui_patches", lambda pin: [])
     return cargo
@@ -29,7 +34,9 @@ def test_overlay_idempotente(tmp_path, monkeypatch):
     original = cargo.read_bytes()
     first = overlay.apply(tmp_path)
     assert overlay.apply(tmp_path) == first
-    assert cargo.read_bytes() == original + overlay.LIB_SECTION.encode()
+    assert cargo.read_bytes() == overlay.integrated_cargo(original)
+    assert cargo.read_bytes().count(b"sha2 = { workspace = true }") == 1
+    assert cargo.read_bytes().count(b"serde = { workspace = true }") == 1
     assert first["status"] == "OVERLAY_APPLIED_NOT_COMPILED"
 
 
@@ -82,6 +89,35 @@ def test_nao_sobrescreve_adaptador_alheio(tmp_path, monkeypatch):
 def test_caminho_confinado(tmp_path):
     with pytest.raises(ValueError, match="escaped"):
         overlay.contained(tmp_path.resolve(), "../outside")
+
+
+def test_lock_delta_aprovado_e_so_nomes_de_dependencias_diretas(tmp_path, monkeypatch):
+    seed(tmp_path, monkeypatch)
+    before = (tmp_path / "Cargo.lock").read_bytes()
+    overlay.apply(tmp_path)
+    after = (tmp_path / "Cargo.lock").read_bytes()
+    overlay.validate_lock_delta(before, after)
+    assert after == overlay.integrated_lock(before)
+    assert overlay.integrated_lock(after) == after
+    assert b' "serde",\n "serde_json",\n "sha2",\n' in after
+
+
+def test_lock_drift_impede_qualquer_escrita_do_overlay(tmp_path, monkeypatch):
+    cargo = seed(tmp_path, monkeypatch)
+    before = cargo.read_bytes()
+    (tmp_path / "Cargo.lock").write_bytes(b"unrelated lock content")
+    with pytest.raises(ValueError, match="Cargo.lock"):
+        overlay.apply(tmp_path)
+    assert cargo.read_bytes() == before
+    assert not (cargo.parent / "src/govconnect.rs").exists()
+
+
+def test_validador_delta_recusa_mudar_versao_ou_outro_package():
+    before = ("version = 4\n\n" + overlay.LOCK_WEB_BEFORE).encode()
+    after = before.replace(overlay.LOCK_WEB_BEFORE.encode(), overlay.LOCK_WEB_AFTER.encode())
+    for changed in [after.replace(b'0.7.0', b'0.7.1'), after + b'\n[[package]]\nname="unrelated"\nversion="1.0.0"\n']:
+        with pytest.raises(ValueError):
+            overlay.validate_lock_delta(before, changed)
 
 
 def test_browser_entrypoint_idempotente(tmp_path, monkeypatch):

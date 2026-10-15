@@ -67,6 +67,13 @@ pub fn import_docx(bytes: Vec<u8>) -> Result<Vec<u8>, JsValue> {
     adapter::import_docx(&bytes).map_err(error)
 }
 
+/// Pure work-session patch; never loads/replaces an existing browser instance.
+/// Authorization, anchor resolution, approval and CAS belong to the server.
+#[wasm_bindgen]
+pub fn apply_patch(bytes: Vec<u8>, current_revision: u32, plan_json: &str) -> Result<Vec<u8>, JsValue> {
+    adapter::apply_patch(&bytes, current_revision, plan_json.as_bytes()).map_err(error)
+}
+
 /// Server-side export of the exact validated revision; no canvas or download side channel.
 #[wasm_bindgen]
 pub fn export_checkpoint(bytes: Vec<u8>, format: &str) -> Result<Vec<u8>, JsValue> {
