@@ -8,7 +8,7 @@ Branch: `feature/wordcraft-wasm-govconnect`. Produção não alterada.
 |---|---|---|---|---|
 | `src/ui/rich_editor.py`, `assets/rich_editor/` | `apps/wordcraft-web`, `WordApp` | state; steps e revisão | SUBSTITUIR após G1/G6 | rerun, caret, undo, ACK; alto |
 | `src/state.py`, `src/operacao_documento.py` | Session é buffer, não persistência | processo/autosave/geração | PRESERVAR e INTEGRAR | conflito, restart, aprovações; alto |
-| `src/db.py::salvar_processo` | inexistente | Supabase; state | PRESERVAR processos; adicionar CAS documental somente após G1 | update geral atual não é CAS; alto |
+| `src/db.py::salvar_processo` | inexistente | Supabase; state | PRESERVAR processos; commit documental mínimo para G1, homologação definitiva em G2 | update geral atual não é CAS; alto |
 | `src/blocos.py`, `src/patches.py`, `src/corretor.py` | registry/Session::run | GovBot, ciclo, parecer | PRESERVAR regras, INTEGRAR âncoras | hash, cláusulas fixas, atomicidade; alto |
 | `src/govbot.py`, `src/ui/revisao.py` | seleção e comentários | mesmo gateway, mesmo aplicador | INTEGRAR | seleção autorizada, stale, undo; alto |
 | validacao/consistencia/achados/ciclo/fatos/conhecimento | não é regra jurídica do editor | auditoria canônica | PRESERVAR | achados revalidados; alto |
@@ -23,6 +23,9 @@ Branch: `feature/wordcraft-wasm-govconnect`. Produção não alterada.
 
 | Módulo | Responsabilidade exclusiva / consumidores | Teste | Risco / gate |
 |---|---|---|---|
+| `src/documentos_editor.py` | proprietário único de abertura/checkpoint nativo; reutiliza clientes/contexto SQL existentes, valida pelo motor antes do commit | testes backend reais de CAS/idempotência/ACL e callbacks G1 | experimental sem consumidor operacional; não aprova/emite |
+| `supabase/migrations/20261015035015_documentos_editor.sql` | armazenamento privado de cabeça/revisões imutáveis vinculado a processos existentes; RPC interna de commit e contexto verificado pelo JWT | PostgreSQL/PostgREST local, RLS A/B, retry e conflito | gerada CLI 2.121.0; não aplicar remoto; base mínima de G1, G2 ainda não aprovado |
+| `tests/test_documentos_editor_sql.py`, `tests/test_documentos_editor.py` | provar restrições SQL e contrato do proprietário backend com falhas negativas | PostgreSQL real e protocolo; caminho positivo com motor real no G1 | mocks não provam native/RLS; sem produção |
 | `scripts/ensaio_http_local.py` | orquestrar schema/harness PostgREST existentes e provas HTTP em banco local descartável; nenhum backend documental novo | executar os testes reais de catálogo/anon/servidor, limpar processos e banco | somente loopback; sem GoTrue/Storage; CI e laboratório Windows |
 | `src/wordcraft_protocol.py` | validar envelopes e respostas da ponte; futura UI; sem gravar, autorizar ou aplicar patches | schema fechado, nonce, escopo, replay, ACK | alto; fundação independente, não prova G1 |
 | `src/wordcraft_native.py` | executar validador do mesmo motor em processo isolado, sem documento em arquivo ou credenciais no ambiente filho | rejeição/timeout/erro de runtime e resultado fechado | valida modelo, não concede ACL nem confirma save |

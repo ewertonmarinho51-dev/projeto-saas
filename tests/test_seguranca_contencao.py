@@ -1567,6 +1567,10 @@ TABELAS_DA_MULTI_PREFEITURA = frozenset({
 # que é como uma matriz de segurança começa a divergir do banco.
 TABELAS_DO_CACHE_DE_GERACAO = frozenset({"cache_geracoes"})
 
+# Branch-only additive schema. These are tested locally but NOT deployed; keep
+# the historical production census separate from the complete branch inventory.
+TABELAS_WORDCRAFT_NAO_IMPLANTADAS = frozenset({"documentos_editor", "documentos_editor_revisoes"})
+
 
 def test_o_inventario_cobre_todas_as_tabelas():
     """
@@ -1579,7 +1583,8 @@ def test_o_inventario_cobre_todas_as_tabelas():
     implantada fora da conta que a cobre; para mais, dando por
     implantado o que ainda não foi.
     """
-    assert len(set(TABELAS_PRIVADAS)) == TABELAS_EM_PRODUCAO, \
+    assert TABELAS_WORDCRAFT_NAO_IMPLANTADAS <= set(TABELAS_PRIVADAS)
+    assert len(set(TABELAS_PRIVADAS) - TABELAS_WORDCRAFT_NAO_IMPLANTADAS) == TABELAS_EM_PRODUCAO, \
         sorted(TABELAS_PRIVADAS)
 
     # As dez da 0025 entraram na contagem em 18/09/2026, quando foram
@@ -1880,8 +1885,10 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     ESTA prova de segurança falhar — e quem visse a falha entenderia
     "tabela sem RLS" quando o caso é "matriz escrita noutro arquivo".
     """
+    sql_editor = (Path(__file__).resolve().parent.parent / "supabase/migrations"
+                  / "20261015035015_documentos_editor.sql").read_text(encoding="utf-8")
     coberto = (_sql_da_0020() + _sql_da_0021() + _sql_da_0025()
-               + _sql_da_0028())
+               + _sql_da_0028() + sql_editor)
     faltando = [t for t in TABELAS_PRIVADAS if t not in coberto]
     assert not faltando, f"sem matriz de RLS escrita: {faltando}"
 
@@ -1889,7 +1896,7 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     # ter silenciosamente assumido tabela que era da 0020.
     sql_0020 = _sql_da_0020()
     proprias = (TABELAS_DA_PESQUISA_DE_PRECOS | TABELAS_DA_MULTI_PREFEITURA
-                | TABELAS_DO_CACHE_DE_GERACAO)
+                | TABELAS_DO_CACHE_DE_GERACAO | TABELAS_WORDCRAFT_NAO_IMPLANTADAS)
     for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 

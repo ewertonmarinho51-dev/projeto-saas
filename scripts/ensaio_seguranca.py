@@ -260,6 +260,14 @@ OPERACOES = ["select", "insert", "update", "delete"]
 RPCS = {
     "buscar_chunks_textual": {"consulta": "ensaio", "qtd": 1},
     "buscar_chunks_vetorial": {"query_embedding": [0.0] * 768, "qtd": 1},
+    "documento_editor_contexto": {},
+    "documento_editor_sessao_valida": {},
+    "documento_editor_checkpoint": {
+        "p_document": "00000000-0000-0000-0000-000000000001",
+        "p_process": "00000000-0000-0000-0000-000000000001", "p_tipo": "dfd",
+        "p_expected_revision": 0, "p_operation": "00000000-0000-0000-0000-000000000001",
+        "p_payload": "\\x7b7d", "p_content_hash": hashlib.sha256(b"{}").hexdigest(), "p_claims": {},
+    },
 }
 
 # ---------------------------------------------------------------------------

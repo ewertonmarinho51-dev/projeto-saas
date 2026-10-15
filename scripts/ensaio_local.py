@@ -136,6 +136,7 @@ SEQUENCIA_EM_ENSAIO = (
     # `revoke` daqui não sabe nem se importa com as colunas dela. A
     # ordem ENTRE as duas é livre; o que não é livre é a 0027 ser a
     # última.
+    "20261015035015_documentos_editor.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
