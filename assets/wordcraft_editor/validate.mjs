@@ -9,17 +9,84 @@ export class ModelRejected extends Error {}
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const hashPattern = /^[0-9a-f]{64}$/;
 export const maxExportBytes = 64 * 1024 * 1024;
+export const maxPatchPlanBytes = 1024 * 1024;
+export const maxPatchInputBytes = 4 * Math.ceil(maxBytes / 3) + maxPatchPlanBytes + 1024;
+const maxPatchTextBytes = 100 * 1024;
+const patchSchema = 'gc-wordcraft-native-patch/v1';
+const patchIpcSchema = 'gc-wordcraft-native-patch-ipc/v1';
 
-export async function readInput(stream) {
+export async function readInput(stream, bound = maxBytes) {
+  if (!Number.isSafeInteger(bound) || bound < 1 || bound > maxPatchInputBytes) throw new Error('Invalid private input bound.');
   const chunks = [];
   let size = 0;
   for await (const chunk of stream) {
     size += chunk.length;
-    if (size > maxBytes) throw new ModelRejected('Checkpoint exceeds its byte bound.');
+    if (size > bound) throw new ModelRejected('Input exceeds its byte bound.');
     chunks.push(chunk);
   }
   if (!size) throw new ModelRejected('Empty checkpoint.');
   return Buffer.concat(chunks);
+}
+
+function closedObject(value, keys) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
+}
+
+function patchPlanJson(content, revision, plan) {
+  if (!(content instanceof Uint8Array) || !content.length || content.length > maxBytes
+      || !Number.isInteger(revision) || revision < 1 || revision > 0xffffffff
+      || !closedObject(plan, ['schema', 'source_hash', 'source_revision', 'operations'])
+      || plan.schema !== patchSchema || plan.source_revision !== revision
+      || typeof plan.source_hash !== 'string' || plan.source_hash !== digest(content)
+      || !Array.isArray(plan.operations) || plan.operations.length < 1 || plan.operations.length > 32) {
+    throw new ModelRejected('Invalid private patch contract.');
+  }
+  let newBytes = 0;
+  for (const operation of plan.operations) {
+    if (!closedObject(operation, ['op', 'story', 'path', 'start_byte', 'end_byte', 'old_text', 'new_text'])
+        || operation.op !== 'replace_text'
+        || (operation.story !== 'body' && !(closedObject(operation.story, ['part'])
+          && Number.isInteger(operation.story.part) && operation.story.part >= 0 && operation.story.part <= 0xffffffff))
+        || !Array.isArray(operation.path) || operation.path.length < 1 || operation.path.length > 97 || operation.path.length % 3 !== 1
+        || operation.path.some(index => !Number.isInteger(index) || index < 0 || index > 0xffffffff)
+        || !Number.isInteger(operation.start_byte) || !Number.isInteger(operation.end_byte)
+        || operation.start_byte < 0 || operation.start_byte >= operation.end_byte || operation.end_byte > maxBytes
+        || typeof operation.old_text !== 'string' || typeof operation.new_text !== 'string'
+        || !operation.old_text.isWellFormed() || !operation.new_text.isWellFormed()
+        || !operation.old_text.length || Buffer.byteLength(operation.old_text) > maxPatchTextBytes
+        || operation.end_byte - operation.start_byte !== Buffer.byteLength(operation.old_text)) {
+      throw new ModelRejected('Invalid private replacement contract.');
+    }
+    newBytes += Buffer.byteLength(operation.new_text);
+    if (newBytes > maxPatchTextBytes) throw new ModelRejected('Replacement text exceeds its byte bound.');
+  }
+  const encoded = JSON.stringify(plan);
+  if (Buffer.byteLength(encoded) > maxPatchPlanBytes) throw new ModelRejected('Patch plan exceeds its byte bound.');
+  return encoded;
+}
+
+export function parsePatchInput(input) {
+  try {
+    if (!(input instanceof Uint8Array) || !input.length || input.length > maxPatchInputBytes) throw new Error();
+    const text = new TextDecoder('utf-8', {fatal:true, ignoreBOM:true}).decode(input);
+    const envelope = JSON.parse(text);
+    // The Python transport emits compact JSON. Requiring its exact reserialization
+    // rejects duplicate keys/ambiguous numbers before they can disappear in parse.
+    if (JSON.stringify(envelope) !== text
+        || !closedObject(envelope, ['schema', 'revision', 'checkpoint_base64', 'plan'])
+        || envelope.schema !== patchIpcSchema || typeof envelope.checkpoint_base64 !== 'string'
+        || envelope.checkpoint_base64.length > 4 * Math.ceil(maxBytes / 3)
+        || envelope.checkpoint_base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(envelope.checkpoint_base64)) {
+      throw new Error();
+    }
+    const content = Buffer.from(envelope.checkpoint_base64, 'base64');
+    if (content.toString('base64') !== envelope.checkpoint_base64) throw new Error();
+    patchPlanJson(content, envelope.revision, envelope.plan);
+    return {content, revision:envelope.revision, plan:envelope.plan};
+  } catch {
+    throw new ModelRejected('Invalid private patch input.');
+  }
 }
 
 export async function verifyBundle(bundle, manifestHash) {
@@ -133,16 +200,40 @@ export async function importDocx(content, bundle, manifestHash) {
   return Buffer.from(result);
 }
 
+// Pure execution only; the authenticated backend owns policy/IDs/approval/CAS.
+export async function applyPatch(content, bundle, manifestHash, revision, plan) {
+  const encoded = patchPlanJson(content, revision, plan);
+  const engine = await loadEngine(content, bundle, manifestHash);
+  if (typeof engine.apply_patch !== 'function') throw new Error('Native patch API missing.');
+  let result;
+  try { result = engine.apply_patch(content, revision, encoded); }
+  catch (error) {
+    if (typeof error === 'string') throw new ModelRejected('Native patch rejected.');
+    throw new Error('Native patch failed.');
+  }
+  if (!(result instanceof Uint8Array) || !result.length || result.length > maxBytes) {
+    throw new Error('Unexpected patched checkpoint size.');
+  }
+  try {
+    if (engine.validate_checkpoint(result) !== undefined) throw new Error('Unexpected native validation result.');
+  } catch { throw new Error('Patched native checkpoint failed validation.'); }
+  return Buffer.from(result);
+}
+
 async function main() {
   try {
     const args = process.argv.slice(2);
-    if (![4, 6].includes(args.length) || args[0] !== '--bundle' || args[2] !== '--manifest-sha256'
+    if (![4, 5, 6].includes(args.length) || args[0] !== '--bundle' || args[2] !== '--manifest-sha256'
+        || (args.length === 5 && args[4] !== '--apply-patch')
         || (args.length === 6 && !['--export-format', '--import-format'].includes(args[4]))
         || (args[4] === '--import-format' && args[5] !== 'docx')) {
       throw new Error('Explicit pinned bundle required.');
     }
-    const content = await readInput(process.stdin);
-    if (args[4] === '--import-format') {
+    const content = await readInput(process.stdin, args[4] === '--apply-patch' ? maxPatchInputBytes : maxBytes);
+    if (args[4] === '--apply-patch') {
+      const {content:checkpoint, revision, plan} = parsePatchInput(content);
+      process.stdout.write(await applyPatch(checkpoint, args[1], args[3], revision, plan));
+    } else if (args[4] === '--import-format') {
       process.stdout.write(await importDocx(content, args[1], args[3]));
     } else if (args.length === 6) {
       process.stdout.write(await exportCheckpoint(content, args[1], args[3], args[5]));

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import io
+import base64
+import hashlib
 import os
 from pathlib import Path
 import posixpath
@@ -23,6 +25,12 @@ from .wordcraft_protocol import MAX_BYTES
 
 WORKER = Path(__file__).resolve().parents[1] / "assets/wordcraft_editor/validate.mjs"
 MAX_EXPORT_BYTES = 64 * 1024 * 1024
+MAX_PATCH_PLAN_BYTES = 1024 * 1024
+MAX_PATCH_TEXT_BYTES = 100 * 1024
+MAX_PATCH_OPERATIONS = 32
+MAX_PATCH_INPUT_BYTES = 4 * ((MAX_BYTES + 2) // 3) + MAX_PATCH_PLAN_BYTES + 1024
+PATCH_SCHEMA = "gc-wordcraft-native-patch/v1"
+PATCH_IPC_SCHEMA = "gc-wordcraft-native-patch-ipc/v1"
 MAX_DOCX_PARTS = 1024
 MAX_DOCX_PART_BYTES = 8 * 1024 * 1024
 MAX_DOCX_EXPANDED_BYTES = 32 * 1024 * 1024
@@ -248,8 +256,8 @@ def preflight_docx(content: bytes) -> None:
         raise ModeloRecusado("DOCX recusado pelo preflight de importação; preserve o original para compatibilidade.") from None
 
 
-def _invoke(content: bytes, *, node: Path, bundle: Path, manifest_sha256: str, extra=()):
-    if not isinstance(content, bytes) or not content or len(content) > MAX_BYTES:
+def _invoke(content: bytes, *, node: Path, bundle: Path, manifest_sha256: str, extra=(), input_limit=MAX_BYTES):
+    if not isinstance(content, bytes) or not content or len(content) > input_limit:
         raise ModeloRecusado("Checkpoint vazio ou excessivo.")
     if not isinstance(manifest_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", manifest_sha256):
         raise MotorIndisponivel("Manifesto pinado obrigatório.")
@@ -307,18 +315,87 @@ def importar_docx(content: bytes, *, node: Path, bundle: Path, manifest_sha256: 
     preflight_docx(content)
     result = _invoke(content, node=node, bundle=bundle, manifest_sha256=manifest_sha256,
                      extra=("--import-format", "docx"))
+    return _checkpoint_response(result)
+
+
+def _invalid_constant(_):
+    raise ValueError("Nonfinite JSON value")
+
+
+def _checkpoint_response(result) -> bytes:
     if result.returncode != 0:
         _validation_response(result)
     output = result.stdout
     if not isinstance(output, bytes) or not 0 < len(output) <= MAX_BYTES:
-        raise MotorIndisponivel("O motor não confirmou o checkpoint importado.")
+        raise MotorIndisponivel("O motor não confirmou o checkpoint resultante.")
     try:
-        value = json.loads(output, object_pairs_hook=_closed_object)
+        value = json.loads(output, object_pairs_hook=_closed_object, parse_constant=_invalid_constant)
         if (not isinstance(value, dict) or value.keys() != {"schema", "document", "media", "passthrough"}
                 or value["schema"] != "gc-wordcraft-snapshot/v1"
                 or not isinstance(value["document"], dict) or not isinstance(value["document"].get("body"), list)
                 or not isinstance(value["media"], dict) or not isinstance(value["passthrough"], dict)):
             raise ValueError("Unexpected imported checkpoint")
     except (ValueError, UnicodeError, RecursionError):
-        raise MotorIndisponivel("Resposta de importação nativa inválida.") from None
+        raise MotorIndisponivel("Resposta de checkpoint nativo inválida.") from None
     return output
+
+
+def _patch_plan_json(payload: bytes, revision: int, plano: dict) -> bytes:
+    """IPC admission only; business policy/anchor authority stays in patches.py."""
+    try:
+        if (not isinstance(payload, bytes) or not 0 < len(payload) <= MAX_BYTES
+                or type(revision) is not int or not 1 <= revision <= 2**32 - 1
+                or type(plano) is not dict
+                or plano.keys() != {"schema", "source_hash", "source_revision", "operations"}
+                or plano["schema"] != PATCH_SCHEMA
+                or type(plano["source_revision"]) is not int or plano["source_revision"] != revision
+                or not isinstance(plano["source_hash"], str)
+                or plano["source_hash"] != hashlib.sha256(payload).hexdigest()
+                or type(plano["operations"]) is not list or not 1 <= len(plano["operations"]) <= MAX_PATCH_OPERATIONS):
+            raise ValueError()
+        new_bytes = 0
+        for operation in plano["operations"]:
+            if (type(operation) is not dict or operation.keys() != {"op", "story", "path", "start_byte", "end_byte", "old_text", "new_text"}
+                    or operation["op"] != "replace_text"):
+                raise ValueError()
+            story = operation["story"]
+            if story != "body" and not (type(story) is dict and story.keys() == {"part"}
+                    and type(story["part"]) is int and 0 <= story["part"] <= 2**32 - 1):
+                raise ValueError()
+            path = operation["path"]
+            if (type(path) is not list or not 1 <= len(path) <= 97 or len(path) % 3 != 1
+                    or any(type(index) is not int or not 0 <= index <= 2**32 - 1 for index in path)
+                    or type(operation["start_byte"]) is not int or type(operation["end_byte"]) is not int
+                    or not 0 <= operation["start_byte"] < operation["end_byte"] <= MAX_BYTES
+                    or not isinstance(operation["old_text"], str) or not isinstance(operation["new_text"], str)):
+                raise ValueError()
+            old_bytes, replacement = operation["old_text"].encode("utf-8"), operation["new_text"].encode("utf-8")
+            new_bytes += len(replacement)
+            if (not 0 < len(old_bytes) <= MAX_PATCH_TEXT_BYTES or new_bytes > MAX_PATCH_TEXT_BYTES
+                    or operation["end_byte"] - operation["start_byte"] != len(old_bytes)):
+                raise ValueError()
+        encoded = json.dumps(plano, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        if len(encoded) > MAX_PATCH_PLAN_BYTES:
+            raise ValueError()
+        return encoded
+    except (ValueError, TypeError, KeyError, UnicodeError, RecursionError, OverflowError):
+        raise ModeloRecusado("Plano nativo recusado pelo contrato de IPC.") from None
+
+
+def aplicar_patch(payload: bytes, *, revision: int, plano: dict, node: Path,
+                  bundle: Path, manifest_sha256: str) -> bytes:
+    """Execute the pure native patch API; never authorizes, persists or ACKs.
+
+    Caller resolves IDs and validates policy/diff through the canonical backend.
+    All private content travels in bounded stdin; process arguments stay fixed.
+    """
+    encoded_plan = _patch_plan_json(payload, revision, plano)
+    # Embed a validated plain JSON plan. No filename, scope, identity or credential
+    # fields exist in the transport. Base64 is confined to this private IPC hop.
+    envelope = {"schema": PATCH_IPC_SCHEMA, "revision": revision,
+                "checkpoint_base64": base64.b64encode(payload).decode("ascii"),
+                "plan": json.loads(encoded_plan)}
+    content = json.dumps(envelope, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    result = _invoke(content, node=node, bundle=bundle, manifest_sha256=manifest_sha256,
+                     extra=("--apply-patch",), input_limit=MAX_PATCH_INPUT_BYTES)
+    return _checkpoint_response(result)

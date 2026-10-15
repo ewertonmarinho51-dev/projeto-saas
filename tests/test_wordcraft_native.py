@@ -1,6 +1,9 @@
 from pathlib import Path
 import io
 import json
+import base64
+import copy
+import hashlib
 import struct
 import subprocess
 from types import SimpleNamespace
@@ -275,3 +278,93 @@ def test_import_never_returns_ambiguous_checkpoint(runtime, monkeypatch, code, r
                         SimpleNamespace(returncode=code, stdout=response, stderr=CONTENT))
     with pytest.raises(native.MotorIndisponivel):
         native.importar_docx(docx_bytes(), **runtime)
+
+
+def native_plan(content=CONTENT):
+    return {"schema": native.PATCH_SCHEMA, "source_hash": hashlib.sha256(content).hexdigest(),
+        "source_revision": 1, "operations": [{"op": "replace_text", "story": "body", "path": [0],
+        "start_byte": 0, "end_byte": 6, "old_text": "ação", "new_text": "órgão"}]}
+
+
+def test_patch_private_transport_carries_bytes_only_in_bounded_stdin(runtime, monkeypatch):
+    seen = {}
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "synthetic sentinel must not be inherited")
+    monkeypatch.setenv("NODE_OPTIONS", "synthetic forbidden preload")
+    def fake(args, **kwargs):
+        seen.update(args=args, **kwargs)
+        return SimpleNamespace(returncode=0, stdout=CHECKPOINT, stderr=CONTENT)
+    monkeypatch.setattr(native.subprocess, "run", fake)
+    plan = native_plan()
+    assert native.aplicar_patch(CONTENT, revision=1, plano=plan, **runtime) == CHECKPOINT
+    assert seen["args"][-1:] == ["--apply-patch"]
+    assert len(seen["input"]) <= native.MAX_PATCH_INPUT_BYTES
+    envelope = json.loads(seen["input"])
+    assert envelope.keys() == {"schema", "revision", "checkpoint_base64", "plan"}
+    assert envelope["schema"] == native.PATCH_IPC_SCHEMA
+    assert base64.b64decode(envelope["checkpoint_base64"], validate=True) == CONTENT
+    assert envelope["plan"] == plan
+    assert all(CONTENT.decode() not in argument for argument in seen["args"])
+    assert set(seen["env"]) <= {"SystemRoot", "WINDIR", "TEMP", "TMP"}
+    assert seen["timeout"] == 30
+
+
+@pytest.mark.parametrize("revision", [0, -1, True, 1.0, 2**32, "1"])
+def test_patch_rejects_invalid_revision_before_process(runtime, monkeypatch, revision):
+    monkeypatch.setattr(native.subprocess, "run", lambda *a, **k: pytest.fail("must reject before spawn"))
+    with pytest.raises(native.ModeloRecusado):
+        native.aplicar_patch(CONTENT, revision=revision, plano=native_plan(), **runtime)
+
+
+@pytest.mark.parametrize("mutation", ["source_hash", "source_revision", "unknown_field", "extra_operation_field",
+    "unknown_operation", "bad_story", "bad_path", "bad_offsets", "too_many", "large_text", "surrogate"])
+def test_patch_closed_contract_rejects_ambiguous_or_excessive_input_before_spawn(runtime, monkeypatch, mutation):
+    plan = copy.deepcopy(native_plan())
+    if mutation == "source_hash": plan["source_hash"] = "0" * 64
+    elif mutation == "source_revision": plan["source_revision"] = 2
+    elif mutation == "unknown_field": plan["tenant_id"] = "untrusted scope"
+    elif mutation == "extra_operation_field": plan["operations"][0]["command"] = "file.open"
+    elif mutation == "unknown_operation": plan["operations"][0]["op"] = "file.open"
+    elif mutation == "bad_story": plan["operations"][0]["story"] = {"part": True}
+    elif mutation == "bad_path": plan["operations"][0]["path"] = [0, 0]
+    elif mutation == "bad_offsets": plan["operations"][0]["start_byte"] = True
+    elif mutation == "too_many": plan["operations"] *= 33
+    elif mutation == "large_text": plan["operations"][0]["new_text"] = "x" * (native.MAX_PATCH_TEXT_BYTES + 1)
+    elif mutation == "surrogate": plan["operations"][0]["new_text"] = "\ud800"
+    monkeypatch.setattr(native.subprocess, "run", lambda *a, **k: pytest.fail("must reject before spawn"))
+    with pytest.raises(native.ModeloRecusado) as error:
+        native.aplicar_patch(CONTENT, revision=1, plano=plan, **runtime)
+    assert CONTENT.decode() not in str(error.value)
+
+
+def test_patch_source_bytes_and_plan_json_limits_are_checked_before_spawn(runtime, monkeypatch):
+    monkeypatch.setattr(native.subprocess, "run", lambda *a, **k: pytest.fail("must reject before spawn"))
+    for content in (b"", b"x" * (native.MAX_BYTES + 1)):
+        with pytest.raises(native.ModeloRecusado):
+            native.aplicar_patch(content, revision=1, plano=native_plan(content), **runtime)
+    monkeypatch.setattr(native, "MAX_PATCH_PLAN_BYTES", 100)
+    with pytest.raises(native.ModeloRecusado):
+        native.aplicar_patch(CONTENT, revision=1, plano=native_plan(), **runtime)
+
+
+@pytest.mark.parametrize("code,response", [(0, b""), (0, b'{}'), (0, b'{"valid":true}'),
+    (0, CHECKPOINT.replace(b"snapshot/v1", b"snapshot/v2")), (3, CHECKPOINT),
+    (0, CHECKPOINT.replace(b'"body": []', b'"body": [], "private": NaN')),
+    (0, CHECKPOINT.replace(b'"media": {}', b'"media": {}, "media": {}'))])
+def test_patch_never_returns_ambiguous_or_nonfinite_checkpoint(runtime, monkeypatch, code, response):
+    monkeypatch.setattr(native.subprocess, "run", lambda *a, **k:
+                        SimpleNamespace(returncode=code, stdout=response, stderr=CONTENT))
+    with pytest.raises(native.MotorIndisponivel):
+        native.aplicar_patch(CONTENT, revision=1, plano=native_plan(), **runtime)
+
+
+def test_patch_native_rejection_is_closed_and_distinct_from_timeout(runtime, monkeypatch):
+    monkeypatch.setattr(native.subprocess, "run", lambda *a, **k:
+        SimpleNamespace(returncode=2, stdout=b'{"valid":false,"code":"MODEL_REJECTED"}', stderr=CONTENT))
+    with pytest.raises(native.ModeloRecusado):
+        native.aplicar_patch(CONTENT, revision=1, plano=native_plan(), **runtime)
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired("synthetic", 30, output=CONTENT)
+    monkeypatch.setattr(native.subprocess, "run", timeout)
+    with pytest.raises(native.MotorIndisponivel) as error:
+        native.aplicar_patch(CONTENT, revision=1, plano=native_plan(), **runtime)
+    assert CONTENT.decode() not in str(error.value)

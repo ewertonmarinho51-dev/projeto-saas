@@ -4,9 +4,16 @@ import {mkdtemp, writeFile, rm, rmdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
-import {ModelRejected, readInput, verifyBundle, exportCheckpoint, importDocx} from './validate.mjs';
+import {ModelRejected, readInput, verifyBundle, exportCheckpoint, importDocx, applyPatch, parsePatchInput,
+  maxPatchInputBytes} from './validate.mjs';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
+const patchSource = Buffer.from('synthetic private model bytes');
+const patchPlan = () => ({schema:'gc-wordcraft-native-patch/v1', source_hash:hash(patchSource),
+  source_revision:1, operations:[{op:'replace_text', story:'body', path:[0], start_byte:0,
+    end_byte:6, old_text:'ação', new_text:'órgão'}]});
+const patchEnvelope = () => ({schema:'gc-wordcraft-native-patch-ipc/v1', revision:1,
+  checkpoint_base64:patchSource.toString('base64'), plan:patchPlan()});
 
 async function withSyntheticEngine(code, callback) {
   const root = await mkdtemp(join(tmpdir(), 'govconnect-import-contract-'));
@@ -67,6 +74,88 @@ test('import rejects missing APIs, invalid results and failed native reopens', a
         error => error instanceof Error && !(error instanceof ModelRejected));
     });
   }
+});
+
+test('patch stdin is a closed bounded canonical envelope with strict base64 and no duplicate keys', () => {
+  const envelope = patchEnvelope();
+  const bytes = Buffer.from(JSON.stringify(envelope));
+  const parsed = parsePatchInput(bytes);
+  assert.deepEqual(parsed.content, patchSource);
+  assert.equal(parsed.revision, 1);
+  assert.deepEqual(parsed.plan, patchPlan());
+  for (const input of [
+    Buffer.from(JSON.stringify({...envelope, tenant_id:'untrusted'})),
+    Buffer.from(JSON.stringify({...envelope, checkpoint_base64:envelope.checkpoint_base64 + '===='})),
+    Buffer.from(JSON.stringify({...envelope, checkpoint_base64:envelope.checkpoint_base64.replace(/.$/, '!')})),
+    Buffer.from(JSON.stringify({...envelope, revision:true})),
+    Buffer.from(JSON.stringify({...envelope, plan:{...envelope.plan, source_hash:'0'.repeat(64)}})),
+    Buffer.from(JSON.stringify(envelope).slice(0,-1) + ',"revision":1}'),
+    Buffer.from(JSON.stringify(envelope).replace('"source_revision":1', '"source_revision":1,"source_revision":1')),
+    Buffer.from(JSON.stringify(envelope).replace('"revision":1', '"revision":1.0')),
+    Buffer.from(' ' + JSON.stringify(envelope)), Buffer.from([0xff]),
+    Buffer.alloc(maxPatchInputBytes + 1),
+  ]) {
+    assert.throws(() => parsePatchInput(input), ModelRejected);
+  }
+});
+
+test('patch rejects scope, malformed ranges and unapproved operations before loading an engine', async () => {
+  const variants = [];
+  variants.push({...patchPlan(), operations:[{...patchPlan().operations[0], command:'file.open'}]});
+  variants.push({...patchPlan(), operations:[{...patchPlan().operations[0], op:'file.open'}]});
+  variants.push({...patchPlan(), operations:[{...patchPlan().operations[0], story:{part:true}}]});
+  variants.push({...patchPlan(), operations:[{...patchPlan().operations[0], path:[0,0]}]});
+  variants.push({...patchPlan(), operations:[{...patchPlan().operations[0], end_byte:4}]});
+  variants.push({...patchPlan(), operations:[{...patchPlan().operations[0], new_text:'x'.repeat(100*1024+1)}]});
+  variants.push({...patchPlan(), operations:[{...patchPlan().operations[0], new_text:'\ud800'}]});
+  variants.push({...patchPlan(), operations:Array(33).fill(patchPlan().operations[0])});
+  for (const plan of variants) {
+    await assert.rejects(applyPatch(patchSource, '/nonexistent', 'a'.repeat(64), 1, plan), ModelRejected);
+  }
+});
+
+test('patch results stay binary and must reopen through the same engine validator', async () => {
+  const code = `
+    export function apply_patch(bytes, revision, encoded) {
+      const plan=JSON.parse(encoded);
+      if (revision !== 1 || plan.schema !== 'gc-wordcraft-native-patch/v1'
+          || plan.operations[0].new_text !== 'órgão') throw 'native patch refused';
+      return new Uint8Array([123,125]);
+    }
+    export function validate_checkpoint(bytes) {
+      if (bytes.length!==2 || bytes[0]!==123 || bytes[1]!==125) throw 'invalid result';
+    }`;
+  await withSyntheticEngine(code, async (root, pin) => {
+    assert.deepEqual(await applyPatch(patchSource, root, pin, 1, patchPlan()), Buffer.from('{}'));
+    const bad = patchPlan(); bad.operations[0].new_text = 'native rejection sentinel';
+    await assert.rejects(applyPatch(patchSource, root, pin, 1, bad), ModelRejected);
+  });
+});
+
+test('old bundles or ambiguous patch results never produce success', async () => {
+  for (const code of [
+    'export function validate_checkpoint() {}',
+    'export function validate_checkpoint() {} export function apply_patch() {return "{}";}',
+    'export function validate_checkpoint() {} export function apply_patch() {return new Uint8Array();}',
+    'export function validate_checkpoint() {} export function apply_patch() {return new Uint8Array(8*1024*1024+1);}',
+    'export function validate_checkpoint() {throw "invalid";} export function apply_patch() {return new Uint8Array([1]);}',
+    'export function validate_checkpoint() {return true;} export function apply_patch() {return new Uint8Array([1]);}',
+    'export function validate_checkpoint() {} export function apply_patch() {throw new Error("engine failure");}',
+  ]) {
+    await withSyntheticEngine(code, async (root, pin) => {
+      await assert.rejects(applyPatch(patchSource, root, pin, 1, patchPlan()),
+        error => error instanceof Error && !(error instanceof ModelRejected));
+    });
+  }
+});
+
+test('larger stdin allowance exists only for the bounded private patch envelope', async () => {
+  const data = Buffer.alloc(8*1024*1024+1, 32);
+  async function* input() {yield data;}
+  await assert.rejects(readInput(input()), ModelRejected);
+  assert.equal((await readInput(input(), maxPatchInputBytes)).length, data.length);
+  async function* excessive() {yield Buffer.alloc(maxPatchInputBytes+1);}
+  await assert.rejects(readInput(excessive(), maxPatchInputBytes), ModelRejected);
 });
 
 test('unapproved export formats never load or execute an engine', async () => {
