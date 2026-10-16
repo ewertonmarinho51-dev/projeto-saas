@@ -1606,13 +1606,33 @@ def _render_filtros(referencias: list[dict]) -> filtros_mod.Filtros:
             "Somente alta compatibilidade",
             help=f"Score ≥ {filtros_mod.ALTA_COMPATIBILIDADE:.0%}.")
 
+        linha3 = st.columns(4)
+        naturezas = linha3[0].multiselect(
+            "Natureza do valor", options=list(ROTULO_NATUREZA),
+            format_func=lambda n: ROTULO_NATUREZA[n])
+        preco_de = linha3[1].number_input("Preço de (R$)", min_value=0.0,
+                                          value=None, format="%.2f")
+        preco_ate = linha3[2].number_input("Preço até (R$)", min_value=0.0,
+                                           value=None, format="%.2f")
+        so_consideradas = linha3[3].checkbox(
+            "Só as consideradas no cálculo",
+            help="A mesma contagem do N/3: na cesta, com preço na unidade "
+                 "do item e natureza de preço praticado.")
+
         texto = st.text_input("Buscar na descrição, órgão, fornecedor ou marca")
 
     return filtros_mod.Filtros(
         fontes=set(escolhidas), status=set(status), uf=uf or "",
         unidade=unidade or "", tipo_catalogo=tipo or "",
         desde=desde or None, ate=ate or None,
-        somente_alta_compatibilidade=bool(alta), texto=texto or "")
+        somente_alta_compatibilidade=bool(alta), texto=texto or "",
+        naturezas=set(naturezas),
+        # number_input devolve float: vira Decimal pelo TEXTO, centavos
+        preco_minimo=None if preco_de is None
+        else Decimal(f"{preco_de:.2f}"),
+        preco_maximo=None if preco_ate is None
+        else Decimal(f"{preco_ate:.2f}"),
+        somente_consideradas=bool(so_consideradas))
 
 
 def _render_resultados(item: dict, referencias: list[dict],
@@ -1766,6 +1786,31 @@ def _render_detalhe(linha: dict) -> None:
 
     st.caption(f"Impressão digital da evidência (sha256): "
                f"{str(linha.get('raw_hash') or '')[:16]}…")
+
+    from ..precos import compras_gov, formulas
+    from ..precos import pncp as pncp_mod
+
+    bruto = linha.get("bruto") or {}
+    fonte_id = str(linha.get("fonte_id") or "")
+    url = (pncp_mod.url_de_verificacao(bruto) if fonte_id == "pncp"
+           else compras_gov.url_de_verificacao(bruto)
+           if fonte_id.startswith("compras_gov") else None)
+    if url:
+        st.markdown(f"[Verificar na fonte oficial]({url})")
+    # Propostas da licitação: só quando a FONTE as publicou. Nenhum
+    # adapter integrado as entrega hoje — sem elas, nada é simulado.
+    propostas = formulas.propostas_do_bruto(bruto)
+    if propostas:
+        st.caption(f"Propostas finais publicadas pela fonte ({len(propostas)})")
+        valores = []
+        for chave, rotulo in formulas.FORMULAS.items():
+            try:
+                valores.append(f"{rotulo}: "
+                               f"{_moeda(formulas.calcular(chave, propostas))}")
+            except formulas.FormulaIndisponivel:
+                continue
+        for texto in valores:
+            st.write(f"• {texto}")
 
 
 def _render_encerramento_do_item(item: dict) -> None:

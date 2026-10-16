@@ -75,6 +75,12 @@ class Filtros:
     quantidade_maxima: Decimal | None = None
     somente_alta_compatibilidade: bool = False
     texto: str = ""
+    # G3 de Cotações: natureza do valor, faixa de preço (normalizado) e
+    # "só as consideradas no cálculo" — a mesma definição da cesta.
+    naturezas: set[str] = field(default_factory=set)
+    preco_minimo: Decimal | None = None
+    preco_maximo: Decimal | None = None
+    somente_consideradas: bool = False
 
     @property
     def algum(self) -> bool:
@@ -85,7 +91,9 @@ class Filtros:
             or self.desde or self.ate
             or self.quantidade_minima is not None
             or self.quantidade_maxima is not None
-            or self.somente_alta_compatibilidade or self.texto.strip())
+            or self.somente_alta_compatibilidade or self.texto.strip()
+            or self.naturezas or self.preco_minimo is not None
+            or self.preco_maximo is not None or self.somente_consideradas)
 
 
 def _data_da_linha(linha: dict) -> date | None:
@@ -145,6 +153,23 @@ def _passa(linha: dict, f: Filtros) -> bool:
     if f.somente_alta_compatibilidade:
         score = _decimal(linha.get("score"))
         if score is None or score < ALTA_COMPATIBILIDADE:
+            return False
+
+    natureza = str(linha.get("natureza_valor") or "outro")
+    if f.naturezas and natureza not in f.naturezas:
+        return False
+    if f.preco_minimo is not None or f.preco_maximo is not None:
+        preco = _decimal(linha.get("valor_unitario_normalizado"))
+        if preco is None:
+            return False
+        if f.preco_minimo is not None and preco < f.preco_minimo:
+            return False
+        if f.preco_maximo is not None and preco > f.preco_maximo:
+            return False
+    if f.somente_consideradas:
+        from .cesta import consideradas
+
+        if not consideradas([linha]):
             return False
 
     if f.texto.strip():

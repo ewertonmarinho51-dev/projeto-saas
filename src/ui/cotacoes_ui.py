@@ -400,6 +400,11 @@ def _fontes():
     return precos_ui._fontes()
 
 
+def _motor_semantico():
+    """Sinônimos para AMPLIAR a busca; None sem motor configurado."""
+    return precos_ui._motor_semantico()
+
+
 def _seletor():
     """O seletor Jev entra só com a flag dele (G4); sem ela, None."""
     if not db.flag_ativa(governanca.FLAG_JEV_PRECOS):
@@ -604,8 +609,13 @@ def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
             uf = c.text_input("UF", max_chars=2,
                               value=str((cotacao.get("filtros") or {})
                                         .get("uf") or ""))
-            literal = st.checkbox("Apenas o termo digitado (sem ampliação "
-                                  "semântica)", value=True)
+            literal = st.checkbox(
+                "Apenas o termo digitado (sem ampliação semântica)",
+                value=True,
+                help="Desmarcado, a camada semântica (quando configurada) "
+                     "sugere SINÔNIMOS para ampliar a consulta. A "
+                     "comparação continua contra a descrição do item: "
+                     "produto apenas parecido não vira preço.")
             m, auto = st.columns(2)
             manual = m.form_submit_button("Pesquisar preços",
                                           use_container_width=True)
@@ -621,6 +631,7 @@ def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
                     filtros={"janela_dias": int(janela),
                              "uf": uf.strip().upper() or None,
                              "fontes": fontes, "literal": literal},
+                    motor_semantico=None if literal else _motor_semantico(),
                     **_opcoes_de_busca())
             st.session_state[f"_cot_msg_{item['id']}"] = resultado.mensagem
             st.rerun()
@@ -638,9 +649,14 @@ def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
             f"{precos_ui.NOME_FONTE.get(f, f)}: "
             f"{precos_ui.ROTULO_DESFECHO.get(d, d)}"
             for f, d in sorted((p.get("desfechos") or {}).items()))
-        st.caption(f"Última busca ({p.get('modo')}) em "
+        st.caption(f"Última busca ({p.get('modo')}, "
+                   f"{'termo literal' if (p.get('filtros') or {}).get('literal', True) else 'ampliada'}"
+                   f") em "
                    f"{str(p.get('em') or ultima.get('criado_em') or '')[:16].replace('T', ' ')}"
                    f" UTC — {desfechos or 'sem desfecho registrado'}")
+        if p.get("termos_extras"):
+            st.caption("Termos acrescentados à consulta: "
+                       + ", ".join(str(x) for x in p["termos_extras"]))
         m = st.columns(4)
         m[0].metric("Encontradas", p.get("brutas", 0))
         m[1].metric("Únicas", p.get("unicas", 0))

@@ -100,3 +100,15 @@ Elaborar Cotação com manual e automático no mesmo item.
 - **Demo sintética:** `scripts/demo_cotacoes.py` (banco em memória, fontes sintéticas, acesso ao banco real bloqueado) — conferida no navegador: Cotação automática do item 1 → 6/3 considerados, R$ 24,27, valor provisório com discrepante sinalizado.
 
 **Pendente:** G3 (filtros/fontes adicionais e prova adversarial dedicada), G4 (seletor Jev barato com calibração), G5 (registro de emissão com hash do arquivo, prévia), G6 (E2E 50/210 no serviço novo, benchmark "depois", screenshots, matriz de substituição e consolidação de `execucao.executar_lote`), suíte completa após o G2.
+
+---
+
+## G3 — busca completa · PASS
+
+- **Ampliação semântica explícita:** só quando o servidor desmarca "apenas o termo digitado" (manual ou automático); só acrescenta PALAVRAS à consulta, a descrição do item continua sendo a régua de comparação; termos acrescentados ficam na trilha e na tela.
+- **Filtros antes da busca:** fontes (a fonte desmarcada não é chamada), janela, UF, termo, literal. **Depois:** os anteriores + natureza do valor, faixa de preço normalizado e "só as consideradas no cálculo" (a mesma definição do N/3). Filtro esconde, nunca apaga.
+- **Detalhe da referência:** link de verificação oficial; propostas e fórmulas (`formulas.py`) **só quando a fonte as publica** — nenhuma fonte integrada as entrega hoje, então nada é simulado.
+- **Provas** `tests/test_cotacoes_g3_busca.py` (9): item fictício com 11 vizinhos → **0 elegíveis, 0 considerados, sem preço** nos dois modos (mutação: piso de comparabilidade 0 → a prova reprova); ampliação só fora do literal e registrada; mesma compra Compras.gov × PNCP conta uma vez; estimado de origem fora da cesta inclusive por clique; os quatro diagnósticos distintos; uma fonte fora ≠ falha do item; fonte desmarcada não é consultada; busca reaberta com horário e contagens.
+- **Cache/índice:** NÃO implementado, por decisão medida. No benchmark sintético o processamento do GovConnect custa ~1–4 ms/item; no real, a rede domina (p50 ≈ 2 s/item, `docs/pricebank-baseline.md`). Cache de resposta de fonte só faria sentido com TTL e escopo por tenant e mudaria a data de coleta registrada; sem medição de reconsulta repetida em produção, ele seria complexidade sem ganho provado. Reavaliar com telemetria real.
+- **Não entregue (dado ausente):** filtro por modalidade/ARP — as fontes integradas não gravam modalidade na referência nem trazem ARP (F078 bloqueado).
+- **Rollback:** reverter o commit; sem schema.

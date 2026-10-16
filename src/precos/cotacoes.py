@@ -564,8 +564,10 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
     if termo.strip() and termo.strip().casefold() != \
             str(item.get("descricao") or "").strip().casefold():
         termos = (termo.strip(),)
-    if modo == "automatico" and motor_semantico is not None \
-            and not filtros_efetivos.get("literal"):
+    # Ampliação semântica só quando o servidor DESMARCA "apenas o termo
+    # digitado" — e só acrescenta palavras: a descrição do item continua
+    # sendo a régua de comparação, então vizinho não vira preço (F071).
+    if motor_semantico is not None and not filtros_efetivos.get("literal"):
         from . import semantica
 
         termos = termos + tuple(semantica.sugerir_termos(motor_semantico, item))
