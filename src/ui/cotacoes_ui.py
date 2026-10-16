@@ -32,7 +32,7 @@ from decimal import Decimal
 import streamlit as st
 
 from .. import auth, db, governanca
-from ..precos import cesta, cotacoes, estatistica, perfil
+from ..precos import cesta, cotacoes, estatistica, execucao, perfil
 from ..precos import filtros as filtros_mod
 from ..precos import repositorio as repo
 from ..precos.estados import EstadoItem
@@ -50,6 +50,8 @@ POR_PAGINA_REFERENCIAS = 12
 # Itens por passo da Cotação automática: a tela responde a cada passo e
 # o estado da cotação é sincronizado uma vez por passo (benchmark G6).
 LOTE_POR_PASSO = 3
+# Menor janela que a busca por item oferece (passo de 30 dias).
+JANELA_MINIMA = 30
 
 ROTULO_ESTADO = {
     "draft": ("Rascunho", "info"), "queued": ("Na fila", "info"),
@@ -612,9 +614,15 @@ def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
             fontes = a.multiselect("Fontes", list(nomes),
                                    default=list(nomes),
                                    format_func=lambda f: nomes.get(f, f))
-            janela = b.number_input("Janela (dias)", 30, 180,
-                                    int((cotacao.get("filtros") or {})
-                                        .get("janela_dias") or 180), step=30)
+            # A janela EFETIVA, nunca a gravada: pesquisas antigas guardam
+            # 365 dias (regra anterior), e valor fora de [mín, máx]
+            # derrubava a tela com StreamlitValueAboveMaxError — visto em
+            # produção. A busca já consultava só 180 (`janela_efetiva`).
+            janela = b.number_input(
+                "Janela (dias)", JANELA_MINIMA, execucao.JANELA_MAXIMA_DIAS,
+                max(JANELA_MINIMA,
+                    execucao.janela_efetiva(cotacao.get("filtros"))),
+                step=30)
             uf = c.text_input("UF", max_chars=2,
                               value=str((cotacao.get("filtros") or {})
                                         .get("uf") or ""))

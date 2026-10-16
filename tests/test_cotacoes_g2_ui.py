@@ -161,3 +161,26 @@ def test_conflito_de_outra_aba_vira_aviso_sem_sobrescrever(monkeypatch):
     assert not any("outra aba" in str(w.value) for w in at.warning)
     final = [r["status"] for r in repo.listar_referencias(str(item["id"]))]
     assert final.count("rejected") == 1
+
+
+def test_cotacao_antiga_com_janela_fora_da_faixa_abre_sem_erro(monkeypatch):
+    """
+    Produção, 16/10/2026: pesquisa gravada com `janela_dias = 365` (regra
+    anterior ao teto de 180) derrubava a tela com
+    StreamlitValueAboveMaxError. O campo mostra a janela EFETIVA.
+    """
+    from src.ui import cotacoes_ui
+
+    for gravada, esperada in ((365, 180), (7, 30)):
+        at, cliente = _app(monkeypatch, unificada=True, pagina="Cotações")
+        cotacao = cotacoes.criar_cotacao(CTX, {"nome": f"Antiga {gravada}"})
+        cotacoes.salvar_item(CTX, str(cotacao["id"]), ITEM)
+        # como a pesquisa antiga está no banco: a janela que ela gravou
+        cliente.tabelas["pesquisas_preco"][0]["filtros"] = {
+            "janela_dias": gravada}
+        at.session_state[cotacoes_ui.TELA] = cotacoes_ui.ELABORAR
+        at.session_state[cotacoes_ui.COTACAO] = str(cotacao["id"])
+        at.run()
+        assert not at.exception, at.exception
+        janela = next(n for n in at.number_input if n.label == "Janela (dias)")
+        assert janela.value == esperada
