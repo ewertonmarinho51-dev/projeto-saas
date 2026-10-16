@@ -162,3 +162,21 @@ def test_aviso_nominal_bloqueia_emissao_ate_a_ciencia(monkeypatch):
     assert not any(b.label == "Quadro resumido (PDF)" for b in at.button)
     next(c for c in at.checkbox if "Estou ciente" in c.label).check().run()
     assert any(b.label == "Quadro resumido (PDF)" for b in at.button)
+
+
+def test_sem_a_versao_de_cotacoes_nao_tenta_gravar_emissao(monkeypatch):
+    """Produção sem a 0029: nenhuma escrita na tabela inexistente."""
+    from src import db
+    from src.ui import precos_ui
+
+    cliente, pesquisa, *_ = _cotacao_pesquisada(monkeypatch)
+    monkeypatch.setattr(db, "flag_ativa", lambda nome: False)
+    chamadas = []
+    monkeypatch.setattr(repo, "registrar_emissao",
+                        lambda *a, **k: chamadas.append(a))
+    itens, refs = _tudo(str(pesquisa["id"]))
+    precos_ui._registrar_emissao(pesquisa, itens, refs, tipo="resumido",
+                                 formato="pdf", conteudo=b"x", nome="r.pdf")
+    assert chamadas == []
+    assert not [e for e in cliente.tabelas["pesquisa_preco_eventos"]
+                if e["tipo"] == "relatorio_emitido"]

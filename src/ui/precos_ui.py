@@ -2263,7 +2263,9 @@ def _render_previa_e_conferencia(pesquisa: dict, itens: list[dict],
         with st.expander("Prévia do relatório completo"):
             st.markdown(relatorio.completo(pesquisa, itens, referencias)
                         .replace("$", "\\$"))
-    emissoes = repo.listar_emissoes(str(pesquisa["id"]))
+    # sem a 0029 (flag de Cotações desligada) a tabela não existe
+    emissoes = (repo.listar_emissoes(str(pesquisa["id"]))
+                if _colunas_0029() else [])
     with st.expander(f"Emissões registradas ({len(emissoes)})"):
         if not emissoes:
             st.caption("Nenhuma emissão registrada ainda (ou o registro de "
@@ -2285,10 +2287,21 @@ def _render_previa_e_conferencia(pesquisa: dict, itens: list[dict],
 def _registrar_emissao(pesquisa: dict, itens: list[dict], referencias: dict,
                        *, tipo: str, formato: str, conteudo: bytes,
                        nome: str) -> None:
-    """Toda geração entregue vira registro (quem, quando, hashes, pendências)."""
+    """
+    Toda geração entregue vira registro (quem, quando, hashes, pendências).
+
+    Só com a versão de Cotações ativa: a tabela e o tipo de evento são da
+    migração 0029, que vem antes da flag. Sem ela, gravar falharia a cada
+    relatório e encheria o registro de incidentes — o documento sai igual,
+    com o hash do arquivo mostrado na tela.
+    """
     dados = relatorio.dados_da_emissao(
         pesquisa, itens, referencias, tipo=tipo, formato=formato,
         conteudo=conteudo, nome_arquivo=nome)
+    if not _colunas_0029():
+        st.session_state[f"_emissao_{tipo}_{formato}_{pesquisa['id']}"] = (
+            dados, False)
+        return
     registrado = repo.registrar_emissao(str(pesquisa["id"]), dados)
     repo.registrar_evento(
         str(pesquisa["id"]), "relatorio_emitido",
@@ -2381,7 +2394,8 @@ def _botao_de_download(rotulo: str, pesquisa: dict, itens: list[dict],
             dados, registrado = emissao
             st.caption(f"Arquivo SHA-256 `{dados['hash_arquivo'][:16]}…`"
                        + ("" if registrado else
-                          " · registro de emissão indisponível neste banco"))
+                          " · registro de emissão ativo com a versão de "
+                          "Cotações"))
 
 
 def _botao_do_pacote(pesquisa: dict, itens: list[dict],
