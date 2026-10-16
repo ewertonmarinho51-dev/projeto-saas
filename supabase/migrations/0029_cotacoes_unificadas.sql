@@ -1,7 +1,7 @@
 -- ## 0029 — Cotações unificadas (Minhas Cotações → Elaborar Cotação)
 -- ## ESTADO: APLICADA EM PRODUÇÃO em 16/10/2026, por autorização expressa
--- ##   do operador, como `m0029_cotacoes_unificadas` (projeto
--- ##   nxibohgoekphxblqtqku). Antes, ensaiada no projeto descartável
+-- ##   do operador, como `m0029_cotacoes_unificadas` (projeto Supabase
+-- ##   de produção). Antes, ensaiada no projeto descartável
 -- ##   `govdocs-ensaio-descartavel` com o mesmo nome.
 -- ## Rollback: `docs/cotacoes/0029_rollback.sql`.
 --
