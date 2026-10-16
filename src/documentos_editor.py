@@ -1,8 +1,8 @@
-"""Experimental single owner of native document opening/checkpoint commits.
+"""Single owner of native document revisions, review, export and emission.
 
-No operational consumer is enabled. Reuses the existing user's JWT client and
-private server client. Only verified user context reaches the internal commit RPC.
-Draft commits never approve documents or overwrite legacy process documents.
+Reuses the existing user's JWT client and private server client. Only verified
+user context reaches internal mutation RPCs. Draft commits never approve or
+emit documents, and the native path never overwrites legacy process content.
 """
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -129,6 +129,20 @@ class PacoteArtefatos:
     content_hash: str
     manifest: dict = field(repr=False)
     payload: bytes = field(repr=False)
+
+
+@dataclass(frozen=True)
+class Emissao:
+    id: str
+    processo_id: str
+    operation_id: str
+    docx_sha256: str
+    pdf_sha256: str
+    event_id: str
+    replayed: bool
+    manifest: dict = field(repr=False)
+    docx: PacoteArtefatos = field(repr=False)
+    pdf: PacoteArtefatos = field(repr=False)
 
 
 @dataclass(frozen=True)
@@ -589,7 +603,7 @@ class DocumentoService:
     def texto_aprovado(self, document_id: str) -> tuple[str, str]:
         """Projeção textual do head aprovado para consumidores source-aware."""
         document = self.abrir(document_id)
-        if document.status != "aprovado" or document.approval is None or not document.index:
+        if document.status not in {"aprovado", "emitido"} or document.approval is None or not document.index:
             raise ErroDocumento("Revisão nativa ainda não possui aprovação comprovada.")
         try:
             view = blocos.projetar_documento(document.tipo, document.payload,
@@ -619,7 +633,7 @@ class DocumentoService:
             raise ConflitoDocumento("A revisão mudou; reabra o documento antes de aprovar.")
         params = dict(p_document=vinculo.document_id, p_revision=vinculo.revision,
             p_content_hash=vinculo.content_hash, p_operation=vinculo.operation_id, p_claims=claims)
-        if head["status"] == "aprovado":
+        if head["status"] in {"aprovado", "emitido"}:
             # Replay is checked by the transaction against the recorded actor and
             # operation. Current registry changes must not rewrite an old act.
             params.update(p_sources=None, p_snapshot=None, p_snapshot_sha256=None, p_evidence=None)
@@ -1045,7 +1059,7 @@ class DocumentoService:
         artifacts, entries = [], []
         for tipo in tipos:
             document = by_type[tipo]
-            if document.status != "aprovado" or document.approval is None:
+            if document.status not in {"aprovado", "emitido"} or document.approval is None:
                 raise ErroDocumento("O pacote contém revisão sem aprovação nativa.")
             artifact = self.exportar(document.id, expected_revision=document.revision,
                                      content_hash=document.content_hash, formato=formato)
@@ -1077,3 +1091,107 @@ class DocumentoService:
             raise ErroDocumento("Pacote documental excede o limite autorizado.")
         return PacoteArtefatos(processo_id, formato,
             hashlib.sha256(payload).hexdigest(), manifest, payload)
+
+    def emitir_aprovados(self, processo_id: str, *, tipos: tuple[str, ...],
+                         operation_id: str) -> Emissao:
+        """Persiste os dois pacotes e cruza o limite oficial em uma RPC CAS."""
+        _uuid(processo_id)
+        _uuid(operation_id)
+        docx = self.empacotar_aprovados(processo_id, tipos=tipos, formato="docx")
+        pdf = self.empacotar_aprovados(processo_id, tipos=tipos, formato="pdf")
+        docx_entries = {entry["tipo"]: entry for entry in docx.manifest["documents"]}
+        pdf_entries = {entry["tipo"]: entry for entry in pdf.manifest["documents"]}
+        documents = []
+        for tipo in tipos:
+            first, second = docx_entries.get(tipo), pdf_entries.get(tipo)
+            common = ("document_id", "revision", "source_sha256", "approval_id",
+                      "approval_snapshot_sha256", "engine_manifest_sha256")
+            if first is None or second is None or any(first[key] != second[key] for key in common):
+                raise ConflitoDocumento("As exportações não partiram da mesma revisão aprovada.")
+            documents.append({"tipo": tipo, "document_id": first["document_id"],
+                "revision": first["revision"], "source_sha256": first["source_sha256"],
+                "approval_id": first["approval_id"],
+                "approval_snapshot_sha256": first["approval_snapshot_sha256"],
+                "engine_manifest_sha256": first["engine_manifest_sha256"],
+                "docx_sha256": first["artifact_sha256"],
+                "pdf_sha256": second["artifact_sha256"]})
+        manifest = {"schema": "gc-wordcraft-official-emission/v1",
+            "official_emission": True, "processo_id": processo_id,
+            "engine_manifest_sha256": self._native["manifest_sha256"],
+            "documents": documents,
+            "packages": {"docx": {"sha256": docx.content_hash, "bytes": len(docx.payload)},
+                         "pdf": {"sha256": pdf.content_hash, "bytes": len(pdf.payload)}}}
+        _, claims = self._session()
+        response = _execute(db._cliente().rpc("documento_editor_emitir", {
+            "p_process": processo_id, "p_operation": operation_id,
+            "p_engine_manifest_sha256": self._native["manifest_sha256"],
+            "p_documents": documents, "p_manifest": manifest,
+            "p_docx": "\\x" + docx.payload.hex(), "p_docx_sha256": docx.content_hash,
+            "p_pdf": "\\x" + pdf.payload.hex(), "p_pdf_sha256": pdf.content_hash,
+            "p_claims": claims}))
+        expected = {"emission_id", "processo_id", "operation_id", "docx_sha256",
+                    "pdf_sha256", "event_id", "replayed"}
+        if (not isinstance(response, dict) or response.keys() != expected
+                or (response["processo_id"], response["operation_id"],
+                    response["docx_sha256"], response["pdf_sha256"])
+                != (processo_id, operation_id, docx.content_hash, pdf.content_hash)
+                or type(response["replayed"]) is not bool):
+            raise ErroDocumento("Recibo de emissão nativa divergente.")
+        try:
+            _uuid(response["emission_id"])
+            _uuid(response["event_id"])
+        except (ValueError, TypeError):
+            raise ErroDocumento("Identidade da emissão nativa divergente.") from None
+        return Emissao(response["emission_id"], processo_id, operation_id,
+            docx.content_hash, pdf.content_hash, response["event_id"],
+            response["replayed"], manifest, docx, pdf)
+
+    def emissao_atual(self, processo_id: str) -> Emissao | None:
+        """Reabre o snapshot oficial persistido sem reexportar o documento."""
+        _uuid(processo_id)
+        user, _ = self._session()
+        rows = _execute(user.table("documentos_editor_emissoes")
+            .select("id,processo_id,operation_id,engine_manifest_sha256,manifest,"
+                    "docx_package,docx_sha256,pdf_package,pdf_sha256,criado_em")
+            .eq("processo_id", processo_id).order("criado_em", desc=True).limit(1))
+        if not rows:
+            return None
+        if not isinstance(rows, list) or len(rows) > 1 or not isinstance(rows[0], dict):
+            raise ErroDocumento("Histórico de emissão nativa ambíguo.")
+        row = rows[0]
+        try:
+            _uuid(row["id"]); _uuid(row["operation_id"])
+            manifest = row["manifest"]
+            if (row["processo_id"] != processo_id
+                    or manifest["schema"] != "gc-wordcraft-official-emission/v1"
+                    or manifest["official_emission"] is not True
+                    or manifest["processo_id"] != processo_id
+                    or manifest["engine_manifest_sha256"] != row["engine_manifest_sha256"]):
+                raise ValueError()
+            payloads = {}
+            for fmt in ("docx", "pdf"):
+                encoded, digest = row[fmt + "_package"], row[fmt + "_sha256"]
+                if not isinstance(encoded, str) or not encoded.startswith("\\x"):
+                    raise ValueError()
+                payload = bytes.fromhex(encoded[2:])
+                if (not payload or hashlib.sha256(payload).hexdigest() != digest
+                        or manifest["packages"][fmt] != {"sha256": digest, "bytes": len(payload)}):
+                    raise ValueError()
+                payloads[fmt] = PacoteArtefatos(processo_id, fmt, digest, manifest, payload)
+        except (KeyError, TypeError, ValueError):
+            raise ErroDocumento("Snapshot de emissão nativa divergente.") from None
+        events = _execute(user.table("governanca_eventos").select("id,ator,payload")
+            .eq("tipo_evento", "publicacao_registrada").eq("entidade_tipo", "publicacao")
+            .eq("entidade_id", row["id"]).limit(2))
+        if not isinstance(events, list) or len(events) != 1:
+            raise ErroDocumento("Trilha da emissão nativa divergente.")
+        event = events[0]
+        try:
+            _uuid(event["id"])
+            if (event["payload"].get("operation_id") != row["operation_id"]
+                    or event["payload"].get("official_emission") is not True):
+                raise ValueError()
+        except (KeyError, TypeError, ValueError):
+            raise ErroDocumento("Evento da emissão nativa divergente.") from None
+        return Emissao(row["id"], processo_id, row["operation_id"], row["docx_sha256"],
+            row["pdf_sha256"], event["id"], True, manifest, payloads["docx"], payloads["pdf"])

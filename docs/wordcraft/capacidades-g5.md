@@ -45,8 +45,11 @@ aprovado para o contexto da peça seguinte e libera a sequência sem consultar
 heads nativos aprovados, com CAS de revisão/hash; os downloads legados não são
 montados. O pacote ZIP auditável também é composto pelo owner a partir dessas
 mesmas exportações, com manifesto de revisão, hashes, aprovação, snapshot e
-build. Ele registra `official_emission=false`: o documento único consolidado e
-a emissão oficial ainda permanecem pendentes.
+build. Uma ação separada, com confirmação explícita, registra os dois pacotes
+como snapshot oficial: reutiliza `governanca_publicacoes` e
+`publicacao_registrada`, persiste os bytes, revalida todas as aprovações sob
+lock e muda os heads para `emitido` na mesma transação. A reabertura lê os
+bytes persistidos. O documento único consolidado continua pendente.
 
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do

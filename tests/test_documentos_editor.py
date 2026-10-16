@@ -29,6 +29,7 @@ class Query:
             self.result = [row for row in self.result if row.get("operation_id") == args[1]]
         return self
     def limit(self, *args): return self
+    def order(self, *args, **kwargs): return self
 
 
 @pytest.fixture
@@ -247,6 +248,84 @@ def test_package_refuses_a_draft_before_export(setup, monkeypatch):
     monkeypatch.setattr(service, "exportar", lambda *a, **k: pytest.fail("draft export"))
     with pytest.raises(owner.ErroDocumento, match="sem aprovação"):
         service.empacotar_aprovados(draft.processo_id, tipos=("dfd",), formato="docx")
+
+
+def test_official_emission_binds_both_packages_and_accepts_only_exact_receipt(setup, monkeypatch):
+    service, state, _ = setup
+    process, operation = state["head"]["processo_id"], str(uuid4())
+    approval, snapshot = str(uuid4()), "b" * 64
+    def package(fmt):
+        payload = (fmt + " package").encode()
+        artifact = hashlib.sha256((fmt + " artifact").encode()).hexdigest()
+        manifest = {"documents": [{"tipo": "dfd", "document_id": state["head"]["id"],
+            "revision": 1, "source_sha256": state["head"]["content_hash"],
+            "approval_id": approval, "approval_snapshot_sha256": snapshot,
+            "artifact_sha256": artifact, "engine_manifest_sha256": "a" * 64,
+            "file": f"dfd-r1.{fmt}"}]}
+        return owner.PacoteArtefatos(process, fmt, hashlib.sha256(payload).hexdigest(), manifest, payload)
+    packages = {fmt: package(fmt) for fmt in ("docx", "pdf")}
+    monkeypatch.setattr(service, "empacotar_aprovados",
+        lambda processo_id, *, tipos, formato: packages[formato])
+    calls = []
+    result = {"emission_id": str(uuid4()), "processo_id": process,
+        "operation_id": operation, "docx_sha256": packages["docx"].content_hash,
+        "pdf_sha256": packages["pdf"].content_hash, "event_id": str(uuid4()),
+        "replayed": False}
+    monkeypatch.setattr(owner.db, "_cliente", lambda: SimpleNamespace(
+        rpc=lambda name, params: calls.append((name, params)) or Query(result)))
+    emission = service.emitir_aprovados(process, tipos=("dfd",), operation_id=operation)
+    assert emission.id == result["emission_id"] and emission.replayed is False
+    assert calls[0][0] == "documento_editor_emitir"
+    params = calls[0][1]
+    assert params["p_manifest"]["official_emission"] is True
+    assert params["p_manifest"]["packages"]["pdf"]["sha256"] == packages["pdf"].content_hash
+    assert params["p_documents"][0]["approval_id"] == approval
+    assert bytes.fromhex(params["p_docx"][2:]) == packages["docx"].payload
+
+
+def test_official_emission_refuses_packages_from_different_sources(setup, monkeypatch):
+    service, state, _ = setup
+    process = state["head"]["processo_id"]
+    def package(fmt):
+        payload = fmt.encode()
+        manifest = {"documents": [{"tipo": "dfd", "document_id": state["head"]["id"],
+            "revision": 1 if fmt == "docx" else 2,
+            "source_sha256": state["head"]["content_hash"], "approval_id": str(uuid4()),
+            "approval_snapshot_sha256": "b" * 64, "artifact_sha256": "c" * 64,
+            "engine_manifest_sha256": "a" * 64, "file": f"dfd.{fmt}"}]}
+        return owner.PacoteArtefatos(process, fmt, hashlib.sha256(payload).hexdigest(), manifest, payload)
+    monkeypatch.setattr(service, "empacotar_aprovados",
+        lambda processo_id, *, tipos, formato: package(formato))
+    monkeypatch.setattr(owner.db, "_cliente", lambda: pytest.fail("RPC must not run"))
+    with pytest.raises(owner.ConflitoDocumento, match="mesma revisão"):
+        service.emitir_aprovados(process, tipos=("dfd",), operation_id=str(uuid4()))
+
+
+def test_persisted_emission_reopens_exact_bytes_without_export(setup, monkeypatch):
+    service, state, _ = setup
+    process, emission_id, operation, event_id = (state["head"]["processo_id"],
+        str(uuid4()), str(uuid4()), str(uuid4()))
+    payloads = {"docx": b"persisted docx zip", "pdf": b"persisted pdf zip"}
+    hashes = {fmt: hashlib.sha256(payload).hexdigest() for fmt, payload in payloads.items()}
+    manifest = {"schema": "gc-wordcraft-official-emission/v1", "official_emission": True,
+        "processo_id": process, "engine_manifest_sha256": "a" * 64, "documents": [],
+        "packages": {fmt: {"sha256": hashes[fmt], "bytes": len(payloads[fmt])}
+                     for fmt in payloads}}
+    row = {"id": emission_id, "processo_id": process, "operation_id": operation,
+        "engine_manifest_sha256": "a" * 64, "manifest": manifest,
+        "docx_package": "\\x" + payloads["docx"].hex(), "docx_sha256": hashes["docx"],
+        "pdf_package": "\\x" + payloads["pdf"].hex(), "pdf_sha256": hashes["pdf"],
+        "criado_em": "2026-10-16T00:00:00Z"}
+    event = {"id": event_id, "ator": state["context"]["sub"],
+             "payload": {"operation_id": operation, "official_emission": True}}
+    class User:
+        def rpc(self, *args): return Query(state["context"])
+        def table(self, name): return Query([row] if name == "documentos_editor_emissoes" else [event])
+    monkeypatch.setattr(owner.db, "cliente_do_usuario", lambda: User())
+    monkeypatch.setattr(service, "empacotar_aprovados", lambda *a, **k: pytest.fail("must not reexport"))
+    emission = service.emissao_atual(process)
+    assert emission.id == emission_id and emission.event_id == event_id
+    assert emission.docx.payload == payloads["docx"] and emission.pdf.payload == payloads["pdf"]
 
 
 def test_stale_export_does_not_execute_the_exporter(setup, monkeypatch):

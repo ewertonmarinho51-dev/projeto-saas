@@ -51,7 +51,7 @@ def sincronizar() -> bool:
         service = _owner(carregar())
         approved, context, bindings = set(), {}, {}
         for document in service.listar_processo(processo_id):
-            if document.status != "aprovado" or document.approval is None:
+            if document.status not in {"aprovado", "emitido"} or document.approval is None:
                 continue
             key, text = service.texto_aprovado(document.id)
             approved.add(key)
@@ -193,7 +193,7 @@ def render_sucesso() -> None:
         service = _owner(carregar())
         documents = {doc.tipo: doc for doc in service.listar_processo(
             st.session_state["processo_id"])
-            if doc.status == "aprovado" and doc.approval is not None}
+            if doc.status in {"aprovado", "emitido"} and doc.approval is not None}
     except (ErroRuntime, ErroDocumento) as error:
         st.error(str(error))
         return
@@ -222,6 +222,35 @@ def render_sucesso() -> None:
             column.download_button("Baixar ZIP " + fmt.upper(), package.payload,
                 file_name=f"processo-{st.session_state['processo_id']}-{fmt}.zip",
                 mime="application/zip", key=cache_key + "_download", on_click="ignore")
+    try:
+        emission = service.emissao_atual(st.session_state["processo_id"])
+    except ErroDocumento as error:
+        st.error(str(error))
+        return
+    if emission is not None:
+        st.success("Emissão oficial registrada e vinculada à trilha de governança.")
+        st.caption(f"Emissão `{emission.id}` · evento `{emission.event_id}`")
+        persisted_columns = st.columns(2)
+        for column, package, fmt in ((persisted_columns[0], emission.docx, "docx"),
+                                     (persisted_columns[1], emission.pdf, "pdf")):
+            column.download_button("Baixar emissão " + fmt.upper(), package.payload,
+                file_name=f"emissao-{emission.id}-{fmt}.zip", mime="application/zip",
+                key="_wordcraft_official_" + fmt, on_click="ignore")
+    else:
+        st.warning("Registrar a emissão congela estes pacotes como snapshot oficial imutável.")
+        confirmed = st.checkbox("Confirmo a emissão das revisões e hashes exibidos.",
+                                key="_wordcraft_confirm_emission")
+        if st.button("Registrar emissão oficial", type="primary", disabled=not confirmed,
+                     key="_wordcraft_emit"):
+            source_key = ":".join(current_sources[key] for key in state.sequencia())
+            operation = str(uuid5(NAMESPACE_URL, "govconnect-wordcraft-emission:"
+                + st.session_state["processo_id"] + ":" + source_key))
+            try:
+                service.emitir_aprovados(st.session_state["processo_id"],
+                    tipos=tuple(state.sequencia()), operation_id=operation)
+                st.rerun()
+            except ErroDocumento as error:
+                st.error(str(error))
     for key in state.sequencia():
         document = documents[key]
         st.markdown(f"**{key.upper()}** · revisão {document.revision} · `{document.content_hash}`")

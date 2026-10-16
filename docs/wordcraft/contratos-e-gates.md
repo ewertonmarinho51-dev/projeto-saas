@@ -47,9 +47,11 @@ A aprovação individual reutiliza governanca_aprovacoes, qualidade e evento
 canônico na mesma transação. Vincula revisão/hash/build/fontes/snapshot exatos.
 O ramo nativo não rotula Markdown antigo como aprovado nem avança o wizard.
 A navegação e o pacote ZIP auditável já consomem somente revisões nativas
-aprovadas; o manifesto vincula fontes, artefatos, aprovação, snapshot e build e
-declara que ainda não é emissão oficial. O documento consolidado único e o
-registro oficial permanecem pendentes. O controle
+aprovadas. A emissão oficial é uma ação separada: persiste os pacotes DOCX/PDF,
+vincula fontes, artefatos, aprovação, snapshot e build, registra a publicação
+na governança existente e cruza `aprovado` → `emitido` atomicamente. Reabrir a
+emissão usa os bytes imutáveis persistidos. O documento consolidado único e a
+prova via PostgREST/Auth real permanecem pendentes. O controle
 freeze/release do canvas está em implementação e testes; não se declara frescor
 da revisão visível apenas porque o backend conhecia o estado ready/saved.
 
@@ -66,7 +68,7 @@ backend não certifica Undo da interface. O fluxo completo ainda está pendente.
 |---|---|---|
 | G0 Auditoria | PARCIAL | baseline reproduzido; closure WASM com 251 pacotes/186 textos; 17 expressões para revisão, 12 pacotes sem texto e 14 sem texto da licença de código; distribuição não aprovada |
 | G1 Percurso mínimo | PASS LOCAL LIMITADO | navegador abriu/editou/salvou/recarregou/exportou texto, timbrado e tabela de 210 itens; g1-evidencias.md; sem promoção a G3/G7 |
-| G2 Persistência | PARCIAL | importação, originais, índices, restauração, aprovação, consumidor source-aware e ZIP auditável nativo implementados; documento consolidado/emissão oficial pendentes |
+| G2 Persistência | PARCIAL | importação, originais, índices, restauração, aprovação, consumidor source-aware, ZIP auditável e emissão oficial transacional implementados; documento consolidado e prova PostgREST/Auth real pendentes |
 | G3 Fidelidade | PARCIAL | 16 DOCX passam no roundtrip nativo; LO baseline16/70 páginas; derivado6/16 casos,44/50 PNGs iguais e6 diferenças em tabelas; prova Linux pendente após duas falhas limitadas Windows |
 | G4 Patches | PARCIAL | motor real preservou79 IDs/27 blocos protegidos,8 negativos recusados;188 SQL passaram no lote; canvas/ACK/Undo persistido e GovBot pendentes |
 | G5 Seis capacidades | PARCIAL | compilador/painel/host, consumidor source-aware e pacote auditável ligados sob flag OFF; admissão recusa bundle QA; falta artefato operacional homologado e corpus A-D completo |

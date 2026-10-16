@@ -117,3 +117,13 @@ def test_tela_nativa_empacota_pelo_owner_e_nao_pelo_exportador_legado():
     assert "service.empacotar_aprovados(" in success
     assert "package_sources == current_sources" in success
     assert "export.gerar_zip" not in success
+
+
+def test_emissao_oficial_exige_confirmacao_e_reabre_snapshot_persistido():
+    source = (Path(__file__).parents[1] / "src/ui/wordcraft_operacional.py").read_text(encoding="utf-8")
+    success = source[source.index("def render_sucesso") :]
+    assert "service.emissao_atual(" in success
+    assert 'st.checkbox("Confirmo a emissão' in success
+    assert "disabled=not confirmed" in success
+    assert "service.emitir_aprovados(" in success
+    assert "st.rerun()" in success
