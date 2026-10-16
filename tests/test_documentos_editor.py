@@ -1,12 +1,14 @@
 """Owner contract tests with transport/native stubs; real engine/RLS are separate."""
 from dataclasses import replace
 import hashlib
+import io
 import json
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from zipfile import ZipFile
 
 from src import documentos_editor as owner
 from src.wordcraft_protocol import Checkpoint
@@ -209,6 +211,42 @@ def test_export_is_bound_to_the_exact_authorized_persisted_revision(setup, monke
     assert artifact.source_engine_build is None and artifact.source_validation_provenance == "legacy_unrecorded"
     assert artifact.content_hash == hashlib.sha256(artifact.payload).hexdigest()
     assert "synthetic artifact" not in repr(artifact)
+
+
+def test_approved_package_reuses_exact_exports_and_records_auditable_manifest(setup, monkeypatch):
+    service, state, checkpoint = setup
+    process = state["head"]["processo_id"]
+    approval = SimpleNamespace(id=str(uuid4()), institutional_snapshot_hash="b" * 64)
+    documents = tuple(SimpleNamespace(id=str(uuid4()), processo_id=process, tipo=tipo,
+        revision=index, content_hash=hashlib.sha256(tipo.encode()).hexdigest(),
+        status="aprovado", approval=approval)
+        for index, tipo in enumerate(("dfd", "etp"), 1))
+    monkeypatch.setattr(service, "listar_processo", lambda value: documents)
+    calls = []
+    def export(document_id, *, expected_revision, content_hash, formato):
+        payload = f"{document_id}:{expected_revision}:{formato}".encode()
+        calls.append((document_id, expected_revision, content_hash, formato))
+        return owner.Artefato(document_id, expected_revision, content_hash, formato,
+            hashlib.sha256(payload).hexdigest(), "a" * 64, payload)
+    monkeypatch.setattr(service, "exportar", export)
+    package = service.empacotar_aprovados(process, tipos=("dfd", "etp"), formato="pdf")
+    assert package.manifest["official_emission"] is False
+    assert [entry["tipo"] for entry in package.manifest["documents"]] == ["dfd", "etp"]
+    assert [call[2] for call in calls] == [doc.content_hash for doc in documents]
+    assert package.content_hash == hashlib.sha256(package.payload).hexdigest()
+    with ZipFile(io.BytesIO(package.payload)) as archive:
+        assert archive.namelist() == ["dfd-r1.pdf", "etp-r2.pdf", "manifest.json"]
+        assert json.loads(archive.read("manifest.json")) == package.manifest
+
+
+def test_package_refuses_a_draft_before_export(setup, monkeypatch):
+    service, state, _ = setup
+    draft = SimpleNamespace(id=str(uuid4()), processo_id=state["head"]["processo_id"],
+        tipo="dfd", revision=1, content_hash="a" * 64, status="rascunho", approval=None)
+    monkeypatch.setattr(service, "listar_processo", lambda value: (draft,))
+    monkeypatch.setattr(service, "exportar", lambda *a, **k: pytest.fail("draft export"))
+    with pytest.raises(owner.ErroDocumento, match="sem aprovação"):
+        service.empacotar_aprovados(draft.processo_id, tipos=("dfd",), formato="docx")
 
 
 def test_stale_export_does_not_execute_the_exporter(setup, monkeypatch):

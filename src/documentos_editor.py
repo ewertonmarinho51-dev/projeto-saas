@@ -8,12 +8,14 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 import hashlib
 import hmac
+import io
 import json
 from pathlib import Path
 import re
 import secrets
 from uuid import NAMESPACE_URL, uuid5
 from weakref import WeakValueDictionary
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 from . import db
 from . import wordcraft_blocos as blocos
@@ -118,6 +120,15 @@ class Artefato:
     institutional_snapshot_hash: str | None = None
     restored_from_revision: int | None = None
     restored_source_hash: str | None = None
+
+
+@dataclass(frozen=True)
+class PacoteArtefatos:
+    processo_id: str
+    formato: str
+    content_hash: str
+    manifest: dict = field(repr=False)
+    payload: bytes = field(repr=False)
 
 
 @dataclass(frozen=True)
@@ -1017,3 +1028,52 @@ class DocumentoService:
                         hashlib.sha256(payload).hexdigest(), self._native["manifest_sha256"], payload,
                         document.engine_build, document.validation_provenance, document.institutional_snapshot_hash,
                         document.restored_from_revision, restored_source.content_hash if restored_source else None)
+
+    def empacotar_aprovados(self, processo_id: str, *, tipos: tuple[str, ...],
+                            formato: str) -> PacoteArtefatos:
+        """ZIP auditável composto somente por revisões nativas aprovadas."""
+        _uuid(processo_id)
+        if (formato not in {"docx", "pdf"} or not tipos or len(tipos) > 32
+                or len(set(tipos)) != len(tipos)
+                or any(not isinstance(tipo, str)
+                       or re.fullmatch(r"[a-z][a-z0-9_]{0,31}", tipo) is None
+                       for tipo in tipos)):
+            raise ErroDocumento("Pedido de pacote documental inválido.")
+        by_type = {document.tipo: document for document in self.listar_processo(processo_id)}
+        if set(by_type) != set(tipos):
+            raise ErroDocumento("O conjunto nativo não corresponde ao pacote solicitado.")
+        artifacts, entries = [], []
+        for tipo in tipos:
+            document = by_type[tipo]
+            if document.status != "aprovado" or document.approval is None:
+                raise ErroDocumento("O pacote contém revisão sem aprovação nativa.")
+            artifact = self.exportar(document.id, expected_revision=document.revision,
+                                     content_hash=document.content_hash, formato=formato)
+            artifacts.append((tipo, artifact))
+            entries.append({"tipo": tipo, "document_id": document.id,
+                "revision": document.revision, "source_sha256": document.content_hash,
+                "approval_id": document.approval.id,
+                "approval_snapshot_sha256": document.approval.institutional_snapshot_hash,
+                "artifact_sha256": artifact.content_hash,
+                "engine_manifest_sha256": artifact.engine_build,
+                "file": f"{tipo}-r{document.revision}.{formato}"})
+        manifest = {"schema": "gc-wordcraft-artifact-package/v1",
+                    "processo_id": processo_id, "formato": formato,
+                    "official_emission": False, "documents": entries}
+        manifest_bytes = json.dumps(manifest, ensure_ascii=False, sort_keys=True,
+                                   separators=(",", ":")).encode("utf-8")
+        output = io.BytesIO()
+        with ZipFile(output, "w", ZIP_DEFLATED) as archive:
+            for tipo, artifact in artifacts:
+                info = ZipInfo(f"{tipo}-r{artifact.revision}.{formato}",
+                               date_time=(1980, 1, 1, 0, 0, 0))
+                info.compress_type = ZIP_DEFLATED
+                archive.writestr(info, artifact.payload)
+            info = ZipInfo("manifest.json", date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = ZIP_DEFLATED
+            archive.writestr(info, manifest_bytes)
+        payload = output.getvalue()
+        if len(payload) > MAX_BYTES * 8:
+            raise ErroDocumento("Pacote documental excede o limite autorizado.")
+        return PacoteArtefatos(processo_id, formato,
+            hashlib.sha256(payload).hexdigest(), manifest, payload)

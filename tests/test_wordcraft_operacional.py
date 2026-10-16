@@ -109,3 +109,11 @@ def test_app_separa_emissao_nativa_da_tela_legada():
     assert "wordcraft_operacional.sincronizar()" in source
     assert "wordcraft_operacional.render_sucesso()" in source
     assert "state.aprovacoes_efetivas()" in source
+
+
+def test_tela_nativa_empacota_pelo_owner_e_nao_pelo_exportador_legado():
+    source = (Path(__file__).parents[1] / "src/ui/wordcraft_operacional.py").read_text(encoding="utf-8")
+    success = source[source.index("def render_sucesso") :]
+    assert "service.empacotar_aprovados(" in success
+    assert "package_sources == current_sources" in success
+    assert "export.gerar_zip" not in success

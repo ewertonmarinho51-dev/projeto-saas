@@ -202,6 +202,26 @@ def render_sucesso() -> None:
         st.error("O conjunto aprovado não cobre exatamente a sequência documental atual.")
         return
     st.success("As revisões nativas aprovadas estão prontas para exportação individual.")
+    st.markdown("**Pacote auditável das revisões aprovadas**")
+    package_columns = st.columns(2)
+    current_sources = {key: documents[key].content_hash for key in state.sequencia()}
+    for column, fmt in zip(package_columns, ("docx", "pdf")):
+        cache_key = "_wordcraft_package_" + fmt
+        if column.button("Preparar ZIP " + fmt.upper(), key=cache_key + "_button"):
+            try:
+                st.session_state[cache_key] = service.empacotar_aprovados(
+                    st.session_state["processo_id"], tipos=tuple(state.sequencia()),
+                    formato=fmt)
+            except ErroDocumento as error:
+                st.error(str(error))
+        package = st.session_state.get(cache_key)
+        package_sources = ({entry.get("tipo"): entry.get("source_sha256")
+                            for entry in package.manifest.get("documents", [])}
+                           if package is not None else {})
+        if package is not None and package_sources == current_sources:
+            column.download_button("Baixar ZIP " + fmt.upper(), package.payload,
+                file_name=f"processo-{st.session_state['processo_id']}-{fmt}.zip",
+                mime="application/zip", key=cache_key + "_download", on_click="ignore")
     for key in state.sequencia():
         document = documents[key]
         st.markdown(f"**{key.upper()}** · revisão {document.revision} · `{document.content_hash}`")

@@ -43,7 +43,10 @@ consumidor source-aware reidrata os atos persistidos, projeta texto nativo
 aprovado para o contexto da peça seguinte e libera a sequência sem consultar
 `processos.aprovados`. Ao completar a sequência, a tela final exporta somente
 heads nativos aprovados, com CAS de revisão/hash; os downloads legados não são
-montados. A emissão consolidada do pacote ainda permanece pendente.
+montados. O pacote ZIP auditável também é composto pelo owner a partir dessas
+mesmas exportações, com manifesto de revisão, hashes, aprovação, snapshot e
+build. Ele registra `official_emission=false`: o documento único consolidado e
+a emissão oficial ainda permanecem pendentes.
 
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
@@ -66,13 +69,12 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 
 ## Pendências para fechar G5
 
-1. ligar o host WordCraft ao fluxo operacional autenticado do wizard;
-2. executar seleção/contexto real do GovBot, diff, confirmação, Undo e rejeição
+1. executar seleção/contexto real do GovBot, diff, confirmação, Undo e rejeição
    stale no mesmo canvas;
-3. completar as trilhas A–D do corpus, incluindo auditoria e parecer reais;
-4. consumir catálogo institucional, RAG vigente e montagem oficial pelos
+2. completar as trilhas A–D do corpus, incluindo auditoria e parecer reais;
+3. consumir catálogo institucional, RAG vigente e montagem oficial pelos
    owners existentes em ensaio end-to-end;
-5. provar isolamento entre tenants e o fluxo completo em sessão JWT real.
+4. provar isolamento entre tenants e o fluxo completo em sessão JWT real.
 
 Também falta produzir e homologar o artefato com status operacional. O bundle
 atual de QA não satisfaz esse requisito e não foi promovido por renomeação.
