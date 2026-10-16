@@ -204,6 +204,50 @@ def identificador_da_versao(pesquisa: dict, itens: list[dict],
     return hashlib.sha256(canonico.encode("utf-8")).hexdigest()
 
 
+def dados_da_emissao(pesquisa: dict, itens: list[dict],
+                     referencias: dict[str, list[dict]], *, tipo: str,
+                     formato: str, conteudo: bytes, nome_arquivo: str) -> dict:
+    """
+    O registro de UMA emissão (F140/F162): hash do conteúdo decisório
+    (reprodutível, igual para o mesmo resultado), hash do ARQUIVO (prova
+    do byte entregue) e a lista nominal de pendências que o documento
+    imprimiu. Sem IP — dado pessoal que o registro não precisa.
+    """
+    decisorio = identificador_da_versao(pesquisa, itens, referencias)
+    arquivo = hashlib.sha256(conteudo).hexdigest()
+    perfil = obter_perfil(pesquisa.get("perfil_normativo"))
+    return {
+        "versao_pesquisa": int(pesquisa.get("versao") or 1),
+        "tipo": tipo, "formato": formato, "formato_hash": FORMATO,
+        "hash_decisorio": decisorio, "hash_arquivo": arquivo,
+        "tamanho_bytes": len(conteudo), "nome_arquivo": nome_arquivo,
+        "pendencias": [{"item": p["numero"], "deficiencias": p["deficiencias"]}
+                       for p in pendencias_nominais(itens, referencias, perfil)],
+        "idempotency_key": f"{tipo}:{formato}:{decisorio}:{arquivo}",
+    }
+
+
+def conferir_identificador(pesquisa: dict, itens: list[dict],
+                           referencias: dict[str, list[dict]],
+                           informado: str) -> str:
+    """
+    Conferência por terceiro, dentro do sistema: o identificador impresso
+    corresponde ao resultado ATUAL desta pesquisa? Recalcula nos dois
+    formatos — o v1 confere relatórios emitidos antes de 16/10/2026.
+    """
+    alvo = str(informado or "").strip().strip("`").lower()
+    if len(alvo) < 16:
+        return "informe o identificador impresso (mínimo 16 caracteres)"
+    atual = identificador_da_versao(pesquisa, itens, referencias)
+    if atual.startswith(alvo):
+        return "confere: o documento corresponde ao resultado atual (formato 2)"
+    if identificador_da_versao_v1(pesquisa, itens, referencias).startswith(alvo):
+        return ("confere no formato 1 (relatório anterior a 16/10/2026): o "
+                "resultado não mudou nos campos que aquele formato cobria")
+    return ("NÃO confere: o resultado desta pesquisa mudou depois da "
+            "emissão, ou o identificador é de outra pesquisa/revisão")
+
+
 def identificador_da_versao_v1(pesquisa: dict, itens: list[dict],
                                referencias: dict[str, list[dict]]) -> str:
     """

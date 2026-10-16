@@ -895,6 +895,46 @@ def registrar_evento(pesquisa_id: str, tipo: str, *,
         return None
 
 
+TABELA_EMISSOES = "pesquisa_preco_emissoes"
+
+
+def registrar_emissao(pesquisa_id: str, emissao: dict) -> dict | None:
+    """
+    Registra a emissão de um relatório (migração 0029): quem, quando,
+    hash do conteúdo decisório, hash do ARQUIVO e as pendências impressas.
+
+    Append-only no banco. Sem a 0029 aplicada a tabela não existe: a
+    falha vira incidente registrado e a função devolve None — o
+    documento continua entregue, e a tela diz que o registro faltou.
+    """
+    registro = {"pesquisa_id": pesquisa_id, "tenant_id": db.tenant_atual(),
+                **emissao}
+    try:
+        resposta = _cliente().table(TABELA_EMISSOES).insert(registro).execute()
+        return resposta.data[0] if resposta.data else None
+    except SemSessao:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        texto = str(exc).lower()
+        if emissao.get("idempotency_key") and (
+                "duplicate" in texto or "unique" in texto):
+            return None
+        db.registrar_incidente(exc, contexto="registro de emissão de preços")
+        return None
+
+
+def listar_emissoes(pesquisa_id: str, limite: int = 50) -> list[dict]:
+    try:
+        resposta = (_cliente().table(TABELA_EMISSOES).select("*")
+                    .eq("pesquisa_id", pesquisa_id)
+                    .order("criado_em", desc=True).limit(limite).execute())
+        return resposta.data or []
+    except SemSessao:
+        raise
+    except Exception:  # noqa: BLE001 — sem a 0029, lista vazia
+        return []
+
+
 def listar_eventos(pesquisa_id: str, limite: int = 200) -> list[dict]:
     try:
         resposta = (_cliente().table(TABELA_EVENTOS).select("*")

@@ -125,3 +125,16 @@ Elaborar Cotação com manual e automático no mesmo item.
 - **Benchmark sintético** (`scripts/seletor_benchmark.py`, `docs/jev/seletor-benchmark-sintetico.json`), cadeia real `busca.coletar` → matching → triagem, 15 casos rotulados POR CONSTRUÇÃO: 3/3 comparáveis corretos, 9/9 incompatíveis corretos, **0 falso positivo**, 20 % de abstenção (1 paráfrase do mesmo produto e 2 vizinhos), 0 chamadas de IA. **Não é calibração do Jev**: o dataset humano (`docs/jev/dataset_candidatos.json`) segue com 5 pares sem rótulo, e a meta de falso positivo precisa ser definida pela equipe responsável antes de qualquer promoção.
 - **Flag:** `jev_price_research` continua OFF; com ela OFF o seletor faz só a parte determinística (custo 0).
 - **Rollback:** reverter o commit; sem schema novo além do tipo de evento já previsto na 0029.
+
+---
+
+## G5 — relatórios, emissão, cotação direta e aplicação · PASS
+
+- **Registro de emissão** (F140/F162): cada relatório gerado (completo, resumido, DOCX, XLSX, pacote ZIP) grava `pesquisa_preco_emissoes` (0029) com hash do conteúdo decisório (formato 2, reprodutível), **hash SHA-256 do arquivo entregue**, tamanho, nome, versão da cotação e a lista nominal de pendências impressas; mais o evento `relatorio_emitido`. **Sem IP** (dado pessoal desnecessário). Sem a 0029, o documento é entregue e a tela diz "registro de emissão indisponível" — falha registrada como incidente, não silenciosa.
+- **Conferência por terceiro** dentro do sistema: `relatorio.conferir_identificador` recalcula o resultado atual nos formatos 2 e 1 e diz se confere. Não há página pública (não existe endpoint autorizado para isso).
+- **Prévia fiel** (F132): o mesmo Markdown que vira PDF/DOCX, na tela, antes de emitir (completo até 30 itens; resumido sempre). Aviso nominal de pendências com ciência continua obrigatório (G1).
+- **Fornecedores sugeridos** (F151): quem já vendeu o item à Administração, a partir das referências reais coletadas, ordenado por presença na cesta — nunca por preço. **Nenhum envio** (F154/F155 bloqueados: sem provedor e sem consentimento).
+- **Aplicação ao processo:** continua por `aplicacao.py`, com diff, documentos a descartar nominais e confirmação; o evento `pesquisa_aplicada` passa a gravar o **identificador decisório** aplicado.
+- **Provas:** `tests/test_cotacoes_g5_emissao.py` (7), inclusive na tela (AppTest): gerar o quadro registra a emissão com o hash do arquivo; item pendente impede emitir até a ciência.
+- **Suíte completa:** **2824 passed, 345 skipped, 0 failed** (4 min 55 s).
+- **Não entregue, com motivo:** assinatura no relatório de preços (F137) — o mecanismo do GovConnect (`src/assinaturas.py`) exige signatário do cadastro de servidores/portarias do processo; ligar exige decisão de quem assina a pesquisa autônoma. % de preço máximo (F042) — sem regra normativa definida pelo ente. Índices de correção (F104/F093) — sem série oficial integrada. Geração assíncrona (F136) — P3.

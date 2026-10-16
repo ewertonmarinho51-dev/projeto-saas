@@ -1372,6 +1372,19 @@ def _render_cotacao(pesquisa: dict, item: dict) -> None:
                    "com solicitação formal e orçamentos de até 6 meses. O "
                    "comprovante é registrado pela impressão digital "
                    "(SHA-256); o arquivo segue nos autos do processo.")
+        sugeridos = cotacao.fornecedores_sugeridos(
+            repo.listar_referencias(str(item["id"])))
+        if sugeridos:
+            st.caption("Fornecedores que já venderam este item à "
+                       "Administração (das referências coletadas). Nenhum "
+                       "contato é enviado pelo sistema.")
+            st.dataframe([{"Fornecedor": s["fornecedor"] or "—",
+                           "CNPJ": s["cnpj"] or "—",
+                           "Na cesta": s["na_cesta"],
+                           "Aparições": s["aparicoes"], "UF": s["ufs"],
+                           "Última": _data_curta(s["ultima"])}
+                          for s in sugeridos],
+                         use_container_width=True, hide_index=True)
         with st.form(f"cotacao_{item['id']}", clear_on_submit=True):
             a, b = st.columns([2, 1])
             fornecedor = a.text_input("Fornecedor (razão social)")
@@ -2231,6 +2244,58 @@ def _render_relatorios(pesquisa: dict) -> None:
                            referencias, formato="xlsx", tipo="analitico")
 
     _botao_do_pacote(pesquisa, itens, referencias)
+    _render_previa_e_conferencia(pesquisa, itens, referencias)
+
+
+def _render_previa_e_conferencia(pesquisa: dict, itens: list[dict],
+                                 referencias: dict) -> None:
+    """
+    Prévia fiel (o MESMO Markdown que vira PDF/DOCX), histórico das
+    emissões registradas e conferência de um identificador impresso.
+    """
+    with st.expander("Prévia do quadro resumido"):
+        st.markdown(relatorio.resumido(pesquisa, itens, referencias)
+                    .replace("$", "\\$"))
+    if len(itens) <= _ITENS_PARA_AVISAR:
+        with st.expander("Prévia do relatório completo"):
+            st.markdown(relatorio.completo(pesquisa, itens, referencias)
+                        .replace("$", "\\$"))
+    emissoes = repo.listar_emissoes(str(pesquisa["id"]))
+    with st.expander(f"Emissões registradas ({len(emissoes)})"):
+        if not emissoes:
+            st.caption("Nenhuma emissão registrada ainda (ou o registro de "
+                       "emissões ainda não está ativo neste banco).")
+        for e in emissoes:
+            st.caption(f"{str(e.get('criado_em') or '')[:16].replace('T', ' ')} "
+                       f"UTC · {e.get('tipo')} {e.get('formato')} · "
+                       f"decisório `{str(e.get('hash_decisorio'))[:16]}…` · "
+                       f"arquivo `{str(e.get('hash_arquivo'))[:16]}…` · "
+                       f"{len(e.get('pendencias') or [])} pendência(s) impressa(s)")
+    with st.expander("Conferir identificador de um relatório"):
+        informado = st.text_input("Identificador impresso no documento",
+                                  key=f"conf_{pesquisa['id']}")
+        if informado:
+            st.write(relatorio.conferir_identificador(
+                pesquisa, itens, referencias, informado))
+
+
+def _registrar_emissao(pesquisa: dict, itens: list[dict], referencias: dict,
+                       *, tipo: str, formato: str, conteudo: bytes,
+                       nome: str) -> None:
+    """Toda geração entregue vira registro (quem, quando, hashes, pendências)."""
+    dados = relatorio.dados_da_emissao(
+        pesquisa, itens, referencias, tipo=tipo, formato=formato,
+        conteudo=conteudo, nome_arquivo=nome)
+    registrado = repo.registrar_emissao(str(pesquisa["id"]), dados)
+    repo.registrar_evento(
+        str(pesquisa["id"]), "relatorio_emitido",
+        ator=_identidade()[0] or None,
+        descricao=f"{tipo} ({formato}) — {nome}",
+        payload={k: dados[k] for k in ("tipo", "formato", "hash_decisorio",
+                                       "hash_arquivo", "tamanho_bytes")},
+        idempotency_key=f"emissao:{dados['idempotency_key']}")
+    st.session_state[f"_emissao_{tipo}_{formato}_{pesquisa['id']}"] = (
+        dados, registrado is not None)
 
 
 def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
@@ -2289,6 +2354,10 @@ def _botao_de_download(rotulo: str, pesquisa: dict, itens: list[dict],
                 st.session_state[chave] = _conteudo_do_relatorio(
                     pesquisa, itens, referencias,
                     formato=formato, tipo=tipo)
+                conteudo, nome, _ = st.session_state[chave]
+                _registrar_emissao(pesquisa, itens, referencias, tipo=tipo,
+                                   formato=formato, conteudo=conteudo,
+                                   nome=nome)
             except Exception as erro:  # noqa: BLE001 — exportação não derruba a tela
                 identificador = db.registrar_incidente(
                     erro, contexto="relatório da pesquisa de preços")
@@ -2303,6 +2372,13 @@ def _botao_de_download(rotulo: str, pesquisa: dict, itens: list[dict],
         st.download_button(f"Baixar {nome}", data=conteudo, file_name=nome,
                            mime=mimetype, key=f"dl_{chave}",
                            use_container_width=True)
+        emissao = st.session_state.get(
+            f"_emissao_{tipo}_{formato}_{pesquisa['id']}")
+        if emissao:
+            dados, registrado = emissao
+            st.caption(f"Arquivo SHA-256 `{dados['hash_arquivo'][:16]}…`"
+                       + ("" if registrado else
+                          " · registro de emissão indisponível neste banco"))
 
 
 def _botao_do_pacote(pesquisa: dict, itens: list[dict],
@@ -2322,6 +2398,10 @@ def _botao_do_pacote(pesquisa: dict, itens: list[dict],
             try:
                 st.session_state[chave] = _montar_pacote(
                     pesquisa, itens, referencias)
+                _registrar_emissao(
+                    pesquisa, itens, referencias, tipo="pacote", formato="zip",
+                    conteudo=st.session_state[chave],
+                    nome=relatorio.nome_do_arquivo(pesquisa, "pacote", "zip"))
             except Exception as erro:  # noqa: BLE001
                 identificador = db.registrar_incidente(
                     erro, contexto="pacote da pesquisa de preços")
@@ -2543,6 +2623,11 @@ def _aplicar_de_fato(pesquisa: dict, itens_pesquisa: list[dict]) -> None:
             "processo": str(st.session_state.get("processo_id") or ""),
             "valor_global": str(novos_dados.get("valor_estimado")),
             "itens": [m.posicao for m in mudancas],
+            # a versão EXATA da cotação que entrou no processo
+            "identificador_da_versao": relatorio.identificador_da_versao(
+                pesquisa, itens_pesquisa,
+                {str(i["id"]): repo.listar_referencias(str(i["id"]))
+                 for i in itens_pesquisa}),
         },
         idempotency_key=f"aplicacao:{pesquisa['id']}")
 
