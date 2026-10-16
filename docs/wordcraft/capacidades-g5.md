@@ -32,8 +32,24 @@ Templates, evidências e montagem são projeções somente leitura:
 Auditoria, Parecer, Evidências e Histórico. Template e montagem aparecem na
 auditoria porque são insumos estruturais da revisão. O painel recebe dados e
 não possui callbacks de salvar, confirmar ou aprovar. Ele está montado apenas
-no laboratório sintético enquanto não existe host WordCraft operacional no
-wizard.
+no laboratório sintético e no novo host feature-flagged do wizard.
+
+`src/ui/wordcraft_operacional.py` troca a superfície inteira quando
+`flag_wordcraft_editor` está ligada; não monta TipTap ou `text_area` junto e
+não faz fallback silencioso. A primeira abertura usa a importação Markdown
+idempotente do próprio `DocumentoService`, o save confirma ACK somente depois
+do commit e a aprovação exige o canvas congelado na revisão/hash exatos. O ato
+nativo continua sem avançar o wizard até existir consumidor source-aware do
+pacote; isso impede que o campo legado `processos.aprovados` rotule Markdown
+antigo como se fosse a revisão nativa.
+
+`src/wordcraft_runtime.py` admite somente configuração de servidor, executável
+absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
+manifesto, inventário fechado, hashes/tamanhos dos assets, cabeçalho WASM,
+origem sem credenciais e os treze avisos/licenças. O status interno
+`INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED` é recusado; somente um artefato
+com status explícito `GOVCONNECT_WORDCRAFT_DEPLOY_APPROVED` pode montar o host.
+A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 
 ## Evidência automatizada deste incremento
 
@@ -55,6 +71,9 @@ wizard.
 4. consumir catálogo institucional, RAG vigente e montagem oficial pelos
    owners existentes em ensaio end-to-end;
 5. provar isolamento entre tenants e o fluxo completo em sessão JWT real.
+
+Também falta produzir e homologar o artefato com status operacional. O bundle
+atual de QA não satisfaz esse requisito e não foi promovido por renomeação.
 
 Nenhuma funcionalidade legada foi removida. G6 permanece pendente até haver
 prova de substituição e autorização específica para a retirada.
