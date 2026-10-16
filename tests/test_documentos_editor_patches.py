@@ -136,6 +136,30 @@ def test_backend_prepares_native_sources_exact_compiled_commands_and_reaudits(pa
     assert state['proposals']==1
 
 
+def test_contextual_capability_uses_the_same_owner_preparation_without_writing(patch_owner):
+    from src.wordcraft_capacidades import Capacidade, CorrecaoContextual, propositor
+    service,state,process=patch_owner
+
+    def contextual(*,relatorio,snapshot,contexto):
+        finding=next(f for f in relatorio['findings']
+                     if f['documentId']=='memo_a' and f['autoCorrectable'])
+        path=finding['allowedPaths'][0]
+        block=next(b for b in snapshot['documentos']['memo_a']['blocos']
+                   if b['path']==path)
+        correction=CorrecaoContextual(Capacidade.AUDITORIA,finding['findingId'],
+            block['conteudo'].replace('placeholder','contextual revisado'),
+            'correção da auditoria central')
+        return propositor(correction)(relatorio=relatorio,snapshot=snapshot,
+                                      contexto=contexto)
+
+    prep=service.preparar_patches(process,operation_id=str(uuid4()),
+                                   propor_plano=contextual)
+    assert [r.fonte.doc_key for r in prep.resultados]==['memo_a']
+    assert prep.auditoria()['plan']['operations'][0]['reason']==\
+        'correção da auditoria central'
+    assert not state['rpc_calls']
+
+
 def test_one_batch_rpc_returns_only_a_correlated_receipt_and_exact_retry(patch_owner):
     service,state,_=patch_owner
     prep=prepare(patch_owner)

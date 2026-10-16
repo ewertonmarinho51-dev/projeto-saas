@@ -66,7 +66,7 @@ backend não certifica Undo da interface. O fluxo completo ainda está pendente.
 | G2 Persistência | PARCIAL | importação DOCX/Markdown, originais, índices, restauração e restart reais; snapshot/aprovação individual implementados; pacote/emissão/consumidor pendentes |
 | G3 Fidelidade | PARCIAL | 16 DOCX passam no roundtrip nativo; LO baseline16/70 páginas; derivado6/16 casos,44/50 PNGs iguais e6 diferenças em tabelas; prova Linux pendente após duas falhas limitadas Windows |
 | G4 Patches | PARCIAL | motor real preservou79 IDs/27 blocos protegidos,8 negativos recusados;188 SQL passaram no lote; canvas/ACK/Undo persistido e GovBot pendentes |
-| G5 Seis capacidades | PENDENTE | serviços atuais preservados; integração contextual nativa não concluída |
+| G5 Seis capacidades | PARCIAL | compilador contextual fechado liga GovBot, auditoria e parecer ao owner G4; snapshots determinísticos cobrem template, evidência e montagem; painel único montado no laboratório; falta fluxo operacional completo e corpus A-D |
 | G6 Paridade e retirada | PENDENTE | nenhuma funcionalidade legada retirada; substituição só após comprovação |
 | G7 Homologação | PARCIAL | CAS/RLS/imutabilidade SQL e HTTP sintéticos; GoTrue Linux implementado,primeiro run falhou preflight; Auth real,emissão e orçamento de performance pendentes |
 

@@ -137,6 +137,21 @@ render_editor(bridge, document.payload,
               module_url=CONFIG["module_url"],
               wasm_url=CONFIG["wasm_url"], on_edit_change=receive)
 
+# The same presentation component is used by the operational host later. This
+# lab supplies only synthetic owner data and never grants the panel persistence.
+from src.ui.wordcraft_painel import modelo as modelo_painel, renderizar as renderizar_painel
+history_panel = []
+if st.session_state.get("qa_history", (None,))[0] == document.id:
+    _, historical_revision, historical_hash = st.session_state.qa_history
+    history_panel.append({"revision": historical_revision, "content_hash": historical_hash})
+renderizar_painel(modelo_painel(
+    preparacao=st.session_state.get("qa_context_preparation"),
+    evidencias=st.session_state.get("qa_context_evidence", ()),
+    template=st.session_state.get("qa_context_template"),
+    montagem=st.session_state.get("qa_context_assembly"),
+    historico=history_panel,
+))
+
 # Fixed position after the editor preserves the component mount across reruns.
 if st.button("Bloquear esta revisão para análise", disabled=bridge.state not in {"ready", "saved"} or bridge.controle_pendente() is not None):
     bridge.solicitar_bloqueio(str(uuid4()))
