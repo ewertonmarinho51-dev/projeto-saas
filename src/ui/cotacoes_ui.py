@@ -406,13 +406,13 @@ def _motor_semantico():
 
 
 def _seletor():
-    """O seletor Jev entra só com a flag dele (G4); sem ela, None."""
-    if not db.flag_ativa(governanca.FLAG_JEV_PRECOS):
-        return None
-    try:
-        from ..precos import seletor
-    except ImportError:
-        return None
+    """
+    O seletor roda sempre no modo automático: a triagem determinística
+    não custa nada. O Jev só é consultado com a flag dele, no caso
+    ambíguo e dentro do teto (ver `precos.seletor`).
+    """
+    from ..precos import seletor
+
     return seletor.seletor_padrao()
 
 
@@ -728,10 +728,29 @@ def _chips_da_referencia(linha: dict, dentro: bool) -> list[tuple[str, str]]:
     ]
 
 
+def _chips_da_sugestao(analise: dict | None) -> list[tuple[str, str]]:
+    """O que a triagem disse — sempre como sugestão, nunca como decisão."""
+    if not analise:
+        return []
+    rotulo = {"COMPARABLE": ("regra: comparável", "success"),
+              "INCOMPATIBLE": ("regra: não comparável", "danger"),
+              "REVIEW_REQUIRED": ("revisão humana", "warning")}.get(
+                  analise.get("decisao"), ("", ""))
+    saida = [rotulo]
+    if analise.get("recomendacao"):
+        saida.append((f"Jev {analise['recomendacao']}", "info"))
+    return saida
+
+
 def _render_referencias(ctx, cotacao: dict, item: dict, referencias: list[dict],
                         editavel: bool) -> None:
     if not referencias:
         return
+    from ..precos import seletor
+
+    sugestoes = seletor.sugestoes_do_item(
+        repo.listar_eventos(str(cotacao["id"]), limite=200), str(item["id"]))
+    st.session_state["_cot_sugestoes"] = sugestoes
     escolhidos = precos_ui._render_filtros(referencias)
     visiveis = filtros_mod.aplicar(referencias, escolhidos)
     dentro = {str(r["id"]) for r in cesta.consideradas(referencias)}
@@ -756,7 +775,10 @@ def _referencia(ctx, cotacao: dict, item: dict, linha: dict, dentro: bool,
         texto, valor = st.columns([4, 1.4])
         with texto:
             st.markdown(html.escape(str(linha.get("descricao_original") or "")[:180]))
-            _chips(_chips_da_referencia(linha, dentro))
+            _chips(_chips_da_referencia(linha, dentro)
+                   + _chips_da_sugestao(
+                       (st.session_state.get("_cot_sugestoes") or {})
+                       .get(str(linha["id"]))))
             st.caption(" · ".join(p for p in (
                 str(linha.get("orgao") or ""), str(linha.get("uf") or ""),
                 str(linha.get("fornecedor") or "")) if p))

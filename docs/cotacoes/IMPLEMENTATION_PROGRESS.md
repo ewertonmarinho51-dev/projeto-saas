@@ -112,3 +112,16 @@ Elaborar Cotação com manual e automático no mesmo item.
 - **Cache/índice:** NÃO implementado, por decisão medida. No benchmark sintético o processamento do GovConnect custa ~1–4 ms/item; no real, a rede domina (p50 ≈ 2 s/item, `docs/pricebank-baseline.md`). Cache de resposta de fonte só faria sentido com TTL e escopo por tenant e mudaria a data de coleta registrada; sem medição de reconsulta repetida em produção, ele seria complexidade sem ganho provado. Reavaliar com telemetria real.
 - **Não entregue (dado ausente):** filtro por modalidade/ARP — as fontes integradas não gravam modalidade na referência nem trazem ARP (F078 bloqueado).
 - **Rollback:** reverter o commit; sem schema.
+
+---
+
+## G4 — Jev como seletor barato · PASS (aceite automático BLOQUEADO por desenho)
+
+- **`src/precos/seletor.py`:** cada referência ainda não decidida pelo revisor passa primeiro pelas barreiras existentes (`decisoes.impedimento`: fonte registrada, evidência íntegra, preço, natureza, unidade comprovada, janela, código) e pela comparabilidade determinística: **≥ 75 % → comparável sem IA**, **< 25 % → incompatível sem IA**, código+descrição idênticos → comparável sem IA. **Só a faixa cinzenta** vai ao Jev, pelo caminho que já existe (`decisoes.revisar_referencia` → `ai_gateway.decision`: cache por hash, reserva, timeout, registro de custo).
+- **Abstenção por padrão:** sem calibração aprovada, a saída do Jev é RECOMENDAÇÃO e a decisão fica `REVIEW_REQUIRED`. Nada entra ou sai da cesta, nenhum item é concluído pela IA. `aceite_automatico_permitido()` só seria True com `docs/jev/calibracao_aprovada.json` (aprovador, meta definida antes, ≥ 200 rótulos humanos, meta atingida) — **o arquivo não existe**, e mesmo com ele o seletor não executa o aceite: só o marca.
+- **Custo:** tetos por item (5), por cotação (60 consultas) e de custo (US$ 1,00) — configuráveis em `filtros.jev`; o gasto anterior é somado das propostas gravadas; cache não conta como chamada; IA fora do ar → revisão humana, cotação segue.
+- **Trilha:** cada proposta vira evento `selecao_sugerida` (tipo da 0029) com contagem, chamadas, cache, custo e a análise de cada referência; a tela mostra chips "regra: comparável / revisão humana / Jev sugere …".
+- **Provas:** `tests/test_cotacoes_g4_seletor.py` (10) com dublê do Jev — nenhuma chamada paga.
+- **Benchmark sintético** (`scripts/seletor_benchmark.py`, `docs/jev/seletor-benchmark-sintetico.json`), cadeia real `busca.coletar` → matching → triagem, 15 casos rotulados POR CONSTRUÇÃO: 3/3 comparáveis corretos, 9/9 incompatíveis corretos, **0 falso positivo**, 20 % de abstenção (1 paráfrase do mesmo produto e 2 vizinhos), 0 chamadas de IA. **Não é calibração do Jev**: o dataset humano (`docs/jev/dataset_candidatos.json`) segue com 5 pares sem rótulo, e a meta de falso positivo precisa ser definida pela equipe responsável antes de qualquer promoção.
+- **Flag:** `jev_price_research` continua OFF; com ela OFF o seletor faz só a parte determinística (custo 0).
+- **Rollback:** reverter o commit; sem schema novo além do tipo de evento já previsto na 0029.
