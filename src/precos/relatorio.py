@@ -449,9 +449,9 @@ def completo(pesquisa: dict, itens: list[dict],
     # existe um conjunto deles para cada item. Ficam dentro de cada
     # bloco, com a correspondência dita em voz alta para quem procura a
     # numeração do prompt.
-    ad("Cada item abaixo traz, na ordem: as referências selecionadas "
-       "(item 13 da estrutura), as desconsideradas com o motivo de cada "
-       "exclusão (14), a memória de cálculo (15), o preço estimado "
+    ad("Cada item abaixo traz, na ordem: as referências consideradas no "
+       "cálculo (item 13 da estrutura), as não consideradas com o motivo "
+       "de cada uma (14), a memória de cálculo (15), o preço estimado "
        "unitário (16) e o valor total do item (17).")
     ad("")
     for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
