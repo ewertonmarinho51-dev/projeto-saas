@@ -1,0 +1,68 @@
+# QA automatizado do canvas em Chromium headless
+
+Contrato registrado antes do código em 16/10/2026. Este incremento é teste de
+software do repositório em Linux CI, com três fixtures sintéticas verificadas.
+Não é observação manual pelo conector Browser, homologação G1, prova GoTrue,
+persistência de produção, aprovação institucional ou aceite visual de layout.
+
+O script planejado `scripts/wordcraft_browser_qa.mjs` recebe caminhos de servidor
+explícitos para bundle recém-compilado, manifesto com SHA confiável, checkpoints
+do mesmo build, corpus imutável, Python e pacote QA. Antes de criar saídas ou
+abrir HTTP, reutiliza `wordcraft_corpus.verify_inputs`, o validador/exportador
+nativo e `text_blocks` para ligar cada checkpoint à fixture DOCX sintética.
+Revalida hashes ao ler os bytes que seguirão ao browser. Os três casos precisam
+ser admitidos; documento alheio, ausência ou divergência recusa toda a execução.
+
+Playwright Core é dependência exclusiva de QA em RUNNER_TEMP: versão 1.56.1,
+Node >=18, pacote oficial
+`https://registry.npmjs.org/playwright-core/-/playwright-core-1.56.1.tgz`, SHA-512
+`hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ==`.
+O catálogo oficial dessa versão fixa Chromium/headless-shell revisão 1194,
+versão 141.0.7390.37. O script confere pacote, catálogo, revisão e versão do
+browser executado, registra hashes locais e não escolhe outro browser se faltar.
+Instalação segue o CLI pinado, com browsers/cache QA em RUNNER_TEMP; nenhuma
+dependência runtime do produto é adicionada.
+
+O servidor estático escuta somente 127.0.0.1 e responde a um mapa fechado de
+HTML/JS/WASM de teste e host. Não serve diretórios, manifests, JSONs, checkpoints,
+DOCX/PDF, traces, HAR, credenciais nem uma API de upload. Os checkpoints entram
+pela chamada em memória de Node para a página, sem URL ou conteúdo em argv.
+O browser também bloqueia requisições fora desse mapa/origem. Somente screenshots
+sintéticos e JSON sanitizado de etapas, hashes, contagens e limites são gravados.
+
+Cada caso usa um `GovConnectEditor` público e `EditorController` existente sobre
+um canvas real, sem acesso a Session/runner privados nem motor de alteração de
+JSON. Exercita edição API, dirty, checkpoint, ACK de transporte **simulado** e
+rerun de props na mesma instância. Essa confirmação não é save/ACL/CAS de banco.
+Um InputEvent DOM sintético deve ser observado ainda pendente antes do pedido
+freeze e percorrer a captura real do eframe; a drenagem deve recusar a prova,
+reter a edição e permitir checkpoint normal. Isso não representa IME manual.
+
+Um teste separado usa `page.keyboard.type` do Playwright sobre o agente de texto
+real e exige mudança de geração, bytes/hash e texto alvo. Teclado que falhar
+falha o CI: não há substituição por API ou stub. Freeze limpo precisa aguardar
+readiness nativa, conservar o hash, recusar APIs de edição durante frozen,
+aceitar somente release correlacionado e ignorar replay terminal. Após release,
+patch tipado nativo deve recusar hash stale, alterar o alvo, conservar histórico
+anterior e retornar hashes exatos com undo/redo. Nenhuma Session é recarregada
+para simular esse histórico. Exportações DOCX/PDF podem ser verificadas em memória.
+
+Chromium roda headless com WebGL/SwiftShader para renderização de software,
+prazo por etapa e prazo global. Falha de Chromium, engine, input, barreira,
+timeout ou API ausente falha o job; não há skip ou PASS condicional. Screenshot
+é evidência de render automatizado, sem aprovação visual humana. IME manual,
+toolbar real, Streamlit completo e persistência completa permanecem pendentes
+quando não exercitados por esse teste.
+
+O step fica depois dos roundtrips/import/export/patch puro e antes dos artifacts
+de `wordcraft-build.yml`, sem build alternativo, deploy ou produção. Testes Node
+offline do novo harness cobrem mapa estático, limites, confinamento e saídas
+sanitizadas; não são apresentados como execução Chromium.
+
+Fontes primárias verificadas:
+[release Playwright 1.56.1](https://github.com/microsoft/playwright/releases/tag/v1.56.1),
+[catálogo de browsers pinado](https://raw.githubusercontent.com/microsoft/playwright/v1.56.1/packages/playwright-core/browsers.json),
+[package.json pinado](https://raw.githubusercontent.com/microsoft/playwright/v1.56.1/packages/playwright-core/package.json),
+[metadata NPM oficial](https://registry.npmjs.org/playwright-core/1.56.1),
+[instalação oficial de browsers](https://playwright.dev/docs/browsers),
+[API oficial de teclado](https://playwright.dev/docs/api/class-keyboard).

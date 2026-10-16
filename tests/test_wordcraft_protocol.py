@@ -34,6 +34,77 @@ def abrir(p):
     receber(p, evento(p, "loaded", {"content_hash": DIGEST}))
 
 
+def test_canvas_requires_a_requested_correlated_freeze_before_release(ponte):
+    abrir(ponte)
+    command = str(uuid4())
+    assert ponte.canvas_bloqueado() is None
+    with pytest.raises(ErroPonte):
+        receber(ponte, evento(ponte, "frozen", dict(command_id=command, content_hash=DIGEST, generation="1")))
+    ponte.solicitar_bloqueio(command)
+    outbound = ponte.controle_pendente()
+    outbound["content_hash"] = "a" * 64
+    assert ponte.controle_pendente()["content_hash"] == DIGEST
+    receber(ponte, evento(ponte, "frozen", dict(command_id=command, content_hash=DIGEST, generation="1")))
+    proof = ponte.canvas_bloqueado()
+    assert ponte.state == "frozen" and proof["command_id"] == command and proof["revision"] == 0
+    proof["revision"] = 99
+    assert ponte.canvas_bloqueado()["revision"] == 0
+    for kind in ("changed", "checkpoint"):
+        with pytest.raises(ErroPonte):
+            receber(ponte, evento(ponte, kind))
+    with pytest.raises(ErroPonte): ponte.liberar_bloqueio(str(uuid4()))
+    ponte.liberar_bloqueio(command)
+    assert ponte.controle_pendente()["action"] == "release"
+    assert ponte.canvas_bloqueado() is None  # Ineligible before the browser can unlock.
+    receber(ponte, evento(ponte, "released", {"command_id": command}))
+    assert ponte.state == "saved" and ponte.canvas_bloqueado() is None and ponte.controle_pendente() is None
+    with pytest.raises(ErroPonte): ponte.solicitar_bloqueio(command)
+
+
+@pytest.mark.parametrize("case", ["command", "hash", "generation", "extra", "dirty", "unrequested_release"])
+def test_forged_canvas_proof_does_not_consume_state(ponte, case):
+    abrir(ponte)
+    command = str(uuid4())
+    ponte.solicitar_bloqueio(command)
+    payload = dict(command_id=command, content_hash=DIGEST, generation="12")
+    if case == "command": payload["command_id"] = str(uuid4())
+    if case == "hash": payload["content_hash"] = "a" * 64
+    if case == "generation": payload["generation"] = "1e20"
+    if case == "extra": payload["approved"] = True
+    if case == "dirty": receber(ponte, evento(ponte, "changed"))
+    value = evento(ponte, "released", {"command_id": command}) if case == "unrequested_release" else evento(ponte, "frozen", payload)
+    before = deepcopy(ponte.__dict__)
+    with pytest.raises(ErroPonte): receber(ponte, value)
+    assert ponte.__dict__ == before and ponte.canvas_bloqueado() is None
+
+
+def test_late_dirty_notice_cancels_freeze_and_requires_a_new_command(ponte):
+    abrir(ponte)
+    command = str(uuid4())
+    ponte.solicitar_bloqueio(command)
+    changed = evento(ponte, "changed")
+    failed = evento(ponte, "control_failed", dict(command_id=command, reason="dirty"))
+    failed["sequence"] += 1
+    ponte.receber_lote({"events": [changed, failed]}, origin=ponte.origin, source_ok=True)
+    assert ponte.state == "dirty" and ponte.canvas_bloqueado() is None and ponte.controle_pendente() is None
+    assert ponte.falha_controle() == {"command_id": command, "reason": "dirty"}
+    pending = checkpoint(ponte)
+    ponte.confirmar_checkpoint(request_id=pending.request_id, revision=1, content_hash=DIGEST)
+    with pytest.raises(ErroPonte): ponte.solicitar_bloqueio(command)
+    ponte.solicitar_bloqueio(str(uuid4()))
+    assert ponte.controle_pendente()["revision"] == 1 and ponte.falha_controle() is None
+
+
+@pytest.mark.parametrize("reason", [None, [], {}, "approved", "timeout"])
+def test_control_failure_has_a_closed_reason_vocabulary(ponte, reason):
+    abrir(ponte)
+    command = str(uuid4()); ponte.solicitar_bloqueio(command)
+    before = deepcopy(ponte.__dict__)
+    with pytest.raises(ErroPonte):
+        receber(ponte, evento(ponte, "control_failed", dict(command_id=command, reason=reason)))
+    assert ponte.__dict__ == before
+
+
 def checkpoint(p):
     return receber(p, evento(p, "checkpoint", {
         "content_hash": DIGEST, "content_base64": base64.b64encode(CONTENT).decode(),

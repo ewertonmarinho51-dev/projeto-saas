@@ -69,5 +69,8 @@ def render_editor(bridge: Ponte, checkpoint: bytes, *, module_url: str, wasm_url
     save_error = bridge.falha_pendente()
     if save_error is not None:
         data["save_error"] = save_error
+    control = bridge.controle_pendente()
+    if control is not None:
+        data["control"] = control
     return _renderer()(data=data, key=f"wordcraft_{bridge.instance_id}",
                        height="content", width="stretch", on_edit_change=on_edit_change)

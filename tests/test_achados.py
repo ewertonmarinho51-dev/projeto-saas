@@ -111,6 +111,21 @@ def test_clausula_de_assinaturas_e_caminho_bloqueado():
     assert f["autoCorrectable"] is False
 
 
+def test_unnumbered_native_signatures_remain_blocked_until_a_numbered_heading():
+    native = [
+        {"path": "dfd/clausula/8/title", "tipo": "titulo", "clausula": 8, "conteudo": "8. Equipe de planejamento"},
+        {"path": "dfd/clausula/8/body", "tipo": "paragrafo", "clausula": 8, "conteudo": "Protegido."},
+        {"path": "dfd/institucional/sign-title", "tipo": "titulo", "clausula": None, "conteudo": "Assinaturas"},
+        {"path": "dfd/institucional/sign-body", "tipo": "paragrafo", "clausula": None, "conteudo": "Pessoa sintética"},
+        {"path": "dfd/clausula/2/title", "tipo": "titulo", "clausula": 2, "conteudo": "2. Necessidade"},
+        {"path": "dfd/clausula/2/body", "tipo": "paragrafo", "clausula": 2, "conteudo": "Texto editável."},
+    ]
+    blocked = achados.caminhos_bloqueados("dfd", native)
+    assert {"dfd/institucional/sign-title", "dfd/institucional/sign-body", "dfd/clausula/8/body"} <= set(blocked)
+    assert "dfd/clausula/2/body" not in blocked and "dfd/clausula/2/title" not in blocked
+    assert len(blocked) == len(set(blocked))
+
+
 def test_relatorio_e_deterministico_para_o_mesmo_conteudo():
     doc = {"memo": DOC_LIMPO + "\n[PREENCHER: valor]\n"}
     rel1, rel2 = achados.gerar_relatorio(doc), achados.gerar_relatorio(doc)

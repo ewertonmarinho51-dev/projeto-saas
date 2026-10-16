@@ -141,6 +141,7 @@ SEQUENCIA_EM_ENSAIO = (
     "20261015122441_documentos_editor_persistencia_g2.sql",
     "20261015124841_documentos_editor_snapshot_institucional.sql",
     "20261015174145_documentos_editor_aprovacao_nativa.sql",
+    "20261016041756_documentos_editor_patch_lote.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
@@ -384,12 +385,12 @@ def criar_banco_descartavel(dsn: str) -> tuple[str, str]:
     with psycopg.connect(dsn, autocommit=True) as conexao:
         with conexao.cursor() as cursor:
             cursor.execute(f'create database "{nome}"')
-    if "/" in dsn.split("?")[0].rsplit("@", 1)[-1]:
-        base, _, resto = dsn.partition("?")
-        base = base.rsplit("/", 1)[0] + "/" + nome
-        novo = f"{base}?{resto}" if resto else base
-    else:  # pragma: no cover — DSN sem nome de banco
-        novo = dsn
+    # psycopg accepts URI and PostgreSQL keyword/value conninfo. Rebuild both
+    # forms through libpq's parser so the returned DSN always names the new
+    # database and preserves host, port, SSL and timeout options.
+    parametros = psycopg.conninfo.conninfo_to_dict(dsn)
+    parametros["dbname"] = nome
+    novo = psycopg.conninfo.make_conninfo(**parametros)
     return novo, nome
 
 

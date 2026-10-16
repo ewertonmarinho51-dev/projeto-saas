@@ -386,12 +386,13 @@ def aplicar_plano_nativo(plano: dict, documentos: dict[str, nativos.DocumentoNat
         blocked = {p for f in relatorio["findings"] for p in f["blockedPaths"]}
         if _validar_diff_por_clausula(budget_diff, allowed, blocked, max_proporcao_blocos):
             raise ErroAplicacao("Diff nativo excede escopo, bloqueio ou orçamento do ciclo.")
-        novos, after_views = dict(documentos), dict(views)
+        novos, after_views, native_commands = dict(documentos), dict(views), {}
         for key, native_ops in compiled.items():
             original = documentos[key]
+            native_commands[key] = {"schema": "gc-wordcraft-native-patch/v1", "source_hash": original.indice.content_hash,
+                       "source_revision": original.indice.revision, "operations": native_ops}
             result = wordcraft_native.aplicar_patch(original.checkpoint, revision=original.indice.revision,
-                plano={"schema": "gc-wordcraft-native-patch/v1", "source_hash": original.indice.content_hash,
-                       "source_revision": original.indice.revision, "operations": native_ops}, **config)
+                plano=native_commands[key], **config)
             digest = hashlib.sha256(result).hexdigest()
             fresh = nativos.construir_indice(result, document_id=original.indice.document_id,
                 revision=original.indice.revision + 1, content_hash=digest, **config)
@@ -427,7 +428,8 @@ def aplicar_plano_nativo(plano: dict, documentos: dict[str, nativos.DocumentoNat
                   for p in d["alterados"] + d["adicionados"] + d["removidos"]}
         if actual != touched:
             raise ErroAplicacao("O resultado nativo não corresponde exatamente aos parágrafos do plano.")
-        return {"documentos": novos, "snapshot": snap_depois, "diff": diff, "versao": version + 1}
+        return {"documentos": novos, "snapshot": snap_depois, "diff": diff, "versao": version + 1,
+                "comandos": native_commands}
     except ErroAplicacao:
         raise
     except (wordcraft_native.ModeloRecusado, wordcraft_native.MotorIndisponivel,

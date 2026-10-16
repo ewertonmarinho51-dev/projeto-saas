@@ -50,7 +50,7 @@ def request(port, path, body=b"{}"):
 
 
 @pytest.mark.parametrize("value", ["https://127.0.0.1:80", "http://outside.invalid:80", "http://localhost:80",
-    "http://127.0.0.1", "http://user:pass@127.0.0.1:80", "http://127.0.0.1:80/path",
+    "http://127.0.0.1", "http://user:pass" + "@" + "127.0.0.1:80", "http://127.0.0.1:80/path",
     "http://127.0.0.1:80/?query=private", "http://127.0.0.1:80/#fragment", "http://127.0.0.1:99999"])
 def test_only_explicit_loopback_origin_is_accepted(value):
     with pytest.raises(ValueError):

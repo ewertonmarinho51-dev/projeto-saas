@@ -1,118 +1,101 @@
 # Contratos e gates observados
 
-## Autoridade e formato
+Snapshot de integração: 16/10/2026. O relatório formal mais recente fica em
+`outputs/RELATORIO_WORDCRAFT_CONTINUACAO_10.md` na pasta da tarefa. Resultados
+históricos não substituem CI do commit atual ou a versão efetivamente implantada.
 
-O GovConnect continua dono de identidade, processo, fatos, aprovação, trilha e emissão.
-`src/wordcraft_protocol.py` é somente a fronteira de validação do protocolo; não é
-DocumentoService, CAS, RLS nem persistência. Não há import desse módulo no fluxo operacional.
-O campo experimental `gc-wordcraft-snapshot/v1` identifica o contêiner candidato do
-adaptador Rust. Os 11 testes nativos passaram no run 38651115647; a API WASM integrada
-e o roundtrip do corpus ainda aguardam conclusão do build. A validação Python do envelope
-não valida o modelo documental: não enviar esses bytes diretamente ao banco.
+## Autoridade, formato e transporte
 
-**JSON nativo isolado não é candidato seguro para documento institucional.** No SHA
-inspecionado, `crates/doc/src/lib.rs::Document` usa `#[serde(skip)]` em `media` e
-`passthrough`. O `engine::io` abre JSON via `serde_json::from_slice`. Assim, serializar
-apenas o modelo omite imagens e partes de origem. Isso precisa de um contêiner que
-preserve esses campos ou DOCX com fidelidade demonstrada antes de escolher o canônico.
-O contêiner do adaptador preserva media/passthrough e tem testes nativos de roundtrip;
-isso ainda não prova a fidelidade de importação/exportação dos documentos institucionais.
-Posições usam story/path/offset;
-não foi comprovada estabilidade de IDs após inserção de parágrafos ou tabelas.
+GovConnect continua dono de identidade, processo, fatos, aprovação, trilha e
+emissão. `DocumentoService` reutiliza os clientes canônicos de usuário e servidor;
+seu contexto é reconciliado com o JWT e os atos sensíveis rechecados nas RPCs.
+`Ponte` valida o transporte, sem conceder ACL ou produzir persistência.
 
-## Fronteira implementada, ainda sem proprietário de persistência
+O formato experimental `gc-wordcraft-snapshot/v1` preserva modelo, media e
+passthrough. JSON isolado de Document não serve: no upstream pinado, media e
+passthrough têm serde(skip). O codec nativo, a validação e a exportação usam o
+mesmo motor. Nenhum novo documento nativo é salvo como Markdown. Projeções de
+análise são somente leitura, sem autoridade de persistência ou endereço de edição.
 
-- Envelope fechado: protocol/request/instance/session/document/revision/event/sequence/nonce/payload.
-- Não aceita tenant, role, comandos, caminhos ou eventos ACK vindos do cliente.
-- Origin configurada e nonce/replay no protocolo. O transporte atual é o estado do componente
-  Streamlit v2, não um listener público de postMessage. `source_ok` permanece uma condição
-  interna do chamador e nunca representa autenticação ou autorização do usuário.
-- Máximo 8 MiB decodificados, sequência inteira segura para JavaScript, hash SHA-256.
-- opening → ready → dirty → saving → saved somente com ACK confiável correlacionado.
-- Edição durante envio/erro continua dirty após confirmação do checkpoint anterior.
-- Timeout/erro conserva o mesmo request e bytes para retry idempotente pelo futuro backend.
-- Conflito bloqueia novas alterações e ACKs tardios; exige reconciliação explícita.
+O build integrado `38823785860`, commit `f23a6c5`, passou em codec, patches,
+histórico da Session, UI, Clippy, WASM e import/export. Isso não comprova que os
+incrementos posteriores de controle do canvas já estejam compilados ou observados.
 
-Não inferir autenticação a partir de `source_ok`: ele é um contrato interno para o
-futuro adaptador, não uma alegação confiável de um evento do navegador. ACL real deve
-ocorrer em cada operação do backend, com JWT do usuário e transação de revisão.
+O envelope fechado exige protocol/request/instance/session/document/revision/
+event/sequence/nonce/payload. O componente v2 conserva a instância entre reruns.
+O outbox transmite até 256 eventos não consumidos, sem descartar rascunho; o ACK
+de transporte apenas remove o prefixo aceito. Limite individual: 8 MiB de bytes,
+SHA-256 e inteiros seguros para JavaScript. Tenant, papel, plano de IA e ACK não
+são concedidos por eventos do cliente. `source_ok` é só contrato interno do host.
 
-## Lacunas do shell upstream
+A gravação usa CAS e operação idempotente no banco. O ACK de persistência exige
+revisão/hash/operação confirmados pelo owner. Digitação durante envio mantém o
+rascunho dirty depois do ACK anterior. Retry conserva os bytes e a operação;
+conflito impede sobrescrita e requer reconciliação. Picker/download upstream não
+participa desse fluxo. Recursos externos e comandos genéricos de Session não são
+expostos à LLM; o adaptador aceita operações textuais fechadas e delimitadas.
 
-`apps/wordcraft-web/src/web.rs` constrói `WebShell { app, inbox, saves }`; o documento
-é aberto pela inbox e Save usa serviços de download/picker. `app.autosave = false`.
-O overlay cria uma entrada explícita em `govconnect_browser.rs` com a própria Session,
-sem usar esse shell de picker/download. Picker cancelado já possui guarda
-própria, mas download concluído não significa commit no GovConnect.
+## Persistência, aprovação e patches
 
-O wrapper usa Services::default, restringe recursos externos e expõe operações tipadas.
-O host conserva a instância entre reruns; o laboratório local comprovou abertura, edição, commit, ACK e recarga com WASM real. As revisões editadas de texto, timbrado e tabela foram exportadas em DOCX/PDF pelo owner autenticado no laboratório.
-Comandos de IA continuam passando pelo pipeline de patches canônico. Nenhum comando
-genérico de `Session::run` será exposto ao browser ou à LLM.
+Originais de importação, índice de blocos, snapshot institucional e restauração
+ficam na revisão imutável existente. Restaurar cria nova revisão CAS; histórias
+sem prova continuam desconhecidas. IDs só são preservados quando unicidade ou
+linhagem de uma operação verificada justificam a identidade. Posição parecida
+não prova identidade. A importação é admitida antes de chegar ao WASM.
 
-## Gates desta entrega parcial
+A aprovação individual reutiliza governanca_aprovacoes, qualidade e evento
+canônico na mesma transação. Vincula revisão/hash/build/fontes/snapshot exatos.
+O ramo nativo não rotula Markdown antigo como aprovado nem avança o wizard.
+A emissão do pacote exige consumidor de fontes nativas ainda pendente. O controle
+freeze/release do canvas está em implementação e testes; não se declara frescor
+da revisão visível apenas porque o backend conhecia o estado ready/saved.
 
-| Gate | Estado | Evidência / dependência |
+Patches passam pelo mesmo corretor/aplicador/FIXED/escopo/diff. A preparação é
+backend e selada pela instância do owner. O wrapper de lote reutiliza checkpoint,
+com CAS de todas as fontes, grava revisões e auditoria do ciclo na mesma transação.
+Falha no segundo alvo ou evento reverte tudo. Checkpoints do host precisam
+corresponder exatamente aos bytes preparados. Sem prova de canvas, um recibo de
+backend não certifica Undo da interface. O fluxo completo ainda está pendente.
+
+## Gates da missão integral
+
+| Gate | Estado | Evidência e lacuna material |
 |---|---|---|
-| 0 Auditoria | PARCIAL | baseline upstream reproduzido; SBOM e 13 avisos reunidos; revisão de distribuição incompleta |
-| 1 Vertical slice | PASS LOCAL LIMITADO | build 240 aprovado; navegador abriu/editou/gravou/recarregou/exportou texto, timbrado A4 e tabela de 210 itens; ver g1-evidencias.md; não certifica produção/G3/G7 |
-| 2 Persistência | PARCIAL | owner mínimo para G1 implementado; 13 testes SQL reais de CAS/RLS/histórico; migração de legado e homologação definitivas pendentes |
-| 3 Exportação | PENDENTE | corpus sintético canônico gerado (3 DOCX/PDF, tabela de 210 itens); roundtrip e aprovação visual pendentes |
-| 4 GovBot/Patches | BLOCKED | regressão do aplicador passa; sem âncoras nativas homologadas |
-| 5 Seis capacidades | BLOCKED | serviços atuais preservados, integração contextual não implementada |
-| 6 Limpeza | BLOCKED | nenhuma substituição comprovada; nenhuma retirada autorizável |
-| 7 Homologação | BLOCKED | sem prova E2E, isolamento, emissão ou performance |
+| G0 Auditoria | PARCIAL | baseline reproduzido; closure WASM com 251 pacotes/186 textos; 17 expressões para revisão, 12 pacotes sem texto e 14 sem texto da licença de código; distribuição não aprovada |
+| G1 Percurso mínimo | PASS LOCAL LIMITADO | navegador abriu/editou/salvou/recarregou/exportou texto, timbrado e tabela de 210 itens; g1-evidencias.md; sem promoção a G3/G7 |
+| G2 Persistência | PARCIAL | importação DOCX/Markdown, originais, índices, restauração e restart reais; snapshot/aprovação individual implementados; pacote/emissão/consumidor pendentes |
+| G3 Fidelidade | PARCIAL | 16 DOCX passam no roundtrip nativo; LO baseline16/70 páginas; derivado6/16 casos,44/50 PNGs iguais e6 diferenças em tabelas; prova Linux pendente após duas falhas limitadas Windows |
+| G4 Patches | PARCIAL | motor real preservou79 IDs/27 blocos protegidos,8 negativos recusados;188 SQL passaram no lote; canvas/ACK/Undo persistido e GovBot pendentes |
+| G5 Seis capacidades | PENDENTE | serviços atuais preservados; integração contextual nativa não concluída |
+| G6 Paridade e retirada | PENDENTE | nenhuma funcionalidade legada retirada; substituição só após comprovação |
+| G7 Homologação | PARCIAL | CAS/RLS/imutabilidade SQL e HTTP sintéticos; GoTrue Linux implementado,primeiro run falhou preflight; Auth real,emissão e orçamento de performance pendentes |
 
-Flags operacionais não foram alteradas. Não existe opção WordCraft habilitada.
-Não houve merge, migration remota, convite Auth ou consumo de IA paga. A migration 20261015035015 foi aplicada somente ao PostgreSQL descartável em loopback. O primeiro
-push disparou uma integração Vercel preexistente, que falhou; o auto-deploy desta branch
-foi depois desabilitado em vercel.json. Não há evidência de implantação bem-sucedida.
+CI: f23a6c5 teve build WASM e produto aprovados. O commit publicado 428acb6
+acrescentou aprovação/Auth e falhou no scanner por URLs sintéticas de loopback e
+no preflight da forma do archive oficial Auth. As correções precisam de novo CI;
+nenhuma dessas falhas foi convertida em sucesso por hipótese ou teste parcial.
 
-## Retomada reproduzível
+## Reprodução, ativação e rollback
 
-1. Usar a revisão pinada em `upstream.lock.json` e o overlay da mesma revisão GovConnect.
-2. Executar o workflow isolado wordcraft-build.yml: Rust 1.99.0, target wasm32 e Trunk
-   0.21.14 verificado por hash. O Windows local não tem o linker MSVC; WSL não instalado.
-3. A reutilização do baseline exige run, ZIP, pin e Cargo.lock exatos; qualquer falha
-   retorna aos gates upstream completos. Os testes/build da integração sempre executam.
-4. Preservar logs e artefatos. Instalar JS/WASM apenas em laboratório marcado usando
-   wordcraft_local_assets.py com SHA do ZIP e commit produtor verificados.
-5. Validar checkpoints no backend via wordcraft_native.py com Node 24 e SHA do manifesto
-   fixado pelo servidor; nunca aceitar caminhos/hashes do cliente como configuração.
-6. Usar DocumentoService; o percurso abrir/editar/checkpoint/ACK/reabrir/exportar foi observado nos três casos sintéticos. Ampliar a homologação conforme G2–G7.
+Usar upstream.lock.json e overlay da mesma revisão, toolchains pinados e hashes
+de ZIP/manifesto/assets. Reutilizar somente o baseline upstream aprovado e exato;
+os checks da integração sempre executam. Instalar assets apenas no laboratório
+marcado, nunca servir checkpoints em static. O IPC Node tem stdin/stdout limitados
+e ambiente sem credenciais; config de bundle/manifesto vem do servidor.
 
-Trunk exige obtenção de suas dependências de build; presença de executável não é prova
-de build. Testes Python de contrato não certificam segurança do transporte nem RLS.
+Os bancos de ensaio são locais descartáveis em loopback. Sessões/JWTs sintéticos
+não são GoTrue. O título corrigido foi observado como Documento1 — GovConnect;
+a única confirmação de persistência continua sendo o ACK do backend. Provas
+históricas e limitações estão em g1-evidencias.md, persistencia-g2.md,
+ato-unico-aprovacao.md, patches-persistencia.md e libreoffice-local.md.
 
-## Substituição e rollback
+Todos os recursos da matriz03 permanecem LEGADO MANTIDO PARA COMPATIBILIDADE.
+TipTap, exportador e consumidores antigos não foram retirados. Não há flag
+operacional WordCraft ativa, merge, migration remota ou deploy autorizado.
+O primeiro push histórico disparou Vercel e falhou; o auto-deploy da branch foi
+depois desabilitado em vercel.json. Não há implantação bem-sucedida comprovada.
 
-### Entrega de eventos pelo componente v2
-
-O estado `edit` transporta `{events: [envelope, ...]}` com todos os eventos ainda
-não consumidos, em sequência. Isso preserva checkpoint/changed quando atualizações
-de estado são coalescidas. `Ponte.receber_lote` valida o lote inteiro em uma cópia
-antes de consumir qualquer evento novo. Prefixos já consumidos podem reaparecer em
-reruns. Lacunas, desordem e lote inválido não consomem estado. Limites: 256 eventos
-pendentes e 16 Mi caracteres de payload base64 no lote; limites individuais permanecem.
-
-O renderer devolve `event_ack=ponte.sequence` após aceitação do lote, para o
-host retirar somente o prefixo consumido. Esse ACK de transporte não significa save.
-Gravação continua exigindo commit backend, revisão/hash e `confirmar_checkpoint`;
-somente então o renderer devolve `ack` de persistência. A fila não grava dados fora
-da memória do componente. Overflow exige reconciliação sem descartar o rascunho.
-
-Testes Node/Python cobrem coalescência simulada, atomicidade, falhas do IPC e evento
-changed emitido antes do ACK mas entregue depois dele. O laboratório real usa
-PostgreSQL/PostgREST em loopback, JWT sintético verificado e o bundle 896 pinado.
-Texto: revisão 2 reaberta com hash idêntico. Tabela: revisão 3 reaberta após edição
-real de célula, hash e82d3f9b2f7e229c7074d4d16bfdcdc7d9a81c3096833b9de1c6d76c26a4fd5f.
-Isso não certifica GoTrue, staging, exportação editada, fidelidade institucional ou G7.
-O título nativo ainda exibe estado baseado em arquivo local; o estado de persistência
-válido é o confirmado pelo host. Essa divergência visual permanece pendente.
-
-Todos os recursos da matriz 03 permanecem no estado **LEGADO MANTIDO PARA COMPATIBILIDADE**.
-O código novo é isolado e sem consumidores operacionais: reverter seu commit retira
-a fundação sem tocar documentos. Não existe ainda rollback de documentos WordCraft
-para documentos de produção; somente documentos sintéticos foram criados no laboratório. Histórico sintético fica preservado no banco local. Para futura ativação:
-preservar bytes originais, revisões, snapshots e artefatos antes de trocar UI; flag
-isolada não fornece rollback de dados. Retirar TipTap ou exportadores agora seria incorreto.
+Rollback operacional exige preservar originais, revisões, snapshots e artefatos,
+além de consumidor source-aware. Reverter flag/UI não converte dados nativos.
+Somente dados sintéticos foram usados; nenhum rollback de dados em produção foi
+executado ou certificado. Missão permanece ativa e não apta para produção.

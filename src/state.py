@@ -258,11 +258,13 @@ def aprovar_e_avancar(doc_key: str, texto_editado: str, *, vinculo_nativo=None, 
         if not isinstance(vinculo_nativo, VinculoAprovacao) or not isinstance(documento_service, DocumentoService):
             st.error("A aprovação exige o vínculo nativo confirmado pelo owner documental.")
             return
-        if (not isinstance(ponte_nativa, Ponte) or ponte_nativa.state not in {"ready", "saved"}
+        proof = ponte_nativa.canvas_bloqueado() if isinstance(ponte_nativa, Ponte) else None
+        if (not isinstance(ponte_nativa, Ponte) or proof is None
+                or proof["command_id"] != vinculo_nativo.operation_id
                 or ponte_nativa._pending is not None
                 or (ponte_nativa.document_id, ponte_nativa.revision, ponte_nativa.content_hash)
                 != (vinculo_nativo.document_id, vinculo_nativo.revision, vinculo_nativo.content_hash)):
-            st.error("A revisão nativa ainda não possui confirmação de gravação coerente nesta sessão.")
+            st.error("A revisão exige confirmação de canvas bloqueado para esta operação antes da aprovação.")
             return
         try:
             document = documento_service.abrir(vinculo_nativo.document_id)

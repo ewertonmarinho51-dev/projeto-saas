@@ -1,0 +1,449 @@
+// Repository QA only: real Chromium/canvas, synthetic inputs, simulated transport ACK.
+import {readFile, realpath, stat, mkdir, writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {createServer} from 'node:http';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {dirname, isAbsolute, relative, resolve, sep} from 'node:path';
+import {fileURLToPath, pathToFileURL} from 'node:url';
+import {verifyBundle} from '../assets/wordcraft_editor/validate.mjs';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const runFile = promisify(execFile);
+export const QA_PIN = Object.freeze({playwright: '1.56.1', chromiumRevision: '1194', chromiumVersion: '141.0.7390.37',
+  packageSha512: 'hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ=='});
+export const CASES = Object.freeze(['01-texto-listas-links', '02-tabela-210-itens', '03-timbrado-assinaturas']);
+const MAX_INPUT = 8 * 1024 * 1024;
+const MAX_SCREENSHOT = 8 * 1024 * 1024;
+const STAGES = new Set(['configuration', 'bundle_admission', 'synthetic_admission', 'playwright_pin', 'http_confinement',
+  'chromium_start', 'canvas_open', 'api_edit', 'queued_input', 'keyboard_input', 'freeze_release',
+  'native_patch_undo', 'native_export', 'screenshot', 'runtime_errors', 'cleanup', 'global_timeout']);
+const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+const check = (condition, stage) => { if (condition !== true) throw new BrowserQaFailure(stage); };
+
+export class BrowserQaFailure extends Error {
+  constructor(stage) { super('Browser QA refused.'); this.stage = STAGES.has(stage) ? stage : 'configuration'; }
+}
+
+export function failureRecord(stage) {
+  return {status: 'FAIL_HEADLESS_BROWSER_QA', failed_stage: STAGES.has(stage) ? stage : 'configuration',
+    manual_browser_observation: false, gotrue_or_database_proof: false};
+}
+
+export function parseArgs(args) {
+  const keys = new Set(['bundle', 'manifest-sha256', 'checkpoints', 'inputs', 'playwright', 'python', 'out', 'producer-commit']);
+  const result = {};
+  check(args.length === keys.size * 2, 'configuration');
+  for (let index = 0; index < args.length; index += 2) {
+    const key = args[index].slice(2), value = args[index + 1];
+    check(args[index].startsWith('--') && keys.has(key) && !Object.hasOwn(result, key)
+      && typeof value === 'string' && value.length > 0 && value.length <= 4096, 'configuration');
+    result[key] = value;
+  }
+  check(/^[0-9a-f]{64}$/.test(result['manifest-sha256']) && /^[0-9a-f]{40}$/.test(result['producer-commit']), 'configuration');
+  for (const key of ['bundle', 'checkpoints', 'inputs', 'playwright', 'python', 'out']) check(isAbsolute(result[key]), 'configuration');
+  return result;
+}
+
+async function boundedFile(path, maximum, stage) {
+  const info = await stat(path);
+  check(info.isFile() && info.size > 0 && info.size <= maximum, stage);
+  const content = await readFile(path);
+  check(content.length === info.size && content.length <= maximum, stage);
+  return content;
+}
+
+export async function verifyPlaywright(root) {
+  root = await realpath(root);
+  const pkg = JSON.parse(await boundedFile(resolve(root, 'package.json'), 32 * 1024, 'playwright_pin'));
+  const catalogRaw = await boundedFile(resolve(root, 'browsers.json'), 32 * 1024, 'playwright_pin');
+  const catalog = JSON.parse(catalogRaw);
+  check(pkg.name === 'playwright-core' && pkg.version === QA_PIN.playwright && Array.isArray(catalog.browsers), 'playwright_pin');
+  for (const name of ['chromium', 'chromium-headless-shell']) {
+    const matches = catalog.browsers.filter(item => item.name === name);
+    check(matches.length === 1 && matches[0].revision === QA_PIN.chromiumRevision
+      && matches[0].browserVersion === QA_PIN.chromiumVersion, 'playwright_pin');
+  }
+  const entry = await realpath(resolve(root, 'index.mjs'));
+  const confined = relative(root, entry);
+  check(Boolean(confined) && !isAbsolute(confined) && confined !== '..' && !confined.startsWith('..' + sep), 'playwright_pin');
+  return {entry, catalog_sha256: hash(catalogRaw)};
+}
+
+const INPUT_ADMISSION = String.raw`
+import hashlib,json,os,sys
+from pathlib import Path
+root,bundle,inputs,checkpoints=map(Path,sys.argv[1:5])
+sys.path.insert(0,str(root))
+from scripts import wordcraft_corpus as corpus
+from src.wordcraft_native import validar,exportar
+pin=sys.argv[5]
+manifest=corpus.verify_inputs(inputs)
+names=sorted(Path(item['path']).stem for item in manifest['files'])
+if sorted(path.name for path in checkpoints.iterdir() if path.is_dir())!=names:
+    raise ValueError('Synthetic inventory differs')
+config={'node':Path(sys.argv[6]),'bundle':bundle,'manifest_sha256':pin}
+cases=[]
+for item in manifest['files']:
+    name=Path(item['path']).stem
+    path=(checkpoints/name/'checkpoint.json').resolve()
+    if not path.is_relative_to(checkpoints.resolve()) or not 0<path.stat().st_size<=8*1024*1024:
+        raise ValueError('Synthetic checkpoint boundary differs')
+    content=path.read_bytes()
+    validar(content,**config)
+    source=(inputs/item['path']).read_bytes()
+    if corpus.text_blocks(exportar(content,formato='docx',**config))!=corpus.text_blocks(source):
+        raise ValueError('Native checkpoint differs from reviewed synthetic fixture')
+    cases.append({'case':name,'checkpoint_sha256':hashlib.sha256(content).hexdigest(),
+      'checkpoint_bytes':len(content),'fixture_sha256':hashlib.sha256(source).hexdigest()})
+print(json.dumps({'schema':'gc-wordcraft-browser-inputs/v1','synthetic_only':True,'cases':cases}))
+`;
+
+async function admitInputs(config) {
+  const environment = Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP', 'SystemRoot', 'WINDIR']
+    .filter(key => process.env[key]).map(key => [key, process.env[key]]));
+  environment.PYTHONUTF8 = '1';
+  const result = await runFile(config.python, ['-c', INPUT_ADMISSION, ROOT, config.bundle, config.inputs,
+    config.checkpoints, config['manifest-sha256'], process.execPath],
+  {cwd: ROOT, env: environment, timeout: 180_000, maxBuffer: 1024 * 1024, windowsHide: true});
+  const admission = JSON.parse(result.stdout);
+  check(admission.schema === 'gc-wordcraft-browser-inputs/v1' && admission.synthetic_only === true
+    && Array.isArray(admission.cases) && admission.cases.length === 3
+    && JSON.stringify(admission.cases.map(item => item.case).sort()) === JSON.stringify(CASES), 'synthetic_admission');
+  const cases = [];
+  for (const item of admission.cases) {
+    check(/^[0-9a-f]{64}$/.test(item.checkpoint_sha256) && /^[0-9a-f]{64}$/.test(item.fixture_sha256)
+      && Number.isSafeInteger(item.checkpoint_bytes) && item.checkpoint_bytes > 0 && item.checkpoint_bytes <= MAX_INPUT, 'synthetic_admission');
+    const bytes = await boundedFile(resolve(config.checkpoints, item.case, 'checkpoint.json'), MAX_INPUT, 'synthetic_admission');
+    check(bytes.length === item.checkpoint_bytes && hash(bytes) === item.checkpoint_sha256, 'synthetic_admission');
+    cases.push({...item, bytes});
+  }
+  return cases;
+}
+
+// This function is serialized as reviewed test JS, never as a document/command payload.
+async function installCanvasHarness(paths) {
+  const {EditorController, EventOutbox, sha256, fromBase64} = await import('/qa/host.mjs');
+  const engine = await import(paths.module);
+  await engine.default({module_or_path: paths.wasm});
+  const assert = condition => { if (!condition) throw new Error('Closed canvas QA assertion.'); };
+  const frames = async count => { for (let index = 0; index < count; index++) await new Promise(requestAnimationFrame); };
+  let native, controller, initialNative, data, outbox;
+  let events = [], acks = 0, reruns = 0;
+  const snapshot = () => native.serialize();
+  const snapshotHash = () => sha256(snapshot());
+  const model = () => JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(snapshot()));
+  const control = action => ({schema: 'gc-wordcraft-control/v1', command_id: crypto.randomUUID(), action,
+    revision: controller.revision, content_hash: controller.currentHash});
+  async function checkpointAck() {
+    controller.changed();
+    assert(controller.state === 'dirty');
+    const checkpoint = await controller.checkpoint();
+    assert(checkpoint && checkpoint.payload.content_hash === await sha256(fromBase64(checkpoint.payload.content_base64)));
+    const ack = {request_id: checkpoint.request_id, revision: controller.revision + 1, content_hash: checkpoint.payload.content_hash};
+    data = {...data, revision: ack.revision, content_hash: ack.content_hash, ack};
+    controller.receive(data); // Explicitly SIMULATED transport ACK, no persistence claim.
+    outbox.acknowledge(controller.sequence);
+    assert(controller.state === 'saved' && native.dirty() === false && await snapshotHash() === ack.content_hash);
+    acks++;
+    return {revision: controller.revision, content_hash: ack.content_hash};
+  }
+  async function settle() {
+    await frames(6);
+    if (native.dirty()) {
+      controller.changed();
+      if (controller.state !== 'dirty') await controller.control(control('freeze'));
+      await checkpointAck();
+    }
+    assert(['ready', 'saved'].includes(controller.state) && !native.dirty());
+    assert(await snapshotHash() === controller.currentHash);
+  }
+  const targetPlan = () => {
+    const source = model();
+    const index = source.document.body.findIndex(block => block.kind === 'para' && block.text.startsWith('Corpus plenamente sintético'));
+    assert(index >= 0);
+    return {schema: 'gc-wordcraft-native-patch/v1', source_revision: controller.revision,
+      source_hash: controller.currentHash, operations: [{op: 'replace_text', story: 'body', path: [index],
+        start_byte: 0, end_byte: 6, old_text: 'Corpus', new_text: 'Ensaio'}]};
+  };
+  window.qa = Object.freeze({
+    async open(base64, expectedHash) {
+      assert(!native);
+      const bytes = fromBase64(base64);
+      assert(await sha256(bytes) === expectedHash);
+      native = new engine.GovConnectEditor(); initialNative = native;
+      for (const name of ['interaction_lock_ready', 'set_interaction_locked', 'apply_text_patch', 'undo', 'redo']) assert(typeof native[name] === 'function');
+      await native.start(document.querySelector('#canvas'), bytes, true);
+      data = {instance_id: crypto.randomUUID(), session_id: crypto.randomUUID(), document_id: crypto.randomUUID(),
+        nonce: crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', ''), revision: 1, content_hash: expectedHash};
+      outbox = new EventOutbox(() => {});
+      controller = new EditorController(native, data, (key, event) => { events.push(event); outbox.push(key, event); });
+      await controller.loaded(bytes);
+      await settle();
+      return {source_hash: expectedHash, canonical_hash: await snapshotHash(), initial_source_acks_simulated: acks};
+    },
+    async apiEdit() {
+      const before = await snapshotHash(), generation = native.generation();
+      native.select_text('inteiramente'); native.insert_text('plenamente');
+      controller.changed(); await frames(2);
+      assert(native.generation() !== generation && await snapshotHash() !== before && native.dirty());
+      assert(model().document.body.some(block => block.kind === 'para' && block.text.startsWith('Corpus plenamente sintético')));
+      return {generation_changed: true, source_changed: true, ...await checkpointAck()};
+    },
+    async prepareQueuedInput() { await frames(2); native.select_text('Corpus'); await frames(2); },
+    async queuedInputFreeze() {
+      const before = await snapshotHash(), generation = native.generation();
+      const input = document.querySelector('#canvas').parentElement.querySelector('input[type="text"]');
+      assert(input); input.focus();
+      // Uses the actual eframe TextAgent listener. No fake native queue or Session access.
+      input.value = 'Dreno';
+      input.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: 'Dreno'}));
+      assert(native.generation() === generation); // Mandatory pending-before-frame precondition.
+      const request = control('freeze');
+      const task = controller.control(request);
+      assert(native.interaction_lock_ready() === false);
+      await task;
+      assert(controller.state === 'dirty' && native.dirty() && !native.interaction_lock_ready());
+      assert(events.at(-1).event === 'document.control_failed' && events.at(-1).payload.reason === 'dirty');
+      assert(native.generation() !== generation && await snapshotHash() !== before);
+      assert(model().document.body.some(block => block.kind === 'para' && block.text.startsWith('Dreno plenamente sintético')));
+      return {event_source: 'SYNTHETIC_DOM_INPUT_EVENT_REAL_EFRAME_CAPTURE', pending_before_frame: true,
+        false_freeze_proofs: events.filter(event => event.event === 'document.frozen').length, ...await checkpointAck()};
+    },
+    async prepareKeyboard() {
+      native.select_text('Dreno'); await frames(2);
+      return {generation: native.generation(), content_hash: await snapshotHash()};
+    },
+    async verifyKeyboard(before) {
+      await frames(3); controller.changed();
+      assert(native.generation() !== before.generation && await snapshotHash() !== before.content_hash && native.dirty());
+      assert(model().document.body.some(block => block.kind === 'para' && block.text.startsWith('Corpus plenamente sintético')));
+      return {event_source: 'PLAYWRIGHT_KEYBOARD_TYPE', generation_changed: true, source_bytes_changed: true, ...await checkpointAck()};
+    },
+    async rerun() {
+      const before = await snapshotHash();
+      controller.receive({...data, checkpoint_base64: 'obsolete-prop-must-not-reload-the-session'});
+      controller.receive({...data}); reruns++;
+      assert(native === initialNative && controller.native === initialNative && await snapshotHash() === before && controller.state === 'saved');
+      return {same_native_instance: true, duplicate_ack_accepted: true, old_checkpoint_prop_ignored: true};
+    },
+    async freezeRelease() {
+      const before = await snapshotHash(), generation = native.generation(), request = control('freeze');
+      assert(native.interaction_lock_ready() === false);
+      const task = controller.control(request);
+      assert(native.interaction_lock_ready() === false); // Request must not claim completion synchronously.
+      await task;
+      assert(controller.state === 'frozen' && native.interaction_lock_ready() === true);
+      assert(await snapshotHash() === before && native.generation() === generation);
+      const plan = targetPlan();
+      const calls = [() => native.insert_text('Blocked QA'), () => native.bold(), () => native.undo(), () => native.redo(),
+        () => native.select_text('Corpus'), () => native.apply_text_patch(controller.revision, JSON.stringify(plan))];
+      for (const call of calls) { let rejected = false; try { call(); } catch { rejected = true; } assert(rejected); }
+      assert(await snapshotHash() === before && native.generation() === generation);
+      await controller.control({...request, action: 'release'});
+      await controller.control({...request, action: 'release'});
+      await controller.control(request); // Terminal replay cannot relock.
+      assert(controller.state === 'saved' && native.interaction_lock_ready() === false && await snapshotHash() === before);
+      native.select_text('Corpus');
+      return {frame_barrier_observed: true, frozen_source_hash: before, blocked_edit_apis: calls.length,
+        exact_release_and_terminal_replay: true, same_native_instance: native === initialNative};
+    },
+    async nativePatchUndo() {
+      const before = await snapshotHash(), plan = targetPlan();
+      assert(plan.source_hash === before && native.dirty() === false);
+      let rejected = false;
+      try { native.apply_text_patch(controller.revision, JSON.stringify({...plan, source_hash: '0'.repeat(64)})); }
+      catch { rejected = true; }
+      assert(rejected && await snapshotHash() === before);
+      native.apply_text_patch(controller.revision, JSON.stringify(plan));
+      const after = await snapshotHash();
+      assert(after !== before && native.dirty());
+      assert(model().document.body[plan.operations[0].path[0]].text.startsWith('Ensaio plenamente sintético'));
+      native.undo(); assert(await snapshotHash() === before);
+      native.undo(); assert(await snapshotHash() !== before); // Earlier editing history is still present.
+      native.redo(); assert(await snapshotHash() === before);
+      native.redo(); assert(await snapshotHash() === after);
+      controller.changed(); await checkpointAck();
+      rejected = false;
+      try { native.apply_text_patch(controller.revision, JSON.stringify(plan)); } catch { rejected = true; }
+      assert(rejected && await snapshotHash() === after && native === initialNative);
+      return {source_hash: before, patched_hash: after, one_patch_undo_exact_source: true,
+        earlier_undo_history_preserved: true, redo_exact_patched_source: true, stale_source_rejected: true};
+    },
+    async exports() {
+      const before = await snapshotHash();
+      engine.validate_checkpoint(snapshot());
+      const result = {};
+      for (const format of ['docx', 'pdf']) {
+        const bytes = format === 'docx' ? native.export_docx() : native.export_pdf();
+        assert(bytes.length > 0 && bytes.length <= 64 * 1024 * 1024);
+        assert(format === 'docx' ? bytes[0] === 80 && bytes[1] === 75 && bytes[2] === 3 && bytes[3] === 4
+          : new TextDecoder().decode(bytes.slice(0, 5)) === '%PDF-');
+        result[format] = {bytes: bytes.length, sha256: await sha256(bytes)};
+      }
+      assert(await snapshotHash() === before);
+      return {source_hash: before, formats: result, final_revision_transport_only: controller.revision,
+        simulated_ack_count: acks, simulated_rerun_count: reruns,
+        event_counts: Object.fromEntries([...new Set(events.map(event => event.event))].map(name => [name, events.filter(event => event.event === name).length]))};
+    },
+    close() { controller?.dispose(); native = null; },
+  });
+}
+
+export function pageModule(moduleUrl, wasmUrl) {
+  for (const value of [moduleUrl, wasmUrl]) check(/^\/app\/static\/wordcraft\/[a-zA-Z0-9._/-]+$/.test(value)
+    && !value.split('/').includes('..'), 'http_confinement');
+  return Buffer.from(`(${installCanvasHarness.toString()})(${JSON.stringify({module: moduleUrl, wasm: wasmUrl})});\n`);
+}
+
+export function staticResponse(assets, method, rawUrl) {
+  if (!['GET', 'HEAD'].includes(method) || typeof rawUrl !== 'string' || !/^\/[a-zA-Z0-9._/-]*$/.test(rawUrl)
+      || rawUrl.split('/').some(part => ['.', '..'].includes(part)) || !assets.has(rawUrl)) return null;
+  return assets.get(rawUrl);
+}
+
+export async function serveAssets(assets) {
+  const server = createServer((request, response) => {
+    const item = staticResponse(assets, request.method, request.url);
+    response.setHeader('Cache-Control', 'no-store'); response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    response.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+    response.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; worker-src 'self' blob:; frame-ancestors 'none'");
+    if (!item) { response.writeHead(404, {'Content-Length': '0'}); response.end(); return; }
+    response.writeHead(200, {'Content-Type': item.mime, 'Content-Length': item.bytes.length});
+    response.end(request.method === 'HEAD' ? undefined : item.bytes);
+  });
+  server.maxRequestsPerSocket = 100; server.requestTimeout = 5000; server.headersTimeout = 5000;
+  await new Promise((done, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', done); });
+  return {origin: `http://127.0.0.1:${server.address().port}`, close: () => new Promise((done, reject) => {
+    server.close(error => error ? reject(error) : done()); server.closeAllConnections();
+  })};
+}
+
+async function buildAssets(config) {
+  const bundle = await verifyBundle(config.bundle, config['manifest-sha256']);
+  const manifestRaw = await boundedFile(resolve(config.bundle, 'qa-manifest.json'), 128 * 1024, 'bundle_admission');
+  const manifest = JSON.parse(manifestRaw);
+  const upstream = JSON.parse(await readFile(resolve(ROOT, 'docs/wordcraft/upstream.lock.json'))).commit;
+  check(hash(manifestRaw) === config['manifest-sha256'] && manifest.govconnect_commit === config['producer-commit']
+    && manifest.upstream_commit === upstream, 'bundle_admission');
+  const assets = new Map();
+  for (const item of manifest.files) {
+    const bytes = await boundedFile(resolve(config.bundle, item.path), 80 * 1024 * 1024, 'bundle_admission');
+    check(hash(bytes) === item.sha256 && bytes.length === item.bytes, 'bundle_admission');
+    assets.set('/app/static/wordcraft/' + item.path, {bytes, mime: item.path.endsWith('.wasm') ? 'application/wasm' : 'text/javascript; charset=utf-8'});
+  }
+  const moduleUrl = '/app/static/wordcraft/' + relative(config.bundle, bundle.modulePath).split(sep).join('/');
+  const wasmUrl = [...assets.keys()].find(name => !name.slice('/app/static/wordcraft/'.length).includes('/') && name.endsWith('.wasm'));
+  const host = await boundedFile(resolve(ROOT, 'assets/wordcraft_editor/host.mjs'), 256 * 1024, 'bundle_admission');
+  assets.set('/qa/host.mjs', {bytes: host, mime: 'text/javascript; charset=utf-8'});
+  assets.set('/qa/page.mjs', {bytes: pageModule(moduleUrl, wasmUrl), mime: 'text/javascript; charset=utf-8'});
+  assets.set('/', {bytes: Buffer.from('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><link rel="icon" href="data:,"><title>GovConnect synthetic canvas QA</title><style>body{margin:0}canvas{width:1366px;height:900px;display:block}</style><canvas id="canvas"></canvas><script type="module" src="/qa/page.mjs"></script></html>'), mime: 'text/html; charset=utf-8'});
+  return {assets, manifest, host_sha256: hash(host)};
+}
+
+export async function run(config) {
+  let phase = 'configuration', outputReady = false, server, browser, context, page;
+  const evidence = {schema: 'gc-wordcraft-headless-browser-qa/v1', status: 'FAIL_HEADLESS_BROWSER_QA',
+    manual_browser_observation: false, gotrue_or_database_proof: false, production_access: false,
+    ack_model: 'SIMULATED_TRANSPORT_ONLY_NOT_PERSISTENCE', cases: [],
+    limits: {cases: 3, checkpoint_bytes: MAX_INPUT, stage_timeout_ms: 45_000, global_timeout_ms: 300_000},
+    pending: ['MANUAL_IME', 'TOOLBAR_UI', 'FULL_STREAMLIT', 'DATABASE_PERSISTENCE', 'HUMAN_VISUAL_FIDELITY_REVIEW']};
+  const stage = async (name, operation) => { phase = name; return operation(); };
+  let watchdog;
+  try {
+    check(process.platform === 'linux', phase);
+    for (const key of ['bundle', 'checkpoints', 'inputs', 'playwright', 'python']) config[key] = await realpath(config[key]);
+    check(!(await stat(config.out).catch(() => null)), phase);
+    const built = await stage('bundle_admission', () => buildAssets(config));
+    const cases = await stage('synthetic_admission', () => admitInputs(config));
+    const pkg = await stage('playwright_pin', () => verifyPlaywright(config.playwright));
+    await mkdir(config.out, {mode: 0o700}); outputReady = true;
+    evidence.runtime = {...QA_PIN, engine_manifest_sha256: config['manifest-sha256'],
+      producer_commit: built.manifest.govconnect_commit, upstream_commit: built.manifest.upstream_commit,
+      host_sha256: built.host_sha256, playwright_catalog_sha256: pkg.catalog_sha256};
+    server = await stage('http_confinement', () => serveAssets(built.assets));
+    const {chromium} = await stage('playwright_pin', () => import(pathToFileURL(pkg.entry).href));
+    const environment = Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'PLAYWRIGHT_BROWSERS_PATH']
+      .filter(key => process.env[key]).map(key => [key, process.env[key]]));
+    browser = await stage('chromium_start', () => chromium.launch({headless: true, timeout: 45_000, env: environment,
+      args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-dev-shm-usage',
+        '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run']}));
+    check(browser.version() === QA_PIN.chromiumVersion, 'chromium_start');
+    evidence.runtime.browser_version_observed = browser.version();
+    evidence.runtime.browser_executable_sha256 = hash(await readFile(chromium.executablePath()));
+    context = await browser.newContext({viewport: {width: 1366, height: 900}, locale: 'pt-BR', timezoneId: 'UTC',
+      acceptDownloads: false, serviceWorkers: 'block'});
+    context.setDefaultTimeout(45_000);
+    let deniedRequests = 0, pageErrors = 0, consoleErrors = 0;
+    await context.route('**/*', route => {
+      const url = new URL(route.request().url());
+      if (url.origin === server.origin && built.assets.has(url.pathname) && !url.search) return route.continue();
+      deniedRequests++; return route.abort();
+    });
+    watchdog = setTimeout(() => { phase = 'global_timeout'; void browser?.close(); }, 300_000);
+    for (const item of cases) {
+      page = await context.newPage();
+      page.on('pageerror', () => { pageErrors++; });
+      page.on('console', message => { if (message.type() === 'error') consoleErrors++; });
+      await stage('canvas_open', async () => {
+        await page.goto(server.origin + '/', {waitUntil: 'load'});
+        await page.waitForFunction(() => Boolean(window.qa));
+      });
+      const result = {case: item.case, input_sha256: item.checkpoint_sha256, fixture_sha256: item.fixture_sha256,
+        source_bytes: item.checkpoint_bytes, steps: {}};
+      result.steps.open = await stage('canvas_open', () => page.evaluate(({content, sha}) => window.qa.open(content, sha),
+        {content: item.bytes.toString('base64'), sha: item.checkpoint_sha256}));
+      await page.locator('#canvas').click({position: {x: 600, y: 500}});
+      await page.locator('input[type="text"]').focus();
+      result.steps.api_edit = await stage('api_edit', () => page.evaluate(() => window.qa.apiEdit()));
+      await page.keyboard.press('Control'); // The actual TextAgent clears prior text-agent history on modifiers.
+      await page.evaluate(() => window.qa.prepareQueuedInput());
+      result.steps.queued_input = await stage('queued_input', () => page.evaluate(() => window.qa.queuedInputFreeze()));
+      check(result.steps.queued_input.pending_before_frame === true && result.steps.queued_input.false_freeze_proofs === 0, phase);
+      await page.locator('input[type="text"]').focus();
+      const beforeKeyboard = await page.evaluate(() => window.qa.prepareKeyboard());
+      await stage('keyboard_input', () => page.keyboard.type('Corpus', {delay: 10}));
+      result.steps.keyboard = await stage('keyboard_input', () => page.evaluate(before => window.qa.verifyKeyboard(before), beforeKeyboard));
+      result.steps.rerun = await page.evaluate(() => window.qa.rerun());
+      result.steps.freeze_release = await stage('freeze_release', () => page.evaluate(() => window.qa.freezeRelease()));
+      result.steps.patch_undo_redo = await stage('native_patch_undo', () => page.evaluate(() => window.qa.nativePatchUndo()));
+      result.steps.exports = await stage('native_export', () => page.evaluate(() => window.qa.exports()));
+      const screenshot = await stage('screenshot', () => page.screenshot({animations: 'disabled', fullPage: false}));
+      check(screenshot.length > 1024 && screenshot.length <= MAX_SCREENSHOT
+        && screenshot.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), 'screenshot');
+      const screenshotName = item.case + '.png';
+      await writeFile(resolve(config.out, screenshotName), screenshot, {flag: 'wx'});
+      result.screenshot = {path: screenshotName, bytes: screenshot.length, sha256: hash(screenshot), human_visual_approval: false};
+      evidence.cases.push(result);
+      await page.evaluate(() => window.qa.close()); await page.close(); page = undefined;
+    }
+    check(deniedRequests === 0 && pageErrors === 0 && consoleErrors === 0, 'runtime_errors');
+    evidence.network = {external_requests_blocked: deniedRequests, page_errors: pageErrors, console_errors: consoleErrors,
+      static_document_routes: 0, loopback_only: true};
+    evidence.status = 'PASS_HEADLESS_NATIVE_CANVAS_TRANSPORT_QA_NOT_MANUAL_ACCEPTANCE';
+  } catch {
+    Object.assign(evidence, failureRecord(phase));
+  } finally {
+    clearTimeout(watchdog);
+    let cleanup = true;
+    for (const action of [() => page?.close(), () => context?.close(), () => browser?.close(), () => server?.close()]) {
+      try { await action(); } catch { cleanup = false; }
+    }
+    evidence.cleanup = cleanup;
+    if (!cleanup) Object.assign(evidence, failureRecord('cleanup'));
+    if (outputReady) await writeFile(resolve(config.out, 'browser-qa.json'), JSON.stringify(evidence, null, 2) + '\n', {flag: 'wx'});
+  }
+  return evidence;
+}
+
+async function main() {
+  let result;
+  try { result = await run(parseArgs(process.argv.slice(2))); }
+  catch { result = failureRecord('configuration'); }
+  console.log(JSON.stringify({status: result.status, failed_stage: result.failed_stage,
+    completed_cases: result.cases?.length ?? 0, manual_browser_observation: false, gotrue_or_database_proof: false}));
+  return result.status === 'PASS_HEADLESS_NATIVE_CANVAS_TRANSPORT_QA_NOT_MANUAL_ACCEPTANCE' ? 0 : 1;
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main();

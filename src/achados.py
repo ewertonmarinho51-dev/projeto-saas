@@ -359,16 +359,27 @@ def caminhos_bloqueados(doc_key: str, blocos_doc: list[dict]) -> list[str]:
         n for n, tipo in perfis.clausulas_fixas(doc_key).items()
         if tipo == "LOCKED"
     }
+    sem_numero: list[str] = []
+    assinatura_sem_numero = False
     for bloco in blocos_doc:
-        if bloco["tipo"] != "titulo":
-            continue
-        titulo = bloco["conteudo"].upper()
-        if "ASSINATURA" in titulo or "EQUIPE DE PLANEJAMENTO" in titulo:
-            numeros.add(bloco["clausula"])
-    bloqueados: list[str] = []
+        if bloco["tipo"] == "titulo":
+            titulo = bloco["conteudo"].upper()
+            assinatura = "ASSINATURA" in titulo or "EQUIPE DE PLANEJAMENTO" in titulo
+            numero = bloco.get("clausula")
+            if type(numero) is int and numero > 0:
+                assinatura_sem_numero = False
+                if assinatura:
+                    numeros.add(numero)
+            elif assinatura:
+                # Native signature headings can be intentionally unnumbered.
+                # Protect their range without mixing None with profile integers.
+                assinatura_sem_numero = True
+        if assinatura_sem_numero:
+            sem_numero.append(bloco["path"])
+    bloqueados: list[str] = list(sem_numero)
     for numero in sorted(numeros):
         bloqueados.extend(blocos.caminhos_da_clausula(blocos_doc, numero))
-    return bloqueados
+    return list(dict.fromkeys(bloqueados))
 
 
 def _caminhos_permitidos(achado: dict, regra: dict,
@@ -465,10 +476,10 @@ def _campos_requeridos(pendencias: list[dict]) -> list[str]:
 
 
 def estruturar(achados_brutos: list[dict],
-               documentos: dict[str, str]) -> list[dict]:
+               documentos: dict[str, str], *, blocos_por_documento: dict[str, list[dict]] | None = None) -> list[dict]:
     """Converte os achados do validacao.py em findings estruturados."""
-    por_doc = {k: blocos.dividir_em_blocos(k, v or "")
-               for k, v in documentos.items()}
+    por_doc = (blocos_por_documento if blocos_por_documento is not None else
+               {k: blocos.dividir_em_blocos(k, v or "") for k, v in documentos.items()})
     findings = []
     for n, achado in enumerate(achados_brutos, start=1):
         regra = _classificar(achado["mensagem"])

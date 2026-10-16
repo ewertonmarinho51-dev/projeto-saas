@@ -11,6 +11,9 @@ on:
       - scripts/wordcraft_notices.py
       - scripts/wordcraft_distribution_notices.py
       - scripts/wordcraft_corpus.py
+      - scripts/wordcraft_browser_qa.mjs
+      - scripts/wordcraft_browser_qa.test.mjs
+      - assets/wordcraft_editor/host.mjs
       - tests/fixtures/wordcraft/**
       - assets/wordcraft_editor/validate.mjs
       - src/wordcraft_native.py
@@ -184,6 +187,12 @@ jobs:
         run: |
           set -o pipefail
           cargo test --locked -p wordcraft-web --lib 2>&1 | tee ../build-evidence/adapter-tests.log
+      - name: Regress native DOCX fidelity and table layout
+        working-directory: work-upstream
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --locked -p wordcraft-docx -p wordcraft-layout 2>&1 | tee ../build-evidence/io-fidelity-tests.log
       - name: Regress the modified editor UI and language catalogs
         working-directory: work-upstream
         shell: bash
@@ -437,6 +446,45 @@ jobs:
           await writeFile('build-evidence/native-pure-patches.txt',
             '3 reviewed synthetic checkpoints patched and exported as DOCX/PDF; stale/hash/overlap/unknown operation rejected; live browser undo not tested\n');
           JS
+      - name: Test the confined headless-browser QA contract
+        run: node --test scripts/wordcraft_browser_qa.test.mjs
+      - name: Install checksum-verified Playwright and pinned Chromium for QA only
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_root="$RUNNER_TEMP/wordcraft-browser-qa"
+          browsers_root="$RUNNER_TEMP/wordcraft-browsers"
+          mkdir -p "$qa_root" "$browsers_root"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            -o "$qa_root/playwright-core.tgz" \
+            https://registry.npmjs.org/playwright-core/-/playwright-core-1.56.1.tgz
+          QA_TARBALL="$qa_root/playwright-core.tgz" node --input-type=module <<'JS'
+          import {readFile} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          const expected = 'hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ==';
+          const actual = createHash('sha512').update(await readFile(process.env.QA_TARBALL)).digest('base64');
+          if (actual !== expected) throw new Error('Playwright package integrity differs');
+          JS
+          npm install --prefix "$qa_root" --ignore-scripts --no-audit --no-fund "$qa_root/playwright-core.tgz"
+          PLAYWRIGHT_BROWSERS_PATH="$browsers_root" \
+            node "$qa_root/node_modules/playwright-core/cli.js" install --with-deps chromium
+          echo "PLAYWRIGHT_BROWSERS_PATH=$browsers_root" >> "$GITHUB_ENV"
+          echo "WORDCRAFT_PLAYWRIGHT_ROOT=$qa_root/node_modules/playwright-core" >> "$GITHUB_ENV"
+      - name: Exercise the real native canvas, input barrier and undo in Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="$GITHUB_WORKSPACE/wordcraft-local-qa"
+          manifest_sha="$(sha256sum "$bundle/qa-manifest.json" | cut -d' ' -f1)"
+          node scripts/wordcraft_browser_qa.mjs \
+            --bundle "$bundle" \
+            --manifest-sha256 "$manifest_sha" \
+            --checkpoints "$GITHUB_WORKSPACE/build-evidence/corpus-roundtrip" \
+            --inputs "$GITHUB_WORKSPACE/tests/fixtures/wordcraft" \
+            --playwright "$WORDCRAFT_PLAYWRIGHT_ROOT" \
+            --python "$(command -v python3)" \
+            --out "$GITHUB_WORKSPACE/build-evidence/browser-qa" \
+            --producer-commit "$GITHUB_SHA"
       - name: Verify unchanged integration lock after all adapter operations
         working-directory: work-upstream
         run: sha256sum --check ../build-evidence/Cargo.lock.integration.sha256

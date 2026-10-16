@@ -18,7 +18,8 @@ from uuid import UUID
 PROTOCOL = "gc-wordcraft/v1"
 MAX_BYTES = 8 * 1024 * 1024
 MAX_EVENTS = 10_000
-EVENTS = frozenset({"document.loaded", "document.changed", "document.checkpoint", "document.retry"})
+EVENTS = frozenset({"document.loaded", "document.changed", "document.checkpoint", "document.retry",
+                    "document.frozen", "document.released", "document.control_failed"})
 CHECKPOINT_SCHEMA = "gc-wordcraft-snapshot/v1"
 FIELDS = frozenset({"protocol", "request_id", "instance_id", "session_id",
                     "document_id", "expected_revision", "event", "sequence",
@@ -81,6 +82,10 @@ class Ponte:
     _pending: Checkpoint | None = field(default=None, init=False, repr=False)
     _changed_while_saving: bool = field(default=False, init=False, repr=False)
     _last_ack: tuple[str, int, str] | None = field(default=None, init=False, repr=False)
+    _control: dict | None = field(default=None, init=False, repr=False)
+    _frozen: dict | None = field(default=None, init=False, repr=False)
+    _control_failure: dict | None = field(default=None, init=False, repr=False)
+    _control_ids: set[str] = field(default_factory=set, init=False, repr=False)
 
     def __post_init__(self):
         if not isinstance(self.origin, str):
@@ -151,6 +156,34 @@ class Ponte:
                 raise ErroPonte("Retry não corresponde ao checkpoint pendente.")
             checkpoint = self._pending
             next_state = "saving"
+        elif kind in {"document.frozen", "document.released", "document.control_failed"}:
+            fields = ({"command_id", "content_hash", "generation"} if kind == "document.frozen"
+                      else {"command_id", "reason"} if kind == "document.control_failed" else {"command_id"})
+            _campos(payload, fields)
+            command = self._control
+            if not command or _uuid(payload["command_id"]) != command["command_id"]:
+                raise ErroPonte("Resposta de controle não solicitada ou divergente.")
+            if kind == "document.frozen":
+                generation = payload["generation"]
+                if (command["action"] != "freeze" or self.state not in {"ready", "saved"}
+                        or self._pending is not None or self._frozen is not None
+                        or command["revision"] != self.revision
+                        or _hash(payload["content_hash"]) != self.content_hash
+                        or command["content_hash"] != self.content_hash
+                        or not isinstance(generation, str) or not generation.isascii()
+                        or not generation.isdecimal() or not 1 <= len(generation) <= 20):
+                    raise ErroPonte("Canvas não corresponde à revisão limpa solicitada.")
+                next_state = "frozen"
+            elif kind == "document.released":
+                if command["action"] != "release" or self.state != "frozen" or self._frozen is None:
+                    raise ErroPonte("Liberação de canvas não solicitada.")
+                next_state = "saved"
+            else:
+                if (command["action"] != "freeze" or self._frozen is not None
+                        or not isinstance(payload["reason"], str)
+                        or payload["reason"] not in {"dirty", "pending", "stale", "unavailable"}):
+                    raise ErroPonte("Falha de controle inválida.")
+                next_state = self.state
         else:
             _campos(payload, {"content_hash", "content_base64", "schema_version"})
             if self.state != "dirty" or self._pending:
@@ -180,7 +213,46 @@ class Ponte:
         if checkpoint and kind == "document.checkpoint":
             self._pending = checkpoint
             self._changed_while_saving = False
+        if kind == "document.frozen":
+            self._frozen = dict(command_id=payload["command_id"], revision=self.revision,
+                content_hash=self.content_hash, generation=payload["generation"])
+        elif kind == "document.released":
+            self._frozen = self._control = None
+        elif kind == "document.control_failed":
+            self._control_failure = dict(payload)
+            self._control = None
         return checkpoint
+
+    def solicitar_bloqueio(self, command_id: str):
+        """Server request only. A locally saved state is not a canvas proof."""
+        _uuid(command_id)
+        if (self.state not in {"ready", "saved"} or self._pending is not None
+                or self._control is not None or command_id in self._control_ids
+                or len(self._control_ids) >= MAX_EVENTS):
+            raise ErroPonte("Bloqueio exige revisão confirmada e nova operação.")
+        self._control_ids.add(command_id)
+        self._control_failure = None
+        self._control = dict(schema="gc-wordcraft-control/v1", command_id=command_id,
+            action="freeze", revision=self.revision, content_hash=self.content_hash)
+
+    def controle_pendente(self) -> dict | None:
+        return dict(self._control) if self._control else None
+
+    def canvas_bloqueado(self) -> dict | None:
+        if (self.state != "frozen" or not self._frozen or not self._control
+                or self._control["action"] != "freeze"
+                or (self._frozen["revision"], self._frozen["content_hash"]) != (self.revision, self.content_hash)):
+            return None
+        return dict(self._frozen)
+
+    def falha_controle(self) -> dict | None:
+        return dict(self._control_failure) if self._control_failure else None
+
+    def liberar_bloqueio(self, command_id: str):
+        if not self.canvas_bloqueado() or _uuid(command_id) != self._frozen["command_id"]:
+            raise ErroPonte("Liberação não corresponde ao canvas bloqueado.")
+        self._control = dict(schema="gc-wordcraft-control/v1", command_id=command_id,
+            action="release", revision=self.revision, content_hash=self.content_hash)
 
     def receber_lote(self, batch: dict, *, origin: str, source_ok: bool) -> Checkpoint | None:
         """Aceita estado coalescido sem perder eventos ou consumir lote inválido.

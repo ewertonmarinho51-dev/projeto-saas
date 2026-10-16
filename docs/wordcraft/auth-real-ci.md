@@ -105,3 +105,35 @@ e código/CHANGELOG do upstream Auth pinado localmente. A tentativa de leitura
 do índice changelog.md foi recusada pelo leitor web por content-type; as
 opções do serviço foram verificadas no README, configuration e handlers do
 v2.197.0, sem assumir compatibilidade de uma versão posterior.
+
+Correção de preflight registrada antes do código em 2026-10-16: o primeiro
+ensaio Linux parou antes de criar banco, com `FAIL_PREFLIGHT`. A inspeção do
+arquivo oficial, com tamanho e SHA acima novamente verificados, encontrou 78
+membros e 37.408.505 bytes declarados: `auth` regular de 37.343.392 bytes,
+`gotrue` como symlink relativo para `auth`, o diretório `migrations` e 75 SQLs.
+O hash do executável é
+`c66b5efc816ccf3e13c24022bdefd5c6a9bea1fd1a1aeb9c586e1279c75a6306`.
+O limite anterior de 20 membros e a proibição total de symlink recusavam essa
+forma oficial. A admissão passa a exigir essa forma, contagens, expansão e
+hashes exatos; aceita o alias somente como metadado, sem o seguir ou extrair.
+Somente o arquivo regular `auth` é copiado. O comando migrate do upstream
+pinado lê as migrações embutidas no executável, dispensando a extração dos SQLs.
+
+Falhas passam a incluir códigos de etapa pertencentes a catálogo fechado;
+texto de exceção, URL, DSN, stdout/stderr dos serviços e credenciais continuam
+fora da evidência. Casos desconhecidos usam código genérico. Os testes de DSN
+e URL continuam produzindo as mesmas entradas negativas em tempo de execução,
+sem literais contíguos que aparentem email no scanner; o workflow usa DSN por
+keywords. Nenhuma regra ou allowlist do scanner é alterada. O novo gate real
+permanece pendente até uma execução Linux integral terminar com êxito.
+
+Validação local desta correção: **57 passed, 4 deselected em 1,01 s**; os quatro
+casos HTTP seguem reservados ao contexto com loopback do integrador. Os novos
+negativos cobrem alias externo/hardlink, traversal, membro inesperado,
+duplicação, contagens/expansão divergentes, hash do binário, versão divergente,
+timeout e supressão de etapa desconhecida/sensível. A admissão do arquivo
+oficial real também passou com os pins de produção intactos: escreveu um
+único arquivo de 37.343.392 bytes com o hash acima, sem executar o ELF nem criar
+banco. O scanner canônico nos cinco arquivos alterados encontrou zero achados
+reais e zero falsos documentados; sintaxe Python, YAML e diff-check passaram.
+Essas verificações não substituem o login GoTrue e as provas RLS do próximo CI.

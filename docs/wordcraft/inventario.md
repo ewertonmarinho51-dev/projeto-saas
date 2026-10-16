@@ -85,6 +85,7 @@ somente em memória dos processos; o estado de retomada contém apenas nomes/UUI
 | `scripts/wordcraft_corpus.py --full-corpus` | ampliar o gerador existente aos doze cenários C01–C12, sem trocar fixtures G1 | oráculos Decimal por célula e QA estrutural; sementes de governança não aprovam owner/patch/RLS |
 | `DocumentoService` + migrations aditivas G2 | preservar originais, índices e restauração na revisão imutável existente; snapshot institucional vem das fontes canônicas | CAS atômico, histórico privado, ausência histórica não preenchida artificialmente; aprovação nativa ainda não integrada |
 | `scripts/wordcraft_libreoffice_qa.py` (planejado) | comparar DOCX sintéticos com distribuição oficial extraída em workspace e perfil exclusivo | execução real headless, sem instalação global ou alteração no exportador do produto |
+| `scripts/wordcraft_full_roundtrip.py` (planejado) | exercer as dezesseis entradas do gerador completo no importador/validador/exportador pinado e conferir os oráculos existentes | relatório por etapa e retenção de recusas; nunca transforma um teste de governança em aprovação documental |
 | `src/patches.py` (adaptação planejada) | manter uma entrada de regras/escopo/FIXED e traduzir âncoras nativas verificadas para comandos limitados do mesmo motor | cópia, hash/revisão, escopo, diff e pós-condições; nunca editar JSON como motor alternativo |
 | `GovConnect apply_patch` (adaptador Rust planejado) | comando puro tipado sobre Session upstream, sem save/ACL próprios | lote atômico de substituição textual, stale/UTF-8/estrutura/formato recusados; undo no documento vivo exige prova separada |
 
@@ -92,3 +93,21 @@ A decisão pré-código específica está em `persistencia-g2.md`,
 `snapshot-institucional.md`, `corpus-g3.md`, `benchmark.md`,
 `licencas-distribuicao.md` e `patches-nativos.md`. Este inventário consolidado
 não retrodata a execução dessas provas nem encerra os gates correspondentes.
+
+## Consolidação dos contratos registrados antes do código — 16/10/2026
+
+As decisões específicas abaixo foram registradas nos respectivos documentos
+antes de sua implementação. Esta tabela consolida o inventário; não retrodata
+provas nem transforma implementado em homologado.
+
+| Componente | Responsabilidade e reuso | Prova e limite |
+|---|---|---|
+| Aprovação nativa em `DocumentoService`/`state` e migration aditiva | mesma aprovação/trilha canônica sobre revisão/hash/fontes, sem rotular Markdown ou avançar consumidor antigo | `ato-unico-aprovacao.md`; serviço/SQL/Advisors passaram, emissão continua pendente |
+| Preparação e lote em `DocumentoService` e migration aditiva | aplicador canônico, checkpoint e auditoria `revisoes` na mesma transação; fontes obtidas no backend | `patches-persistencia.md`; 188 SQL passaram, canvas/Undo ainda sem prova completa |
+| `achados.estruturar` com blocos nativos opcionais | mesmas regras/classificação/escopo, usando endereços nativos confirmados | projeção é leitura; títulos de assinatura sem número precisam conservar proteção |
+| Protocolo/host/Rust de controle do canvas | mesma instância/Session, solicitação freeze/release correlacionada e drenagem de input antes da prova | `controle-canvas.md`; testes não certificam IME/frame/toolbar reais |
+| `.github/workflows/auth-real.yml`, `scripts/ensaio_auth_real.py`, testes Auth/gateway | GoTrue oficial local antes do schema da aplicação, clientes e owner existentes; sem fixture Auth reduzida | `auth-real-ci.md`; preflight/tar real e61 testes passaram, login real ainda exige CI |
+| `.github/workflows/wordcraft-fidelity.yml`, scripts/testes de QA LibreOffice | corpus novo, mesmo motor WASM, mesmo `_docx_em_pdf`, três caminhos PDF e artefatos sintéticos | `libreoffice-local.md`; execução Linux e aceite visual separados |
+| `scripts/wordcraft_libreoffice_extract.py` | extrair MSI oficial para runtime QA marcado, sem instalação global ou serviços | usado no ensaio Windows; Linux registra identidade de distribuição própria |
+| `scripts/wordcraft_full_roundtrip.py` | executar16 entradas pelos importador/validador/exportador/reimportador reais e oráculos existentes | prova real realizada; cada etapa conserva seu resultado, sem aprovação visual |
+| `scripts/wordcraft_browser_qa.mjs`, contratos Node e step em `wordcraft-build.yml` | QA Linux/Chromium headless pinado sobre o bundle e três checkpoints sintéticos do mesmo build; mesmo EditorController e API pública GovConnectEditor | decisão pré-código em `browser-qa.md`; execução CI ainda pendente, ACK somente simulado, sem alegar observação manual/G1/Auth/persistência |

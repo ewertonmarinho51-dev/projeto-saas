@@ -261,6 +261,10 @@ RPCS = {
     "buscar_chunks_textual": {"consulta": "ensaio", "qtd": 1},
     "buscar_chunks_vetorial": {"query_embedding": [0.0] * 768, "qtd": 1},
     "documento_editor_contexto": {},
+    "documento_editor_fontes_patch": {"p_process": "00000000-0000-0000-0000-000000000001", "p_claims": {}},
+    "documento_editor_patch_lote": {"p_process": "00000000-0000-0000-0000-000000000001",
+        "p_operation": "00000000-0000-0000-0000-000000000001", "p_batch": "\\x7b7d",
+        "p_batch_sha256": hashlib.sha256(b"{}").hexdigest(), "p_claims": {}},
     "documento_editor_sessao_valida": {},
     "documento_editor_fontes_aprovacao": {"p_document": "00000000-0000-0000-0000-000000000001", "p_claims": {}},
     "documento_editor_aprovar": {

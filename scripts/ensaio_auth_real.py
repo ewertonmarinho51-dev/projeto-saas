@@ -16,6 +16,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import secrets
 import socket
 import subprocess
@@ -40,12 +41,59 @@ AUTH_VERSION = "v2.197.0"
 AUTH_COMMIT = "4eee58f296d9698a1c2c0ae14d7a0b379c7622d3"
 AUTH_ARCHIVE_BYTES = 9_897_464
 AUTH_ARCHIVE_SHA256 = "b5c2991d1df760c9b099c1c2395a94bd1c2f83ed58901934921997179dc9f7ea"
+AUTH_ARCHIVE_MEMBERS = 78
+AUTH_ARCHIVE_EXPANDED_BYTES = 37_408_505
+AUTH_BINARY_BYTES = 37_343_392
+AUTH_BINARY_SHA256 = "c66b5efc816ccf3e13c24022bdefd5c6a9bea1fd1a1aeb9c586e1279c75a6306"
+AUTH_MIGRATION_FILES = 75
 JWT_EXPIRY_SECONDS = 180
 LOCAL_HOSTS = frozenset({"127.0.0.1", "::1"})
+FAILURE_STAGES = frozenset({
+    "unexpected_failure", "preflight", "invalid_local_database_configuration",
+    "explicit_loopback_database_required", "official_auth_linux_required", "explicit_binaries_required",
+    "native_manifest_pin", "fresh_work_directory_required", "official_auth_archive_read",
+    "official_auth_archive_pin", "official_auth_archive_shape", "official_auth_archive_binary",
+    "official_auth_elf", "official_auth_binary_pin", "official_auth_version_command", "official_auth_version",
+    "create_database", "bootstrap_roles", "unique_loopback_ports", "official_gotrue_migrations",
+    "canonical_app_migrations", "start_services", "real_gotrue_health", "real_auth_owner_proofs",
+    "bounded_auth_response", "auth_response_object", "bounded_gotrue_token", "gotrue_token_algorithm",
+    "gotrue_token_signature", "real_gotrue_user_claims", "product_configuration_is_owned_loopback",
+    "admin_app_metadata_in_real_token", "gotrue_user_endpoint", "real_gotrue_session_row",
+    "product_password_login", "server_client_not_replaced_by_login",
+    "native_checkpoint_matches_pinned_synthetic_fixture", "owner_native_commit",
+    "rls_owner", "rls_colleague", "rls_other", "no_user_client_fallback",
+    "app_metadata_admin_privilege_required", "user_app_metadata_update_not_refused",
+    "user_cannot_update_app_metadata", "user_metadata_is_not_authorization",
+    "postgrest_uses_controlled_app_metadata", "owner_second_commit", "old_revision_bytes_immutable",
+    "old_export_artifact_immutable", "denied_writes_left_exactly_two_revisions",
+    "refresh_revocation_is_auth_denial", "revoked_refresh_accepted",
+    "banned_auth_account_cannot_password_login", "revoked_profile_cannot_read_with_old_jwt",
+    "revocation_did_not_write_partial_revision",
+} | {gate + suffix for gate in (
+    "non_owner_commit_colleague", "non_owner_commit_other", "anonymous_revision_read", "anonymous_owner_open",
+    "service_cannot_mutate_revision", "revoked_profile_cannot_commit_with_old_jwt",
+) for suffix in ("_inconclusive", "_unexpectedly_allowed")})
+ERROR_TYPES = frozenset({"AuthRealFailure", "EnsaioLocal", "RuntimeError", "ValueError", "TypeError",
+    "OSError", "FileNotFoundError", "FileExistsError", "PermissionError", "TimeoutExpired",
+    "OperationalError", "ProgrammingError", "HTTPError", "URLError", "JSONDecodeError", "UnicodeDecodeError"})
+
+
+def _safe_stage(stage) -> str:
+    return stage if (type(stage) is str and re.fullmatch(r"[a-z][a-z0-9_]{0,79}", stage)
+                     and stage in FAILURE_STAGES) else "unexpected_failure"
 
 
 class AuthRealFailure(RuntimeError):
     """Only a fixed stage name is allowed in outward evidence."""
+
+    def __init__(self, stage):
+        self.stage = _safe_stage(stage)
+        super().__init__(self.stage)
+
+
+def _failure_record(error: Exception, *, fallback: str) -> dict:
+    return {"failed_stage": _safe_stage(error.stage if isinstance(error, AuthRealFailure) else fallback),
+            "error_type": type(error).__name__ if type(error).__name__ in ERROR_TYPES else "UnexpectedError"}
 
 
 def _sha(content: bytes) -> str:
@@ -59,10 +107,10 @@ def _check(condition, stage: str) -> None:
 
 def _local_connection(dsn: str) -> dict:
     import psycopg
-    sql_harness.exigir_dsn_local(dsn)
     try:
+        sql_harness.exigir_dsn_local(dsn)
         config = psycopg.conninfo.conninfo_to_dict(dsn)
-    except (psycopg.Error, TypeError, ValueError):
+    except (sql_harness.EnsaioLocal, psycopg.Error, TypeError, ValueError):
         raise AuthRealFailure("invalid_local_database_configuration") from None
     if (config.get("host") not in LOCAL_HOSTS or not config.get("dbname")
             or not config.get("user") or "hostaddr" in config or "service" in config
@@ -81,27 +129,59 @@ def _database_url(config: dict, *, database: str, user: str, password: str) -> s
 
 def stage_auth(archive: Path, destination: Path) -> Path:
     """Pin before extracting one regular ELF; never unpack arbitrary members."""
-    with archive.open("rb") as stream:
-        raw = stream.read(AUTH_ARCHIVE_BYTES + 1)
+    try:
+        with archive.open("rb") as stream:
+            raw = stream.read(AUTH_ARCHIVE_BYTES + 1)
+    except OSError:
+        raise AuthRealFailure("official_auth_archive_read") from None
     _check(len(raw) == AUTH_ARCHIVE_BYTES and _sha(raw) == AUTH_ARCHIVE_SHA256,
            "official_auth_archive_pin")
-    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:xz") as source:
-        entries = source.getmembers()
-        if (not 1 <= len(entries) <= 20 or any(member.issym() or member.islnk() for member in entries)
-                or any(member.name.startswith("/") or ".." in Path(member.name).parts for member in entries)
-                or sum(member.size for member in entries) > 100 * 1024 * 1024):
-            raise AuthRealFailure("official_auth_archive_shape")
-        binaries = [member for member in entries if member.isfile() and Path(member.name).name in {"auth", "gotrue"}]
-        _check(len(binaries) == 1, "official_auth_archive_binary")
-        with source.extractfile(binaries[0]) as stream:
-            content = stream.read(100 * 1024 * 1024 + 1)
-        _check(0 < len(content) <= 100 * 1024 * 1024 and content.startswith(b"\x7fELF\x02\x01"),
-               "official_auth_elf")
+    try:
+        with tarfile.open(fileobj=io.BytesIO(raw), mode="r:xz") as source:
+            entries = source.getmembers()
+            names = [member.name.rstrip("/") for member in entries]
+            _check(len(entries) == AUTH_ARCHIVE_MEMBERS and len(set(names)) == len(names)
+                   and sum(member.size for member in entries) == AUTH_ARCHIVE_EXPANDED_BYTES,
+                   "official_auth_archive_shape")
+            migrations = 0
+            for member, name in zip(entries, names):
+                if name == "auth":
+                    allowed = member.name == "auth" and member.isfile()
+                elif name == "gotrue":
+                    # Official backwards-compatible alias. Validate only; never extract/follow it.
+                    allowed = member.name == "gotrue" and member.issym() and member.linkname == "auth" and member.size == 0
+                elif name == "migrations":
+                    allowed = member.isdir() and member.size == 0
+                else:
+                    allowed = (member.isfile() and member.size <= 1024 * 1024
+                        and re.fullmatch(r"migrations/(?:[0-9]{2}|[0-9]{14})_[a-z0-9_]+(?:\.postgres)?\.up\.sql", member.name))
+                    migrations += bool(allowed)
+                _check(bool(allowed), "official_auth_archive_shape")
+            _check(set(names) >= {"auth", "gotrue", "migrations"} and migrations == AUTH_MIGRATION_FILES,
+                   "official_auth_archive_shape")
+            binaries = [member for member in entries if member.name == "auth" and member.isfile()]
+            _check(len(binaries) == 1 and binaries[0].size == AUTH_BINARY_BYTES, "official_auth_archive_binary")
+            with source.extractfile(binaries[0]) as stream:
+                content = stream.read(AUTH_BINARY_BYTES + 1)
+            _check(content.startswith(b"\x7fELF\x02\x01"), "official_auth_elf")
+            _check(len(content) == AUTH_BINARY_BYTES and _sha(content) == AUTH_BINARY_SHA256, "official_auth_binary_pin")
+    except (tarfile.TarError, OSError, EOFError):
+        raise AuthRealFailure("official_auth_archive_shape") from None
     destination.mkdir(mode=0o700)
     target = destination / "auth"
     target.write_bytes(content)
     target.chmod(0o700)
     return target
+
+
+def _verify_auth_version(binary: Path, work: Path) -> None:
+    try:
+        version = subprocess.run([str(binary), "version"], cwd=work, env=_child_environment(),
+                                 capture_output=True, timeout=10, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        raise AuthRealFailure("official_auth_version_command") from None
+    _check(version.returncode == 0 and version.stdout in {
+        (AUTH_VERSION + "\n").encode("ascii"), (AUTH_VERSION[1:] + "\n").encode("ascii")}, "official_auth_version")
 
 
 def _child_environment() -> dict:
@@ -376,15 +456,13 @@ def executar(*, dsn: str, archive: Path, postgrest: Path, node: Path, bundle: Pa
     admin_config = _local_connection(dsn)  # Before every file/DB/process mutation.
     _check(sys.platform == "linux", "official_auth_linux_required")
     _check(all(path.is_absolute() and path.is_file() for path in (archive, postgrest, node)), "explicit_binaries_required")
-    _check(bundle.is_absolute() and bundle.is_dir() and _sha((bundle / "qa-manifest.json").read_bytes()) == manifest_sha256,
+    _check(bundle.is_absolute() and bundle.is_dir() and (bundle / "qa-manifest.json").is_file()
+           and _sha((bundle / "qa-manifest.json").read_bytes()) == manifest_sha256,
            "native_manifest_pin")
     _check(not work.exists(), "fresh_work_directory_required")
     work.mkdir(parents=True, mode=0o700)
     binary = stage_auth(archive, work / "auth-bin")
-    version = subprocess.run([str(binary), "version"], cwd=work, env=_child_environment(),
-                             capture_output=True, timeout=10, check=False)
-    _check(version.returncode == 0 and version.stdout.decode("ascii").strip() in {AUTH_VERSION, AUTH_VERSION[1:]},
-           "official_auth_version")
+    _verify_auth_version(binary, work)
     evidence = {"scope": "DISPOSABLE_LOCAL_REAL_GOTRUE_CANONICAL_OWNER_NOT_PRODUCTION",
         "status": "FAIL", "auth_version": AUTH_VERSION, "auth_upstream_commit": AUTH_COMMIT,
         "auth_archive_sha256": AUTH_ARCHIVE_SHA256, "auth_executable_sha256": _sha(binary.read_bytes()),
@@ -459,7 +537,7 @@ def executar(*, dsn: str, archive: Path, postgrest: Path, node: Path, bundle: Pa
                 db._sonda_bem_sucedida.clear()
         evidence["status"] = "PASS_REAL_AUTH_LOCAL"
     except Exception as error:
-        evidence.update(failed_stage=stage, error_type=type(error).__name__)
+        evidence.update(_failure_record(error, fallback=stage))
     finally:
         evidence["cleanup"]["processes"] = _stop_children(processes)
         homologacao_stack.BINARIO_PGRST, homologacao_stack.PORTA_PGRST = old_stack
@@ -506,9 +584,10 @@ def main() -> int:
         evidence = executar(dsn=args.dsn, archive=args.auth_archive, postgrest=args.postgrest,
             node=args.node, bundle=args.bundle, manifest_sha256=args.manifest_sha256, work=args.work_dir)
     except Exception as error:
-        print(json.dumps({"status": "FAIL_PREFLIGHT", "error_type": type(error).__name__}))
+        print(json.dumps({"status": "FAIL_PREFLIGHT", **_failure_record(error, fallback="preflight")}))
         return 1
-    print(json.dumps({"status": evidence["status"], "checks": len(evidence.get("checks", {})), "cleanup": evidence["cleanup"]}))
+    print(json.dumps({"status": evidence["status"], "checks": len(evidence.get("checks", {})), "cleanup": evidence["cleanup"],
+                      **{key: evidence[key] for key in ("failed_stage", "error_type") if key in evidence}}))
     return 0 if evidence["status"] == "PASS_REAL_AUTH_LOCAL" else 1
 
 

@@ -191,7 +191,11 @@ def test_state_native_act_preserves_markdown_stage_and_legacy_approvals(approval
     monkeypatch.setattr(workflow, "autosalvar", lambda: pytest.fail("native act must not autosave legacy fields"))
     bridge = Ponte("http://localhost:8884", str(uuid4()), str(uuid4()), document.id,
         "n" * 48, revision=1, content_hash=document.content_hash)
-    bridge.state = "ready"  # Backend accepted document.loaded in the renderer.
+    from tests.test_wordcraft_protocol import evento, receber
+    receber(bridge, evento(bridge, "loaded", {"content_hash": document.content_hash}))
+    bridge.solicitar_bloqueio(binding.operation_id)
+    receber(bridge, evento(bridge, "frozen", dict(command_id=binding.operation_id,
+        content_hash=document.content_hash, generation="1")))
     receipt = workflow.aprovar_e_avancar("dfd", "BROWSER MARKDOWN", vinculo_nativo=binding,
         documento_service=service, ponte_nativa=bridge)
     assert receipt.status == "aprovado" and session["_aprovacoes_documentais"]["dfd"] is receipt
@@ -199,7 +203,7 @@ def test_state_native_act_preserves_markdown_stage_and_legacy_approvals(approval
     assert "emissão" in messages[0]
 
 
-@pytest.mark.parametrize("bridge_state", ["opening", "dirty", "saving", "error", "conflict"])
+@pytest.mark.parametrize("bridge_state", ["opening", "ready", "saved", "dirty", "saving", "error", "conflict", "frozen"])
 def test_state_blocks_an_unconfirmed_dirty_or_conflicting_bridge(approval, monkeypatch, bridge_state):
     from src import operacao_documento, state as workflow
     from src.wordcraft_protocol import Ponte
@@ -215,6 +219,29 @@ def test_state_blocks_an_unconfirmed_dirty_or_conflicting_bridge(approval, monke
     assert workflow.aprovar_e_avancar("dfd", "FORGED", vinculo_nativo=binding,
         documento_service=service, ponte_nativa=bridge) is None
     assert errors and not state["approval_calls"] and session["etapa"] == 1 and not session["aprovados"]
+
+
+@pytest.mark.parametrize("case", ["other_operation", "releasing"])
+def test_state_never_uses_a_freeze_for_another_or_released_operation(approval, monkeypatch, case):
+    from src import operacao_documento, state as workflow
+    from src.wordcraft_protocol import Ponte
+    from tests.test_wordcraft_protocol import evento, receber
+    service, state, document, binding = approval
+    errors = []
+    session = {"processo_id": document.processo_id, "documentos": {"dfd": "OLD"}, "etapa": 1, "aprovados": set()}
+    monkeypatch.setattr(workflow, "st", SimpleNamespace(session_state=session, error=errors.append))
+    monkeypatch.setattr(workflow.db, "em_manutencao", lambda: False)
+    monkeypatch.setattr(operacao_documento, "ocupada", lambda s: False)
+    bridge = Ponte("http://localhost:8884", str(uuid4()), str(uuid4()), document.id,
+        "n" * 48, revision=1, content_hash=document.content_hash)
+    receber(bridge, evento(bridge, "loaded", {"content_hash": document.content_hash}))
+    operation = str(uuid4()) if case == "other_operation" else binding.operation_id
+    bridge.solicitar_bloqueio(operation)
+    receber(bridge, evento(bridge, "frozen", dict(command_id=operation, content_hash=document.content_hash, generation="1")))
+    if case == "releasing": bridge.liberar_bloqueio(operation)
+    assert workflow.aprovar_e_avancar("dfd", "FORGED", vinculo_nativo=binding,
+        documento_service=service, ponte_nativa=bridge) is None
+    assert errors and state["approval_calls"] == [] and session["etapa"] == 1
 
 
 def test_visual_policy_reuses_published_backend_version_and_source_revocation(approval):

@@ -239,7 +239,7 @@ def prepare(config: Config, plan: dict) -> dict:
             user_id = connection.execute("insert into public.usuarios (nome,login,senha_hash,papel,tenant_id,secretaria_id,auth_user_id) values ('Operador sintético',%s,'NO_PASSWORD_LOGIN','usuario',%s,%s,%s) returning id", (uuid4().hex, tenant, secretary, auth_id)).fetchone()[0]
             processes = {}
             for case in CASES:
-                process = connection.execute("insert into public.processos (orgao,objeto,tenant_id,secretaria_id,auth_user_id,documentos) values ('Laboratório',%s,%s,%s,%s,%s) returning id", (case, tenant, secretary, auth_id, Jsonb({"dfd": "Original sintético preservado"}))).fetchone()[0]
+                process = connection.execute("insert into public.processos (orgao,objeto,tenant_id,secretaria_id,auth_user_id,documentos) values ('Laboratório',%s,%s,%s,%s,%s) returning id", (case, tenant, secretary, auth_id, Jsonb({"dfd": "Original sintético preservado", "tr": "# Fonte legada sintética\n\nImportação Markdown com **acentuação** e original preservado.\n\n1. Material sintético autorizado para o ensaio."}))).fetchone()[0]
                 processes[case] = str(process)
         state = {"schema": "gc-wordcraft-lab/v1", "id": lab_id, "database": database,
                  "host": plan["host"], "port": plan["port"], "schema_hash": fingerprint,

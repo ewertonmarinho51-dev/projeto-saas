@@ -7,10 +7,13 @@ Draft commits never approve documents or overwrite legacy process documents.
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 import hashlib
+import hmac
 import json
 from pathlib import Path
 import re
+import secrets
 from uuid import NAMESPACE_URL, uuid5
+from weakref import WeakValueDictionary
 
 from . import db
 from . import wordcraft_blocos as blocos
@@ -117,11 +120,79 @@ class Artefato:
     restored_source_hash: str | None = None
 
 
+@dataclass(frozen=True)
+class FontePatch:
+    doc_key: str
+    document_id: str
+    revision: int
+    content_hash: str
+    engine_build: str
+    index_hash: str
+    institutional_hash: str
+
+
+@dataclass(frozen=True)
+class ResultadoPatch:
+    fonte: FontePatch
+    revision: int
+    content_hash: str
+    index_hash: str
+    payload: bytes = field(repr=False)
+    index: blocos.IndiceNativo = field(repr=False)
+    institutional_snapshot: bytes = field(repr=False)
+
+
+@dataclass(frozen=True)
+class ComandoPatch:
+    fonte: FontePatch
+    operation_id: str
+    target_revision: int
+    target_hash: str
+    _plano_json: bytes = field(repr=False)
+
+    def plano_nativo(self) -> dict:
+        """Copy of the canonical applicator's exact compiled command envelope."""
+        return json.loads(self._plano_json)
+
+
+@dataclass(frozen=True)
+class PreparacaoPatches:
+    operation_id: str
+    processo_id: str
+    actor_id: str
+    plan_hash: str
+    source_bundle_hash: str
+    target_bundle_hash: str
+    fontes: tuple[FontePatch, ...]
+    resultados: tuple[ResultadoPatch, ...] = field(repr=False)
+    comandos: tuple[ComandoPatch, ...] = field(repr=False)
+    _contexto_json: bytes = field(repr=False)
+    _auditoria_json: bytes = field(repr=False)
+    _selo: str = field(repr=False)
+
+    def auditoria(self) -> dict:
+        return json.loads(self._auditoria_json)
+
+    def __reduce_ex__(self, protocol):
+        raise TypeError("Preparação exige a instância viva do owner; não pode ser serializada.")
+
+
+@dataclass(frozen=True)
+class ReciboPatches:
+    operation_id: str
+    processo_id: str
+    audit_id: str
+    plan_hash: str
+    replayed: bool
+    documentos: tuple[Recibo, ...] = field(repr=False)
+    canvas_confirmado: bool = False
+
+
 def _execute(query):
     try:
         return query.execute().data
     except Exception as error:
-        if getattr(error, "code", None) in {"40001", "23505", "55P03", "57014"}:
+        if getattr(error, "code", None) in {"PT409", "40001", "23505", "55P03", "57014"}:
             raise ConflitoDocumento("A revisão ou operação documental divergiu.") from None
         if getattr(error, "code", None) == "42501":
             raise AcessoNegado("Operação documental não autorizada.") from None
@@ -185,6 +256,225 @@ class DocumentoService:
         if not isinstance(manifest_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", manifest_sha256):
             raise ErroDocumento("Manifesto documental pinado obrigatório.")
         self._native = dict(node=node, bundle=bundle, manifest_sha256=manifest_sha256)
+        self._patch_key = secrets.token_bytes(32)
+        self._preparacoes: WeakValueDictionary[str, PreparacaoPatches] = WeakValueDictionary()
+        self._patch_pendentes: dict[str, PreparacaoPatches] = {}
+
+    def _auditar_patches(self, process_id, views, context, *, version):
+        from . import achados, consistencia, validacao
+        texts = {key: view.texto_analise for key, view in views.items()}
+        snapshot = blocos.snapshot_nativo(views, versao=version)
+        raw = validacao.validar_todos(texts, {}, context["processo"].get("dados") or {})
+        findings = achados.estruturar(raw, texts,
+            blocos_por_documento={key: [b.canonico() for b in view.blocos] for key,view in views.items()})
+        by_path = {b.path: b for view in views.values() for b in view.blocos}
+        for finding in findings:
+            finding["allowedPaths"] = [p for p in finding["allowedPaths"] if p in by_path and by_path[p].bloqueio is None]
+            finding["autoCorrectable"] = bool(finding["autoCorrectable"] and finding["allowedPaths"])
+        for finding in consistencia.verificar(context["fatos"], texts):
+            # Existing cross-document checks consume text. Their older text
+            # addresses cannot authorize a native target; keep the finding manual.
+            finding = dict(finding, autoCorrectable=False, allowedPaths=[], blockedPaths=[])
+            findings.append(finding)
+        return {"bundleId": process_id, "bundleVersion": version, "bundleHash": snapshot["hash"],
+            "status": "REVIEW_COMPLETED", "findings": findings, "validatorFindings": raw,
+            "validatorVersion": validacao.versao_do_auditor(), "model": "validacao-deterministica",
+            "sourceNative": {key: view.vinculo() for key,view in views.items()},
+            "coverage": {key: {"text": view.apto_analise, "gaps": list(view.areas_nao_cobertas),
+                "structuralTableAudit": False} for key,view in views.items()}, "officialEmission": False}
+
+    def _selo_patches(self, prep):
+        value = {"operation": prep.operation_id, "process": prep.processo_id, "actor": prep.actor_id,
+            "plan": prep.plan_hash, "source": prep.source_bundle_hash, "target": prep.target_bundle_hash,
+            "fontes": [vars(f) for f in prep.fontes],
+            "resultados": [{"fonte": vars(r.fonte), "revision": r.revision, "hash": r.content_hash,
+                "index_hash": r.index_hash, "payload": hashlib.sha256(r.payload).hexdigest(),
+                "index": hashlib.sha256(blocos.serializar_indice(r.index)).hexdigest(),
+                "institutional": hashlib.sha256(r.institutional_snapshot).hexdigest()} for r in prep.resultados],
+            "comandos": [{"fonte": vars(c.fonte), "op": c.operation_id, "rev": c.target_revision,
+                "hash": c.target_hash, "plano": hashlib.sha256(c._plano_json).hexdigest()} for c in prep.comandos],
+            "context": hashlib.sha256(prep._contexto_json).hexdigest(),
+            "audit": hashlib.sha256(prep._auditoria_json).hexdigest()}
+        return hmac.new(self._patch_key, _snapshot_bytes(value), hashlib.sha256).hexdigest()
+
+    def preparar_patches(self, processo_id: str, *, operation_id: str, propor_plano) -> PreparacaoPatches:
+        """Prepare entirely on the trusted backend. No persistence or canvas ACK."""
+        from . import corretor, patches
+        _uuid(processo_id)
+        _uuid(operation_id)
+        if not callable(propor_plano):
+            raise ErroDocumento("Propositor backend obrigatório.")
+        user, claims = self._session()
+        if operation_id in self._preparacoes:
+            previous = self._preparacoes[operation_id]
+            if (previous.processo_id, previous.actor_id) != (processo_id, claims["sub"]):
+                raise ConflitoDocumento("Operação de patch já pertence a outra preparação.")
+            return previous
+        if len(self._patch_pendentes) >= 4:
+            raise ErroDocumento("Há quatro preparações pendentes; conclua ou descarte uma preparação.")
+        context = _execute(db._cliente().rpc("documento_editor_fontes_patch",
+            {"p_process": processo_id, "p_claims": claims}))
+        if (not isinstance(context, dict) or context.keys() != {"processo", "fatos"}
+                or not isinstance(context["processo"], dict) or context["processo"].get("id") != processo_id
+                or not isinstance(context["fatos"], list) or len(context["fatos"]) > 10000
+                or len(_snapshot_bytes(context)) > MAX_BYTES):
+            raise ErroDocumento("Fontes backend de patch incompletas.")
+        heads = _execute(user.table("documentos_editor").select("id,processo_id,tipo,revision,content_hash,status,tenant_id")
+            .eq("processo_id", processo_id).limit(33))
+        if not isinstance(heads, list) or not 1 <= len(heads) <= 32:
+            raise ErroDocumento("Conjunto nativo vazio ou excessivo.")
+        originals = {}
+        for head in sorted(heads, key=lambda d: d["id"]):
+            if head.get("processo_id") != processo_id or head.get("tipo") in originals:
+                raise ErroDocumento("Mapeamento documental ambíguo.")
+            doc = self._revision(user, head, head["revision"])
+            if not doc.index or not doc.institutional_snapshot or doc.engine_build != self._native["manifest_sha256"]:
+                raise ErroDocumento("Uma fonte não possui índice, contexto e build atuais comprovados.")
+            originals[doc.tipo] = doc
+        views = {key: blocos.projetar_documento(key, doc.payload, indice=doc.index, **self._native) for key,doc in originals.items()}
+        if any(not v.apto_analise for v in views.values()):
+            raise ErroDocumento("Cobertura textual incompleta nas fontes do patch.")
+        before = blocos.snapshot_nativo(views, versao=1)
+        report = self._auditar_patches(processo_id, views, context, version=1)
+        try:
+            proposal = propor_plano(relatorio=json.loads(_snapshot_bytes(report)),
+                snapshot=json.loads(_snapshot_bytes(before)), contexto=json.loads(_snapshot_bytes(context)))
+            if not isinstance(proposal, dict) or proposal.keys() - {"operations", "unresolvedFindings"}:
+                raise ValueError()
+            plan = corretor._envelope(proposal.get("operations"), proposal.get("unresolvedFindings", []), report, before)
+            plan.update(patchPlanId=operation_id, sourceNative={key: view.vinculo() for key,view in views.items()})
+            for op in plan["operations"]:
+                source = originals[op["documentId"]]
+                if source.status not in {"rascunho", "em_revisao"} or source.tipo in context["processo"].get("aprovados", []):
+                    raise AcessoNegado("Documento aprovado não pode receber patch automático.")
+            applied = patches.aplicar_plano_nativo(plan,
+                {key: blocos.DocumentoNativo(d.payload,d.index) for key,d in originals.items()}, report, **self._native)
+            changed = sorted(applied["comandos"])
+            if not changed or set(applied["documentos"]) != set(originals):
+                raise ValueError()
+            sources, results, commands = [], [], []
+            for key,doc in originals.items():
+                source = FontePatch(key,doc.id,doc.revision,doc.content_hash,doc.engine_build,
+                    hashlib.sha256(blocos.serializar_indice(doc.index)).hexdigest(), doc.institutional_snapshot_hash)
+                sources.append(source)
+                target = applied["documentos"][key]
+                if key not in changed:
+                    if target.checkpoint != doc.payload or target.indice != doc.index:
+                        raise ValueError()
+                    continue
+                index = target.indice
+                if ((index.document_id,index.revision,index.content_hash,index.engine_manifest_sha256)
+                        != (doc.id,doc.revision+1,hashlib.sha256(target.checkpoint).hexdigest(),doc.engine_build)
+                        or {(b.block_id,b.caminho,b.story_kind,b.tipo) for b in index.blocos}
+                        != {(b.block_id,b.caminho,b.story_kind,b.tipo) for b in doc.index.blocos}):
+                    raise ValueError()
+                blocos.validar_indice(index,target.checkpoint,**self._native)
+                results.append(ResultadoPatch(source,index.revision,index.content_hash,
+                    hashlib.sha256(blocos.serializar_indice(index)).hexdigest(),target.checkpoint,index,
+                    _snapshot_bytes(doc.institutional_snapshot)))
+                commands.append(ComandoPatch(source,operation_id,index.revision,index.content_hash,
+                    _snapshot_bytes(applied["comandos"][key])))
+            after_views = {key: blocos.projetar_documento(key,d.checkpoint,indice=d.indice,**self._native)
+                for key,d in applied["documentos"].items()}
+            post = self._auditar_patches(processo_id,after_views,context,version=2)
+            audit = {"schema":"gc-wordcraft-patch-batch/v1", "operation_id":operation_id,
+                "plan":plan,"reports":[report,post],"snapshots":[before,applied["snapshot"]],"diff":applied["diff"],
+                "status":"REVIEW_COMPLETED","official_emission":False}
+            prep = PreparacaoPatches(operation_id,processo_id,claims["sub"],hashlib.sha256(_snapshot_bytes(plan)).hexdigest(),
+                before["hash"],applied["snapshot"]["hash"],tuple(sources),tuple(results),tuple(commands),
+                _snapshot_bytes(context),_snapshot_bytes(audit),"")
+            if sum(len(r.payload)+len(blocos.serializar_indice(r.index))+len(r.institutional_snapshot)
+                    for r in prep.resultados)+len(prep._auditoria_json)>32*1024*1024:
+                raise ValueError()
+            prep = replace(prep,_selo=self._selo_patches(prep))
+        except ErroDocumento:
+            raise
+        except Exception:
+            raise ErroDocumento("Preparação nativa recusada; nenhuma revisão foi gravada.") from None
+        self._preparacoes[operation_id] = prep
+        self._patch_pendentes[operation_id] = prep
+        return prep
+
+    def descartar_patches(self, preparacao: PreparacaoPatches) -> None:
+        """Revoke this in-memory preparation without any persistence or ACK."""
+        if (not isinstance(preparacao, PreparacaoPatches)
+                or self._preparacoes.get(preparacao.operation_id) is not preparacao):
+            raise ErroDocumento("Preparação não pertence a este owner.")
+        self._patch_pendentes.pop(preparacao.operation_id, None)
+        del self._preparacoes[preparacao.operation_id]
+
+    def confirmar_patches(self, preparacao: PreparacaoPatches, *, checkpoints: dict[str, Checkpoint] | None = None) -> ReciboPatches:
+        """One SQL transaction for all targets and source CAS. Never ACKs a host."""
+        prep = preparacao
+        try:
+            if (not isinstance(prep, PreparacaoPatches) or self._preparacoes.get(prep.operation_id) is not prep
+                    or not hmac.compare_digest(prep._selo, self._selo_patches(prep))):
+                raise ValueError()
+        except Exception:
+            raise ErroDocumento("Preparação não pertence a este owner ou foi alterada.") from None
+        user, claims = self._session()
+        if claims["sub"] != prep.actor_id:
+            raise AcessoNegado("Preparação pertence a outro ator.")
+        if any(s.engine_build != self._native["manifest_sha256"] for s in prep.fontes):
+            raise ConflitoDocumento("O build mudou depois da preparação.")
+        if checkpoints is not None:
+            if not isinstance(checkpoints, dict) or set(checkpoints) != {r.fonte.doc_key for r in prep.resultados}:
+                raise ErroDocumento("Confirmações do host não cobrem exatamente o lote preparado.")
+            for result in prep.resultados:
+                checkpoint = checkpoints[result.fonte.doc_key]
+                if (not isinstance(checkpoint, Checkpoint)
+                        or (checkpoint.request_id,checkpoint.expected_revision,checkpoint.content_hash,checkpoint.content)
+                        != (prep.operation_id,result.fonte.revision,result.content_hash,result.payload)):
+                    raise ConflitoDocumento("O canvas não confirmou os bytes exatos da preparação.")
+        batch = {"schema":"gc-wordcraft-patch-batch/v1", "operation_id":prep.operation_id,
+            "processo_id":prep.processo_id,"actor_id":prep.actor_id,"plan_hash":prep.plan_hash,
+            "source_bundle_hash":prep.source_bundle_hash,"target_bundle_hash":prep.target_bundle_hash,
+            "sources":[vars(s) for s in prep.fontes],"context":json.loads(prep._contexto_json),
+            "audit":json.loads(prep._auditoria_json),"targets":[]}
+        batch["plan_payload"] = "\\x" + _snapshot_bytes(batch["audit"]["plan"]).hex()
+        commands = {c.fonte.doc_key:c for c in prep.comandos}
+        for result in prep.resultados:
+            batch["targets"].append({"doc_key":result.fonte.doc_key,"document_id":result.fonte.document_id,
+                "source_revision":result.fonte.revision,"revision":result.revision,"content_hash":result.content_hash,
+                "payload":"\\x"+result.payload.hex(),"block_index":"\\x"+blocos.serializar_indice(result.index).hex(),
+                "index_hash":result.index_hash,"institutional_snapshot":"\\x"+result.institutional_snapshot.hex(),
+                "institutional_hash":result.fonte.institutional_hash,
+                "engine_build":result.fonte.engine_build,"native_commands":commands[result.fonte.doc_key].plano_nativo()})
+        raw = _snapshot_bytes(batch)
+        digest = hashlib.sha256(raw).hexdigest()
+        if len(raw)>64*1024*1024:
+            raise ErroDocumento("Lote de persistência excessivo.")
+        response = _execute(db._cliente().rpc("documento_editor_patch_lote", {
+            "p_process":prep.processo_id,"p_operation":prep.operation_id,"p_batch":"\\x"+raw.hex(),
+            "p_batch_sha256":digest,"p_claims":claims}))
+        fields = {"operation_id","processo_id","audit_id","plan_hash","batch_sha256","replayed","documentos"}
+        if (not isinstance(response, dict) or response.keys()!=fields
+                or (response["operation_id"],response["processo_id"],response["plan_hash"],response["batch_sha256"])
+                != (prep.operation_id,prep.processo_id,prep.plan_hash,digest)
+                or type(response["replayed"]) is not bool or not isinstance(response["documentos"],list)
+                or len(response["documentos"])!=len(prep.resultados)):
+            raise ErroDocumento("Recibo de lote divergente.")
+        try:
+            _uuid(response["audit_id"])
+            received = {row["document_id"]:row for row in response["documentos"]}
+            if len(received)!=len(prep.resultados): raise ValueError()
+            receipts=[]
+            for result in prep.resultados:
+                row=received[result.fonte.document_id]
+                if row != {"document_id":result.fonte.document_id,"revision":result.revision,
+                    "content_hash":result.content_hash,"engine_build_sha256":result.fonte.engine_build,
+                    "block_index_sha256":result.index_hash,"index_mode":"operational_patch",
+                    "institutional_snapshot_sha256":result.fonte.institutional_hash}:
+                    raise ValueError()
+                receipts.append(Recibo(result.fonte.document_id,prep.operation_id,result.revision,result.content_hash,
+                    response["replayed"],result.fonte.engine_build,"server_manifest_sha256",result.index_hash,
+                    "operational_patch",None,None,result.index,json.loads(result.institutional_snapshot),
+                    result.fonte.institutional_hash))
+        except (ValueError,KeyError,TypeError):
+            raise ErroDocumento("Recibo documental do lote divergente.") from None
+        self._patch_pendentes.pop(prep.operation_id, None)
+        return ReciboPatches(prep.operation_id,prep.processo_id,response["audit_id"],prep.plan_hash,
+            response["replayed"],tuple(receipts),checkpoints is not None)
 
     def _session(self):
         user = db.cliente_do_usuario()
@@ -419,7 +709,7 @@ class DocumentoService:
                 index = blocos.desserializar_indice(encoded_index)
                 if ((index.document_id, index.revision, index.content_hash, index.engine_manifest_sha256)
                         != (document_id, revision, digest, engine_build)
-                        or mode not in {"initial", "reconciled", "rebuilt_missing_index", "rebuilt_build"}):
+                        or mode not in {"initial", "reconciled", "rebuilt_missing_index", "rebuilt_build", "operational_patch"}):
                     raise ValueError()
                 if engine_build == self._native["manifest_sha256"]:
                     blocos.validar_indice(index, payload, **self._native)

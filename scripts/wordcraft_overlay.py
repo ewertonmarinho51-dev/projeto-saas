@@ -13,6 +13,7 @@ import subprocess
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
+IO_PATCH = ROOT / "integrations/wordcraft/io-fidelity.patch"
 CARGO_PATH = "apps/wordcraft-web/Cargo.toml"
 CARGO_SHA = "eda03c9e096f2a45cd55e5e5001e8f0850ceacf107864705cdd9c16928bfc8e0"
 LIB_SECTION = '\n[lib]\nname = "govconnect_wordcraft"\npath = "src/govconnect.rs"\n'
@@ -119,6 +120,23 @@ def contained(source: Path, relative: str) -> Path:
     return path
 
 
+def io_patch_state(source: Path) -> str:
+    """Validate the reviewed core patch without changing the upstream checkout."""
+    if not IO_PATCH.is_file():
+        raise ValueError("Reviewed I/O fidelity patch is missing")
+    command = ["git", "apply", "--check", "--ignore-space-change", str(IO_PATCH)]
+    forward = subprocess.run(command, cwd=source, capture_output=True, text=True, timeout=20)
+    if getattr(forward, "returncode", 0) == 0:
+        return "pending"
+    reverse = subprocess.run(
+        ["git", "apply", "--reverse", "--check", "--ignore-space-change", str(IO_PATCH)],
+        cwd=source, capture_output=True, text=True, timeout=20,
+    )
+    if getattr(reverse, "returncode", 0) == 0:
+        return "applied"
+    raise ValueError("Upstream I/O paths differ from both audited states")
+
+
 def ui_patches(pin: str) -> list[dict]:
     manifest = json.loads((ROOT / "integrations/wordcraft/ui-patches.json").read_text(encoding="utf-8"))
     if manifest.get("schema") != "gc-wordcraft-ui-patches/v1" or manifest.get("upstream_commit") != pin:
@@ -192,6 +210,12 @@ def apply(source: Path, *, browser=False):
             validate_catalog_parity(catalogs)
         writes.extend(ui_writes)
     # Every target is validated before writing any of them.
+    io_state = io_patch_state(source)
+    if io_state == "pending":
+        subprocess.run(
+            ["git", "apply", "--ignore-space-change", str(IO_PATCH)],
+            cwd=source, capture_output=True, text=True, check=True, timeout=20,
+        )
     for path, content in writes:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
@@ -201,6 +225,8 @@ def apply(source: Path, *, browser=False):
             "cargo_lock_integration_sha256_lf": hashlib.sha256(lock_bytes).hexdigest(),
             "cargo_lock_delta": "wordcraft-web direct dependencies: serde and sha2 only; versions/source/checksums unchanged",
             "browser_bridge": browser,
+            "io_fidelity_patch_sha256": hashlib.sha256(IO_PATCH.read_bytes()).hexdigest(),
+            "io_fidelity_patch": "applied" if io_state == "pending" else "already_applied",
             "status": "OVERLAY_APPLIED_NOT_COMPILED"}
 
 

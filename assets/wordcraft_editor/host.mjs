@@ -4,6 +4,32 @@ export const checkpointSchema = 'gc-wordcraft-snapshot/v1';
 export const maxBytes = 8 * 1024 * 1024;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const hashPattern = /^[0-9a-f]{64}$/;
+const freezeTimeoutMs = 1500;
+const freezeFrameAttempts = 120;
+const frameWatchdogMs = 50;
+
+function nextAnimationFrame(signal) {
+  return new Promise(resolve => {
+    let frame;
+    const finish = () => { signal.removeEventListener('abort', cancel); resolve(); };
+    const cancel = () => { if (frame !== undefined) globalThis.cancelAnimationFrame?.(frame); finish(); };
+    signal.addEventListener('abort', cancel, {once: true});
+    if (typeof globalThis.requestAnimationFrame === 'function') frame = globalThis.requestAnimationFrame(finish);
+  });
+}
+
+async function boundedFrame(awaitFrame, remainingMs) {
+  const abort = new AbortController();
+  let timer;
+  try {
+    await Promise.race([awaitFrame(abort.signal), new Promise(resolve => {
+      timer = setTimeout(resolve, Math.max(0, Math.min(frameWatchdogMs, remainingMs)));
+    })]);
+  } finally {
+    clearTimeout(timer);
+    abort.abort();
+  }
+}
 
 export async function sha256(bytes) {
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), b => b.toString(16).padStart(2, '0')).join('');
@@ -60,7 +86,7 @@ export class EventOutbox {
 }
 
 export class EditorController {
-  constructor(native, data, send) {
+  constructor(native, data, send, {awaitFrame = nextAnimationFrame} = {}) {
     for (const key of ['instance_id', 'session_id', 'document_id']) if (!uuidPattern.test(data[key])) throw new Error('Escopo inválido.');
     if (!Number.isSafeInteger(data.revision) || data.revision < 0 || !hashPattern.test(data.content_hash)
         || typeof data.nonce !== 'string' || !/^[a-zA-Z0-9_-]{32,128}$/.test(data.nonce)) throw new Error('Contrato de abertura inválido.');
@@ -68,6 +94,7 @@ export class EditorController {
     this.scope = Object.fromEntries(['instance_id', 'session_id', 'document_id', 'nonce'].map(k => [k, data[k]]));
     this.revision = data.revision;
     this.initialHash = data.content_hash;
+    this.currentHash = data.content_hash;
     this.send = send;
     this.sequence = 0;
     this.state = 'opening';
@@ -75,6 +102,10 @@ export class EditorController {
     this.lastAck = null;
     this.generation = null;
     this.disposed = false;
+    this.lastControl = null;
+    this.frozenCommand = null;
+    this.controlStates = new Map();
+    this.awaitFrame = awaitFrame;
   }
   publish(event, payload) {
     if (this.disposed) throw new Error('Instância encerrada.');
@@ -145,6 +176,7 @@ export class EditorController {
       this.native.acknowledge_checkpoint(ack.request_id);
       this.lastAck = ack.request_id;
       this.revision = ack.revision;
+      this.currentHash = ack.content_hash;
       this.pending = null;
       this.state = this.native.dirty() ? 'dirty' : 'saved';
     }
@@ -159,6 +191,111 @@ export class EditorController {
     if (!this.pending.content_hash) return this.prepareCheckpoint(this.pending.request_id);
     return this.publish('document.retry', {request_id: this.pending.request_id});
   }
+  async control(command) {
+    if (!command || this.disposed || this.state === 'conflict') return;
+    if (typeof command !== 'object' || Array.isArray(command)
+        || Object.keys(command).sort().join(',') !== 'action,command_id,content_hash,revision,schema'
+        || command.schema !== 'gc-wordcraft-control/v1' || typeof command.command_id !== 'string'
+        || !uuidPattern.test(command.command_id) || !['freeze', 'release'].includes(command.action)
+        || typeof command.content_hash !== 'string' || !hashPattern.test(command.content_hash)
+        || !Number.isSafeInteger(command.revision) || command.revision < 0) throw new Error('Controle inválido.');
+    const identity = command.command_id + ':' + command.action;
+    if (this.lastControl === identity) return;
+    if (command.action === 'release') {
+      if (this.state !== 'frozen' || this.frozenCommand !== command.command_id
+          || command.revision !== this.revision || command.content_hash !== this.currentHash) throw new Error('Liberação divergente.');
+      this.native.set_interaction_locked(false);
+      this.state = this.beforeFreeze;
+      this.frozenCommand = null;
+      this.lastControl = identity;
+      this.controlStates.set(command.command_id, 'released');
+      this.publish('document.released', {command_id: command.command_id});
+      return;
+    }
+    // A consumed freeze cannot be resurrected by an older Streamlit rerun.
+    if (this.controlStates.has(command.command_id)) return;
+    if (this.frozenCommand !== null || [...this.controlStates.values()].includes('pending')) throw new Error('Outro controle está pendente.');
+    if (this.controlStates.size >= 10000) throw new Error('Renovação do controle necessária.');
+    this.controlStates.set(command.command_id, 'pending');
+    this.lastControl = identity; // Reserve before asynchronous hashing/reruns.
+    const fail = reason => {
+      this.controlStates.set(command.command_id, 'failed');
+      if (!this.disposed) this.publish('document.control_failed', {command_id: command.command_id, reason});
+    };
+    if (command.revision !== this.revision || command.content_hash !== this.currentHash) { fail('stale'); return; }
+    if (this.pending || ['saving', 'error'].includes(this.state)) { fail('pending'); return; }
+    if (!['ready', 'saved', 'dirty'].includes(this.state)) { fail('unavailable'); return; }
+    if (this.changed() || this.native.dirty() || this.state === 'dirty') {
+      if (this.state !== 'dirty') { this.state = 'dirty'; this.publish('document.changed', {}); }
+      fail('dirty'); return;
+    }
+    if (typeof this.native.set_interaction_locked !== 'function' || typeof this.native.interaction_lock_ready !== 'function'
+        || typeof this.native.serialize !== 'function') {
+      fail('unavailable'); return;
+    }
+    this.beforeFreeze = this.state;
+    const beforeState = this.state;
+    const beforeRevision = this.revision;
+    const beforeHash = this.currentHash;
+    const generation = this.native.generation();
+    let locked = false;
+    let keepLocked = false;
+    const current = () => this.state === beforeState && this.lastControl === identity
+      && this.controlStates.get(command.command_id) === 'pending'
+      && this.revision === beforeRevision && this.currentHash === beforeHash && !this.pending;
+    const afterDrain = () => {
+      if (this.disposed) return false;
+      if (this.state === 'conflict' || this.lastControl !== identity
+          || this.controlStates.get(command.command_id) !== 'pending' || this.pending
+          || this.revision !== beforeRevision || this.currentHash !== beforeHash) { fail('stale'); return false; }
+      if (this.native.dirty() || this.native.generation() !== generation || this.state === 'dirty') {
+        this.changed();
+        if (this.state !== 'dirty') { this.state = 'dirty'; this.publish('document.changed', {}); }
+        fail('dirty'); return false;
+      }
+      if (!current()) { fail('stale'); return false; }
+      return true;
+    };
+    try {
+      this.native.set_interaction_locked(true); locked = true;
+      // The first native frame must consume already-captured keyboard/IME input
+      // through WordApp.ui. Requesting a lock alone is not a frame barrier.
+      const deadline = performance.now() + freezeTimeoutMs;
+      let drained = false;
+      for (let attempt = 0; attempt < freezeFrameAttempts && performance.now() < deadline; attempt++) {
+        await boundedFrame(this.awaitFrame, deadline - performance.now());
+        if (!afterDrain()) return;
+        if (performance.now() >= deadline) throw new Error('A espera do frame excedeu o limite.');
+        const ready = this.native.interaction_lock_ready();
+        if (typeof ready !== 'boolean') throw new Error('Prontidão nativa inválida.');
+        if (ready) { drained = true; break; }
+      }
+      if (!drained) throw new Error('A fila nativa não confirmou o bloqueio.');
+      const snapshot = this.native.serialize();
+      if (!snapshot.length || snapshot.length > maxBytes) throw new Error('Snapshot inválido.');
+      const digest = await sha256(snapshot);
+      if (this.disposed) return;
+      if (!current()) { fail('stale'); return; }
+      if (this.native.interaction_lock_ready() !== true || this.native.dirty()
+          || this.native.generation() !== generation || digest !== command.content_hash) {
+        this.changed(); fail('stale'); this.state = 'conflict'; return;
+      }
+      this.state = 'frozen';
+      this.frozenCommand = command.command_id;
+      this.controlStates.set(command.command_id, 'frozen');
+      // Once a proof enters the outbox, keep the native lock even if transport
+      // throws; an eventual delivery must still describe a locked canvas.
+      keepLocked = true;
+      this.publish('document.frozen', {command_id: command.command_id, content_hash: digest, generation});
+    } catch {
+      if (this.controlStates.get(command.command_id) === 'pending') fail('unavailable');
+    } finally {
+      if (!this.disposed && locked && !keepLocked) {
+        try { this.native.set_interaction_locked(false); }
+        catch { this.state = 'conflict'; }
+      }
+    }
+  }
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
@@ -169,6 +306,7 @@ export class EditorController {
 const labels = {opening: 'Abrindo documento…', ready: 'Documento aberto.', dirty: 'Alterações ainda não salvas.',
   saving: 'Salvando…', saved: 'Gravação confirmada pelo servidor.', error: 'Falha ao salvar. O rascunho permanece neste editor.',
   conflict: 'Conflito de revisão. Preserve o rascunho e solicite reconciliação.'};
+labels.frozen = 'Revisão bloqueada para análise. Aguarde a confirmação do servidor.';
 
 export default function render(component) {
   const {data, parentElement, setStateValue} = component;
@@ -186,6 +324,7 @@ export default function render(component) {
     try { instance.outbox.acknowledge(data.event_ack); }
     catch { if (instance.controller) instance.controller.state = 'conflict'; }
     root.__instance.controller?.receive(data);
+    instance.applyControl?.();
     instance.update?.();
     if (instance.controller?.state === 'dirty') instance.schedule?.();
     return;
@@ -200,6 +339,9 @@ export default function render(component) {
   const unload = event => { if (instance.controller && !['ready', 'saved'].includes(instance.controller.state)) { event.preventDefault(); event.returnValue = ''; } };
   window.addEventListener('beforeunload', unload);
   instance.update = update;
+  instance.applyControl = () => instance.controller?.control(instance.data.control).then(() => {
+    update(); if (instance.controller.state === 'dirty') instance.schedule();
+  }).catch(() => { instance.controller.state = 'conflict'; update(); });
   instance.schedule = () => {
     clearTimeout(instance.timer);
     instance.timer = setTimeout(() => { instance.controller.checkpoint().then(update).catch(update); }, 800);
@@ -229,6 +371,7 @@ export default function render(component) {
     instance.controller = controller;
     await controller.loaded(bytes);
     controller.receive(instance.data);
+    instance.applyControl();
     update();
     instance.interval = setInterval(() => {
       try {

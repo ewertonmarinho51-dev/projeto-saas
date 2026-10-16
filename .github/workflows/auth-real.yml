@@ -98,7 +98,7 @@ jobs:
           PY
       - name: Execute real password Auth, RLS, canonical native saves and revocation
         env:
-          GOVDOCS_ENSAIO_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GOVDOCS_ENSAIO_PG_DSN: 'host=127.0.0.1 port=5432 dbname=postgres user=postgres password=postgres'
           PYTHONUTF8: '1'
         shell: bash
         run: |

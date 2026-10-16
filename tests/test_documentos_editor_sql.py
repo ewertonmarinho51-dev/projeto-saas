@@ -286,7 +286,8 @@ def test_migration_preserves_legacy_revision_without_retroattributing_a_build(en
                 legacy_schema.setattr(harness, "SEQUENCIA_EM_ENSAIO",
                     tuple(item for item in harness.SEQUENCIA_EM_ENSAIO if item not in {
                         migration, "20261015122441_documentos_editor_persistencia_g2.sql",
-                        "20261015124841_documentos_editor_snapshot_institucional.sql"}))
+                        "20261015124841_documentos_editor_snapshot_institucional.sql",
+                        "20261016041756_documentos_editor_patch_lote.sql"}))
                 harness.preparar(connection)
             old = seed_scenario(connection)
             before = commit(connection, old, legacy=True)

@@ -1,0 +1,187 @@
+diff --git a/crates/doc/src/lib.rs b/crates/doc/src/lib.rs
+--- a/crates/doc/src/lib.rs
++++ b/crates/doc/src/lib.rs
+@@ -464,2 +464,7 @@ pub struct Settings {
+     pub compat_mode: u32,
++    /// Compatibility flags whose absence differs from an explicit false value.
++    pub use_fe_layout: Option<bool>,
++    pub override_table_style_font_size_and_justification: Option<bool>,
++    pub enable_open_type_features: Option<bool>,
++    pub do_not_flip_mirror_indents: Option<bool>,
+     /// Drawing grid spacing in points, across and down (View › Gridlines); ECMA-376's default is 1/8 inch.
+@@ -560,2 +565,6 @@ impl Default for Settings {
+             compat_mode: COMPAT_MODE_CURRENT,
++            use_fe_layout: None,
++            override_table_style_font_size_and_justification: None,
++            enable_open_type_features: None,
++            do_not_flip_mirror_indents: None,
+             grid_h: DEFAULT_GRID,
+diff --git a/crates/doc/src/styles.rs b/crates/doc/src/styles.rs
+--- a/crates/doc/src/styles.rs
++++ b/crates/doc/src/styles.rs
+@@ -50,3 +50,5 @@ pub struct Style {
+ pub struct TableStyleParts {
+     pub borders: Option<Borders>,
++    /// Table indentation in points (`w:tblPr/w:tblInd`), including an explicit zero.
++    pub indent: Option<f32>,
+     /// Shading of every cell (`w:tblPr/w:shd`, or the `wholeTable` region's cell shading).
+@@ -98,2 +100,3 @@ impl TableStyleParts {
+         self.borders = merge(self.borders, patch.borders);
++        self.indent = patch.indent.or(self.indent);
+         self.header_borders = merge(self.header_borders, patch.header_borders);
+diff --git a/crates/docx/src/read/mod.rs b/crates/docx/src/read/mod.rs
+--- a/crates/docx/src/read/mod.rs
++++ b/crates/docx/src/read/mod.rs
+@@ -823,3 +823,4 @@ impl Reader<'_> {
+                 t.borders = Some(props::borders(b));
+             }
++            t.indent = tp.child("w:tblInd").and_then(|e| tw(e, "w:w"));
+             t.fill = tp.child("w:shd").and_then(|e| self.pc.shd_fill(e));
+@@ -997,3 +998,14 @@ impl Reader<'_> {
+                 "w:removeDateAndTime" => s.remove_date_time = on_off(k),
+                 "w:compat" => {
++                    s.use_fe_layout = k.child("w:useFELayout").map(on_off);
++                    let word_flag = |name: &str| {
++                        k.children("w:compatSetting")
++                            .find(|c| {
++                                c.attr("w:name") == Some(name) && c.attr("w:uri").is_none_or(|u| u == "http://schemas.microsoft.com/office/word")
++                            })
++                            .map(on_off)
++                    };
++                    s.override_table_style_font_size_and_justification = word_flag("overrideTableStyleFontSizeAndJustification");
++                    s.enable_open_type_features = word_flag("enableOpenTypeFeatures");
++                    s.do_not_flip_mirror_indents = word_flag("doNotFlipMirrorIndents");
+                     // Only Word's own setting: another `w:uri` names a different application's.
+diff --git a/crates/docx/src/read/story.rs b/crates/docx/src/read/story.rs
+--- a/crates/docx/src/read/story.rs
++++ b/crates/docx/src/read/story.rs
+@@ -127,4 +127,5 @@ struct PB {
+     text: String,
+     runs: Vec<Run>,
+     objects: Vec<InlineObject>,
++    empty_run_props: Option<CharProps>,
+ }
+@@ -389,3 +390,8 @@ impl Reader<'_> {
+         para.runs = pb.runs;
+         para.objects = pb.objects;
++        if para.text.is_empty() && para.objects.is_empty() && para.mark == CharProps::default() {
++            if let Some(props) = pb.empty_run_props {
++                para.mark = props;
++            }
++        }
+         para.normalize();
+@@ -545,3 +551,4 @@ impl Reader<'_> {
+         };
+         let mut note: Option<(NoteKind, u32, Option<String>)> = None;
++        let before = (pb.text.len(), pb.objects.len());
+         for k in r.els() {
+@@ -558,3 +568,6 @@ impl Reader<'_> {
+             self.emit_obj(sc, pb, InlineObject::NoteRef { kind, id, custom: custom.unwrap_or_default() }, &props);
+         }
++        if before == (pb.text.len(), pb.objects.len()) && r.child("w:rPr").is_some() {
++            pb.empty_run_props = Some(props.formatting());
++        }
+     }
+diff --git a/crates/docx/src/write/mod.rs b/crates/docx/src/write/mod.rs
+--- a/crates/docx/src/write/mod.rs
++++ b/crates/docx/src/write/mod.rs
+@@ -728,3 +728,3 @@ fn style_xml(w: &mut W, st: &Style) {
+     if let Some(t) = &st.table {
+-        if t.borders.is_some() || t.cell_margins.is_some() || t.band_size.is_some() {
++        if t.borders.is_some() || t.indent.is_some() || t.cell_margins.is_some() || t.band_size.is_some() {
+             w.open("w:tblPr", &[]);
+@@ -737,3 +737,7 @@ fn style_xml(w: &mut W, st: &Style) {
+                 props::borders(w, "w:tblBorders", b, Some("w:insideH"), &[]);
+             }
++            if let Some(indent) = t.indent {
++                let indent = crate::units::twips(indent.clamp(-31680.0, 31680.0));
++                w.empty("w:tblInd", &[("w:w", &indent), ("w:type", "dxa")]);
++            }
+             if let Some(m) = &t.cell_margins {
+@@ -972,5 +976,23 @@ fn settings_xml(doc: &Document, footnotes: bool, endnotes: bool, template_rel: O
+     }
+     w.open("w:compat", &[]);
++    if let Some(value) = s.use_fe_layout {
++        if value {
++            w.empty("w:useFELayout", &[]);
++        } else {
++            w.empty("w:useFELayout", &[("w:val", "0")]);
++        }
++    }
+     let mode = doc.settings.compat_mode.clamp(11, 15).to_string();
+     w.empty("w:compatSetting", &[("w:name", "compatibilityMode"), ("w:uri", "http://schemas.microsoft.com/office/word"), ("w:val", &mode)]);
++    let mut compat_flag = |name: &str, value: Option<bool>| {
++        if let Some(value) = value {
++            w.empty(
++                "w:compatSetting",
++                &[("w:name", name), ("w:uri", "http://schemas.microsoft.com/office/word"), ("w:val", if value { "1" } else { "0" })],
++            );
++        }
++    };
++    compat_flag("overrideTableStyleFontSizeAndJustification", s.override_table_style_font_size_and_justification);
++    compat_flag("enableOpenTypeFeatures", s.enable_open_type_features);
++    compat_flag("doNotFlipMirrorIndents", s.do_not_flip_mirror_indents);
+     w.close("w:compat");
+diff --git a/crates/docx/tests/fixtures.rs b/crates/docx/tests/fixtures.rs
+--- a/crates/docx/tests/fixtures.rs
++++ b/crates/docx/tests/fixtures.rs
+@@ -656,4 +656,24 @@ fn compatibility_mode_is_read_and_defaults_to_word_2007() {
+ }
+-
++
++#[test]
++fn known_compatibility_flags_preserve_absent_true_and_false() {
++    let settings = r#"<w:compat><w:useFELayout w:val="0"/><w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="enableOpenTypeFeatures" w:uri="http://schemas.microsoft.com/office/word" w:val="0"/><w:compatSetting w:name="doNotFlipMirrorIndents" w:uri="urn:other" w:val="1"/></w:compat>"#;
++    let s = with_settings(Some(settings)).settings;
++    assert_eq!(s.use_fe_layout, Some(false));
++    assert_eq!(s.override_table_style_font_size_and_justification, Some(true));
++    assert_eq!(s.enable_open_type_features, Some(false));
++    assert_eq!(s.do_not_flip_mirror_indents, None);
++}
++
++#[test]
++fn formatted_empty_run_becomes_the_paragraph_mark() {
++    let d = read_body(r#"<w:p><w:r><w:rPr><w:b/><w:color w:val="C00000"/></w:rPr></w:r></w:p>"#);
++    let p = paras(&d)[0];
++    assert!(p.text.is_empty());
++    assert!(p.runs.is_empty());
++    assert_eq!(p.mark.bold, Some(true));
++    assert_eq!(p.mark.color, Some(TextColor::Rgb(Rgb(0xC0, 0, 0))));
++}
++
+ #[test]
+ fn line_rule_is_read_case_insensitively() {
+diff --git a/crates/docx/tests/roundtrip.rs b/crates/docx/tests/roundtrip.rs
+--- a/crates/docx/tests/roundtrip.rs
++++ b/crates/docx/tests/roundtrip.rs
+@@ -500,3 +500,4 @@ fn table_style_formatting_round_trips() {
+     let parts = TableStyleParts {
+         borders: Some(Borders { top: Some(Border::single(1.0)), ..Default::default() }),
++        indent: Some(0.0),
+         fill: Some(Rgb(0xDD, 0xEB, 0xF7)),
+@@ -1163,3 +1164,17 @@ fn compatibility_mode_round_trips() {
+ }
+-
++
++#[test]
++fn known_compatibility_flags_round_trip() {
++    let mut d = Document::new();
++    d.settings.use_fe_layout = Some(false);
++    d.settings.override_table_style_font_size_and_justification = Some(true);
++    d.settings.enable_open_type_features = Some(false);
++    d.settings.do_not_flip_mirror_indents = Some(true);
++    let s = rt(&d).settings;
++    assert_eq!(s.use_fe_layout, Some(false));
++    assert_eq!(s.override_table_style_font_size_and_justification, Some(true));
++    assert_eq!(s.enable_open_type_features, Some(false));
++    assert_eq!(s.do_not_flip_mirror_indents, Some(true));
++}
++
+ /// Tools › Templates and Add-ins: the attached template (an external relationship of the settings
+diff --git a/crates/layout/src/table.rs b/crates/layout/src/table.rs
+--- a/crates/layout/src/table.rs
++++ b/crates/layout/src/table.rs
+@@ -381,2 +381,2 @@ pub fn layout_table(ctx: &mut Ctx, story: StoryRef, t: &Table, path: &[u32], ava
+-    let indent = t.props.indent.unwrap_or(0.0);
++    let indent = t.props.indent.or_else(|| parts.and_then(|p| p.indent)).unwrap_or(0.0);
+     // The style's borders, overlaid by the table's own side by side.

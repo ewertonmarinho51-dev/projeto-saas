@@ -25,6 +25,7 @@ def seed(tmp_path, monkeypatch):
     integrated = lock.replace(overlay.LOCK_WEB_BEFORE.encode(), overlay.LOCK_WEB_AFTER.encode(), 1)
     monkeypatch.setattr(overlay, "LOCK_AFTER_SHA", hashlib.sha256(integrated).hexdigest())
     monkeypatch.setattr(overlay.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout=PIN))
+    monkeypatch.setattr(overlay, "IO_PATCH", Path(__file__).resolve().parents[1] / "integrations/wordcraft/io-fidelity.patch")
     monkeypatch.setattr(overlay, "ui_patches", lambda pin: [])
     return cargo
 
@@ -38,6 +39,21 @@ def test_overlay_idempotente(tmp_path, monkeypatch):
     assert cargo.read_bytes().count(b"sha2 = { workspace = true }") == 1
     assert cargo.read_bytes().count(b"serde = { workspace = true }") == 1
     assert first["status"] == "OVERLAY_APPLIED_NOT_COMPILED"
+    assert first["io_fidelity_patch"] == "applied"
+    assert len(first["io_fidelity_patch_sha256"]) == 64
+
+
+def test_io_patch_reconhece_estado_aplicado_e_recusa_drift(tmp_path, monkeypatch):
+    patch = tmp_path / "io.patch"
+    patch.write_text("reviewed")
+    monkeypatch.setattr(overlay, "IO_PATCH", patch)
+    replies = iter([SimpleNamespace(returncode=1), SimpleNamespace(returncode=0)])
+    monkeypatch.setattr(overlay.subprocess, "run", lambda *a, **k: next(replies))
+    assert overlay.io_patch_state(tmp_path) == "applied"
+    replies = iter([SimpleNamespace(returncode=1), SimpleNamespace(returncode=1)])
+    monkeypatch.setattr(overlay.subprocess, "run", lambda *a, **k: next(replies))
+    with pytest.raises(ValueError, match="I/O paths"):
+        overlay.io_patch_state(tmp_path)
 
 
 def test_exemplo_qa_alheio_impede_overlay_sem_escrita_parcial(tmp_path, monkeypatch):

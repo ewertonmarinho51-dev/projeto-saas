@@ -1,13 +1,26 @@
 //! Explicit, document-scoped browser entry point; no file picker/download side channels.
 use std::any::Any;
+use std::cell::Cell;
+use std::rc::Rc;
 
 use govconnect_wordcraft::{self as adapter, ExportFormat, UserEdit};
 use wasm_bindgen::prelude::*;
 use wordcraft_engine::Session;
 use wordcraft_ui_egui::{Services, WordApp};
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum InteractionLock {
+    Open,
+    Requested,
+    Draining,
+    Locked,
+}
+
 struct EditorApp {
     app: WordApp,
+    interaction_lock: Rc<Cell<InteractionLock>>,
+    input_ready: Rc<Cell<bool>>,
+    ui_passes: u8,
 }
 
 impl eframe::App for EditorApp {
@@ -16,6 +29,20 @@ impl eframe::App for EditorApp {
     }
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.app.ui(ui);
+        // WordApp returns early during its first two font-initialization UI passes.
+        self.ui_passes = self.ui_passes.saturating_add(1).min(3);
+        self.input_ready.set(self.ui_passes == 3);
+        if self.interaction_lock.get() == InteractionLock::Draining {
+            // raw_input_hook runs BEFORE WordApp's text/IME commands. Only the
+            // completed UI pass can attest that captured input reached Session.
+            let released = ui.input(|input| !input.pointer.any_down() && input.keys_down.is_empty());
+            if released && self.app.canvas.ime_preedit.is_empty() {
+                self.interaction_lock.set(InteractionLock::Locked);
+            } else {
+                // Preserve an active composition/gesture, including its eventual commit/release.
+                ui.ctx().request_repaint();
+            }
+        }
     }
     fn as_any_mut(&mut self) -> Option<&mut dyn Any> {
         Some(self)
@@ -24,6 +51,17 @@ impl eframe::App for EditorApp {
         // Documents/assets enter only through the explicitly authorized host API.
         input.dropped_files.clear();
         input.hovered_files.clear();
+        if self.interaction_lock.get() == InteractionLock::Locked {
+            input.events.clear();
+            input.modifiers = egui::Modifiers::default();
+            input.focused = false;
+            return;
+        }
+        if self.interaction_lock.get() == InteractionLock::Requested {
+            self.interaction_lock.set(InteractionLock::Draining);
+        }
+        // Requested/draining must forward existing input. Hidden tabs have no
+        // UI pass; eframe retains their RawInput and readiness remains false.
         self.app.raw_input_hook(input);
     }
 }
@@ -41,11 +79,20 @@ pub struct GovConnectEditor {
     context: Option<egui::Context>,
     pending: Option<Pending>,
     started: bool,
+    interaction_lock: Rc<Cell<InteractionLock>>,
+    input_ready: Rc<Cell<bool>>,
 }
 
 impl Default for GovConnectEditor {
     fn default() -> Self {
-        Self { runner: eframe::WebRunner::new(), context: None, pending: None, started: false }
+        Self {
+            runner: eframe::WebRunner::new(),
+            context: None,
+            pending: None,
+            started: false,
+            interaction_lock: Rc::new(Cell::new(InteractionLock::Open)),
+            input_ready: Rc::new(Cell::new(false)),
+        }
     }
 }
 
@@ -88,6 +135,13 @@ pub fn export_checkpoint(bytes: Vec<u8>, format: &str) -> Result<Vec<u8>, JsValu
 }
 
 impl GovConnectEditor {
+    fn ensure_editable(&self) -> Result<(), JsValue> {
+        if self.interaction_lock.get() != InteractionLock::Open {
+            return Err(error("canvas is locked for a server-bound operation"));
+        }
+        Ok(())
+    }
+
     fn with_session<T>(&self, action: impl FnOnce(&mut Session) -> Result<T, String>) -> Result<T, JsValue> {
         if !self.started {
             return Err(error("editor is not ready"));
@@ -121,6 +175,8 @@ impl GovConnectEditor {
         }
         let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
         let captured_in = captured.clone();
+        let interaction_lock = self.interaction_lock.clone();
+        let input_ready = self.input_ready.clone();
         self.runner
             .start(
                 canvas,
@@ -133,7 +189,7 @@ impl GovConnectEditor {
                     app.autosave = false;
                     app.ui.show_discord = false;
                     app.ui.language = "pt-br".into();
-                    Ok(Box::new(EditorApp { app }))
+                    Ok(Box::new(EditorApp { app, interaction_lock, input_ready, ui_passes: 0 }))
                 }),
             )
             .await?;
@@ -144,6 +200,7 @@ impl GovConnectEditor {
 
     /// Reload only a clean document. A dirty/conflicted draft needs explicit reconciliation first.
     pub fn load_bytes(&mut self, bytes: Vec<u8>) -> Result<(), JsValue> {
+        self.ensure_editable()?;
         if self.pending.is_some() {
             return Err(error("checkpoint pending; reconcile before reload"));
         }
@@ -207,16 +264,19 @@ impl GovConnectEditor {
     }
 
     pub fn insert_text(&self, text: String) -> Result<(), JsValue> {
+        self.ensure_editable()?;
         self.with_session(|session| adapter::command(session, UserEdit::InsertText(text)).map(|_| ()))
     }
 
     pub fn select_text(&self, text: String) -> Result<(), JsValue> {
+        self.ensure_editable()?;
         self.with_session(|session| adapter::command(session, UserEdit::SelectText(text)).map(|_| ()))
     }
 
     /// Apply only to a clean, acknowledged canvas. The caller still owns
     /// backend policy/approval/CAS; this method never claims a saved revision.
     pub fn apply_text_patch(&mut self, current_revision: u32, plan_json: &str) -> Result<(), JsValue> {
+        self.ensure_editable()?;
         if self.pending.is_some() {
             return Err(error("checkpoint pending; reconcile before patch"));
         }
@@ -229,14 +289,17 @@ impl GovConnectEditor {
     }
 
     pub fn bold(&self) -> Result<(), JsValue> {
+        self.ensure_editable()?;
         self.with_session(|session| adapter::command(session, UserEdit::Bold).map(|_| ()))
     }
 
     pub fn undo(&self) -> Result<(), JsValue> {
+        self.ensure_editable()?;
         self.with_session(|session| adapter::command(session, UserEdit::Undo).map(|_| ()))
     }
 
     pub fn redo(&self) -> Result<(), JsValue> {
+        self.ensure_editable()?;
         self.with_session(|session| adapter::command(session, UserEdit::Redo).map(|_| ()))
     }
 
@@ -248,10 +311,43 @@ impl GovConnectEditor {
         self.with_session(|session| adapter::export(session, ExportFormat::Pdf))
     }
 
+    /// Host coordination only; preserves the document, selection and undo stack.
+    /// It is not an ACL, an approval or a server persistence confirmation.
+    pub fn set_interaction_locked(&self, locked: bool) -> Result<(), JsValue> {
+        if !self.started {
+            return Err(error("editor is not ready"));
+        }
+        if locked {
+            if !self.input_ready.get() {
+                return Err(error("canvas input is not initialized"));
+            }
+            if self.interaction_lock.get() == InteractionLock::Open {
+                self.interaction_lock.set(InteractionLock::Requested);
+            }
+        } else {
+            self.interaction_lock.set(InteractionLock::Open);
+        }
+        if let Some(ctx) = &self.context {
+            ctx.request_repaint();
+        }
+        Ok(())
+    }
+
+    /// True only AFTER captured RawInput traversed a complete WordApp UI pass.
+    /// A requested lock already rejects external editing APIs, but is not a proof.
+    pub fn interaction_lock_ready(&self) -> Result<bool, JsValue> {
+        if !self.started {
+            return Err(error("editor is not ready"));
+        }
+        Ok(self.interaction_lock.get() == InteractionLock::Locked)
+    }
+
     pub fn dispose(&mut self) {
         self.runner.destroy();
         self.context = None;
         self.pending = None;
         self.started = false;
+        self.interaction_lock.set(InteractionLock::Open);
+        self.input_ready.set(false);
     }
 }
