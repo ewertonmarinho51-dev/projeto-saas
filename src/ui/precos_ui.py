@@ -1471,7 +1471,7 @@ def _render_govbot(orientacoes: list[orientacao.Orientacao]) -> None:
                      expanded=any(o.severidade == orientacao.IMPEDE
                                   for o in orientacoes)):
         for aviso in orientacoes:
-            texto = f"{aviso.prefixo} {aviso.texto}"
+            texto = f"{aviso.prefixo} {aviso.texto}".replace("$", "\\$")
             if aviso.severidade == orientacao.IMPEDE:
                 st.error(texto)
             elif aviso.severidade == orientacao.CONFIRA:
@@ -1584,9 +1584,12 @@ def _render_anomalias(memoria: dict) -> None:
         f"{len(anomalias)} candidato(s) discrepante(s) sinalizado(s). "
         "Nenhum foi excluído automaticamente — quem decide é você.")
     for anomalia in anomalias:
+        # "$" escapado: a frase traz dois "R$" (mediana e faixa IQR), e o
+        # Markdown do Streamlit leria o trecho entre eles como fórmula.
         st.caption(f"⚠ {_moeda(anomalia.get('valor'))} — "
                    f"{anomalia.get('motivo', '')} "
-                   f"(critério {anomalia.get('criterio', '')})")
+                   f"(critério {anomalia.get('criterio', '')})"
+                   .replace("$", "\\$"))
 
 
 def _render_filtros(referencias: list[dict]) -> filtros_mod.Filtros:

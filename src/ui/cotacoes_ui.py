@@ -47,6 +47,9 @@ PAGINA_LISTA = "cot_pagina"
 POR_PAGINA_LISTA = 20
 POR_PAGINA_ITENS = 40
 POR_PAGINA_REFERENCIAS = 12
+# Itens por passo da Cotação automática: a tela responde a cada passo e
+# o estado da cotação é sincronizado uma vez por passo (benchmark G6).
+LOTE_POR_PASSO = 3
 
 ROTULO_ESTADO = {
     "draft": ("Rascunho", "info"), "queued": ("Na fila", "info"),
@@ -112,6 +115,11 @@ def _revisao_vista(item: dict | None) -> int | None:
 def _renovar_revisoes() -> None:
     for chave in [c for c in st.session_state if str(c).startswith("_cot_rev_")]:
         st.session_state.pop(chave, None)
+
+
+def _sem_latex(texto: str) -> str:
+    """Dois "R$" no mesmo texto viravam fórmula no Markdown do Streamlit."""
+    return str(texto).replace("$", "\\$")
 
 
 def _moeda(valor) -> str:
@@ -468,7 +476,8 @@ def _render_lote(ctx, cotacao: dict, itens: list[dict]) -> None:
     with st.spinner("Consultando fontes oficiais…"):
         resultados, restantes = cotacoes.pesquisar_em_lote(
             ctx, str(cotacao["id"]), modo="automatico", item_ids=lote["ids"],
-            tamanho=1, ja_tentados=tentados, **_opcoes_de_busca())
+            tamanho=LOTE_POR_PASSO, ja_tentados=tentados,
+            **_opcoes_de_busca())
     por_id = {str(i["id"]): i for i in itens}
     for r in resultados:
         numero = int((por_id.get(r.item_id) or {}).get("numero") or 0)
@@ -788,7 +797,8 @@ def _referencia(ctx, cotacao: dict, item: dict, linha: dict, dentro: bool,
                        f" / {linha.get('unidade_original') or '—'}")
         motivos = [m for m in (linha.get("motivos") or []) if m]
         if motivos:
-            st.caption("Por quê: " + "; ".join(str(m) for m in motivos[-3:]))
+            st.caption(_sem_latex("Por quê: " + "; ".join(
+                str(m) for m in motivos[-3:])))
         acao, detalhe = st.columns([1.3, 2])
         if editavel and item.get("estado") != "complete":
             with acao.popover("Tirar da cesta" if dentro else "Usar na cesta",
@@ -853,10 +863,10 @@ def _painel_cesta(ctx, cotacao: dict, item: dict, referencias: list[dict],
                     if cv not in (None, "") else "—") + " |"]
             st.markdown("\n".join(linhas).replace("$", "\\$"))
         for pendencia in gravado.get("pendencias") or []:
-            st.warning(pendencia)
+            st.warning(_sem_latex(pendencia))
         for anomalia in gravado.get("anomalias") or []:
-            st.caption(f"⚠ {_moeda(anomalia.get('valor'))}: "
-                       f"{anomalia.get('motivo', '')}")
+            st.caption(_sem_latex(f"⚠ {_moeda(anomalia.get('valor'))}: "
+                                  f"{anomalia.get('motivo', '')}"))
     if editavel:
         revisao = _revisao_vista(item)
         precos_ui.render_metodo_do_item(cotacao, item, revisao=revisao)

@@ -192,17 +192,29 @@ def _rodar_unificado(itens: list[dict], fonte, contador: Contador):
     cotacao = cotacoes.criar_cotacao(
         ctx, {"nome": "benchmark", "data_base": "2026-10-16"},
         idempotency_key="bench")
-    cotacoes.salvar_itens(ctx, str(cotacao["id"]), [
-        {k: v for k, v in i.items() if k != "valor_unitario"} for i in itens])
+    for item in itens:   # inclusão validada, item a item, como na tela
+        cotacoes.salvar_item(ctx, str(cotacao["id"]), {
+            k: v for k, v in item.items() if k != "valor_unitario"})
+    # O MESMO caminho da tela: `pesquisar_em_lote`, LOTE_POR_PASSO itens
+    # por passo; a medida por item é o passo dividido pelos itens dele.
+    from src.ui.cotacoes_ui import LOTE_POR_PASSO
+
     medidas = []
-    for linha in repo.listar_itens(str(cotacao["id"])):
+    tentados: set[str] = set()
+    while True:
         antes_req, antes_fonte = contador.requisicoes, fonte.chamadas
         inicio = time.perf_counter()
-        cotacoes.pesquisar_item(ctx, str(cotacao["id"]), str(linha["id"]),
-                                modo="automatico", fontes=[fonte])
-        medidas.append({"segundos": time.perf_counter() - inicio,
-                        "req_banco": contador.requisicoes - antes_req,
-                        "chamadas_fonte": fonte.chamadas - antes_fonte})
+        resultados, restantes = cotacoes.pesquisar_em_lote(
+            ctx, str(cotacao["id"]), modo="automatico",
+            tamanho=LOTE_POR_PASSO, ja_tentados=tentados, fontes=[fonte])
+        n = max(1, len(resultados))
+        for _ in resultados:
+            medidas.append({
+                "segundos": (time.perf_counter() - inicio) / n,
+                "req_banco": (contador.requisicoes - antes_req) / n,
+                "chamadas_fonte": (fonte.chamadas - antes_fonte) / n})
+        if not restantes or not resultados:
+            break
     return medidas, repo.listar_itens(str(cotacao["id"]))
 
 

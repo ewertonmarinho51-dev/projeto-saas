@@ -138,3 +138,15 @@ Elaborar Cotação com manual e automático no mesmo item.
 - **Provas:** `tests/test_cotacoes_g5_emissao.py` (7), inclusive na tela (AppTest): gerar o quadro registra a emissão com o hash do arquivo; item pendente impede emitir até a ciência.
 - **Suíte completa:** **2824 passed, 345 skipped, 0 failed** (4 min 55 s).
 - **Não entregue, com motivo:** assinatura no relatório de preços (F137) — o mecanismo do GovConnect (`src/assinaturas.py`) exige signatário do cadastro de servidores/portarias do processo; ligar exige decisão de quem assina a pesquisa autônoma. % de preço máximo (F042) — sem regra normativa definida pelo ente. Índices de correção (F104/F093) — sem série oficial integrada. Geração assíncrona (F136) — P3.
+
+---
+
+## G6 — homologação local e consolidação · PASS com limites
+
+- **E2E** `tests/test_cotacoes_g6_e2e.py` (9): lote automático com 1/10/50/210 itens sobre a fixture do caso real (todos preservados, códigos intactos, nada de preço para zero/vizinhos/fonte fora, reexecução sem duplicar); 50 itens cancelados em 15 e retomados só nos 35 restantes por outra sessão; 10 itens manual + automático na mesma cotação; 3 preços com 1 excluído → 2/3 e R$ 25,85; cotação fora do alcance recusada mesmo com ID conhecido; sem sessão, nada de credencial de servidor.
+- **Benchmark antes/depois** (`docs/cotacoes/bench/`): mesma cobertura (157/210) e mesmos estados; requisições ao banco por item caíram de 11,8 para **8,2** com a otimização deste gate (sincronizar estado por passo e com consulta leve; não reler referências nem item depois do upsert; cotação lida uma vez por passo). Fluxo antigo: 3,9 — a diferença é deliberada (preservar decisões humanas; trilha de cada busca).
+- **Defeito de tela corrigido:** frases com dois "R$" eram renderizadas como fórmula LaTeX pelo Streamlit (discrepante, GovBot, motivos) — visto no navegador, corrigido nas duas telas.
+- **Navegador:** demo sintética conferida (lote automático, chips, indisponibilidade de fonte, item fictício 0/3).
+- **Documentos:** `RELATORIO_ENTREGA.md`, `rollback.md`, `matriz_substituicao.md`, backlog final.
+- **Suíte completa:** **2833 passed, 345 skipped, 0 failed**.
+- **Limites:** RLS não exercida (sem Postgres de ensaio); nada ativado nem aplicado; telas antigas mantidas como fallback.

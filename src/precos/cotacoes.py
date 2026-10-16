@@ -303,9 +303,12 @@ def sincronizar_estado(cotacao_id: str) -> str:
     atual = EstadoPesquisa(str(cotacao.get("estado") or "draft"))
     if atual in estados.IMUTAVEIS:
         return atual.value
+    # Só o ESTADO dos itens (consulta leve): em 210 itens, reler as
+    # estatísticas de todos a cada passo era o custo dominante (G6).
     alvo = estado_da_cotacao(
         [EstadoItem(str(i.get("estado") or "pending"))
-         for i in ativos(repo.listar_itens(cotacao_id))])
+         for i in repo.itens_de_varias([cotacao_id])
+         if not i.get("removido_em")])
     if alvo is None:
         return atual.value
     for passo in _caminho(atual, alvo):
@@ -533,7 +536,8 @@ def _ao_buscar(item_id: str, atual: EstadoItem) -> None:
 def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
                    modo: str = "manual", filtros: dict | None = None,
                    termo: str = "", fontes=None, motor_semantico=None,
-                   seletor=None) -> ResultadoPesquisa:
+                   seletor=None, sincronizar: bool = True,
+                   cotacao: dict | None = None) -> ResultadoPesquisa:
     """
     Busca preços para UM item e grava as candidatas no próprio item.
 
@@ -551,7 +555,10 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
     if modo not in MODOS:
         raise ErroCotacao("modo de pesquisa desconhecido")
     inicio = time.monotonic()
-    cotacao = _exigir_editavel(repo.obter_pesquisa(cotacao_id))
+    # O lote passa a cotação já lida: reler a cada item custava uma
+    # requisição a mais ao banco em cada um dos 210 itens (benchmark G6).
+    cotacao = _exigir_editavel(cotacao if cotacao is not None
+                               else repo.obter_pesquisa(cotacao_id))
     item = repo.obter_item(item_id)
     if not item or str(item.get("pesquisa_id")) != str(cotacao_id) \
             or item.get("removido_em"):
@@ -598,7 +605,8 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
         resultado.diagnostico = "fonte_indisponivel"
         _registrar_busca(ctx, cotacao_id, item_id, resultado, filtros_efetivos,
                          termo, inicio, falhou=True)
-        sincronizar_estado(cotacao_id)
+        if sincronizar:
+            sincronizar_estado(cotacao_id)
         return resultado
 
     # Decisões já gravadas sobre a CESTA (dentro, fora com motivo, ou
@@ -631,13 +639,18 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
                 referencia.com_motivo(f"{referencia.rotulo_da_natureza} — "
                                       "não é preço praticado")
     resultado.novas = len(novas)
-    if coleta.referencias:
-        repo.registrar_referencias(item_id, coleta.referencias)
-    repo.mover_item(item_id, EstadoItem.CLASSIFICANDO, EstadoItem.BUSCANDO,
-                    desfechos=coleta.desfechos,
-                    ocorrencias=coleta.ocorrencias, erro="")
-    item = repo.obter_item(item_id) or item
-    linhas = repo.listar_referencias(item_id)
+    gravadas = (repo.registrar_referencias(item_id, coleta.referencias)
+                if coleta.referencias else [])
+    item = repo.mover_item(item_id, EstadoItem.CLASSIFICANDO,
+                           EstadoItem.BUSCANDO, desfechos=coleta.desfechos,
+                           ocorrencias=coleta.ocorrencias, erro="") or item
+    # Linhas do item = as que já existiam + o que o upsert devolveu, pela
+    # mesma chave única do banco — sem reler a tabela.
+    por_chave = dict(existentes)
+    for gravada in gravadas:
+        por_chave[(str(gravada.get("fonte_id")),
+                   str(gravada.get("id_externo")))] = gravada
+    linhas = list(por_chave.values())
     if modo == "automatico" and seletor is not None:
         try:
             resultado.sugestao = seletor(cotacao, item, linhas)
@@ -653,7 +666,8 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
         estatistica.PISO_COMPARABILIDADE)
     _registrar_busca(ctx, cotacao_id, item_id, resultado, filtros_efetivos,
                      termo, inicio)
-    sincronizar_estado(cotacao_id)
+    if sincronizar:
+        sincronizar_estado(cotacao_id)
     return resultado
 
 
@@ -703,16 +717,21 @@ def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
             if str(i.get("estado") or "pending") in A_PROCESSAR
             and str(i["id"]) not in ja_tentados]
     resultados = []
+    cotacao = repo.obter_pesquisa(cotacao_id)
     for item in fila[:max(1, tamanho)]:
         ja_tentados.add(str(item["id"]))
         try:
+            # estado da cotação sincronizado UMA vez por passo, não por item
             resultados.append(pesquisar_item(ctx, cotacao_id, str(item["id"]),
-                                             modo=modo, **opcoes))
+                                             modo=modo, sincronizar=False,
+                                             cotacao=cotacao, **opcoes))
         except (ErroCotacao, db.ErroBanco, estados.TransicaoInvalida) as exc:
             resultados.append(ResultadoPesquisa(
                 item_id=str(item["id"]), modo=modo,
                 diagnostico="fonte_indisponivel",
                 ocorrencias=[f"item não processado: {exc}"]))
+    if resultados:
+        sincronizar_estado(cotacao_id)
     restantes = len([i for i in fila if str(i["id"]) not in ja_tentados])
     return resultados, restantes
 
