@@ -3,12 +3,14 @@
 Nada disto foi executado em produção. Cada passo depende de autorização
 expressa do operador.
 
-## Ordem de ativação (quando autorizada)
+## Ordem de ativação
+
+Estado em 16/10/2026: passos 1 a 3 FEITOS com autorização do operador (merge do PR #51, v1.9.0 na VPS, 0029 aplicada, `flag_unified_quotations` = on). O Jev (passo 4) já estava ligado em produção (`flag_jev_price_research` = 1) antes desta entrega; com ele ligado, o seletor consulta a IA só no caso ambíguo, dentro dos tetos, e só recomenda.
 
 1. **Merge** da branch `feature/cotacoes-unificadas-bp-jev` (PR, CI verde).
    Com as flags desligadas, o produto se comporta como antes: a entrada
    continua "Pesquisa de Preços" e as correções do G1 valem para ela.
-2. **Migração 0029** (`supabase/migrations/0029_cotacoes_unificadas.sql.NAO_APLICAR`):
+2. **Migração 0029** (`supabase/migrations/0029_cotacoes_unificadas.sql`) — **FEITO em 16/10/2026** (`m0029_cotacoes_unificadas`, ensaiada antes no projeto descartável; registro no cabeçalho do arquivo):
    seguir o ritual `revisar-migracao` — ensaio em PostgreSQL descartável
    (`GOVDOCS_ENSAIO_PG_DSN` + `tests/test_migracao_0029.py`), revisão do
    agente `revisor-de-banco-e-seguranca`, remover o sufixo no commit que

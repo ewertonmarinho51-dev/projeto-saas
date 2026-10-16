@@ -23,7 +23,7 @@
 
 - **Serviços reaproveitados:** `busca`, `cesta`, `estatistica`, `perfil`, `matching`, `fontes`, `unidades`, `repositorio`, `relatorio`, `aplicacao`, `cotacao`, `decisoes`, `jev`, `ai_gateway`, `planilha` (leitura de XLSX). Nenhuma segunda tabela, busca, cesta ou cálculo.
 - **Telas antigas:** descontinuadas com a flag ligada, **não removidas** (`matriz_substituicao.md`).
-- **Migração:** `0029_cotacoes_unificadas.sql.NAO_APLICAR` (aditiva, RLS ligada e forçada, append-only, flag off) + `0029_rollback.sql`. **Não aplicada.**
+- **Migração:** `0029_cotacoes_unificadas.sql` (aditiva, RLS ligada e forçada, append-only) + `0029_rollback.sql`. **Aplicada em produção em 16/10/2026** como `m0029_cotacoes_unificadas`, depois de ensaiada no projeto descartável; `flag_unified_quotations` ligada em seguida.
 - **Backlog:** `docs/cotacoes/10_BACKLOG_116_FUNCOES.csv`. P1 (24): 19 implementados/corrigidos, 1 reaproveitado (F120), 2 parciais (F102: três métodos com dados, saneadas sem norma do ente; F123: lote com prévia só no serviço), F100 com motor pronto e aplicação bloqueada por dado (nenhuma fonte publica propostas), F104 bloqueado (sem índices oficiais). P2 (47): 21 implementados, 6 reaproveitados, 9 bloqueados com evidência, 1 excluído com motivo (F042) + F131, 5 fora do escopo, 1 parcial, 1 medição.
 
 ## Testes

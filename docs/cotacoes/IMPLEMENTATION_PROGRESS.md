@@ -150,3 +150,12 @@ Elaborar Cotação com manual e automático no mesmo item.
 - **Documentos:** `RELATORIO_ENTREGA.md`, `rollback.md`, `matriz_substituicao.md`, backlog final.
 - **Suíte completa:** **2833 passed, 345 skipped, 0 failed**.
 - **Limites:** RLS não exercida (sem Postgres de ensaio); nada ativado nem aplicado; telas antigas mantidas como fallback.
+
+---
+
+## Ativação em produção (16/10/2026, autorizada pelo operador)
+
+- PR #51 mergeado (`17d5307`); tag `v1.9.0` promovida na VPS (health 200, logs limpos).
+- Migração 0029 completada com a conferência que falha sozinha, ensaiada no projeto descartável (com prova de mutação e de comportamento) e aplicada em produção como `m0029_cotacoes_unificadas`. Antes/depois medidos: nada do que existia mudou. Registro no cabeçalho do arquivo, que perdeu o sufixo `.NAO_APLICAR`.
+- `flag_unified_quotations` = on. `flag_jev_price_research` já estava 1 em produção (correção: os relatórios anteriores disseram que estava off — era o padrão do código, não a configuração de produção).
+- Rollback: `docs/cotacoes/rollback.md`.

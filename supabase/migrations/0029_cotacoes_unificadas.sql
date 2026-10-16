@@ -1,9 +1,43 @@
--- ===============================================================
--- 0029 — Cotações unificadas (Minhas Cotações → Elaborar Cotação)
+-- ## 0029 — Cotações unificadas (Minhas Cotações → Elaborar Cotação)
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 16/10/2026, por autorização expressa
+-- ##   do operador, como `m0029_cotacoes_unificadas` (projeto Supabase
+-- ##   de produção). Antes, ensaiada no projeto descartável
+-- ##   `govdocs-ensaio-descartavel` com o mesmo nome.
+-- ## Rollback: `docs/cotacoes/0029_rollback.sql`.
 --
--- STATUS: NÃO APLICADA. O sufixo `.NAO_APLICAR` sai no dia em que o
--- operador autorizar a aplicação (mesmo ritual da 0028). Rollback em
--- `docs/cotacoes/0029_rollback.sql`.
+-- REGISTRO DA APLICAÇÃO (16/10/2026):
+--   * ensaio: conferência aprovada; mutação (DELETE ao service_role e
+--     UPDATE ao authenticated na tabela nova) REPROVADA pela conferência,
+--     nomeando os dois; UPDATE na emissão recusado com 42501 até para o
+--     dono; UF 'ZZ' recusada pelo CHECK. Linha de ensaio deixada no
+--     projeto descartável (append-only impede apagá-la);
+--   * produção, ANTES e DEPOIS: grants das quatro tabelas da 0021
+--     idênticos; linhas idênticas (2 pesquisas, 215 itens, 1.610
+--     referências, 2.491 eventos); 215 itens com revisao = 1 e colunas
+--     novas vazias; emissões com SELECT/INSERT a authenticated e sem
+--     DELETE/TRUNCATE ao service_role; advisor de segurança sem achado
+--     novo;
+--   * nível 1 do ensaio (PostgreSQL local) NÃO executado: não há
+--     PostgreSQL nesta máquina;
+--   * depois da aplicação, `flag_unified_quotations` = 'on'. A
+--     `flag_jev_price_research` já estava '1' em produção.
+-- ===============================================================
+--
+-- AUDITORIA ANTES DE ESCREVER (produção, 16/10/2026, catálogo):
+--   * migração roda como `postgres`; o `pg_default_acl` dele concede a
+--     `service_role` `arwdxtm` em tabela nova — DELETE incluído. A
+--     tabela nova revoga `delete, truncate` de `service_role` aqui
+--     mesmo, e a conferência no fim mede;
+--   * eventos em uso: pesquisa_criada, busca_iniciada, busca_concluida,
+--     pesquisa_arquivada (2.491 linhas) — todos no CHECK novo;
+--   * CHECK atual: `pesquisa_preco_eventos_tipo_check` (nome confere).
+--
+-- O QUE ESTA MIGRAÇÃO NÃO RESOLVE: o default de `postgres` continua
+-- concedendo DELETE ao `service_role` na PRÓXIMA tabela que alguém
+-- criar — é a "fábrica" que a 0024 apontou. Estreitar o
+-- `pg_default_acl` é decisão de schema inteiro, fora do escopo de uma
+-- migração de funcionalidade; fica registrado para a próxima de
+-- contenção.
 --
 -- ADITIVA. Nada é apagado, renomeado ou reescrito; nenhuma linha
 -- existente muda de valor. O que entra:
@@ -289,3 +323,78 @@ grant execute on function public.revisar_pesquisa_preco(uuid, text)
 insert into public.config_app (chave, valor)
 values ('flag_unified_quotations', 'off')
 on conflict (chave) do nothing;
+
+-- ---------------------------------------------------------------
+-- 6. Conferência que falha sozinha
+--
+-- Um `revoke` que não pega não levanta erro. Cada afirmação acima é
+-- medida aqui no catálogo; qualquer divergência aborta a migração
+-- inteira (a transação desfaz tudo).
+-- ---------------------------------------------------------------
+do $$
+declare
+  faltou text := '';
+  n integer;
+begin
+  select count(*) into n from information_schema.columns
+   where table_schema = 'public' and table_name = 'pesquisa_preco_itens'
+     and column_name in ('revisao', 'lote', 'uf', 'removido_em');
+  if n <> 4 then faltou := faltou || ' colunas_do_item=' || n; end if;
+
+  if not exists (select 1 from pg_class
+                  where oid = 'public.pesquisa_preco_emissoes'::regclass
+                    and relrowsecurity and relforcerowsecurity) then
+    faltou := faltou || ' rls_emissoes';
+  end if;
+
+  select count(*) into n from information_schema.role_table_grants
+   where table_schema = 'public' and table_name = 'pesquisa_preco_emissoes'
+     and grantee in ('anon', 'PUBLIC', 'public');
+  if n > 0 then faltou := faltou || ' grant_anon_ou_public=' || n; end if;
+
+  select count(*) into n from information_schema.role_table_grants
+   where table_schema = 'public' and table_name = 'pesquisa_preco_emissoes'
+     and grantee = 'authenticated'
+     and privilege_type not in ('SELECT', 'INSERT');
+  if n > 0 then faltou := faltou || ' authenticated_alem_de_select_insert=' || n; end if;
+
+  select count(*) into n from information_schema.role_table_grants
+   where table_schema = 'public' and table_name = 'pesquisa_preco_emissoes'
+     and grantee = 'service_role' and privilege_type in ('DELETE', 'TRUNCATE');
+  if n > 0 then faltou := faltou || ' service_role_delete_truncate=' || n; end if;
+
+  select count(*) into n from pg_trigger
+   where tgrelid = 'public.pesquisa_preco_emissoes'::regclass
+     and tgname in ('pesquisa_preco_emissor', 'pesquisa_preco_emissoes_imutavel')
+     and not tgisinternal;
+  if n <> 2 then faltou := faltou || ' gatilhos_emissoes=' || n; end if;
+
+  select count(*) into n from pg_policies
+   where schemaname = 'public' and tablename = 'pesquisa_preco_emissoes'
+     and (coalesce(qual, '') ilike '%true%' and length(coalesce(qual, '')) < 10);
+  if n > 0 then faltou := faltou || ' politica_irrestrita=' || n; end if;
+
+  -- nenhum evento existente ficou fora do CHECK novo (o add constraint
+  -- já validaria, mas a afirmação vai escrita)
+  select count(*) into n from public.pesquisa_preco_eventos e
+   where e.tipo not in ('pesquisa_criada', 'pesquisa_revisada',
+                        'busca_iniciada', 'busca_concluida', 'busca_falhou',
+                        'referencia_incluida', 'referencia_excluida',
+                        'metodo_alterado', 'preco_arbitrado',
+                        'item_concluido', 'item_incompleto',
+                        'pesquisa_concluida', 'pesquisa_aplicada',
+                        'pesquisa_arquivada', 'excecao_registrada',
+                        'relatorio_emitido', 'busca_registrada',
+                        'item_editado', 'item_removido', 'selecao_sugerida');
+  if n > 0 then faltou := faltou || ' eventos_fora_do_check=' || n; end if;
+
+  if not exists (select 1 from public.config_app
+                  where chave = 'flag_unified_quotations') then
+    faltou := faltou || ' flag_ausente';
+  end if;
+
+  if faltou <> '' then
+    raise exception 'A 0029 não cumpriu o que afirma:%', faltou;
+  end if;
+end
+$$;

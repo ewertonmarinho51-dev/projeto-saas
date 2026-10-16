@@ -126,6 +126,13 @@ SEQUENCIA_EM_ENSAIO = (
     # continuar fora das duas: o `invalidar_processo` do cache APAGA, e
     # o aplicativo fala como `service_role`.
     "0028_controle_de_consumo_e_cache.sql",
+    # A 0029 (Cotações unificadas) pelo mesmo motivo da 0028: sem o
+    # sufixo, o glob a rodaria antes da 0021, cujas tabelas ela altera, e
+    # da 0020, cujas funções as políticas dela chamam. Fica antes da 0027
+    # porque a 0027 é a última; a tabela nova (`pesquisa_preco_emissoes`)
+    # revoga o próprio DELETE/TRUNCATE do `service_role` e confere no
+    # bloco final, sem depender da lista nomeada da 0027.
+    "0029_cotacoes_unificadas.sql",
     # A 0027 entra por ÚLTIMO e a posição é o conteúdo dela, como na
     # 0024: ela afirma algo sobre o estado FINAL dos privilégios. No
     # meio da sequência, a 0025 — que cria dez tabelas depois — poderia

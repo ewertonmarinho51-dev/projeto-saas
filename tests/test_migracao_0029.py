@@ -22,15 +22,39 @@ import pytest
 
 _MIGRACOES = (pathlib.Path(__file__).resolve().parent.parent
               / "supabase" / "migrations")
-MIGRACAO = _MIGRACOES / "0029_cotacoes_unificadas.sql.NAO_APLICAR"
+
+
+def _arquivo_da_0029() -> pathlib.Path:
+    """Pelo nome que tiver: o sufixo `.NAO_APLICAR` sai no dia da aplicação."""
+    for nome in ("0029_cotacoes_unificadas.sql",
+                 "0029_cotacoes_unificadas.sql.NAO_APLICAR"):
+        if (_MIGRACOES / nome).exists():
+            return _MIGRACOES / nome
+    raise AssertionError("a 0029 sumiu do repositório")
+
+
+MIGRACAO = _arquivo_da_0029()
 TEXTO = MIGRACAO.read_text(encoding="utf-8")
 SQL = "\n".join(l for l in TEXTO.splitlines() if not l.strip().startswith("--"))
 
 
-def test_nasce_travada_e_sem_par_aplicavel():
-    assert MIGRACAO.exists()
-    assert not (_MIGRACOES / "0029_cotacoes_unificadas.sql").exists(), (
-        "a 0029 só perde o sufixo com autorização expressa")
+def test_um_nome_so_e_cabecalho_coerente_com_o_nome():
+    """
+    Arquivo de migração que mente sobre produção é pior que ausente (a
+    0023 ficou dizendo "não aplicada" depois de aplicada). Sem sufixo, o
+    cabeçalho tem de registrar a aplicação; com sufixo, não pode.
+    """
+    nomes = [p.name for p in _MIGRACOES.glob("0029_*")]
+    assert len(nomes) == 1, nomes
+    aplicada = "APLICADA EM PRODUÇÃO" in TEXTO
+    assert aplicada == (MIGRACAO.suffix == ".sql"), MIGRACAO.name
+    if aplicada:
+        assert "m0029_cotacoes_unificadas" in TEXTO
+
+
+def test_termina_com_conferencia_que_falha_sozinha():
+    assert "A 0029 não cumpriu o que afirma" in SQL
+    assert SQL.rstrip().endswith("$$;")
 
 
 @pytest.mark.parametrize("proibido", [
