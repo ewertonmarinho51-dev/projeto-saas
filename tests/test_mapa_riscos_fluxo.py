@@ -39,6 +39,19 @@ def test_contexto_so_inclui_cadeia_aprovada_e_invalidacao_em_cascata(sessao):
     assert sessao["_documentos_obsoletos"]["mapa_riscos"] == "etp"
 
 
+def test_contexto_wordcraft_usa_projecao_nativa_e_nao_markdown(monkeypatch, sessao):
+    monkeypatch.setattr(db, "flag_ativa", lambda key: key == "wordcraft_editor")
+    sessao.dados = {"objeto": "Papel"}
+    sessao.documentos = {"dfd": "MARKDOWN LEGADO", "etp": "ETP legado"}
+    sessao.aprovados = {"dfd"}
+    sessao["_documentos_editor_aprovados"] = {"dfd"}
+    sessao["_documentos_editor_contexto"] = {"dfd": "PROJEÇÃO NATIVA"}
+    assert state.aprovacoes_efetivas() == {"dfd"}
+    contexto = state.contexto_para_documento("etp")
+    assert "PROJEÇÃO NATIVA" in contexto
+    assert "MARKDOWN LEGADO" not in contexto
+
+
 def test_exportacao_e_qualificacao_do_modelo_fornecido():
     dados = {"_fluxo_mapa_riscos": True, "modelo_execucao": "Registro de Preços"}
     docs = {k: "texto" for k in ["arp","edital","tr","mapa_riscos","etp","dfd"]}

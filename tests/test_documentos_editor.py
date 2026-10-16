@@ -114,6 +114,28 @@ def test_open_rechecks_native_bytes_and_hash(setup):
     assert state["native_calls"] == [checkpoint.content]
 
 
+def test_listar_processo_reusa_sessao_e_revisao_autorizadas(setup):
+    service, state, checkpoint = setup
+    documents = service.listar_processo(state["head"]["processo_id"])
+    assert len(documents) == 1
+    assert documents[0].id == state["head"]["id"]
+    assert documents[0].payload == checkpoint.content
+
+
+def test_texto_aprovado_exige_prova_indice_e_cobertura(setup, monkeypatch):
+    service, state, checkpoint = setup
+    document = SimpleNamespace(id=state["head"]["id"], tipo="dfd",
+        status="aprovado", approval=object(), index=object(),
+        payload=checkpoint.content)
+    monkeypatch.setattr(service, "abrir", lambda document_id: document)
+    monkeypatch.setattr(owner.blocos, "projetar_documento", lambda *a, **k:
+        SimpleNamespace(apto_analise=True, texto_analise="Projeção nativa aprovada"))
+    assert service.texto_aprovado(document.id) == ("dfd", "Projeção nativa aprovada")
+    document.status = "rascunho"
+    with pytest.raises(owner.ErroDocumento, match="aprovação"):
+        service.texto_aprovado(document.id)
+
+
 def test_no_authenticated_client_does_not_call_engine_or_private_rpc(setup, monkeypatch):
     service, state, checkpoint = setup
     monkeypatch.setattr(owner.db, "cliente_do_usuario", lambda: None)

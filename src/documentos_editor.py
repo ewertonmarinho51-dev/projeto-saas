@@ -559,6 +559,36 @@ class DocumentoService:
         head = self._head(user, document_id)
         return self._revision(user, head, head["revision"])
 
+    def listar_processo(self, processo_id: str) -> tuple[Documento, ...]:
+        """Heads nativos visíveis na sessão; nunca mistura outro processo."""
+        _uuid(processo_id)
+        user, _ = self._session()
+        heads = _execute(user.table("documentos_editor")
+            .select("id,processo_id,tipo,revision,content_hash,status,tenant_id")
+            .eq("processo_id", processo_id).limit(33))
+        if (not isinstance(heads, list) or len(heads) > 32
+                or any(not isinstance(head, dict)
+                       or head.get("processo_id") != processo_id for head in heads)):
+            raise ErroDocumento("Conjunto documental nativo inválido.")
+        documents = [self._revision(user, head, head["revision"]) for head in heads]
+        if len({document.tipo for document in documents}) != len(documents):
+            raise ErroDocumento("Mapeamento documental nativo ambíguo.")
+        return tuple(sorted(documents, key=lambda document: document.tipo))
+
+    def texto_aprovado(self, document_id: str) -> tuple[str, str]:
+        """Projeção textual do head aprovado para consumidores source-aware."""
+        document = self.abrir(document_id)
+        if document.status != "aprovado" or document.approval is None or not document.index:
+            raise ErroDocumento("Revisão nativa ainda não possui aprovação comprovada.")
+        try:
+            view = blocos.projetar_documento(document.tipo, document.payload,
+                indice=document.index, **self._native)
+        except Exception:
+            raise ErroDocumento("Projeção do documento aprovado foi recusada.") from None
+        if not view.apto_analise or not view.texto_analise.strip():
+            raise ErroDocumento("Cobertura textual aprovada incompleta.")
+        return document.tipo, view.texto_analise
+
     def aprovar(self, vinculo: VinculoAprovacao) -> Aprovacao:
         """Individual review act. It never emits or advances the legacy process."""
         from . import achados, conhecimento, consistencia, politicas, qualidade, validacao

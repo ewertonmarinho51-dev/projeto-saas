@@ -178,6 +178,12 @@ if db.flag_ativa("govbot"):
 # ---------------------------------------------------------------------------
 # Roteamento do wizard
 # ---------------------------------------------------------------------------
+from src import wordcraft_runtime
+wordcraft_ativo = wordcraft_runtime.ativo()
+if wordcraft_ativo:
+    from src.ui import wordcraft_operacional
+    wordcraft_operacional.sincronizar()
+
 etapa = st.session_state.etapa
 
 if etapa == 0:
@@ -189,7 +195,7 @@ elif 1 <= etapa <= len(state.sequencia()):
     if not st.session_state.dados:
         st.warning("Preencha o Formulário Matriz antes de gerar documentos.")
         state.ir_para(0)
-    elif anterior and anterior not in st.session_state.aprovados:
+    elif anterior and anterior not in state.aprovacoes_efetivas():
         st.warning(
             f"Aprove o {state.doc_da_etapa(etapa - 1).upper()} antes de avançar."
         )
@@ -198,12 +204,15 @@ elif 1 <= etapa <= len(state.sequencia()):
         steps.render_etapa_documento(doc_key)
 else:
     # Só chega à tela de conclusão com os 4 documentos aprovados
-    if not set(state.sequencia()).issubset(st.session_state.aprovados):
+    if not set(state.sequencia()).issubset(state.aprovacoes_efetivas()):
         faltante = next(i for i, d in enumerate(state.sequencia(), 1)
-                        if d not in st.session_state.aprovados)
+                        if d not in state.aprovacoes_efetivas())
         state.ir_para(0 if not st.session_state.dados else faltante)
     else:
-        steps.render_sucesso()
+        if wordcraft_ativo:
+            wordcraft_operacional.render_sucesso()
+        else:
+            steps.render_sucesso()
 
 if govbot_panel is not None:
     govbot_panel.render()

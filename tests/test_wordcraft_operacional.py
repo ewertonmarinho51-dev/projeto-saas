@@ -64,6 +64,37 @@ def test_runtime_invalido_falha_fechado_sem_montar_editor(monkeypatch):
     assert "não é exibido junto" in messages[1][1]
 
 
+def test_sincronizacao_reidrata_so_aprovacao_nativa_com_projecao(monkeypatch):
+    approved = SimpleNamespace(id="doc-a", tipo="dfd", status="aprovado",
+                               approval=SimpleNamespace(id="approval-a"))
+    draft = SimpleNamespace(id="doc-b", tipo="etp", status="rascunho",
+                            approval=None)
+    service = SimpleNamespace(
+        listar_processo=lambda process: (approved, draft),
+        texto_aprovado=lambda document_id: ("dfd", "Texto nativo aprovado"),
+    )
+    session = Session(processo_id="11111111-1111-1111-1111-111111111111")
+    monkeypatch.setattr(ui.st, "session_state", session)
+    monkeypatch.setattr(ui, "carregar", lambda: object())
+    monkeypatch.setattr(ui, "_owner", lambda runtime: service)
+    assert ui.sincronizar() is True
+    assert session["_documentos_editor_aprovados"] == {"dfd"}
+    assert session["_documentos_editor_contexto"] == {"dfd": "Texto nativo aprovado"}
+    assert session["_documentos_editor_aprovacoes"]["dfd"].id == "approval-a"
+
+
+def test_falha_de_sincronizacao_nao_reaproveita_aprovacao_anterior(monkeypatch):
+    session = Session(processo_id="11111111-1111-1111-1111-111111111111",
+        _documentos_editor_aprovados={"dfd"},
+        _documentos_editor_contexto={"dfd": "stale"})
+    monkeypatch.setattr(ui.st, "session_state", session)
+    monkeypatch.setattr(ui, "carregar", lambda: (_ for _ in ()).throw(
+        ui.ErroRuntime("runtime recusado")))
+    assert ui.sincronizar() is False
+    assert session["_documentos_editor_aprovados"] == set()
+    assert session["_documentos_editor_contexto"] == {}
+
+
 def test_steps_troca_a_superficie_inteira_antes_do_editor_legado():
     source = (Path(__file__).parents[1] / "src/ui/steps.py").read_text(encoding="utf-8")
     start = source.index("if wordcraft_runtime.ativo():")
@@ -71,3 +102,10 @@ def test_steps_troca_a_superficie_inteira_antes_do_editor_legado():
     segment = source[start:rich]
     assert "render_wordcraft(doc_key, meta)" in segment
     assert "return" in segment
+
+
+def test_app_separa_emissao_nativa_da_tela_legada():
+    source = (Path(__file__).parents[1] / "app.py").read_text(encoding="utf-8")
+    assert "wordcraft_operacional.sincronizar()" in source
+    assert "wordcraft_operacional.render_sucesso()" in source
+    assert "state.aprovacoes_efetivas()" in source

@@ -40,6 +40,35 @@ def _owner(runtime: Runtime) -> DocumentoService:
     return current
 
 
+def sincronizar() -> bool:
+    """Reidrata aprovações/contexto a partir dos heads nativos persistidos."""
+    processo_id = st.session_state.get("processo_id")
+    if not isinstance(processo_id, str):
+        st.session_state["_documentos_editor_aprovados"] = set()
+        st.session_state["_documentos_editor_contexto"] = {}
+        return True
+    try:
+        service = _owner(carregar())
+        approved, context, bindings = set(), {}, {}
+        for document in service.listar_processo(processo_id):
+            if document.status != "aprovado" or document.approval is None:
+                continue
+            key, text = service.texto_aprovado(document.id)
+            approved.add(key)
+            context[key] = text
+            bindings[key] = document.approval
+        st.session_state["_documentos_editor_aprovados"] = approved
+        st.session_state["_documentos_editor_contexto"] = context
+        st.session_state["_documentos_editor_aprovacoes"] = bindings
+        st.session_state.pop("_wordcraft_sync_error", None)
+        return True
+    except (ErroRuntime, ErroDocumento) as error:
+        st.session_state["_documentos_editor_aprovados"] = set()
+        st.session_state["_documentos_editor_contexto"] = {}
+        st.session_state["_wordcraft_sync_error"] = str(error)
+        return False
+
+
 def _abrir(service: DocumentoService, processo_id: str, doc_key: str):
     document_id = str(uuid5(NAMESPACE_URL,
                             "govconnect-document:" + processo_id + ":" + doc_key))
@@ -149,3 +178,49 @@ def render(doc_key: str, meta: dict) -> None:
                 documento_service=service, ponte_nativa=bridge)
             if receipt is not None:
                 st.session_state[_chave(doc_key, "approval")] = receipt
+                if sincronizar():
+                    state.ir_para(meta["etapa"] + 1)
+
+
+def render_sucesso() -> None:
+    """Emite somente heads nativos aprovados; nunca usa exportadores legados."""
+    st.subheader("Emissão nativa dos documentos")
+    if not sincronizar():
+        st.error(st.session_state.get("_wordcraft_sync_error") or
+                 "Não foi possível confirmar as fontes nativas.")
+        return
+    try:
+        service = _owner(carregar())
+        documents = {doc.tipo: doc for doc in service.listar_processo(
+            st.session_state["processo_id"])
+            if doc.status == "aprovado" and doc.approval is not None}
+    except (ErroRuntime, ErroDocumento) as error:
+        st.error(str(error))
+        return
+    expected = set(state.sequencia())
+    if set(documents) != expected:
+        st.error("O conjunto aprovado não cobre exatamente a sequência documental atual.")
+        return
+    st.success("As revisões nativas aprovadas estão prontas para exportação individual.")
+    for key in state.sequencia():
+        document = documents[key]
+        st.markdown(f"**{key.upper()}** · revisão {document.revision} · `{document.content_hash}`")
+        columns = st.columns(2)
+        for column, fmt, mime in ((columns[0], "docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+                (columns[1], "pdf", "application/pdf")):
+            cache_key = _chave(key, "export_" + fmt)
+            if column.button("Preparar " + fmt.upper(), key=cache_key + "_button"):
+                try:
+                    st.session_state[cache_key] = service.exportar(document.id,
+                        expected_revision=document.revision,
+                        content_hash=document.content_hash, formato=fmt)
+                except ErroDocumento as error:
+                    st.error(str(error))
+            artifact = st.session_state.get(cache_key)
+            if (artifact is not None and artifact.document_id == document.id
+                    and artifact.revision == document.revision
+                    and artifact.source_hash == document.content_hash):
+                column.download_button("Baixar " + fmt.upper(), artifact.payload,
+                    file_name=f"{key}-r{document.revision}.{fmt}", mime=mime,
+                    key=cache_key + "_download", on_click="ignore")

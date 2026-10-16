@@ -38,10 +38,12 @@ no laboratório sintético e no novo host feature-flagged do wizard.
 `flag_wordcraft_editor` está ligada; não monta TipTap ou `text_area` junto e
 não faz fallback silencioso. A primeira abertura usa a importação Markdown
 idempotente do próprio `DocumentoService`, o save confirma ACK somente depois
-do commit e a aprovação exige o canvas congelado na revisão/hash exatos. O ato
-nativo continua sem avançar o wizard até existir consumidor source-aware do
-pacote; isso impede que o campo legado `processos.aprovados` rotule Markdown
-antigo como se fosse a revisão nativa.
+do commit e a aprovação exige o canvas congelado na revisão/hash exatos. O
+consumidor source-aware reidrata os atos persistidos, projeta texto nativo
+aprovado para o contexto da peça seguinte e libera a sequência sem consultar
+`processos.aprovados`. Ao completar a sequência, a tela final exporta somente
+heads nativos aprovados, com CAS de revisão/hash; os downloads legados não são
+montados. A emissão consolidada do pacote ainda permanece pendente.
 
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do

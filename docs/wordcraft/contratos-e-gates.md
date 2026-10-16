@@ -63,10 +63,10 @@ backend não certifica Undo da interface. O fluxo completo ainda está pendente.
 |---|---|---|
 | G0 Auditoria | PARCIAL | baseline reproduzido; closure WASM com 251 pacotes/186 textos; 17 expressões para revisão, 12 pacotes sem texto e 14 sem texto da licença de código; distribuição não aprovada |
 | G1 Percurso mínimo | PASS LOCAL LIMITADO | navegador abriu/editou/salvou/recarregou/exportou texto, timbrado e tabela de 210 itens; g1-evidencias.md; sem promoção a G3/G7 |
-| G2 Persistência | PARCIAL | importação DOCX/Markdown, originais, índices, restauração e restart reais; snapshot/aprovação individual implementados; pacote/emissão/consumidor pendentes |
+| G2 Persistência | PARCIAL | importação, originais, índices, restauração, aprovação e consumidor individual source-aware implementados; pacote consolidado/emissão oficial pendentes |
 | G3 Fidelidade | PARCIAL | 16 DOCX passam no roundtrip nativo; LO baseline16/70 páginas; derivado6/16 casos,44/50 PNGs iguais e6 diferenças em tabelas; prova Linux pendente após duas falhas limitadas Windows |
 | G4 Patches | PARCIAL | motor real preservou79 IDs/27 blocos protegidos,8 negativos recusados;188 SQL passaram no lote; canvas/ACK/Undo persistido e GovBot pendentes |
-| G5 Seis capacidades | PARCIAL | compilador contextual e painel único ligados ao host feature-flagged; admissão recusa bundle QA e a flag nasce OFF; falta artefato operacional homologado, consumidor source-aware e corpus A-D completo |
+| G5 Seis capacidades | PARCIAL | compilador/painel/host e consumidor source-aware ligados sob flag OFF; admissão recusa bundle QA; falta artefato operacional homologado, pacote e corpus A-D completo |
 | G6 Paridade e retirada | PENDENTE | nenhuma funcionalidade legada retirada; substituição só após comprovação |
 | G7 Homologação | PARCIAL | CAS/RLS/imutabilidade SQL e HTTP sintéticos; GoTrue Linux implementado,primeiro run falhou preflight; Auth real,emissão e orçamento de performance pendentes |
 

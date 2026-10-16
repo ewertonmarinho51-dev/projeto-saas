@@ -49,8 +49,12 @@ def cadeia_aprovada(doc_key: str) -> dict[str, str]:
     """
     ordem = sequencia()
     anteriores = ordem[:ordem.index(doc_key)] if doc_key in ordem else ordem[:-1]
-    docs = st.session_state.get("documentos") or {}
-    aprovados = st.session_state.get("aprovados") or set()
+    if db.flag_ativa("wordcraft_editor"):
+        docs = st.session_state.get("_documentos_editor_contexto") or {}
+        aprovados = st.session_state.get("_documentos_editor_aprovados") or set()
+    else:
+        docs = st.session_state.get("documentos") or {}
+        aprovados = st.session_state.get("aprovados") or set()
     return {d: docs[d] for d in anteriores
             if d in docs and d in aprovados and (docs[d] or "").strip()}
 
@@ -201,8 +205,15 @@ def etapas_navegaveis() -> set[int]:
     return calcular_etapas_navegaveis(
         dict(st.session_state.dados, **{CHAVE_FLUXO_MAPA: "mapa_riscos" in sequencia()}),
         st.session_state.documentos,
-        st.session_state.aprovados,
+        aprovacoes_efetivas(),
     )
+
+
+def aprovacoes_efetivas() -> set[str]:
+    """Uma única fonte de aprovação conforme a superfície ativa."""
+    if db.flag_ativa("wordcraft_editor"):
+        return set(st.session_state.get("_documentos_editor_aprovados") or set())
+    return set(st.session_state.get("aprovados") or set())
 
 
 def guardar_edicao_pendente(doc_key: str, texto: str) -> None:

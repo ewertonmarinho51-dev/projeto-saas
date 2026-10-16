@@ -193,7 +193,7 @@ def render_document_skeleton(alvo, sigla: str) -> None:
 def render_stepper(etapa_atual: int) -> None:
     """Navegação entre etapas disponíveis, preservando keys e callbacks."""
     disponiveis = state.etapas_navegaveis()
-    aprovados = set(st.session_state.get("aprovados") or set())
+    aprovados = state.aprovacoes_efetivas()
     dados = bool(st.session_state.get("dados"))
     etapas = state.etapas()
     from ..operacao_documento import ocupada
