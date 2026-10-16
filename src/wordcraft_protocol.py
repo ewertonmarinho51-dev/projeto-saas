@@ -11,6 +11,7 @@ import binascii
 import hashlib
 import hmac
 import copy
+import json
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -254,6 +255,34 @@ class Ponte:
         self._control = dict(schema="gc-wordcraft-control/v1", command_id=command_id,
             action="release", revision=self.revision, content_hash=self.content_hash)
 
+    def solicitar_patch(self, command_id: str, *, plano: dict, target_hash: str):
+        """Entrega ao canvas somente um comando já compilado pelo owner.
+
+        O plano não concede autorização: a ponte exige a revisão limpa corrente e
+        o backend ainda precisa confirmar o checkpoint pelo lote atômico antes do
+        ACK. O navegador jamais escolhe path, hash ou operação.
+        """
+        _uuid(command_id)
+        _hash(target_hash)
+        if (self.state not in {"ready", "saved"} or self._pending is not None
+                or self._control is not None or self._frozen is not None
+                or command_id in self._control_ids or len(self._control_ids) >= MAX_EVENTS):
+            raise ErroPonte("Patch exige revisão confirmada e nova operação.")
+        if not isinstance(plano, dict):
+            raise ErroPonte("Plano nativo inválido.")
+        try:
+            encoded = json.dumps(plano, ensure_ascii=False, sort_keys=True,
+                                 separators=(",", ":"), allow_nan=False)
+        except (TypeError, ValueError, OverflowError):
+            raise ErroPonte("Plano nativo inválido.") from None
+        if not encoded or len(encoded.encode("utf-8")) > 1024 * 1024:
+            raise ErroPonte("Plano nativo vazio ou excessivo.")
+        self._control_ids.add(command_id)
+        self._control_failure = None
+        self._control = dict(schema="gc-wordcraft-control/v1", command_id=command_id,
+            action="patch", revision=self.revision, content_hash=self.content_hash,
+            target_hash=target_hash, plan_json=encoded)
+
     def receber_lote(self, batch: dict, *, origin: str, source_ok: bool) -> Checkpoint | None:
         """Aceita estado coalescido sem perder eventos ou consumir lote inválido.
 
@@ -313,6 +342,9 @@ class Ponte:
         self.content_hash = content_hash
         self._last_ack = (request_id, revision, content_hash)
         self._pending = None
+        if (self._control and self._control.get("action") == "patch"
+                and self._control.get("command_id") == request_id):
+            self._control = None
         self.state = "dirty" if self._changed_while_saving else "saved"
 
     def ack_persistido(self) -> dict | None:

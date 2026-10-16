@@ -127,3 +127,42 @@ def test_emissao_oficial_exige_confirmacao_e_reabre_snapshot_persistido():
     assert "disabled=not confirmed" in success
     assert "service.emitir_aprovados(" in success
     assert "st.rerun()" in success
+
+
+def test_checkpoint_de_patch_confirma_lote_antes_do_ack_do_canvas(monkeypatch):
+    operation = "22222222-2222-2222-2222-222222222222"
+    checkpoint = SimpleNamespace(request_id=operation, expected_revision=3,
+                                 content_hash="b" * 64, content=b"patched")
+    preparation = SimpleNamespace(operation_id=operation)
+    confirmed = []
+    class Bridge:
+        instance_id = "33333333-3333-3333-3333-333333333333"
+        document_id = "44444444-4444-4444-4444-444444444444"
+        origin = "http://127.0.0.1:8501"
+        def receber_lote(self, batch, **kwargs): return checkpoint
+        def confirmar_checkpoint(self, **kwargs): confirmed.append(kwargs)
+        def canvas_bloqueado(self): return None
+        def falha_controle(self): return None
+    receipt = SimpleNamespace(request_id=operation, revision=4, content_hash="b" * 64,
+                              engine_build="c" * 64, validation_provenance="server_manifest_sha256",
+                              index="index", index_mode="operational_patch", restored_from_revision=None)
+    batch_receipt = SimpleNamespace(operation_id=operation, audit_id="audit", documentos=(receipt,),
+                                    canvas_confirmado=True)
+    class Service:
+        def confirmar_patches(self, prep, *, checkpoints):
+            assert prep is preparation and checkpoints == {"tr": checkpoint}
+            return batch_receipt
+        def checkpoint(self, *args): raise AssertionError("não pode usar checkpoint comum")
+    session = Session()
+    session[ui._chave("tr", "bridge")] = Bridge()
+    session[ui._chave("tr", "preparation")] = preparation
+    session[ui._chave("tr", "document")] = SimpleNamespace(revision=3)
+    session["wordcraft_" + session[ui._chave("tr", "bridge")].instance_id] = {"edit": {"events": []}}
+    monkeypatch.setattr(ui.st, "session_state", session)
+    monkeypatch.setattr(ui, "replace", lambda current, **values: SimpleNamespace(**{**vars(current), **values}))
+    ui._receber("tr", Service())
+    assert confirmed == [{"request_id": operation, "revision": 4, "content_hash": "b" * 64}]
+    assert session[ui._chave("tr", "preparation")] is None
+    assert session[ui._chave("tr", "patch_receipt")] is batch_receipt
+    assert session[ui._chave("tr", "document")].payload == b"patched"
+    assert session[ui._chave("tr", "history")][-1]["canvas_confirmado"] is True

@@ -99,7 +99,26 @@ def _receber(doc_key: str, service: DocumentoService) -> None:
     try:
         checkpoint = bridge.receber_lote(batch, origin=bridge.origin, source_ok=True)
         if checkpoint is not None:
-            receipt = service.checkpoint(bridge.document_id, checkpoint)
+            preparation = st.session_state.get(_chave(doc_key, "preparation"))
+            patch_checkpoint = (preparation is not None
+                                and checkpoint.request_id == preparation.operation_id)
+            if patch_checkpoint:
+                batch_receipt = service.confirmar_patches(
+                    preparation, checkpoints={doc_key: checkpoint})
+                if len(batch_receipt.documentos) != 1:
+                    raise ErroDocumento("Recibo do patch não corresponde ao canvas único.")
+                receipt = batch_receipt.documentos[0]
+                st.session_state[_chave(doc_key, "patch_receipt")] = batch_receipt
+                st.session_state[_chave(doc_key, "preparation")] = None
+                history = list(st.session_state.get(_chave(doc_key, "history"), ()))
+                history.append({"operation_id": batch_receipt.operation_id,
+                                "audit_id": batch_receipt.audit_id,
+                                "revision": receipt.revision,
+                                "content_hash": receipt.content_hash,
+                                "canvas_confirmado": batch_receipt.canvas_confirmado})
+                st.session_state[_chave(doc_key, "history")] = history[-20:]
+            else:
+                receipt = service.checkpoint(bridge.document_id, checkpoint)
             bridge.confirmar_checkpoint(request_id=receipt.request_id,
                 revision=receipt.revision, content_hash=receipt.content_hash)
             current = st.session_state[_chave(doc_key, "document")]
@@ -109,7 +128,9 @@ def _receber(doc_key: str, service: DocumentoService) -> None:
                 validation_provenance=receipt.validation_provenance,
                 index=receipt.index, index_mode=receipt.index_mode,
                 restored_from_revision=receipt.restored_from_revision)
-            st.session_state[_chave(doc_key, "message")] = "Revisão nativa salva e confirmada."
+            st.session_state[_chave(doc_key, "message")] = (
+                "Patch nativo aplicado, persistido e confirmado; Undo permanece no canvas."
+                if patch_checkpoint else "Revisão nativa salva e confirmada.")
         elif bridge.canvas_bloqueado() is not None:
             st.session_state[_chave(doc_key, "message")] = "Canvas exato bloqueado para revisão."
         elif bridge.falha_controle() is not None:
@@ -156,6 +177,29 @@ def render(doc_key: str, meta: dict) -> None:
         montagem=st.session_state.get(_chave(doc_key, "assembly")),
         historico=st.session_state.get(_chave(doc_key, "history"), ()),
     ))
+    preparation = st.session_state.get(_chave(doc_key, "preparation"))
+    if preparation is not None:
+        results = tuple(r for r in preparation.resultados if r.fonte.doc_key == doc_key)
+        commands = tuple(c for c in preparation.comandos if c.fonte.doc_key == doc_key)
+        source_ok = (len(preparation.resultados) == len(preparation.comandos) == 1
+                     and len(results) == len(commands) == 1
+                     and results[0].fonte.document_id == document.id
+                     and results[0].fonte.revision == document.revision
+                     and results[0].fonte.content_hash == document.content_hash)
+        st.warning("A proposta abaixo altera somente o bloco mostrado no diff e exige confirmação.")
+        accept, reject = st.columns(2)
+        if accept.button("Aplicar proposta no canvas", type="primary",
+                         disabled=not source_ok or bridge.state not in {"ready", "saved"}
+                         or bridge.controle_pendente() is not None,
+                         key=_chave(doc_key, "apply_patch")):
+            bridge.solicitar_patch(preparation.operation_id,
+                plano=commands[0].plano_nativo(), target_hash=results[0].content_hash)
+            st.rerun()
+        if reject.button("Rejeitar proposta", key=_chave(doc_key, "reject_patch")):
+            service.descartar_patches(preparation)
+            st.session_state[_chave(doc_key, "preparation")] = None
+            st.session_state[_chave(doc_key, "message")] = "Proposta rejeitada sem alterar o documento."
+            st.rerun()
     proof = bridge.canvas_bloqueado()
     if proof is None:
         if st.button("Revisar e preparar aprovação", type="primary",

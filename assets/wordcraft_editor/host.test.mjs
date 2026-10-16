@@ -61,6 +61,12 @@ async function setup({awaitFrame} = {}) {
       this.ready = this.locked && !this.composing && !this.heldInput;
     },
     checkpoint(id) { if (!this.pending) this.pending = {id, gen: this.gen}; assert.equal(id, this.pending.id); return this.bytes; },
+    apply_text_patch(revision, plan) {
+      assert.equal(revision, 0); assert.equal(typeof plan, 'string');
+      if (!this.patchBytes) throw new Error('no authorized patch fixture');
+      this.beforePatch = this.bytes; this.bytes = this.patchBytes; this.gen++; this.unsaved = true;
+    },
+    undo() { assert.ok(this.beforePatch); this.bytes = this.beforePatch; this.beforePatch = null; this.gen++; this.unsaved = false; },
     acknowledge_checkpoint(id) { assert.equal(id, this.pending.id); this.unsaved = this.gen !== this.pending.gen; this.pending = null; },
     dispose() { this.disposed = true; this.locked = false; this.ready = false; }};
   const controller = new EditorController(native, data, (key, value) => sent.push({key, ...value}),
@@ -68,6 +74,40 @@ async function setup({awaitFrame} = {}) {
   await controller.loaded(bytes);
   return {data, native, controller, sent};
 }
+
+test('authorized patch changes the live session and emits one correlated checkpoint', async () => {
+  const {data, native, controller: c, sent} = await setup();
+  native.patchBytes = new TextEncoder().encode('authorized native patch target');
+  const targetHash = await sha256(native.patchBytes);
+  const commandId = crypto.randomUUID();
+  const command = {schema: 'gc-wordcraft-control/v1', action: 'patch', command_id: commandId,
+    revision: c.revision, content_hash: c.currentHash, target_hash: targetHash,
+    plan_json: JSON.stringify({schema: 'gc-wordcraft-native-patch/v1'})};
+  await c.control(command);
+  const cp = sent.at(-1);
+  assert.equal(cp.event, 'document.checkpoint');
+  assert.equal(cp.request_id, commandId);
+  assert.equal(cp.payload.content_hash, targetHash);
+  assert.deepEqual(fromBase64(cp.payload.content_base64), native.patchBytes);
+  assert.equal(c.state, 'saving');
+  await c.control(command);
+  assert.equal(sent.filter(x => x.event === 'document.checkpoint').length, 1);
+  c.receive(ack(data, cp));
+  assert.equal(c.state, 'saved'); assert.equal(c.revision, 1);
+});
+
+test('stale or divergent patch never receives a checkpoint', async () => {
+  const {native, controller: c, sent} = await setup();
+  native.patchBytes = new TextEncoder().encode('unexpected target');
+  const base = {schema: 'gc-wordcraft-control/v1', action: 'patch', command_id: crypto.randomUUID(),
+    revision: c.revision, content_hash: c.currentHash, target_hash: 'a'.repeat(64),
+    plan_json: JSON.stringify({schema: 'gc-wordcraft-native-patch/v1'})};
+  await assert.rejects(c.control({...base, revision: 1}));
+  await assert.rejects(c.control(base));
+  assert.equal(c.state, 'ready');
+  assert.deepEqual(native.bytes, bytes);
+  assert.equal(sent.filter(x => x.event === 'document.checkpoint').length, 0);
+});
 function ack(data, cp, revision = 1) {
   return {...data, revision, ack: {request_id: cp.request_id, content_hash: cp.payload.content_hash, revision}};
 }

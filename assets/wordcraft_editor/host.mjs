@@ -193,14 +193,53 @@ export class EditorController {
   }
   async control(command) {
     if (!command || this.disposed || this.state === 'conflict') return;
+    const controlFields = Object.keys(command).sort().join(',');
+    const expectedFields = command.action === 'patch'
+      ? 'action,command_id,content_hash,plan_json,revision,schema,target_hash'
+      : 'action,command_id,content_hash,revision,schema';
     if (typeof command !== 'object' || Array.isArray(command)
-        || Object.keys(command).sort().join(',') !== 'action,command_id,content_hash,revision,schema'
+        || controlFields !== expectedFields
         || command.schema !== 'gc-wordcraft-control/v1' || typeof command.command_id !== 'string'
-        || !uuidPattern.test(command.command_id) || !['freeze', 'release'].includes(command.action)
+        || !uuidPattern.test(command.command_id) || !['freeze', 'release', 'patch'].includes(command.action)
         || typeof command.content_hash !== 'string' || !hashPattern.test(command.content_hash)
         || !Number.isSafeInteger(command.revision) || command.revision < 0) throw new Error('Controle inválido.');
     const identity = command.command_id + ':' + command.action;
     if (this.lastControl === identity) return;
+    if (command.action === 'patch') {
+      if (this.state === 'frozen' || this.pending || !['ready', 'saved'].includes(this.state)
+          || command.revision !== this.revision || command.content_hash !== this.currentHash
+          || !hashPattern.test(command.target_hash) || typeof command.plan_json !== 'string'
+          || !command.plan_json.length || new TextEncoder().encode(command.plan_json).length > 1024 * 1024) {
+        throw new Error('Patch control invalid or stale.');
+      }
+      this.lastControl = identity;
+      let applied = false;
+      try {
+        this.native.apply_text_patch(this.revision, command.plan_json);
+        applied = true;
+        const bytes = this.native.serialize();
+        if (!bytes.length || bytes.length > maxBytes || await sha256(bytes) !== command.target_hash) {
+          throw new Error('Native patch result differs from authorized target.');
+        }
+      } catch (error) {
+        if (applied) {
+          try {
+            this.native.undo();
+            const restored = this.native.serialize();
+            if (await sha256(restored) !== command.content_hash) throw new Error('rollback differs');
+            this.generation = this.native.generation();
+          } catch { this.state = 'conflict'; }
+        }
+        throw error;
+      }
+      this.generation = this.native.generation();
+      this.state = 'dirty';
+      this.publish('document.changed', {});
+      this.pending = {request_id: command.command_id, content_hash: null};
+      this.state = 'saving';
+      await this.prepareCheckpoint(command.command_id);
+      return;
+    }
     if (command.action === 'release') {
       if (this.state !== 'frozen' || this.frozenCommand !== command.command_id
           || command.revision !== this.revision || command.content_hash !== this.currentHash) throw new Error('Liberação divergente.');

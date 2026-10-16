@@ -111,6 +111,43 @@ def checkpoint(p):
         "schema_version": "gc-wordcraft-snapshot/v1"}))
 
 
+def test_patch_control_is_server_owned_and_acknowledged_only_after_checkpoint(ponte):
+    abrir(ponte)
+    command = str(uuid4())
+    target = hashlib.sha256(b"target").hexdigest()
+    plan = {"schema": "gc-wordcraft-native-patch/v1", "operations": []}
+    ponte.solicitar_patch(command, plano=plan, target_hash=target)
+    outbound = ponte.controle_pendente()
+    assert outbound["action"] == "patch" and outbound["command_id"] == command
+    assert outbound["target_hash"] == target and '"operations":[]' in outbound["plan_json"]
+    changed = evento(ponte, "changed")
+    cp_event = evento(ponte, "checkpoint", {
+        "content_hash": DIGEST, "content_base64": base64.b64encode(CONTENT).decode(),
+        "schema_version": "gc-wordcraft-snapshot/v1"})
+    cp_event["request_id"] = command
+    cp_event["sequence"] += 1
+    cp = ponte.receber_lote({"events": [changed, cp_event]}, origin=ponte.origin, source_ok=True)
+    assert cp.request_id == command and ponte.state == "saving"
+    assert ponte.controle_pendente()["action"] == "patch"
+    ponte.confirmar_checkpoint(request_id=command, revision=1, content_hash=DIGEST)
+    assert ponte.state == "saved" and ponte.controle_pendente() is None
+    with pytest.raises(ErroPonte):
+        ponte.solicitar_patch(command, plano=plan, target_hash=target)
+
+
+@pytest.mark.parametrize("mutation", ["dirty", "bad_hash", "oversize", "extra_control"])
+def test_patch_control_refuses_stale_or_unbounded_input_without_consuming_state(ponte, mutation):
+    abrir(ponte)
+    if mutation == "dirty": receber(ponte, evento(ponte, "changed"))
+    if mutation == "extra_control": ponte.solicitar_bloqueio(str(uuid4()))
+    before = deepcopy(ponte.__dict__)
+    target = "z" * 64 if mutation == "bad_hash" else "a" * 64
+    plan = {"value": "x" * (1024 * 1024 + 1)} if mutation == "oversize" else {"operations": []}
+    with pytest.raises(ErroPonte):
+        ponte.solicitar_patch(str(uuid4()), plano=plan, target_hash=target)
+    assert ponte.__dict__ == before
+
+
 def sujo(p):
     abrir(p)
     receber(p, evento(p, "changed"))

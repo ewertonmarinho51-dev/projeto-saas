@@ -51,6 +51,17 @@ como snapshot oficial: reutiliza `governanca_publicacoes` e
 lock e muda os heads para `emitido` na mesma transação. A reabertura lê os
 bytes persistidos. O documento único consolidado continua pendente.
 
+A preparação G4 de alvo único agora pode ser aceita ou rejeitada na superfície
+operacional. Ao aceitar, a ponte entrega ao canvas somente o plano nativo já
+compilado e selado pelo owner, vinculado à revisão/hash de origem e ao hash de
+destino. O host aplica o comando na Session viva, confere os bytes resultantes,
+emite um checkpoint com o mesmo `operation_id` e aguarda o commit atômico do
+owner antes de ACK. Resultado divergente executa o Undo do próprio grupo e
+confere a restauração da origem; nunca vira checkpoint. O recibo confirmado
+entra no Histórico e a pilha nativa permanece disponível para Undo posterior.
+Lotes com mais de um canvas continuam bloqueados nesta UI até haver coordenação
+atômica de todos os componentes.
+
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
 manifesto, inventário fechado, hashes/tamanhos dos assets, cabeçalho WASM,
@@ -69,11 +80,13 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 - alteração posterior de logo ou signatário não muda o snapshot capturado;
 - 210 itens preservam numeração e total decimal;
 - o modelo de painel reúne as seis capacidades sem expor ação de persistência.
+- o host recusa patch stale, excessivo ou com hash de destino divergente,
+  correlaciona exatamente operação/checkpoint/recibo e não ACKa antes do commit.
 
 ## Pendências para fechar G5
 
-1. executar seleção/contexto real do GovBot, diff, confirmação, Undo e rejeição
-   stale no mesmo canvas;
+1. capturar seleção/contexto real do GovBot e provar no navegador WASM o fluxo
+   completo de proposta, diff, confirmação, Undo posterior e rejeição stale;
 2. completar as trilhas A–D do corpus, incluindo auditoria e parecer reais;
 3. consumir catálogo institucional, RAG vigente e montagem oficial pelos
    owners existentes em ensaio end-to-end;
