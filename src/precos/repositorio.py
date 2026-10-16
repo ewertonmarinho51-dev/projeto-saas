@@ -85,6 +85,15 @@ class SemSessao(db.ErroBanco):
     """
 
 
+class ConflitoDeVersao(db.ErroBanco):
+    """
+    Outra aba (ou outra pessoa) mudou o item depois que esta tela o leu.
+
+    Nada foi sobrescrito: quem recebe o erro recarrega o item do banco e
+    reaplica a própria mudança sobre a versão atual (pacote, U07).
+    """
+
+
 def modulo_ativo() -> bool:
     """Feature flag do módulo. Default OFF, como manda o §40."""
     return db.flag_ativa(FLAG)
@@ -439,8 +448,11 @@ def salvar_itens(pesquisa_id: str, itens: list[dict]) -> list[dict]:
         return []
     tenant = db.tenant_atual()
     registros = []
+    # PostgREST exige as MESMAS chaves em todos os objetos de um lote.
+    extras = [c for c in ("lote", "uf") if any(i.get(c) for i in itens)]
+    com_estado = any(i.get("estado") for i in itens)
     for posicao, item in enumerate(itens, start=1):
-        registros.append({
+        registro = {
             "pesquisa_id": pesquisa_id,
             "tenant_id": tenant,
             "numero": int(item.get("numero") or posicao),
@@ -449,9 +461,19 @@ def salvar_itens(pesquisa_id: str, itens: list[dict]) -> list[dict]:
             "descricao": item.get("descricao") or "",
             "unidade": item.get("unidade") or "",
             "quantidade": _numero(item.get("quantidade")),
-            "estado": EstadoItem(
-                item.get("estado") or EstadoItem.PENDENTE).value,
-        })
+        }
+        # O estado só vai quando quem chama o declara. Mandá-lo sempre
+        # ("pending" por padrão) fazia a reimportação de uma planilha
+        # devolver a PENDENTE itens já pesquisados, por fora da máquina de
+        # estados. Item novo nasce `pending` pelo DEFAULT da coluna.
+        if com_estado:
+            registro["estado"] = EstadoItem(
+                item.get("estado") or EstadoItem.PENDENTE).value
+        # Colunas da migração 0029 — só quando o lote as traz, para que
+        # um banco ainda sem a 0029 continue aceitando a gravação.
+        for coluna in extras:
+            registro[coluna] = str(item[coluna]) if item.get(coluna) else None
+        registros.append(registro)
     try:
         resposta = (_cliente().table(TABELA_ITENS)
                     .upsert(registros, on_conflict="pesquisa_id,numero")
@@ -529,9 +551,23 @@ def mover_item(item_id: str, destino: EstadoItem,
         raise db._traduzir_erro(exc) from exc  # noqa: SLF001
 
 
+def estatisticas_com_decisoes(estimativa, decisoes: dict | None) -> dict:
+    """
+    A memória estatística da estimativa + as DECISÕES humanas do item
+    (método escolhido, exceção à regra dos três). As decisões não são
+    produto do cálculo — são entrada dele — e sobrevivem a cada recálculo
+    em vez de sumir na próxima regravação de `estatisticas`.
+    """
+    gravado = estimativa.para_relatorio()
+    if decisoes:
+        gravado["decisoes"] = decisoes
+    return gravado
+
+
 def registrar_estimativa(item_id: str, estimativa, *,
                          atual: EstadoItem | str,
-                         quantidade: Decimal | None = None) -> dict:
+                         quantidade: Decimal | None = None,
+                         decisoes: dict | None = None) -> dict:
     """
     Grava o resultado de `estatistica.estimar` e manda o item para
     REVISÃO — não para concluído.
@@ -554,18 +590,52 @@ def registrar_estimativa(item_id: str, estimativa, *,
         metodo=estimativa.metodo,
         preco_estimado=estimativa.valor_unitario,
         preco_total=estimativa.valor_total(quantidade),
-        estatisticas=estimativa.para_relatorio(),
+        estatisticas=estatisticas_com_decisoes(estimativa, decisoes),
         justificativa="\n".join(estimativa.memoria))
 
 
+def _update_item(item_id: str, campos: dict,
+                 revisao_esperada: int | None = None) -> dict:
+    """
+    UPDATE do item, com controle otimista quando `revisao_esperada` vem.
+
+    A coluna `revisao` é da migração 0029. Com ela, a escrita só acontece
+    se ninguém mexeu no item desde a leitura (`... where revisao = n`),
+    e a revisão sobe. Sem linha de volta, ou o RLS recusou ou a versão
+    mudou — a releitura diz qual dos dois.
+    """
+    consulta = _cliente().table(TABELA_ITENS)
+    if revisao_esperada is not None:
+        campos = {**campos, "revisao": int(revisao_esperada) + 1}
+    pedido = consulta.update(campos).eq("id", item_id)
+    if revisao_esperada is not None:
+        pedido = pedido.eq("revisao", int(revisao_esperada))
+    resposta = pedido.execute()
+    if resposta.data:
+        return resposta.data[0]
+    if revisao_esperada is not None:
+        atual = (_cliente().table(TABELA_ITENS).select("revisao")
+                 .eq("id", item_id).limit(1).execute()).data
+        if atual and int(atual[0].get("revisao") or 1) != int(revisao_esperada):
+            raise ConflitoDeVersao(
+                "Este item foi alterado em outra aba ou por outra pessoa "
+                "depois que você o abriu. Nada foi gravado: recarregue o "
+                "item e refaça a alteração sobre a versão atual.")
+    raise db.ErroBanco("Não foi possível alterar este item.")
+
+
 def atualizar_estimativa(item: dict, estimativa, *,
-                         quantidade: Decimal | None = None) -> dict:
+                         quantidade: Decimal | None = None,
+                         decisoes: dict | None = None,
+                         revisao_esperada: int | None = None) -> dict:
     """
     Regrava a estimativa depois de a seleção da cesta mudar na revisão.
 
     Mesma regra de `registrar_estimativa` — cesta que fecha o perfil vai
     para REVISÃO, que não fecha vai para INCOMPLETO —, mas partindo de um
     item que JÁ foi revisado: se o estado não muda, grava sem transição.
+    Item COMPLETO cuja cesta mudou volta para REVISÃO (ou INCOMPLETO): a
+    conclusão humana valia para a cesta anterior.
     """
     atual = EstadoItem(item.get("estado") or EstadoItem.EM_REVISAO)
     destino = (EstadoItem.EM_REVISAO if estimativa.concluida
@@ -575,38 +645,64 @@ def atualizar_estimativa(item: dict, estimativa, *,
         else None,
         "preco_estimado": estimativa.valor_unitario,
         "preco_total": estimativa.valor_total(quantidade),
-        "estatisticas": estimativa.para_relatorio(),
+        "estatisticas": estatisticas_com_decisoes(estimativa, decisoes),
         "justificativa": "\n".join(estimativa.memoria),
     }
     if destino is not atual:
-        return mover_item(str(item["id"]), destino, atual, **campos)
+        if atual is EstadoItem.COMPLETO and destino is EstadoItem.INCOMPLETO:
+            # COMPLETO não vai direto a INCOMPLETO (estados.py): passa
+            # pela revisão, que é o que de fato aconteceu.
+            item = mover_item(str(item["id"]), EstadoItem.EM_REVISAO, atual)
+            atual = EstadoItem.EM_REVISAO
+        estados.transitar_item(atual, destino)
+        campos["estado"] = destino.value
     for chave in ("preco_estimado", "preco_total"):
         campos[chave] = _numero(campos[chave])
     try:
-        resposta = (_cliente().table(TABELA_ITENS)
-                    .update(campos).eq("id", str(item["id"])).execute())
-        if not resposta.data:
-            raise db.ErroBanco("Não foi possível alterar este item.")
-        return resposta.data[0]
+        return _update_item(str(item["id"]), campos, revisao_esperada)
     except db.ErroBanco:
         raise
     except Exception as exc:  # noqa: BLE001
         raise db._traduzir_erro(exc) from exc  # noqa: SLF001
 
 
+def obter_item(item_id: str) -> dict | None:
+    try:
+        resposta = (_cliente().table(TABELA_ITENS).select("*")
+                    .eq("id", item_id).limit(1).execute())
+        return resposta.data[0] if resposta.data else None
+    except SemSessao:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+
+
 def confirmar_item(item_id: str, *, atual: EstadoItem | str = EstadoItem.EM_REVISAO,
-                   justificativa: str = "") -> dict:
+                   justificativa: str = "",
+                   revisao_esperada: int | None = None) -> dict:
     """
     O ato humano que fecha o item: REVISÃO → COMPLETO.
 
     Só sai daqui item que passou pela revisão. `justificativa`, quando
-    vem, é acrescentada à memória de cálculo — é onde o revisor registra
-    por que aceitou uma cesta com discrepantes sinalizados, por exemplo.
+    vem, é ACRESCENTADA à memória de cálculo — nunca a substitui. Antes
+    ela sobrescrevia a memória, e o relatório imprimia só o texto do
+    revisor como "memória de cálculo" (dossiê BP, tema 6b).
     """
-    campos: dict[str, Any] = {}
-    if justificativa.strip():
-        campos["justificativa"] = justificativa
-    return mover_item(item_id, EstadoItem.COMPLETO, atual, **campos)
+    estados.transitar_item(EstadoItem(atual), EstadoItem.COMPLETO)
+    campos: dict[str, Any] = {"estado": EstadoItem.COMPLETO.value}
+    texto = justificativa.strip()
+    if texto:
+        linha = obter_item(item_id) or {}
+        memoria = str(linha.get("justificativa") or "").rstrip()
+        campos["justificativa"] = (
+            (memoria + "\n" if memoria else "")
+            + f"conclusão do revisor: {texto}")
+    try:
+        return _update_item(item_id, campos, revisao_esperada)
+    except db.ErroBanco:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
 
 
 # ---------------------------------------------------------------------------

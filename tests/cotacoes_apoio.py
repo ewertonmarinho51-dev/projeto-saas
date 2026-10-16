@@ -61,13 +61,20 @@ def ligar_banco_falso(monkeypatch) -> ClientePrecosFalso:
 
 def referencia(valor: str, ident: str, *, fonte=FONTE_PRECOS,
                descricao="PAPEL SULFITE A4 75G", unidade="RESMA",
-               natureza=NaturezaValor.HOMOLOGADO) -> Referencia:
-    return Referencia(
+               natureza=NaturezaValor.HOMOLOGADO,
+               normalizada: bool = False) -> Referencia:
+    """Referência de domínio. `normalizada=True` = como a busca a entrega
+    depois de `unidades.normalizar` (mesma unidade do item)."""
+    ref = Referencia(
         fonte=fonte, id_externo=ident, bruto={"id": ident, "valor": valor},
         descricao_original=descricao, unidade_original=unidade,
         quantidade_original=Decimal("10"),
         valor_unitario_original=Decimal(valor), natureza_valor=natureza,
         orgao="Prefeitura Y", uf="PA", data_compra=date(2026, 6, 1))
+    if normalizada:
+        ref.unidade_normalizada = unidade
+        ref.valor_unitario_normalizado = ref.valor_unitario_original
+    return ref
 
 
 def cotacao_com_item(*, perfil_id="lei_14133", unidade="RESMA",

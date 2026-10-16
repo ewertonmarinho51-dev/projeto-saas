@@ -36,7 +36,10 @@ _CANONICAS = {
     "UNIDADE": ("UNIDADE", ("UN", "UND", "UNID", "UNIDADE", "PC", "PCA",
                             "PECA", "PÇ")),
     "CAIXA": ("CAIXA", ("CX", "CAIXA", "CAIXAS")),
-    "PACOTE": ("PACOTE", ("PCT", "PACOTE", "PACOTES", "PC.")),
+    # "PC." não está aqui: `canonizar` tira o ponto final antes da busca,
+    # e "PC" é UNIDADE — a entrada nunca era alcançada. "PAC" é como
+    # portais municipais registram o pacote (visto no dossiê, J06).
+    "PACOTE": ("PACOTE", ("PCT", "PAC", "PACOTE", "PACOTES")),
     "RESMA": ("RESMA", ("RM", "RESMA", "RESMAS")),
     # "EMB" é como o Compras.gov registra o papel A4 (14/10/2026: 436 de
     # 517 compras do PDM 19746), sempre com a capacidade em folhas.
@@ -53,6 +56,26 @@ _CANONICAS = {
     "GRAMA": ("GRAMA", ("G", "GR", "GRAMA", "GRAMAS")),
     "LITRO": ("LITRO", ("L", "LT", "LITRO", "LITROS")),
     "MILILITRO": ("MILILITRO", ("ML", "MILILITRO", "MILILITROS")),
+    # Unidades que só casam com elas mesmas (fator 1): entram para que o
+    # item de serviço ou de embalagem comum não fique sem unidade válida.
+    # Siglas ambíguas ("PT": pote ou pacote? "LT": litro ou lata?) ficam
+    # de fora de propósito — melhor desconhecida que convertida errado.
+    "PAR": ("PAR", ("PR", "PAR", "PARES")),
+    "SACO": ("SACO", ("SC", "SACO", "SACOS")),
+    "FARDO": ("FARDO", ("FD", "FARDO", "FARDOS")),
+    "GALAO": ("GALAO", ("GL", "GALAO", "GALOES")),
+    "LATA": ("LATA", ("LATA", "LATAS")),
+    "TUBO": ("TUBO", ("TB", "TUBO", "TUBOS")),
+    "POTE": ("POTE", ("POTE", "POTES")),
+    "BOBINA": ("BOBINA", ("BB", "BOBINA", "BOBINAS")),
+    "METRO_QUADRADO": ("METRO QUADRADO", ("M2", "METRO QUADRADO",
+                                          "METROS QUADRADOS")),
+    "METRO_CUBICO": ("METRO CUBICO", ("M3", "METRO CUBICO",
+                                      "METROS CUBICOS")),
+    "SERVICO": ("SERVICO", ("SV", "SERV", "SERVICO", "SERVICOS")),
+    "HORA": ("HORA", ("H", "HR", "HORA", "HORAS")),
+    "DIARIA": ("DIARIA", ("DIARIA", "DIARIAS")),
+    "MES": ("MES", ("MES", "MESES")),
 }
 
 _POR_SIGLA: dict[str, str] = {}
@@ -64,7 +87,8 @@ for _canonica, (_nome, _siglas) in _CANONICAS.items():
 # sentido perguntar quantas unidades há dentro de um quilograma.
 EMBALAGENS = {"CAIXA", "PACOTE", "RESMA", "EMBALAGEM", "ROLO", "JOGO",
               "CARTELA",
-              "ESTOJO", "BLOCO", "FRASCO"}
+              "ESTOJO", "BLOCO", "FRASCO", "SACO", "FARDO", "GALAO", "LATA",
+              "TUBO", "POTE", "BOBINA"}
 
 # Conversões de GRANDEZA, onde o fator é uma constante física e não
 # depende de como o fornecedor embalou. Estas são seguras por definição.
@@ -84,6 +108,19 @@ MOTIVO_DESCONHECIDA = (
 MOTIVO_INCOMPATIVEL = (
     "unidades de grandezas diferentes e sem fator de embalagem — "
     "conversão impossível com o dado disponível")
+MOTIVO_ITEM_SEM_UNIDADE = (
+    "a unidade do item ({unidade}) não é reconhecida — preço não "
+    "comparado até o item ter unidade válida")
+
+
+def unidade_valida(unidade: str | None) -> bool:
+    """O item pode formar cesta com esta unidade? (dicionário canônico)"""
+    return canonizar(unidade) is not None
+
+
+def unidades_aceitas() -> list[str]:
+    """Nomes canônicos, para a mensagem de erro e o seletor da tela."""
+    return sorted({nome for nome, _ in _CANONICAS.values()})
 
 
 def canonizar(sigla: str | None) -> str | None:
@@ -186,15 +223,16 @@ def normalizar(referencia: Referencia, unidade_do_processo: str | None,
 
     destino = canonizar(unidade_do_processo)
     if destino is None:
-        # Sem unidade no item do processo não há para onde converter; o
-        # preço segue válido na unidade da própria fonte.
-        referencia.unidade_normalizada = canonizar(
-            referencia.unidade_original)
-        referencia.valor_unitario_normalizado = \
-            referencia.valor_unitario_original
+        # Sem unidade VÁLIDA no item não há para onde converter — e manter
+        # o preço na unidade da fonte misturava caixa e unidade na mesma
+        # média (dossiê BP, temas 10a e 11a: "Caixotes", "UNDADE" ou campo
+        # vazio desligavam a normalização em silêncio). A referência fica
+        # fora da cesta, com o motivo, até o item ganhar unidade válida.
+        referencia.unidade_normalizada = None
+        referencia.valor_unitario_normalizado = None
         return referencia.com_motivo(
-            "item do processo sem unidade declarada — preço mantido na "
-            "unidade da fonte")
+            MOTIVO_ITEM_SEM_UNIDADE.format(
+                unidade=str(unidade_do_processo or "").strip() or "vazia"))
 
     fator, motivo = fator_de_conversao(
         referencia.unidade_original, unidade_do_processo,

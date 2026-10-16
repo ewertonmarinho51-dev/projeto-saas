@@ -27,7 +27,9 @@ from src.precos.estados import EstadoItem
 from tests.cotacoes_apoio import (cotacao_com_item, ligar_banco_falso, linha,
                                   referencia)
 
-PENDENTE_G1 = pytest.mark.xfail(strict=True, reason="defeito P1 — corrigido no G1")
+def PENDENTE_G1(funcao):
+    """Era xfail(strict) no G0; corrigido no G1 — agora prova comum."""
+    return funcao
 
 
 def _estimar(valores, regras=estatistica.REGRAS_MEDIA_PADRAO):
@@ -142,7 +144,8 @@ def test_existe_caminho_para_concluir_com_menos_de_tres(monkeypatch):
     ligar_banco_falso(monkeypatch)
     pesquisa, item = cotacao_com_item()
     repo.registrar_referencias(str(item["id"]), [
-        referencia("29.00", "a"), referencia("22.70", "b")])
+        referencia("29.00", "a", normalizada=True),
+        referencia("22.70", "b", normalizada=True)])
     for r in repo.listar_referencias(str(item["id"])):
         repo.reclassificar_referencia(str(r["id"]), "selected", "escolhida")
     repo.mover_item(str(item["id"]), EstadoItem.BUSCANDO, EstadoItem.PENDENTE)
@@ -151,7 +154,7 @@ def test_existe_caminho_para_concluir_com_menos_de_tres(monkeypatch):
     estimativa = cesta.registrar_excecao(
         pesquisa, item, repo, perfil=perfil.LEI_14133,
         texto="Produto muito específico; só duas contratações no período.",
-        fundamento="produto_especifico", aprovador="Secretário de Administração",
+        fundamento="especificacao_singular", aprovador="Secretário de Administração",
         ator="u1")
     assert estimativa.concluida
     [item] = repo.listar_itens(str(pesquisa["id"]))

@@ -78,11 +78,37 @@ def _compoe_cesta(referencia: Referencia) -> bool:
     return referencia.serve_de_preco or cotacao.admissivel(referencia)
 
 
-def recalcular(linhas: list[dict], *, perfil: PerfilNormativo,
-               regras: str, justificativa: str | None = None
-               ) -> estatistica.Estimativa:
+def _na_cesta_com_preco(linha: dict) -> bool:
+    return (str(linha.get("status")) in NA_CESTA
+            and _decimal(linha.get("valor_unitario_normalizado")) is not None
+            and _compoe_cesta(referencia_da_linha(linha)))
+
+
+def consideradas(linhas: list[dict]) -> list[dict]:
     """
-    Estimativa da cesta formada pelas linhas com status SELECIONADA.
+    As linhas que ENTRAM no cálculo — a única definição do "N" de N/3.
+
+    Na cesta (`selected` ou `warning`), com preço normalizado e natureza
+    de preço. Relatório, quadro, XLSX, GovBot, tela e o próprio cálculo
+    perguntam aqui; ninguém repete `status == "selected"` por conta
+    própria (dossiê BP, tema 1: quatro superfícies esqueciam a
+    sinalizada, que continua na média).
+    """
+    return [linha for linha in linhas if _na_cesta_com_preco(linha)]
+
+
+def desconsideradas(linhas: list[dict]) -> list[dict]:
+    """Todas as outras — inclusive as marcadas que não puderam entrar."""
+    dentro = {id(linha) for linha in consideradas(linhas)}
+    return [linha for linha in linhas if id(linha) not in dentro]
+
+
+def recalcular(linhas: list[dict], *, perfil: PerfilNormativo,
+               regras: str, justificativa: str | None = None,
+               metodo: str = estatistica.METODO_AUTOMATICO,
+               criterio_percentual=None) -> estatistica.Estimativa:
+    """
+    Estimativa da cesta formada pelas linhas CONSIDERADAS.
 
     Só entra quem tem preço normalizado: referência sem conversão de
     unidade comprovada não compõe média nenhuma, mesmo marcada.
@@ -103,35 +129,98 @@ def recalcular(linhas: list[dict], *, perfil: PerfilNormativo,
             f"{len(com_preco) - len(de_preco)} referência(s) marcada(s) com "
             "valor que não é preço praticado (ex.: estimativa de outro "
             "órgão) ficaram fora do cálculo")
-    return estatistica.estimar(cesta, perfil=perfil, justificativa=justificativa,
-                               regras=regras)
+    estimativa = estatistica.estimar(
+        cesta, perfil=perfil, justificativa=justificativa, regras=regras,
+        metodo=metodo, criterio_percentual=criterio_percentual)
+    estimativa.memoria[:0] = cesta.motivos
+    return estimativa
+
+
+# ---------------------------------------------------------------------------
+# Decisões humanas do item — método escolhido e exceção à regra dos três.
+# Gravadas em `estatisticas.decisoes` e reaplicadas a cada recálculo.
+# ---------------------------------------------------------------------------
+def decisoes_do_item(item: dict) -> dict:
+    gravado = item.get("estatisticas")
+    if not isinstance(gravado, dict):
+        return {}
+    decisoes = gravado.get("decisoes")
+    return dict(decisoes) if isinstance(decisoes, dict) else {}
+
+
+def _agora() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _texto_da_excecao(excecao: dict) -> str:
+    return (f"{excecao.get('texto', '').strip()} [fundamento: "
+            f"{excecao.get('fundamento_texto') or excecao.get('fundamento')}"
+            f"; base normativa: {excecao.get('base_normativa') or '—'}; "
+            f"aprovação: {excecao.get('aprovador')}; registrada por "
+            f"{excecao.get('registrado_por') or '—'} em "
+            f"{excecao.get('registrado_em') or '—'}]")
 
 
 def recalcular_e_gravar(pesquisa: dict, item: dict, repositorio, *,
-                        perfil: PerfilNormativo) -> estatistica.Estimativa:
+                        perfil: PerfilNormativo, linhas: list[dict] | None = None,
+                        revisao_esperada: int | None = None
+                        ) -> estatistica.Estimativa:
     """
     Refaz a estimativa do item pela seleção gravada e persiste.
 
     O item fica em REVISÃO se a cesta fecha o perfil, INCOMPLETO se não
     fecha — a regra dos três vale igual depois da edição humana.
+
+    As decisões humanas do item são reaplicadas: o método escolhido pelo
+    revisor e a exceção à regra dos três. A exceção vale para a cesta
+    em que foi registrada: se o número de preços considerados mudou, ela
+    é INVALIDADA (fica no histórico do item com o motivo) e o item volta
+    a pendente até nova justificativa.
     """
-    linhas = repositorio.listar_referencias(str(item["id"]))
+    if linhas is None:
+        linhas = repositorio.listar_referencias(str(item["id"]))
+    decisoes = decisoes_do_item(item)
+    n = len(consideradas(linhas))
+    justificativa = None
+    excecao = decisoes.get("excecao")
+    if excecao:
+        if int(excecao.get("consideradas") or -1) == n and \
+                n < perfil.minimo_referencias:
+            justificativa = _texto_da_excecao(excecao)
+        else:
+            motivo = (f"a cesta mudou de {excecao.get('consideradas')} para "
+                      f"{n} preço(s) considerado(s)")
+            decisoes.setdefault("excecoes_anteriores", []).append(
+                {**excecao, "invalidada_em": _agora(),
+                 "motivo_invalidacao": motivo})
+            decisoes.pop("excecao")
+    metodo = (decisoes.get("metodo") or {}).get("metodo") or \
+        estatistica.METODO_AUTOMATICO
     estimativa = recalcular(
         linhas, perfil=perfil,
         regras=str(pesquisa.get("versao_regras") or
-                   estatistica.REGRAS_LEGADAS))
+                   estatistica.REGRAS_LEGADAS),
+        justificativa=justificativa, metodo=metodo,
+        criterio_percentual=estatistica.criterio_percentual_da(
+            pesquisa.get("filtros")))
+    metodo_decidido = decisoes.get("metodo")
+    if metodo_decidido:
+        estimativa.memoria.append(
+            f"método definido pelo revisor: {metodo_decidido.get('metodo')} "
+            f"— {metodo_decidido.get('justificativa')} "
+            f"({metodo_decidido.get('registrado_por') or '—'}, "
+            f"{metodo_decidido.get('registrado_em') or '—'})")
     repositorio.atualizar_estimativa(
-        item, estimativa, quantidade=_decimal(item.get("quantidade")))
+        item, estimativa, quantidade=_decimal(item.get("quantidade")),
+        decisoes=decisoes or None, revisao_esperada=revisao_esperada)
     return estimativa
 
 
 def validas_na_cesta(linhas: list[dict]) -> int:
-    """Quantas referências selecionadas têm preço normalizado — o N de "N/3"."""
-    return sum(1 for linha in linhas
-               if str(linha.get("status")) in NA_CESTA
-               and _decimal(linha.get("valor_unitario_normalizado"))
-               is not None
-               and _compoe_cesta(referencia_da_linha(linha)))
+    """Quantas referências são consideradas no cálculo — o N de "N/3"."""
+    return len(consideradas(linhas))
 
 
 def na_cesta_do_item(item: dict) -> int | None:
@@ -141,10 +230,13 @@ def na_cesta_do_item(item: dict) -> int | None:
     para desenhar um indicador. `None` = o item ainda não foi pesquisado.
     """
     gravado = item.get("estatisticas")
-    if not isinstance(gravado, dict) or "selecionadas" not in gravado:
+    if not isinstance(gravado, dict):
+        return None
+    chave = "consideradas" if "consideradas" in gravado else "selecionadas"
+    if chave not in gravado:
         return None
     try:
-        return int(gravado["selecionadas"])
+        return int(gravado[chave])
     except (TypeError, ValueError):
         return None
 
@@ -179,6 +271,236 @@ def validar_conclusao(item: dict, justificativa: str) -> str | None:
                 "discrepantes com motivo ou justifique por que a cesta "
                 "deve ser mantida como está.")
     return None
+
+
+# ---------------------------------------------------------------------------
+# Exceção à regra dos três (dossiê BP, temas 6a e J11; pacote, U05)
+#
+# O fluxo não existia: o perfil admitia concluir com menos de três, mas
+# ninguém passava a justificativa ao cálculo, e o item ficava INCOMPLETO
+# para sempre. Aqui ela é um ATO registrado, com quatro exigências:
+#
+#   1. o perfil precisa admitir (`admite_menos_com_justificativa`);
+#   2. o item precisa ter ao menos UM preço considerado — exceção não
+#      fabrica preço de item sem preço;
+#   3. texto do gestor (mín. 15 caracteres) e fundamento escolhido;
+#   4. a identificação de quem aprovou (autoridade competente) e a
+#      declaração de que a aprovação consta dos autos. O GovConnect não
+#      tem fluxo de aprovação de preço; ele REGISTRA a aprovação, não a
+#      concede.
+#
+# Os modelos são orientação editável, nunca texto que afirme fato de
+# mercado por conta própria; o servidor confirma e edita antes de gravar.
+# ---------------------------------------------------------------------------
+MODELOS_DE_JUSTIFICATIVA = {
+    "mercado_restrito": (
+        "Mercado restrito",
+        "As fontes consultadas no período retornaram apenas {n} preço(s) "
+        "comparável(is) para a especificação exigida; a ampliação da busca "
+        "trouxe somente produtos não equivalentes."),
+    "especificacao_singular": (
+        "Especificação singular",
+        "As características técnicas exigidas para o item reduzem as "
+        "contratações comparáveis a {n} referência(s) válida(s); produtos "
+        "de especificação inferior não servem de parâmetro."),
+    "complemento_documentado": (
+        "Complemento por outro meio",
+        "Além dos {n} preço(s) considerado(s), a estimativa é sustentada por "
+        "documento juntado aos autos (indique qual: cotação direta, ata de "
+        "registro de preços ou outro)."),
+    "outro": ("Outro fundamento", ""),
+}
+
+ESCOPOS = ("item", "selecionados", "todos")
+
+
+class ExcecaoInvalida(ValueError):
+    """A exceção não pode ser registrada — a mensagem diz o que falta."""
+
+
+def modelo_de_justificativa(chave: str, n: int) -> str:
+    _, texto = MODELOS_DE_JUSTIFICATIVA.get(chave, ("", ""))
+    return texto.format(n=n)
+
+
+def validar_excecao(item: dict, linhas: list[dict], *,
+                    perfil: PerfilNormativo, texto: str, fundamento: str,
+                    aprovador: str, aprovacao_declarada: bool = True) -> int:
+    """Devolve o N considerado, ou levanta dizendo o que impede."""
+    if not perfil.admite_menos_com_justificativa:
+        raise ExcecaoInvalida(
+            f"o perfil {perfil.nome} não admite concluir com menos de "
+            f"{perfil.minimo_referencias} preços")
+    n = len(consideradas(linhas))
+    if n == 0:
+        raise ExcecaoInvalida(
+            "o item não tem nenhum preço considerado — a exceção não forma "
+            "preço; amplie a busca ou registre cotação direta")
+    if n >= perfil.minimo_referencias:
+        raise ExcecaoInvalida(
+            f"o item já tem {n} preços considerados; não precisa de exceção")
+    if fundamento not in MODELOS_DE_JUSTIFICATIVA:
+        raise ExcecaoInvalida("escolha o fundamento da exceção")
+    if len(str(texto or "").strip()) < MINIMO_JUSTIFICATIVA:
+        raise ExcecaoInvalida(
+            "escreva a justificativa do gestor (ao menos 15 caracteres)")
+    if len(str(aprovador or "").strip()) < 3:
+        raise ExcecaoInvalida(
+            "identifique a autoridade competente que aprovou a exceção")
+    if not aprovacao_declarada:
+        raise ExcecaoInvalida(
+            "confirme que a aprovação da autoridade competente consta dos "
+            "autos")
+    return n
+
+
+def registrar_excecao(pesquisa: dict, item: dict, repositorio, *,
+                      perfil: PerfilNormativo, texto: str, fundamento: str,
+                      aprovador: str, ator: str | None = None,
+                      aprovacao_declarada: bool = True, escopo: str = "item",
+                      revisao_esperada: int | None = None
+                      ) -> estatistica.Estimativa:
+    """
+    Registra a exceção do item e refaz a estimativa com ela.
+
+    O item sai de INCOMPLETO para REVISÃO — ainda não é COMPLETO: quem
+    conclui é o revisor, depois de ler a memória com a exceção impressa.
+    """
+    linhas = repositorio.listar_referencias(str(item["id"]))
+    n = validar_excecao(item, linhas, perfil=perfil, texto=texto,
+                        fundamento=fundamento, aprovador=aprovador,
+                        aprovacao_declarada=aprovacao_declarada)
+    decisoes = decisoes_do_item(item)
+    anterior = decisoes.get("excecao")
+    if anterior:
+        decisoes.setdefault("excecoes_anteriores", []).append(
+            {**anterior, "substituida_em": _agora()})
+    rotulo, _ = MODELOS_DE_JUSTIFICATIVA[fundamento]
+    decisoes["excecao"] = {
+        "texto": str(texto).strip(), "fundamento": fundamento,
+        "fundamento_texto": rotulo, "base_normativa": perfil.fundamento_excecao,
+        "aprovador": str(aprovador).strip(), "aprovacao_declarada": True,
+        "registrado_por": ator, "registrado_em": _agora(),
+        "consideradas": n, "perfil": perfil.id, "escopo": escopo,
+    }
+    estimativa = recalcular_e_gravar(
+        pesquisa, {**item, "estatisticas": {
+            **(item.get("estatisticas") or {}), "decisoes": decisoes}},
+        repositorio, perfil=perfil, linhas=linhas,
+        revisao_esperada=revisao_esperada)
+    repositorio.registrar_evento(
+        str(pesquisa["id"]), "excecao_registrada", ator=ator,
+        item_id=str(item["id"]), descricao=str(texto).strip(),
+        payload={"fundamento": fundamento, "aprovador": str(aprovador).strip(),
+                 "consideradas": n, "minimo": perfil.minimo_referencias,
+                 "escopo": escopo, "base_normativa": perfil.fundamento_excecao,
+                 "preco_recalculado": None if estimativa.valor_unitario is None
+                 else format(estimativa.valor_unitario, "f")})
+    return estimativa
+
+
+def prever_excecao_em_lote(itens: list[dict], referencias: dict[str, list[dict]],
+                           *, perfil: PerfilNormativo, escopo: str,
+                           selecionados: set[str] | None = None,
+                           sobrescrever: bool = False) -> list[dict]:
+    """
+    A PRÉVIA da aplicação em lote: quem recebe a exceção e quem não, com
+    o motivo. Nada é gravado aqui — o servidor confirma sobre esta lista.
+    """
+    if escopo not in ESCOPOS:
+        raise ExcecaoInvalida("escopo desconhecido")
+    alvo = itens
+    if escopo == "selecionados":
+        alvo = [i for i in itens if str(i.get("id")) in (selecionados or set())]
+    previa = []
+    for item in alvo:
+        n = len(consideradas(referencias.get(str(item.get("id")), [])))
+        tem = bool(decisoes_do_item(item).get("excecao"))
+        if str(item.get("estado")) == "complete":
+            situacao = "já concluído"
+        elif n == 0:
+            situacao = "sem preço considerado — não recebe exceção"
+        elif n >= perfil.minimo_referencias:
+            situacao = "já tem o mínimo — não precisa"
+        elif tem and not sobrescrever:
+            situacao = "já tem exceção — mantida"
+        else:
+            situacao = "recebe a exceção"
+        previa.append({"item_id": str(item.get("id")),
+                       "numero": int(item.get("numero") or 0),
+                       "descricao": str(item.get("descricao") or ""),
+                       "consideradas": n, "situacao": situacao,
+                       "aplica": situacao == "recebe a exceção"})
+    return previa
+
+
+def aplicar_excecao_em_lote(pesquisa: dict, itens: list[dict], repositorio, *,
+                            previa: list[dict], perfil: PerfilNormativo,
+                            fundamento: str, texto_modelo: str, aprovador: str,
+                            ator: str | None = None, escopo: str = "todos"
+                            ) -> list[tuple[dict, str]]:
+    """Aplica a exceção aos itens que a prévia marcou. Devolve (item, resultado)."""
+    por_id = {str(i.get("id")): i for i in itens}
+    saida = []
+    for linha in previa:
+        if not linha.get("aplica"):
+            continue
+        item = por_id[linha["item_id"]]
+        texto = texto_modelo.replace("{n}", str(linha["consideradas"]))
+        try:
+            registrar_excecao(pesquisa, item, repositorio, perfil=perfil,
+                              texto=texto, fundamento=fundamento,
+                              aprovador=aprovador, ator=ator, escopo=escopo)
+            saida.append((item, "exceção registrada"))
+        except ExcecaoInvalida as erro:
+            saida.append((item, f"não aplicada: {erro}"))
+    return saida
+
+
+# ---------------------------------------------------------------------------
+# Método do item escolhido pelo revisor (dossiê BP, tema 5a/5b)
+# ---------------------------------------------------------------------------
+METODOS_ROTULO = {"automatico": "padrão da cotação", "media": "média aritmética",
+                  "mediana": "mediana", "menor": "menor preço"}
+
+
+def escolher_metodo(pesquisa: dict, item: dict, repositorio, *,
+                    perfil: PerfilNormativo, metodo: str, justificativa: str,
+                    ator: str | None = None,
+                    revisao_esperada: int | None = None
+                    ) -> estatistica.Estimativa:
+    """
+    Troca o método do item, com justificativa, e refaz o preço.
+
+    "automatico" volta ao padrão da cotação (sem justificativa). Método
+    que o perfil não admite é recusado aqui — a estimativa nunca cai em
+    outro método em silêncio.
+    """
+    decisoes = decisoes_do_item(item)
+    if metodo == estatistica.METODO_AUTOMATICO:
+        decisoes.pop("metodo", None)
+    else:
+        if metodo not in perfil.metodos_permitidos:
+            raise ValueError(
+                f"o perfil {perfil.nome} admite: "
+                f"{', '.join(perfil.metodos_permitidos)}")
+        if len(str(justificativa or "").strip()) < MINIMO_JUSTIFICATIVA:
+            raise ValueError("justifique a troca do método (mín. 15 caracteres)")
+        decisoes["metodo"] = {"metodo": metodo,
+                              "justificativa": str(justificativa).strip(),
+                              "registrado_por": ator,
+                              "registrado_em": _agora()}
+    estimativa = recalcular_e_gravar(
+        pesquisa, {**item, "estatisticas": {
+            **(item.get("estatisticas") or {}), "decisoes": decisoes}},
+        repositorio, perfil=perfil, revisao_esperada=revisao_esperada)
+    repositorio.registrar_evento(
+        str(pesquisa["id"]), "metodo_alterado", ator=ator,
+        item_id=str(item["id"]), descricao=str(justificativa or "").strip(),
+        payload={"metodo": metodo, "aplicado": estimativa.metodo,
+                 "preco_recalculado": None if estimativa.valor_unitario is None
+                 else format(estimativa.valor_unitario, "f")})
+    return estimativa
 
 
 def discrepantes(linhas: list[dict], *, perfil: PerfilNormativo,

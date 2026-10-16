@@ -271,14 +271,8 @@ ROTULO_NATUREZA = {
     "estimado_origem": "Estimado (origem)", "proposta": "Proposta",
     "outro": "Outro",
 }
-ROTULO_DESFECHO = {"success_with_prices": "respondeu com preços",
-                   "success_empty": "respondeu sem preço",
-                   "evidence_only": "só evidência, sem preço",
-                   "failure": "INDISPONÍVEL"}
-NOME_FONTE = {"compras_gov_precos": "Compras.gov (preços praticados)",
-              "compras_gov_itens": "Compras.gov (itens de contratações)",
-              "pncp": "PNCP",
-              "cotacao_direta": "Cotação direta"}
+from ..precos.fontes import NOME_DA_FONTE as NOME_FONTE  # noqa: E402
+from ..precos.fontes import ROTULO_DESFECHO  # noqa: E402
 
 
 def _render_banco() -> None:
@@ -456,7 +450,7 @@ def _render_banco_cesta(estimativa, selecao: set[str]) -> None:
              if estimativa.provisoria else "Média aritmética (método padrão)",
              _moeda(estimativa.valor_unitario))
     b.metric("Mediana (diagnóstico)", _moeda(est.mediana))
-    c.metric("Coef. de variação", f"{est.coeficiente_variacao:.2f}")
+    c.metric("Coef. de variação", estatistica.pct(est.coeficiente_variacao))
     if estimativa.status != "CONCLUIDO":
         st.warning(f"{est.quantidade}/3 — a cesta ainda não tem três preços "
                    "comparáveis. Não conclua sem ampliar a busca ou "
@@ -813,26 +807,48 @@ def _render_itens() -> None:
 
 
 def _render_importacao(pesquisa: dict, itens: list[dict]) -> None:
-    """
-    §17-C: importar do processo aberto ou de XLSX.
+    """§17-C: importar do processo aberto ou de XLSX — ver `render_importacao`."""
+    render_importacao(pesquisa, itens)
 
-    Reusa `planilha.importar_de_xlsx` — a estrutura canônica do item já
-    existe no projeto, e criar um segundo formato incompatível é
-    exatamente o que o prompt proíbe.
+
+def _colunas_0029() -> bool:
     """
+    UF e lote têm coluna só depois da migração 0029. A flag de Cotações
+    só é ligada com a 0029 aplicada (ver docs/cotacoes/rollback.md), então
+    ela é o sinal; sem ela, UF e lote são VALIDADOS e não gravados.
+    """
+    from .. import governanca
+
+    return db.flag_ativa(governanca.FLAG_COTACOES_UNIFICADAS)
+
+
+def render_importacao(pesquisa: dict, itens: list[dict]) -> None:
+    """
+    Importação com DIAGNÓSTICO (dossiê BP, J05 e tema 11): todas as linhas
+    examinadas, erros listados com linha e motivo, nada gravado enquanto
+    houver erro, e confirmação sobre o PLANO (novos / atualizados / iguais
+    / itens que voltam à busca). Reimportar não duplica.
+
+    Reusa `planilha.ler_tabela_xlsx` e `precos.importacao`; a mesma tela
+    serve à Pesquisa de Preços e a Cotações.
+    """
+    from ..precos import importacao
+
+    origem = f"_imp_origem_{pesquisa['id']}"
     do_processo, do_arquivo = st.columns(2)
-
+    diagnostico = None
     with do_processo:
         da_sessao = (st.session_state.get("dados") or {}).get("itens") or []
-        validos = [i for i in da_sessao if planilha.item_valido(i)]
-        if st.button(
-                f"Importar {len(validos)} item(ns) do processo aberto",
-                disabled=not validos, use_container_width=True,
-                help=("Nenhum item válido na planilha desta sessão."
-                      if not validos else
-                      "Traz código, descrição, unidade e quantidade.")):
-            _salvar_importados(pesquisa, validos)
-            st.rerun()
+        if st.button(f"Conferir {len(da_sessao)} item(ns) do processo aberto",
+                     disabled=not da_sessao, use_container_width=True,
+                     key=f"imp_proc_{pesquisa['id']}",
+                     help=("Nenhum item na planilha desta sessão."
+                           if not da_sessao else
+                           "Traz código, descrição, unidade e quantidade, "
+                           "depois de conferir cada linha.")):
+            st.session_state[origem] = "processo"
+        if st.session_state.get(origem) == "processo":
+            diagnostico = importacao.diagnosticar_itens(da_sessao)
 
     with do_arquivo:
         arquivo = st.file_uploader(
@@ -840,37 +856,64 @@ def _render_importacao(pesquisa: dict, itens: list[dict]) -> None:
             key=f"precos_xlsx_{pesquisa['id']}")
         if arquivo is not None:
             try:
-                lidos = planilha.importar_de_xlsx(arquivo.getvalue())
-            except Exception as erro:  # noqa: BLE001 — arquivo é entrada do usuário
-                st.error(f"Não foi possível ler a planilha: {erro}")
-            else:
-                validos = [i for i in lidos if planilha.item_valido(i)]
-                st.caption(f"{len(validos)} item(ns) válido(s) na planilha.")
-                if validos and st.button("Confirmar importação",
-                                         use_container_width=True):
-                    _salvar_importados(pesquisa, validos)
-                    st.rerun()
+                diagnostico = importacao.diagnosticar(arquivo.getvalue())
+            except planilha.ErroPlanilha as erro:
+                st.error(str(erro))
+                return
+            st.session_state[origem] = "arquivo"
+
+    if diagnostico is None:
+        return
+    _render_diagnostico(pesquisa, itens, diagnostico)
 
 
-def _salvar_importados(pesquisa: dict, itens_canonicos: list[dict]) -> None:
-    """
-    Grava os itens importados.
+def _render_diagnostico(pesquisa: dict, itens: list[dict], diagnostico) -> None:
+    from ..precos import importacao
 
-    A numeração é a POSIÇÃO na planilha, e é ela a chave (pesquisa,
-    número): importar a mesma planilha duas vezes atualiza os mesmos 210
-    itens em vez de criar 420. O `valor_unitario` da origem é ignorado
-    de propósito — é justamente ele que a pesquisa vai formar.
-    """
-    registros = []
-    for posicao, item in enumerate(itens_canonicos, start=1):
-        registros.append({
-            "numero": posicao,
-            "codigo": str(item.get("codigo") or "").strip() or None,
-            "descricao": str(item.get("descricao") or "").strip(),
-            "unidade": str(item.get("unidade") or "").strip(),
-            "quantidade": item.get("quantidade"),
-        })
-    repo.salvar_itens(str(pesquisa["id"]), registros)
+    st.caption(f"Cabeçalho lido: {diagnostico.cabecalho_visto or '—'} · "
+               f"{len(diagnostico.validos)} linha(s) válida(s) · "
+               f"{len(diagnostico.linhas_com_erro)} com erro · "
+               f"{diagnostico.em_branco} em branco ignorada(s)")
+    if diagnostico.erros:
+        st.error(f"{len(diagnostico.linhas_com_erro)} linha(s) com erro. Nada "
+                 "foi importado: corrija a planilha e envie de novo.")
+        st.dataframe(
+            [{"Linha": e.linha, "Campo": e.campo, "Valor": e.valor,
+              "Motivo": e.motivo} for e in diagnostico.erros],
+            use_container_width=True, hide_index=True)
+        return
+    if not diagnostico.validos:
+        st.info("Nenhuma linha com dados para importar.")
+        return
+    plano = importacao.planejar(diagnostico, itens)
+    resumo = importacao.resumo_do_plano(plano)
+    st.success(f"Planilha sem erros: {resumo['novo']} item(ns) novo(s), "
+               f"{resumo['atualizar']} a atualizar, {resumo['igual']} sem "
+               "mudança.")
+    if resumo["refaz_busca"]:
+        st.warning(f"{resumo['refaz_busca']} item(ns) já pesquisado(s) mudam "
+                   "de descrição ou unidade e voltarão para a busca — a cesta "
+                   "atual valia para o item antigo.")
+    if not _colunas_0029() and any(a.linha.uf or a.linha.lote for a in plano):
+        st.caption("UF e lote foram conferidos; serão gravados quando a "
+                   "versão de Cotações estiver ativa (migração 0029).")
+    mudam = [a for a in plano if a.tipo != "igual"]
+    if not mudam:
+        st.caption("A planilha é igual ao que a cotação já tem.")
+        return
+    st.dataframe([{"Item": a.numero, "Ação": a.tipo,
+                   "Descrição": a.linha.descricao[:80],
+                   "Unidade": a.linha.unidade,
+                   "Quantidade": str(a.linha.quantidade),
+                   "Muda": ", ".join(a.mudancas)} for a in mudam[:300]],
+                 use_container_width=True, hide_index=True)
+    if st.button("Confirmar importação", type="primary",
+                 key=f"imp_ok_{pesquisa['id']}", use_container_width=True):
+        importacao.aplicar(str(pesquisa["id"]), plano, repo,
+                           colunas_0029=_colunas_0029())
+        st.session_state.pop(f"_imp_origem_{pesquisa['id']}", None)
+        st.success("Importação concluída.")
+        st.rerun()
 
 
 # Item ainda sem preço formado: o CATMAT pode ser definido ou trocado.
@@ -1434,12 +1477,14 @@ def _render_explicacao(item: dict, referencias: list[dict]) -> None:
                     st.caption("Sem análise complementar válida registrada. Revise as fontes.")
         except Exception:
             st.warning("Não foi possível consultar a análise complementar. Revise as fontes.")
-    contagem = filtros_mod.contar_por_status(referencias)
-    na_cesta = contagem.get("selected", 0)
+    from ..precos import cesta as cesta_mod
+
+    na_cesta = len(cesta_mod.consideradas(referencias))
     st.markdown(
-        f"O motor analisou **{len(referencias)}** referência(s) e levou "
-        f"**{na_cesta}** para a cesta, por comparabilidade e prioridade "
-        "normativa da fonte — nunca por preço.")
+        f"O motor analisou **{len(referencias)}** referência(s); "
+        f"**{na_cesta}** estão na cesta e consideradas no cálculo, "
+        "escolhidas por comparabilidade e prioridade normativa da fonte — "
+        "nunca por preço.")
 
     fora = len(referencias) - na_cesta
     if fora:
@@ -1447,9 +1492,8 @@ def _render_explicacao(item: dict, referencias: list[dict]) -> None:
             f"As outras {fora} continuam listadas abaixo, com o motivo de "
             "cada uma. Nenhuma foi apagada.")
 
-    selecionada = next((r for r in referencias
-                        if str(r.get("status")) == "selected"
-                        and r.get("fatores")), None)
+    selecionada = next((r for r in cesta_mod.consideradas(referencias)
+                        if r.get("fatores")), None)
     if selecionada:
         with st.expander("Critérios considerados"):
             st.caption(
@@ -1468,14 +1512,16 @@ def _render_painel_estatistico(pesquisa: dict, item: dict,
     estatisticas = memoria.get("estatisticas") or {}
 
     if estatisticas:
-        colunas = st.columns(6)
-        colunas[0].metric("Válidos", estatisticas.get("quantidade", 0))
+        colunas = st.columns(7)
+        colunas[0].metric("Considerados", estatisticas.get("quantidade", 0))
         colunas[1].metric("Menor", _moeda(estatisticas.get("menor")))
         colunas[2].metric("Média", _moeda(estatisticas.get("media")))
         colunas[3].metric("Mediana", _moeda(estatisticas.get("mediana")))
         colunas[4].metric("Maior", _moeda(estatisticas.get("maior")))
+        colunas[5].metric("Desvio-padrão",
+                          _moeda(estatisticas.get("desvio_padrao")))
         cv = _decimal(estatisticas.get("coeficiente_variacao"))
-        colunas[5].metric("CV", f"{cv:.2f}" if cv is not None else "—")
+        colunas[6].metric("CV", estatistica.pct(cv))
 
     resumo = st.columns([2, 2, 3])
     resumo[0].metric("Método", str(item.get("metodo") or "—"))
@@ -1512,9 +1558,12 @@ def _render_anomalias(memoria: dict) -> None:
 
 def _render_filtros(referencias: list[dict]) -> filtros_mod.Filtros:
     """§20 — os filtros. Escondem; nunca apagam."""
+    from ..precos import cesta as cesta_mod
+
     contagem = filtros_mod.contar_por_status(referencias)
     with st.expander(
-            f"Filtros  ·  {contagem.get('selected', 0)} na cesta, "
+            f"Filtros  ·  {len(cesta_mod.consideradas(referencias))} "
+            "considerada(s) no cálculo, "
             f"{contagem.get('rejected', 0)} excluída(s), "
             f"{contagem.get('manual_review', 0)} abaixo do piso"):
         linha1 = st.columns(4)
@@ -1702,6 +1751,11 @@ def _render_detalhe(linha: dict) -> None:
 def _render_encerramento_do_item(item: dict) -> None:
     """O ato humano que fecha o item — REVISÃO → CONCLUÍDO."""
     estado = str(item.get("estado") or "")
+    pesquisa = _pesquisa_atual() or {}
+    if estado in (EstadoItem.EM_REVISAO.value, EstadoItem.INCOMPLETO.value):
+        render_metodo_do_item(pesquisa, item)
+    if estado == EstadoItem.INCOMPLETO.value:
+        render_excecao_do_item(pesquisa, item)
     if estado != EstadoItem.EM_REVISAO.value:
         st.caption(f"Situação do item: {ROTULO_ITEM.get(estado, estado)}.")
         return
@@ -1734,6 +1788,139 @@ def _render_encerramento_do_item(item: dict) -> None:
             item_id=str(item["id"]), descricao=justificativa.strip())
         _ir(ITENS, **{ITEM: None})
         st.rerun()
+
+
+def render_metodo_do_item(pesquisa: dict, item: dict) -> None:
+    """
+    Seletor do método do item, com justificativa (dossiê BP, tema 5a).
+
+    Público: a tela de Cotações usa o MESMO componente. A troca passa por
+    `cesta.escolher_metodo`, que recalcula e grava — a tela nunca calcula.
+    """
+    from ..precos import cesta as cesta_mod
+
+    perfil_atual = perfil.obter(pesquisa.get("perfil_normativo"))
+    decidido = (cesta_mod.decisoes_do_item(item).get("metodo") or {})
+    atual = decidido.get("metodo") or estatistica.METODO_AUTOMATICO
+    opcoes = [estatistica.METODO_AUTOMATICO,
+              *[m for m in perfil_atual.metodos_permitidos]]
+    with st.expander(f"Método do item: "
+                     f"{cesta_mod.METODOS_ROTULO.get(atual, atual)}"):
+        with st.form(f"metodo_{item['id']}"):
+            escolhido = st.selectbox(
+                "Método", opcoes, index=opcoes.index(atual)
+                if atual in opcoes else 0,
+                format_func=lambda m: cesta_mod.METODOS_ROTULO.get(m, m))
+            justificativa = st.text_area(
+                "Justificativa da troca (obrigatória fora do padrão)",
+                value=str(decidido.get("justificativa") or ""), height=70)
+            trocar = st.form_submit_button("Aplicar método")
+        if not trocar:
+            return
+        try:
+            cesta_mod.escolher_metodo(
+                pesquisa, item, repo, perfil=perfil_atual, metodo=escolhido,
+                justificativa=justificativa, ator=_identidade()[0] or None,
+                revisao_esperada=_revisao(item))
+        except (ValueError, db.ErroBanco) as erro:
+            st.error(str(erro))
+            return
+        st.success("Método aplicado e preço recalculado.")
+        st.rerun()
+
+
+def _revisao(item: dict) -> int | None:
+    """Versão do item para o controle otimista, quando o banco a tem."""
+    valor = item.get("revisao")
+    return int(valor) if valor not in (None, "") else None
+
+
+def render_excecao_do_item(pesquisa: dict, item: dict) -> None:
+    """
+    Exceção formal à regra dos três (pacote U05): modelo editável,
+    fundamento, aprovador e declaração de aprovação nos autos. O item
+    vai para REVISÃO — quem conclui é o revisor, depois de ler a memória.
+    """
+    from ..precos import cesta as cesta_mod
+
+    perfil_atual = perfil.obter(pesquisa.get("perfil_normativo"))
+    linhas = repo.listar_referencias(str(item["id"]))
+    n = len(cesta_mod.consideradas(linhas))
+    if not perfil_atual.admite_menos_com_justificativa:
+        st.info(f"O perfil {perfil_atual.nome} não admite concluir com "
+                f"menos de {perfil_atual.minimo_referencias} preços.")
+        return
+    if n == 0:
+        st.info("Sem nenhum preço considerado, a exceção não forma preço: "
+                "amplie a busca ou registre cotação direta.")
+        return
+    if n >= perfil_atual.minimo_referencias:
+        return
+    with st.expander(f"Justificar {n}/{perfil_atual.minimo_referencias} "
+                     "preços (exceção)", expanded=False):
+        st.caption(f"Base declarada pelo perfil: "
+                   f"{perfil_atual.fundamento_excecao}. O modelo é ponto de "
+                   "partida: edite o texto com os fatos deste item.")
+        chaves = list(cesta_mod.MODELOS_DE_JUSTIFICATIVA)
+        fundamento = st.selectbox(
+            "Fundamento", chaves, key=f"exc_fund_{item['id']}",
+            format_func=lambda c: cesta_mod.MODELOS_DE_JUSTIFICATIVA[c][0])
+        with st.form(f"excecao_{item['id']}"):
+            texto = st.text_area(
+                "Justificativa do gestor",
+                value=cesta_mod.modelo_de_justificativa(fundamento, n),
+                height=100)
+            aprovador = st.text_input(
+                "Autoridade competente que aprovou",
+                placeholder="Nome e cargo")
+            declarada = st.checkbox(
+                "A aprovação da autoridade competente consta dos autos")
+            registrar = st.form_submit_button("Registrar exceção",
+                                              type="primary")
+        if not registrar:
+            return
+        try:
+            cesta_mod.registrar_excecao(
+                pesquisa, item, repo, perfil=perfil_atual, texto=texto,
+                fundamento=fundamento, aprovador=aprovador,
+                aprovacao_declarada=declarada,
+                ator=_identidade()[0] or None,
+                revisao_esperada=_revisao(item))
+        except (cesta_mod.ExcecaoInvalida, db.ErroBanco) as erro:
+            st.error(f"Exceção não registrada: {erro}.")
+            return
+        st.success("Exceção registrada. O item foi para revisão — conclua-o "
+                   "depois de conferir a memória de cálculo.")
+        st.rerun()
+
+
+def render_aviso_de_pendencias(pesquisa: dict, itens: list[dict],
+                               referencias: dict) -> bool:
+    """
+    Lista NOMINAL do que está pendente, antes de qualquer emissão (dossiê
+    BP, temas 6d e J12b: o concorrente avisava sem dizer quais itens).
+    Devolve True se pode emitir: sem pendência impeditiva, ou com a
+    ciência registrada nesta tela — e o documento imprime a lista.
+    """
+    nominais = relatorio.pendencias_nominais(
+        itens, referencias, perfil.obter(pesquisa.get("perfil_normativo")))
+    impeditivas = [p for p in nominais if p.get("impede")]
+    if not nominais:
+        return True
+    texto = "\n".join(
+        f"- Item {p['numero']:02d} — {p['descricao'][:60]}: "
+        f"{'; '.join(p['deficiencias'])}" for p in nominais[:30])
+    resto = (f"\n- … e mais {len(nominais) - 30} item(ns)"
+             if len(nominais) > 30 else "")
+    if impeditivas:
+        st.warning(f"**{len(impeditivas)} item(ns) ainda não sustentam "
+                   "preço.** O documento sairá com esta lista impressa:\n\n"
+                   + texto + resto)
+        return st.checkbox(
+            "Estou ciente: emitir com as pendências listadas, que constarão "
+            "do documento", key=f"ciente_pend_{pesquisa['id']}")
+    st.info("Ressalvas que constarão do documento:\n\n" + texto + resto)
+    return True
 
 
 def _render_excluir_discrepantes(item: dict) -> None:
@@ -1938,6 +2125,11 @@ def _render_relatorios(pesquisa: dict) -> None:
         f"Identificador desta versão do resultado: `{identificador[:16]}…` — "
         "o mesmo resultado gera sempre o mesmo identificador, "
         "independentemente da data de emissão.")
+
+    if not render_aviso_de_pendencias(pesquisa, itens, referencias):
+        st.caption("Os relatórios ficam disponíveis depois da ciência das "
+                   "pendências acima.")
+        return
 
     if len(itens) >= _ITENS_PARA_AVISAR:
         demora = len(itens) * _SEGUNDOS_POR_ITEM_NO_COMPLETO

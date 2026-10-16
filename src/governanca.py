@@ -339,6 +339,12 @@ FLAG_PUBLICACAO_GATE = "governance_publication_gate"
 FLAG_PESQUISA_PRECOS = "price_research"
 FLAG_JEV_PRECOS = "jev_price_research"  # opt-in independente; ausente = OFF
 
+# Cotações unificadas (Minhas Cotações → Elaborar Cotação, manual e
+# automático no MESMO documento). Nasce DESLIGADA e depende da migração
+# 0029 aplicada; desligada, o menu continua na tela da Pesquisa de Preços.
+# Exige também `price_research` ligada: é a mesma entidade, outra tela.
+FLAG_COTACOES_UNIFICADAS = "unified_quotations"
+
 # Consolidação dos Documentos de Formalização de Demanda. Nasce
 # DESLIGADA: a etapa muda a ORIGEM da planilha orçamentária do processo,
 # e ligar sem auditoria colocaria uma quantidade consolidada dentro de um
