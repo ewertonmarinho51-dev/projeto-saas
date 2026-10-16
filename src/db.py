@@ -1287,18 +1287,28 @@ def registrar_geracao_bd(registro: dict) -> None:
 # Configurações do aplicativo (chaves de IA definidas pelo administrador)
 # ---------------------------------------------------------------------------
 @st.cache_data(ttl=60, show_spinner=False)
+def _config_app_inteira() -> dict[str, str]:
+    """
+    A tabela inteira numa ida só (cache 60s).
+
+    Era uma consulta POR CHAVE: o primeiro clique depois de cada minuto
+    pagava 11 idas ao banco em fila só para ler flags (medido, 16/10/2026).
+    A tabela tem poucas linhas; ler tudo custa o mesmo que ler uma.
+    Erro vira `{}` cacheado — o mesmo "segue sem config" de antes.
+    """
+    try:
+        linhas = (_cliente().table("config_app").select("chave, valor")
+                  .execute()).data or []
+        return {l["chave"]: (l.get("valor") or "").strip() for l in linhas}
+    except Exception:  # noqa: BLE001 — tabela ausente/erro: segue sem config
+        return {}
+
+
 def obter_config(chave: str) -> str:
     """Valor de config_app (cache 60s). Vazio se ausente/indisponível."""
     if not disponivel():
         return ""
-    try:
-        resposta = (
-            _cliente().table("config_app").select("valor")
-            .eq("chave", chave).limit(1).execute()
-        )
-        return (resposta.data[0]["valor"] if resposta.data else "").strip()
-    except Exception:  # noqa: BLE001 — tabela ausente/erro: segue sem config
-        return ""
+    return _config_app_inteira().get(chave, "")
 
 
 def salvar_config(chave: str, valor: str) -> None:
@@ -1306,7 +1316,7 @@ def salvar_config(chave: str, valor: str) -> None:
         _cliente().table("config_app").upsert(
             {"chave": chave, "valor": valor.strip()}
         ).execute()
-        obter_config.clear()
+        _config_app_inteira.clear()
     except Exception as exc:  # noqa: BLE001
         raise _traduzir_erro(exc) from exc
 
@@ -1516,14 +1526,29 @@ def rotulo_processo(proc: dict) -> str:
 # contenção — é a primeira linha, e existe para que a segunda nunca
 # precise ser exercida.
 # ===========================================================================
+# CACHE DE 60s, como as flags. A navegação pergunta "este módulo está
+# disponível?" de 4 a 6 vezes por clique (menu + rota), e cada pergunta
+# eram duas idas ao banco — a maior parte do tempo de cada clique
+# (medido, 16/10/2026). Quem grava pelo painel limpa o cache na hora;
+# mudança feita por fora aparece em até um minuto, como numa flag.
 def modulos_do_tenant() -> dict[str, bool]:
     """`{modulo: habilitado}` da prefeitura atual."""
+    return dict(_modulos_do_tenant_em(tenant_atual()))
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _modulos_do_tenant_em(tenant_id: str) -> dict[str, bool]:
+    """
+    O tenant é parâmetro só porque é a CHAVE do cache — sem ele, uma
+    prefeitura leria o cache da outra. Quem chama é `modulos_do_tenant`,
+    sempre com `tenant_atual()`; não chame de outro lugar.
+    """
     try:
         linhas = (_cliente().table("tenant_modulos")
                   .select("modulo, habilitado")
-                  .eq("tenant_id", tenant_atual()).execute()).data or []
+                  .eq("tenant_id", tenant_id).execute()).data or []
         return {l["modulo"]: bool(l["habilitado"]) for l in linhas}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — exceção não entra no cache
         raise _traduzir_erro(exc) from exc
 
 
@@ -1533,18 +1558,24 @@ def salvar_modulo_do_tenant(modulo: str, habilitado: bool) -> None:
          .upsert({"tenant_id": tenant_atual(), "modulo": modulo,
                   "habilitado": habilitado},
                  on_conflict="tenant_id,modulo").execute())
+        _modulos_do_tenant_em.clear()
     except Exception as exc:  # noqa: BLE001
         raise _traduzir_erro(exc) from exc
 
 
 def modulos_da_secretaria(secretaria_id: str) -> dict[str, str]:
     """`{modulo: estado}` — HERDAR, HABILITADO ou DESABILITADO."""
+    return dict(_modulos_da_secretaria_em(secretaria_id))
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _modulos_da_secretaria_em(secretaria_id: str) -> dict[str, str]:
     try:
         linhas = (_cliente().table("secretaria_modulos")
                   .select("modulo, estado")
                   .eq("secretaria_id", secretaria_id).execute()).data or []
         return {l["modulo"]: l["estado"] for l in linhas}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — exceção não entra no cache
         raise _traduzir_erro(exc) from exc
 
 
@@ -1573,6 +1604,7 @@ def salvar_modulo_da_secretaria(secretaria_id: str, modulo: str,
          .upsert({"secretaria_id": secretaria_id, "tenant_id": tenant_atual(),
                   "modulo": modulo, "estado": estado},
                  on_conflict="secretaria_id,modulo").execute())
+        _modulos_da_secretaria_em.clear()
     except Exception as exc:  # noqa: BLE001
         raise _traduzir_erro(exc) from exc
 

@@ -1026,8 +1026,50 @@ div[data-testid="stHorizontalBlock"]:has(.gc-step-marker)
     text-align: center;
 }
 
+/* Processando um clique.
+   O Streamlit desbota o que vai ser redesenhado para 33% — a tela
+   inteira parece quebrada, não ocupada. Fica em 72%: legível, e ainda
+   visivelmente "em espera". O sinal de trabalho passa a ser uma faixa
+   fina no topo, que só aparece se a execução passar de 0,3s — clique
+   rápido não pisca nada. Atributos do próprio Streamlit 1.64; se
+   sumirem numa versão nova, volta o comportamento padrão. */
+[data-testid="stElementContainer"][data-stale="true"] {
+    opacity: 0.72 !important;
+    transition: opacity 300ms ease-in 500ms;
+}
+
+.stApp[data-test-script-state="running"]::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000000;
+    height: 3px;
+    background: #1B4F8A;
+    pointer-events: none;
+    transform-origin: left;
+    animation: gc-rerun-surge 160ms ease-out 300ms both,
+        gc-rerun-faixa 1.4s ease-in-out 300ms infinite;
+}
+
+@keyframes gc-rerun-surge {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes gc-rerun-faixa {
+    0%, 100% { transform: scaleX(0.15); }
+    50% { transform: scaleX(0.85); }
+}
+
 /* Motion reduzido */
 @media (prefers-reduced-motion: reduce) {
+    .stApp[data-test-script-state="running"]::before {
+        transform: none;
+        animation: gc-rerun-surge 0.01ms linear 300ms both;
+    }
+
     html {
         scroll-behavior: auto;
     }

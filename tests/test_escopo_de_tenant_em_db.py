@@ -44,10 +44,10 @@ MIGRACOES = RAIZ / "supabase" / "migrations"
 # Por que cada função pode consultar uma tabela com `tenant_id` sem
 # filtrar por ele. Sem motivo escrito, não entra.
 SEM_FILTRO_COM_MOTIVO = {
-    "obter_config": "config_app é GLOBAL por desenho — a chave primária "
+    "_config_app_inteira": "config_app é GLOBAL por desenho — a chave primária "
                     "é só `chave`, e uma flag vale para a instalação "
                     "inteira. Ver src/ambiente.py.",
-    "salvar_config": "mesma tabela global de `obter_config`.",
+    "salvar_config": "mesma tabela global de `_config_app_inteira`.",
     "obter_revisao": "escopo pelo id da revisão, que só chega por "
                      "caminho já filtrado por processo.",
     "obter_revisao_por_chave": "escopo pelo processo + chave do "
@@ -58,7 +58,7 @@ SEM_FILTRO_COM_MOTIVO = {
     "listar_decisoes": "escopo pelo processo, já filtrado na origem.",
     "atualizar_feedback": "escopo pelo id do registro de aprendizado "
                           "vinculado ao processo.",
-    "modulos_da_secretaria": "escopo pela secretaria, e "
+    "_modulos_da_secretaria_em": "escopo pela secretaria, e "
                              "`listar_secretarias` já filtra tenant.",
     "listar_membros_de_portaria": "escopo pela portaria, e "
                                   "`listar_portarias` já filtra tenant.",
