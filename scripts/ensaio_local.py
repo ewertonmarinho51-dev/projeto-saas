@@ -140,6 +140,7 @@ SEQUENCIA_EM_ENSAIO = (
     "20261015045831_documentos_editor_proveniencia.sql",
     "20261015122441_documentos_editor_persistencia_g2.sql",
     "20261015124841_documentos_editor_snapshot_institucional.sql",
+    "20261015174145_documentos_editor_aprovacao_nativa.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
@@ -266,6 +267,39 @@ alter default privileges in schema public
   grant all on sequences to postgres, anon, authenticated, service_role;
 """
 
+# One SQL source. Preserve the default PREAMBULO verbatim, and omit precisely
+# its reduced auth.users fixture when the official GoTrue has migrated Auth.
+# The shared roles/schema are needed before GoTrue; helpers/default privileges
+# remain the canonical Supabase prerequisites after its migrations.
+_INICIO_FIXTURE_AUTH = PREAMBULO.index("-- `auth.users` de verdade")
+_FIM_FIXTURE_AUTH = PREAMBULO.index("-- DEFINIÇÃO DO SUPABASE")
+PREAMBULO_ANTES_AUTH = PREAMBULO[:_INICIO_FIXTURE_AUTH]
+PREAMBULO_DEPOIS_AUTH = PREAMBULO[_FIM_FIXTURE_AUTH:]
+PREAMBULO_AUTH_REAL = PREAMBULO_ANTES_AUTH + PREAMBULO_DEPOIS_AUTH
+AUTH_MIGRACAO_EXIGIDA = "20260831180000"  # official Auth v2.197.0
+
+
+def exigir_auth_real(cursor) -> None:
+    """A reduced fixture or an uninitialized/mismatched GoTrue is not Auth."""
+    cursor.execute("select table_name,column_name from information_schema.columns "
+                   "where table_schema='auth' and table_name in "
+                   "('users','identities','sessions','refresh_tokens','schema_migrations')")
+    tables = {}
+    for table, column in cursor.fetchall():
+        tables.setdefault(table, set()).add(column)
+    required = {"users": {"id", "email", "encrypted_password", "raw_app_meta_data", "raw_user_meta_data",
+                          "aud", "role", "confirmed_at", "last_sign_in_at", "created_at"},
+                "identities": {"user_id", "provider", "identity_data"},
+                "sessions": {"id", "user_id"},
+                "refresh_tokens": {"token", "user_id", "revoked"},
+                "schema_migrations": {"version"}}
+    if any(not columns.issubset(tables.get(table, set())) for table, columns in required.items()):
+        raise EnsaioLocal("Auth real não migrado; fixture reduzida recusada.")
+    cursor.execute("select version from auth.schema_migrations where version::text=%s",
+                   (AUTH_MIGRACAO_EXIGIDA,))
+    if cursor.fetchone() is None:
+        raise EnsaioLocal("Histórico de migrações incompatível com Auth pinado.")
+
 
 def migracoes_do_schema() -> list[pathlib.Path]:
     """
@@ -375,16 +409,20 @@ def descartar_banco(dsn_admin: str, nome: str) -> None:
               f"{type(erro).__name__}")
 
 
-def preparar(conexao) -> dict:
+def preparar(conexao, *, auth_real: bool = False) -> dict:
     """
     Levanta o schema inteiro e aplica a 0020. Devolve o relatório.
 
     Qualquer falha levanta — nunca devolve um banco pela metade, porque
     um ensaio sobre schema incompleto mede outra coisa.
     """
+    if type(auth_real) is not bool:
+        raise EnsaioLocal("Modo de Auth inválido.")
     relatorio = {"preambulo": False, "migracoes": [], "em_ensaio": []}
     with conexao.cursor() as cursor:
-        cursor.execute(PREAMBULO)
+        if auth_real:
+            exigir_auth_real(cursor)
+        cursor.execute(PREAMBULO_AUTH_REAL if auth_real else PREAMBULO)
         relatorio["preambulo"] = True
 
         for arquivo in migracoes_do_schema():

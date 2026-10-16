@@ -1,0 +1,119 @@
+name: Disposable Supabase Auth and native owner
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/wordcraft-wasm-govconnect]
+    paths:
+      - .github/workflows/auth-real.yml
+      - scripts/ensaio_auth_real.py
+      - scripts/ensaio_local.py
+      - scripts/gateway_supabase.py
+      - src/auth.py
+      - src/db.py
+      - src/documentos_editor.py
+      - supabase/migrations/**
+      - tests/test_auth_real_harness.py
+      - tests/test_gateway_supabase.py
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: auth-real-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  auth-real:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 127.0.0.1:5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install existing product and rehearsal dependencies
+        run: |
+          python -m pip install -r requirements.txt pytest 'psycopg[binary]' pyyaml 'supabase==2.31.0'
+      - name: Verify harness and default gateway contracts
+        run: python -m pytest tests/test_auth_real_harness.py tests/test_gateway_supabase.py -q
+      - name: Download pinned official local services
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/auth-real-bin"
+          curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 --max-time 120 \
+            https://github.com/supabase/auth/releases/download/v2.197.0/auth-v2.197.0-amd64.tar.xz \
+            -o "$RUNNER_TEMP/auth-real-bin/auth.tar.xz"
+          test "$(stat -c %s "$RUNNER_TEMP/auth-real-bin/auth.tar.xz")" = 9897464
+          echo "b5c2991d1df760c9b099c1c2395a94bd1c2f83ed58901934921997179dc9f7ea  $RUNNER_TEMP/auth-real-bin/auth.tar.xz" | sha256sum --check
+          curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 --max-time 120 \
+            https://github.com/PostgREST/postgrest/releases/download/v12.2.12/postgrest-v12.2.12-linux-static-x86-64.tar.xz \
+            -o "$RUNNER_TEMP/auth-real-bin/postgrest.tar.xz"
+          echo "5de4092f1719da3353c40bf96c8dec6913f2254a7cd0b61cc05f233153b557d5  $RUNNER_TEMP/auth-real-bin/postgrest.tar.xz" | sha256sum --check
+          tar -xJf "$RUNNER_TEMP/auth-real-bin/postgrest.tar.xz" -C "$RUNNER_TEMP/auth-real-bin" postgrest
+      - name: Download exact approved native QA artifact without rebuilding WordCraft
+        env:
+          ARTIFACT_READ_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 --max-time 180 \
+            -H "Authorization: Bearer $ARTIFACT_READ_TOKEN" -H 'Accept: application/vnd.github+json' \
+            https://api.github.com/repos/ewertonmarinho51-dev/projeto-saas/actions/artifacts/11995992777/zip \
+            -o "$RUNNER_TEMP/auth-real-bin/native-qa.zip"
+          echo "a57bdc0b05660afb3ea37e0625e50fc2d33e78fa9e995822210e51580c79221d  $RUNNER_TEMP/auth-real-bin/native-qa.zip" | sha256sum --check
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from scripts.wordcraft_local_assets import install, MARKER
+          lab = Path(os.environ['GITHUB_WORKSPACE']).resolve().parent / ('auth-native-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'])
+          lab.mkdir(exist_ok=False)
+          (lab / '.wordcraft-local-qa').write_text(MARKER, encoding='utf-8')
+          result = install(Path(os.environ['RUNNER_TEMP']) / 'auth-real-bin/native-qa.zip', lab,
+              artifact_sha256='a57bdc0b05660afb3ea37e0625e50fc2d33e78fa9e995822210e51580c79221d',
+              producer_commit='39fec20fc5e94590a95cfd9af8d0ce34d07c3e54')
+          assert result['manifest_sha256'] == 'bd306cdb4709a43314366375da91ca1d00b2dd6db3c7683fff44eb15eb087548'
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as output:
+              output.write('AUTH_NATIVE_BUNDLE=' + str(lab / 'static/wordcraft') + '\n')
+          PY
+      - name: Execute real password Auth, RLS, canonical native saves and revocation
+        env:
+          GOVDOCS_ENSAIO_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          PYTHONUTF8: '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/ensaio_auth_real.py --dsn "$GOVDOCS_ENSAIO_PG_DSN" \
+            --auth-archive "$RUNNER_TEMP/auth-real-bin/auth.tar.xz" \
+            --postgrest "$RUNNER_TEMP/auth-real-bin/postgrest" \
+            --node "$(command -v node)" --bundle "$AUTH_NATIVE_BUNDLE" \
+            --manifest-sha256 bd306cdb4709a43314366375da91ca1d00b2dd6db3c7683fff44eb15eb087548 \
+            --work-dir "$RUNNER_TEMP/govconnect-auth-run"
+      - name: Preserve only sanitized Auth evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: disposable-real-auth-evidence
+          path: ${{ runner.temp }}/govconnect-auth-run/auth-real.json
+          if-no-files-found: warn
+          retention-days: 14

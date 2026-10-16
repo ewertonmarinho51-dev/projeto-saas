@@ -262,6 +262,12 @@ RPCS = {
     "buscar_chunks_vetorial": {"query_embedding": [0.0] * 768, "qtd": 1},
     "documento_editor_contexto": {},
     "documento_editor_sessao_valida": {},
+    "documento_editor_fontes_aprovacao": {"p_document": "00000000-0000-0000-0000-000000000001", "p_claims": {}},
+    "documento_editor_aprovar": {
+        "p_document": "00000000-0000-0000-0000-000000000001", "p_revision": 1,
+        "p_content_hash": "a" * 64, "p_operation": "00000000-0000-0000-0000-000000000001",
+        "p_claims": {}, "p_sources": None, "p_snapshot": None, "p_snapshot_sha256": None, "p_evidence": None,
+    },
     "documento_editor_checkpoint": {
         "p_document": "00000000-0000-0000-0000-000000000001",
         "p_process": "00000000-0000-0000-0000-000000000001", "p_tipo": "dfd",

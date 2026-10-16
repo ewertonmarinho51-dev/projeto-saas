@@ -236,7 +236,7 @@ def navegar_pelo_stepper(etapa: int) -> None:
     st.session_state.etapa = etapa
 
 
-def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
+def aprovar_e_avancar(doc_key: str, texto_editado: str, *, vinculo_nativo=None, documento_service=None, ponte_nativa=None):
     """Salva a versão editada pelo usuário, marca como aprovado e avança."""
     from . import db
     from .operacao_documento import ocupada
@@ -248,6 +248,33 @@ def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
         # persistido. Em manutenção nada avança.
         st.error(db.motivo_de_manutencao())
         return
+
+    # The single approval action may receive the authoritative native binding
+    # from its server-side renderer. Until the wizard consumes a native source
+    # set, approval is individual and cannot advance or label old Markdown.
+    if vinculo_nativo is not None or doc_key in st.session_state.get("_documentos_editor_vinculos", {}):
+        from .documentos_editor import DocumentoService, ErroDocumento, VinculoAprovacao
+        from .wordcraft_protocol import Ponte
+        if not isinstance(vinculo_nativo, VinculoAprovacao) or not isinstance(documento_service, DocumentoService):
+            st.error("A aprovação exige o vínculo nativo confirmado pelo owner documental.")
+            return
+        if (not isinstance(ponte_nativa, Ponte) or ponte_nativa.state not in {"ready", "saved"}
+                or ponte_nativa._pending is not None
+                or (ponte_nativa.document_id, ponte_nativa.revision, ponte_nativa.content_hash)
+                != (vinculo_nativo.document_id, vinculo_nativo.revision, vinculo_nativo.content_hash)):
+            st.error("A revisão nativa ainda não possui confirmação de gravação coerente nesta sessão.")
+            return
+        try:
+            document = documento_service.abrir(vinculo_nativo.document_id)
+            if (document.tipo != doc_key or document.processo_id != st.session_state.get("processo_id")):
+                raise ErroDocumento("Vínculo nativo de outro documento ou processo.")
+            receipt = documento_service.aprovar(vinculo_nativo)
+        except ErroDocumento as error:
+            st.error(str(error))
+            return
+        st.session_state.setdefault("_aprovacoes_documentais", {})[doc_key] = receipt
+        st.info("Revisão nativa aprovada. O avanço e a emissão do pacote aguardam o consumidor de fontes nativas.")
+        return receipt
 
     # V5 Fase 7 (flag_institutional_learning_capture): a edição humana
     # sobre o rascunho é um SINAL de aprendizado — capturada anonimizada,

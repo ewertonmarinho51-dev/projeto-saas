@@ -31,6 +31,9 @@ o laudo pode dizer com honestidade que a emissão de JWT de usuário NÃO
 foi testada aqui.
 
 Devolver 200 vazio seria pior: o app acharia que autenticou.
+
+`--destino-auth http://127.0.0.1:<porta>` habilita somente o encaminhamento
+para um GoTrue REAL local. Sem essa opção o mesmo 501 continua valendo.
 """
 
 from __future__ import annotations
@@ -40,6 +43,7 @@ import http.server
 import socketserver
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 
 PREFIXO_REST = "/rest/v1"
 PREFIXO_AUTH = "/auth/v1"
@@ -50,6 +54,31 @@ PREFIXO_AUTH = "/auth/v1"
 NAO_REPASSAR = {"host", "content-length", "connection", "accept-encoding"}
 
 DESTINO = "http://127.0.0.1:3000"
+DESTINO_AUTH: str | None = None
+MAX_BODY = 24 * 1024 * 1024
+
+
+def destino_loopback(value: str) -> str:
+    """Explicit local HTTP origin only; no DNS, credentials, path or redirects."""
+    try:
+        parsed = urlsplit(value)
+        if (parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "::1"}
+                or parsed.port is None or not 1 <= parsed.port <= 65535
+                or parsed.username is not None or parsed.password is not None
+                or parsed.path not in {"", "/"} or parsed.query or parsed.fragment):
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise ValueError("Destino do gateway deve ser uma origem HTTP loopback explícita.") from None
+    return value.rstrip("/")
+
+
+class SemRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _prefixo(path: str, prefix: str) -> bool:
+    return path == prefix or path.startswith((prefix + "/", prefix + "?"))
 
 
 class Adaptador(http.server.BaseHTTPRequestHandler):
@@ -64,38 +93,48 @@ class Adaptador(http.server.BaseHTTPRequestHandler):
 
     def _repassar(self) -> None:
         caminho = self.path
-        if caminho.startswith(PREFIXO_AUTH):
-            self._recusar_auth()
-            return
-        if caminho.startswith(PREFIXO_REST):
+        destino = DESTINO
+        if _prefixo(caminho, PREFIXO_AUTH):
+            if DESTINO_AUTH is None:
+                self._recusar_auth()
+                return
+            destino = DESTINO_AUTH
+            caminho = caminho[len(PREFIXO_AUTH):] or "/"
+        elif _prefixo(caminho, PREFIXO_REST):
             caminho = caminho[len(PREFIXO_REST):] or "/"
         elif caminho.startswith("/storage/v1") or caminho.startswith(
                 "/functions/v1"):
             self._responder(501, b'{"erro":"servico ausente na homologacao"}')
             return
 
-        tamanho = int(self.headers.get("Content-Length") or 0)
+        try:
+            tamanho = int(self.headers.get("Content-Length") or 0)
+            if not 0 <= tamanho <= MAX_BODY or self.headers.get("Transfer-Encoding"):
+                raise ValueError()
+        except ValueError:
+            self.close_connection = True
+            self._responder(413, b'{"erro":"corpo HTTP recusado"}')
+            return
         corpo = self.rfile.read(tamanho) if tamanho else None
 
         cabecalhos = {nome: valor for nome, valor in self.headers.items()
                       if nome.lower() not in NAO_REPASSAR}
 
         pedido = urllib.request.Request(
-            DESTINO + caminho, data=corpo, method=self.command,
+            destino + caminho, data=corpo, method=self.command,
             headers=cabecalhos)
         try:
-            with urllib.request.urlopen(pedido) as resposta:
+            with urllib.request.build_opener(SemRedirect).open(pedido, timeout=20) as resposta:
                 self._devolver(resposta.status, resposta.headers,
-                               resposta.read())
+                               resposta.read(MAX_BODY + 1))
         except urllib.error.HTTPError as erro:
             # 4xx e 5xx do PostgREST são RESPOSTA, não falha do
             # adaptador: o corpo traz o código PGRST e a mensagem, que
             # é justamente o que o `db.py` lê para decidir.
-            self._devolver(erro.code, erro.headers, erro.read())
-        except urllib.error.URLError as erro:
+            self._devolver(erro.code, erro.headers, erro.read(MAX_BODY + 1))
+        except (urllib.error.URLError, TimeoutError):
             self._responder(
-                502, f'{{"erro":"postgrest inalcancavel: {erro.reason}"}}'
-                .encode())
+                502, b'{"erro":"servico local inalcancavel"}')
 
     def _recusar_auth(self) -> None:
         self._responder(
@@ -111,6 +150,9 @@ class Adaptador(http.server.BaseHTTPRequestHandler):
         self.wfile.write(corpo)
 
     def _devolver(self, codigo: int, cabecalhos, corpo: bytes) -> None:
+        if len(corpo) > MAX_BODY:
+            self._responder(502, b'{"erro":"resposta local excessiva"}')
+            return
         self.send_response(codigo)
         for nome, valor in cabecalhos.items():
             if nome.lower() in ("content-length", "transfer-encoding",
@@ -136,13 +178,15 @@ class Servidor(socketserver.ThreadingTCPServer):
 
 
 def principal(argv: list[str] | None = None) -> int:
-    global DESTINO
+    global DESTINO, DESTINO_AUTH
 
     analisador = argparse.ArgumentParser(description=__doc__)
     analisador.add_argument("--porta", type=int, default=3001)
     analisador.add_argument("--destino", default=DESTINO)
+    analisador.add_argument("--destino-auth", default=None)
     argumentos = analisador.parse_args(argv)
-    DESTINO = argumentos.destino.rstrip("/")
+    DESTINO = destino_loopback(argumentos.destino)
+    DESTINO_AUTH = destino_loopback(argumentos.destino_auth) if argumentos.destino_auth is not None else None
 
     with Servidor(("127.0.0.1", argumentos.porta), Adaptador) as servidor:
         print(f"adaptador em http://127.0.0.1:{argumentos.porta} "

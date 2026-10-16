@@ -5,6 +5,7 @@ private server client. Only verified user context reaches the internal commit RP
 Draft commits never approve documents or overwrite legacy process documents.
 """
 from dataclasses import dataclass, field, replace
+from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -33,6 +34,29 @@ class ConflitoDocumento(ErroDocumento):
 
 
 @dataclass(frozen=True)
+class VinculoAprovacao:
+    document_id: str
+    revision: int
+    content_hash: str
+    operation_id: str
+
+
+@dataclass(frozen=True)
+class Aprovacao:
+    id: str
+    document_id: str
+    revision: int
+    content_hash: str
+    operation_id: str
+    institutional_snapshot_hash: str
+    event_id: str
+    replayed: bool
+    status: str = "aprovado"
+    institutional_snapshot: dict | None = field(default=None, repr=False)
+    quality: dict | None = field(default=None, repr=False)
+
+
+@dataclass(frozen=True)
 class Documento:
     id: str
     processo_id: str
@@ -48,6 +72,7 @@ class Documento:
     restored_from_revision: int | None = None
     institutional_snapshot: dict | None = field(default=None, repr=False)
     institutional_snapshot_hash: str | None = None
+    approval: Aprovacao | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -96,7 +121,7 @@ def _execute(query):
     try:
         return query.execute().data
     except Exception as error:
-        if getattr(error, "code", None) in {"40001", "23505"}:
+        if getattr(error, "code", None) in {"40001", "23505", "55P03", "57014"}:
             raise ConflitoDocumento("A revisão ou operação documental divergiu.") from None
         if getattr(error, "code", None) == "42501":
             raise AcessoNegado("Operação documental não autorizada.") from None
@@ -182,17 +207,19 @@ class DocumentoService:
                              .select("id,processo_id,tipo,revision,content_hash,status,tenant_id")
                              .eq("id", document_id).limit(1)))
 
-    def _capturar_institucional(self, user, *, document_id, process_id, tipo, revision, application="reference_only"):
+    def _capturar_institucional(self, user, *, document_id, process_id, tipo, revision, application="reference_only", fontes=None):
         from . import assinaturas, contexto, emissao, portarias
         try:
-            process = _one(_execute(user.table("processos").select("id,tenant_id,secretaria_id,criado_em,dados")
-                .eq("id", process_id).limit(1)))
+            process = (fontes["processo"] if fontes is not None else
+                _one(_execute(user.table("processos").select("id,tenant_id,secretaria_id,criado_em,dados")
+                .eq("id", process_id).limit(1))))
             tenant, secretary = process["tenant_id"], process.get("secretaria_id")
             _uuid(tenant)
             if secretary is not None:
                 _uuid(secretary)
             def catalog(table):
-                rows = _execute(user.table(table).select("*").eq("tenant_id", tenant).limit(10001))
+                rows = (fontes[table] if fontes is not None else
+                    _execute(user.table(table).select("*").eq("tenant_id", tenant).limit(10001)))
                 if not isinstance(rows, list) or len(rows) > 10000 or any(not isinstance(row, dict) for row in rows):
                     raise ValueError()
                 return rows
@@ -242,6 +269,115 @@ class DocumentoService:
         head = self._head(user, document_id)
         return self._revision(user, head, head["revision"])
 
+    def aprovar(self, vinculo: VinculoAprovacao) -> Aprovacao:
+        """Individual review act. It never emits or advances the legacy process."""
+        from . import achados, conhecimento, consistencia, politicas, qualidade, validacao
+        if not isinstance(vinculo, VinculoAprovacao):
+            raise ErroDocumento("Vínculo nativo tipado obrigatório para aprovação.")
+        try:
+            _uuid(vinculo.document_id)
+            _uuid(vinculo.operation_id)
+            _hash(vinculo.content_hash)
+        except ValueError:
+            raise ErroDocumento("Vínculo de aprovação inválido.") from None
+        if type(vinculo.revision) is not int or vinculo.revision < 1:
+            raise ErroDocumento("Revisão inválida para aprovação.")
+        user, claims = self._session()
+        head = self._head(user, vinculo.document_id)
+        if (head["revision"], head["content_hash"]) != (vinculo.revision, vinculo.content_hash):
+            raise ConflitoDocumento("A revisão mudou; reabra o documento antes de aprovar.")
+        params = dict(p_document=vinculo.document_id, p_revision=vinculo.revision,
+            p_content_hash=vinculo.content_hash, p_operation=vinculo.operation_id, p_claims=claims)
+        if head["status"] == "aprovado":
+            # Replay is checked by the transaction against the recorded actor and
+            # operation. Current registry changes must not rewrite an old act.
+            params.update(p_sources=None, p_snapshot=None, p_snapshot_sha256=None, p_evidence=None)
+        else:
+            document = self._revision(user, head, vinculo.revision)
+            if (document.status not in {"rascunho", "em_revisao"} or document.index is None
+                    or document.engine_build != self._native["manifest_sha256"]
+                    or document.institutional_snapshot is None):
+                raise ErroDocumento("A revisão não possui provas atuais para aprovação nativa.")
+            sources = _execute(db._cliente().rpc("documento_editor_fontes_aprovacao",
+                {"p_document": document.id, "p_claims": claims}))
+            tables = {"secretarias", "servidores", "servidor_funcoes", "portarias", "portaria_membros",
+                      "fatos_canonicos", "regras_conhecimento", "fontes_conhecimento", "config_app",
+                      "governanca_artefatos", "governanca_versoes"}
+            if (not isinstance(sources, dict) or sources.keys() != tables | {"processo"}
+                    or any(not isinstance(sources[t], list) or len(sources[t]) > 10000 for t in tables)
+                    or len(_snapshot_bytes(sources)) > MAX_BYTES):
+                raise ErroDocumento("Fontes backend incompletas para aprovação.")
+            current = json.loads(self._capturar_institucional(user, document_id=document.id,
+                process_id=document.processo_id, tipo=document.tipo, revision=document.revision, fontes=sources))
+            reference = document.institutional_snapshot
+            ignored = {"application", "captured_for_revision"}
+            if {k:v for k,v in current.items() if k not in ignored} != {k:v for k,v in reference.items() if k not in ignored}:
+                raise ConflitoDocumento("O contexto institucional mudou; uma nova revisão explícita é necessária.")
+            try:
+                projection = blocos.projetar_documento(document.tipo, document.payload, indice=document.index, **self._native)
+                if not projection.apto_analise:
+                    raise ValueError()
+                documents = {document.tipo: projection.texto_analise}
+                facts = [f for f in sources["fatos_canonicos"] if f.get("status") != "substituido"]
+                if not facts or any(f.get("status") != "confirmado" for f in facts):
+                    raise ValueError()
+                revoked = {str(value) for f in sources["fontes_conhecimento"] if not f.get("vigente", True)
+                           for value in (f.get("id"), f.get("rotulo")) if value is not None}
+                rules = conhecimento.regras_base() + sources["regras_conhecimento"]
+                visual = any(str(c.get("valor", "")).strip().lower() in {"1", "true", "on", "sim"}
+                    for c in sources["config_app"] if c.get("chave") == "flag_visual_policy_builder")
+                if visual:
+                    for artifact in sources["governanca_artefatos"]:
+                        versions = [v for v in sources["governanca_versoes"]
+                            if v.get("artefato_id") == artifact["id"] and v.get("status") == "PUBLISHED"]
+                        if versions:
+                            rules.append(politicas.como_regra(artifact, max(versions, key=lambda v: v["versao"])))
+                evaluated_at = datetime.now(timezone.utc)
+                decision = conhecimento.resolver(facts, rules, revoked,
+                    processo_id=document.processo_id, documento=document.tipo, agora=evaluated_at)
+                raw_findings = validacao.validar_todos(documents, {}, sources["processo"].get("dados") or {})
+                # The structured classifier may not yet know a newer blocking
+                # validator message. Preserve the canonical raw verdict too.
+                if validacao.bloqueios(raw_findings):
+                    raise ValueError()
+                findings = achados.estruturar(raw_findings, documents)
+                findings += consistencia.verificar(facts, documents)
+                report = {"findings": findings}
+                result = qualidade.calcular(report, facts, decision, documents)
+                gate = qualidade.avaliar_gate(result)
+                if gate["bloqueia"] or any(f.get("blockingReason") for f in findings) or decision["resultado"].get("pendencias"):
+                    raise ValueError()
+            except Exception:
+                raise ErroDocumento("A análise nativa e os gates de qualidade não autorizaram a aprovação.") from None
+            snapshot = dict(reference, phase="approved", approved_revision=document.revision,
+                approved_content_hash=document.content_hash, approved_engine_manifest_sha256=document.engine_build,
+                draft_reference_sha256=document.institutional_snapshot_hash)
+            raw = _snapshot_bytes(snapshot)
+            evidence = {"schema": "gc-wordcraft-approval/v1", "document_id": document.id,
+                "revision": document.revision, "content_hash": document.content_hash,
+                "engine_manifest_sha256": document.engine_build, "coverage": "complete_textual_projection",
+                "scope": "individual_revision_review", "official_emission": False,
+                "evaluated_at": evaluated_at.isoformat(),
+                "validator_version": validacao.versao_do_auditor(), "validator_findings": raw_findings,
+                "quality": result, "gate": gate, "findings": findings, "decision": decision}
+            if len(raw) > MAX_BYTES or len(_snapshot_bytes(evidence)) > MAX_BYTES:
+                raise ErroDocumento("Evidência de aprovação excessiva.")
+            params.update(p_sources=sources, p_snapshot="\\x" + raw.hex(),
+                p_snapshot_sha256=hashlib.sha256(raw).hexdigest(), p_evidence=evidence)
+        row = _one(_execute(db._cliente().rpc("documento_editor_aprovar", params)))
+        expected = {"approval_id", "document_id", "revision", "content_hash", "operation_id",
+                    "snapshot_sha256", "event_id", "replayed"}
+        if (row.keys() != expected or (row["document_id"], row["revision"], row["content_hash"], row["operation_id"])
+                != (vinculo.document_id, vinculo.revision, vinculo.content_hash, vinculo.operation_id)
+                or type(row["replayed"]) is not bool
+                or (params["p_snapshot_sha256"] is not None and row["snapshot_sha256"] != params["p_snapshot_sha256"])):
+            raise ErroDocumento("Recibo de aprovação divergente.")
+        _uuid(row["approval_id"])
+        _uuid(row["event_id"])
+        _hash(row["snapshot_sha256"])
+        return Aprovacao(row["approval_id"], row["document_id"], row["revision"], row["content_hash"],
+            row["operation_id"], row["snapshot_sha256"], row["event_id"], row["replayed"])
+
     def _revision(self, user, head, revision):
         if type(revision) is not int or revision < 1:
             raise ErroDocumento("Revisão documental inválida.")
@@ -289,9 +425,60 @@ class DocumentoService:
                     blocos.validar_indice(index, payload, **self._native)
             except Exception:
                 raise ErroDocumento("Índice documental divergente.") from None
-        return Documento(head["id"], head["processo_id"], head["tipo"], revision,
-                         digest, head["status"], payload, engine_build, provenance, index, mode,
+        document = Documento(head["id"], head["processo_id"], head["tipo"], revision,
+                         digest, head["status"] if revision == head["revision"] else "historico",
+                         payload, engine_build, provenance, index, mode,
                          row.get("restored_from_revision"), institutional, row.get("institutional_snapshot_sha256"))
+        if head["status"] == "aprovado":
+            document = replace(document, approval=self._approval(user, document))
+        return document
+
+    def _approval(self, user, document):
+        rows = _execute(user.table("governanca_aprovacoes")
+            .select("id,aprovador,native_operation_id,native_revision,native_content_hash,native_snapshot,native_snapshot_sha256,native_evidence")
+            .eq("entidade_tipo", "documento_editor").eq("entidade_id", document.id).eq("native_revision", document.revision).limit(1))
+        if not rows:
+            # A legacy status is not proof of a native approval. No backfill.
+            return None
+        row = _one(rows)
+        try:
+            encoded = row["native_snapshot"]
+            if not isinstance(encoded, str) or not encoded.startswith("\\x") or len(encoded)>2*MAX_BYTES+2:
+                raise ValueError()
+            raw = bytes.fromhex(encoded[2:])
+            snapshot = json.loads(raw, object_pairs_hook=blocos._objeto_fechado)
+            expected = dict(document.institutional_snapshot or {}, phase="approved",
+                approved_revision=document.revision, approved_content_hash=document.content_hash,
+                approved_engine_manifest_sha256=document.engine_build,
+                draft_reference_sha256=document.institutional_snapshot_hash)
+            if (snapshot != expected or hashlib.sha256(raw).hexdigest() != row["native_snapshot_sha256"]
+                    or row["native_revision"] != document.revision or row["native_content_hash"] != document.content_hash):
+                raise ValueError()
+            _uuid(row["id"])
+            _uuid(row["aprovador"])
+            _uuid(row["native_operation_id"])
+            evidence = row["native_evidence"]
+            if (not isinstance(evidence, dict) or evidence.get("schema") != "gc-wordcraft-approval/v1"
+                    or (evidence.get("document_id"), evidence.get("revision"), evidence.get("content_hash"), evidence.get("engine_manifest_sha256"))
+                    != (document.id, document.revision, document.content_hash, document.engine_build)
+                    or evidence.get("official_emission") is not False or evidence.get("scope") != "individual_revision_review"
+                    or evidence.get("gate", {}).get("bloqueia") is not False):
+                raise ValueError()
+            event = _one(_execute(user.table("governanca_eventos").select("id,ator,payload")
+                .eq("entidade_tipo", "aprovacao").eq("entidade_id", row["id"])
+                .eq("tipo_evento", "aprovacao_registrada").limit(1)))
+            _uuid(event["id"])
+            if (event["ator"] != row["aprovador"] or event["payload"].get("document_id") != document.id
+                    or event["payload"].get("revision") != document.revision
+                    or event["payload"].get("content_hash") != document.content_hash
+                    or event["payload"].get("operation_id") != row["native_operation_id"]
+                    or event["payload"].get("institutional_snapshot_sha256") != row["native_snapshot_sha256"]):
+                raise ValueError()
+            return Aprovacao(row["id"], document.id, document.revision, document.content_hash,
+                row["native_operation_id"], row["native_snapshot_sha256"], event["id"], True,
+                institutional_snapshot=snapshot, quality=evidence.get("quality"))
+        except (ValueError, TypeError, KeyError, AttributeError, UnicodeError, RecursionError):
+            raise ErroDocumento("Prova de aprovação nativa divergente.") from None
 
     def _commit(self, *, document_id, process_id, tipo, checkpoint, context, user,
                 original=None, restored_from=None, institutional=None):
