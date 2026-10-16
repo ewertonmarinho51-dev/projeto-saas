@@ -53,6 +53,19 @@ class PerfilNormativo:
 
     observacoes: tuple[str, ...] = field(default_factory=tuple)
 
+    # Onde o perfil apoia a exceção à regra dos três — vai para a memória
+    # e para o relatório junto da justificativa. Texto, não juízo: o
+    # sistema registra a base que o perfil declara; quem decide é a
+    # autoridade competente.
+    fundamento_excecao: str = ""
+
+    # Citação que acompanha o motivo de uma referência desconsiderada.
+    fundamento_desconsideracao: str = ""
+
+    # Dispositivo cujos incisos enquadram a ORIGEM de cada preço (painel
+    # oficial, contratação similar, cotação direta…). Ver `enquadramento`.
+    base_dos_incisos: str = "Lei nº 14.133/2021, art. 23, § 1º"
+
     def conclui_com(self, quantidade: int) -> bool:
         return quantidade >= self.minimo_referencias
 
@@ -68,6 +81,11 @@ LEI_14133 = PerfilNormativo(
         "Perfil base. O ente pode ter regulamento próprio que restrinja "
         "métodos ou exija parâmetros adicionais.",
     ),
+    fundamento_excecao=(
+        "Lei nº 14.133/2021, art. 23, com justificativa nos autos — "
+        "confira o regulamento local do ente"),
+    fundamento_desconsideracao=(
+        "análise crítica dos preços coletados (Lei nº 14.133/2021, art. 23)"),
 )
 
 IN_65_2021 = PerfilNormativo(
@@ -83,6 +101,9 @@ IN_65_2021 = PerfilNormativo(
         "Com estimativa apoiada exclusivamente em sistema oficial de "
         "preços, o valor estimado não supera a mediana da amostra.",
     ),
+    fundamento_excecao="IN SEGES/ME nº 65/2021, art. 6º, § 5º",
+    base_dos_incisos="IN SEGES/ME nº 65/2021, art. 5º",
+    fundamento_desconsideracao="IN SEGES/ME nº 65/2021, art. 3º, VI",
 )
 
 PERFIS = {p.id: p for p in (LEI_14133, IN_65_2021)}
@@ -98,3 +119,39 @@ def obter(perfil_id: str | None) -> PerfilNormativo:
     relatório sempre diz sob qual perfil ela correu.
     """
     return PERFIS.get((perfil_id or "").strip(), PADRAO)
+
+
+# ---------------------------------------------------------------------------
+# Enquadramento da origem de cada referência (dossiê BP, tema 7b)
+#
+# Os incisos da Lei nº 14.133/2021, art. 23, § 1º (e da IN 65/2021, art.
+# 5º, com a mesma numeração) dizem DE ONDE pode vir o parâmetro: I painel
+# oficial de preços; II contratações similares da Administração; IV
+# pesquisa direta com fornecedores. O mapa é pelo ADAPTER que coletou, e
+# não pelo `fonte_tipo` — o PNCP entra como `sistema_oficial` na prioridade
+# da cesta, mas o que ele entrega é o resultado de UMA contratação, que é
+# contratação similar (II). É enquadramento SUGERIDO pela origem técnica do
+# dado; a conferência jurídica é de quem assina a pesquisa.
+# ---------------------------------------------------------------------------
+INCISO_POR_FONTE = {
+    "compras_gov_precos": "I",
+    "compras_gov_itens": "II",
+    "pncp": "II",
+    "cotacao_direta": "IV",
+}
+INCISO_POR_TIPO = {"sistema_oficial": "I", "contratacao_similar": "II"}
+
+
+def inciso_da_fonte(fonte_id: str | None, fonte_tipo: str | None) -> str | None:
+    return (INCISO_POR_FONTE.get(str(fonte_id or ""))
+            or INCISO_POR_TIPO.get(str(fonte_tipo or "")))
+
+
+def enquadramento(fonte_id: str | None, fonte_tipo: str | None,
+                  perfil: PerfilNormativo | None = None) -> str:
+    """'inciso I (Lei nº 14.133/2021, art. 23, § 1º)' ou 'sem enquadramento'."""
+    perfil = perfil or PADRAO
+    inciso = inciso_da_fonte(fonte_id, fonte_tipo)
+    if inciso is None:
+        return "sem enquadramento automático — confira a origem"
+    return f"inciso {inciso} ({perfil.base_dos_incisos})"

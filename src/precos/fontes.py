@@ -108,6 +108,18 @@ class Desfecho(str, Enum):
     FALHA = "failure"
 
 
+# Rótulos legíveis, num lugar só: tela, relatório e XLSX dizem a mesma
+# coisa sobre o mesmo desfecho.
+ROTULO_DESFECHO = {Desfecho.COM_PRECOS.value: "respondeu com preços",
+                   Desfecho.SEM_RESULTADO.value: "respondeu sem preço",
+                   Desfecho.SO_EVIDENCIA.value: "só evidência, sem preço",
+                   Desfecho.FALHA.value: "INDISPONÍVEL"}
+NOME_DA_FONTE = {"compras_gov_precos": "Compras.gov (preços praticados)",
+                 "compras_gov_itens": "Compras.gov (itens de contratações)",
+                 "pncp": "PNCP",
+                 "cotacao_direta": "Cotação direta"}
+
+
 @dataclass
 class ResultadoBusca:
     """

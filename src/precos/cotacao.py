@@ -195,3 +195,39 @@ def registrar(pesquisa: dict, item: dict, referencia: Referencia,
                  else format(estimativa.valor_unitario, "f"),
                  "status_da_cesta": estimativa.status})
     return estimativa
+
+
+def fornecedores_sugeridos(linhas: list[dict], limite: int = 10) -> list[dict]:
+    """
+    Quem já vendeu ESTE item à Administração, pelas referências coletadas
+    (dossiê BP, J13: sugestão por relevância). Ordena por quantas vezes o
+    fornecedor aparece entre as consideradas e depois entre as demais —
+    nunca por preço. É sugestão para a pesquisa direta: nada é enviado, e
+    o contato continua sendo ato do servidor (sem provedor de envio nem
+    consentimento, F154 bloqueado).
+    """
+    from .cesta import consideradas
+
+    dentro = {id(linha) for linha in consideradas(linhas)}
+    por_ni: dict[str, dict] = {}
+    for linha in linhas:
+        ni = "".join(c for c in str(linha.get("ni_fornecedor") or "") if c.isdigit())
+        nome = str(linha.get("fornecedor") or "").strip()
+        if not ni and not nome:
+            continue
+        chave = ni or nome.casefold()
+        info = por_ni.setdefault(chave, {
+            "fornecedor": nome, "cnpj": ni, "na_cesta": 0, "aparicoes": 0,
+            "ufs": set(), "ultima": ""})
+        info["aparicoes"] += 1
+        info["na_cesta"] += int(id(linha) in dentro)
+        if linha.get("uf"):
+            info["ufs"].add(str(linha["uf"]))
+        data = str(linha.get("data_resultado") or linha.get("data_compra") or "")
+        info["ultima"] = max(info["ultima"], data)
+    saida = sorted(por_ni.values(),
+                   key=lambda i: (-i["na_cesta"], -i["aparicoes"], i["fornecedor"]))
+    for info in saida:
+        info["ufs"] = ", ".join(sorted(info["ufs"]))
+        info["cnpj_valido"] = cnpj_valido(info["cnpj"]) if info["cnpj"] else False
+    return saida[:limite]

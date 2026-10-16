@@ -38,6 +38,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
+from .estatistica import pct
+
 from .estados import EstadoItem
 from .perfil import PerfilNormativo
 from .perfil import obter as obter_perfil
@@ -111,7 +113,11 @@ def do_item(item: dict, referencias: list[dict],
     estado = str(item.get("estado") or "")
     saida: list[Orientacao] = []
 
-    na_cesta = [r for r in referencias if str(r.get("status")) == "selected"]
+    # A MESMA contagem do cálculo: a sinalizada (`warning`) continua na
+    # média e conta; a marcada sem preço normalizado não conta.
+    from .cesta import consideradas
+
+    na_cesta = consideradas(referencias)
     abaixo_do_piso = [r for r in referencias
                       if str(r.get("status")) == "manual_review"]
     sem_conversao = [r for r in referencias
@@ -170,7 +176,7 @@ def do_item(item: dict, referencias: list[dict],
     memoria = item.get("estatisticas") or {}
     for anomalia in (memoria.get("anomalias") or []):
         distancia = _decimal(anomalia.get("distancia_da_mediana_pct"))
-        quanto = (f" — está {distancia:.0f}% distante da mediana da amostra"
+        quanto = (f" — está {abs(distancia):.0f}% distante da mediana da amostra"
                   if distancia is not None else "")
         saida.append(Orientacao(
             CONFIRA,
@@ -213,8 +219,9 @@ def do_item(item: dict, referencias: list[dict],
         saida.append(Orientacao(
             CONFIRA,
             f"Os preços deste item variam muito entre si (coeficiente de "
-            f"variação {cv:.2f}). Foi por isso que o método automático "
-            "escolheu a mediana, que resiste a extremos. Vale conferir se "
+            f"variação {pct(cv)}). Na regra da média o valor fica "
+            "provisório até a análise crítica; nas pesquisas antigas o "
+            "automático usava a mediana por isso. Vale conferir se "
             "as referências descrevem mesmo o mesmo produto.",
             origem="estatisticas.coeficiente_variacao", item_numero=numero))
 

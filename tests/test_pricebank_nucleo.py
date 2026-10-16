@@ -42,7 +42,8 @@ def test_media_tres_validos():
     assert e.metodo == "media" and e.valor_unitario == Decimal("22.00")
     assert e.status == "CONCLUIDO"
     assert e.valor_total(Decimal("10")) == Decimal("220.00")
-    assert any("soma 66.00 ÷ 3" in m for m in e.memoria)
+    # memória em pt-BR desde o G1 de Cotações (dossiê BP, tema 4)
+    assert any("soma R$ 66,00 ÷ 3" in m for m in e.memoria)
 
 
 def test_media_em_decimal_sem_erro_de_float():
@@ -196,7 +197,8 @@ class _RepoFalso:
     def listar_referencias(self, _item_id):
         return self.linhas
 
-    def atualizar_estimativa(self, item, estimativa, *, quantidade=None):
+    def atualizar_estimativa(self, item, estimativa, *, quantidade=None,
+                             decisoes=None, revisao_esperada=None):
         self.gravado = (item["estado"], estimativa, quantidade)
         return {}
 

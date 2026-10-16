@@ -33,15 +33,23 @@ import json
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 
-from .. import planilha
+from . import cesta as cesta_mod
 from .estados import EstadoItem
+from .estatistica import REGRAS_MEDIA_PADRAO, brl, pct
+from .fontes import NOME_DA_FONTE, ROTULO_DESFECHO
 from .modelo import ROTULO_NATUREZA, NaturezaValor
+from .perfil import enquadramento
 from .perfil import obter as obter_perfil
 
 # Versão do formato do relatório. Entra no identificador: mudar o layout
 # muda o documento, e dois PDFs diferentes não podem carregar o mesmo
 # identificador de versão.
-FORMATO = "1"
+#
+# "2" (16/10/2026): o identificador passou a cobrir TODO o conteúdo
+# decisório — quantidade, unidade, total, memória/justificativas, motivos
+# e decisões do revisor (dossiê BP, tema 12b). Relatórios emitidos no
+# formato "1" continuam conferíveis por `identificador_da_versao_v1`.
+FORMATO = "2"
 
 AUSENTE = "(não informado)"
 
@@ -64,8 +72,10 @@ def _decimal(valor) -> Decimal | None:
 
 
 def _moeda(valor) -> str:
+    # Decimal até o texto: o relatório é ato administrativo, e o
+    # `formatar_moeda` da planilha passa por float.
     numero = _decimal(valor)
-    return AUSENTE if numero is None else planilha.formatar_moeda(float(numero))
+    return AUSENTE if numero is None else brl(numero)
 
 
 # ---------------------------------------------------------------------------
@@ -125,23 +135,128 @@ def _data(valor) -> str:
 # ---------------------------------------------------------------------------
 # §34 — identificador da versão
 # ---------------------------------------------------------------------------
+def projecao_decisoria(pesquisa: dict, itens: list[dict],
+                       referencias: dict[str, list[dict]]) -> dict:
+    """
+    TUDO o que decide o preço, e nada de decorativo (formato "2").
+
+    Pesquisa: id, revisão, perfil, data-base, regras e filtros. Item:
+    número, código, descrição, unidade, quantidade, estado, método,
+    unitário, total, memória (com justificativas) e decisões do revisor.
+    Referência: evidência (`raw_hash`), status, valor normalizado,
+    unidade normalizada e motivos. Mudar qualquer um desses muda o hash.
+    """
+    def numero(valor):
+        d = _decimal(valor)
+        return None if d is None else format(d.normalize(), "f")
+
+    projecao = {
+        "formato": FORMATO,
+        "pesquisa": {
+            "id": str(pesquisa.get("id") or ""),
+            "versao": int(pesquisa.get("versao") or 1),
+            "perfil": str(pesquisa.get("perfil_normativo") or ""),
+            "data_base": str(pesquisa.get("data_base") or ""),
+            "regras": str(pesquisa.get("versao_regras") or ""),
+            "filtros": pesquisa.get("filtros") or {},
+        },
+        "itens": [],
+    }
+    for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
+        gravado = item.get("estatisticas") or {}
+        projecao["itens"].append({
+            "numero": int(item.get("numero") or 0),
+            "codigo": str(item.get("codigo") or ""),
+            "descricao": str(item.get("descricao") or ""),
+            "unidade": str(item.get("unidade") or ""),
+            "quantidade": numero(item.get("quantidade")),
+            "estado": str(item.get("estado") or ""),
+            "metodo": str(item.get("metodo") or ""),
+            "preco_estimado": numero(item.get("preco_estimado")),
+            "preco_total": numero(item.get("preco_total")),
+            "memoria": str(item.get("justificativa") or ""),
+            "decisoes": gravado.get("decisoes") or {},
+            "referencias": sorted(
+                json.dumps([r.get("raw_hash") or "", r.get("status") or "",
+                            numero(r.get("valor_unitario_normalizado")),
+                            r.get("unidade_normalizada") or "",
+                            list(r.get("motivos") or [])],
+                           ensure_ascii=False, default=str)
+                for r in referencias.get(str(item.get("id")), [])),
+        })
+    return projecao
+
+
 def identificador_da_versao(pesquisa: dict, itens: list[dict],
                             referencias: dict[str, list[dict]]) -> str:
     """
     Impressão digital do RESULTADO — o item 22 do §31.
 
-    Cobre exatamente o que define o resultado e nada de decorativo:
-    cabeçalho da pesquisa, método e preço de cada item, e, de cada
-    referência, o `raw_hash` (que já é a impressão da evidência como a
-    fonte a entregou) com o status que ela acabou tendo.
+    SHA-256 da `projecao_decisoria`. O que ele permite: pegar o PDF de
+    hoje, refazer a projeção meses depois e provar que é o mesmo
+    resultado — ou descobrir que alguém mexeu. É por isso que ele NÃO
+    inclui data de geração: dois relatórios do mesmo resultado, emitidos
+    em dias diferentes, têm de bater.
+    """
+    canonico = json.dumps(projecao_decisoria(pesquisa, itens, referencias),
+                          sort_keys=True, ensure_ascii=False,
+                          separators=(",", ":"), default=str)
+    return hashlib.sha256(canonico.encode("utf-8")).hexdigest()
 
-    O que ele permite: pegar o PDF de hoje, refazer a projeção meses
-    depois e provar que é o mesmo resultado — ou descobrir que alguém
-    mexeu. É por isso que ele NÃO inclui data de geração: dois relatórios
-    do mesmo resultado, emitidos em dias diferentes, têm de bater.
+
+def dados_da_emissao(pesquisa: dict, itens: list[dict],
+                     referencias: dict[str, list[dict]], *, tipo: str,
+                     formato: str, conteudo: bytes, nome_arquivo: str) -> dict:
+    """
+    O registro de UMA emissão (F140/F162): hash do conteúdo decisório
+    (reprodutível, igual para o mesmo resultado), hash do ARQUIVO (prova
+    do byte entregue) e a lista nominal de pendências que o documento
+    imprimiu. Sem IP — dado pessoal que o registro não precisa.
+    """
+    decisorio = identificador_da_versao(pesquisa, itens, referencias)
+    arquivo = hashlib.sha256(conteudo).hexdigest()
+    perfil = obter_perfil(pesquisa.get("perfil_normativo"))
+    return {
+        "versao_pesquisa": int(pesquisa.get("versao") or 1),
+        "tipo": tipo, "formato": formato, "formato_hash": FORMATO,
+        "hash_decisorio": decisorio, "hash_arquivo": arquivo,
+        "tamanho_bytes": len(conteudo), "nome_arquivo": nome_arquivo,
+        "pendencias": [{"item": p["numero"], "deficiencias": p["deficiencias"]}
+                       for p in pendencias_nominais(itens, referencias, perfil)],
+        "idempotency_key": f"{tipo}:{formato}:{decisorio}:{arquivo}",
+    }
+
+
+def conferir_identificador(pesquisa: dict, itens: list[dict],
+                           referencias: dict[str, list[dict]],
+                           informado: str) -> str:
+    """
+    Conferência por terceiro, dentro do sistema: o identificador impresso
+    corresponde ao resultado ATUAL desta pesquisa? Recalcula nos dois
+    formatos — o v1 confere relatórios emitidos antes de 16/10/2026.
+    """
+    alvo = str(informado or "").strip().strip("`").lower()
+    if len(alvo) < 16:
+        return "informe o identificador impresso (mínimo 16 caracteres)"
+    atual = identificador_da_versao(pesquisa, itens, referencias)
+    if atual.startswith(alvo):
+        return "confere: o documento corresponde ao resultado atual (formato 2)"
+    if identificador_da_versao_v1(pesquisa, itens, referencias).startswith(alvo):
+        return ("confere no formato 1 (relatório anterior a 16/10/2026): o "
+                "resultado não mudou nos campos que aquele formato cobria")
+    return ("NÃO confere: o resultado desta pesquisa mudou depois da "
+            "emissão, ou o identificador é de outra pesquisa/revisão")
+
+
+def identificador_da_versao_v1(pesquisa: dict, itens: list[dict],
+                               referencias: dict[str, list[dict]]) -> str:
+    """
+    O identificador do formato "1", para CONFERIR relatórios emitidos
+    antes de 16/10/2026. Não usar para emitir: ele não cobre quantidade,
+    total, unidade nem justificativas.
     """
     projecao = {
-        "formato": FORMATO,
+        "formato": "1",
         "pesquisa": {
             "id": str(pesquisa.get("id") or ""),
             "versao": int(pesquisa.get("versao") or 1),
@@ -259,16 +374,24 @@ def completo(pesquisa: dict, itens: list[dict],
        "fica fora da cesta, com o motivo registrado, e o item é "
        "declarado incompleto em vez de receber preço fabricado.")
     ad("")
-    metodos = sorted({str(i.get("metodo") or "") for i in concluidos
+    metodos = sorted({str(i.get("metodo") or "") for i in itens
                       if i.get("metodo")})
     ad(f"- **Métodos aplicados nesta pesquisa:** "
        f"{', '.join(metodos) if metodos else AUSENTE}")
+    ad("- **Contagem para a regra dos três:** só as referências "
+       "CONSIDERADAS no cálculo (na cesta, com preço normalizado e "
+       "natureza de preço) — selecionar não basta.")
     ad("")
 
     # 7
     ad("## 7. Fontes consultadas")
     ad("")
     ad(_tabela_de_fontes(referencias))
+    ad("")
+    ad("**Trilha de consulta às fontes** — horário de coleta (UTC), "
+       "desfecho de cada consulta e enquadramento da origem")
+    ad("")
+    ad(_trilha_de_fontes(itens, referencias, perfil))
     ad("")
 
     # 8
@@ -307,20 +430,14 @@ def completo(pesquisa: dict, itens: list[dict],
     # 10
     ad("## 10. Critérios estatísticos")
     ad("")
-    ad("- **Método automático:** mediana quando a série é dispersa "
-       "(coeficiente de variação acima de 0,25) e média quando é "
-       "homogênea — a mediana resiste a valores extremos, e é com "
-       "dispersão alta que os extremos distorcem a média;")
-    ad("- **Sinalização de discrepantes:** intervalo interquartil "
-       "(Tukey, fator 1,5) e desvio absoluto mediano (fator 3);")
-    ad("- **Discrepante sinalizado NÃO é excluído automaticamente.** A "
-       "exclusão é ato do revisor, com motivo registrado.")
+    for linha in _criterios_estatisticos(pesquisa):
+        ad(linha)
     ad("")
 
     # 11
     ad("## 11. Quadro-resumo")
     ad("")
-    ad(quadro_resumo(itens))
+    ad(quadro_resumo(itens, referencias))
     ad("")
 
     # 12–17
@@ -332,13 +449,13 @@ def completo(pesquisa: dict, itens: list[dict],
     # existe um conjunto deles para cada item. Ficam dentro de cada
     # bloco, com a correspondência dita em voz alta para quem procura a
     # numeração do prompt.
-    ad("Cada item abaixo traz, na ordem: as referências selecionadas "
-       "(item 13 da estrutura), as desconsideradas com o motivo de cada "
-       "exclusão (14), a memória de cálculo (15), o preço estimado "
+    ad("Cada item abaixo traz, na ordem: as referências consideradas no "
+       "cálculo (item 13 da estrutura), as não consideradas com o motivo "
+       "de cada uma (14), a memória de cálculo (15), o preço estimado "
        "unitário (16) e o valor total do item (17).")
     ad("")
     for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
-        for linha in _analise_do_item(item, referencias):
+        for linha in _analise_do_item(item, referencias, perfil):
             ad(linha)
 
     # 18
@@ -352,9 +469,21 @@ def completo(pesquisa: dict, itens: list[dict],
     if pendentes:
         numeros = ", ".join(str(int(i.get("numero") or 0))
                             for i in pendentes)
-        ad(f"- **Itens sem preço formado:** {numeros}. O valor global "
+        ad(f"- **Itens não concluídos:** {numeros}. O valor global "
            "acima **não** os inclui.")
     ad("")
+    nominais = pendencias_nominais(itens, referencias, perfil)
+    if nominais:
+        ad("**Pendências por item** — cada item que ainda não sustenta "
+           "preço, com a deficiência")
+        ad("")
+        ad("| Item | Descrição | Situação | Considerados | Pendência |")
+        ad("|---|---|---|---|---|")
+        for p in nominais:
+            ad(f"| {p['numero']:02d} | {_texto(p['descricao'])} "
+               f"| {_texto(p['situacao'])} | {p['consideradas']} "
+               f"| {_texto('; '.join(p['deficiencias']))} |")
+        ad("")
 
     # 19
     ad("## 19. Alertas e ressalvas")
@@ -383,6 +512,10 @@ def completo(pesquisa: dict, itens: list[dict],
     ad(f"- **Relatório emitido em:** "
        f"{momento.strftime('%d/%m/%Y às %H:%M')} (UTC)")
     ad(f"- **Pesquisa criada em:** {_data(pesquisa.get('criado_em'))}")
+    inicio, fim = _janela_de_coleta(referencias)
+    if inicio:
+        ad(f"- **Pesquisa realizada entre:** {inicio} e {fim} (UTC), da "
+           "primeira à última coleta registrada")
     if pesquisa.get("aplicada_em"):
         ad(f"- **Aplicada ao processo em:** "
            f"{_data(pesquisa.get('aplicada_em'))}")
@@ -393,13 +526,187 @@ def completo(pesquisa: dict, itens: list[dict],
     identificador = identificador_da_versao(pesquisa, itens, referencias)
     ad(f"`{identificador}`")
     ad("")
-    ad("Impressão digital SHA-256 do resultado — cabeçalho da pesquisa, "
-       "método e preço de cada item, e a evidência de cada referência "
-       "com o status que ela recebeu. Não inclui a data de emissão: dois "
-       "relatórios do mesmo resultado, emitidos em dias diferentes, "
-       "produzem o mesmo identificador.")
+    ad(f"Impressão digital SHA-256 (formato {FORMATO}) de todo o conteúdo "
+       "decisório: cabeçalho e regras da pesquisa; de cada item a "
+       "descrição, a unidade, a quantidade, o método, o unitário, o total, "
+       "a memória de cálculo e as decisões do revisor; de cada referência "
+       "a evidência, a situação, o valor normalizado e os motivos. Não "
+       "inclui a data de emissão: dois relatórios do mesmo resultado, "
+       "emitidos em dias diferentes, produzem o mesmo identificador.")
     ad("")
     return "\n".join(partes)
+
+
+# ---------------------------------------------------------------------------
+# Metodologia escrita pela REGRA da pesquisa (dossiê BP, tema 5c)
+# ---------------------------------------------------------------------------
+def _criterios_estatisticos(pesquisa: dict) -> list[str]:
+    from .estatistica import criterio_percentual_da
+
+    saida = []
+    if str(pesquisa.get("versao_regras") or "") == REGRAS_MEDIA_PADRAO:
+        saida.append(
+            "- **Método padrão:** média aritmética simples dos preços "
+            "unitários considerados. Mediana, desvio-padrão amostral e "
+            "coeficiente de variação entram como diagnóstico; com "
+            "coeficiente acima de 25% o valor fica provisório até a "
+            "análise crítica do revisor. O revisor pode definir outro "
+            "método admitido pelo perfil, com justificativa registrada no "
+            "item;")
+    else:
+        saida.append(
+            "- **Método automático (regra anterior a 15/10/2026, mantida "
+            "nas pesquisas criadas sob ela):** mediana quando a série é "
+            "dispersa (coeficiente de variação acima de 0,25) e média "
+            "quando é homogênea;")
+    saida.append(
+        "- **Sinalização de discrepantes:** intervalo interquartil "
+        "(Tukey, fator 1,5) e desvio absoluto mediano (fator 3), a partir "
+        "de 4 preços;")
+    criterio = criterio_percentual_da(pesquisa.get("filtros"))
+    if criterio:
+        saida.append(
+            f"- **Critério percentual desta cotação:** sinaliza preço acima "
+            f"de {criterio[0]}% da média dos demais (elevado) ou abaixo de "
+            f"{criterio[1]}% da média dos demais sem os elevados "
+            "(inexequível); parâmetro da cotação, não limite legal;")
+    saida.append(
+        "- **Sinalização NÃO exclui.** A exclusão é ato do revisor, com "
+        "motivo registrado, e a referência excluída continua neste "
+        "relatório.")
+    return saida
+
+
+# ---------------------------------------------------------------------------
+# Trilha de fontes e pendências nominais (dossiê BP, temas 6 e 7)
+# ---------------------------------------------------------------------------
+def _instante(valor) -> datetime | None:
+    if not valor:
+        return None
+    try:
+        momento = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return momento.astimezone(timezone.utc)
+
+
+def _hora(momento: datetime | None) -> str:
+    return momento.strftime("%d/%m/%Y %H:%M") if momento else AUSENTE
+
+
+def _janela_de_coleta(referencias: dict[str, list[dict]]) -> tuple[str, str]:
+    instantes = [m for lista in referencias.values() for linha in lista
+                 if (m := _instante(linha.get("coletado_em")))]
+    if not instantes:
+        return "", ""
+    return _hora(min(instantes)), _hora(max(instantes))
+
+
+def _trilha_de_fontes(itens: list[dict], referencias: dict[str, list[dict]],
+                      perfil) -> str:
+    """Uma linha por fonte: coleta, desfechos (inclusive falhas) e inciso."""
+    fontes: dict[str, dict] = {}
+    for lista in referencias.values():
+        for linha in lista:
+            fid = str(linha.get("fonte_id") or "")
+            info = fontes.setdefault(fid, {
+                "nome": linha.get("fonte_nome") or NOME_DA_FONTE.get(fid, fid),
+                "tipo": linha.get("fonte_tipo"), "coletas": [],
+                "refs": 0, "consideradas": 0, "desfechos": {}})
+            info["refs"] += 1
+            if (m := _instante(linha.get("coletado_em"))):
+                info["coletas"].append(m)
+        for linha in cesta_mod.consideradas(lista):
+            fontes[str(linha.get("fonte_id") or "")]["consideradas"] += 1
+    for item in itens:
+        for fid, desfecho in (item.get("desfechos") or {}).items():
+            info = fontes.setdefault(str(fid), {
+                "nome": NOME_DA_FONTE.get(str(fid), str(fid)), "tipo": None,
+                "coletas": [], "refs": 0, "consideradas": 0, "desfechos": {}})
+            rotulo = ROTULO_DESFECHO.get(str(desfecho), str(desfecho))
+            info["desfechos"][rotulo] = info["desfechos"].get(rotulo, 0) + 1
+    if not fontes:
+        return "Nenhuma fonte consultada."
+    saida = ["| Fonte | Enquadramento | Referências | Consideradas | "
+             "Primeira coleta | Última coleta | Desfechos por item |",
+             "|---|---|---|---|---|---|---|"]
+    for fid, info in sorted(fontes.items(), key=lambda par: str(par[1]["nome"])):
+        coletas = info["coletas"]
+        desfechos = "; ".join(f"{rotulo}: {n}" for rotulo, n
+                              in sorted(info["desfechos"].items())) or AUSENTE
+        saida.append(
+            f"| {_texto(info['nome'])} "
+            f"| {enquadramento(fid, info['tipo'], perfil)} "
+            f"| {info['refs']} | {info['consideradas']} "
+            f"| {_hora(min(coletas)) if coletas else AUSENTE} "
+            f"| {_hora(max(coletas)) if coletas else AUSENTE} "
+            f"| {_texto(desfechos)} |")
+    return "\n".join(saida)
+
+
+ROTULO_ESTADO_ITEM = {
+    EstadoItem.PENDENTE.value: "não pesquisado",
+    EstadoItem.BUSCANDO.value: "pesquisa em curso",
+    EstadoItem.CLASSIFICANDO.value: "pesquisa em curso",
+    EstadoItem.EM_REVISAO.value: "aguardando revisão",
+    EstadoItem.COMPLETO.value: "concluído",
+    EstadoItem.INCOMPLETO.value: "sem preços suficientes",
+    EstadoItem.ERRO.value: "falha técnica na consulta",
+}
+
+
+def pendencias_nominais(itens: list[dict], referencias: dict[str, list[dict]],
+                        perfil=None) -> list[dict]:
+    """
+    Cada item NÃO concluído — ou concluído com ressalva — com a
+    deficiência dita por extenso. É a lista que a tela mostra ANTES de
+    emitir e que o documento imprime (o BP avisava "não atende" sem dizer
+    quais itens, J12b).
+    """
+    perfil = perfil or obter_perfil(None)
+    saida = []
+    for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
+        estado = str(item.get("estado") or EstadoItem.PENDENTE.value)
+        linhas = referencias.get(str(item.get("id")), [])
+        n = len(cesta_mod.consideradas(linhas))
+        gravado = item.get("estatisticas") or {}
+        decisoes = gravado.get("decisoes") or {}
+        deficiencias: list[str] = []
+        if estado == EstadoItem.ERRO.value:
+            deficiencias.append("as fontes de preço não responderam — "
+                                "repetir a consulta")
+        elif estado in (EstadoItem.PENDENTE.value, EstadoItem.BUSCANDO.value,
+                        EstadoItem.CLASSIFICANDO.value):
+            deficiencias.append("ainda não pesquisado")
+        if estado != EstadoItem.COMPLETO.value and n < perfil.minimo_referencias \
+                and estado not in (EstadoItem.ERRO.value, EstadoItem.PENDENTE.value):
+            if decisoes.get("excecao"):
+                deficiencias.append(
+                    f"{n}/{perfil.minimo_referencias} considerados, com "
+                    "exceção registrada — aguarda conclusão do revisor")
+            else:
+                deficiencias.append(
+                    f"{n}/{perfil.minimo_referencias} preços considerados "
+                    "e sem justificativa de exceção")
+        if estado == EstadoItem.EM_REVISAO.value:
+            deficiencias.append("preço não confirmado pelo revisor")
+        for pendencia in gravado.get("pendencias") or []:
+            if estado != EstadoItem.COMPLETO.value:
+                deficiencias.append(f"análise crítica: {pendencia}")
+        if estado == EstadoItem.COMPLETO.value and decisoes.get("excecao"):
+            deficiencias.append(
+                f"concluído com {n} preço(s) mediante exceção "
+                f"({decisoes['excecao'].get('base_normativa') or 'perfil'})")
+        if deficiencias:
+            saida.append({"item_id": str(item.get("id")),
+                          "numero": int(item.get("numero") or 0),
+                          "descricao": str(item.get("descricao") or ""),
+                          "situacao": ROTULO_ESTADO_ITEM.get(estado, estado),
+                          "consideradas": n, "deficiencias": deficiencias,
+                          "impede": estado != EstadoItem.COMPLETO.value})
+    return saida
 
 
 def _tabela_de_fontes(referencias: dict[str, list[dict]]) -> str:
@@ -419,38 +726,55 @@ def _tabela_de_fontes(referencias: dict[str, list[dict]]) -> str:
     return "\n".join(linhas)
 
 
-def quadro_resumo(itens: list[dict]) -> str:
-    """§31.11 — uma linha por item, com o essencial."""
+def quadro_resumo(itens: list[dict],
+                  referencias: dict[str, list[dict]] | None = None) -> str:
+    """§31.11 — uma linha por item, com o essencial e a SITUAÇÃO."""
     if not itens:
         return "Nenhum item nesta pesquisa."
+    referencias = referencias or {}
     linhas = [
-        "| Item | Descrição | Unid. | Qtd. | Método | Unitário | Total | "
-        "Situação |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Item | Descrição | Unid. | Qtd. | Método | Considerados | "
+        "Unitário | Total | Situação |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
+        considerados = _considerados_do_item(item, referencias)
+        estado = str(item.get("estado") or "")
         linhas.append(
             f"| {int(item.get('numero') or 0):02d} "
             f"| {_texto(item.get('descricao'))} "
             f"| {_texto(item.get('unidade'))} "
             f"| {_numero(item.get('quantidade'))} "
             f"| {_texto(item.get('metodo'))} "
+            f"| {considerados if considerados is not None else AUSENTE} "
             f"| {_moeda(item.get('preco_estimado'))} "
             f"| {_moeda(item.get('preco_total'))} "
-            f"| {_texto(item.get('estado'))} |")
+            f"| {ROTULO_ESTADO_ITEM.get(estado, _texto(estado))} |")
     return "\n".join(linhas)
 
 
-def _analise_do_item(item: dict,
-                     referencias: dict[str, list[dict]]) -> list[str]:
+def _considerados_do_item(item: dict,
+                          referencias: dict[str, list[dict]]) -> int | None:
+    """Pelas linhas, quando vieram; senão pelo que o item gravou."""
+    lista = referencias.get(str(item.get("id")))
+    if lista is not None:
+        return len(cesta_mod.consideradas(lista))
+    return cesta_mod.na_cesta_do_item(item)
+
+
+def _analise_do_item(item: dict, referencias: dict[str, list[dict]],
+                     perfil=None) -> list[str]:
     """
-    §31.12 a 17 para um item: referências usadas, descartadas com motivo,
-    memória de cálculo, unitário e total.
+    §31.12 a 17 para um item: referências CONSIDERADAS, não consideradas
+    com motivo, memória de cálculo, decisões do revisor, pendências,
+    unitário e total.
     """
+    perfil = perfil or obter_perfil(None)
     numero = int(item.get("numero") or 0)
     lista = referencias.get(str(item.get("id")), [])
-    selecionadas = [r for r in lista if str(r.get("status")) == "selected"]
-    descartadas = [r for r in lista if str(r.get("status")) != "selected"]
+    consideradas = cesta_mod.consideradas(lista)
+    fora = cesta_mod.desconsideradas(lista)
+    estado = str(item.get("estado") or "")
 
     saida = [f"### Item {numero:02d} — {_texto(item.get('descricao'))}", ""]
     saida.append(f"- **Unidade:** {_texto(item.get('unidade'))}")
@@ -461,7 +785,9 @@ def _analise_do_item(item: dict,
     else:
         saida.append("- **Catálogo:** não informado — a busca foi feita por "
                      "descrição")
-    saida.append(f"- **Situação:** {_texto(item.get('estado'))}")
+    saida.append(f"- **Situação:** {ROTULO_ESTADO_ITEM.get(estado, _texto(estado))}"
+                 f" — {len(consideradas)}/{perfil.minimo_referencias} preços "
+                 "considerados no cálculo")
     saida.append("")
 
     memoria = item.get("estatisticas") or {}
@@ -469,35 +795,51 @@ def _analise_do_item(item: dict,
     if estatisticas:
         saida.append("**Estatística da cesta**")
         saida.append("")
-        saida.append("| Referências | Menor | Média | Mediana | Maior | CV |")
-        saida.append("|---|---|---|---|---|---|")
+        saida.append("| Considerados | Menor | Média | Mediana | Maior | "
+                     "Desvio-padrão | CV |")
+        saida.append("|---|---|---|---|---|---|---|")
+        cv = _decimal(estatisticas.get("coeficiente_variacao"))
         saida.append(
             f"| {estatisticas.get('quantidade', 0)} "
             f"| {_moeda(estatisticas.get('menor'))} "
             f"| {_moeda(estatisticas.get('media'))} "
             f"| {_moeda(estatisticas.get('mediana'))} "
             f"| {_moeda(estatisticas.get('maior'))} "
-            f"| {_numero(estatisticas.get('coeficiente_variacao'))} |")
+            f"| {_moeda(estatisticas.get('desvio_padrao'))} "
+            f"| {pct(cv) if cv is not None else AUSENTE} |")
         saida.append("")
 
-    saida.append(f"**Referências selecionadas ({len(selecionadas)})** — "
-                 "§31.13")
+    saida.append(f"**Referências consideradas no cálculo "
+                 f"({len(consideradas)})** — §31.13")
     saida.append("")
-    saida.append(_tabela_de_referencias(selecionadas))
+    saida.append(_tabela_de_referencias(consideradas, perfil=perfil,
+                                        com_motivo=any(
+                                            str(r.get("status")) == "warning"
+                                            for r in consideradas)))
     saida.append("")
-    cotacoes = _cotacoes_diretas(selecionadas + descartadas)
+    links = _links_de_verificacao(consideradas)
+    if links:
+        saida.append("Verificação na fonte oficial: " + "; ".join(links))
+        saida.append("")
+    cotacoes = _cotacoes_diretas(lista)
     if cotacoes:
         saida.append(cotacoes)
         saida.append("")
 
     # §31.14 — o que ficou de fora NUNCA some do relatório.
-    saida.append(f"**Referências desconsideradas ({len(descartadas)})** — "
-                 "§31.14")
+    saida.append(f"**Referências não consideradas ({len(fora)})** — §31.14")
     saida.append("")
-    if descartadas:
-        saida.append(_tabela_de_referencias(descartadas, com_motivo=True))
+    if fora:
+        saida.append(_tabela_de_referencias(fora, perfil=perfil,
+                                            com_motivo=True))
+        if any(str(r.get("status")) == "rejected" for r in fora) and \
+                perfil.fundamento_desconsideracao:
+            saida.append("")
+            saida.append("Referências excluídas pelo revisor, com o motivo "
+                         "registrado, conforme "
+                         f"{perfil.fundamento_desconsideracao}.")
     else:
-        saida.append("Nenhuma referência foi desconsiderada neste item.")
+        saida.append("Nenhuma referência ficou fora do cálculo neste item.")
     saida.append("")
 
     saida.append("**Memória de cálculo** — §31.15")
@@ -506,10 +848,42 @@ def _analise_do_item(item: dict,
     if justificativa:
         for linha in justificativa.splitlines():
             if linha.strip():
-                saida.append(f"- {linha.strip()}")
+                saida.append(f"- {_neutralizar(linha)}")
     else:
         saida.append(f"- {AUSENTE}")
     saida.append("")
+
+    decisoes = memoria.get("decisoes") or {}
+    excecao = decisoes.get("excecao")
+    if excecao:
+        saida.append("**Exceção à regra dos três**")
+        saida.append("")
+        saida.append(f"- **Fundamento:** {_texto(excecao.get('fundamento_texto'))}"
+                     f" — {_texto(excecao.get('base_normativa'))}")
+        saida.append(f"- **Justificativa do gestor:** {_texto(excecao.get('texto'))}")
+        saida.append(f"- **Aprovação:** {_texto(excecao.get('aprovador'))} "
+                     "(declarada como juntada aos autos)")
+        saida.append(f"- **Preços considerados na exceção:** "
+                     f"{excecao.get('consideradas')}")
+        saida.append("")
+    for anterior in decisoes.get("excecoes_anteriores") or []:
+        if anterior.get("motivo_invalidacao"):
+            saida.append(f"- Exceção anterior invalidada: "
+                         f"{_texto(anterior.get('motivo_invalidacao'))}.")
+    metodo = decisoes.get("metodo")
+    if metodo:
+        saida.append(f"- **Método definido pelo revisor:** "
+                     f"{_texto(metodo.get('metodo'))} — "
+                     f"{_texto(metodo.get('justificativa'))}")
+        saida.append("")
+
+    pendencias = memoria.get("pendencias") or []
+    if pendencias:
+        saida.append("**Pendências de análise crítica**")
+        saida.append("")
+        for pendencia in pendencias:
+            saida.append(f"- {_texto(pendencia)}")
+        saida.append("")
 
     anomalias = memoria.get("anomalias") or []
     if anomalias:
@@ -522,6 +896,20 @@ def _analise_do_item(item: dict,
                 f"(critério {_texto(anomalia.get('criterio'))}). "
                 "Sinalizado para revisão; não excluído automaticamente.")
         saida.append("")
+    marcas = [m for m in memoria.get("marcas_percentuais") or []
+              if m.get("marca") != "valido"]
+    if marcas:
+        saida.append("**Sinalizações do critério percentual da cotação**")
+        saida.append("")
+        for marca in marcas:
+            rotulo = ("elevado" if marca.get("marca") == "elevado_sinalizado"
+                      else "inexequível")
+            saida.append(
+                f"- {_moeda(marca.get('valor'))} = "
+                f"{_texto(str(marca.get('percentual')).replace('.', ','))}% da "
+                f"média dos demais ({_moeda(marca.get('base'))}) — "
+                f"sinalizado como {rotulo}; não excluído automaticamente.")
+        saida.append("")
 
     saida.append(f"- **Preço estimado unitário (§31.16):** "
                  f"{_moeda(item.get('preco_estimado'))}")
@@ -529,6 +917,22 @@ def _analise_do_item(item: dict,
                  f"{_moeda(item.get('preco_total'))}")
     saida.append("")
     return saida
+
+
+def _links_de_verificacao(linhas: list[dict]) -> list[str]:
+    from . import compras_gov
+    from . import pncp as pncp_mod
+
+    links = []
+    for linha in linhas:
+        bruto = linha.get("bruto") or {}
+        fid = str(linha.get("fonte_id") or "")
+        url = (pncp_mod.url_de_verificacao(bruto) if fid == "pncp"
+               else compras_gov.url_de_verificacao(bruto)
+               if fid.startswith("compras_gov") else None)
+        if url:
+            links.append(f"[{_texto(linha.get('id_externo'))}]({url})")
+    return links
 
 
 def _cotacoes_diretas(linhas: list[dict]) -> str:
@@ -561,7 +965,7 @@ def _cotacoes_diretas(linhas: list[dict]) -> str:
     return "\n".join(saida)
 
 
-def _tabela_de_referencias(linhas: list[dict],
+def _tabela_de_referencias(linhas: list[dict], *, perfil=None,
                            com_motivo: bool = False) -> str:
     if not linhas:
         return "Nenhuma."
@@ -569,19 +973,24 @@ def _tabela_de_referencias(linhas: list[dict],
     # preço que alguém pagou e um valor que outro órgão apenas esperava
     # pagar é a primeira coisa que um auditor pergunta sobre uma
     # referência — não pode depender de o leitor abrir o campo de
-    # motivos.
-    cabecalho = ("| Fonte | Natureza | Órgão | UF | Data | Qtd. | Unid. | "
-                 "Unitário | Compat. |")
-    separador = "|---|---|---|---|---|---|---|---|---|"
+    # motivos. "Inc." é o inciso de origem (ver §7 e `perfil.enquadramento`).
+    from .perfil import inciso_da_fonte
+
+    cabecalho = ("| Fonte | Inc. | Natureza | Órgão | UF | Data | Qtd. | "
+                 "Unid. | Unitário | Compat. |")
+    separador = "|---|---|---|---|---|---|---|---|---|---|"
     if com_motivo:
         cabecalho = cabecalho[:-1] + " Situação e motivo |"
         separador += "---|"
+    dentro = {id(linha) for linha in cesta_mod.consideradas(linhas)}
     saida = [cabecalho, separador]
     for linha in linhas:
         score = _decimal(linha.get("score"))
         compat = f"{score:.0%}" if score is not None else AUSENTE
         celulas = [
             _texto(linha.get("fonte_nome") or linha.get("fonte_id")),
+            inciso_da_fonte(linha.get("fonte_id"), linha.get("fonte_tipo"))
+            or "—",
             _texto(linha.get("rotulo_natureza")
                    or ROTULO_NATUREZA.get(
                        NaturezaValor(str(linha.get("natureza_valor")
@@ -597,10 +1006,16 @@ def _tabela_de_referencias(linhas: list[dict],
             compat,
         ]
         if com_motivo:
-            status = _ROTULO_STATUS.get(str(linha.get("status")),
-                                        str(linha.get("status") or ""))
+            status = str(linha.get("status") or "")
+            if id(linha) in dentro:
+                rotulo = ("considerada — sinalizada para revisão"
+                          if status == "warning" else "considerada")
+            elif status in cesta_mod.NA_CESTA:
+                rotulo = "marcada, mas fora do cálculo"
+            else:
+                rotulo = _ROTULO_STATUS.get(status, status)
             motivos = "; ".join(str(m) for m in (linha.get("motivos") or []))
-            celulas.append(f"{status}" + (f" — {motivos}" if motivos else ""))
+            celulas.append(_texto(rotulo + (f" — {motivos}" if motivos else "")))
         saida.append("| " + " | ".join(celulas) + " |")
     return "\n".join(saida)
 
@@ -709,39 +1124,52 @@ def resumido(pesquisa: dict, itens: list[dict],
        f"{_data(pesquisa.get('data_base'))}")
     ad("")
 
+    # 12 colunas, como antes (a largura útil da página é o limite medido
+    # na Fase 2.1): "Outras" virou a contagem de CONSIDERADOS (N/3) e a
+    # "Mediana", que é diagnóstico, cedeu lugar à SITUAÇÃO do item — o BP
+    # imprimia item pendente igual a item regular (dossiê, tema 6e).
     cabecalho = ["Item", "Descrição", "Qtd."]
     cabecalho += [f"Preço {n}" for n in range(1, PRECOS_EM_DESTAQUE + 1)]
-    cabecalho += ["Outras", "Média", "Mediana", "Método", "Unitário", "Total"]
+    cabecalho += ["Cons.", "Média", "Situação", "Método", "Unitário", "Total"]
     ad("| " + " | ".join(cabecalho) + " |")
     ad("|" + "---|" * len(cabecalho))
 
     for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
-        lista = [r for r in referencias.get(str(item.get("id")), [])
-                 if str(r.get("status")) == "selected"]
-        valores = [
-            _decimal(r.get("valor_unitario_normalizado")
-                     or r.get("valor_unitario_original"))
-            for r in lista]
-        valores = sorted(v for v in valores if v is not None)
-        destaque = [_moeda(v) for v in valores[:PRECOS_EM_DESTAQUE]]
+        lista = cesta_mod.consideradas(
+            referencias.get(str(item.get("id")), []))
+        valores = sorted(v for v in (
+            _decimal(r.get("valor_unitario_normalizado")) for r in lista)
+            if v is not None)
+        destaque = [_compacto(v) for v in valores[:PRECOS_EM_DESTAQUE]]
         destaque += [VAZIO_NO_QUADRO] * (PRECOS_EM_DESTAQUE - len(destaque))
-        restantes = max(0, len(valores) - PRECOS_EM_DESTAQUE)
+        if len(valores) > PRECOS_EM_DESTAQUE:
+            destaque[-1] += f" (+{len(valores) - PRECOS_EM_DESTAQUE})"
 
         memoria = (item.get("estatisticas") or {}).get("estatisticas") or {}
+        estado = str(item.get("estado") or "")
         celulas = [
             f"{int(item.get('numero') or 0):02d}",
             _texto(item.get("descricao")),
             _numero(item.get("quantidade")),
             *destaque,
-            str(restantes),
+            f"{len(valores)}/{perfil.minimo_referencias}",
             _compacto(memoria.get("media")),
-            _compacto(memoria.get("mediana")),
+            ROTULO_ESTADO_ITEM.get(estado, _texto(estado)),
             str(item.get("metodo") or VAZIO_NO_QUADRO),
             _compacto(item.get("preco_estimado")),
             _compacto(item.get("preco_total")),
         ]
         ad("| " + " | ".join(celulas) + " |")
     ad("")
+
+    nominais = pendencias_nominais(itens, referencias, perfil)
+    if nominais:
+        ad("**Pendências e ressalvas por item**")
+        ad("")
+        for p in nominais:
+            ad(f"- Item {p['numero']:02d} ({_texto(p['situacao'])}): "
+               f"{_texto('; '.join(p['deficiencias']))}")
+        ad("")
 
     concluidos = [i for i in itens
                   if str(i.get("estado")) == EstadoItem.COMPLETO.value]
@@ -802,13 +1230,19 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
     """
     from openpyxl import Workbook
 
+    from .perfil import inciso_da_fonte
+
     wb = Workbook()
 
     aba = wb.active
     aba.title = "Itens"
     aba.append(["Item", "Código", "Catálogo", "Descrição", "Unidade",
                 "Quantidade", "Situação", "Método", "Preço unitário",
-                "Valor total", "Referências", "Na cesta"])
+                "Valor total", "Referências", "Consideradas no cálculo",
+                "Pendências"])
+    pendentes = {p["item_id"]: "; ".join(p["deficiencias"]) for p in
+                 pendencias_nominais(itens, referencias,
+                                     obter_perfil(pesquisa.get("perfil_normativo")))}
     for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
         lista = referencias.get(str(item.get("id")), [])
         aba.append(_linha_segura([
@@ -823,16 +1257,19 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
             _float(item.get("preco_estimado")),
             _float(item.get("preco_total")),
             len(lista),
-            # `warning` é discrepante que continua na cesta até decisão
-            sum(1 for r in lista
-                if str(r.get("status")) in ("selected", "warning")),
+            # a MESMA contagem do cálculo, do relatório e da tela
+            len(cesta_mod.consideradas(lista)),
+            pendentes.get(str(item.get("id")), ""),
         ]))
-    for coluna, largura in zip("ABCDEFGHIJKL",
-                              (6, 12, 10, 48, 10, 12, 12, 10, 14, 14, 12, 10)):
+    for coluna, largura in zip("ABCDEFGHIJKLM",
+                              (6, 12, 10, 48, 10, 12, 12, 10, 14, 14, 12, 12,
+                               60)):
         aba.column_dimensions[coluna].width = largura
 
     detalhe = wb.create_sheet("Referências")
-    detalhe.append(["Item", "Situação", "Fonte", "Natureza", "Órgão", "UF",
+    detalhe.append(["Item", "Situação", "Considerada no cálculo",
+                    "Inciso de origem", "Coletado em (UTC)",
+                    "Fonte", "Natureza", "Órgão", "UF",
                     "Município", "Fornecedor", "Marca", "Data",
                     "Descrição na fonte", "Unid. original", "Qtd.",
                     "Preço original", "Unid. normalizada",
@@ -841,11 +1278,18 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
                     "Impressão da evidência", "Motivos"])
     for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
         numero = int(item.get("numero") or 0)
-        for linha in referencias.get(str(item.get("id")), []):
+        lista = referencias.get(str(item.get("id")), [])
+        dentro = {id(r) for r in cesta_mod.consideradas(lista)}
+        for linha in lista:
             detalhe.append(_linha_segura([
                 numero,
                 _ROTULO_STATUS.get(str(linha.get("status")),
                                    str(linha.get("status") or "")),
+                "sim" if id(linha) in dentro else "não",
+                inciso_da_fonte(linha.get("fonte_id"),
+                                linha.get("fonte_tipo")) or "",
+                _hora(_instante(linha.get("coletado_em")))
+                if linha.get("coletado_em") else "",
                 str(linha.get("fonte_nome") or linha.get("fonte_id") or ""),
                 str(linha.get("fonte_tipo") or ""),
                 str(linha.get("orgao") or ""),
@@ -869,8 +1313,9 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
                 "; ".join(str(m) for m in (linha.get("motivos") or [])),
             ]))
     for coluna, largura in zip(
-            ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"],
-            (6, 22, 22, 20, 28, 6, 18, 28, 14, 12, 48)):
+            ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
+             "M", "N"],
+            (6, 22, 12, 10, 18, 22, 20, 28, 6, 18, 28, 14, 12, 48)):
         detalhe.column_dimensions[coluna].width = largura
 
     ficha = wb.create_sheet("Identificação")
@@ -898,7 +1343,7 @@ def _compacto(valor) -> str:
     """Moeda para o quadro compacto: ausência vira travessão."""
     numero = _decimal(valor)
     return (VAZIO_NO_QUADRO if numero is None
-            else planilha.formatar_moeda(float(numero)))
+            else brl(numero))
 
 
 def _plural_concluidos(quantos: int) -> str:

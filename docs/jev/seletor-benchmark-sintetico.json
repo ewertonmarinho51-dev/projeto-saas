@@ -1,0 +1,155 @@
+{
+  "natureza_do_dataset": "SINTÉTICO, rotulado por construção — não substitui rotulagem humana",
+  "versao_politica": "2026-10-16.seletor-v1",
+  "casos": 15,
+  "matriz": {
+    "comparavel_correto": 3,
+    "comparavel_errado": 0,
+    "incompativel_correto": 9,
+    "incompativel_errado": 0,
+    "revisao_humana": 3
+  },
+  "precisao_comparavel": 1.0,
+  "falso_positivo": 0,
+  "taxa_de_abstencao": 0.2,
+  "chamadas_ia": 0,
+  "custo_ia": "0",
+  "jev": null,
+  "detalhe": [
+    {
+      "caso": 1,
+      "motivo_do_rotulo": "idêntico",
+      "rotulo": true,
+      "score": "0.9172151898734177215189873418",
+      "classe": "alta",
+      "decisao": "COMPARABLE",
+      "explicacao": "comparabilidade 92% (≥ 75%), unidade e natureza comprovadas"
+    },
+    {
+      "caso": 2,
+      "motivo_do_rotulo": "idêntico, caixa/sigla",
+      "rotulo": true,
+      "score": "0.8976470588235294117647058824",
+      "classe": "alta",
+      "decisao": "COMPARABLE",
+      "explicacao": "comparabilidade 90% (≥ 75%), unidade e natureza comprovadas"
+    },
+    {
+      "caso": 3,
+      "motivo_do_rotulo": "idêntico",
+      "rotulo": true,
+      "score": "0.9320000000000000000000000001",
+      "classe": "alta",
+      "decisao": "COMPARABLE",
+      "explicacao": "comparabilidade 93% (≥ 75%), unidade e natureza comprovadas"
+    },
+    {
+      "caso": 4,
+      "motivo_do_rotulo": "mesmo produto, texto maior",
+      "rotulo": true,
+      "score": "0.6919466248037676609105180531",
+      "classe": "ambiguo",
+      "decisao": "REVIEW_REQUIRED",
+      "explicacao": "comparabilidade 69% na faixa de dúvida (25%–75%)"
+    },
+    {
+      "caso": 5,
+      "motivo_do_rotulo": "caixa sem fator",
+      "rotulo": false,
+      "score": "0.4672151898734177215189873418",
+      "classe": "bloqueada",
+      "decisao": "INCOMPATIBLE",
+      "explicacao": "Unidade incompatível ou sem conversão comprovada."
+    },
+    {
+      "caso": 6,
+      "motivo_do_rotulo": "estimado de outro órgão",
+      "rotulo": false,
+      "score": "0.9172151898734177215189873418",
+      "classe": "bloqueada",
+      "decisao": "INCOMPATIBLE",
+      "explicacao": "A natureza do valor exige revisão."
+    },
+    {
+      "caso": 7,
+      "motivo_do_rotulo": "fora da janela",
+      "rotulo": false,
+      "score": "0.7831372549019607843137254902",
+      "classe": "bloqueada",
+      "decisao": "INCOMPATIBLE",
+      "explicacao": "Referência fora da janela de datas da triagem."
+    },
+    {
+      "caso": 8,
+      "motivo_do_rotulo": "outro produto",
+      "rotulo": false,
+      "score": "0.0000000000000000000000000000",
+      "classe": "baixa",
+      "decisao": "INCOMPATIBLE",
+      "explicacao": "comparabilidade 0% (< 25%): produto diferente"
+    },
+    {
+      "caso": 9,
+      "motivo_do_rotulo": "especificação diferente",
+      "rotulo": false,
+      "score": "0.2293037974683544303797468354",
+      "classe": "baixa",
+      "decisao": "INCOMPATIBLE",
+      "explicacao": "comparabilidade 23% (< 25%): produto diferente"
+    },
+    {
+      "caso": 10,
+      "motivo_do_rotulo": "outro produto",
+      "rotulo": false,
+      "score": "0.0000000000000000000000000000",
+      "classe": "bloqueada",
+      "decisao": "INCOMPATIBLE",
+      "explicacao": "Unidade incompatível ou sem conversão comprovada."
+    },
+    {
+      "caso": 11,
+      "motivo_do_rotulo": "vizinho aparentado",
+      "rotulo": false,
+      "score": "0.2465108225108225108225108224",
+      "classe": "baixa",
+      "decisao": "INCOMPATIBLE",
+      "explicacao": "comparabilidade 25% (< 25%): produto diferente"
+    },
+    {
+      "caso": 12,
+      "motivo_do_rotulo": "vizinho aparentado",
+      "rotulo": false,
+      "score": "0.3466558441558441558441558442",
+      "classe": "ambiguo",
+      "decisao": "REVIEW_REQUIRED",
+      "explicacao": "comparabilidade 35% na faixa de dúvida (25%–75%)"
+    },
+    {
+      "caso": 13,
+      "motivo_do_rotulo": "vizinho aparentado",
+      "rotulo": false,
+      "score": "0.3466558441558441558441558442",
+      "classe": "ambiguo",
+      "decisao": "REVIEW_REQUIRED",
+      "explicacao": "comparabilidade 35% na faixa de dúvida (25%–75%)"
+    },
+    {
+      "caso": 14,
+      "motivo_do_rotulo": "vizinho aparentado",
+      "rotulo": false,
+      "score": "0.2465108225108225108225108224",
+      "classe": "baixa",
+      "decisao": "INCOMPATIBLE",
+      "explicacao": "comparabilidade 25% (< 25%): produto diferente"
+    },
+    {
+      "caso": 15,
+      "motivo_do_rotulo": "vizinho aparentado",
+      "rotulo": false,
+      "score": "0.2465108225108225108225108224",
+      "classe": "baixa",
+      "decisao": "INCOMPATIBLE",
+      "explicacao": "comparabilidade 25% (< 25%): produto diferente"
+    }
+  ]
+}

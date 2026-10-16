@@ -252,12 +252,17 @@ def _mapear_linha(linha) -> dict:
     return mapa
 
 
-def importar_de_xlsx(dados: bytes) -> list[dict]:
+def ler_tabela_xlsx(dados: bytes) -> dict:
     """
-    Lê um arquivo XLSX e devolve a lista de itens. Detecta a linha de
-    cabeçalho pelos nomes das colunas (aceita acentos, nomes por extenso e
-    variações); se não houver cabeçalho reconhecível, assume a ordem código,
-    descrição, unidade, quantidade, valor unitário. Ignora linhas sem descrição.
+    Lê o XLSX e devolve a tabela CRUA, com o número de cada linha na
+    planilha: `{"mapa": {coluna: campo}, "cabecalho": [...],
+    "linhas": [(numero_excel, [valores])], "cabecalho_visto": str}`.
+
+    É a mesma detecção de cabeçalho de `importar_de_xlsx` (que a usa),
+    exposta para quem precisa DIAGNOSTICAR linha a linha — a importação
+    da pesquisa de preços lista todos os erros com o número da linha, em
+    vez de descartar em silêncio. Sem cabeçalho reconhecível, `mapa` é a
+    ordem posicional (código, descrição, unidade, quantidade, valor).
     """
     try:
         from openpyxl import load_workbook
@@ -270,7 +275,7 @@ def importar_de_xlsx(dados: bytes) -> list[dict]:
         ) from exc
 
     # varre TODAS as abas com dados (a 1ª aba pode ser capa/instruções)
-    melhor = None  # (nº de campos, aba, idx_cabecalho, mapa, linhas)
+    melhor = None  # (nº de campos, idx_cabecalho, mapa, linhas)
     for ws in wb.worksheets:
         linhas = [list(r) for r in ws.iter_rows(values_only=True)]
         if not any(any(c not in (None, "") for c in ln) for ln in linhas):
@@ -285,14 +290,40 @@ def importar_de_xlsx(dados: bytes) -> list[dict]:
                     melhor = (pontos, i, mapa, linhas)
                 break
 
-    itens: list[dict] = []
-    cabecalho_visto = ""
     if melhor is not None:
         _, idx_cabecalho, mapa, linhas = melhor
         cabecalho = linhas[idx_cabecalho]
-        cabecalho_visto = " | ".join(
-            str(c).strip() for c in cabecalho if c not in (None, "")
-        )
+        return {
+            "mapa": mapa, "cabecalho": cabecalho,
+            "cabecalho_visto": " | ".join(
+                str(c).strip() for c in cabecalho if c not in (None, "")),
+            "linhas": [(idx_cabecalho + 2 + n, linha) for n, linha
+                       in enumerate(linhas[idx_cabecalho + 1:])],
+        }
+    # sem cabeçalho reconhecível: ordem posicional na 1ª aba com dados
+    for ws in wb.worksheets:
+        linhas = [list(r) for r in ws.iter_rows(values_only=True)]
+        if not any(any(c not in (None, "") for c in ln) for ln in linhas):
+            continue
+        return {"mapa": dict(enumerate(CAMPOS_ITEM)), "cabecalho": [],
+                "cabecalho_visto": "",
+                "linhas": [(n, linha) for n, linha in
+                           enumerate(linhas, start=1)]}
+    return {"mapa": {}, "cabecalho": [], "cabecalho_visto": "", "linhas": []}
+
+
+def importar_de_xlsx(dados: bytes) -> list[dict]:
+    """
+    Lê um arquivo XLSX e devolve a lista de itens. Detecta a linha de
+    cabeçalho pelos nomes das colunas (aceita acentos, nomes por extenso e
+    variações); se não houver cabeçalho reconhecível, assume a ordem código,
+    descrição, unidade, quantidade, valor unitário. Ignora linhas sem descrição.
+    """
+    tabela = ler_tabela_xlsx(dados)
+    itens: list[dict] = []
+    cabecalho_visto = tabela["cabecalho_visto"]
+    if tabela["cabecalho"]:
+        mapa, cabecalho = tabela["mapa"], tabela["cabecalho"]
         # colunas não reconhecidas são preservadas com o rótulo original
         # (mas ignoramos "Valor Total"/"Total": esse valor é recalculado)
         extras = {
@@ -301,7 +332,7 @@ def importar_de_xlsx(dados: bytes) -> list[dict]:
             if col not in mapa and cabecalho[col] not in (None, "")
             and "total" not in _normalizar(cabecalho[col])
         }
-        for linha in linhas[idx_cabecalho + 1:]:
+        for _, linha in tabela["linhas"]:
             item = {c: "" for c in CAMPOS_ITEM}
             for col, campo in mapa.items():
                 if col < len(linha):
@@ -311,17 +342,11 @@ def importar_de_xlsx(dados: bytes) -> list[dict]:
                     item[rotulo] = linha[col]
             _acrescentar(itens, item)
     else:
-        # sem cabeçalho reconhecível: assume ordem posicional na 1ª aba com dados
-        for ws in wb.worksheets:
-            linhas = [list(r) for r in ws.iter_rows(values_only=True)]
-            if not any(any(c not in (None, "") for c in ln) for ln in linhas):
+        for _, linha in tabela["linhas"]:
+            if not any(c not in (None, "") for c in linha):
                 continue
-            for linha in linhas:
-                if not any(c not in (None, "") for c in linha):
-                    continue
-                item = dict(zip(CAMPOS_ITEM, list(linha) + [""] * len(CAMPOS_ITEM)))
-                _acrescentar(itens, item)
-            break
+            item = dict(zip(CAMPOS_ITEM, list(linha) + [""] * len(CAMPOS_ITEM)))
+            _acrescentar(itens, item)
 
     if not itens:
         dica = (

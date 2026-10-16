@@ -39,12 +39,14 @@ from src.precos.estados import EstadoItem
 # ---------------------------------------------------------------------------
 # Cenários
 # ---------------------------------------------------------------------------
+# `natureza_valor` vem sempre gravada do adapter; sem ela a linha não é
+# preço e não conta para a regra dos três (cesta.consideradas, G1).
 REFERENCIAS = [
-    {"id": "r1", "raw_hash": "h1", "status": "selected",
+    {"id": "r1", "raw_hash": "h1", "status": "selected", "natureza_valor": "homologado",
      "descricao_original": "Caneta esferográfica azul, corpo transparente",
      "unidade_original": "UN", "unidade_normalizada": "UN",
      "valor_unitario_original": "1.50", "valor_unitario_normalizado": "1.50"},
-    {"id": "r2", "raw_hash": "h2", "status": "selected",
+    {"id": "r2", "raw_hash": "h2", "status": "selected", "natureza_valor": "homologado",
      "descricao_original": "Caneta esferográfica azul ponta 1,0mm",
      "unidade_original": "UN", "unidade_normalizada": "UN",
      "valor_unitario_original": "1.80", "valor_unitario_normalizado": "1.80"},

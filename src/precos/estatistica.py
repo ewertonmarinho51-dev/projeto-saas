@@ -46,6 +46,29 @@ def _ordenar(valores: list[Decimal]) -> list[Decimal]:
     return sorted(valores)
 
 
+def brl(valor: Decimal | None) -> str:
+    """R$ 1.234,56 a partir de Decimal, sem passar por float."""
+    if valor is None:
+        return "(não informado)"
+    q = Decimal(valor).quantize(CENTAVO, rounding=ROUND_HALF_UP)
+    inteiro, _, centavos = f"{abs(q):f}".partition(".")
+    grupos = []
+    while inteiro:
+        grupos.insert(0, inteiro[-3:])
+        inteiro = inteiro[:-3]
+    sinal = "-" if q < 0 else ""
+    return f"{sinal}R$ {'.'.join(grupos) or '0'},{(centavos + '00')[:2]}"
+
+
+def pct(fracao: Decimal | None, casas: int = 2) -> str:
+    """Fração (0,4823) → '48,23%' — o formato que o servidor confere."""
+    if fracao is None:
+        return "—"
+    valor = (Decimal(fracao) * 100).quantize(
+        Decimal(1).scaleb(-casas), rounding=ROUND_HALF_UP)
+    return f"{valor:f}".replace(".", ",") + "%"
+
+
 def _percentil(ordenados: list[Decimal], fracao: Decimal) -> Decimal:
     """
     Percentil por interpolação linear — o mesmo método do `statistics`
@@ -145,6 +168,17 @@ class Anomalia:
     distancia_da_mediana_pct: Decimal
     motivo: str
 
+    def para_relatorio(self) -> dict:
+        # O percentual vai GRAVADO: o GovBot e o relatório leem do banco,
+        # e sem ele a frase "está N% distante" saía sempre vazia
+        # (dossiê BP, tema 2a).
+        return {"valor": format(self.valor, "f"), "criterio": self.criterio,
+                "motivo": self.motivo,
+                "distancia_da_mediana_pct": format(
+                    self.distancia_da_mediana_pct.quantize(CENTAVO), "f"),
+                "fonte_id": self.referencia.fonte.id,
+                "id_externo": self.referencia.id_externo}
+
 
 def detectar_anomalias(referencias: list[Referencia],
                        estatisticas: Estatisticas) -> list[Anomalia]:
@@ -185,17 +219,108 @@ def detectar_anomalias(referencias: list[Referencia],
         else:
             distancia = ZERO
         sentido = "acima" if distancia >= 0 else "abaixo"
+        # A frase dá a BASE e o LIMITE, não só a distância: "mediana de
+        # R$ X entre N preços; faixa IQR de R$ A a R$ B" é o que permite
+        # ao revisor refazer a conta (dossiê BP, tema 2b).
         anomalias.append(Anomalia(
             referencia=ref, valor=valor, criterio="+".join(criterios),
             distancia_da_mediana_pct=distancia,
-            motivo=(f"o valor está {abs(distancia):.0f}% {sentido} da "
-                    f"mediana da amostra (critério {'+'.join(criterios)}). "
+            motivo=(f"o valor está {pct(abs(distancia) / 100, 0)} {sentido} "
+                    f"da mediana de {brl(estatisticas.mediana)} entre "
+                    f"{estatisticas.quantidade} preços (critério "
+                    f"{'+'.join(criterios)}; faixa IQR de "
+                    f"{brl(limite_inferior)} a {brl(limite_superior)}). "
                     "O sistema sugere revisão."),
         ))
         ref.status = StatusReferencia.ALERTA
         ref.com_motivo(f"candidato discrepante pelo critério "
                        f"{'+'.join(criterios)}")
     return anomalias
+
+
+# ---------------------------------------------------------------------------
+# Critério percentual — SEPARADO do detector IQR/MAD, opcional e versionado
+#
+# O IQR/MAD não analisa série com menos de 4 preços, que é o caso típico
+# (3 preços). O dossiê do BP observou outra regra, com limites por cotação
+# (30% acima / 70% abaixo): um preço é "elevado" se passa da média dos
+# OUTROS em mais de 30%; é "inexequível" se fica abaixo de 70% da média
+# dos outros já SEM os elevados (9,66 / 22,70 = 42,56%, J10).
+#
+# Aqui ela é um critério de SINALIZAÇÃO, nunca de exclusão nem de juízo
+# jurídico: os limites são parâmetro da cotação (não da Lei), vão para a
+# memória com a base usada, e quem exclui é o revisor, com motivo. Sem
+# limites configurados, nada é analisado — não há percentual universal.
+# ---------------------------------------------------------------------------
+VERSAO_CRITERIO_PERCENTUAL = "2026-10-16.media-dos-outros"
+
+
+@dataclass
+class MarcaPercentual:
+    valor: Decimal
+    marca: str          # 'elevado_sinalizado' | 'inexequivel_sinalizado' | 'valido'
+    percentual: Decimal  # valor ÷ base × 100, duas casas
+    base: Decimal | None  # média dos outros usada na comparação
+
+    def para_relatorio(self) -> dict:
+        return {"valor": format(self.valor, "f"), "marca": self.marca,
+                "percentual": format(self.percentual, "f"),
+                "base": None if self.base is None else format(self.base, "f")}
+
+
+def analise_percentual(valores: list[Decimal], *, elevado_pct: Decimal,
+                       inexequivel_pct: Decimal) -> list[MarcaPercentual]:
+    """Marca cada preço contra a média dos outros (ver bloco acima)."""
+    serie = [Decimal(v) for v in valores if v is not None]
+    if len(serie) < 2:
+        return []
+    teto = Decimal(1) + Decimal(elevado_pct) / 100
+    piso = Decimal(inexequivel_pct) / 100
+
+    def media(lista):
+        return sum(lista, ZERO) / Decimal(len(lista)) if lista else None
+
+    elevados: set[int] = set()
+    percentuais: dict[int, tuple[Decimal, Decimal]] = {}
+    for i, valor in enumerate(serie):
+        outros = media([v for j, v in enumerate(serie) if j != i])
+        if outros and valor > outros * teto:
+            elevados.add(i)
+            percentuais[i] = (valor / outros * 100, outros)
+
+    marcas = []
+    for i, valor in enumerate(serie):
+        if i in elevados:
+            proporcao, base = percentuais[i]
+            marcas.append(MarcaPercentual(
+                valor, "elevado_sinalizado",
+                proporcao.quantize(CENTAVO, ROUND_HALF_UP), base))
+            continue
+        base = media([v for j, v in enumerate(serie)
+                      if j != i and j not in elevados])
+        if base and valor < base * piso:
+            marcas.append(MarcaPercentual(
+                valor, "inexequivel_sinalizado",
+                (valor / base * 100).quantize(CENTAVO, ROUND_HALF_UP), base))
+        else:
+            proporcao = (valor / base * 100) if base else Decimal(100)
+            marcas.append(MarcaPercentual(
+                valor, "valido", proporcao.quantize(CENTAVO, ROUND_HALF_UP),
+                base))
+    return marcas
+
+
+def criterio_percentual_da(filtros: dict | None) -> tuple[Decimal, Decimal] | None:
+    """(elevado %, inexequível %) configurados na cotação, ou None."""
+    bruto = (filtros or {}).get("criterio_percentual") or {}
+    try:
+        elevado = Decimal(str(bruto["elevado"]))
+        inexequivel = Decimal(str(bruto["inexequivel"]))
+    except (KeyError, ArithmeticError, ValueError, TypeError):
+        return None
+    if not (0 < elevado <= 1000 and 0 < inexequivel < 100):
+        return None
+    return elevado, inexequivel
 
 
 # ---------------------------------------------------------------------------
@@ -310,6 +435,11 @@ class Estimativa:
     # de referências "elegíveis e aprovadas", e discrepante ou série
     # dispersa ainda não aprovados tornam o número provisório.
     pendencias: list[str] = field(default_factory=list)
+    # Marcas do critério percentual da cotação, quando configurado.
+    marcas_percentuais: list[MarcaPercentual] = field(default_factory=list)
+    criterio_percentual: tuple[Decimal, Decimal] | None = None
+    # Exceção formal à regra dos três aplicada nesta estimativa.
+    excecao_aplicada: bool = False
 
     @property
     def concluida(self) -> bool:
@@ -335,14 +465,21 @@ class Estimativa:
             "perfil": self.perfil_id,
             "estatisticas": self.estatisticas.para_relatorio()
             if self.estatisticas else None,
+            # "selecionadas" é o nome histórico do campo e continua aqui
+            # para ler pesquisas antigas; o número é o de CONSIDERADAS no
+            # cálculo (a cesta já exclui quem não tem preço normalizado).
             "selecionadas": len(self.cesta.selecionadas),
+            "consideradas": len(self.cesta.selecionadas),
             "descartadas": len(self.cesta.descartadas),
             "pendencias": list(self.pendencias),
-            "anomalias": [{
-                "valor": format(a.valor, "f"),
-                "criterio": a.criterio,
-                "motivo": a.motivo,
-            } for a in self.anomalias],
+            "anomalias": [a.para_relatorio() for a in self.anomalias],
+            "marcas_percentuais": [m.para_relatorio()
+                                   for m in self.marcas_percentuais],
+            "criterio_percentual": None if self.criterio_percentual is None
+            else {"elevado": format(self.criterio_percentual[0], "f"),
+                  "inexequivel": format(self.criterio_percentual[1], "f"),
+                  "versao": VERSAO_CRITERIO_PERCENTUAL},
+            "excecao_aplicada": self.excecao_aplicada,
             "memoria": list(self.memoria),
         }
 
@@ -364,6 +501,10 @@ REGRAS_LEGADAS = ""
 REGRAS_MEDIA_PADRAO = "2026-10-15.media-aritmetica"
 
 
+ROTULO_METODO = {"media": "média aritmética", "mediana": "mediana",
+                 "menor": "menor preço"}
+
+
 def _aplicar_metodo(metodo: str, e: Estatisticas) -> Decimal:
     if metodo == "media":
         return e.media
@@ -375,7 +516,9 @@ def _aplicar_metodo(metodo: str, e: Estatisticas) -> Decimal:
 def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
             metodo: str = METODO_AUTOMATICO,
             justificativa: str | None = None,
-            regras: str = REGRAS_LEGADAS) -> Estimativa:
+            regras: str = REGRAS_LEGADAS,
+            criterio_percentual: tuple[Decimal, Decimal] | None = None
+            ) -> Estimativa:
     """
     Forma o preço estimado a partir da cesta.
 
@@ -386,6 +529,11 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
     Método pedido que o perfil não admite NÃO cai em outro em silêncio:
     a estimativa sai sem valor, INCOMPLETA, com o impedimento e os
     métodos admitidos na memória.
+
+    `justificativa` é a EXCEÇÃO formal à regra dos três (perfil que
+    admite, texto, fundamento e aprovação já conferidos por
+    `cesta.registrar_excecao`). `criterio_percentual` é o par
+    (elevado %, inexequível %) da cotação, quando configurado.
     """
     estatisticas = calcular(cesta.valores)
     memoria: list[str] = []
@@ -394,7 +542,9 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
         return Estimativa(
             valor_unitario=None, metodo=metodo, status="INCOMPLETO",
             estatisticas=None, cesta=cesta, perfil_id=perfil.id,
-            memoria=["nenhuma referência comparável foi selecionada"])
+            criterio_percentual=criterio_percentual,
+            memoria=["nenhuma referência comparável foi considerada — item "
+                     "sem preço (não é preço zero)"])
 
     anomalias = detectar_anomalias(cesta.selecionadas, estatisticas)
 
@@ -403,17 +553,19 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
         escolhido = "media"
         memoria.append(
             "método padrão: média aritmética simples dos preços unitários "
-            f"selecionados (soma {estatisticas.soma.quantize(CENTAVO, ROUND_HALF_UP)} "
+            f"considerados (soma {brl(estatisticas.soma)} "
             f"÷ {estatisticas.quantidade}); mediana "
-            f"{estatisticas.mediana.quantize(CENTAVO, ROUND_HALF_UP)} e "
-            f"coeficiente de variação {estatisticas.coeficiente_variacao:.2f} "
-            "apenas como diagnóstico")
+            f"{brl(estatisticas.mediana)}, desvio-padrão amostral "
+            f"{brl(estatisticas.desvio_padrao)} e coeficiente de variação "
+            f"{pct(estatisticas.coeficiente_variacao)} apenas como "
+            "diagnóstico")
     elif metodo == METODO_AUTOMATICO:
         disperso = estatisticas.coeficiente_variacao > CV_DISPERSAO
         escolhido = "mediana" if disperso else "media"
         memoria.append(
-            f"método escolhido automaticamente: {escolhido} — coeficiente "
-            f"de variação {estatisticas.coeficiente_variacao:.2f} "
+            f"método escolhido automaticamente (regra anterior a "
+            f"15/10/2026): {escolhido} — coeficiente de variação "
+            f"{pct(estatisticas.coeficiente_variacao)} "
             f"({'série dispersa' if disperso else 'série homogênea'})")
     if escolhido not in perfil.metodos_permitidos:
         memoria.append(
@@ -424,12 +576,15 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
         return Estimativa(
             valor_unitario=None, metodo=escolhido, status="INCOMPLETO",
             estatisticas=estatisticas, cesta=cesta, anomalias=anomalias,
-            memoria=memoria, perfil_id=perfil.id)
+            memoria=memoria, perfil_id=perfil.id,
+            criterio_percentual=criterio_percentual)
 
     valor = _aplicar_metodo(escolhido, estatisticas)
     memoria.append(
-        f"{escolhido} de {estatisticas.quantidade} referência(s) "
-        f"selecionada(s) = {valor.quantize(CENTAVO, ROUND_HALF_UP)}")
+        f"{ROTULO_METODO.get(escolhido, escolhido)} de "
+        f"{estatisticas.quantidade} referência(s) considerada(s) = "
+        f"{brl(valor)} (valor exato {format(valor, 'f')}, arredondado ao "
+        "centavo, metade para cima)")
 
     # Teto da mediana quando a estimativa se apoia SÓ em sistema oficial
     if perfil.teto_da_mediana_em_sistema_oficial:
@@ -438,32 +593,39 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
             memoria.append(
                 f"{perfil.nome}: estimativa apoiada exclusivamente em "
                 "sistema oficial de preços não supera a mediana da "
-                f"amostra — valor ajustado de "
-                f"{valor.quantize(CENTAVO, ROUND_HALF_UP)} para "
-                f"{estatisticas.mediana.quantize(CENTAVO, ROUND_HALF_UP)}")
+                f"amostra — valor ajustado de {brl(valor)} para "
+                f"{brl(estatisticas.mediana)}")
             valor = estatisticas.mediana
 
     valor = valor.quantize(CENTAVO, rounding=ROUND_HALF_UP)
 
     # Regra dos três — nunca fabricar a referência que falta
     suficiente = perfil.conclui_com(estatisticas.quantidade)
+    excecao = False
     if suficiente:
         status = "CONCLUIDO"
     elif justificativa and perfil.admite_menos_com_justificativa:
         status = "CONCLUIDO"
+        excecao = True
         memoria.append(
-            f"concluída com {estatisticas.quantidade} referência(s), abaixo "
-            f"do mínimo de {perfil.minimo_referencias} do perfil "
-            f"{perfil.nome}, mediante justificativa registrada: "
-            f"{justificativa}")
+            f"EXCEÇÃO à regra dos {perfil.minimo_referencias}: concluída "
+            f"com {estatisticas.quantidade} referência(s) considerada(s), "
+            f"abaixo do mínimo do perfil {perfil.nome}, mediante "
+            f"justificativa registrada: {justificativa}")
     else:
         status = "INCOMPLETO"
+        if justificativa:
+            memoria.append(
+                f"o perfil {perfil.nome} não admite concluir com menos de "
+                f"{perfil.minimo_referencias} referências; a justificativa "
+                "foi registrada, mas não fecha o item")
         memoria.append(
-            f"apenas {estatisticas.quantidade} referência(s) defensável(is); "
-            f"o perfil {perfil.nome} exige {perfil.minimo_referencias}. "
-            "Amplie a consulta, tente outra fonte, informe o "
-            "CATMAT/CATSER ou anexe cotação — nenhum preço é fabricado "
-            "para completar a cesta")
+            f"apenas {estatisticas.quantidade} referência(s) "
+            f"considerada(s); o perfil {perfil.nome} exige "
+            f"{perfil.minimo_referencias}. Amplie a consulta, tente outra "
+            "fonte, informe o CATMAT/CATSER, registre cotação direta ou "
+            "a exceção prevista no perfil — nenhum preço é fabricado para "
+            "completar a cesta")
 
     if anomalias:
         memoria.append(
@@ -486,14 +648,39 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
         if estatisticas.coeficiente_variacao > CV_DISPERSAO:
             pendencias.append(
                 f"dispersão elevada (coeficiente de variação "
-                f"{estatisticas.coeficiente_variacao:.2f} > "
-                f"{CV_DISPERSAO}): a média pode não representar o mercado; "
-                "examine a cesta antes de concluir")
-        if pendencias:
-            memoria.append("valor PROVISÓRIO até a análise crítica: "
-                           + "; ".join(pendencias))
+                f"{pct(estatisticas.coeficiente_variacao)} > "
+                f"{pct(CV_DISPERSAO, 0)}): a média pode não representar o "
+                "mercado; examine a cesta antes de concluir")
+
+    marcas: list[MarcaPercentual] = []
+    if criterio_percentual is not None:
+        elevado, inexequivel = criterio_percentual
+        marcas = analise_percentual(cesta.valores, elevado_pct=elevado,
+                                    inexequivel_pct=inexequivel)
+        sinalizadas = [m for m in marcas if m.marca != "valido"]
+        for marca in sinalizadas:
+            rotulo = ("acima do limite de elevado"
+                      if marca.marca == "elevado_sinalizado"
+                      else "abaixo do limite de inexequível")
+            percentual = format(marca.percentual, "f").replace(".", ",")
+            memoria.append(
+                f"critério percentual da cotação: {brl(marca.valor)} "
+                f"representa {percentual}% da média dos outros preços "
+                f"({brl(marca.base)}) — {rotulo} (+{elevado}% / "
+                f"{inexequivel}%); sinalizado, não excluído")
+        if sinalizadas:
+            pendencias.append(
+                f"{len(sinalizadas)} preço(s) sinalizado(s) pelo critério "
+                "percentual da cotação aguardam decisão: excluir com motivo "
+                "ou manter com justificativa")
+
+    if pendencias:
+        memoria.append("valor PROVISÓRIO até a análise crítica: "
+                       + "; ".join(pendencias))
 
     return Estimativa(
         valor_unitario=valor, metodo=escolhido, status=status,
         estatisticas=estatisticas, cesta=cesta, anomalias=anomalias,
-        memoria=memoria, perfil_id=perfil.id, pendencias=pendencias)
+        memoria=memoria, perfil_id=perfil.id, pendencias=pendencias,
+        marcas_percentuais=marcas, criterio_percentual=criterio_percentual,
+        excecao_aplicada=excecao)

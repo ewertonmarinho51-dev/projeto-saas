@@ -72,8 +72,14 @@ def _ref(sufixo="1", status="selected", **extras) -> dict:
         "valor_unitario_normalizado": "2.00", "score": "0.88",
         "identidade": "0.95", "circunstancias": "0.93",
         "id_externo": f"e{sufixo}", "raw_hash": "a" * 64, "motivos": [],
+        # a natureza vem sempre do adapter; sem ela a linha não é preço e
+        # não é CONSIDERADA no cálculo (cesta.consideradas, Cotações G1)
+        "natureza_valor": "homologado",
     }
     base.update(extras)
+    # preço original sempre vem da fonte; sem ele não há preço
+    base.setdefault("valor_unitario_original",
+                    base.get("valor_unitario_normalizado"))
     return base
 
 
@@ -106,8 +112,10 @@ def test_as_vinte_e_duas_secoes_estao_presentes():
         assert f"## {n}." in texto, f"seção {n} ausente"
     # e os itens 13–17 aparecem, por item, com a correspondência explícita
     assert "item 13 da estrutura" in texto
-    assert "Referências selecionadas" in texto
-    assert "Referências desconsideradas" in texto
+    # Cotações G1: "selecionada" virou "considerada no cálculo" — a
+    # contagem que forma o preço, e não a mera marcação
+    assert "Referências consideradas no cálculo" in texto
+    assert "Referências não consideradas" in texto
     assert "Memória de cálculo" in texto
     assert "Preço estimado unitário (§31.16)" in texto
     assert "Valor total do item (§31.17)" in texto
@@ -121,11 +129,11 @@ def test_o_descartado_aparece_com_o_motivo():
     """
     itens, refs = CENARIO
     texto = relatorio.completo(PESQUISA, itens, refs)
-    assert "Referências desconsideradas (1)" in texto
+    assert "Referências não consideradas (1)" in texto
     assert "embalagem" in texto
     assert "excluída" in texto
-    # e a selecionada continua listada à parte
-    assert "Referências selecionadas (1)" in texto
+    # e a considerada continua listada à parte
+    assert "Referências consideradas no cálculo (1)" in texto
 
 
 def test_o_relatorio_nao_inventa_o_que_nao_existe():
@@ -175,7 +183,9 @@ def test_itens_sem_preco_nao_entram_no_valor_global():
     texto = relatorio.completo(PESQUISA, itens, refs)
     assert "R$ 235,00" in texto
     assert "**não** os inclui" in texto
-    assert "**Itens sem preço formado:** 2." in texto
+    assert "**Itens não concluídos:** 2." in texto
+    # e a pendência sai NOMINAL, com a deficiência (Cotações G1)
+    assert "**Pendências por item**" in texto
 
 
 # ===========================================================================
@@ -239,8 +249,8 @@ def test_o_quadro_traz_os_tres_primeiros_precos():
                    for n in range(1, 6)]}
     texto = relatorio.resumido(PESQUISA, [_item(1)], refs)
     assert "Preço 1" in texto and "Preço 3" in texto
-    assert "R$ 1,00" in texto and "R$ 3,00" in texto
-    assert "| 2 |" in texto            # duas "outras" referências
+    assert "R$ 1,00" in texto and "R$ 3,00 (+2)" in texto  # +2 outras
+    assert "| 5/3 |" in texto          # considerados / mínimo do perfil
 
 
 def test_o_quadro_usa_travessao_e_nao_texto_longo():
@@ -295,10 +305,13 @@ def test_ausencia_de_preco_vira_celula_vazia_e_nao_zero():
     wb = load_workbook(io.BytesIO(
         relatorio.xlsx_analitico(PESQUISA, itens, refs)))
     detalhe = wb["Referências"]
-    # a referência excluída não tem preço normalizado
+    # a referência excluída não tem preço normalizado — coluna achada
+    # pelo cabeçalho, não pela posição (Cotações G1 acrescentou colunas)
+    cabecalho = [c.value for c in detalhe[1]]
+    coluna = cabecalho.index("Preço normalizado")
     linha = [l for l in detalhe.iter_rows(min_row=2, values_only=True)
              if l[1] == "excluída"][0]
-    assert linha[15] is None, linha[15]
+    assert linha[coluna] is None, linha[coluna]
 
 
 def test_o_identificador_da_versao_esta_na_planilha():

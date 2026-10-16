@@ -325,10 +325,23 @@ class TabelaPrecosFalsa:
                     return existente
         return None
 
+    # DEFAULTs de coluna que o banco preenche e o código lê de volta —
+    # só os que a migração declara (0029: `revisao` do item).
+    PADROES = {"pesquisa_preco_itens": {"revisao": 1, "estado": "pending"}}
+
     def _gravar(self, registro):
-        linha = {"id": str(uuid.uuid4()), **registro}
+        linha = {"id": str(uuid.uuid4()),
+                 **self.PADROES.get(self.nome, {}), **registro}
         self.banco.append(linha)
         return linha
+
+    def in_(self, campo, valores):
+        self._filtros.append((campo, tuple(str(v) for v in valores)))
+        return self
+
+    def like(self, campo, padrao):
+        self._filtros.append((campo, ("__like__", padrao)))
+        return self
 
     def execute(self):
         if self._acao == "insert":
@@ -355,8 +368,17 @@ class TabelaPrecosFalsa:
                     gravados.append(self._gravar(registro))
             return types.SimpleNamespace(data=gravados)
 
+        def casa(registro, campo, valor):
+            if isinstance(valor, tuple) and valor[:1] == ("__like__",):
+                import fnmatch
+                return fnmatch.fnmatchcase(str(registro.get(campo)),
+                                           valor[1].replace("%", "*"))
+            if isinstance(valor, tuple):
+                return str(registro.get(campo)) in valor
+            return str(registro.get(campo)) == str(valor)
+
         filtrados = [r for r in self.banco
-                     if all(str(r.get(c)) == str(v) for c, v in self._filtros)]
+                     if all(casa(r, c, v) for c, v in self._filtros)]
         if self._acao == "update":
             for r in filtrados:
                 r.update(self._dados)

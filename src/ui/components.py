@@ -323,6 +323,12 @@ def render_sidebar() -> None:
         from . import demanda_ui, parecer_ui, precos_ui
 
         tem_precos = precos_ui.disponivel()
+        # Com Cotações ligada, a MESMA entidade aparece com o nome novo e
+        # uma entrada só — duas portas para a mesma pesquisa confundiriam.
+        from . import cotacoes_ui
+
+        rotulo_precos = ("Cotações" if tem_precos and cotacoes_ui.disponivel()
+                         else "Pesquisa de Preços")
         # "Consolidar Demandas" entra ANTES de "Novo processo", que é a
         # ordem do fluxo real (§4): o servidor recebe os pedidos das
         # secretarias e só então preenche o formulário. Como a Pesquisa
@@ -340,7 +346,7 @@ def render_sidebar() -> None:
             if governanca_ui.disponivel():
                 opcoes.append("Governança")
             if tem_precos:
-                opcoes.append("Pesquisa de Preços")
+                opcoes.append(rotulo_precos)
             if tem_parecer:
                 opcoes.append("Parecer Jurídico")
             if tem_demanda:
@@ -360,7 +366,7 @@ def render_sidebar() -> None:
             # ao menos duas páginas, então sempre há navegação de fato.
             opcoes = ["Novo processo", "Processos"]
             if tem_precos:
-                opcoes.append("Pesquisa de Preços")
+                opcoes.append(rotulo_precos)
             if tem_parecer:
                 opcoes.append("Parecer Jurídico")
             if tem_demanda:
