@@ -87,3 +87,16 @@ item (`estatisticas.decisoes` e memória).
 
 **Próximo gate:** G2 — serviço `cotacoes.py` e telas Minhas Cotações /
 Elaborar Cotação com manual e automático no mesmo item.
+
+---
+
+## G2 — ambiente unificado · PASS (parcial: suíte completa não rerodada)
+
+- **Commit:** G1 = `eb9bbab`; G2 = este commit.
+- **Serviço único** `src/precos/cotacoes.py`: criar/listar/duplicar/arquivar, itens validados (incluir, editar, retirar sem apagar, reordenar), `pesquisar_item` com modo `manual` e `automatico` no MESMO caminho (`busca.coletar` → `cesta.recalcular_e_gravar`), decisões de cesta preservadas em nova busca, diagnóstico (fonte indisponível / zero / sem comparáveis / amostra insuficiente), busca registrada na trilha, lote reentrante, controle otimista com compensação, estado da cotação derivado por transições declaradas.
+- **Telas** `src/ui/cotacoes_ui.py` (flag `unified_quotations`, OFF): Minhas Cotações → Nova cotação → Elaborar Cotação (itens | busca e resultados | cesta), Cotação automática no cabeçalho e por item, relatório e aplicação pelos serviços existentes. Com a flag ligada, o menu mostra só "Cotações".
+- **Concorrência real no Streamlit:** a revisão VISTA pela aba é guardada; a aba velha recebe conflito e reaplica (provado no AppTest).
+- **Provas:** `tests/test_cotacoes_g2_servico.py` (13) e `tests/test_cotacoes_g2_ui.py` (5); recorte cotações/preços/navegação: 580 passed, 88 skipped, 0 failed.
+- **Demo sintética:** `scripts/demo_cotacoes.py` (banco em memória, fontes sintéticas, acesso ao banco real bloqueado) — conferida no navegador: Cotação automática do item 1 → 6/3 considerados, R$ 24,27, valor provisório com discrepante sinalizado.
+
+**Pendente:** G3 (filtros/fontes adicionais e prova adversarial dedicada), G4 (seletor Jev barato com calibração), G5 (registro de emissão com hash do arquivo, prévia), G6 (E2E 50/210 no serviço novo, benchmark "depois", screenshots, matriz de substituição e consolidação de `execucao.executar_lote`), suíte completa após o G2.

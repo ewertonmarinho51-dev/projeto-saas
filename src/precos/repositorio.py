@@ -292,7 +292,8 @@ def listar_pesquisas(limite: int = 20,
         consulta = (
             _cliente().table(TABELA_PESQUISAS)
             .select("id, nome, objeto, estado, versao, raiz_id, "
-                    "valor_global, processo_id, atualizado_em"))
+                    "valor_global, processo_id, atualizado_em, criado_em, "
+                    "responsavel, perfil_normativo, auth_user_id"))
         if processo_id:
             consulta = consulta.eq("processo_id", processo_id)
         resposta = (consulta.order("atualizado_em", desc=True)
@@ -493,6 +494,60 @@ def listar_itens(pesquisa_id: str) -> list[dict]:
     except SemSessao:
         raise
     except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+
+
+CAMPOS_DO_ITEM = frozenset({"codigo", "tipo_catalogo", "descricao", "unidade",
+                            "quantidade", "lote", "uf", "removido_em",
+                            "numero"})
+
+
+def atualizar_item(item_id: str, campos: dict,
+                   revisao_esperada: int | None = None) -> dict:
+    """
+    Campos DESCRITIVOS do item (lista de permitidos). Estado vai por
+    `mover_item`; preço, por `atualizar_estimativa`. `lote`, `uf` e
+    `removido_em` são da 0029.
+    """
+    fora = sorted(set(campos) - CAMPOS_DO_ITEM)
+    if fora:
+        raise ValueError(f"{', '.join(fora)}: não é campo descritivo do item")
+    campos = dict(campos)
+    if "quantidade" in campos:
+        campos["quantidade"] = _numero(campos["quantidade"])
+    try:
+        return _update_item(item_id, campos, revisao_esperada)
+    except db.ErroBanco:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+
+
+def itens_de_varias(pesquisa_ids: list[str]) -> list[dict]:
+    """
+    Itens de várias pesquisas numa consulta só — o resumo de "Minhas
+    Cotações" (itens, 3+ considerados, pendências) não pode custar uma
+    consulta por linha da lista.
+    """
+    if not pesquisa_ids:
+        return []
+    try:
+        resposta = (_cliente().table(TABELA_ITENS)
+                    .select("id, pesquisa_id, numero, estado, estatisticas, "
+                            "preco_total, removido_em")
+                    .in_("pesquisa_id", list(pesquisa_ids)).execute())
+        return resposta.data or []
+    except SemSessao:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        texto = str(exc).lower()
+        if "removido_em" in texto:
+            # banco ainda sem a 0029: a lista funciona sem a coluna
+            resposta = (_cliente().table(TABELA_ITENS)
+                        .select("id, pesquisa_id, numero, estado, "
+                                "estatisticas, preco_total")
+                        .in_("pesquisa_id", list(pesquisa_ids)).execute())
+            return resposta.data or []
         raise db._traduzir_erro(exc) from exc  # noqa: SLF001
 
 

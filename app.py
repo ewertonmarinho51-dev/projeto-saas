@@ -156,6 +156,16 @@ if pagina == "Processos":
 
     processos_ui.render_processos()
     st.stop()
+if pagina == "Cotações":
+    # Cotações unificadas (flag `unified_quotations`, default OFF): a
+    # MESMA entidade da Pesquisa de Preços, numa tela única. Desligada, a
+    # navegação volta a oferecer "Pesquisa de Preços".
+    from src.ui import cotacoes_ui
+
+    if cotacoes_ui.disponivel():
+        cotacoes_ui.render_cotacoes()
+        st.stop()
+    components.ir_para_pagina("Novo processo")
 if pagina == "Pesquisa de Preços":
     # Módulo de pesquisa de preços (flag `price_research`, default OFF).
     # Importado aqui, e não no topo, para que o app carregue exatamente

@@ -150,6 +150,26 @@ def _decimal(valor) -> Decimal | None:
         return None
 
 
+def unidades_do_dicionario() -> list[str]:
+    """As unidades que o item pode ter — as do dicionário canônico."""
+    from ..precos import unidades
+
+    return unidades.unidades_aceitas()
+
+
+def _data_curta(valor) -> str:
+    try:
+        return date.fromisoformat(str(valor or "")[:10]).strftime("%d/%m/%Y")
+    except ValueError:
+        return ""
+
+
+def _itens_ativos(pesquisa_id: str) -> list[dict]:
+    """Itens da pesquisa sem os retirados (Cotações, migração 0029)."""
+    return [i for i in repo.listar_itens(pesquisa_id)
+            if not i.get("removido_em")]
+
+
 def _ir(tela: str, **estado) -> None:
     st.session_state[TELA] = tela
     for chave, valor in estado.items():
@@ -1790,7 +1810,8 @@ def _render_encerramento_do_item(item: dict) -> None:
         st.rerun()
 
 
-def render_metodo_do_item(pesquisa: dict, item: dict) -> None:
+def render_metodo_do_item(pesquisa: dict, item: dict, *,
+                          revisao: int | None = None) -> None:
     """
     Seletor do método do item, com justificativa (dossiê BP, tema 5a).
 
@@ -1821,12 +1842,19 @@ def render_metodo_do_item(pesquisa: dict, item: dict) -> None:
             cesta_mod.escolher_metodo(
                 pesquisa, item, repo, perfil=perfil_atual, metodo=escolhido,
                 justificativa=justificativa, ator=_identidade()[0] or None,
-                revisao_esperada=_revisao(item))
+                revisao_esperada=revisao if revisao is not None
+                else _revisao(item))
         except (ValueError, db.ErroBanco) as erro:
             st.error(str(erro))
             return
+        _renovar_revisao_vista(item)
         st.success("Método aplicado e preço recalculado.")
         st.rerun()
+
+
+def _renovar_revisao_vista(item: dict) -> None:
+    """Gravou: a próxima tela guarda a versão nova (ver `cotacoes_ui`)."""
+    st.session_state.pop(f"_cot_rev_{item['id']}", None)
 
 
 def _revisao(item: dict) -> int | None:
@@ -1835,7 +1863,8 @@ def _revisao(item: dict) -> int | None:
     return int(valor) if valor not in (None, "") else None
 
 
-def render_excecao_do_item(pesquisa: dict, item: dict) -> None:
+def render_excecao_do_item(pesquisa: dict, item: dict, *,
+                           revisao: int | None = None) -> None:
     """
     Exceção formal à regra dos três (pacote U05): modelo editável,
     fundamento, aprovador e declaração de aprovação nos autos. O item
@@ -1885,10 +1914,12 @@ def render_excecao_do_item(pesquisa: dict, item: dict) -> None:
                 fundamento=fundamento, aprovador=aprovador,
                 aprovacao_declarada=declarada,
                 ator=_identidade()[0] or None,
-                revisao_esperada=_revisao(item))
+                revisao_esperada=revisao if revisao is not None
+                else _revisao(item))
         except (cesta_mod.ExcecaoInvalida, db.ErroBanco) as erro:
             st.error(f"Exceção não registrada: {erro}.")
             return
+        _renovar_revisao_vista(item)
         st.success("Exceção registrada. O item foi para revisão — conclua-o "
                    "depois de conferir a memória de cálculo.")
         st.rerun()
@@ -2111,7 +2142,7 @@ def _render_relatorios(pesquisa: dict) -> None:
         "O relatório completo é a memória do ato: traz também o que foi "
         "descartado, e por quê.")
 
-    itens = repo.listar_itens(str(pesquisa["id"]))
+    itens = _itens_ativos(str(pesquisa["id"]))
     if not itens:
         st.caption("Sem itens, não há o que relatar.")
         return
@@ -2305,7 +2336,7 @@ def _render_aplicacao(pesquisa: dict) -> None:
         return
 
     dados = st.session_state.get("dados") or {}
-    itens_pesquisa = repo.listar_itens(str(pesquisa["id"]))
+    itens_pesquisa = _itens_ativos(str(pesquisa["id"]))
     _, mudancas, recusas = aplicacao.aplicar(dados, pesquisa, itens_pesquisa)
 
     if not mudancas:

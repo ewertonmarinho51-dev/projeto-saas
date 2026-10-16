@@ -1247,3 +1247,65 @@ div[data-testid="stHorizontalBlock"]:has(.gc-step-marker)
         padding-bottom: calc(14px + env(safe-area-inset-bottom));
     }
 }
+
+/* ------------------------------------------------------------------
+   Cotações — chips de decisão e cesta do item.
+   Só tokens existentes; o que decide vem antes do texto longo.
+   ------------------------------------------------------------------ */
+.gc-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 2px 0 6px;
+}
+
+.gc-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border: 1px solid var(--gc-border);
+    border-radius: 999px;
+    background: var(--gc-surface);
+    color: var(--gc-text);
+    font-size: 0.78rem;
+    line-height: 1.45;
+    white-space: nowrap;
+}
+
+.gc-chip[data-tone="success"] {
+    border-color: transparent;
+    background: var(--gc-success-soft);
+    color: #0B6F64;
+}
+
+.gc-chip[data-tone="warning"] {
+    border-color: transparent;
+    background: var(--gc-warning-soft);
+    color: #92400E;
+}
+
+.gc-chip[data-tone="danger"] {
+    border-color: transparent;
+    background: var(--gc-danger-soft);
+    color: #991B1B;
+}
+
+.gc-chip[data-tone="info"] {
+    border-color: transparent;
+    background: var(--gc-blue-soft);
+    color: var(--gc-blue);
+}
+
+.gc-cesta-preco {
+    margin: 0;
+    color: var(--gc-navy);
+    font-size: 1.7rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+}
+
+.gc-cesta-legenda {
+    margin: 0 0 6px;
+    color: var(--gc-muted);
+    font-size: 0.82rem;
+}
