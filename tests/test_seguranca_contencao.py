@@ -1531,7 +1531,10 @@ TABELAS_PRIVADAS = tabelas_do_inventario()
 # 0028 (aplicada em 08/10/2026) — a separação entre "está em produção" e
 # "o repositório descreve" deixou de existir para as quinze, e mantê-la
 # faria o inventário afirmar o contrário do que o catálogo mostra.
-TABELAS_EM_PRODUCAO = 43
+# Mais `pesquisa_preco_emissoes` da 0029, aplicada em 16/10/2026: o
+# catálogo mostrou 44 tabelas em `public`, as 44 com RLS (somente
+# SELECT em pg_tables).
+TABELAS_EM_PRODUCAO = 44
 
 # As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
 # inclui, mas porque são as únicas cuja implantação esta suíte
@@ -1566,6 +1569,10 @@ TABELAS_DA_MULTI_PREFEITURA = frozenset({
 # aparecesse na 0020 obrigaria a reescrever uma migração já auditada —
 # que é como uma matriz de segurança começa a divergir do banco.
 TABELAS_DO_CACHE_DE_GERACAO = frozenset({"cache_geracoes"})
+
+# A da 0029 (Cotações unificadas), aplicada em 16/10/2026. Matriz de RLS
+# no arquivo da própria 0029, pelo mesmo argumento da 0028.
+TABELAS_DAS_COTACOES = frozenset({"pesquisa_preco_emissoes"})
 
 
 def test_o_inventario_cobre_todas_as_tabelas():
@@ -1857,6 +1864,21 @@ def _sql_da_0028() -> str:
     raise AssertionError("a 0028 sumiu do repositório")
 
 
+def _sql_da_0029() -> str:
+    """
+    A 0029 traz a matriz de `pesquisa_preco_emissoes` — RLS ligada e
+    FORÇADA, duas políticas nominais, grants explícitos, revoke de `anon`
+    e conferência que falha sozinha. Mesmas duas formas de nome da 0028.
+    """
+    migracoes = Path(__file__).resolve().parent.parent / "supabase/migrations"
+    for nome in ("0029_cotacoes_unificadas.sql",
+                 "0029_cotacoes_unificadas.sql.NAO_APLICAR"):
+        caminho = migracoes / nome
+        if caminho.exists():
+            return caminho.read_text(encoding="utf-8")
+    raise AssertionError("a 0029 sumiu do repositório")
+
+
 def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     """
     Cobertura declarada = cobertura escrita. Tabela que não aparece em
@@ -1881,7 +1903,7 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     "tabela sem RLS" quando o caso é "matriz escrita noutro arquivo".
     """
     coberto = (_sql_da_0020() + _sql_da_0021() + _sql_da_0025()
-               + _sql_da_0028())
+               + _sql_da_0028() + _sql_da_0029())
     faltando = [t for t in TABELAS_PRIVADAS if t not in coberto]
     assert not faltando, f"sem matriz de RLS escrita: {faltando}"
 
@@ -1889,7 +1911,7 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     # ter silenciosamente assumido tabela que era da 0020.
     sql_0020 = _sql_da_0020()
     proprias = (TABELAS_DA_PESQUISA_DE_PRECOS | TABELAS_DA_MULTI_PREFEITURA
-                | TABELAS_DO_CACHE_DE_GERACAO)
+                | TABELAS_DO_CACHE_DE_GERACAO | TABELAS_DAS_COTACOES)
     for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 
