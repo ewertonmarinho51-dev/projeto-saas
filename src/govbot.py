@@ -93,7 +93,10 @@ CHAVES_EVENTO = (
 _log = logging.getLogger("govdocs.govbot")
 _RE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{7,127}$")
 _RE_BLOCO = re.compile(
-    r"^(dfd|etp|mapa_riscos|tr)/(?:preambulo/\d+|clausula/\d+(?:\.\d+)?/\d+)$")
+    r"^(dfd|etp|mapa_riscos|tr)/(?:"
+    r"preambulo/(?:\d+|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})|"
+    r"clausula/\d+(?:\.\d+)?/(?:\d+|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})"
+    r")$")
 _RE_CLAUSULA_FUTURA = re.compile(
     r"^(dfd|etp|mapa_riscos|tr)/clausula/\d+(?:\.\d+)?$")
 _RE_MATERIAL = re.compile(

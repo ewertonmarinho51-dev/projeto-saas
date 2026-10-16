@@ -66,6 +66,13 @@ Divergência desfaz o grupo e verifica a origem. A prova automatizada atual usa
 stub explícito do objeto WASM; seleção GovBot, Undo posterior no navegador real
 e coordenação de múltiplos canvas permanecem pendentes.
 
+A captura de seleção agora é um comando servidor, ligado à revisão/hash limpos.
+O texto retornado serve apenas para resolver um bloco integral único entre paths
+já autorizados por finding do owner; posição do navegador nunca vira endereço
+de patch. Edição invalida a seleção. Propostas manuais e do gateway GovBot
+existente passam pelo mesmo compilador e diff; a prova com browser/bundle reais
+permanece aberta.
+
 ## Gates da missão integral
 
 | Gate | Estado | Evidência e lacuna material |

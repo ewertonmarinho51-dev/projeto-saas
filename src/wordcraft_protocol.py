@@ -20,7 +20,8 @@ PROTOCOL = "gc-wordcraft/v1"
 MAX_BYTES = 8 * 1024 * 1024
 MAX_EVENTS = 10_000
 EVENTS = frozenset({"document.loaded", "document.changed", "document.checkpoint", "document.retry",
-                    "document.frozen", "document.released", "document.control_failed"})
+                    "document.frozen", "document.released", "document.control_failed",
+                    "document.selection"})
 CHECKPOINT_SCHEMA = "gc-wordcraft-snapshot/v1"
 FIELDS = frozenset({"protocol", "request_id", "instance_id", "session_id",
                     "document_id", "expected_revision", "event", "sequence",
@@ -87,6 +88,7 @@ class Ponte:
     _frozen: dict | None = field(default=None, init=False, repr=False)
     _control_failure: dict | None = field(default=None, init=False, repr=False)
     _control_ids: set[str] = field(default_factory=set, init=False, repr=False)
+    _selection: dict | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
         if not isinstance(self.origin, str):
@@ -157,6 +159,17 @@ class Ponte:
                 raise ErroPonte("Retry não corresponde ao checkpoint pendente.")
             checkpoint = self._pending
             next_state = "saving"
+        elif kind == "document.selection":
+            _campos(payload, {"command_id", "text"})
+            command = self._control
+            text = payload["text"]
+            if (not command or command.get("action") != "selection"
+                    or _uuid(payload["command_id"]) != command["command_id"]
+                    or self.state not in {"ready", "saved"} or self._pending is not None
+                    or not isinstance(text, str) or not text.strip()
+                    or len(text.encode("utf-8")) > 64 * 1024):
+                raise ErroPonte("Seleção não solicitada, vazia ou divergente.")
+            next_state = self.state
         elif kind in {"document.frozen", "document.released", "document.control_failed"}:
             fields = ({"command_id", "content_hash", "generation"} if kind == "document.frozen"
                       else {"command_id", "reason"} if kind == "document.control_failed" else {"command_id"})
@@ -211,6 +224,8 @@ class Ponte:
         self.state = next_state
         if kind == "document.changed" and self._pending:
             self._changed_while_saving = True
+        if kind == "document.changed":
+            self._selection = None
         if checkpoint and kind == "document.checkpoint":
             self._pending = checkpoint
             self._changed_while_saving = False
@@ -221,6 +236,10 @@ class Ponte:
             self._frozen = self._control = None
         elif kind == "document.control_failed":
             self._control_failure = dict(payload)
+            self._control = None
+        elif kind == "document.selection":
+            self._selection = dict(command_id=payload["command_id"], revision=self.revision,
+                                   content_hash=self.content_hash, text=payload["text"])
             self._control = None
         return checkpoint
 
@@ -248,6 +267,25 @@ class Ponte:
 
     def falha_controle(self) -> dict | None:
         return dict(self._control_failure) if self._control_failure else None
+
+    def solicitar_selecao(self, command_id: str):
+        """Pede a seleção da Session limpa; o texto continua sendo hint não autoritativo."""
+        _uuid(command_id)
+        if (self.state not in {"ready", "saved"} or self._pending is not None
+                or self._control is not None or self._frozen is not None
+                or command_id in self._control_ids or len(self._control_ids) >= MAX_EVENTS):
+            raise ErroPonte("Seleção exige revisão confirmada e nova operação.")
+        self._control_ids.add(command_id)
+        self._control_failure = None
+        self._control = dict(schema="gc-wordcraft-control/v1", command_id=command_id,
+            action="selection", revision=self.revision, content_hash=self.content_hash)
+
+    def selecao_atual(self) -> dict | None:
+        if (not self._selection or self._selection["revision"] != self.revision
+                or self._selection["content_hash"] != self.content_hash
+                or self.state not in {"ready", "saved"}):
+            return None
+        return dict(self._selection)
 
     def liberar_bloqueio(self, command_id: str):
         if not self.canvas_bloqueado() or _uuid(command_id) != self._frozen["command_id"]:
@@ -342,6 +380,7 @@ class Ponte:
         self.content_hash = content_hash
         self._last_ack = (request_id, revision, content_hash)
         self._pending = None
+        self._selection = None
         if (self._control and self._control.get("action") == "patch"
                 and self._control.get("command_id") == request_id):
             self._control = None

@@ -200,11 +200,27 @@ export class EditorController {
     if (typeof command !== 'object' || Array.isArray(command)
         || controlFields !== expectedFields
         || command.schema !== 'gc-wordcraft-control/v1' || typeof command.command_id !== 'string'
-        || !uuidPattern.test(command.command_id) || !['freeze', 'release', 'patch'].includes(command.action)
+        || !uuidPattern.test(command.command_id) || !['freeze', 'release', 'patch', 'selection'].includes(command.action)
         || typeof command.content_hash !== 'string' || !hashPattern.test(command.content_hash)
         || !Number.isSafeInteger(command.revision) || command.revision < 0) throw new Error('Controle inválido.');
     const identity = command.command_id + ':' + command.action;
     if (this.lastControl === identity) return;
+    if (command.action === 'selection') {
+      if (this.pending || !['ready', 'saved'].includes(this.state)
+          || command.revision !== this.revision || command.content_hash !== this.currentHash) {
+        throw new Error('Selection control invalid or stale.');
+      }
+      const selection = JSON.parse(this.native.selection());
+      if (!selection || Array.isArray(selection) || Object.keys(selection).sort().join(',') !== 'positions,text'
+          || !selection.positions || typeof selection.positions !== 'object'
+          || JSON.stringify(selection.positions).length > 64 * 1024 || typeof selection.text !== 'string'
+          || !selection.text.trim() || new TextEncoder().encode(selection.text).length > 64 * 1024) {
+        throw new Error('Native selection invalid.');
+      }
+      this.lastControl = identity;
+      this.publish('document.selection', {command_id: command.command_id, text: selection.text});
+      return;
+    }
     if (command.action === 'patch') {
       if (this.state === 'frozen' || this.pending || !['ready', 'saved'].includes(this.state)
           || command.revision !== this.revision || command.content_hash !== this.currentHash

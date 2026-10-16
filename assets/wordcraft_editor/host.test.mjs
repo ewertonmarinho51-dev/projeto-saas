@@ -66,6 +66,7 @@ async function setup({awaitFrame} = {}) {
       if (!this.patchBytes) throw new Error('no authorized patch fixture');
       this.beforePatch = this.bytes; this.bytes = this.patchBytes; this.gen++; this.unsaved = true;
     },
+    selection() { return JSON.stringify({positions: [0, 1], text: this.selectedText || ''}); },
     undo() { assert.ok(this.beforePatch); this.bytes = this.beforePatch; this.beforePatch = null; this.gen++; this.unsaved = false; },
     acknowledge_checkpoint(id) { assert.equal(id, this.pending.id); this.unsaved = this.gen !== this.pending.gen; this.pending = null; },
     dispose() { this.disposed = true; this.locked = false; this.ready = false; }};
@@ -94,6 +95,20 @@ test('authorized patch changes the live session and emits one correlated checkpo
   assert.equal(sent.filter(x => x.event === 'document.checkpoint').length, 1);
   c.receive(ack(data, cp));
   assert.equal(c.state, 'saved'); assert.equal(c.revision, 1);
+});
+
+test('selection is read from the live native session and bound to the clean revision', async () => {
+  const {native, controller: c, sent} = await setup();
+  native.selectedText = 'trecho selecionado';
+  const command = {schema: 'gc-wordcraft-control/v1', action: 'selection',
+    command_id: crypto.randomUUID(), revision: c.revision, content_hash: c.currentHash};
+  await c.control(command);
+  assert.equal(sent.at(-1).event, 'document.selection');
+  assert.deepEqual(sent.at(-1).payload, {command_id: command.command_id, text: native.selectedText});
+  await c.control(command);
+  assert.equal(sent.filter(x => x.event === 'document.selection').length, 1);
+  native.edit(); c.changed();
+  await assert.rejects(c.control({...command, command_id: crypto.randomUUID()}));
 });
 
 test('stale or divergent patch never receives a checkpoint', async () => {

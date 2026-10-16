@@ -166,3 +166,16 @@ def test_checkpoint_de_patch_confirma_lote_antes_do_ack_do_canvas(monkeypatch):
     assert session[ui._chave("tr", "patch_receipt")] is batch_receipt
     assert session[ui._chave("tr", "document")].payload == b"patched"
     assert session[ui._chave("tr", "history")][-1]["canvas_confirmado"] is True
+
+
+def test_trilha_d_captura_selecao_prepara_diff_e_nao_aceita_lote_multicanvas():
+    source = (Path(__file__).parents[1] / "src/ui/wordcraft_operacional.py").read_text(encoding="utf-8")
+    render = source[source.index("def render(doc_key") : source.index("def render_sucesso")]
+    assert "bridge.solicitar_selecao(" in render
+    assert "bridge.selecao_atual()" in render
+    assert "propositor_selecao(" in render
+    assert "propositor_govbot_selecao(" in render
+    assert "Gerar proposta com GovBot" in render
+    assert "service.preparar_patches(" in render
+    assert "len(preparation.resultados) == len(preparation.comandos) == 1" in render
+    assert "Aplicar proposta no canvas" in render and "Rejeitar proposta" in render

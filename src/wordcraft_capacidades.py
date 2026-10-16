@@ -142,6 +142,77 @@ def propositor(correcao: CorrecaoContextual, *, caminho: str | None = None):
     return propor
 
 
+def propositor_selecao(*, doc_key: str, texto_selecionado: str,
+                       novo_texto: str, motivo: str):
+    """Resolve seleção não confiável contra um único bloco/finding autorizado.
+
+    A seleção só escolhe entre paths que o owner acabou de projetar e auditar.
+    Como o aplicador atual substitui parágrafo inteiro, a seleção também precisa
+    corresponder ao conteúdo integral de um único bloco.
+    """
+    if (not isinstance(doc_key, str) or not doc_key or
+            not isinstance(texto_selecionado, str) or not texto_selecionado.strip()):
+        raise ErroCapacidade("Seleção contextual vazia.")
+
+    def propor(*, relatorio, snapshot, contexto):
+        del contexto
+        try:
+            blocos_doc = snapshot["documentos"][doc_key]["blocos"]
+            paths = [item["path"] for item in blocos_doc
+                     if item.get("conteudo") == texto_selecionado]
+            candidatos = [(finding, path) for finding in relatorio["findings"]
+                if finding.get("documentId") == doc_key
+                and finding.get("autoCorrectable") is True
+                and not finding.get("sourceIds")
+                for path in paths if path in (finding.get("allowedPaths") or ())
+                and path not in set(finding.get("blockedPaths") or ())]
+        except (KeyError, TypeError, AttributeError):
+            raise ErroCapacidade("Seleção não corresponde ao snapshot nativo.") from None
+        if len(paths) != 1 or len(candidatos) != 1:
+            raise ErroCapacidade("Seleção ambígua, parcial ou sem finding autocorrigível único.")
+        finding, path = candidatos[0]
+        return compilar_correcao(CorrecaoContextual(
+            Capacidade.GOVBOT, finding["findingId"], novo_texto, motivo),
+            relatorio=relatorio, snapshot=snapshot, caminho=path)
+    return propor
+
+
+def propositor_govbot_selecao(*, doc_key: str, texto_selecionado: str,
+                              pedido: str, chamar=None):
+    """Usa o gateway GovBot existente e recompila a resposta pelo owner G4."""
+    if not isinstance(pedido, str) or not pedido.strip():
+        raise ErroCapacidade("Pedido ao GovBot vazio.")
+
+    def propor(*, relatorio, snapshot, contexto):
+        # Primeiro resolve o único alvo permitido sem confiar no navegador.
+        probe = propositor_selecao(doc_key=doc_key, texto_selecionado=texto_selecionado,
+                                   novo_texto="__probe__", motivo="probe")
+        operation = probe(relatorio=relatorio, snapshot=snapshot, contexto=contexto)["operations"][0]
+        path = operation["path"]
+        finding = next(item for item in relatorio["findings"]
+                       if item.get("findingId") == operation["findingId"])
+        from . import govbot
+        process = contexto.get("processo") if isinstance(contexto, dict) else {}
+        facts = contexto.get("fatos") if isinstance(contexto, dict) else ()
+        ctx = govbot.GovBotContext(
+            processo_id=str((process or {}).get("id") or "") or None,
+            etapa=0, documento=doc_key, bloco_em_foco=path,
+            valor_atual=texto_selecionado,
+            dados_relevantes=(process or {}).get("dados") or {},
+            fatos_relevantes=tuple(facts or ()), achados=(finding,))
+        intent = govbot.consultar_ia(ctx, pedido, chamar,
+            alvos_permitidos=(path,), fontes_permitidas=())
+        if (intent.action not in {"suggest_section_patch", "apply_section_patch"}
+                or intent.target != path or intent.sources):
+            raise ErroCapacidade("GovBot não produziu proposta textual aplicável à seleção.")
+        value = intent.payload.get("new_value")
+        reason = str(intent.payload.get("reason") or intent.response or "Sugestão GovBot.")
+        return compilar_correcao(CorrecaoContextual(
+            Capacidade.GOVBOT, operation["findingId"], value, reason),
+            relatorio=relatorio, snapshot=snapshot, caminho=path)
+    return propor
+
+
 def parecer_para_correcao(apontamento, *, novo_texto: str,
                           source_ids: Iterable[str] = ()) -> CorrecaoContextual | dict:
     """Só apontamento objetivo vira proposta; os demais ficam pendentes."""

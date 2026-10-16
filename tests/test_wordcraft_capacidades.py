@@ -6,12 +6,13 @@ from src import parecer_correcao
 from src.wordcraft_capacidades import (
     ABAS, Capacidade, CorrecaoContextual, ErroCapacidade,
     compilar_correcao, montar_itens, painel_unico, parecer_para_correcao,
-    propositor, snapshot_template, verificar_evidencia,
+    propositor, propositor_govbot_selecao, propositor_selecao,
+    snapshot_template, verificar_evidencia,
 )
 
 
 def _estado(source_ids=()):
-    path = "tr/body/paragraph/4"
+    path = "tr/clausula/4/11111111-1111-1111-1111-111111111111"
     report = {"findings": [{"findingId": "F1", "documentId": "tr",
         "autoCorrectable": True, "allowedPaths": [path], "blockedPaths": [],
         "sourceIds": list(source_ids)}]}
@@ -43,6 +44,56 @@ def test_propositor_tem_assinatura_do_documento_service():
     report, snapshot, _ = _estado()
     fn = propositor(CorrecaoContextual(Capacidade.GOVBOT, "F1", "novo", "seleção"))
     assert fn(relatorio=report, snapshot=snapshot, contexto={"segredo": "ignorado"})["operations"]
+
+
+def test_propositor_de_selecao_resolve_um_unico_bloco_e_finding_backend():
+    report, snapshot, path = _estado()
+    fn = propositor_selecao(doc_key="tr", texto_selecionado="antes",
+                            novo_texto="depois", motivo="melhorar clareza")
+    operation = fn(relatorio=report, snapshot=snapshot, contexto={})["operations"][0]
+    assert operation["path"] == path and operation["expectedOldHash"] == "a" * 64
+    assert operation["newValue"] == "depois" and operation["findingId"] == "F1"
+
+
+@pytest.mark.parametrize("case", ["partial", "duplicate", "source", "blocked"])
+def test_propositor_de_selecao_recusa_hint_ambiguo_ou_sem_autorizacao(case):
+    report, snapshot, path = _estado()
+    selected = "ant" if case == "partial" else "antes"
+    if case == "duplicate":
+        snapshot["documentos"]["tr"]["blocos"].append(
+            {"path": "tr/body/paragraph/5", "hash": "b" * 64, "conteudo": "antes"})
+    if case == "source": report["findings"][0]["sourceIds"] = ["fato:1"]
+    if case == "blocked": report["findings"][0]["blockedPaths"] = [path]
+    fn = propositor_selecao(doc_key="tr", texto_selecionado=selected,
+                            novo_texto="depois", motivo="ajuste")
+    with pytest.raises(ErroCapacidade):
+        fn(relatorio=report, snapshot=snapshot, contexto={})
+
+
+def test_propositor_govbot_reusa_gateway_e_recompila_resposta_declarativa():
+    report, snapshot, path = _estado()
+    calls = []
+    def model(system, user, **kwargs):
+        calls.append((system, user, kwargs))
+        import json
+        return json.dumps({"intent": "suggest_section_patch", "response": "Sugestão pronta",
+            "target": path, "payload": {"new_value": "texto sugerido", "reason": "clareza"},
+            "sources": []})
+    fn = propositor_govbot_selecao(doc_key="tr", texto_selecionado="antes",
+                                   pedido="Melhore a clareza", chamar=model)
+    result = fn(relatorio=report, snapshot=snapshot,
+                contexto={"processo": {"id": "p", "dados": {}}, "fatos": []})
+    assert result["operations"][0]["newValue"] == "texto sugerido"
+    assert calls[0][2]["finalidade"] == "govbot"
+
+
+def test_propositor_govbot_recusa_resposta_que_nao_e_patch():
+    report, snapshot, _ = _estado()
+    fn = propositor_govbot_selecao(doc_key="tr", texto_selecionado="antes", pedido="Explique",
+        chamar=lambda *a, **k: '{"intent":"explain_current","response":"x","target":null,"payload":{},"sources":[]}')
+    with pytest.raises(ErroCapacidade):
+        fn(relatorio=report, snapshot=snapshot,
+           contexto={"processo": {"id": "p", "dados": {}}, "fatos": []})
 
 
 @pytest.mark.parametrize("mudanca", ["finding", "path", "source"])

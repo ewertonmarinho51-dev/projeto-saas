@@ -19,6 +19,8 @@ from ..documentos_editor import (AcessoNegado, ConflitoDocumento,
                                  VinculoAprovacao)
 from ..wordcraft_protocol import Ponte
 from ..wordcraft_runtime import ErroRuntime, Runtime, carregar
+from ..wordcraft_capacidades import (ErroCapacidade, propositor_govbot_selecao,
+                                     propositor_selecao)
 from .wordcraft_editor import render_editor
 from .wordcraft_painel import modelo as modelo_painel, renderizar as renderizar_painel
 
@@ -170,8 +172,54 @@ def render(doc_key: str, meta: dict) -> None:
     render_editor(bridge, document.payload, module_url=runtime.module_url,
                   wasm_url=runtime.wasm_url,
                   on_edit_change=lambda: _receber(doc_key, service))
+    preparation_key = _chave(doc_key, "preparation")
+    selection = bridge.selecao_atual()
+    if st.session_state.get(preparation_key) is None:
+        if st.button("Usar seleção no GovBot", disabled=bridge.state not in {"ready", "saved"}
+                     or bridge.controle_pendente() is not None,
+                     key=_chave(doc_key, "capture_selection")):
+            bridge.solicitar_selecao(str(uuid4()))
+            st.rerun()
+        if selection is not None:
+            st.caption("Seleção vinculada à revisão atual. Para substituir, selecione o parágrafo inteiro.")
+            st.code(selection["text"][:2000])
+            request = st.text_input("Pedido ao GovBot", key=_chave(doc_key, "govbot_request"),
+                                    max_chars=2000,
+                                    placeholder="Ex.: melhore a clareza sem alterar dados materiais")
+            if st.button("Gerar proposta com GovBot", disabled=not request.strip(),
+                         key=_chave(doc_key, "prepare_govbot")):
+                operation = str(uuid5(NAMESPACE_URL, "govconnect-wordcraft-govbot:"
+                    + processo_id + ":" + doc_key + ":" + document.content_hash + ":"
+                    + selection["command_id"] + ":" + request))
+                try:
+                    st.session_state[preparation_key] = service.preparar_patches(
+                        processo_id, operation_id=operation,
+                        propor_plano=propositor_govbot_selecao(doc_key=doc_key,
+                            texto_selecionado=selection["text"], pedido=request))
+                    st.rerun()
+                except (ErroDocumento, ErroCapacidade) as error:
+                    st.error(str(error))
+            st.caption("Ou prepare uma substituição manual pelo mesmo validador canônico.")
+            replacement = st.text_area("Texto proposto para o parágrafo",
+                key=_chave(doc_key, "replacement"), max_chars=64 * 1024)
+            reason = st.text_input("Motivo da alteração", key=_chave(doc_key, "patch_reason"),
+                                   max_chars=500)
+            if st.button("Preparar proposta e diff", disabled=not replacement.strip(),
+                         key=_chave(doc_key, "prepare_patch")):
+                operation = str(uuid5(NAMESPACE_URL, "govconnect-wordcraft-selection:"
+                    + processo_id + ":" + doc_key + ":" + document.content_hash + ":"
+                    + selection["command_id"] + ":" + replacement + ":" + reason))
+                try:
+                    st.session_state[preparation_key] = service.preparar_patches(
+                        processo_id, operation_id=operation,
+                        propor_plano=propositor_selecao(doc_key=doc_key,
+                            texto_selecionado=selection["text"], novo_texto=replacement,
+                            motivo=reason or "Alteração contextual solicitada pelo usuário."))
+                    st.rerun()
+                except (ErroDocumento, ErroCapacidade) as error:
+                    st.error(str(error))
     renderizar_painel(modelo_painel(
-        preparacao=st.session_state.get(_chave(doc_key, "preparation")),
+        preparacao=st.session_state.get(preparation_key),
         evidencias=st.session_state.get(_chave(doc_key, "evidence"), ()),
         template=st.session_state.get(_chave(doc_key, "template")),
         montagem=st.session_state.get(_chave(doc_key, "assembly")),

@@ -135,6 +135,31 @@ def test_patch_control_is_server_owned_and_acknowledged_only_after_checkpoint(po
         ponte.solicitar_patch(command, plano=plan, target_hash=target)
 
 
+def test_selection_is_bound_to_clean_revision_and_invalidated_by_edit(ponte):
+    abrir(ponte)
+    command = str(uuid4())
+    ponte.solicitar_selecao(command)
+    assert ponte.controle_pendente()["action"] == "selection"
+    selected = evento(ponte, "selection", {"command_id": command, "text": "Trecho alvo"})
+    receber(ponte, selected)
+    assert ponte.selecao_atual() == {"command_id": command, "revision": 0,
+        "content_hash": DIGEST, "text": "Trecho alvo"}
+    copy = ponte.selecao_atual(); copy["text"] = "forjado"
+    assert ponte.selecao_atual()["text"] == "Trecho alvo"
+    receber(ponte, evento(ponte, "changed"))
+    assert ponte.selecao_atual() is None
+
+
+@pytest.mark.parametrize("text", ["", "   ", "x" * (64 * 1024 + 1)],
+                         ids=["empty", "blank", "oversize"])
+def test_invalid_selection_never_becomes_backend_context(ponte, text):
+    abrir(ponte); command = str(uuid4()); ponte.solicitar_selecao(command)
+    before = deepcopy(ponte.__dict__)
+    with pytest.raises(ErroPonte):
+        receber(ponte, evento(ponte, "selection", {"command_id": command, "text": text}))
+    assert ponte.__dict__ == before and ponte.selecao_atual() is None
+
+
 @pytest.mark.parametrize("mutation", ["dirty", "bad_hash", "oversize", "extra_control"])
 def test_patch_control_refuses_stale_or_unbounded_input_without_consuming_state(ponte, mutation):
     abrir(ponte)

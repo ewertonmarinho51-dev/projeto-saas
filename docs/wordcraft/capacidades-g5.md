@@ -62,6 +62,17 @@ entra no Histórico e a pilha nativa permanece disponível para Undo posterior.
 Lotes com mais de um canvas continuam bloqueados nesta UI até haver coordenação
 atômica de todos os componentes.
 
+A Session viva também pode responder a uma solicitação explícita de seleção.
+O evento fica ligado ao documento, revisão e hash limpos e é invalidado por
+qualquer edição ou ACK de nova revisão. Posições e texto do navegador não
+autorizam paths: a camada contextual exige que o texto seja o conteúdo integral
+de exatamente um bloco da projeção backend e que exatamente um finding
+autocorrigível, sem fonte material pendente, permita esse path. Seleção parcial,
+duplicada, bloqueada ou stale é recusada. O usuário pode fornecer o texto
+substituto ou pedir uma sugestão ao gateway GovBot existente. A resposta do
+modelo continua declarativa, restrita ao único path permitido, e é recompilada
+pelo mesmo owner G4; explicação, fonte ou alvo divergente não viram proposta.
+
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
 manifesto, inventário fechado, hashes/tamanhos dos assets, cabeçalho WASM,
@@ -85,8 +96,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 
 ## Pendências para fechar G5
 
-1. capturar seleção/contexto real do GovBot e provar no navegador WASM o fluxo
-   completo de proposta, diff, confirmação, Undo posterior e rejeição stale;
+1. provar no navegador WASM real o fluxo completo de seleção, geração pelo
+   GovBot, confirmação, Undo posterior e stale;
 2. completar as trilhas A–D do corpus, incluindo auditoria e parecer reais;
 3. consumir catálogo institucional, RAG vigente e montagem oficial pelos
    owners existentes em ensaio end-to-end;

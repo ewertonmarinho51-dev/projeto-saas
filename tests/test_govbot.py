@@ -9,6 +9,14 @@ import pytest
 from src import blocos, governanca, govbot
 
 
+def test_govbot_admite_ancora_nativa_uuid_e_recusa_traversal():
+    native = "tr/clausula/4/11111111-1111-1111-1111-111111111111"
+    proposal = govbot.criar_proposta_bloco(native, "antes", "depois", "clareza")
+    assert proposal.target == native
+    with pytest.raises(govbot.ErroAlvo):
+        govbot.criar_proposta_bloco("tr/clausula/4/../../segredo", "a", "b", "x")
+
+
 def _fato(path, valor, tipo="texto", campo="prazo"):
     return governanca.novo_fato(
         None, path, valor, tipo, f"formulario:{campo}", confianca=0.9)
