@@ -406,3 +406,18 @@ class ClientePrecosFalso:
         self.rpcs.append((nome, parametros))
         return types.SimpleNamespace(
             execute=lambda: types.SimpleNamespace(data=str(uuid.uuid4())))
+
+
+@pytest.fixture(autouse=True)
+def _caches_do_banco_vazios():
+    """
+    `config_app` e os módulos por prefeitura/secretaria ficam 60s em
+    `st.cache_data` — que vive no PROCESSO, não no teste. Sem limpar, a
+    prova seguinte leria o banco falso da anterior.
+    """
+    from src import db
+
+    for funcao in (db._config_app_inteira, db._modulos_do_tenant_em,
+                   db._modulos_da_secretaria_em):
+        funcao.clear()
+    yield

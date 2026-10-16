@@ -300,6 +300,70 @@ def ir_para_pagina(nome: str) -> None:
     st.session_state[CHAVE_PAGINA_PENDENTE] = nome
 
 
+# ---------------------------------------------------------------------------
+# Troca de tela sem "fantasma"
+#
+# O Streamlit redesenha por POSIÇÃO: na troca de tela, o que a tela nova
+# ainda não alcançou continua mostrando a antiga, desbotada, até o fim
+# da execução — formulário velho embaixo de cabeçalho novo, a tela
+# "desconfigurada" que o operador relatou em 16/10/2026.
+#
+# O corpo ALTERNA entre duas posições a cada troca de tela, e a posição
+# que sobra recebe um `st.empty()`. Elemento por cima de bloco descarta
+# o bloco inteiro na hora; bloco novo por cima de elemento nasce vazio.
+# O óbvio — `st.empty()` e `.container()` na MESMA posição — não
+# funciona: a fila do servidor funde os dois deltas, e bloco do mesmo
+# tipo por cima de bloco herda os filhos antigos (Streamlit 1.64,
+# `forward_msg_queue._maybe_compose_delta_msgs` e `AppRoot.addBlock`).
+#
+# As duas posições nascem ANTES do conteúdo, para o vazio chegar ao
+# navegador logo, e não depois da tela nova inteira.
+#
+# Só na TROCA: no clique dentro da mesma tela, limpar faria a página
+# piscar e perder a rolagem.
+# ---------------------------------------------------------------------------
+CHAVE_TELA_DESENHADA = "_tela_desenhada"
+CHAVE_POSICAO_DO_CORPO = "_posicao_do_corpo"
+
+# As telas internas que contam como troca de página. As chaves são as
+# de `cotacoes_ui` (TELA, COTACAO) e `precos_ui` (TELA, PESQUISA) —
+# literais para não importar os módulos aqui; a prova confere que batem.
+CHAVES_DE_TELA_INTERNA = ("cot_tela", "cot_id", "precos_tela",
+                          "precos_pesquisa_id")
+
+
+def tela_atual() -> str:
+    """Identidade da tela que esta execução vai desenhar."""
+    pagina = st.session_state.get("pagina") or "Novo processo"
+    partes = [str(pagina)]
+    if pagina == "Novo processo":
+        partes.append(str(st.session_state.get("etapa") or 0))
+    partes += [str(st.session_state.get(c) or "")
+               for c in CHAVES_DE_TELA_INTERNA]
+    return "|".join(partes)
+
+
+def corpo_da_pagina():
+    """
+    Container do conteúdo principal. Chame UMA vez por execução, sempre
+    na mesma posição, depois do cabeçalho.
+    """
+    tela = tela_atual()
+    anterior = st.session_state.get(CHAVE_TELA_DESENHADA)
+    st.session_state[CHAVE_TELA_DESENHADA] = tela
+    posicao = int(st.session_state.get(CHAVE_POSICAO_DO_CORPO) or 0)
+    if anterior is not None and anterior != tela:
+        posicao = 1 - posicao
+        st.session_state[CHAVE_POSICAO_DO_CORPO] = posicao
+    if posicao == 0:
+        corpo = st.container()
+        st.empty()
+    else:
+        st.empty()
+        corpo = st.container()
+    return corpo
+
+
 def render_sidebar() -> None:
     """Shell interno compacto; não cria rotas ou ações sem implementação."""
     # Antes de qualquer widget: é a única janela em que `pagina` ainda
