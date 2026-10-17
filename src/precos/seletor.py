@@ -81,6 +81,7 @@ class Analise:
     motivo: str
     origem: str              # 'deterministica' | 'jev' | 'cache' | 'sem_jev' | 'orcamento'
     recomendacao: str = ""   # o que o Jev sugeriu, quando sugeriu
+    escolha: str = ""        # a opção FECHADA do Jev (`decisoes.MOTIVOS`)
     custo: str | None = None
     latencia_ms: int | None = None
 
@@ -164,9 +165,15 @@ def consumo_da_cotacao(eventos: list[dict]) -> tuple[int, Decimal]:
     return chamadas, custo
 
 
-def _recomendacao(registro: dict) -> str:
+def _escolha(registro: dict) -> str:
+    """A opção fechada do Jev, para o motor de saneamento (evidência)."""
     resposta = (registro.get("response") or {}).get("answers") or {}
     escolha = (resposta.get("price_reference_mismatch") or {}).get("choice")
+    return str(escolha) if escolha in decisoes.MOTIVOS else ""
+
+
+def _recomendacao(registro: dict) -> str:
+    escolha = _escolha(registro)
     if not escolha:
         return ""
     return ("sugere comparável" if escolha == "compatible"
@@ -228,6 +235,7 @@ def propor(cotacao: dict, item: dict, linhas: list[dict], repositorio, *,
                 else:
                     analise.origem = "sem_jev"
                 analise.recomendacao = _recomendacao(registro)
+                analise.escolha = _escolha(registro)
                 # Sem calibração aprovada, a saída da IA é RECOMENDAÇÃO:
                 # a decisão continua REVIEW_REQUIRED (abstenção por padrão).
                 analise.decisao = REVISAO

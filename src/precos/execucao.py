@@ -294,7 +294,7 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
                    piso: Decimal | None = None,
                    motor_semantico=None, termos_locais: bool = False,
                    regras: str = estatistica.REGRAS_MEDIA_PADRAO,
-                   politica=None) -> ResultadoItem:
+                   politica=None, saneamento=None) -> ResultadoItem:
     """
     O pipeline de um item, do zero à estimativa.
 
@@ -383,11 +383,14 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
     cesta = estatistica.selecionar_cesta(
         ranqueadas, perfil,
         piso if piso is not None else estatistica.PISO_COMPARABILIDADE,
-        teto=politica.teto if politica is not None else None)
+        teto=politica.teto if politica is not None else None,
+        saneamento=saneamento, texto_item=str(item.get("descricao") or ""))
     if politica is not None:
-        # grava a cesta e a reserva do revisor; o resto fica contado
+        # grava a cesta, a reserva do revisor e as retidas pela triagem
+        # (com o motivo técnico); o resto fica contado
         manter = ({id(r) for r in cesta.selecionadas}
-                  | {id(r) for r in cesta.excedentes[:politica.reserva]})
+                  | {id(r) for r in cesta.excedentes[:politica.reserva]}
+                  | {id(r) for r in cesta.retidas})
         resultado.referencias = [par for par in ranqueadas
                                  if id(par[0]) in manter]
     resultado.estimativa = estatistica.estimar(
@@ -407,7 +410,8 @@ def executar_lote(pesquisa: dict, itens: list[dict],
                   tamanho: int = LOTE_PADRAO,
                   motor_semantico=None, triagem=None,
                   tentados: set[str] | None = None,
-                  politica=None) -> tuple[Progresso, list[str]]:
+                  politica=None, saneamento=None
+                  ) -> tuple[Progresso, list[str]]:
     """
     Processa um lote e PERSISTE. Devolve (progresso, linhas do relato).
 
@@ -448,7 +452,7 @@ def executar_lote(pesquisa: dict, itens: list[dict],
                 # a regra com que a PESQUISA foi criada, não a de hoje
                 regras=str(pesquisa.get("versao_regras") or
                            estatistica.REGRAS_LEGADAS),
-                politica=politica)
+                politica=politica, saneamento=saneamento)
 
             if resultado.falhou:
                 # `desfechos` e `erro` são gravados junto do estado: sem

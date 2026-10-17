@@ -33,7 +33,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from .. import db
-from . import busca, cesta, estatistica, estados, unidades
+from . import busca, cesta, estatistica, estados, saneamento, unidades
 from . import repositorio as repo
 from .estados import EstadoItem, EstadoPesquisa
 from .modelo import NATUREZAS_COMPARAVEIS, StatusReferencia
@@ -436,19 +436,34 @@ def salvar_item(ctx: Contexto, cotacao_id: str, dados: dict, *,
 
 
 def remover_item(ctx: Contexto, cotacao_id: str, item_id: str,
-                 motivo: str) -> dict:
+                 motivo: str | None = None) -> dict:
     """
     Retira o item da cotação SEM apagar (a 0021 não concede DELETE): o
-    item e as referências ficam no banco e na trilha, com o motivo.
+    item e as referências ficam no banco e na trilha.
+
+    O motivo é OPCIONAL (pacote Jev, RF-02): retirar da cotação é ato
+    operacional, e a auditoria é automática — quem, quando, qual item,
+    estado anterior. Texto voluntário é preservado; ausência não é erro.
     """
     _exigir_editavel(repo.obter_pesquisa(cotacao_id))
-    if len(str(motivo or "").strip()) < 5:
-        raise ErroCotacao("diga por que o item sai da cotação")
-    linha = repo.atualizar_item(
-        str(item_id),
-        {"removido_em": datetime.now(timezone.utc).isoformat()})
-    repo.registrar_evento(cotacao_id, "item_removido", ator=ctx.auth_user_id,
-                          item_id=str(item_id), descricao=motivo.strip())
+    item = repo.obter_item(str(item_id))
+    if not item or str(item.get("pesquisa_id")) != str(cotacao_id):
+        raise ErroCotacao("item não encontrado nesta cotação")
+    if item.get("removido_em"):
+        return item   # já retirado: repetir o clique não duplica a trilha
+    texto = str(motivo or "").strip() or None
+    removido_em = datetime.now(timezone.utc).isoformat()
+    linha = repo.atualizar_item(str(item_id), {"removido_em": removido_em})
+    repo.registrar_evento(
+        cotacao_id, "item_removido", ator=ctx.auth_user_id,
+        item_id=str(item_id),
+        descricao=texto or "item retirado da cotação pelo usuário",
+        payload={"operacao": "basket_item_removed", "origem": "user",
+                 "user_reason": texto,
+                 "estado_anterior": str(item.get("estado") or ""),
+                 "revisao": item.get("revisao"),
+                 "removido_em": removido_em},
+        idempotency_key=f"item_removido:{item_id}:{removido_em}")
     sincronizar_estado(cotacao_id)
     return linha
 
@@ -522,6 +537,9 @@ class ResultadoPesquisa:
     nao_gravadas: int = 0
     rebaixadas: int = 0
     fontes_nao_consultadas: list[str] = field(default_factory=list)
+    # triagem pré-cesta (flag de saneamento): contagem, série e as retidas
+    # com fundamento; vazio = sem saneamento, o comportamento anterior
+    saneamento: dict = field(default_factory=dict)
 
     @property
     def mensagem(self) -> str:
@@ -562,6 +580,17 @@ def politica_automatica() -> estatistica.PoliticaAmostraAutomatica | None:
     return estatistica.POLITICA_AUTOMATICA if ligada else None
 
 
+def politica_saneamento() -> saneamento.PoliticaSaneamento | None:
+    """A triagem pré-cesta, se a flag estiver ligada (rota unificada e legada)."""
+    from .. import governanca
+
+    try:
+        ligada = db.flag_ativa(governanca.FLAG_SANEAMENTO_PRE_CESTA)
+    except Exception:  # noqa: BLE001 — sem banco, sem flag
+        ligada = False
+    return saneamento.POLITICA_PADRAO if ligada else None
+
+
 def _ao_buscar(item_id: str, atual: EstadoItem) -> None:
     if atual is EstadoItem.CLASSIFICANDO:
         # sobra de uma rodada interrompida: a máquina não volta de
@@ -577,7 +606,8 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
                    modo: str = "manual", filtros: dict | None = None,
                    termo: str = "", fontes=None, motor_semantico=None,
                    seletor=None, sincronizar: bool = True,
-                   cotacao: dict | None = None) -> ResultadoPesquisa:
+                   cotacao: dict | None = None,
+                   triagem=None) -> ResultadoPesquisa:
     """
     Busca preços para UM item e grava as candidatas no próprio item.
 
@@ -630,6 +660,11 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
         fontes = [f for f in fontes
                   if getattr(getattr(f, "fonte", None), "id", "") in escolhidas]
     politica = politica_automatica() if modo == "automatico" else None
+    # `triagem` explícita (testes, lote) vale mais que a flag
+    politica_triagem = None
+    if modo == "automatico":
+        politica_triagem = (triagem if triagem is not None
+                            else politica_saneamento())
     coleta = busca.coletar(item, fontes, filtros=filtros_efetivos,
                            termos=termos, politica=politica)
     resultado = ResultadoPesquisa(
@@ -671,6 +706,8 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
 
     novas = []
     manter: set[int] = set()
+    retidas_chaves: set[tuple[str, str]] = set()
+    triagem_feita = None
     for referencia, comparabilidade in coleta.referencias:
         chave = (referencia.fonte.id, referencia.id_externo)
         anterior = existentes.get(chave)
@@ -695,10 +732,17 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
             ja = len(cesta.consideradas([l for l in existentes.values()
                                          if de_pessoa(l)]))
             teto = max(0, politica.teto - ja)
-        escolha = estatistica.selecionar_cesta(novas, perfil, teto=teto)
+        escolha = estatistica.selecionar_cesta(
+            novas, perfil, teto=teto, saneamento=politica_triagem,
+            texto_item=str(item.get("descricao") or ""))
         if politica is not None:
             manter |= {id(r) for r in escolha.selecionadas}
             manter |= {id(r) for r in escolha.excedentes[:politica.reserva]}
+        # as retidas pela triagem são GRAVADAS, com o fundamento: é o que
+        # permite revisar e reincluir (nunca descarte silencioso)
+        manter |= {id(r) for r in escolha.retidas}
+        retidas_chaves = {(r.fonte.id, r.id_externo) for r in escolha.retidas}
+        triagem_feita = escolha.triagem
     else:
         for referencia, _ in novas:
             referencia.status = StatusReferencia.CANDIDATA
@@ -729,7 +773,9 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
         rebaixadas = [str(linha["id"]) for chave, linha in existentes.items()
                       if str(linha.get("status")) in cesta.NA_CESTA
                       and not de_pessoa(linha)
-                      and chave not in na_cesta_agora]
+                      and chave not in na_cesta_agora
+                      # a retida já foi gravada com o status da triagem
+                      and chave not in retidas_chaves]
         if rebaixadas:
             repo.rebaixar_referencias(rebaixadas)
             for chave, linha in existentes.items():
@@ -760,6 +806,17 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
             resultado.ocorrencias.append(
                 "análise complementar indisponível "
                 f"({type(exc).__name__}); seleção determinística mantida")
+    pos_jev: list[dict] = []
+    if politica_triagem is not None and resultado.sugestao:
+        pos_jev = _triagem_com_jev(linhas, triagem_feita, resultado.sugestao,
+                                   de_pessoa, politica_triagem)
+    if politica_triagem is not None:
+        resultado.saneamento = {
+            **(triagem_feita.para_registro() if triagem_feita is not None
+               else {"versao": politica_triagem.versao}),
+            "politica": politica_triagem.para_registro(),
+            "pos_jev": pos_jev,
+            "resumo": saneamento.resumo_do_item(linhas, coleta.unicas)}
     resultado.estimativa = cesta.recalcular_e_gravar(
         cotacao, item, repo, perfil=perfil, linhas=linhas)
     resultado.consideradas = len(cesta.consideradas(linhas))
@@ -771,6 +828,48 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
     if sincronizar:
         sincronizar_estado(cotacao_id)
     return resultado
+
+
+def _triagem_com_jev(linhas: list[dict], triagem, sugestao: dict, de_pessoa,
+                     politica: saneamento.PoliticaSaneamento) -> list[dict]:
+    """
+    Segundo passo da triagem: a evidência do Jev sobre o que a MÁQUINA
+    pôs na cesta. Decisão de pessoa não é tocada. Quem decide é o motor
+    (`saneamento.reavaliar_com_jev`): recomendação sozinha → revisão;
+    divergência + preço atípico corroborado → desconsiderada.
+    Devolve as mudanças, para a trilha; atualiza `linhas` no lugar.
+    """
+    escolhas = {str(a.get("referencia_id")): str(a.get("escolha") or "")
+                for a in (sugestao.get("analises") or [])
+                if a.get("escolha")}
+    if not escolhas:
+        return []
+    avaliacoes = triagem.por_id() if triagem is not None else {}
+    mudancas = []
+    for linha in linhas:
+        rid = str(linha.get("id"))
+        escolha = escolhas.get(rid, "")
+        # a máquina pôs na cesta, ou a triagem mandou para revisão: o Jev
+        # acrescenta evidência; decisão de pessoa não se toca
+        if not escolha or escolha == "compatible" or de_pessoa(linha) \
+                or not (str(linha.get("status")) in cesta.NA_CESTA
+                        or saneamento.em_revisao_pela_triagem(linha)):
+            continue
+        chave = f"{linha.get('fonte_id')}:{linha.get('id_externo')}"
+        base = avaliacoes.get(chave) or saneamento.Avaliacao(
+            chave, saneamento.ELEGIVEL,
+            valor=saneamento._decimal(linha.get("valor_unitario_normalizado")))
+        nova = saneamento.reavaliar_com_jev(base, escolha, politica)
+        if nova.desfecho == saneamento.ELEGIVEL:
+            continue
+        status = saneamento.status_do_desfecho(nova.desfecho)
+        motivo = saneamento.motivo_da_avaliacao(nova, politica.versao)
+        repo.reclassificar_referencia(rid, status, motivo)
+        linha["status"] = status
+        linha["motivos"] = list(linha.get("motivos") or []) + [motivo]
+        mudancas.append({**nova.para_registro(), "referencia": rid,
+                         "escolha_jev": escolha})
+    return mudancas
 
 
 def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
@@ -796,6 +895,8 @@ def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
                  "nao_gravadas": resultado.nao_gravadas,
                  "rebaixadas": resultado.rebaixadas,
                  "fontes_nao_consultadas": resultado.fontes_nao_consultadas,
+                 **({"saneamento": resultado.saneamento}
+                    if resultado.saneamento else {}),
                  "diagnostico": resultado.diagnostico,
                  "duracao_s": round(resultado.duracao_s, 3),
                  "em": datetime.now(timezone.utc).isoformat(
@@ -845,13 +946,26 @@ def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
 # ---------------------------------------------------------------------------
 # Cesta: incluir/excluir com controle de versão; concluir item
 # ---------------------------------------------------------------------------
+# Texto AUTOMÁTICO da retirada sem justificativa: diz o que aconteceu e
+# quem fez — não inventa fundamento estatístico para o ato do usuário.
+MOTIVO_RETIRADA_AUTOMATICO = "retirada da cesta pelo usuário"
+
+
 def alterar_status_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
                               referencia_id: str, *, incluir: bool,
-                              motivo: str,
+                              motivo: str | None = None,
                               revisao_esperada: int | None = None
                               ) -> estatistica.Estimativa:
     """
-    Põe ou tira UMA referência da cesta, com motivo, e refaz o preço.
+    Põe ou tira UMA referência da cesta e refaz o preço.
+
+    Tirar não exige justificativa (pacote Jev, RF-02): o motivo é opcional
+    e a trilha é automática — ator, hora, referência, status anterior e
+    posterior, revisão do item, `user_reason` (nulo quando não houve
+    texto). Pôr continua exigindo motivo: inclusão muda o preço com base
+    no juízo de quem incluiu, e esse juízo vai para a memória de cálculo.
+    Reincluir uma referência que a triagem desconsiderou a põe na cesta
+    SINALIZADA (`warning`), para que o alerta acompanhe o preço.
 
     Precondição de versão ANTES de mexer (outra aba mudou o item? recusa
     sem gravar). Se o conflito aparecer na escrita final, a mudança da
@@ -859,8 +973,10 @@ def alterar_status_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
     conflito sobe — nada fica meio gravado.
     """
     cotacao = _exigir_editavel(repo.obter_pesquisa(cotacao_id))
-    if not str(motivo or "").strip():
-        raise ErroCotacao("registre o motivo: ele vai para a memória de cálculo")
+    texto = str(motivo or "").strip()
+    if incluir and not texto:
+        raise ErroCotacao("registre o motivo da inclusão: ele vai para a "
+                          "memória de cálculo")
     item = repo.obter_item(item_id)
     if not item or str(item.get("pesquisa_id")) != str(cotacao_id):
         raise ErroCotacao("item não encontrado nesta cotação")
@@ -878,8 +994,22 @@ def alterar_status_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
         if problema:
             raise ErroCotacao(problema)
     anterior = str(alvo.get("status"))
-    novo = "selected" if incluir else "rejected"
-    repo.reclassificar_referencia(str(referencia_id), novo, motivo.strip())
+    if not incluir and anterior == "rejected":
+        # já retirada: repetir o clique não reescreve nem duplica a trilha
+        return cesta.recalcular(
+            repo.listar_referencias(item_id),
+            perfil=obter_perfil(cotacao.get("perfil_normativo")),
+            regras=str(cotacao.get("versao_regras") or
+                       estatistica.REGRAS_LEGADAS))
+    if incluir:
+        reincluida = saneamento.desconsiderada_pelo_jev(alvo) or \
+            saneamento.em_revisao_pela_triagem(alvo)
+        novo = "warning" if reincluida else "selected"
+    else:
+        reincluida = False
+        novo = "rejected"
+    registro = texto or MOTIVO_RETIRADA_AUTOMATICO
+    repo.reclassificar_referencia(str(referencia_id), novo, registro)
     try:
         estimativa = cesta.recalcular_e_gravar(
             cotacao, item, repo,
@@ -892,9 +1022,13 @@ def alterar_status_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
         raise
     repo.registrar_evento(
         cotacao_id, "referencia_incluida" if incluir else "referencia_excluida",
-        ator=ctx.auth_user_id, item_id=item_id, descricao=motivo.strip(),
+        ator=ctx.auth_user_id, item_id=item_id, descricao=registro,
         payload={"referencia": str(referencia_id), "de": anterior,
                  "para": novo,
+                 "operacao": ("reinstated" if reincluida else "manual_included")
+                 if incluir else "manual_removed",
+                 "origem": "user", "user_reason": texto or None,
+                 "revisao_anterior": item.get("revisao"),
                  "preco_recalculado": None if estimativa.valor_unitario is None
                  else format(estimativa.valor_unitario, "f"),
                  "metodo": estimativa.metodo,

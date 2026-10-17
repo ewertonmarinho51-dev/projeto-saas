@@ -76,6 +76,8 @@ _CANONICAS = {
     "HORA": ("HORA", ("H", "HR", "HORA", "HORAS")),
     "DIARIA": ("DIARIA", ("DIARIA", "DIARIAS")),
     "MES": ("MES", ("MES", "MESES")),
+    # serviço medido por deslocamento (frete, entrega): só casa consigo
+    "VIAGEM": ("VIAGEM", ("VIAGEM", "VIAGENS")),
 }
 
 _POR_SIGLA: dict[str, str] = {}
@@ -92,6 +94,11 @@ EMBALAGENS = {"CAIXA", "PACOTE", "RESMA", "EMBALAGEM", "ROLO", "JOGO",
 
 # Conversões de GRANDEZA, onde o fator é uma constante física e não
 # depende de como o fornecedor embalou. Estas são seguras por definição.
+# Unidades de CONTAGEM do item: a embalagem converte para elas pela
+# capacidade explícita da fonte. A folha é contada como a unidade — o
+# Compras.gov registra o papel em "EMB" sempre com a capacidade em folhas.
+CONTAGEM = frozenset({"UNIDADE", "FOLHA"})
+
 _FATOR_DE_GRANDEZA = {
     ("GRAMA", "QUILOGRAMA"): Decimal("0.001"),
     ("QUILOGRAMA", "GRAMA"): Decimal("1000"),
@@ -195,12 +202,12 @@ def fator_de_conversao(origem: str | None, destino: str | None,
     # Embalagem → unidade: só com capacidade EXPLÍCITA e positiva.
     # `capacidadeUnidadeFornecimento` vem 0.0 quando não informada, e
     # tratar esse zero como "uma unidade" seria inventar o fator.
-    if o in EMBALAGENS and d == "UNIDADE":
+    if o in EMBALAGENS and d in CONTAGEM:
         if capacidade is None or capacidade <= 0:
             return None, MOTIVO_SEM_FATOR
         return capacidade, ""
 
-    if d in EMBALAGENS and o == "UNIDADE":
+    if d in EMBALAGENS and o in CONTAGEM:
         if capacidade is None or capacidade <= 0:
             return None, MOTIVO_SEM_FATOR
         return Decimal(1) / capacidade, ""

@@ -1,0 +1,1324 @@
+{
+  "massa": "sintética (pacote Jev 17/10/2026) — NÃO é dado real",
+  "politica": {
+    "versao": "2026-10-17.saneamento-v1",
+    "minimo_para_autoexclusao": 5,
+    "minimo_origens_independentes": 3,
+    "z_modificado": "3.5",
+    "fator_iqr": "1.5",
+    "razao_alta": "3.0",
+    "razao_baixa": "0.333333",
+    "autoexclusao_estatistica": true
+  },
+  "itens": [
+    {
+      "item": "ITEM_01",
+      "descricao": "PAPEL A4 500 FOLHAS",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q01_01",
+          "Q01_02",
+          "Q01_03",
+          "Q01_04",
+          "Q01_05"
+        ],
+        "fora": 0
+      },
+      "depois": {
+        "na_cesta": [
+          "Q01_01",
+          "Q01_02",
+          "Q01_03",
+          "Q01_04"
+        ],
+        "desconsideradas": [
+          "Q01_05"
+        ],
+        "revisao": []
+      },
+      "serie": {
+        "n": 5,
+        "mediana": "25.3",
+        "mad": "0.5",
+        "q1": "25",
+        "q3": "26",
+        "iqr": "1",
+        "menor": "24.8",
+        "maior": "190",
+        "origens": 5
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q01_01",
+          "valor_original": "25",
+          "valor_normalizado": "25",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q01_02",
+          "valor_original": "24.80",
+          "valor_normalizado": "24.80",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q01_03",
+          "valor_original": "26",
+          "valor_normalizado": "26",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q01_04",
+          "valor_original": "25.30",
+          "valor_normalizado": "25.30",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q01_05",
+          "valor_original": "190",
+          "valor_normalizado": "190",
+          "desfecho": "excluded_prebasket",
+          "codigos": [
+            "STATISTICAL_EXTREME",
+            "PRICE_VARIATION_REQUIRES_ATTENTION",
+            "INDEPENDENT_REFERENCES_CORROBORATE"
+          ],
+          "defeito": "desvio estatístico"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [
+          "Q01_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Q01_05 é anomalia extrema; autoexcluir apenas quando independência e escopo idêntico estiverem verificados."
+      }
+    },
+    {
+      "item": "ITEM_02",
+      "descricao": "CANETA ESFEROGRAFICA AZUL",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q02_01",
+          "Q02_02",
+          "Q02_03",
+          "Q02_04",
+          "Q02_05"
+        ],
+        "fora": 0
+      },
+      "depois": {
+        "na_cesta": [
+          "Q02_01",
+          "Q02_02",
+          "Q02_03",
+          "Q02_04"
+        ],
+        "desconsideradas": [
+          "Q02_05"
+        ],
+        "revisao": []
+      },
+      "serie": {
+        "n": 5,
+        "mediana": "2.05",
+        "mad": "0.05",
+        "q1": "2",
+        "q3": "2.1",
+        "iqr": "0.1",
+        "menor": "1.9",
+        "maior": "23",
+        "origens": 5
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q02_01",
+          "valor_original": "2",
+          "valor_normalizado": "2",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q02_02",
+          "valor_original": "2.10",
+          "valor_normalizado": "2.10",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q02_03",
+          "valor_original": "1.90",
+          "valor_normalizado": "1.90",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q02_04",
+          "valor_original": "2.05",
+          "valor_normalizado": "2.05",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q02_05",
+          "valor_original": "23",
+          "valor_normalizado": "23",
+          "desfecho": "excluded_prebasket",
+          "codigos": [
+            "STATISTICAL_EXTREME",
+            "PRICE_VARIATION_REQUIRES_ATTENTION",
+            "INDEPENDENT_REFERENCES_CORROBORATE"
+          ],
+          "defeito": "desvio estatístico"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [
+          "Q02_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Q02_05 extremo, com quatro outras fontes comparáveis; validar contexto e corroboração antes da autoexclusão."
+      }
+    },
+    {
+      "item": "ITEM_03",
+      "descricao": "PASTA PLASTICA A4",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q03_01",
+          "Q03_02",
+          "Q03_03",
+          "Q03_04",
+          "Q03_05"
+        ],
+        "fora": 0
+      },
+      "depois": {
+        "na_cesta": [
+          "Q03_01",
+          "Q03_02",
+          "Q03_03",
+          "Q03_04",
+          "Q03_05"
+        ],
+        "desconsideradas": [],
+        "revisao": []
+      },
+      "serie": {
+        "n": 5,
+        "mediana": "6",
+        "mad": "0.1",
+        "q1": "6",
+        "q3": "6.1",
+        "iqr": "0.1",
+        "menor": "5.9",
+        "maior": "6.2",
+        "origens": 5
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q03_01",
+          "valor_original": "6",
+          "valor_normalizado": "6",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q03_02",
+          "valor_original": "6.10",
+          "valor_normalizado": "6.10",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q03_03",
+          "valor_original": "5.90",
+          "valor_normalizado": "5.90",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q03_04",
+          "valor_original": "6.20",
+          "valor_normalizado": "6.20",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q03_05",
+          "valor_original": "60",
+          "valor_normalizado": "6",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [
+          "Q03_05"
+        ],
+        "reasoning": "Q03_05 deve converter de caixa com 10 a unidade; preço normalizado R$ 6,00."
+      }
+    },
+    {
+      "item": "ITEM_04",
+      "descricao": "MANUTENCAO PREVENTIVA DE EQUIPAMENTO POR MES",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q04_01",
+          "Q04_02",
+          "Q04_03",
+          "Q04_04"
+        ],
+        "fora": 1
+      },
+      "depois": {
+        "na_cesta": [
+          "Q04_01",
+          "Q04_02",
+          "Q04_03",
+          "Q04_04"
+        ],
+        "desconsideradas": [
+          "Q04_05"
+        ],
+        "revisao": []
+      },
+      "serie": {
+        "n": 4,
+        "mediana": "1510",
+        "mad": "15",
+        "q1": "1497.5",
+        "q3": "1527.5",
+        "iqr": "30",
+        "menor": "1490",
+        "maior": "1550",
+        "origens": 4
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q04_01",
+          "valor_original": "1500",
+          "valor_normalizado": "1500",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q04_02",
+          "valor_original": "1550",
+          "valor_normalizado": "1550",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q04_03",
+          "valor_original": "1490",
+          "valor_normalizado": "1490",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q04_04",
+          "valor_original": "1520",
+          "valor_normalizado": "1520",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q04_05",
+          "valor_original": "400",
+          "valor_normalizado": null,
+          "desfecho": "excluded_prebasket",
+          "codigos": [
+            "UNIT_NOT_CONVERTIBLE"
+          ],
+          "defeito": "unidade"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [
+          "Q04_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Q04_05 possui unidade e escopo materialmente incompatíveis sem conversão confiável."
+      }
+    },
+    {
+      "item": "ITEM_05",
+      "descricao": "IMPRESSAO MONOCROMATICA A4",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q05_01",
+          "Q05_02",
+          "Q05_03",
+          "Q05_04",
+          "Q05_05"
+        ],
+        "fora": 0
+      },
+      "depois": {
+        "na_cesta": [
+          "Q05_01",
+          "Q05_02",
+          "Q05_03",
+          "Q05_04",
+          "Q05_05"
+        ],
+        "desconsideradas": [],
+        "revisao": []
+      },
+      "serie": {
+        "n": 5,
+        "mediana": "1",
+        "mad": "0.02",
+        "q1": "1",
+        "q3": "1.02",
+        "iqr": "0.02",
+        "menor": "0.98",
+        "maior": "1.05",
+        "origens": 5
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q05_01",
+          "valor_original": "1.00",
+          "valor_normalizado": "1.00",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q05_02",
+          "valor_original": "1.05",
+          "valor_normalizado": "1.05",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q05_03",
+          "valor_original": "0.98",
+          "valor_normalizado": "0.98",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q05_04",
+          "valor_original": "1.02",
+          "valor_normalizado": "1.02",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q05_05",
+          "valor_original": "500",
+          "valor_normalizado": "1",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [
+          "Q05_05"
+        ],
+        "reasoning": "Normalizar Q05_05 dividindo por 500; não o classificar como R$ 500 por folha."
+      }
+    },
+    {
+      "item": "ITEM_06",
+      "descricao": "NOTEBOOK 8GB RAM 256GB SSD",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q06_01",
+          "Q06_02",
+          "Q06_03",
+          "Q06_04",
+          "Q06_05"
+        ],
+        "fora": 0
+      },
+      "depois": {
+        "na_cesta": [
+          "Q06_01",
+          "Q06_02",
+          "Q06_03",
+          "Q06_04"
+        ],
+        "desconsideradas": [
+          "Q06_05"
+        ],
+        "revisao": []
+      },
+      "serie": {
+        "n": 5,
+        "mediana": "3510",
+        "mad": "20",
+        "q1": "3490",
+        "q3": "3520",
+        "iqr": "30",
+        "menor": "3450",
+        "maior": "9000",
+        "origens": 5
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q06_01",
+          "valor_original": "3450",
+          "valor_normalizado": "3450",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q06_02",
+          "valor_original": "3520",
+          "valor_normalizado": "3520",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q06_03",
+          "valor_original": "3490",
+          "valor_normalizado": "3490",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q06_04",
+          "valor_original": "3510",
+          "valor_normalizado": "3510",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q06_05",
+          "valor_original": "9000",
+          "valor_normalizado": "9000",
+          "desfecho": "excluded_prebasket",
+          "codigos": [
+            "PRICE_VARIATION_REQUIRES_ATTENTION",
+            "JEV_COMPARABILITY_CONCERN",
+            "INDEPENDENT_REFERENCES_CORROBORATE"
+          ],
+          "defeito": "comparabilidade (Jev)"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [
+          "Q06_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Q06_05 é objeto comprovadamente distinto."
+      }
+    },
+    {
+      "item": "ITEM_07",
+      "descricao": "TECLADO USB PADRAO",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q07_01",
+          "Q07_02",
+          "Q07_03",
+          "Q07_04",
+          "Q07_05"
+        ],
+        "fora": 0
+      },
+      "depois": {
+        "na_cesta": [
+          "Q07_01",
+          "Q07_02",
+          "Q07_03",
+          "Q07_04",
+          "Q07_05"
+        ],
+        "desconsideradas": [],
+        "revisao": []
+      },
+      "serie": {
+        "n": 5,
+        "mediana": "59",
+        "mad": "1",
+        "q1": "58",
+        "q3": "60",
+        "iqr": "2",
+        "menor": "57",
+        "maior": "61",
+        "origens": 5
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q07_01",
+          "valor_original": "58",
+          "valor_normalizado": "58",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q07_02",
+          "valor_original": "60",
+          "valor_normalizado": "60",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q07_03",
+          "valor_original": "59",
+          "valor_normalizado": "59",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q07_04",
+          "valor_original": "61",
+          "valor_normalizado": "61",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q07_05",
+          "valor_original": "57",
+          "valor_normalizado": "57",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Todas as cinco referências são comparáveis; nenhuma exclusão por discrepância."
+      }
+    },
+    {
+      "item": "ITEM_08",
+      "descricao": "SERVICO DE INTERNET MENSAL",
+      "coletadas": 2,
+      "unicas": 2,
+      "antes": {
+        "na_cesta": [
+          "Q08_01",
+          "Q08_02"
+        ],
+        "fora": 0
+      },
+      "depois": {
+        "na_cesta": [],
+        "desconsideradas": [],
+        "revisao": [
+          "Q08_01",
+          "Q08_02"
+        ]
+      },
+      "serie": {
+        "n": 2,
+        "mediana": "325",
+        "mad": "195",
+        "q1": "227.5",
+        "q3": "422.5",
+        "iqr": "195",
+        "menor": "130",
+        "maior": "520",
+        "origens": 2
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q08_01",
+          "valor_original": "130",
+          "valor_normalizado": "130",
+          "desfecho": "needs_review",
+          "codigos": [
+            "SMALL_SAMPLE",
+            "DISPERSION_INCONCLUSIVE"
+          ],
+          "defeito": "amostra pequena e dispersa"
+        },
+        {
+          "cotacao": "Q08_02",
+          "valor_original": "520",
+          "valor_normalizado": "520",
+          "desfecho": "needs_review",
+          "codigos": [
+            "SMALL_SAMPLE",
+            "DISPERSION_INCONCLUSIVE"
+          ],
+          "defeito": "amostra pequena e dispersa"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [
+          "Q08_01",
+          "Q08_02"
+        ],
+        "normalization_or_keep": [],
+        "reasoning": "Com n=2, diferença grande não autoriza descarte estatístico automático; avaliar velocidade/escopo."
+      }
+    },
+    {
+      "item": "ITEM_09",
+      "descricao": "TONER PARA IMPRESSORA MODELO ESPECIFICADO",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q09_01",
+          "Q09_02",
+          "Q09_03",
+          "Q09_04",
+          "Q09_05"
+        ],
+        "fora": 0
+      },
+      "depois": {
+        "na_cesta": [
+          "Q09_01",
+          "Q09_02",
+          "Q09_03",
+          "Q09_04"
+        ],
+        "desconsideradas": [
+          "Q09_05"
+        ],
+        "revisao": []
+      },
+      "serie": {
+        "n": 5,
+        "mediana": "180",
+        "mad": "0",
+        "q1": "180",
+        "q3": "180",
+        "iqr": "0",
+        "menor": "180",
+        "maior": "1800",
+        "origens": 5
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q09_01",
+          "valor_original": "180",
+          "valor_normalizado": "180",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q09_02",
+          "valor_original": "180",
+          "valor_normalizado": "180",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q09_03",
+          "valor_original": "180",
+          "valor_normalizado": "180",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q09_04",
+          "valor_original": "180",
+          "valor_normalizado": "180",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q09_05",
+          "valor_original": "1800",
+          "valor_normalizado": "1800",
+          "desfecho": "excluded_prebasket",
+          "codigos": [
+            "STATISTICAL_EXTREME",
+            "PRICE_VARIATION_REQUIRES_ATTENTION",
+            "INDEPENDENT_REFERENCES_CORROBORATE"
+          ],
+          "defeito": "desvio estatístico"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [
+          "Q09_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "MAD=0; tratar sem divisão por zero e usar anomalia extrema + corroboração verificável."
+      }
+    },
+    {
+      "item": "ITEM_10",
+      "descricao": "PAPEL TOALHA PACOTE",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q10_01",
+          "Q10_02",
+          "Q10_03",
+          "Q10_04"
+        ],
+        "fora": 1
+      },
+      "depois": {
+        "na_cesta": [
+          "Q10_01",
+          "Q10_02",
+          "Q10_03",
+          "Q10_04"
+        ],
+        "desconsideradas": [
+          "Q10_05"
+        ],
+        "revisao": []
+      },
+      "serie": {
+        "n": 4,
+        "mediana": "18.75",
+        "mad": "0.5",
+        "q1": "18.375",
+        "q3": "19.25",
+        "iqr": "0.875",
+        "menor": "18",
+        "maior": "20",
+        "origens": 4
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q10_01",
+          "valor_original": "18",
+          "valor_normalizado": "18",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q10_02",
+          "valor_original": "19",
+          "valor_normalizado": "19",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q10_03",
+          "valor_original": "18.50",
+          "valor_normalizado": "18.50",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q10_04",
+          "valor_original": "20",
+          "valor_normalizado": "20",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q10_05",
+          "valor_original": "0",
+          "valor_normalizado": null,
+          "desfecho": "excluded_prebasket",
+          "codigos": [
+            "INVALID_VALUE"
+          ],
+          "defeito": "valor inválido"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [
+          "Q10_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Preço unitário zero é inválido para a formação da cesta."
+      }
+    },
+    {
+      "item": "ITEM_11",
+      "descricao": "CAIXA ARQUIVO MORTO",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q11_01",
+          "Q11_02",
+          "Q11_03",
+          "Q11_04"
+        ],
+        "fora": 1
+      },
+      "depois": {
+        "na_cesta": [
+          "Q11_01",
+          "Q11_02",
+          "Q11_03",
+          "Q11_04"
+        ],
+        "desconsideradas": [
+          "Q11_05"
+        ],
+        "revisao": []
+      },
+      "serie": {
+        "n": 4,
+        "mediana": "7.05",
+        "mad": "0.1",
+        "q1": "6.95",
+        "q3": "7.125",
+        "iqr": "0.175",
+        "menor": "6.8",
+        "maior": "7.2",
+        "origens": 4
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q11_01",
+          "valor_original": "7",
+          "valor_normalizado": "7",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q11_02",
+          "valor_original": "7.20",
+          "valor_normalizado": "7.20",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q11_03",
+          "valor_original": "6.80",
+          "valor_normalizado": "6.80",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q11_04",
+          "valor_original": "7.10",
+          "valor_normalizado": "7.10",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q11_05",
+          "valor_original": "-4",
+          "valor_normalizado": null,
+          "desfecho": "excluded_prebasket",
+          "codigos": [
+            "INVALID_VALUE"
+          ],
+          "defeito": "valor inválido"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [
+          "Q11_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Preço negativo não é preço de aquisição válido."
+      }
+    },
+    {
+      "item": "ITEM_12",
+      "descricao": "SERVICO DE ENTREGA LOCAL",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q12_01",
+          "Q12_02",
+          "Q12_03",
+          "Q12_04",
+          "Q12_05"
+        ],
+        "fora": 0
+      },
+      "depois": {
+        "na_cesta": [
+          "Q12_01",
+          "Q12_02",
+          "Q12_03",
+          "Q12_04"
+        ],
+        "desconsideradas": [],
+        "revisao": [
+          "Q12_05"
+        ]
+      },
+      "serie": {
+        "n": 5,
+        "mediana": "1010",
+        "mad": "10",
+        "q1": "1000",
+        "q3": "1020",
+        "iqr": "20",
+        "menor": "980",
+        "maior": "1600",
+        "origens": 5
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q12_01",
+          "valor_original": "1000",
+          "valor_normalizado": "1000",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q12_02",
+          "valor_original": "1020",
+          "valor_normalizado": "1020",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q12_03",
+          "valor_original": "980",
+          "valor_normalizado": "980",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q12_04",
+          "valor_original": "1010",
+          "valor_normalizado": "1010",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q12_05",
+          "valor_original": "1600",
+          "valor_normalizado": "1600",
+          "desfecho": "needs_review",
+          "codigos": [
+            "PRICE_VARIATION_REQUIRES_ATTENTION",
+            "PLAUSIBLE_COMMERCIAL_CONTEXT"
+          ],
+          "defeito": "condição comercial"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [
+          "Q12_05"
+        ],
+        "normalization_or_keep": [],
+        "reasoning": "R$ 1600 pode refletir deslocamento diferente; verificar escopo e classificar para revisão."
+      }
+    },
+    {
+      "item": "ITEM_13",
+      "descricao": "MOUSE USB OPTICO",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q13_01",
+          "Q13_02",
+          "Q13_03",
+          "Q13_04",
+          "Q13_05"
+        ],
+        "fora": 0
+      },
+      "depois": {
+        "na_cesta": [
+          "Q13_01",
+          "Q13_02",
+          "Q13_03",
+          "Q13_04"
+        ],
+        "desconsideradas": [
+          "Q13_05"
+        ],
+        "revisao": []
+      },
+      "serie": {
+        "n": 4,
+        "mediana": "45.5",
+        "mad": "1",
+        "q1": "44.75",
+        "q3": "46.25",
+        "iqr": "1.5",
+        "menor": "44",
+        "maior": "47",
+        "origens": 4
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q13_01",
+          "valor_original": "45",
+          "valor_normalizado": "45",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q13_02",
+          "valor_original": "46",
+          "valor_normalizado": "46",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q13_03",
+          "valor_original": "47",
+          "valor_normalizado": "47",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q13_04",
+          "valor_original": "44",
+          "valor_normalizado": "44",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q13_05",
+          "valor_original": "46",
+          "valor_normalizado": "46",
+          "desfecho": "excluded_prebasket",
+          "codigos": [
+            "DUPLICATE_SAME_ORIGIN"
+          ],
+          "defeito": "duplicidade"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [
+          "Q13_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Q13_02 e Q13_05 duplicam a mesma linha/documento: uma observação só para estatística. Preservar ambas referências brutas."
+      }
+    },
+    {
+      "item": "ITEM_14",
+      "descricao": "SWITCH 24 PORTAS",
+      "coletadas": 5,
+      "unicas": 5,
+      "antes": {
+        "na_cesta": [
+          "Q14_01",
+          "Q14_02",
+          "Q14_03",
+          "Q14_04",
+          "Q14_05"
+        ],
+        "fora": 0
+      },
+      "depois": {
+        "na_cesta": [
+          "Q14_01",
+          "Q14_02",
+          "Q14_03",
+          "Q14_04"
+        ],
+        "desconsideradas": [],
+        "revisao": [
+          "Q14_05"
+        ]
+      },
+      "serie": {
+        "n": 5,
+        "mediana": "1410",
+        "mad": "10",
+        "q1": "1400",
+        "q3": "1420",
+        "iqr": "20",
+        "menor": "1390",
+        "maior": "2800",
+        "origens": 5
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q14_01",
+          "valor_original": "1400",
+          "valor_normalizado": "1400",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q14_02",
+          "valor_original": "1420",
+          "valor_normalizado": "1420",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q14_03",
+          "valor_original": "1390",
+          "valor_normalizado": "1390",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q14_04",
+          "valor_original": "1410",
+          "valor_normalizado": "1410",
+          "desfecho": "eligible",
+          "codigos": [],
+          "defeito": "—"
+        },
+        {
+          "cotacao": "Q14_05",
+          "valor_original": "2800",
+          "valor_normalizado": "2800",
+          "desfecho": "needs_review",
+          "codigos": [
+            "PRICE_VARIATION_REQUIRES_ATTENTION",
+            "PLAUSIBLE_COMMERCIAL_CONTEXT"
+          ],
+          "defeito": "condição comercial"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [
+          "Q14_05"
+        ],
+        "normalization_or_keep": [],
+        "reasoning": "Preço alto é comercialmente diferente; verificar se condições devem integrar item, sem eliminar apenas por desvio."
+      }
+    },
+    {
+      "item": "ITEM_15",
+      "descricao": "LIMPEZA DE PISO POR METRO QUADRADO",
+      "coletadas": 2,
+      "unicas": 2,
+      "antes": {
+        "na_cesta": [
+          "Q15_01",
+          "Q15_02"
+        ],
+        "fora": 0
+      },
+      "depois": {
+        "na_cesta": [],
+        "desconsideradas": [],
+        "revisao": [
+          "Q15_01",
+          "Q15_02"
+        ]
+      },
+      "serie": {
+        "n": 2,
+        "mediana": "15",
+        "mad": "10",
+        "q1": "10",
+        "q3": "20",
+        "iqr": "10",
+        "menor": "5",
+        "maior": "25",
+        "origens": 2
+      },
+      "avaliacoes": [
+        {
+          "cotacao": "Q15_01",
+          "valor_original": "5",
+          "valor_normalizado": "5",
+          "desfecho": "needs_review",
+          "codigos": [
+            "SMALL_SAMPLE",
+            "DISPERSION_INCONCLUSIVE"
+          ],
+          "defeito": "amostra pequena e dispersa"
+        },
+        {
+          "cotacao": "Q15_02",
+          "valor_original": "25",
+          "valor_normalizado": "25",
+          "desfecho": "needs_review",
+          "codigos": [
+            "SMALL_SAMPLE",
+            "DISPERSION_INCONCLUSIVE"
+          ],
+          "defeito": "amostra pequena e dispersa"
+        }
+      ],
+      "esperado": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [
+          "Q15_01",
+          "Q15_02"
+        ],
+        "normalization_or_keep": [],
+        "reasoning": "Amostra n=2 com possível diferença de escopo: revisão; não descarte automático estatístico."
+      }
+    }
+  ]
+}

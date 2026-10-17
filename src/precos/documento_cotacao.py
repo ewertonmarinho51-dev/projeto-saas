@@ -821,10 +821,16 @@ def _fontes(d: Documento, view: CotacaoReportView) -> None:
 
 
 def _alertas(d: Documento, view: CotacaoReportView) -> None:
+    from .relatorio import texto_da_ciencia
+
     d.titulo_de_secao("Alertas e ressalvas")
     for titulo, texto in view.alertas:
         partes = [T(f"{titulo}: ", negrito=True)] if titulo else []
         d.marcador(partes + [T(texto)], pt=8.5)
+    for texto in texto_da_ciencia(dict(view.ciencia) if view.ciencia
+                                  else None):
+        d.marcador([T("Ciência na emissão: ", negrito=True), T(texto)],
+                   pt=8.5)
 
 
 def _identificacao(d: Documento, view: CotacaoReportView, *,

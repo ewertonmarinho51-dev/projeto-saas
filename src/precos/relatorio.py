@@ -286,10 +286,53 @@ def identificador_da_versao_v1(pesquisa: dict, itens: list[dict],
 # ---------------------------------------------------------------------------
 # §31 — relatório completo
 # ---------------------------------------------------------------------------
+def texto_da_ciencia(ciencia: dict | None) -> list[str]:
+    """
+    O registro da ciência de alertas, em linguagem neutra (pacote Jev,
+    RF-04): o que foi apontado, quem viu, quando — e que os valores foram
+    mantidos. Não é aprovação nem juízo de sobrepreço.
+    """
+    if not ciencia:
+        return []
+    alertas = ciencia.get("alertas") or []
+    pendencias = ciencia.get("pendencias") or []
+    itens = ", ".join(f"{n:02d}" for n in ciencia.get("itens") or [])
+    linhas = []
+    if alertas:
+        linhas.append(
+            f"Na emissão, o sistema apontou {len(alertas)} cotação(ões) com "
+            "variação relevante em relação às demais do mesmo item"
+            + (f" (itens {itens})" if itens else "")
+            + ". Os valores foram mantidos na cesta como estavam; o "
+            "cálculo acima é o da cesta confirmada.")
+    if pendencias:
+        linhas.append(
+            f"Constavam {len(pendencias)} item(ns) com pendência de análise "
+            "ou de conclusão, listados nas ressalvas deste documento.")
+    linhas.append(
+        f"Ciência registrada por {ciencia.get('por') or 'usuário autenticado'}"
+        f" em {_data_hora(ciencia.get('registrada_em'))} (UTC), vinculada a "
+        "esta versão do resultado (assinatura "
+        f"{str(ciencia.get('assinatura') or '')[:16]}…, política "
+        f"{ciencia.get('politica') or '—'}). A ciência registra que os "
+        "alertas foram vistos antes da emissão; não constitui aprovação "
+        "administrativa do preço.")
+    return linhas
+
+
+def _data_hora(valor) -> str:
+    try:
+        momento = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+    except ValueError:
+        return str(valor or "—")
+    return momento.strftime("%d/%m/%Y %H:%M")
+
+
 def completo(pesquisa: dict, itens: list[dict],
              referencias: dict[str, list[dict]],
              *, emitido_em: datetime | None = None,
-             processo: dict | None = None) -> str:
+             processo: dict | None = None,
+             ciencia: dict | None = None) -> str:
     """
     As 22 seções do §31, em Markdown, na ordem do prompt.
 
@@ -491,6 +534,12 @@ def completo(pesquisa: dict, itens: list[dict],
     for linha in _alertas(itens, referencias, perfil):
         ad(linha)
     ad("")
+    if ciencia:
+        ad("**Ciência dos alertas na emissão**")
+        ad("")
+        for linha in texto_da_ciencia(ciencia):
+            ad(f"- {_texto(linha)}")
+        ad("")
 
     # 20
     ad("## 20. Evidências e anexos")
@@ -1147,7 +1196,8 @@ VAZIO_NO_QUADRO = "—"
 
 def resumido(pesquisa: dict, itens: list[dict],
              referencias: dict[str, list[dict]],
-             *, emitido_em: datetime | None = None) -> str:
+             *, emitido_em: datetime | None = None,
+             ciencia: dict | None = None) -> str:
     """
     A versão compacta do §32: uma linha por item, com os três primeiros
     preços da cesta em destaque e o restante contado.
@@ -1213,6 +1263,12 @@ def resumido(pesquisa: dict, itens: list[dict],
         for p in nominais:
             ad(f"- Item {p['numero']:02d} ({_texto(p['situacao'])}): "
                f"{_texto('; '.join(p['deficiencias']))}")
+        ad("")
+    if ciencia:
+        ad("**Ciência dos alertas na emissão**")
+        ad("")
+        for linha in texto_da_ciencia(ciencia):
+            ad(f"- {_texto(linha)}")
         ad("")
 
     concluidos = [i for i in itens

@@ -185,6 +185,10 @@ class CotacaoReportView:
     total_referencias: int
     total_consideradas: int
     metodos_aplicados: tuple[str, ...] = field(default=())
+    # Ciência de alertas registrada antes desta emissão (pacote Jev):
+    # impressa nos alertas, fora do identificador — a ciência não muda o
+    # resultado, só registra que alguém o viu com os alertas.
+    ciencia: MappingProxyType | None = None
 
     @property
     def valor_global(self) -> Decimal | None:
@@ -434,7 +438,8 @@ def projetar(pesquisa: dict, itens: list[dict],
              referencias: dict[str, list[dict]], *,
              emitido_em: datetime | None = None,
              processo: dict | None = None,
-             branding: dict | None = None) -> CotacaoReportView:
+             branding: dict | None = None,
+             ciencia: dict | None = None) -> CotacaoReportView:
     """
     O retrato. Não altera nenhum dos dicionários recebidos (a prova
     compara antes e depois).
@@ -516,4 +521,5 @@ def projetar(pesquisa: dict, itens: list[dict],
         total_consideradas=sum(i.consideradas for i in vistos),
         metodos_aplicados=tuple(sorted({i.metodo_rotulo for i in vistos
                                         if i.metodo_rotulo})),
+        ciencia=MappingProxyType(dict(ciencia)) if ciencia else None,
     )

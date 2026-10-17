@@ -1251,6 +1251,7 @@ def _render_execucao() -> None:
             motor_semantico=_motor_semantico(), tentados=tentados,
             # a mesma política da cotação unificada (flag de teto)
             politica=cotacoes.politica_automatica(),
+            saneamento=cotacoes.politica_saneamento(),
             **_opcoes_triagem())
 
     acumulado = list(st.session_state.get(RELATO) or [])
@@ -1713,26 +1714,31 @@ def _render_referencia(item: dict, linha: dict) -> None:
 
 def _render_motivo(item: dict, linha: dict, na_cesta: bool) -> None:
     """
-    Incluir e excluir exigem MOTIVO.
+    Incluir exige MOTIVO; excluir, não (pacote Jev, RF-02).
 
-    A 0021 não concede DELETE a ninguém: tirar da cesta é mudar status.
-    Sem motivo registrado a mudança seria exclusão silenciosa com outro
-    nome — e é justamente isso que precisa aparecer no relatório.
+    A 0021 não concede DELETE a ninguém: tirar da cesta é mudar status, e
+    a trilha registra o ato sozinha (quem, quando, de/para, `user_reason`
+    nulo). Incluir muda o preço pelo juízo de quem incluiu — esse juízo
+    vai para a memória de cálculo.
     """
     with st.form(f"motivo_{linha['id']}"):
         motivo = st.text_input(
-            "Motivo (obrigatório)",
+            "Observação (opcional)" if na_cesta else "Motivo da inclusão",
             placeholder="fora da curva; quantidade muito diferente; "
                         "unidade não comparável…")
-        confirmar = st.form_submit_button("Confirmar")
+        confirmar = st.form_submit_button(
+            "Retirar da cesta" if na_cesta else "Confirmar inclusão")
     if not confirmar:
         return
-    if not motivo.strip():
-        st.error("Registre o motivo: ele vai para a memória de cálculo.")
+    texto = motivo.strip()
+    if not na_cesta and not texto:
+        st.error("Registre o motivo da inclusão: ele vai para a memória de "
+                 "cálculo.")
         return
+    registro = texto or "retirada da cesta pelo usuário"
+    status_anterior = str(linha.get("status") or "")
     repo.reclassificar_referencia(
-        str(linha["id"]), "rejected" if na_cesta else "selected",
-        motivo.strip())
+        str(linha["id"]), "rejected" if na_cesta else "selected", registro)
     # A seleção mudou: o preço do item é refeito pela cesta GRAVADA, com o
     # mesmo cálculo do pipeline (antes ficava o preço da máquina). O novo
     # valor viaja no MESMO evento da inclusão/exclusão — a trilha mostra o
@@ -1746,8 +1752,14 @@ def _render_motivo(item: dict, linha: dict, na_cesta: bool) -> None:
     repo.registrar_evento(
         str(st.session_state.get(PESQUISA)),
         "referencia_excluida" if na_cesta else "referencia_incluida",
-        item_id=str(item["id"]), descricao=motivo.strip(),
+        ator=_identidade()[0] or None,
+        item_id=str(item["id"]), descricao=registro,
         payload={"referencia": str(linha["id"]),
+                 "de": status_anterior,
+                 "para": "rejected" if na_cesta else "selected",
+                 "operacao": "manual_removed" if na_cesta
+                 else "manual_included",
+                 "origem": "user", "user_reason": texto or None,
                  "preco_recalculado": None
                  if estimativa.valor_unitario is None
                  else format(estimativa.valor_unitario, "f"),
@@ -2011,7 +2023,7 @@ def render_aviso_de_pendencias(pesquisa: dict, itens: list[dict],
 
 
 def _render_excluir_discrepantes(item: dict) -> None:
-    """Exclusão em lote dos discrepantes sinalizados — por clique e motivo."""
+    """Exclusão em lote dos discrepantes sinalizados — por clique; motivo opcional."""
     from ..precos import cesta as cesta_mod
 
     pesquisa = _pesquisa_atual() or {}
@@ -2028,9 +2040,9 @@ def _render_excluir_discrepantes(item: dict) -> None:
         st.caption(f"Discrepantes sinalizados agora: {valores}"
                    + (" …" if len(alvos) > 8 else ""))
         motivo = st.text_input(
-            "Motivo da exclusão (obrigatório)",
-            value="preço excessivamente elevado ou inexequível em relação "
-                  "à série, conforme critério estatístico")
+            "Observação (opcional)",
+            help="O critério estatístico de cada preço é registrado "
+                 "automaticamente; este texto só complementa.")
         excluir = st.form_submit_button(
             f"Excluir os {len(alvos)} discrepante(s) da cesta")
     if not excluir:
@@ -2213,7 +2225,11 @@ def _render_relatorios(pesquisa: dict) -> None:
         "o mesmo resultado gera sempre o mesmo identificador, "
         "independentemente da data de emissão.")
 
-    if not render_aviso_de_pendencias(pesquisa, itens, referencias):
+    if _ciencia_ativa():
+        # pacote Jev: nada trava a emissão aqui — o aviso informa, e a
+        # ciência é pedida no clique de emitir (e conferida no servidor)
+        _render_aviso_nao_bloqueante(pesquisa, itens, referencias)
+    elif not render_aviso_de_pendencias(pesquisa, itens, referencias):
         st.caption("Os relatórios ficam disponíveis depois da ciência das "
                    "pendências acima.")
         return
@@ -2250,6 +2266,182 @@ def _render_relatorios(pesquisa: dict) -> None:
 
     _botao_do_pacote(pesquisa, itens, referencias)
     _render_previa_e_conferencia(pesquisa, itens, referencias)
+
+
+# ---------------------------------------------------------------------------
+# Ciência de alertas na emissão (pacote Jev, RF-03) — flag
+# `precos_ciencia_emissao`. A verificação mora em `_conteudo_do_relatorio`,
+# por onde passa TODO arquivo (botões e pacote): sem a ciência desta
+# versão da cesta, nada é gerado — e o motivo nunca é o preço em si.
+# ---------------------------------------------------------------------------
+_CIENCIA_GERAR = "_ciencia_gerar"
+_CIENCIA_PREPARO = "_ciencia_preparo"
+_VERIFICAR = object()
+
+
+def _ciencia_ativa() -> bool:
+    from .. import governanca
+
+    return db.flag_ativa(governanca.FLAG_CIENCIA_EMISSAO)
+
+
+def _trilha_da_ciencia():
+    """A trilha da pesquisa — a mesma do resto do módulo (RLS, gatilho de ator)."""
+    return repo
+
+
+def _nome_de_quem_emite() -> str:
+    usuario = auth.usuario_logado() or {}
+    return str(usuario.get("nome") or "").strip() or "usuário autenticado"
+
+
+def _recarregar(pesquisa: dict) -> tuple[list[dict], dict]:
+    """Itens e referências RELIDOS do servidor — o snapshot da confirmação."""
+    itens = _itens_ativos(str(pesquisa["id"]))
+    return itens, {str(i["id"]): repo.listar_referencias(str(i["id"]))
+                   for i in itens}
+
+
+def _verificar_ciencia(pesquisa: dict, itens: list[dict],
+                       referencias: dict) -> dict | None:
+    """
+    None se não há o que ciente (ou a flag está desligada); senão, a
+    ciência registrada desta assinatura por este usuário, pronta para o
+    documento. Sem ela: `ciencia.CienciaNecessaria`.
+    """
+    if not _ciencia_ativa():
+        return None
+    from ..precos import ciencia
+
+    evento = ciencia.exigir(pesquisa, itens, referencias,
+                            ator=_identidade()[0] or None,
+                            repositorio=_trilha_da_ciencia())
+    return ciencia.para_documento(evento, _nome_de_quem_emite())
+
+
+def _frase_dos_alertas(preparo) -> str:
+    itens = preparo.itens_com_alerta
+    rotulo = ", ".join(f"{n:02d}" for n in itens[:12]) + (
+        " …" if len(itens) > 12 else "")
+    return (f"O Jev identificou {len(preparo.alertas)} cotação(ões) que "
+            f"merecem conferência no(s) item(ns) {rotulo}.")
+
+
+def _render_aviso_nao_bloqueante(pesquisa: dict, itens: list[dict],
+                                 referencias: dict) -> None:
+    """O que a emissão vai pedir — antes do clique, sem travar nada."""
+    from ..precos import ciencia
+
+    preparo = ciencia.preparar(pesquisa, itens, referencias)
+    if not preparo.requer_ciencia:
+        return
+    if preparo.alertas:
+        st.warning("**Atenção: há preços com variação relevante.** "
+                   + _frase_dos_alertas(preparo)
+                   + " Você pode revisar agora ou emitir com os valores que "
+                   "estão na cesta; a ciência será pedida ao emitir. Isso "
+                   "**não impede a emissão**.")
+    if preparo.pendencias:
+        texto = "\n".join(
+            f"- Item {p['numero']:02d} — {p['descricao'][:60]}: "
+            f"{'; '.join(p['deficiencias'])}" for p in preparo.pendencias[:30])
+        resto = (f"\n- … e mais {len(preparo.pendencias) - 30} item(ns)"
+                 if len(preparo.pendencias) > 30 else "")
+        st.info(f"**{len(preparo.pendencias)} item(ns) com pendência.** O "
+                "documento sairá com esta lista impressa:\n\n" + texto + resto)
+    registrada = ciencia.localizar(preparo.pesquisa_id, preparo.assinatura,
+                                   _identidade()[0] or None,
+                                   _trilha_da_ciencia())
+    if registrada:
+        st.caption("Ciência registrada para esta versão da cesta em "
+                   f"{str((registrada.get('payload') or {}).get('registrada_em') or registrada.get('criado_em') or '')[:16].replace('T', ' ')} "
+                   "UTC. Se a cesta mudar, o aviso volta.")
+
+
+def _pedir_ciencia(pesquisa: dict, preparo, chave: str) -> None:
+    """Abre o aviso; a geração fica pendente da escolha."""
+    st.session_state[_CIENCIA_PREPARO] = {"chave": chave,
+                                          "preparo": preparo}
+    _dialogo_de_ciencia(pesquisa)
+
+
+def _reabrir_aviso_pendente(pesquisa: dict, chave: str) -> None:
+    """
+    O aviso continua aberto até a escolha: um rerun da página inteira
+    (outra interação, outra aba do navegador) não o perde nem emite.
+    """
+    pendente = st.session_state.get(_CIENCIA_PREPARO) or {}
+    if pendente.get("chave") == chave:
+        _dialogo_de_ciencia(pesquisa)
+
+
+def _ao_fechar_aviso() -> None:
+    """Fechar no X ou com Esc é "Voltar e revisar": nada é gerado."""
+    st.session_state.pop(_CIENCIA_PREPARO, None)
+
+
+@st.dialog("Preços com variação relevante", width="large",
+           on_dismiss=_ao_fechar_aviso)
+def _dialogo_de_ciencia(pesquisa: dict) -> None:
+    from ..precos import ciencia
+
+    pendente = st.session_state.get(_CIENCIA_PREPARO) or {}
+    preparo = pendente.get("preparo")
+    if preparo is None:
+        st.caption("Nada a confirmar.")
+        return
+    if pendente.get("mudou"):
+        st.warning("A cesta mudou desde o aviso anterior. Confira os alertas "
+                   "atualizados abaixo antes de confirmar.")
+    if preparo.alertas:
+        st.markdown("**Atenção: há preços com variação relevante.** "
+                    + _frase_dos_alertas(preparo)
+                    + " Você pode revisar agora ou continuar com os valores "
+                    "que estão na cesta. Ao continuar, sua ciência será "
+                    "registrada no histórico da pesquisa. Isso **não impede "
+                    "a emissão** do relatório, e os valores serão "
+                    "preservados como estão.")
+        linhas = ["| Item | Cotação | Valor | Mediana do item | Por quê |",
+                  "|---|---|---:|---:|---|"]
+        for alerta in preparo.alertas[:40]:
+            linhas.append(
+                f"| {alerta.numero:02d} — {html.escape(alerta.descricao[:40])} "
+                f"| {html.escape(alerta.origem or alerta.referencia_id[:8])} "
+                f"| {_moeda(alerta.valor)} | {_moeda(alerta.mediana)} "
+                f"| {html.escape(alerta.mensagem).replace('|', '/')} |")
+        st.markdown("\n".join(linhas).replace("$", "\\$"))
+        if len(preparo.alertas) > 40:
+            st.caption(f"… e mais {len(preparo.alertas) - 40} cotação(ões).")
+    if preparo.pendencias:
+        st.markdown(f"**{len(preparo.pendencias)} item(ns) com pendência** "
+                    "constarão do documento: "
+                    + ", ".join(f"{p['numero']:02d}"
+                                for p in preparo.pendencias[:30])
+                    + (" …" if len(preparo.pendencias) > 30 else "") + ".")
+    voltar, seguir = st.columns(2)
+    if voltar.button("Voltar e revisar", use_container_width=True,
+                     key="ciencia_voltar"):
+        st.session_state.pop(_CIENCIA_PREPARO, None)
+        st.rerun()
+    if seguir.button("Estou ciente, emitir relatório", type="primary",
+                     use_container_width=True, key="ciencia_seguir"):
+        try:
+            ciencia.registrar(pesquisa, preparo,
+                              ator=_identidade()[0] or None,
+                              repositorio=_trilha_da_ciencia(),
+                              recarregar=lambda: _recarregar(pesquisa))
+        except ciencia.CienciaDesatualizada as novo:
+            st.session_state[_CIENCIA_PREPARO] = {
+                "chave": pendente.get("chave"), "preparo": novo.preparo,
+                "mudou": True}
+            st.rerun()
+            return
+        except ciencia.ErroDeCiencia as erro:
+            st.error(str(erro))
+            return
+        st.session_state.pop(_CIENCIA_PREPARO, None)
+        st.session_state[_CIENCIA_GERAR] = pendente.get("chave")
+        st.rerun()
 
 
 def _relatorio_visual() -> bool:
@@ -2369,7 +2561,7 @@ def _render_previa_e_conferencia(pesquisa: dict, itens: list[dict],
 
 def _registrar_emissao(pesquisa: dict, itens: list[dict], referencias: dict,
                        *, tipo: str, formato: str, conteudo: bytes,
-                       nome: str) -> None:
+                       nome: str, ciencia_doc: dict | None = None) -> None:
     """
     Toda geração entregue vira registro (quem, quando, hashes, pendências).
 
@@ -2390,8 +2582,14 @@ def _registrar_emissao(pesquisa: dict, itens: list[dict], referencias: dict,
         str(pesquisa["id"]), "relatorio_emitido",
         ator=_identidade()[0] or None,
         descricao=f"{tipo} ({formato}) — {nome}",
-        payload={k: dados[k] for k in ("tipo", "formato", "hash_decisorio",
-                                       "hash_arquivo", "tamanho_bytes")},
+        payload={**{k: dados[k] for k in ("tipo", "formato", "hash_decisorio",
+                                          "hash_arquivo", "tamanho_bytes")},
+                 **({"ciencia": {"assinatura": ciencia_doc.get("assinatura"),
+                                 "alertas": len(ciencia_doc.get("alertas")
+                                                or []),
+                                 "registrada_em":
+                                 ciencia_doc.get("registrada_em")}}
+                    if ciencia_doc else {})},
         idempotency_key=f"emissao:{dados['idempotency_key']}")
     st.session_state[f"_emissao_{tipo}_{formato}_{pesquisa['id']}"] = (
         dados, registrado is not None)
@@ -2399,7 +2597,8 @@ def _registrar_emissao(pesquisa: dict, itens: list[dict], referencias: dict,
 
 def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
                            referencias: dict, *, formato: str,
-                           tipo: str) -> tuple[bytes, str, str]:
+                           tipo: str, ciencia_doc=_VERIFICAR
+                           ) -> tuple[bytes, str, str]:
     """
     Gera um formato. Devolve (bytes, nome do arquivo, mimetype).
 
@@ -2409,6 +2608,11 @@ def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
     pipeline de PDF.
     """
     from .. import export
+
+    if ciencia_doc is _VERIFICAR:
+        # a conferência do SERVIDOR: botão, pacote ou outra aba, todos
+        # passam aqui (pacote Jev, RF-03 — sem bypass da ciência)
+        ciencia_doc = _verificar_ciencia(pesquisa, itens, referencias)
 
     if formato == "xlsx":
         return (relatorio.xlsx_analitico(pesquisa, itens, referencias),
@@ -2423,7 +2627,7 @@ def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
 
         marca = _branding_da_emissao()
         vista = relatorio_view.projetar(pesquisa, itens, referencias,
-                                        branding=marca)
+                                        branding=marca, ciencia=ciencia_doc)
         if tipo == "analitico_integral":
             return (dc.relatorio_analitico_pdf(vista),
                     relatorio.nome_do_arquivo(
@@ -2442,10 +2646,12 @@ def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
                 "application/pdf")
 
     if tipo == "resumido":
-        markdown = relatorio.resumido(pesquisa, itens, referencias)
+        markdown = relatorio.resumido(pesquisa, itens, referencias,
+                                      ciencia=ciencia_doc)
         titulo = "Pesquisa de Preços — Quadro Resumido"
     else:
-        markdown = relatorio.completo(pesquisa, itens, referencias)
+        markdown = relatorio.completo(pesquisa, itens, referencias,
+                                      ciencia=ciencia_doc)
         titulo = "Relatório de Pesquisa de Preços"
 
     branding = st.session_state.get("branding") or None
@@ -2483,19 +2689,32 @@ def _botao_de_download(rotulo: str, pesquisa: dict, itens: list[dict],
     """
     from ..precos.documento_cotacao import ErroDeRenderizacao
 
+    from ..precos import ciencia
+
     chave = (f"precos_export_{tipo}_{formato}_{pesquisa['id']}"
              + (f"_{versao}" if versao else ""))
-    if st.button(rotulo, key=f"btn_{chave}", use_container_width=True):
+    # confirmada a ciência no aviso, a geração pedida segue sozinha
+    confirmado = st.session_state.get(_CIENCIA_GERAR) == chave
+    if confirmado:
+        st.session_state.pop(_CIENCIA_GERAR, None)
+    else:
+        _reabrir_aviso_pendente(pesquisa, chave)
+    if st.button(rotulo, key=f"btn_{chave}", use_container_width=True) \
+            or confirmado:
         with st.spinner(f"Gerando {rotulo.lower()}…"):
             try:
+                ciencia_doc = _verificar_ciencia(pesquisa, itens, referencias)
                 st.session_state[chave] = _conteudo_do_relatorio(
                     pesquisa, itens, referencias,
-                    formato=formato, tipo=tipo)
+                    formato=formato, tipo=tipo, ciencia_doc=ciencia_doc)
                 conteudo, nome, _ = st.session_state[chave]
                 _registrar_emissao(pesquisa, itens, referencias,
                                    tipo=_TIPO_NO_REGISTRO.get(tipo, tipo),
                                    formato=formato, conteudo=conteudo,
-                                   nome=nome)
+                                   nome=nome, ciencia_doc=ciencia_doc)
+            except ciencia.CienciaNecessaria as pedido:
+                _pedir_ciencia(pesquisa, pedido.preparo, chave)
+                return
             except ErroDeRenderizacao as erro:
                 st.error(str(erro))
                 return
@@ -2538,8 +2757,15 @@ def _botao_do_pacote(pesquisa: dict, itens: list[dict],
     """
     from ..precos.documento_cotacao import ErroDeRenderizacao
 
+    from ..precos import ciencia
+
     chave = f"precos_pacote_{pesquisa['id']}" + (f"_{versao}" if versao
                                                   else "")
+    confirmado = st.session_state.get(_CIENCIA_GERAR) == chave
+    if confirmado:
+        st.session_state.pop(_CIENCIA_GERAR, None)
+    else:
+        _reabrir_aviso_pendente(pesquisa, chave)
     com_integral = False
     if visual:
         com_integral = st.checkbox(
@@ -2551,16 +2777,21 @@ def _botao_do_pacote(pesquisa: dict, itens: list[dict],
              "Relatório completo em PDF, quadro resumido em PDF e memória "
              "analítica em XLSX, num arquivo só.")
     if st.button("Pacote completo (ZIP)", use_container_width=True,
-                 help=ajuda):
+                 help=ajuda) or confirmado:
         with st.spinner("Montando o pacote…"):
             try:
+                ciencia_doc = _verificar_ciencia(pesquisa, itens, referencias)
                 st.session_state[chave] = _montar_pacote(
                     pesquisa, itens, referencias, visual=visual,
-                    com_integral=com_integral)
+                    com_integral=com_integral, ciencia_doc=ciencia_doc)
                 _registrar_emissao(
                     pesquisa, itens, referencias, tipo="pacote", formato="zip",
                     conteudo=st.session_state[chave],
-                    nome=relatorio.nome_do_arquivo(pesquisa, "pacote", "zip"))
+                    nome=relatorio.nome_do_arquivo(pesquisa, "pacote", "zip"),
+                    ciencia_doc=ciencia_doc)
+            except ciencia.CienciaNecessaria as pedido:
+                _pedir_ciencia(pesquisa, pedido.preparo, chave)
+                return
             except ErroDeRenderizacao as erro:
                 st.error(str(erro))
                 return
@@ -2589,8 +2820,12 @@ def montar_pacote(pesquisa: dict, itens: list[dict],
 
 def _montar_pacote(pesquisa: dict, itens: list[dict],
                    referencias: dict, *, visual: bool = False,
-                   com_integral: bool = False) -> bytes:
+                   com_integral: bool = False,
+                   ciencia_doc=_VERIFICAR) -> bytes:
     import zipfile
+
+    if ciencia_doc is _VERIFICAR:
+        ciencia_doc = _verificar_ciencia(pesquisa, itens, referencias)
 
     if visual:
         partes = [("pdf", "cotacao"), ("xlsx", "analitico")]
@@ -2603,7 +2838,8 @@ def _montar_pacote(pesquisa: dict, itens: list[dict],
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for formato, tipo in partes:
             conteudo, nome, _ = _conteudo_do_relatorio(
-                pesquisa, itens, referencias, formato=formato, tipo=tipo)
+                pesquisa, itens, referencias, formato=formato, tipo=tipo,
+                ciencia_doc=ciencia_doc)
             zf.writestr(nome, conteudo)
     return buffer.getvalue()
 

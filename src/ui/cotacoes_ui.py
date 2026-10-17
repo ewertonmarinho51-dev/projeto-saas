@@ -37,6 +37,7 @@ from ..precos import filtros as filtros_mod
 from ..precos import repositorio as repo
 from ..precos.estados import EstadoItem
 from ..precos.perfil import inciso_da_fonte
+from ..precos import saneamento
 from ..precos.relatorio_view import titulo_curto
 from . import components, precos_ui
 
@@ -722,6 +723,14 @@ def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
             partes.append(f"{p['nao_gravadas']} candidata(s) contada(s), "
                           "não gravada(s) (teto da cotação automática)")
         st.caption(" · ".join(partes))
+        if p.get("saneamento") or any(
+                saneamento.desconsiderada_pelo_jev(r)
+                or saneamento.em_revisao_pela_triagem(r) for r in referencias):
+            # pacote Jev: o resumo da triagem do item, com o ESTADO ATUAL
+            # das referências (uma reinclusão já aparece aqui)
+            resumo = saneamento.resumo_do_item(
+                referencias, int(p.get("unicas") or len(referencias)))
+            st.markdown(f"**Triagem:** {saneamento.frase_do_resumo(resumo)}")
     elif not referencias:
         st.caption("Nenhuma busca ainda. Pesquise à mão para escolher as "
                    "referências, ou use a Cotação automática.")
@@ -748,14 +757,32 @@ def _acoes_do_item(ctx, cotacao: dict, item: dict) -> None:
                 cotacoes.reabrir_item(ctx, str(cotacao["id"]), str(item["id"]),
                                       motivo)
                 st.rerun()
-        motivo_rem = st.text_input("Motivo para retirar da cotação",
-                                   key=f"cot_rem_m_{item['id']}")
-        if st.button("Retirar item", key=f"cot_rem_{item['id']}",
-                     help="Não apaga: o item e as referências ficam na trilha."):
-            cotacoes.remover_item(ctx, str(cotacao["id"]), str(item["id"]),
-                                  motivo_rem)
-            st.session_state[ITEM] = None
-            st.rerun()
+        # Sem justificativa obrigatória (pacote Jev, RF-02): a trilha
+        # registra quem retirou e quando; a confirmação só evita o clique
+        # acidental no item inteiro.
+        confirmar = f"_cot_rem_ok_{item['id']}"
+        if not st.session_state.get(confirmar):
+            if st.button("Retirar item", key=f"cot_rem_{item['id']}",
+                         help="Não apaga: o item e as referências ficam na "
+                              "trilha."):
+                st.session_state[confirmar] = True
+                st.rerun()
+        else:
+            st.caption("O item sai da cotação; ele e as referências ficam "
+                       "na trilha.")
+            motivo_rem = st.text_input("Observação (opcional)",
+                                       key=f"cot_rem_m_{item['id']}")
+            sim, nao = st.columns(2)
+            if sim.button("Confirmar retirada", type="primary",
+                          key=f"cot_rem_sim_{item['id']}"):
+                cotacoes.remover_item(ctx, str(cotacao["id"]),
+                                      str(item["id"]), motivo_rem or None)
+                st.session_state.pop(confirmar, None)
+                st.session_state[ITEM] = None
+                st.rerun()
+            if nao.button("Cancelar", key=f"cot_rem_nao_{item['id']}"):
+                st.session_state.pop(confirmar, None)
+                st.rerun()
 
 
 def _chips_da_referencia(linha: dict, dentro: bool) -> list[tuple[str, str]]:
@@ -771,9 +798,11 @@ def _chips_da_referencia(linha: dict, dentro: bool) -> list[tuple[str, str]]:
                                              str(linha.get("natureza_valor")))
     return [
         ("Considerada" if dentro else
-         {"selected": "Marcada, fora do cálculo", "rejected": "Excluída",
-          "manual_review": "Abaixo do piso", "warning": "Sinalizada",
-          "candidate": "Candidata"}.get(status, status),
+         "Desconsiderada pelo Jev" if saneamento.desconsiderada_pelo_jev(linha)
+         else "Requer revisão" if saneamento.em_revisao_pela_triagem(linha)
+         else {"selected": "Marcada, fora do cálculo", "rejected": "Excluída",
+               "manual_review": "Abaixo do piso", "warning": "Sinalizada",
+               "candidate": "Candidata"}.get(status, status),
          "success" if dentro else "danger" if status == "rejected" else ""),
         (precos_ui.NOME_FONTE.get(str(linha.get("fonte_id")),
                                   str(linha.get("fonte_nome") or "")), "info"),
@@ -814,6 +843,25 @@ def _render_referencias(ctx, cotacao: dict, item: dict, referencias: list[dict],
     escolhidos = precos_ui._render_filtros(referencias)
     visiveis = filtros_mod.aplicar(referencias, escolhidos)
     dentro = {str(r["id"]) for r in cesta.consideradas(referencias)}
+    # Retidas pela triagem pré-cesta: seção própria, com o fundamento de
+    # cada uma e a reinclusão consciente — nunca escondidas.
+    retidas = [r for r in visiveis
+               if saneamento.desconsiderada_pelo_jev(r)
+               or saneamento.em_revisao_pela_triagem(r)]
+    if retidas:
+        ids_retidas = {str(r["id"]) for r in retidas}
+        visiveis = [r for r in visiveis if str(r["id"]) not in ids_retidas]
+        desconsideradas = sum(1 for r in retidas
+                              if saneamento.desconsiderada_pelo_jev(r))
+        with st.expander(
+                f"Desconsideradas pelo Jev ({desconsideradas}) e em revisão "
+                f"({len(retidas) - desconsideradas})"):
+            st.caption("Ficaram fora da cesta automática com fundamento "
+                       "técnico registrado. Os dados originais estão "
+                       "preservados; reincluir põe a cotação na cesta "
+                       "SINALIZADA, com o seu motivo na memória de cálculo.")
+            for linha in retidas:
+                _referencia(ctx, cotacao, item, linha, False, editavel)
     # A decisão primeiro: consideradas no topo, depois por comparabilidade
     visiveis = sorted(visiveis, key=lambda r: (
         str(r["id"]) not in dentro, -float(r.get("score") or 0)))
@@ -852,19 +900,32 @@ def _referencia(ctx, cotacao: dict, item: dict, linha: dict, dentro: bool,
                 str(m) for m in motivos[-3:])))
         acao, detalhe = st.columns([1.3, 2])
         if editavel and item.get("estado") != "complete":
-            with acao.popover("Tirar da cesta" if dentro else "Usar na cesta",
-                              use_container_width=True):
+            retida = saneamento.desconsiderada_pelo_jev(linha) or \
+                saneamento.em_revisao_pela_triagem(linha)
+            with acao.popover("Tirar da cesta" if dentro else
+                              "Reincluir na cesta" if retida else
+                              "Usar na cesta", use_container_width=True):
+                if retida:
+                    st.caption("Esta cotação ficou fora da cesta pela "
+                               "triagem (veja o porquê acima). Reincluída, "
+                               "ela entra SINALIZADA e o alerta acompanha o "
+                               "preço até a emissão.")
                 with st.form(f"cot_ref_{linha['id']}"):
-                    motivo = st.text_input("Motivo (obrigatório)",
-                                           placeholder="mesmo produto e unidade; "
-                                                       "fora da curva; …")
-                    ok = st.form_submit_button("Confirmar")
+                    # retirar não pede justificativa (pacote Jev, RF-02);
+                    # incluir pede, porque muda o preço pelo seu juízo
+                    motivo = st.text_input(
+                        "Observação (opcional)" if dentro
+                        else "Motivo da inclusão",
+                        placeholder="mesmo produto e unidade; fora da "
+                                    "curva; …")
+                    ok = st.form_submit_button(
+                        "Retirar da cesta" if dentro else "Confirmar")
                 if ok:
                     try:
                         cotacoes.alterar_status_referencia(
                             ctx, str(cotacao["id"]), str(item["id"]),
                             str(linha["id"]), incluir=not dentro,
-                            motivo=motivo,
+                            motivo=motivo or None,
                             revisao_esperada=_revisao_vista(item))
                     except cotacoes.ErroCotacao as erro:
                         st.error(str(erro))

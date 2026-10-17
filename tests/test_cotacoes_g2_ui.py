@@ -147,7 +147,7 @@ def test_conflito_de_outra_aba_vira_aviso_sem_sobrescrever(monkeypatch):
     motivo = next(t for t in at.text_input
                   if (t.placeholder or "").startswith("mesmo produto"))
     motivo.input("fora da curva")
-    _botao(at, "Confirmar").click().run()
+    _botao(at, "Retirar da cesta").click().run()
     assert any("outra aba" in str(w.value) for w in at.warning)
     depois = {r["id"]: r["status"] for r in
               repo.listar_referencias(str(item["id"]))}
@@ -157,7 +157,7 @@ def test_conflito_de_outra_aba_vira_aviso_sem_sobrescrever(monkeypatch):
     motivo = next(t for t in at.text_input
                   if (t.placeholder or "").startswith("mesmo produto"))
     motivo.input("fora da curva")
-    _botao(at, "Confirmar").click().run()
+    _botao(at, "Retirar da cesta").click().run()
     assert not any("outra aba" in str(w.value) for w in at.warning)
     final = [r["status"] for r in repo.listar_referencias(str(item["id"]))]
     assert final.count("rejected") == 1
