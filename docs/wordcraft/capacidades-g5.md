@@ -119,6 +119,12 @@ registrado, identidade do documento e primeiro trecho limitado. Como o schema
 atual não define os campos cobertos pelo hash de `fontes_conhecimento`, uma
 fonte vigente permanece `PENDENTE` em vez de receber verificação falsa;
 revogada fica `INDISPONIVEL` e vínculo RAG invisível fica `NAO_ENCONTRADO`.
+O usuário pode conferir uma citação literal de 16 a 4.000 caracteres contra
+todos os chunks autorizados de uma fonte selecionada. Correspondência literal
+produz `VERIFICADO` para a presença da citação, mantendo separadamente
+`sourceIntegrity=PENDENTE`; ausência permanece `PENDENTE`, e revogação ou
+invisibilidade não são convertidas em inexistência jurídica. A ação exige acesso
+ao processo corrente e não chama rede, embedding ou LLM.
 
 A estrutura institucional da revisão também está disponível no painel. Ela é
 lida do `institutional_snapshot` já capturado pelo owner, portanto identidade,
@@ -162,6 +168,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   ou hash divergente a evidência verificada;
 - catálogo de conhecimento/RAG preserva documento e trecho pela RLS, sem
   promover hash não recalculável a fonte verificada;
+- citação literal é conferida nos chunks autorizados, separando presença
+  verificada da integridade ainda pendente da fonte;
 - snapshot institucional e montagem de itens usam as fontes da revisão e do
   processo, preservando portaria/signatários e cálculo `Decimal` sem LLM;
 - biblioteca de templates publicados é lida pela RLS com versão/hash/escopo,

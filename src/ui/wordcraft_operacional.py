@@ -184,6 +184,7 @@ def render(doc_key: str, meta: dict) -> None:
     opinions_key = _chave(doc_key, "legal_opinions")
     attendance_key = _chave(doc_key, "legal_attendance")
     evidence_key = _chave(doc_key, "evidence")
+    citation_key = _chave(doc_key, "citation_check")
     structure_key = _chave(doc_key, "structure")
     current_audit = st.session_state.get(audit_key)
     if current_audit is not None:
@@ -239,6 +240,23 @@ def render(doc_key: str, meta: dict) -> None:
                 st.rerun()
             except ErroDocumento as error:
                 st.error(str(error))
+        evidence_panel = st.session_state.get(evidence_key)
+        catalog_sources = ((evidence_panel or {}).get("fontesConhecimento") or [])
+        if catalog_sources:
+            source_labels = {item["sourceId"]: item["label"] for item in catalog_sources}
+            source_id = st.selectbox("Fonte para conferir citação", tuple(source_labels),
+                format_func=source_labels.get, key=_chave(doc_key, "citation_source"))
+            citation = st.text_area("Citação literal a conferir", max_chars=4000,
+                key=_chave(doc_key, "citation_text"))
+            if st.button("Conferir citação na base RAG",
+                         disabled=len(citation.strip()) < 16,
+                         key=_chave(doc_key, "citation_button")):
+                try:
+                    st.session_state[citation_key] = service.verificar_citacao(
+                        processo_id, source_id, citation)
+                    st.rerun()
+                except ErroDocumento as error:
+                    st.error(str(error))
         if st.button("Carregar estrutura institucional e montagem",
                      key=_chave(doc_key, "structure_button")):
             try:
@@ -365,6 +383,7 @@ def render(doc_key: str, meta: dict) -> None:
         evidencias=(st.session_state.get(evidence_key) or {}).get("evidencias", ()),
         fontes_conhecimento=(st.session_state.get(evidence_key) or {}).get(
             "fontesConhecimento", ()),
+        verificacao_citacao=st.session_state.get(citation_key),
         template=({"publicados": (st.session_state.get(structure_key) or {}).get(
                       "templatesPublicados", []),
                    "efetivo": (st.session_state.get(structure_key) or {}).get(

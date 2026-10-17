@@ -616,6 +616,82 @@ class DocumentoService:
         return json.loads(_snapshot_bytes({"schema": "gc-wordcraft-legal-attendance/v1",
             "processId": processo_id, "reports": reports}))
 
+    def verificar_citacao(self, processo_id: str, source_id: str, citacao: str) -> dict:
+        """Verify literal citation presence in one RLS-visible governed RAG source."""
+        _uuid(processo_id)
+        source_id = str(_uuid(source_id))
+        if not isinstance(citacao, str) or not 16 <= len(citacao.strip()) <= 4000:
+            raise ErroDocumento("Citação deve conter entre 16 e 4.000 caracteres.")
+        citation = " ".join(citacao.split())
+        user, claims = self._session()
+        # The knowledge base is tenant-shared, but a contextual check still
+        # requires access to the process/document bundle that requested it.
+        self._fontes_patch(processo_id, user, claims)
+        sources = _execute(user.table("fontes_conhecimento").select(
+            "id,documento_referencia_id,rotulo,vigente,revogada_em,versao,hash")
+            .eq("id", source_id).limit(2))
+        if not isinstance(sources, list) or len(sources) > 1:
+            raise ErroDocumento("Fonte de conhecimento divergente.")
+        if not sources:
+            return {"schema": "gc-wordcraft-citation-check/v1", "sourceId": source_id,
+                "state": "NAO_ENCONTRADO", "reason": "Fonte não está visível para esta sessão.",
+                "citation": citation, "matches": [], "sourceIntegrity": "DESCONHECIDA"}
+        source = sources[0]
+        try:
+            if (source.keys() != {"id", "documento_referencia_id", "rotulo", "vigente",
+                    "revogada_em", "versao", "hash"}
+                    or str(_uuid(source["id"])) != source_id
+                    or not isinstance(source["rotulo"], str)
+                    or type(source["vigente"]) is not bool
+                    or type(source["versao"]) is not int or source["versao"] < 1
+                    or not isinstance(source["hash"], str)):
+                raise ValueError()
+            document_id = source["documento_referencia_id"]
+            if source["vigente"] is False or source["revogada_em"] is not None:
+                return {"schema": "gc-wordcraft-citation-check/v1", "sourceId": source_id,
+                    "state": "INDISPONIVEL", "reason": "Fonte revogada ou fora de vigência.",
+                    "citation": citation, "matches": [], "sourceIntegrity": "PENDENTE"}
+            if document_id is None:
+                return {"schema": "gc-wordcraft-citation-check/v1", "sourceId": source_id,
+                    "state": "NAO_ENCONTRADO", "reason": "Fonte não possui documento RAG vinculado.",
+                    "citation": citation, "matches": [], "sourceIntegrity": "PENDENTE"}
+            document_id = str(_uuid(document_id))
+            documents = _execute(user.table("documentos_referencia").select(
+                "id,titulo,categoria,nome_arquivo,criado_em").eq("id", document_id).limit(2))
+            if not isinstance(documents, list) or len(documents) > 1:
+                raise ValueError()
+            if not documents:
+                return {"schema": "gc-wordcraft-citation-check/v1", "sourceId": source_id,
+                    "state": "NAO_ENCONTRADO", "reason": "Documento RAG não está visível para esta sessão.",
+                    "citation": citation, "matches": [], "sourceIntegrity": "PENDENTE"}
+            chunks = _execute(user.table("chunks_referencia").select(
+                "id,documento_id,ordem,conteudo").eq("documento_id", document_id)
+                .order("ordem").limit(101))
+            if (not isinstance(chunks, list) or len(chunks) > 100
+                    or len(_snapshot_bytes(chunks)) > MAX_BYTES * 4):
+                raise ValueError()
+            matches = []
+            for chunk in chunks:
+                if (chunk.keys() != {"id", "documento_id", "ordem", "conteudo"}
+                        or str(chunk["documento_id"]) != document_id
+                        or type(chunk["ordem"]) is not int
+                        or not isinstance(chunk["conteudo"], str)):
+                    raise ValueError()
+                normalized = " ".join(chunk["conteudo"].split())
+                if citation in normalized:
+                    matches.append({"chunkId": str(chunk["id"]), "order": chunk["ordem"]})
+            state = "VERIFICADO" if matches else "PENDENTE"
+            reason = ("Citação literal localizada em fonte vigente do catálogo."
+                      if matches else "Citação não foi localizada nos chunks autorizados da fonte.")
+            return json.loads(_snapshot_bytes({"schema": "gc-wordcraft-citation-check/v1",
+                "sourceId": source_id, "documentId": document_id,
+                "document": documents[0], "registeredHash": source["hash"],
+                "sourceVersion": source["versao"], "state": state, "reason": reason,
+                "citation": citation, "matches": matches,
+                "sourceIntegrity": "PENDENTE"}))
+        except (KeyError, TypeError, ValueError):
+            raise ErroDocumento("Fonte de citação divergente.") from None
+
     def estrutura_atual(self, processo_id: str, doc_key: str) -> dict:
         """Read the revision-bound institution and deterministic item assembly."""
         from .wordcraft_capacidades import ErroCapacidade, montar_itens

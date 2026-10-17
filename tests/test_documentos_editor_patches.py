@@ -205,7 +205,17 @@ def test_knowledge_catalog_evidence_preserves_provenance_without_false_verificat
     assert [item['state'] for item in items]==['PENDENTE','INDISPONIVEL','NAO_ENCONTRADO']
     assert items[0]['document']['id']==document and items[0]['chunkId']=='1'
     assert items[0]['snippet'].startswith('Trecho sintético')
-    assert 'recalcular' in items[0]['reason'] and not state['rpc_calls']
+    assert 'recalcular' in items[0]['reason']
+    verified=service.verificar_citacao(process,source,
+        'Trecho sintético conhecido para comprovar a proveniência')
+    assert verified['state']=='VERIFICADO' and verified['sourceIntegrity']=='PENDENTE'
+    assert verified['matches']==[{'chunkId':'1','order':0}]
+    false=service.verificar_citacao(process,source,
+        'Citação sintética que não existe no documento autorizado')
+    assert false['state']=='PENDENTE' and false['matches']==[]
+    unavailable=service.verificar_citacao(process,revoked,
+        'Citação longa o suficiente para uma fonte revogada')
+    assert unavailable['state']=='INDISPONIVEL' and not state['rpc_calls']
 
 
 def test_current_structure_reuses_revision_institution_and_decimal_items(patch_owner):
