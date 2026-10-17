@@ -309,6 +309,76 @@ def test_published_template_preview_rejects_divergent_canonical_hash(patch_owner
     assert not state['rpc_calls']
 
 
+def test_published_template_preview_resolves_governed_clause_in_process_scope(patch_owner):
+    from src import governanca
+    service,state,process=patch_owner
+    tenant=state['claims']['app_metadata']['tenant_id']
+    (template_artifact,template_version,municipal_artifact,municipal_version,
+        clause_artifact,clause_version)=(str(uuid4()) for _ in range(6))
+    secretary=str(uuid4())
+    state['context']['processo']['secretaria_id']=secretary
+    template_payload={'blocos':[{'id':'clause','tipo':'clausula_catalogo',
+        'clausula':'clausula.objeto'}]}
+    clause_payload={'titulo':'Objeto','comportamento':'FIXED_PARAMETERIZED',
+        'blocos':['Contratação de {{objeto}} pelo {{orgao}}.'],
+        'parametros_permitidos':['objeto','orgao'],
+        'parametros_obrigatorios':['objeto','orgao']}
+    municipal_payload={'titulo':'Objeto municipal','comportamento':'FIXED_LOCKED',
+        'blocos':['Texto municipal não deve prevalecer.']}
+    state['context']['processo']['dados']={'orgao':'Secretaria QA','objeto':'serviço sintético'}
+    state['template_artifacts']=[
+        dict(id=template_artifact,tenant_id=tenant,secretaria_id=None,
+            tipo_artefato='template',chave_estavel='template.memo-a',descricao='Modelo QA'),
+        dict(id=municipal_artifact,tenant_id=tenant,secretaria_id=None,
+            tipo_artefato='clausula',chave_estavel='clausula.objeto',descricao='Cláusula municipal'),
+        dict(id=clause_artifact,tenant_id=tenant,secretaria_id=secretary,
+            tipo_artefato='clausula',chave_estavel='clausula.objeto',descricao='Cláusula QA')]
+    state['template_versions']=[
+        dict(id=template_version,artefato_id=template_artifact,versao=1,status='PUBLISHED',
+            vigencia_inicio=None,vigencia_fim=None,payload=template_payload,
+            hash=governanca.hash_canonico({'tipo':'template','chave':'template.memo-a',
+                'versao':1,'payload':template_payload})),
+        dict(id=municipal_version,artefato_id=municipal_artifact,versao=2,status='PUBLISHED',
+            vigencia_inicio=None,vigencia_fim=None,payload=municipal_payload,
+            hash=governanca.hash_canonico({'tipo':'clausula','chave':'clausula.objeto',
+                'versao':2,'payload':municipal_payload})),
+        dict(id=clause_version,artefato_id=clause_artifact,versao=3,status='PUBLISHED',
+            vigencia_inicio=None,vigencia_fim=None,payload=clause_payload,
+            hash=governanca.hash_canonico({'tipo':'clausula','chave':'clausula.objeto',
+                'versao':3,'payload':clause_payload}))]
+    preview=service.previsualizar_template(process,'memo_a',template_version)
+    assert 'Contratação de serviço sintético pelo Secretaria QA.' in preview['preview']['text']
+    assert preview['preview']['pending']==[]
+    assert preview['preview']['clausesUsed']==[{'chave':'clausula.objeto','versao':3,
+        'hash':state['template_versions'][2]['hash']}]
+    assert not state['rpc_calls']
+
+
+def test_published_template_preview_rejects_divergent_governed_clause(patch_owner):
+    from src import governanca
+    service,state,process=patch_owner
+    tenant=state['claims']['app_metadata']['tenant_id']
+    template_artifact,template_version,clause_artifact,clause_version=(str(uuid4()) for _ in range(4))
+    template_payload={'blocos':[{'id':'clause','tipo':'clausula_catalogo',
+        'clausula':'clausula.objeto'}]}
+    clause_payload={'titulo':'Objeto','comportamento':'FIXED_LOCKED','blocos':['Texto fixo.']}
+    state['template_artifacts']=[
+        dict(id=template_artifact,tenant_id=tenant,secretaria_id=None,
+            tipo_artefato='template',chave_estavel='template.memo-a',descricao='Modelo QA'),
+        dict(id=clause_artifact,tenant_id=tenant,secretaria_id=None,
+            tipo_artefato='clausula',chave_estavel='clausula.objeto',descricao='Cláusula QA')]
+    state['template_versions']=[
+        dict(id=template_version,artefato_id=template_artifact,versao=1,status='PUBLISHED',
+            vigencia_inicio=None,vigencia_fim=None,payload=template_payload,
+            hash=governanca.hash_canonico({'tipo':'template','chave':'template.memo-a',
+                'versao':1,'payload':template_payload})),
+        dict(id=clause_version,artefato_id=clause_artifact,versao=1,status='PUBLISHED',
+            vigencia_inicio=None,vigencia_fim=None,payload=clause_payload,hash='e'*64)]
+    with pytest.raises(owner.ErroDocumento,match='divergente'):
+        service.previsualizar_template(process,'memo_a',template_version)
+    assert not state['rpc_calls']
+
+
 def test_current_structure_rejects_divergent_published_template(patch_owner):
     service,state,process=patch_owner
     artifact=str(uuid4())

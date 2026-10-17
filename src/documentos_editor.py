@@ -859,17 +859,82 @@ class DocumentoService:
                 "versao": version["versao"], "payload": payload})
             if version["hash"] != expected_hash:
                 raise ValueError()
+            contract = governanca.nova_versao_artefato("template", key, payload,
+                versao=version["versao"], status="PUBLISHED")
+            if contract["hash"] != version["hash"]:
+                raise ValueError()
             data = context["processo"].get("dados") or {}
             if not isinstance(data, dict):
                 raise ValueError()
+            clause_keys = {block.get("clausula") for block in payload["blocos"]
+                if block.get("tipo") == "clausula_catalogo"}
+            if (None in clause_keys or len(clause_keys) > 64
+                    or any(not isinstance(item, str) or not item for item in clause_keys)):
+                raise ValueError()
+            clauses = {}
+            if clause_keys:
+                process_tenant = str(_uuid(context["processo"]["tenant_id"]))
+                process_secretary = context["processo"].get("secretaria_id")
+                if process_secretary is not None:
+                    process_secretary = str(_uuid(process_secretary))
+                clause_artifacts = _execute(user.table("governanca_artefatos")
+                    .select("id,tenant_id,secretaria_id,tipo_artefato,chave_estavel")
+                    .eq("tipo_artefato", "clausula").limit(257))
+                if not isinstance(clause_artifacts, list) or len(clause_artifacts) > 256:
+                    raise ValueError()
+                scoped = {}
+                for item in clause_artifacts:
+                    if item.keys() != {"id", "tenant_id", "secretaria_id",
+                            "tipo_artefato", "chave_estavel"}:
+                        raise ValueError()
+                    item_id = str(_uuid(item["id"]))
+                    item_tenant = str(_uuid(item["tenant_id"]))
+                    item_secretary = item["secretaria_id"]
+                    if item_secretary is not None:
+                        item_secretary = str(_uuid(item_secretary))
+                    item_key = item["chave_estavel"]
+                    if (item["tipo_artefato"] != "clausula"
+                            or not isinstance(item_key, str) or not item_key
+                            or len(item_key) > 200):
+                        raise ValueError()
+                    if (item_key not in clause_keys or item_tenant != process_tenant
+                            or item_secretary not in {None, process_secretary}):
+                        continue
+                    rank = 1 if item_secretary is not None else 0
+                    prior = scoped.get(item_key)
+                    if prior is not None and prior[0] == rank:
+                        raise ValueError()
+                    if prior is None or rank > prior[0]:
+                        scoped[item_key] = (rank, item_id)
+                for clause_key, (_, clause_id) in scoped.items():
+                    published = _execute(user.table("governanca_versoes")
+                        .select("id,artefato_id,versao,status,hash,payload")
+                        .eq("artefato_id", clause_id).eq("status", "PUBLISHED").limit(2))
+                    if not isinstance(published, list) or len(published) != 1:
+                        raise ValueError()
+                    clause = published[0]
+                    if (clause.keys() != expected_version
+                            or str(_uuid(clause["id"])) != clause["id"]
+                            or clause["artefato_id"] != clause_id
+                            or type(clause["versao"]) is not int or clause["versao"] < 1
+                            or clause["status"] != "PUBLISHED"
+                            or not isinstance(clause["payload"], dict)):
+                        raise ValueError()
+                    clause_contract = governanca.nova_versao_artefato(
+                        "clausula", clause_key, clause["payload"],
+                        versao=clause["versao"], status="PUBLISHED")
+                    if clause_contract["hash"] != clause["hash"]:
+                        raise ValueError()
+                    clauses[clause_key] = clause
             preview = templates_gov.montar(payload, data,
-                templates_gov.parametros_do_processo(data), clausulas={})
+                templates_gov.parametros_do_processo(data), clausulas=clauses)
             if (not isinstance(preview.get("texto"), str)
                     or len(preview["texto"].encode("utf-8")) > MAX_BYTES
                     or not isinstance(preview.get("pendencias"), list)
                     or not isinstance(preview.get("clausulas_usadas"), list)):
                 raise ValueError()
-        except (KeyError, TypeError, ValueError, templates_gov.ErroTemplate):
+        except (KeyError, TypeError, ValueError, governanca.ErroContrato,
+                templates_gov.ErroTemplate):
             raise ErroDocumento("Template publicado divergente.") from None
         snapshot = blocos.snapshot_nativo(views, versao=1)
         return json.loads(_snapshot_bytes({"schema": "gc-wordcraft-template-preview/v1",

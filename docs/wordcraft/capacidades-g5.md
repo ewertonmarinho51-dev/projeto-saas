@@ -153,9 +153,12 @@ prévia determinística, somente leitura, ligada às revisões e hashes nativos
 correntes. O owner relê a versão `PUBLISHED` e o artefato pela RLS, recalcula o
 hash canônico da chave, versão e payload, e reutiliza `templates_gov.montar`.
 A prévia não altera o canvas, não cria revisão e declara `applicable=false`:
-a aplicação atômica ainda não foi implementada. Blocos que dependem do catálogo
-de cláusulas permanecem pendentes até a resolução efetiva dessas cláusulas pela
-RLS ser integrada; não são preenchidos por aproximação.
+a aplicação atômica ainda não foi implementada. Blocos de catálogo resolvem
+cláusulas `PUBLISHED` visíveis pela RLS no escopo exato do processo, com
+precedência explícita da secretaria sobre o município. Payload e hash canônico
+de cada cláusula são revalidados antes da montagem. Chave ausente permanece
+pendente; duplicidade de escopo, múltiplas publicadas ou divergência recusam a
+prévia inteira, sem preenchimento por aproximação.
 
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
@@ -193,6 +196,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   mas nenhum template é escolhido sem vínculo canônico de tipo para chave;
 - versão publicada escolhida explicitamente produz prévia determinística ligada
   à revisão, rejeita hash canônico divergente e não executa RPC de gravação;
+- cláusula publicada usada pela prévia respeita o tenant e a secretaria do
+  processo, prevalece sobre a municipal e tem contrato/hash revalidados;
 - parecer ambíguo permanece pendente;
 - alteração posterior de logo ou signatário não muda o snapshot capturado;
 - 210 itens preservam numeração e total decimal;
