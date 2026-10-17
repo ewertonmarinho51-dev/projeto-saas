@@ -12,6 +12,7 @@ def test_modelo_reune_seis_capacidades_sem_callbacks_de_mutacao():
         resultados=(SimpleNamespace(fonte=SimpleNamespace(doc_key="tr")),),
         auditoria=lambda: audit)
     panel = modelo(preparacao=preparation,
+        atendimentos_parecer={"reports": [{"operationId": "legal-op"}]},
         evidencias=({"estado": "VERIFICADA"},),
         template={"hash": "template"}, institucional={"hash": "identity"},
         montagem={"hash": "assembly"},
@@ -22,6 +23,7 @@ def test_modelo_reune_seis_capacidades_sem_callbacks_de_mutacao():
     assert panel["preparacao"]["auditoria"] is audit
     assert panel["evidencias"][0]["estado"] == "VERIFICADA"
     assert panel["institucional"]["hash"] == "identity"
+    assert panel["atendimentos_parecer"]["reports"][0]["operationId"] == "legal-op"
     assert "confirmar" not in panel and "salvar" not in panel
 
 

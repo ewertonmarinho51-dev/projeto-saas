@@ -477,6 +477,72 @@ class DocumentoService:
                 key: view.vinculo() for key, view in views.items()},
             "evidencias": evidence}))
 
+    def atendimentos_parecer(self, processo_id: str) -> dict:
+        """Derive immutable legal-opinion attendance from committed patch audits."""
+        _uuid(processo_id)
+        user, _ = self._session()
+        rows = _execute(user.table("revisoes").select(
+            "id,criado_em,native_patch_operation,native_patch_actor,relatorios,planos,diffs")
+            .eq("processo_id", processo_id).order("criado_em", desc=True).limit(51))
+        if (not isinstance(rows, list) or len(rows) > 50
+                or len(_snapshot_bytes(rows)) > MAX_BYTES * 4):
+            raise ErroDocumento("Histórico de atendimento excessivo.")
+        reports = []
+        expected = {"id", "criado_em", "native_patch_operation", "native_patch_actor",
+                    "relatorios", "planos", "diffs"}
+        try:
+            for row in rows:
+                if not isinstance(row, dict) or row.keys() != expected:
+                    raise ValueError()
+                if row["native_patch_operation"] is None:
+                    continue
+                audit_id = str(_uuid(row["id"]))
+                operation = str(_uuid(row["native_patch_operation"]))
+                actor = str(_uuid(row["native_patch_actor"]))
+                relatorios, planos, diffs = row["relatorios"], row["planos"], row["diffs"]
+                if (not isinstance(relatorios, list) or len(relatorios) != 2
+                        or not isinstance(planos, list) or len(planos) != 1
+                        or not isinstance(diffs, list) or len(diffs) != 1):
+                    raise ValueError()
+                before, after = relatorios
+                if before.get("schema") != "gc-wordcraft-legal-opinions/v1":
+                    continue
+                if after.get("schema") != before["schema"]:
+                    raise ValueError()
+                plan = planos[0]
+                if plan.get("patchPlanId") != operation:
+                    raise ValueError()
+                operations = plan.get("operations")
+                if not isinstance(operations, list):
+                    raise ValueError()
+                applied = {item["findingId"] for item in operations
+                           if isinstance(item, dict) and isinstance(item.get("findingId"), str)}
+                post = {item["findingId"]: item for item in after.get("findings", [])
+                        if isinstance(item, dict) and isinstance(item.get("findingId"), str)}
+                items = []
+                for finding in before.get("findings", []):
+                    finding_id = finding["findingId"]
+                    later = post.get(finding_id)
+                    if finding_id in applied and later is not None and not later.get("autoCorrectable"):
+                        status = "APLICADO_PENDENTE_REVISAO"
+                        reason = ("Operação persistida e alvo anterior encerrado; "
+                                  "o atendimento jurídico ainda exige revisão humana.")
+                    elif finding_id in applied:
+                        status = "NAO_COMPROVADO"
+                        reason = "Operação persistida, mas a revalidação não comprovou o atendimento."
+                    else:
+                        status = "PENDENTE"
+                        reason = finding.get("blockingReason") or "Apontamento não incluído no plano aplicado."
+                    items.append({"findingId": finding_id, "status": status,
+                        "reason": reason, "sourceIds": list(finding.get("sourceIds") or ())})
+                reports.append({"auditId": audit_id, "operationId": operation,
+                    "actorId": actor, "createdAt": row["criado_em"],
+                    "items": items, "diff": diffs[0]})
+        except (AttributeError, KeyError, TypeError, ValueError):
+            raise ErroDocumento("Histórico jurídico divergente.") from None
+        return json.loads(_snapshot_bytes({"schema": "gc-wordcraft-legal-attendance/v1",
+            "processId": processo_id, "reports": reports}))
+
     def estrutura_atual(self, processo_id: str, doc_key: str) -> dict:
         """Read the revision-bound institution and deterministic item assembly."""
         from .wordcraft_capacidades import ErroCapacidade, montar_itens

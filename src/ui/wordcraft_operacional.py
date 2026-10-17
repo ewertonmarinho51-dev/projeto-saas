@@ -134,6 +134,7 @@ def _receber(doc_key: str, service: DocumentoService) -> None:
                 restored_from_revision=receipt.restored_from_revision)
             st.session_state.pop(_chave(doc_key, "audit"), None)
             st.session_state.pop(_chave(doc_key, "legal_opinions"), None)
+            st.session_state.pop(_chave(doc_key, "legal_attendance"), None)
             st.session_state.pop(_chave(doc_key, "evidence"), None)
             st.session_state.pop(_chave(doc_key, "structure"), None)
             st.session_state[_chave(doc_key, "message")] = (
@@ -181,6 +182,7 @@ def render(doc_key: str, meta: dict) -> None:
     preparation_key = _chave(doc_key, "preparation")
     audit_key = _chave(doc_key, "audit")
     opinions_key = _chave(doc_key, "legal_opinions")
+    attendance_key = _chave(doc_key, "legal_attendance")
     evidence_key = _chave(doc_key, "evidence")
     structure_key = _chave(doc_key, "structure")
     current_audit = st.session_state.get(audit_key)
@@ -219,6 +221,14 @@ def render(doc_key: str, meta: dict) -> None:
                      key=_chave(doc_key, "legal_opinions_button")):
             try:
                 st.session_state[opinions_key] = service.pareceres_atuais(processo_id)
+                st.rerun()
+            except ErroDocumento as error:
+                st.error(str(error))
+        if st.button("Carregar relatórios de atendimento jurídico",
+                     key=_chave(doc_key, "legal_attendance_button")):
+            try:
+                st.session_state[attendance_key] = service.atendimentos_parecer(
+                    processo_id)
                 st.rerun()
             except ErroDocumento as error:
                 st.error(str(error))
@@ -351,6 +361,7 @@ def render(doc_key: str, meta: dict) -> None:
         preparacao=st.session_state.get(preparation_key),
         auditoria_atual=st.session_state.get(audit_key),
         pareceres_atuais=st.session_state.get(opinions_key),
+        atendimentos_parecer=st.session_state.get(attendance_key),
         evidencias=(st.session_state.get(evidence_key) or {}).get("evidencias", ()),
         template=({"publicados": (st.session_state.get(structure_key) or {}).get(
                       "templatesPublicados", []),

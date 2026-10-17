@@ -9,6 +9,7 @@ from ..wordcraft_capacidades import painel_unico
 
 
 def modelo(*, preparacao=None, auditoria_atual=None, pareceres_atuais=None,
+           atendimentos_parecer=None,
            evidencias=(), template=None, institucional=None, montagem=None,
            historico=()) -> dict:
     base = painel_unico()
@@ -23,6 +24,7 @@ def modelo(*, preparacao=None, auditoria_atual=None, pareceres_atuais=None,
                            if preparacao is not None else None),
             "auditoria_atual": auditoria_atual,
             "pareceres_atuais": pareceres_atuais,
+            "atendimentos_parecer": atendimentos_parecer,
             "evidencias": list(evidencias),
             "template": template,
             "institucional": institucional,
@@ -79,6 +81,11 @@ def renderizar(modelo_painel: dict) -> None:
                 st.json(finding, expanded=False)
         else:
             st.info("Nenhuma pendência de parecer vinculada à proposta atual.")
+        attendance = modelo_painel.get("atendimentos_parecer")
+        if attendance:
+            st.caption("Atendimentos persistidos na trilha imutável de revisões")
+            for report in attendance["reports"]:
+                st.json(report, expanded=False)
     with evidencias:
         if modelo_painel["evidencias"]:
             for item in modelo_painel["evidencias"]:

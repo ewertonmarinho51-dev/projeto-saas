@@ -99,8 +99,11 @@ proposto enquanto vê a recomendação jurídica; o owner relê parecer e achado
 compila a proposta pelo mesmo aplicador G4 e reexecuta a projeção jurídica sobre
 o resultado simulado. A recomendação não é usada diretamente como texto
 substituto. Persistência continua condicionada à confirmação comum do canvas.
-O relatório de atendimento próprio do parecer, persistido após o commit, ainda
-é pendência.
+Após o commit, o relatório de atendimento é derivado da trilha imutável já
+gravada em `revisoes`: operação e revalidação encerrada produzem
+`APLICADO_PENDENTE_REVISAO`; operação sem fechamento permanece
+`NAO_COMPROVADO`; achado fora do plano permanece `PENDENTE`. Não há tabela ou
+estado jurídico paralelo.
 
 A aba Evidências agora pode carregar os fatos canônicos correntes pelo mesmo
 RPC privado usado pelo owner de patches. Cada item preserva ID, path, origem,
@@ -147,6 +150,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   ligado a uma âncora somente com citação literal única; leitura não grava;
 - atendimento objetivo do parecer é preparado pelo owner G4, preserva IDs de
   origem, produz diff e reaudita o resultado sem gravar antes da confirmação;
+- relatório de atendimento é relido da auditoria transacional imutável e não
+  promove aplicação a correção jurídica comprovada sem revisão humana;
 - fatos canônicos exibem proveniência e status sem promover extraído, disputado
   ou hash divergente a evidência verificada;
 - snapshot institucional e montagem de itens usam as fontes da revisão e do

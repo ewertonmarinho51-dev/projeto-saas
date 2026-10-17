@@ -30,6 +30,10 @@ class Query:
     def limit(self,n):
         if isinstance(self.rows,list): self.rows=self.rows[:n]
         return self
+    def order(self,key,desc=False):
+        if isinstance(self.rows,list):
+            self.rows=sorted(self.rows,key=lambda row:row.get(key),reverse=desc)
+        return self
     def execute(self):
         if isinstance(self.rows,Exception): raise self.rows
         rows=copy.deepcopy(self.rows)
@@ -47,6 +51,7 @@ def patch_owner(engine,monkeypatch):
     claims={'sub':actor,'role':'authenticated','app_metadata':{'tenant_id':tenant,'papel':'usuario'}}
     process_row={'id':process,'tenant_id':tenant,'secretaria_id':None,'criado_em':'2026-01-20T12:00:00Z','dados':{},'aprovados':[]}
     state={'claims':claims,'heads':[],'rows':[],'opinions':[],'opinion_findings':[],
+           'patch_audits':[],
            'template_artifacts':[],'template_versions':[],
            'rpc_calls':[],'proposals':0,'native_calls':calls,'contexts':0}
     context={'processo':{k:process_row[k] for k in ('id','tenant_id','secretaria_id','dados','aprovados')},'fatos':[]}
@@ -59,6 +64,7 @@ def patch_owner(engine,monkeypatch):
         def table(self,name):
             return Query(copy.deepcopy({'documentos_editor':state['heads'],'documentos_editor_revisoes':state['rows'],
                 'pareceres':state['opinions'],'parecer_achados':state['opinion_findings'],
+                'revisoes':state['patch_audits'],
                 'governanca_artefatos':state['template_artifacts'],
                 'governanca_versoes':state['template_versions'],
                 'processos':[process_row]}.get(name,[])))
@@ -293,6 +299,19 @@ def test_legal_opinion_preparation_reuses_native_owner_and_reaudits(patch_owner)
     assert audit['plan']['operations'][0]['findingId']==finding_id
     assert audit['origem']=='parecer'
     assert [result.fonte.doc_key for result in prep.resultados]==['memo_a']
+    audit_id=str(uuid4())
+    state['patch_audits']=[dict(id=audit_id,processo_id=process,
+        criado_em='2026-10-17T12:00:00Z',native_patch_operation=operation,
+        native_patch_actor=state['claims']['sub'],relatorios=audit['reports'],
+        planos=[audit['plan']],diffs=[audit['diff']])]
+    attendance=service.atendimentos_parecer(process)
+    assert attendance['schema']=='gc-wordcraft-legal-attendance/v1'
+    assert attendance['reports'][0]['auditId']==audit_id
+    assert attendance['reports'][0]['items']==[dict(findingId=finding_id,
+        status='APLICADO_PENDENTE_REVISAO',
+        reason=('Operação persistida e alvo anterior encerrado; '
+                'o atendimento jurídico ainda exige revisão humana.'),
+        sourceIds=[f'parecer:{opinion}',f'parecer_achado:{finding}'])]
     with pytest.raises(owner.ConflitoDocumento,match='outra origem'):
         service.preparar_patches(process,operation_id=operation,
             propor_plano=propositor(correction))
