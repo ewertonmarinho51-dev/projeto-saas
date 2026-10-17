@@ -63,7 +63,10 @@ disponível para Undo posterior. A mesma aba pode recarregar, pela RLS do usuár
 até cinquenta metadados imutáveis de `documentos_editor_revisoes`; a projeção
 marca a revisão corrente e não expõe o payload do documento. Recibos e revisões
 possuem tipos explícitos para não converter confirmação local em histórico
-persistido.
+persistido. Uma revisão histórica pode ser restaurada apenas por formulário
+confirmado, com o canvas limpo. O owner cria uma nova revisão por CAS e operação
+idempotente; a UI relê a head persistida, confere o recibo e remonta a instância,
+sem alterar ou apagar a revisão antiga.
 Lotes com mais de um canvas continuam bloqueados nesta UI até haver coordenação
 atômica de todos os componentes.
 

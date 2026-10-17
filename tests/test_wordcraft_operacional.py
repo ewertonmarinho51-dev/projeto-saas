@@ -168,6 +168,51 @@ def test_checkpoint_de_patch_confirma_lote_antes_do_ack_do_canvas(monkeypatch):
     assert session[ui._chave("tr", "history")][-1]["canvas_confirmado"] is True
 
 
+def test_restore_operacional_usa_historico_persistido_cas_e_remonta_canvas(monkeypatch):
+    document = SimpleNamespace(id="44444444-4444-4444-4444-444444444444",
+        processo_id="11111111-1111-1111-1111-111111111111", tipo="tr",
+        revision=3, content_hash="a" * 64, payload=b"current")
+    restored = SimpleNamespace(**{**vars(document), "revision": 4,
+        "content_hash": "b" * 64, "payload": b"restored"})
+    receipt = SimpleNamespace(revision=4, content_hash="b" * 64)
+    calls = []
+    class Service:
+        def restaurar(self, document_id, **kwargs):
+            calls.append((document_id, kwargs))
+            return receipt
+        def abrir(self, document_id):
+            assert document_id == document.id
+            return restored
+    session = Session()
+    session[ui._chave("tr", "document")] = document
+    session[ui._chave("tr", "bridge")] = SimpleNamespace(state="saved")
+    session[ui._chave("tr", "history")] = [{"kind": "revision", "revision": 1}]
+    session[ui._chave("tr", "audit")] = {"stale": True}
+    monkeypatch.setattr(ui.st, "session_state", session)
+    monkeypatch.setattr(ui, "_montar", lambda key, value, runtime:
+        session.__setitem__(ui._chave(key, "document"), value))
+    ui._restaurar_operacional("tr", Service(), object(), 1)
+    assert calls == [(document.id, {"source_revision": 1, "expected_revision": 3,
+        "operation_id": str(uuid5(NAMESPACE_URL,
+            "govconnect-wordcraft-restore:" + document.id + ":3:1"))})]
+    assert session[ui._chave("tr", "document")] is restored
+    assert ui._chave("tr", "history") not in session
+    assert ui._chave("tr", "audit") not in session
+    assert "nova revisão 4" in session[ui._chave("tr", "message")]
+
+
+def test_restore_options_ignore_receipts_current_and_divergent_rows():
+    history = [
+        {"kind": "revision", "revision": 3, "current": True},
+        {"kind": "receipt", "revision": 2, "current": False},
+        {"kind": "revision", "revision": 2, "current": False},
+        {"kind": "revision", "revision": 1, "current": False},
+        {"kind": "revision", "revision": True, "current": False},
+        {"kind": "revision", "revision": 4, "current": False},
+    ]
+    assert ui._revisoes_restauraveis(history, 3) == (2, 1)
+
+
 def test_trilha_d_captura_selecao_prepara_diff_e_nao_aceita_lote_multicanvas():
     source = (Path(__file__).parents[1] / "src/ui/wordcraft_operacional.py").read_text(encoding="utf-8")
     render = source[source.index("def render(doc_key") : source.index("def render_sucesso")]

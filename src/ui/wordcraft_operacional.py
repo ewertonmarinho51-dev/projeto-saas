@@ -93,6 +93,51 @@ def _montar(doc_key: str, document, runtime: Runtime) -> None:
         content_hash=document.content_hash)
 
 
+def _revisoes_restauraveis(history, current_revision: int) -> tuple[int, ...]:
+    """Return only persisted historical revisions eligible for a new CAS revision."""
+    if type(current_revision) is not int or current_revision < 1:
+        return ()
+    revisions = set()
+    for item in history if isinstance(history, (list, tuple)) else ():
+        if (isinstance(item, Mapping) and item.get("kind") == "revision"
+                and item.get("current") is False
+                and type(item.get("revision")) is int
+                and 1 <= item["revision"] < current_revision):
+            revisions.add(item["revision"])
+    return tuple(sorted(revisions, reverse=True))
+
+
+def _restaurar_operacional(doc_key: str, service: DocumentoService, runtime: Runtime,
+                           source_revision: int) -> None:
+    """Create a persisted restore revision and remount the canvas from its new head."""
+    document = st.session_state[_chave(doc_key, "document")]
+    bridge = st.session_state[_chave(doc_key, "bridge")]
+    if bridge.state not in {"ready", "saved"}:
+        raise ErroDocumento("Salve ou descarte a edição local antes de restaurar.")
+    operation_id = str(uuid5(NAMESPACE_URL, "govconnect-wordcraft-restore:"
+        + document.id + ":" + str(document.revision) + ":" + str(source_revision)))
+    receipt = service.restaurar(document.id, source_revision=source_revision,
+        expected_revision=document.revision, operation_id=operation_id)
+    try:
+        restored = service.abrir(document.id)
+    except Exception:
+        st.session_state.pop(_chave(doc_key, "document"), None)
+        st.session_state.pop(_chave(doc_key, "bridge"), None)
+        raise
+    if ((restored.revision, restored.content_hash)
+            != (receipt.revision, receipt.content_hash)):
+        st.session_state.pop(_chave(doc_key, "document"), None)
+        st.session_state.pop(_chave(doc_key, "bridge"), None)
+        raise ErroDocumento("Head restaurada diverge do recibo persistido.")
+    _montar(doc_key, restored, runtime)
+    for suffix in ("preparation", "audit", "legal_opinions", "legal_attendance",
+                   "evidence", "citation_check", "structure", "history",
+                   "patch_receipt", "approval"):
+        st.session_state.pop(_chave(doc_key, suffix), None)
+    st.session_state[_chave(doc_key, "message")] = (
+        f"Revisão {source_revision} restaurada como nova revisão {receipt.revision}.")
+
+
 def _receber(doc_key: str, service: DocumentoService) -> None:
     bridge = st.session_state[_chave(doc_key, "bridge")]
     result = st.session_state.get("wordcraft_" + bridge.instance_id)
@@ -275,6 +320,23 @@ def render(doc_key: str, meta: dict) -> None:
                 st.rerun()
             except ErroDocumento as error:
                 st.error(str(error))
+        restore_options = _revisoes_restauraveis(
+            st.session_state.get(history_key), document.revision)
+        if restore_options:
+            with st.form(_chave(doc_key, "restore_form")):
+                source_revision = st.selectbox("Revisão histórica para restaurar",
+                    restore_options, key=_chave(doc_key, "restore_revision"))
+                restore_confirmed = st.checkbox(
+                    "Confirmo a criação de uma nova revisão com esse conteúdo.",
+                    key=_chave(doc_key, "restore_confirm"))
+                restore_submitted = st.form_submit_button("Restaurar como nova revisão",
+                    disabled=not restore_confirmed or bridge.state not in {"ready", "saved"})
+            if restore_submitted:
+                try:
+                    _restaurar_operacional(doc_key, service, runtime, source_revision)
+                    st.rerun()
+                except ErroDocumento as error:
+                    st.error(str(error))
         current_audit = st.session_state.get(audit_key)
         findings = ([item for item in current_audit["report"]["findings"]
                      if item.get("documentId") == doc_key] if current_audit else [])
