@@ -41,6 +41,15 @@ def database(*, upgraded=True):
         harness.descartar_banco(base, name)
 
 
+def reconnect_dsn(connection):
+    """Rebuild the disposable DSN without relying on libpq's redacted DSN."""
+    import psycopg
+    base = os.environ["GOVDOCS_ENSAIO_PG_DSN"]
+    params = psycopg.conninfo.conninfo_to_dict(base)
+    params["dbname"] = connection.info.dbname
+    return psycopg.conninfo.make_conninfo(**params)
+
+
 @pytest.fixture(scope="module")
 def institutional_db():
     with database() as (connection, _):

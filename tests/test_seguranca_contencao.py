@@ -1569,7 +1569,9 @@ TABELAS_DO_CACHE_DE_GERACAO = frozenset({"cache_geracoes"})
 
 # Branch-only additive schema. These are tested locally but NOT deployed; keep
 # the historical production census separate from the complete branch inventory.
-TABELAS_WORDCRAFT_NAO_IMPLANTADAS = frozenset({"documentos_editor", "documentos_editor_revisoes"})
+TABELAS_WORDCRAFT_NAO_IMPLANTADAS = frozenset({
+    "documentos_editor", "documentos_editor_revisoes", "documentos_editor_emissoes",
+})
 
 
 def test_o_inventario_cobre_todas_as_tabelas():
@@ -1887,8 +1889,10 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     """
     sql_editor = (Path(__file__).resolve().parent.parent / "supabase/migrations"
                   / "20261015035015_documentos_editor.sql").read_text(encoding="utf-8")
+    sql_emissao = (Path(__file__).resolve().parent.parent / "supabase/migrations"
+                   / "20261016231514_documentos_editor_emissao_nativa.sql").read_text(encoding="utf-8")
     coberto = (_sql_da_0020() + _sql_da_0021() + _sql_da_0025()
-               + _sql_da_0028() + sql_editor)
+               + _sql_da_0028() + sql_editor + sql_emissao)
     faltando = [t for t in TABELAS_PRIVADAS if t not in coberto]
     assert not faltando, f"sem matriz de RLS escrita: {faltando}"
 

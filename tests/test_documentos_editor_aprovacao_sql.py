@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 
 from src.documentos_editor import _snapshot_bytes
-from tests.test_documentos_editor_institucional_sql import database, commit
+from tests.test_documentos_editor_institucional_sql import database, commit, reconnect_dsn
 from tests.test_documentos_editor_sql import role, seed_scenario
 
 
@@ -169,7 +169,7 @@ def test_live_source_update_after_read_is_a_conflict(approval_db, scenario):
 
 def second_connection(connection):
     import psycopg
-    return psycopg.connect(connection.info.dsn, autocommit=True)
+    return psycopg.connect(reconnect_dsn(connection), autocommit=True)
 
 
 def wait_for_lock(observer, pid):

@@ -10,7 +10,7 @@ from uuid import uuid4
 import pytest
 
 from src.documentos_editor import _snapshot_bytes
-from tests.test_documentos_editor_institucional_sql import database, snapshot
+from tests.test_documentos_editor_institucional_sql import database, reconnect_dsn, snapshot
 from tests.test_documentos_editor_sql import role, seed_scenario
 
 
@@ -266,7 +266,7 @@ def test_event_failure_prevents_every_document_change(patch_db,scenario):
 
 def connect_again(connection):
     import psycopg
-    return psycopg.connect(connection.info.dsn,autocommit=True)
+    return psycopg.connect(reconnect_dsn(connection),autocommit=True)
 
 
 def wait_locked(observer,pid):

@@ -61,21 +61,23 @@ diff --git a/crates/docx/src/read/story.rs b/crates/docx/src/read/story.rs
      objects: Vec<InlineObject>,
 +    empty_run_props: Option<CharProps>,
  }
-@@ -389,3 +390,8 @@ impl Reader<'_> {
+@@ -389,3 +390,10 @@ impl Reader<'_> {
          para.runs = pb.runs;
          para.objects = pb.objects;
-+        if para.text.is_empty() && para.objects.is_empty() && para.mark == CharProps::default() {
-+            if let Some(props) = pb.empty_run_props {
-+                para.mark = props;
-+            }
++        if para.text.is_empty()
++            && para.objects.is_empty()
++            && para.mark == CharProps::default()
++            && let Some(props) = pb.empty_run_props
++        {
++            para.mark = props;
 +        }
          para.normalize();
-@@ -545,3 +551,4 @@ impl Reader<'_> {
+@@ -545,3 +553,4 @@ impl Reader<'_> {
          };
          let mut note: Option<(NoteKind, u32, Option<String>)> = None;
 +        let before = (pb.text.len(), pb.objects.len());
          for k in r.els() {
-@@ -558,3 +568,6 @@ impl Reader<'_> {
+@@ -558,3 +570,6 @@ impl Reader<'_> {
              self.emit_obj(sc, pb, InlineObject::NoteRef { kind, id, custom: custom.unwrap_or_default() }, &props);
          }
 +        if before == (pb.text.len(), pb.objects.len()) && r.child("w:rPr").is_some() {
