@@ -903,11 +903,42 @@ def _form_concluir(ctx, cotacao: dict, item: dict) -> None:
                                justificativa=justificativa,
                                revisao_esperada=_revisao_vista(item))
     except cotacoes.ErroCotacao as erro:
+        # validação recusou: fica no item, com o motivo
         st.error(str(erro))
         return
+    # Conflito de versão e erro de banco sobem para `render_cotacoes`
+    # ANTES daqui: só a conclusão confirmada avança.
     _renovar_revisoes()
-    st.success("Item concluído.")
+    _avancar_depois_de_concluir(cotacao, item)
     st.rerun()
+
+
+def _avancar_depois_de_concluir(cotacao: dict, item: dict) -> None:
+    """
+    Abre o próximo item pendente (pacote de 17/10/2026, G2). O estado é
+    RELIDO depois da conclusão; filtro da lista e decisões ficam como
+    estavam. Sem próximo, abre o painel de conclusão da cotação.
+    """
+    itens = cotacoes.ativos(repo.listar_itens(str(cotacao["id"])))
+    proximo = cotacoes.proximo_item_para_revisao(itens, str(item["id"]))
+    numero = int(item.get("numero") or 0)
+    if proximo is None:
+        st.session_state["cot_painel_relatorio"] = True
+        st.toast(f"Item {numero:02d} concluído. Todos os itens estão "
+                 "concluídos — conclua a cotação no painel abaixo.")
+        return
+    st.session_state[ITEM] = str(proximo["id"])
+    # A página da lista acompanha o item aberto, DENTRO do filtro que o
+    # servidor digitou (o filtro não é apagado).
+    filtro = str(st.session_state.get("cot_filtro_itens") or "").strip().casefold()
+    visiveis = [i for i in itens
+                if filtro in str(i.get("descricao") or "").casefold()]
+    posicao = next((k for k, i in enumerate(visiveis)
+                    if str(i["id"]) == str(proximo["id"])), None)
+    if posicao is not None:
+        st.session_state["cot_pag_itens"] = posicao // POR_PAGINA_ITENS + 1
+    st.toast(f"Item {numero:02d} concluído. Abrindo o item "
+             f"{int(proximo.get('numero') or 0):02d}.")
 
 
 # ---------------------------------------------------------------------------

@@ -135,6 +135,26 @@ def ativos(itens: list[dict]) -> list[dict]:
                   key=lambda i: int(i.get("numero") or 0))
 
 
+def proximo_item_para_revisao(itens: list[dict], atual_id: str) -> dict | None:
+    """
+    Depois de concluir `atual_id`: o próximo item ATIVO e NÃO concluído,
+    pela ordem do número — primeiro os que vêm depois do atual, senão o
+    primeiro pendente antes dele. `None` quando não sobra nenhum.
+
+    Recebe o estado JÁ relido depois da conclusão (não o que a tela tinha
+    antes): item que outra aba concluiu nesse meio-tempo não é sugerido.
+    Item difícil não é pulado — se não está concluído, é candidato.
+    """
+    lista = ativos(itens)
+    atual = next((i for i in lista if str(i["id"]) == str(atual_id)), None)
+    numero_atual = int((atual or {}).get("numero") or 0)
+    pendentes = [i for i in lista
+                 if str(i["id"]) != str(atual_id)
+                 and str(i.get("estado")) != EstadoItem.COMPLETO.value]
+    depois = [i for i in pendentes if int(i.get("numero") or 0) > numero_atual]
+    return (depois or pendentes or [None])[0]
+
+
 @dataclass
 class Resumo:
     """Uma linha de Minhas Cotações."""
