@@ -94,9 +94,13 @@ recomendação classificada como objetiva só recebe âncora nativa quando uma
 citação literal do próprio achado identifica exatamente um bloco permitido;
 sem essa prova, ela permanece manual mesmo que tenha nomeado a cláusula. A
 origem preserva os IDs do parecer e do achado e o painel é invalidado quando a
-head muda. Este incremento é deliberadamente somente leitura: aplicação e
-relatório persistente de atendimento no modelo nativo ainda são pendências,
-pois não é seguro considerar a instrução jurídica como texto substituto.
+head muda. Para um finding objetivo e ancorado, o usuário fornece o parágrafo
+proposto enquanto vê a recomendação jurídica; o owner relê parecer e achado,
+compila a proposta pelo mesmo aplicador G4 e reexecuta a projeção jurídica sobre
+o resultado simulado. A recomendação não é usada diretamente como texto
+substituto. Persistência continua condicionada à confirmação comum do canvas.
+O relatório de atendimento próprio do parecer, persistido após o commit, ainda
+é pendência.
 
 A aba Evidências agora pode carregar os fatos canônicos correntes pelo mesmo
 RPC privado usado pelo owner de patches. Cada item preserva ID, path, origem,
@@ -141,6 +145,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 - paridade duplicada, bloqueada, divergente ou sem fonte falha de modo fechado;
 - parecer normalizado é relido pela RLS, classificado pelo owner existente e
   ligado a uma âncora somente com citação literal única; leitura não grava;
+- atendimento objetivo do parecer é preparado pelo owner G4, preserva IDs de
+  origem, produz diff e reaudita o resultado sem gravar antes da confirmação;
 - fatos canônicos exibem proveniência e status sem promover extraído, disputado
   ou hash divergente a evidência verificada;
 - snapshot institucional e montagem de itens usam as fontes da revisão e do

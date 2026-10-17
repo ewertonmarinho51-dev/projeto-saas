@@ -267,6 +267,43 @@ def render(doc_key: str, meta: dict) -> None:
                     st.rerun()
                 except (ErroDocumento, ErroCapacidade) as error:
                     st.error(str(error))
+        current_opinions = st.session_state.get(opinions_key)
+        legal_findings = ([item for item in current_opinions["findings"]
+                           if item.get("documentId") == doc_key
+                           and item.get("autoCorrectable") is True]
+                          if current_opinions else [])
+        if legal_findings:
+            legal_labels = {item["findingId"]:
+                f"{item['findingId']} · {item.get('descricao', '')}"
+                for item in legal_findings}
+            legal_id = st.selectbox("Recomendação jurídica objetiva",
+                tuple(legal_labels), format_func=legal_labels.get,
+                key=_chave(doc_key, "legal_finding"))
+            legal_selected = next(item for item in legal_findings
+                                  if item["findingId"] == legal_id)
+            st.caption("Recomendação do parecer: "
+                       + str(legal_selected.get("resultadoEsperado") or ""))
+            legal_replacement = st.text_area(
+                "Parágrafo proposto para atendimento do parecer",
+                key=_chave(doc_key, "legal_replacement"), max_chars=64 * 1024)
+            if st.button("Preparar atendimento e diff",
+                         disabled=not legal_replacement.strip(),
+                         key=_chave(doc_key, "prepare_legal")):
+                operation = str(uuid5(NAMESPACE_URL, "govconnect-wordcraft-legal:"
+                    + processo_id + ":" + doc_key + ":" + document.content_hash + ":"
+                    + legal_id + ":" + legal_replacement))
+                correction = CorrecaoContextual(Capacidade.PARECER, legal_id,
+                    legal_replacement,
+                    str(legal_selected.get("resultadoEsperado") or
+                        "Atendimento objetivo do parecer jurídico."),
+                    tuple(legal_selected.get("sourceIds") or ()))
+                try:
+                    st.session_state[preparation_key] = service.preparar_parecer(
+                        processo_id, operation_id=operation,
+                        propor_plano=propositor(correction))
+                    st.rerun()
+                except (ErroDocumento, ErroCapacidade) as error:
+                    st.error(str(error))
         if st.button("Usar seleção no GovBot", disabled=bridge.state not in {"ready", "saved"}
                      or bridge.controle_pendente() is not None,
                      key=_chave(doc_key, "capture_selection")):

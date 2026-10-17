@@ -386,11 +386,16 @@ class DocumentoService:
 
     def pareceres_atuais(self, processo_id: str) -> dict:
         """Project persisted legal-opinion findings onto current native heads."""
-        from . import parecer_correcao
-
         _uuid(processo_id)
         user, claims = self._session()
         context, _, views = self._fontes_patch(processo_id, user, claims)
+        return json.loads(_snapshot_bytes(self._relatorio_pareceres(
+            processo_id, user, context, views, version=1)))
+
+    def _relatorio_pareceres(self, processo_id, user, context, views, *, version):
+        """Re-read legal findings and bind them to the supplied native views."""
+        from . import parecer_correcao
+
         opinions = _execute(user.table("pareceres")
             .select("id,nome_arquivo,hash_origem,status")
             .eq("processo_id", processo_id).eq("status", "NORMALIZED").limit(17))
@@ -445,11 +450,14 @@ class DocumentoService:
                         (item.motivo or "O parecer não contém citação única do bloco a corrigir."),
                     "parecerStatus": item.situacao}
                 findings.append(_vincular_achado_nativo(finding, views, texts))
-        snapshot = blocos.snapshot_nativo(views, versao=1)
-        return json.loads(_snapshot_bytes({"schema": "gc-wordcraft-legal-opinions/v1",
-            "bundleHash": snapshot["hash"], "sourceNative": {
+        snapshot = blocos.snapshot_nativo(views, versao=version)
+        return {"schema": "gc-wordcraft-legal-opinions/v1",
+            "bundleId": processo_id, "bundleVersion": version,
+            "bundleHash": snapshot["hash"], "status": "REVIEW_COMPLETED",
+            "sourceNative": {
                 key: view.vinculo() for key, view in views.items()},
-            "pareceres": sources, "findings": findings}))
+            "pareceres": sources, "findings": findings,
+            "officialEmission": False}
 
     def evidencias_atuais(self, processo_id: str) -> dict:
         """Read current canonical facts as source evidence for the panel."""
@@ -582,6 +590,16 @@ class DocumentoService:
         return hmac.new(self._patch_key, _snapshot_bytes(value), hashlib.sha256).hexdigest()
 
     def preparar_patches(self, processo_id: str, *, operation_id: str, propor_plano) -> PreparacaoPatches:
+        return self._preparar_patches(processo_id, operation_id=operation_id,
+            propor_plano=propor_plano, origem="auditoria")
+
+    def preparar_parecer(self, processo_id: str, *, operation_id: str, propor_plano) -> PreparacaoPatches:
+        """Prepare one legal-opinion correction through the canonical G4 owner."""
+        return self._preparar_patches(processo_id, operation_id=operation_id,
+            propor_plano=propor_plano, origem="parecer")
+
+    def _preparar_patches(self, processo_id: str, *, operation_id: str,
+                          propor_plano, origem: str) -> PreparacaoPatches:
         """Prepare entirely on the trusted backend. No persistence or canvas ACK."""
         from . import corretor, patches
         _uuid(processo_id)
@@ -593,12 +611,16 @@ class DocumentoService:
             previous = self._preparacoes[operation_id]
             if (previous.processo_id, previous.actor_id) != (processo_id, claims["sub"]):
                 raise ConflitoDocumento("Operação de patch já pertence a outra preparação.")
+            if previous.auditoria().get("origem") != origem:
+                raise ConflitoDocumento("Operação de patch já pertence a outra origem contextual.")
             return previous
         if len(self._patch_pendentes) >= 4:
             raise ErroDocumento("Há quatro preparações pendentes; conclua ou descarte uma preparação.")
         context, originals, views = self._fontes_patch(processo_id, user, claims)
         before = blocos.snapshot_nativo(views, versao=1)
-        report = self._auditar_patches(processo_id, views, context, version=1)
+        report = (self._relatorio_pareceres(processo_id, user, context, views, version=1)
+                  if origem == "parecer" else
+                  self._auditar_patches(processo_id, views, context, version=1))
         try:
             proposal = propor_plano(relatorio=json.loads(_snapshot_bytes(report)),
                 snapshot=json.loads(_snapshot_bytes(before)), contexto=json.loads(_snapshot_bytes(context)))
@@ -639,8 +661,12 @@ class DocumentoService:
                     _snapshot_bytes(applied["comandos"][key])))
             after_views = {key: blocos.projetar_documento(key,d.checkpoint,indice=d.indice,**self._native)
                 for key,d in applied["documentos"].items()}
-            post = self._auditar_patches(processo_id,after_views,context,version=2)
+            post = (self._relatorio_pareceres(
+                        processo_id, user, context, after_views, version=2)
+                    if origem == "parecer" else
+                    self._auditar_patches(processo_id,after_views,context,version=2))
             audit = {"schema":"gc-wordcraft-patch-batch/v1", "operation_id":operation_id,
+                "origem":origem,
                 "plan":plan,"reports":[report,post],"snapshots":[before,applied["snapshot"]],"diff":applied["diff"],
                 "status":"REVIEW_COMPLETED","official_emission":False}
             prep = PreparacaoPatches(operation_id,processo_id,claims["sub"],hashlib.sha256(_snapshot_bytes(plan)).hexdigest(),

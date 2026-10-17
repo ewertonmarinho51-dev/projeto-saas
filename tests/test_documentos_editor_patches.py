@@ -267,6 +267,49 @@ def test_legal_opinion_without_one_literal_native_target_stays_manual(patch_owne
     assert not state['rpc_calls']
 
 
+def test_legal_opinion_preparation_reuses_native_owner_and_reaudits(patch_owner):
+    from src.wordcraft_capacidades import Capacidade, CorrecaoContextual, propositor
+    service,state,process=patch_owner
+    opinion, finding = str(uuid4()), str(uuid4())
+    state['opinions']=[dict(id=opinion,nome_arquivo='parecer.pdf',
+        hash_origem='c'*64,status='NORMALIZED',processo_id=process)]
+    state['opinion_findings']=[dict(id=finding,parecer_id=opinion,
+        categoria='operacional',gravidade='HIGH',problema='Redação imprecisa.',
+        documento_afetado='memo_a',clausula_afetada='1',fundamento='art. 1',
+        correcao_solicitada='Adotar redação objetiva.',causa='',sistemico=False,
+        confianca=.9,
+        evidencias=['Texto placeholder sintético do documento memo_a, requer ajuste pontual.'])]
+    finding_id=f'PJ:{opinion}:{finding}'
+    correction=CorrecaoContextual(Capacidade.PARECER,finding_id,
+        'Texto objetivo sintético para o documento memo_a.',
+        'Adotar redação objetiva.',(f'parecer_achado:{finding}',))
+    operation=str(uuid4())
+    prep=service.preparar_parecer(process,operation_id=operation,
+        propor_plano=propositor(correction))
+    audit=prep.auditoria()
+    assert audit['reports'][0]['schema']=='gc-wordcraft-legal-opinions/v1'
+    assert audit['reports'][0]['findings'][0]['autoCorrectable'] is True
+    assert audit['reports'][1]['findings'][0]['autoCorrectable'] is False
+    assert audit['plan']['operations'][0]['findingId']==finding_id
+    assert audit['origem']=='parecer'
+    assert [result.fonte.doc_key for result in prep.resultados]==['memo_a']
+    with pytest.raises(owner.ConflitoDocumento,match='outra origem'):
+        service.preparar_patches(process,operation_id=operation,
+            propor_plano=propositor(correction))
+    assert not state['rpc_calls']
+
+
+def test_legal_opinion_preparation_rejects_unpersisted_finding(patch_owner):
+    from src.wordcraft_capacidades import Capacidade, CorrecaoContextual, propositor
+    service,state,process=patch_owner
+    correction=CorrecaoContextual(Capacidade.PARECER,
+        f'PJ:{uuid4()}:{uuid4()}','Texto novo','Motivo',(f'parecer:{uuid4()}',))
+    with pytest.raises(owner.ErroDocumento,match='recusada'):
+        service.preparar_parecer(process,operation_id=str(uuid4()),
+            propor_plano=propositor(correction))
+    assert not state['rpc_calls']
+
+
 def test_contextual_capability_uses_the_same_owner_preparation_without_writing(patch_owner):
     from src.wordcraft_capacidades import Capacidade, CorrecaoContextual, propositor
     service,state,process=patch_owner
