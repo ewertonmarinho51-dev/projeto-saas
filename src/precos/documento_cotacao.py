@@ -983,8 +983,43 @@ def relatorio_analitico_docx(view: CotacaoReportView) -> bytes:
 # ---------------------------------------------------------------------------
 # PDF
 # ---------------------------------------------------------------------------
+def links_da_vista(view: CotacaoReportView) -> dict[str, str]:
+    """Identificador impresso → URL real (só as que a fonte fornece)."""
+    return {r.id_externo: r.link for i in view.itens for r in i.referencias
+            if r.link and r.id_externo and r.id_externo != NAO_INFORMADO}
+
+
+def carimbar_links(pdf: bytes, links: dict[str, str]) -> bytes:
+    """
+    Grava o hyperlink sobre cada identificador impresso, no PDF.
+
+    POR QUE EXISTE: o LibreOffice 7.4 da produção descarta os hyperlinks
+    do DOCX ao exportar (medido no contêiner, 16/10/2026 — e é por isso que
+    o relatório real de 907 páginas tinha zero links); o 26.2 local os
+    preserva. Em vez de depender da versão do conversor, a área clicável
+    é posta sobre a palavra exata, com a URL que a projeção já tem.
+
+    Só age quando o conversor não exportou link nenhum — nunca duplica.
+    """
+    if not links:
+        return pdf
+    import pymupdf
+
+    doc = pymupdf.open(stream=pdf, filetype="pdf")
+    if any(link.get("uri") for pagina in doc for link in pagina.get_links()):
+        return pdf
+    for pagina in doc:
+        for palavra in pagina.get_text("words"):
+            url = links.get(palavra[4])
+            if url:
+                pagina.insert_link({"kind": pymupdf.LINK_URI, "uri": url,
+                                    "from": pymupdf.Rect(palavra[:4])})
+    return doc.tobytes(garbage=3, deflate=True)
+
+
 def em_pdf(docx: bytes, branding: dict | None = None, *,
-           tempo_limite: int = 120) -> bytes:
+           tempo_limite: int = 120,
+           links: dict[str, str] | None = None) -> bytes:
     """
     DOCX → PDF pelo conversor institucional (LibreOffice). Sem ele, ERRO
     explícito: degradar em silêncio para outro desenho é o que este
@@ -998,16 +1033,18 @@ def em_pdf(docx: bytes, branding: dict | None = None, *,
             "A conversão para PDF não está disponível neste servidor agora "
             "(LibreOffice ausente ou tempo esgotado). Baixe o DOCX, que tem "
             "o mesmo conteúdo, ou tente de novo em instantes.")
+    pdf = carimbar_links(pdf, links or {})
     return export._pdf_aplicar_marca(pdf, branding)  # noqa: SLF001
 
 
 def relatorio_de_cotacao_pdf(view: CotacaoReportView) -> bytes:
     return em_pdf(relatorio_de_cotacao_docx(view),
-                  dict(view.branding) if view.branding else None)
+                  dict(view.branding) if view.branding else None,
+                  links=links_da_vista(view))
 
 
 def relatorio_analitico_pdf(view: CotacaoReportView, *,
                             tempo_limite: int = 600) -> bytes:
     return em_pdf(relatorio_analitico_docx(view),
                   dict(view.branding) if view.branding else None,
-                  tempo_limite=tempo_limite)
+                  tempo_limite=tempo_limite, links=links_da_vista(view))

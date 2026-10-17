@@ -2432,7 +2432,7 @@ def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
                                               "docx"),
                     "application/vnd.openxmlformats-officedocument."
                     "wordprocessingml.document")
-        return (dc.em_pdf(docx, marca),
+        return (dc.em_pdf(docx, marca, links=dc.links_da_vista(vista)),
                 relatorio.nome_do_arquivo(pesquisa, "relatorio-cotacao",
                                           "pdf"),
                 "application/pdf")

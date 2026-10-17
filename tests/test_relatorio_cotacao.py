@@ -440,3 +440,32 @@ def test_pdf_bloco_do_item_nao_se_parte(motor_institucional):
     assert len(faixa) == len(v.itens) == len(rotulo) == len(valor)
     for item, pagina_rotulo, pagina_valor in zip(v.itens, rotulo, valor):
         assert faixa[item.numero] == pagina_rotulo == pagina_valor, item.numero
+
+
+def test_links_carimbados_quando_o_conversor_os_descarta(pdf_historico):
+    """
+    LibreOffice 7.4 (produção) descarta os hyperlinks do DOCX. Sem link
+    nenhum no PDF, `carimbar_links` grava cada um sobre o identificador
+    impresso — só com URL que a projeção tem.
+    """
+    import pymupdf
+
+    v, pdf = pdf_historico
+    sem_links = pymupdf.open(stream=pdf.tobytes())
+    for pagina in sem_links:
+        for link in pagina.get_links():
+            pagina.delete_link(link)
+    cru = sem_links.tobytes()
+    assert not any(p.get_links() for p in pymupdf.open(stream=cru))
+    carimbado = pymupdf.open(stream=dc.carimbar_links(cru, dc.links_da_vista(v)))
+    uris = [l["uri"] for p in carimbado for l in p.get_links()]
+    assert uris and set(uris) <= set(dc.links_da_vista(v).values())
+    # cada link cai sobre o identificador cuja URL ele carrega
+    por_id = dc.links_da_vista(v)
+    for pagina in carimbado:
+        for link in pagina.get_links():
+            palavra = pagina.get_textbox(link["from"]).strip()
+            assert por_id.get(palavra) == link["uri"]
+    # com links já presentes, não duplica
+    com_links = pdf.tobytes()
+    assert dc.carimbar_links(com_links, por_id) is com_links
