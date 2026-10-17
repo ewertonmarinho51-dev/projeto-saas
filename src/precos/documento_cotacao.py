@@ -936,13 +936,15 @@ def relatorio_analitico_docx(view: CotacaoReportView) -> bytes:
         "evidência. Mesmo identificador da versão do Relatório de Cotação.",
         pt=8.5, cor=SECUNDARIO)
     colunas = [Coluna("Nº", 0.9, "right"), Coluna("Situação", 2.5),
-               Coluna("Fonte · inciso · natureza", 4.9),
-               Coluna("Órgão · UF · data", 5.0),
+               Coluna("Fonte · inciso · natureza", 4.4),
+               Coluna("Órgão · UF · data", 4.6),
                Coluna("Qtd. · unid.", 2.1, "right"),
                Coluna("Preço unit.", 2.3, "right"),
                Coluna("Compat.", 1.7, "right"),
-               Coluna("Identificador", 3.1),
-               Coluna("Motivo", 4.0)]
+               # cabe o controle PNCP inteiro ("…-1-000006/2026") numa
+               # linha: identificador partido perde o link em leitores
+               Coluna("Identificador", 4.2),
+               Coluna("Motivo", 3.8)]
     _ajustar(colunas, d.util_cm, elastica=8)
     for item in view.itens:
         d.faixa_do_item(f"ITEM {item.numero:02d} · {item.titulo.upper()}",
@@ -983,8 +985,56 @@ def relatorio_analitico_docx(view: CotacaoReportView) -> bytes:
 # ---------------------------------------------------------------------------
 # PDF
 # ---------------------------------------------------------------------------
+def links_da_vista(view: CotacaoReportView) -> dict[str, str]:
+    """Identificador impresso → URL real (só as que a fonte fornece)."""
+    return {r.id_externo: r.link for i in view.itens for r in i.referencias
+            if r.link and r.id_externo and r.id_externo != NAO_INFORMADO}
+
+
+def carimbar_links(pdf: bytes, links: dict[str, str]) -> bytes:
+    """
+    Grava o hyperlink sobre cada identificador impresso, no PDF.
+
+    POR QUE EXISTE: o LibreOffice 7.4 da produção descarta os hyperlinks
+    do DOCX ao exportar (medido no contêiner, 16/10/2026 — e é por isso que
+    o relatório real de 907 páginas tinha zero links); o 26.2 local os
+    preserva. Em vez de depender da versão do conversor, a área clicável
+    é posta sobre a palavra exata, com a URL que a projeção já tem.
+
+    Só age quando o conversor não exportou link nenhum — nunca duplica.
+    """
+    if not links:
+        return pdf
+    import pymupdf
+
+    doc = pymupdf.open(stream=pdf, filetype="pdf")
+    if any(link.get("uri") for pagina in doc for link in pagina.get_links()):
+        return pdf
+    for pagina in doc:
+        palavras = pagina.get_text("words")
+        k = 0
+        while k < len(palavras):
+            # o identificador pode quebrar em até 3 pedaços na coluna
+            # estreita ("…-1-" / "000006/2026"): junta pedaços vizinhos
+            for tamanho in (1, 2, 3):
+                trecho = palavras[k:k + tamanho]
+                if len(trecho) < tamanho:
+                    break
+                url = links.get("".join(w[4] for w in trecho))
+                if url:
+                    for w in trecho:
+                        pagina.insert_link({"kind": pymupdf.LINK_URI,
+                                            "uri": url,
+                                            "from": pymupdf.Rect(w[:4])})
+                    k += tamanho - 1
+                    break
+            k += 1
+    return doc.tobytes(garbage=3, deflate=True)
+
+
 def em_pdf(docx: bytes, branding: dict | None = None, *,
-           tempo_limite: int = 120) -> bytes:
+           tempo_limite: int = 120,
+           links: dict[str, str] | None = None) -> bytes:
     """
     DOCX → PDF pelo conversor institucional (LibreOffice). Sem ele, ERRO
     explícito: degradar em silêncio para outro desenho é o que este
@@ -998,16 +1048,18 @@ def em_pdf(docx: bytes, branding: dict | None = None, *,
             "A conversão para PDF não está disponível neste servidor agora "
             "(LibreOffice ausente ou tempo esgotado). Baixe o DOCX, que tem "
             "o mesmo conteúdo, ou tente de novo em instantes.")
+    pdf = carimbar_links(pdf, links or {})
     return export._pdf_aplicar_marca(pdf, branding)  # noqa: SLF001
 
 
 def relatorio_de_cotacao_pdf(view: CotacaoReportView) -> bytes:
     return em_pdf(relatorio_de_cotacao_docx(view),
-                  dict(view.branding) if view.branding else None)
+                  dict(view.branding) if view.branding else None,
+                  links=links_da_vista(view))
 
 
 def relatorio_analitico_pdf(view: CotacaoReportView, *,
                             tempo_limite: int = 600) -> bytes:
     return em_pdf(relatorio_analitico_docx(view),
                   dict(view.branding) if view.branding else None,
-                  tempo_limite=tempo_limite)
+                  tempo_limite=tempo_limite, links=links_da_vista(view))

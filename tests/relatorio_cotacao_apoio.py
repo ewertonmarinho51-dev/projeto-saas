@@ -98,7 +98,10 @@ def _referencia(item_id: str, n: int, valor: Decimal, rnd: random.Random, *,
         "score": str(Decimal(rnd.randint(55, 98)) / 100),
         "identidade": str(Decimal(rnd.randint(70, 99)) / 100),
         "circunstancias": str(Decimal(rnd.randint(60, 99)) / 100),
-        "id_externo": f"EXT-{_hash(item_id, n)[:10].upper()}",
+        # PNCP: o identificador é o número de controle, longo como o real
+        "id_externo": (bruto["numeroControlePNCP"]
+                       if "numeroControlePNCP" in bruto
+                       else f"EXT-{_hash(item_id, n)[:10].upper()}"),
         "raw_hash": _hash("bruto", item_id, n),
         "bruto": bruto, "motivos": list(motivos or []),
         "descricao_original": "Descrição como devolvida pela fonte (fictícia)",

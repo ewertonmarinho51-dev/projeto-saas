@@ -145,3 +145,17 @@ preço, emissões registradas nem PDFs emitidos. O gerador anterior
   já fazia com o relatório anterior.
 
 Entrega e capturas: `docs/precos-relatorio/RELATORIO_ENTREGA.md`.
+
+## Produção (16/10/2026)
+
+v1.9.2 promovida na VPS e `flag_precos_relatorio_visual = on`, com
+autorização do operador. Relatório sintético gerado DENTRO do contêiner:
+DejaVu Sans/Condensed, 2 páginas, valores e "Página X de Y" corretos, 9 s.
+
+Achado: o LibreOffice 7.4 da produção DESCARTA os hyperlinks do DOCX ao
+exportar PDF (testados os filtros `pdf`, `writer_pdf_Export` e com opções
+JSON — zero links nos três; o DOCX tem a relação de hyperlink). É a mesma
+causa dos zero links do PDF real de 907 páginas. O 26.2 local preserva.
+Correção: `documento_cotacao.carimbar_links` grava, com PyMuPDF, a área
+clicável sobre cada identificador impresso, com a URL da projeção — só
+quando o conversor não exportou nenhum link.
