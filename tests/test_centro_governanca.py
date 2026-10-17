@@ -121,7 +121,7 @@ def test_familia_exige_criterios_e_documentos():
 
 
 def test_template_por_blocos_com_ids_unicos():
-    payload = {"blocos": [
+    payload = {"documentos_suportados": ["tr"], "blocos": [
         {"id": "b1", "tipo": "cabecalho"},
         {"id": "b2", "tipo": "clausula_catalogo",
          "clausula": "clausula.garantia"},
@@ -130,6 +130,11 @@ def test_template_por_blocos_com_ids_unicos():
     versao = governanca.nova_versao_artefato(
         "template", "template.tr-base", payload)
     assert len(versao["payload"]["blocos"]) == 3
+
+    with pytest.raises(governanca.ErroContrato, match="documentos_suportados"):
+        governanca.nova_versao_artefato(
+            "template", "template.tr-ambiguo",
+            {**payload, "documentos_suportados": ["tr", "tr"]})
 
     with pytest.raises(governanca.ErroContrato, match="duplicado"):
         governanca.nova_versao_artefato(

@@ -234,17 +234,22 @@ def test_knowledge_catalog_evidence_preserves_provenance_without_false_verificat
 
 
 def test_current_structure_reuses_revision_institution_and_decimal_items(patch_owner):
+    from src import governanca
     service,state,process=patch_owner
     state['context']['processo']['dados']={'itens':[
         {'codigo':'A','descricao':'Item A','quantidade':'0.1','valor_unitario':'0.2'},
         {'codigo':'B','descricao':'Item B','quantidade':'3','valor_unitario':'10.00'}]}
     artifact,version=str(uuid4()),str(uuid4())
+    payload={'documentos_suportados':['memo_a'],
+        'blocos':[{'id':'b1','tipo':'titulo'}]}
+    digest=governanca.hash_canonico({'tipo':'template','chave':'template.memo-a',
+        'versao':2,'payload':payload})
     state['template_artifacts']=[dict(id=artifact,
         tenant_id=state['claims']['app_metadata']['tenant_id'],secretaria_id=None,
         tipo_artefato='template',chave_estavel='template.memo-a',descricao='Modelo QA')]
     state['template_versions']=[dict(id=version,artefato_id=artifact,versao=2,
-        status='PUBLISHED',vigencia_inicio=None,vigencia_fim=None,hash='d'*64,
-        payload={'blocos':[{'id':'b1','tipo':'titulo'}]})]
+        status='PUBLISHED',vigencia_inicio=None,vigencia_fim=None,hash=digest,
+        payload=payload)]
     current=service.estrutura_atual(process,'memo_a')
     assert current['schema']=='gc-wordcraft-structure-panel/v1'
     assert current['docKey']=='memo_a' and current['documentId']==state['heads'][0]['id']
@@ -254,8 +259,10 @@ def test_current_structure_reuses_revision_institution_and_decimal_items(patch_o
     assert current['montagem']['valor_total']=='30.02'
     assert current['templatesPublicados']==[dict(artifactId=artifact,versionId=version,
         key='template.memo-a',description='Modelo QA',version=2,status='PUBLISHED',
-        hash='d'*64,validFrom=None,validTo=None,scope='municipio',blockCount=1)]
-    assert current['templateEfetivo'] is None and 'vínculo canônico' in current['templateBlockingReason']
+        hash=digest,validFrom=None,validTo=None,scope='municipio',blockCount=1,
+        supportedDocuments=['memo_a'])]
+    assert current['templateEfetivo']==current['templatesPublicados'][0]
+    assert current['templateBlockingReason'] is None
     assert current['bundleHash'] and not state['rpc_calls']
 
 
@@ -267,6 +274,40 @@ def test_current_structure_rejects_excessive_template_library(patch_owner):
         descricao='Modelo QA') for index in range(101)]
     with pytest.raises(owner.ErroDocumento,match='excessiva'):
         service.estrutura_atual(process,'memo_a')
+
+
+def test_current_structure_blocks_same_scope_template_tie_and_prefers_secretary(patch_owner):
+    from src import governanca
+    service,state,process=patch_owner
+    tenant=state['claims']['app_metadata']['tenant_id']
+    payload={'documentos_suportados':['memo_a'],
+        'blocos':[{'id':'title','tipo':'titulo','texto':'QA'}]}
+
+    def artifact(key,secretary=None):
+        artifact_id,version_id=str(uuid4()),str(uuid4())
+        version=1
+        state['template_artifacts'].append(dict(id=artifact_id,tenant_id=tenant,
+            secretaria_id=secretary,tipo_artefato='template',chave_estavel=key,
+            descricao=key))
+        state['template_versions'].append(dict(id=version_id,artefato_id=artifact_id,
+            versao=version,status='PUBLISHED',vigencia_inicio=None,vigencia_fim=None,
+            hash=governanca.hash_canonico({'tipo':'template','chave':key,
+                'versao':version,'payload':payload}),payload=payload))
+        return version_id
+
+    artifact('template.memo-a.alpha')
+    artifact('template.memo-a.beta')
+    ambiguous=service.estrutura_atual(process,'memo_a')
+    assert ambiguous['templateEfetivo'] is None
+    assert 'Mais de um template vigente' in ambiguous['templateBlockingReason']
+
+    secretary=str(uuid4())
+    state['context']['processo']['secretaria_id']=secretary
+    preferred=artifact('template.memo-a.secretary',secretary)
+    resolved=service.estrutura_atual(process,'memo_a')
+    assert resolved['templateEfetivo']['versionId']==preferred
+    assert resolved['templateEfetivo']['scope']=='secretaria'
+    assert resolved['templateBlockingReason'] is None
 
 
 def test_published_template_preview_is_revision_bound_read_only_and_deterministic(patch_owner):

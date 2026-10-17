@@ -139,14 +139,16 @@ lida do `institutional_snapshot` já capturado pelo owner, portanto identidade,
 portaria, signatários e bloco de assinaturas permanecem vinculados ao documento
 e à revisão, sem consultar ou duplicar cadastros. Os itens do processo são
 montados pelo `montar_itens` determinístico com `Decimal`, numeração, subtotais,
-total e hash canônico. Mudança da head invalida ambos. Esta leitura não escolhe
-nem publica template; a resolução da biblioteca versionada continua pendente.
+total e hash canônico. Mudança da head invalida ambos. Esta leitura não publica
+template. A resolução da biblioteca usa somente a declaração
+`documentos_suportados` incluída no payload protegido pelo hash da versão;
+nenhuma semelhança de nome vira vínculo.
 Os templates `PUBLISHED` visíveis pela RLS do usuário são listados com artefato,
-versão, hash, vigência, escopo e quantidade de blocos. O owner não escolhe um
-deles por semelhança de nome: como o schema atual não registra vínculo canônico
-entre tipo documental e chave estável, `templateEfetivo` permanece vazio e o
-bloqueio aparece no painel. Isso expõe a biblioteca real sem inventar uma
-precedência ou aplicar um modelo ao documento errado.
+versão, hash, vigência, escopo e quantidade de blocos. Entre versões que
+declaram suporte ao tipo documental, o escopo da secretaria prevalece sobre o
+municipal; empate no mesmo escopo mantém `templateEfetivo` vazio e exibe o
+bloqueio. Um único candidato efetivo é apresentado como padrão da seleção
+explícita de prévia, sem aplicar ou publicar o modelo.
 
 O usuário pode selecionar explicitamente uma dessas versões para gerar uma
 prévia determinística, somente leitura, ligada às revisões e hashes nativos
@@ -194,8 +196,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   verificada da integridade ainda pendente da fonte;
 - snapshot institucional e montagem de itens usam as fontes da revisão e do
   processo, preservando portaria/signatários e cálculo `Decimal` sem LLM;
-- biblioteca de templates publicados é lida pela RLS com versão/hash/escopo,
-  mas nenhum template é escolhido sem vínculo canônico de tipo para chave;
+- biblioteca de templates publicados é lida pela RLS com versão/hash/escopo;
+  vínculo explícito do payload resolve candidato único e empate falha fechado;
 - versão publicada escolhida explicitamente produz prévia determinística ligada
   à revisão, rejeita hash canônico divergente e não executa RPC de gravação;
 - cláusula publicada usada pela prévia respeita o tenant e a secretaria do

@@ -321,8 +321,13 @@ def render(doc_key: str, meta: dict) -> None:
             template_labels = {item["versionId"]:
                 f"{item['description'] or item['key']} · v{item['version']}"
                 for item in template_catalog}
+            template_versions = tuple(template_labels)
+            effective_version = ((st.session_state.get(structure_key) or {}).get(
+                "templateEfetivo") or {}).get("versionId")
+            default_template = (template_versions.index(effective_version)
+                if effective_version in template_versions else 0)
             template_version = st.selectbox("Template publicado para prévia",
-                tuple(template_labels), format_func=template_labels.get,
+                template_versions, index=default_template, format_func=template_labels.get,
                 key=_chave(doc_key, "template_version"))
             if st.button("Gerar prévia determinística do template",
                          key=_chave(doc_key, "template_preview_button")):

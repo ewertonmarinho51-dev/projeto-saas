@@ -472,6 +472,15 @@ def _validar_payload_familia(payload: dict) -> list[str]:
 
 def _validar_payload_template(payload: dict) -> list[str]:
     erros = []
+    supported = payload.get("documentos_suportados")
+    if supported is not None:
+        if (not isinstance(supported, list) or not supported or len(supported) > 16
+                or len(set(item for item in supported if isinstance(item, str)))
+                != len(supported)):
+            erros.append("documentos_suportados deve ser lista única não vazia")
+        elif any(re.fullmatch(r"[a-z][a-z0-9_]{0,31}", item) is None
+                 for item in supported):
+            erros.append("documentos_suportados contém tipo inválido")
     blocos_template = payload.get("blocos")
     if not isinstance(blocos_template, list) or not blocos_template:
         return ["template sem blocos"]
