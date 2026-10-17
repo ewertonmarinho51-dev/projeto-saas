@@ -87,6 +87,7 @@ def patch_owner(engine,monkeypatch):
             validation_provenance='server_manifest_sha256',block_index='\\x'+owner.blocos.serializar_indice(index).hex(),
             block_index_sha256=hashlib.sha256(owner.blocos.serializar_indice(index)).hexdigest(),index_mode='initial',
             restored_from_revision=None,
+            template_version_id=None,template_proof=None,
             institutional_snapshot='\\x'+institution.hex(),institutional_snapshot_sha256=hashlib.sha256(institution).hexdigest()))
     stored={}
 
@@ -95,6 +96,18 @@ def patch_owner(engine,monkeypatch):
             if name=='documento_editor_fontes_patch':
                 state['contexts']+=1
                 return Query(context)
+            if name=='documento_editor_aplicar_template':
+                state['rpc_calls'].append(params)
+                return Query(dict(document_id=params['p_document'],
+                    revision=params['p_expected_revision']+1,
+                    content_hash=params['p_content_hash'],operation_id=params['p_operation'],
+                    replayed=False,engine_build_sha256=params['p_engine_build_sha256'],
+                    validation_provenance='server_manifest_sha256',
+                    block_index_sha256=params['p_block_index_sha256'],
+                    index_mode='template_application',
+                    institutional_snapshot_sha256=params['p_institutional_snapshot_sha256'],
+                    template_version_id=params['p_template_version'],
+                    template_hash=params['p_template_hash'],template_proof=params['p_provenance']))
             assert name=='documento_editor_patch_lote'
             state['rpc_calls'].append(params)
             if state.get('error'): return Query(state['error'])
@@ -178,6 +191,7 @@ def test_native_revision_history_is_persistent_metadata_only(patch_owner):
         contentHash=state['heads'][0]['content_hash'],engineBuild='a'*64,
         indexHash=state['rows'][0]['block_index_sha256'],indexMode='initial',
         institutionalHash=state['rows'][0]['institutional_snapshot_sha256'],
+        template=None,
         current=True,status='rascunho')]
     assert 'payload' not in history['revisions'][0] and not state['rpc_calls']
 
@@ -332,7 +346,8 @@ def test_published_template_preview_is_revision_bound_read_only_and_deterministi
     assert '# Documento QA' in preview['preview']['text']
     assert '**orgao**: Secretaria QA' in preview['preview']['text']
     assert '[[TABELA_ITENS]]' in preview['preview']['text']
-    assert preview['preview']['pending']==[] and preview['applicable'] is False
+    assert preview['preview']['pending']==[] and preview['applicable'] is True
+    assert preview['blockingReason'] is None
     assert not state['rpc_calls']
 
 
@@ -464,7 +479,15 @@ def test_effective_template_preparation_builds_sealed_native_target_without_writ
     assert prepared.provenance['officialEmission'] is False
     assert prepared._selo and not state['rpc_calls']
     assert service.preparar_template(process,'memo_a',version,operation) is prepared
-    service.descartar_template(prepared)
+    receipt=service.confirmar_template(prepared)
+    assert receipt.revision==2 and receipt.content_hash==prepared.target_hash
+    assert receipt.index_mode=='template_application'
+    assert len(state['rpc_calls'])==1
+    params=state['rpc_calls'][0]
+    assert params['p_template_version']==version and params['p_template_hash']==digest
+    assert params['p_provenance']==prepared.provenance
+    with pytest.raises(owner.ErroDocumento,match='não pertence'):
+        service.descartar_template(prepared)
 
 
 def test_current_structure_rejects_divergent_published_template(patch_owner):

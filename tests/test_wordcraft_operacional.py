@@ -201,6 +201,48 @@ def test_restore_operacional_usa_historico_persistido_cas_e_remonta_canvas(monke
     assert "nova revisão 4" in session[ui._chave("tr", "message")]
 
 
+def test_template_operacional_prepara_confirma_reabre_e_remonta_head(monkeypatch):
+    process = "11111111-1111-1111-1111-111111111111"
+    version = "55555555-5555-5555-5555-555555555555"
+    document = SimpleNamespace(id="44444444-4444-4444-4444-444444444444",
+        processo_id=process, tipo="tr", revision=3, content_hash="a" * 64,
+        payload=b"current", index_mode="reconciled")
+    applied = SimpleNamespace(**{**vars(document), "revision": 4,
+        "content_hash": "b" * 64, "payload": b"templated",
+        "index_mode": "template_application"})
+    prepared = object()
+    receipt = SimpleNamespace(revision=4, content_hash="b" * 64)
+    calls = []
+    class Service:
+        def preparar_template(self, process_id, doc_key, version_id, operation_id):
+            calls.append(("prepare", process_id, doc_key, version_id, operation_id))
+            return prepared
+        def confirmar_template(self, value):
+            assert value is prepared
+            calls.append(("confirm", value))
+            return receipt
+        def abrir(self, document_id):
+            assert document_id == document.id
+            return applied
+    session = Session()
+    session[ui._chave("tr", "document")] = document
+    session[ui._chave("tr", "bridge")] = SimpleNamespace(state="ready")
+    session[ui._chave("tr", "template_preview")] = {"stale": True}
+    session[ui._chave("tr", "structure")] = {"stale": True}
+    monkeypatch.setattr(ui.st, "session_state", session)
+    monkeypatch.setattr(ui, "_montar", lambda key, value, runtime:
+        session.__setitem__(ui._chave(key, "document"), value))
+    ui._aplicar_template_operacional("tr", Service(), object(), process, version)
+    expected_operation = str(uuid5(NAMESPACE_URL, "govconnect-wordcraft-template:"
+        + document.id + ":3:" + version))
+    assert calls == [("prepare", process, "tr", version, expected_operation),
+                     ("confirm", prepared)]
+    assert session[ui._chave("tr", "document")] is applied
+    assert ui._chave("tr", "template_preview") not in session
+    assert ui._chave("tr", "structure") not in session
+    assert "revisão nativa 4" in session[ui._chave("tr", "message")]
+
+
 def test_restore_options_ignore_receipts_current_and_divergent_rows():
     history = [
         {"kind": "revision", "revision": 3, "current": True},

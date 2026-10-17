@@ -721,13 +721,15 @@ class DocumentoService:
         head = self._head(user, document_id)
         rows = _execute(user.table("documentos_editor_revisoes").select(
             "document_id,revision,content_hash,engine_build_sha256,"
-            "block_index_sha256,index_mode,institutional_snapshot_sha256")
+            "block_index_sha256,index_mode,institutional_snapshot_sha256,"
+            "template_version_id,template_proof")
             .eq("document_id", document_id).order("revision", desc=True).limit(51))
         if (not isinstance(rows, list) or len(rows) > 50
                 or len(_snapshot_bytes(rows)) > MAX_BYTES):
             raise ErroDocumento("Histórico documental excessivo.")
         expected = {"document_id", "revision", "content_hash", "engine_build_sha256",
-                    "block_index_sha256", "index_mode", "institutional_snapshot_sha256"}
+                    "block_index_sha256", "index_mode", "institutional_snapshot_sha256",
+                    "template_version_id", "template_proof"}
         revisions = []
         try:
             seen = set()
@@ -742,11 +744,25 @@ class DocumentoService:
                 for key in ("content_hash", "engine_build_sha256", "block_index_sha256",
                             "institutional_snapshot_sha256"):
                     _hash(row[key])
+                template = None
+                if row["index_mode"] == "template_application":
+                    proof = row["template_proof"]
+                    version_id = str(_uuid(row["template_version_id"]))
+                    if (not isinstance(proof, dict)
+                            or proof.get("schema") != "gc-wordcraft-template-application/v1"
+                            or not isinstance(proof.get("template"), dict)
+                            or proof["template"].get("versionId") != version_id):
+                        raise ValueError()
+                    template_hash = _hash(proof["template"].get("hash"))
+                    template = {"versionId": version_id, "hash": template_hash}
+                elif row["template_version_id"] is not None or row["template_proof"] is not None:
+                    raise ValueError()
                 seen.add(revision)
                 revisions.append({"kind": "revision", "documentId": document_id, "revision": revision,
                     "contentHash": row["content_hash"], "engineBuild": row["engine_build_sha256"],
                     "indexHash": row["block_index_sha256"], "indexMode": row["index_mode"],
                     "institutionalHash": row["institutional_snapshot_sha256"],
+                    "template": template,
                     "current": revision == head["revision"],
                     "status": head["status"] if revision == head["revision"] else "historico"})
         except (KeyError, TypeError, ValueError):
@@ -1009,10 +1025,9 @@ class DocumentoService:
                 "version": version["versao"], "hash": version["hash"]},
             "preview": {"text": preview["texto"], "pending": preview["pendencias"],
                 "clausesUsed": preview["clausulas_usadas"]},
-            "applicable": False,
+            "applicable": not preview["pendencias"],
             "blockingReason": ("Cláusulas ou parâmetros permanecem pendentes."
-                if preview["pendencias"] else
-                "Prévia confirmada; aplicação atômica vinculada à revisão ainda não executada.")}))
+                if preview["pendencias"] else None)}))
 
     def preparar_template(self, processo_id: str, doc_key: str,
                           version_id: str, operation_id: str) -> PreparacaoTemplate:
@@ -1099,6 +1114,72 @@ class DocumentoService:
                 or self._template_pendentes.get(preparacao.operation_id) is not preparacao):
             raise ErroDocumento("Preparação de template não pertence a este owner.")
         del self._template_pendentes[preparacao.operation_id]
+
+    def confirmar_template(self, preparacao: PreparacaoTemplate) -> Recibo:
+        """Persist prepared native bytes and governed lineage in one SQL transaction."""
+        prep = preparacao
+        try:
+            index_bytes = blocos.serializar_indice(prep.target_index)
+            seal_value = {**prep.provenance,
+                "targetIndexHash": hashlib.sha256(index_bytes).hexdigest()}
+            expected_seal = hmac.new(self._patch_key, _snapshot_bytes(seal_value),
+                                     hashlib.sha256).hexdigest()
+            if (not isinstance(prep, PreparacaoTemplate)
+                    or self._template_pendentes.get(prep.operation_id) is not prep
+                    or not hmac.compare_digest(prep._selo, expected_seal)
+                    or hashlib.sha256(prep.target_payload).hexdigest() != prep.target_hash):
+                raise ValueError()
+        except Exception:
+            raise ErroDocumento("Preparação de template não pertence a este owner ou foi alterada.") from None
+        user, claims = self._session()
+        if claims["sub"] != prep.actor_id:
+            raise AcessoNegado("Preparação de template pertence a outro ator.")
+        current = self._revision(user, self._head(user, prep.document_id), prep.source_revision)
+        if ((current.id, current.processo_id, current.tipo, current.content_hash)
+                != (prep.document_id, prep.processo_id, prep.doc_key, prep.source_hash)
+                or current.status not in {"rascunho", "em_revisao"}
+                or not isinstance(current.institutional_snapshot, dict)):
+            raise ConflitoDocumento("A revisão mudou depois da preparação do template.")
+        institutional = _snapshot_bytes(current.institutional_snapshot)
+        response = _execute(db._cliente().rpc("documento_editor_aplicar_template", {
+            "p_document": prep.document_id, "p_process": prep.processo_id,
+            "p_tipo": prep.doc_key, "p_expected_revision": prep.source_revision,
+            "p_operation": prep.operation_id,
+            "p_payload": "\\x" + prep.target_payload.hex(),
+            "p_content_hash": prep.target_hash,
+            "p_engine_build_sha256": self._native["manifest_sha256"],
+            "p_block_index": "\\x" + index_bytes.hex(),
+            "p_block_index_sha256": hashlib.sha256(index_bytes).hexdigest(),
+            "p_institutional_snapshot": "\\x" + institutional.hex(),
+            "p_institutional_snapshot_sha256": current.institutional_snapshot_hash,
+            "p_template_version": prep.template_version_id,
+            "p_template_hash": prep.template_hash,
+            "p_provenance": prep.provenance, "p_claims": claims}))
+        fields = {"document_id", "revision", "content_hash", "operation_id", "replayed",
+            "engine_build_sha256", "validation_provenance", "block_index_sha256",
+            "index_mode", "institutional_snapshot_sha256", "template_version_id",
+            "template_hash", "template_proof"}
+        if (not isinstance(response, dict) or response.keys() != fields
+                or (response["document_id"], response["revision"], response["content_hash"],
+                    response["operation_id"])
+                != (prep.document_id, prep.source_revision + 1, prep.target_hash,
+                    prep.operation_id)
+                or type(response["replayed"]) is not bool
+                or response["engine_build_sha256"] != self._native["manifest_sha256"]
+                or response["validation_provenance"] != "server_manifest_sha256"
+                or response["block_index_sha256"] != hashlib.sha256(index_bytes).hexdigest()
+                or response["index_mode"] != "template_application"
+                or response["institutional_snapshot_sha256"] != current.institutional_snapshot_hash
+                or response["template_version_id"] != prep.template_version_id
+                or response["template_hash"] != prep.template_hash
+                or response["template_proof"] != prep.provenance):
+            raise ErroDocumento("Recibo de aplicação do template divergente.")
+        del self._template_pendentes[prep.operation_id]
+        return Recibo(prep.document_id, prep.operation_id, prep.source_revision + 1,
+            prep.target_hash, response["replayed"], self._native["manifest_sha256"],
+            "server_manifest_sha256", response["block_index_sha256"],
+            "template_application", None, None, prep.target_index,
+            current.institutional_snapshot, current.institutional_snapshot_hash)
 
     def _auditar_patches(self, process_id, views, context, *, version):
         from . import achados, consistencia, validacao
@@ -1573,7 +1654,8 @@ class DocumentoService:
                 index = blocos.desserializar_indice(encoded_index)
                 if ((index.document_id, index.revision, index.content_hash, index.engine_manifest_sha256)
                         != (document_id, revision, digest, engine_build)
-                        or mode not in {"initial", "reconciled", "rebuilt_missing_index", "rebuilt_build", "operational_patch"}):
+                        or mode not in {"initial", "reconciled", "rebuilt_missing_index", "rebuilt_build",
+                                        "operational_patch", "template_application"}):
                     raise ValueError()
                 if engine_build == self._native["manifest_sha256"]:
                     blocos.validar_indice(index, payload, **self._native)

@@ -138,6 +138,38 @@ def _restaurar_operacional(doc_key: str, service: DocumentoService, runtime: Run
         f"Revisão {source_revision} restaurada como nova revisão {receipt.revision}.")
 
 
+def _aplicar_template_operacional(doc_key: str, service: DocumentoService,
+                                  runtime: Runtime, processo_id: str,
+                                  version_id: str) -> None:
+    """Apply the effective template atomically and remount the persisted head."""
+    document = st.session_state[_chave(doc_key, "document")]
+    bridge = st.session_state[_chave(doc_key, "bridge")]
+    if bridge.state not in {"ready", "saved"}:
+        raise ErroDocumento("Salve ou descarte a edição local antes de aplicar o template.")
+    operation_id = str(uuid5(NAMESPACE_URL, "govconnect-wordcraft-template:"
+        + document.id + ":" + str(document.revision) + ":" + version_id))
+    prepared = service.preparar_template(processo_id, doc_key, version_id, operation_id)
+    receipt = service.confirmar_template(prepared)
+    try:
+        applied = service.abrir(document.id)
+    except Exception:
+        st.session_state.pop(_chave(doc_key, "document"), None)
+        st.session_state.pop(_chave(doc_key, "bridge"), None)
+        raise
+    if ((applied.revision, applied.content_hash, applied.index_mode)
+            != (receipt.revision, receipt.content_hash, "template_application")):
+        st.session_state.pop(_chave(doc_key, "document"), None)
+        st.session_state.pop(_chave(doc_key, "bridge"), None)
+        raise ErroDocumento("Head após aplicação do template diverge do recibo persistido.")
+    _montar(doc_key, applied, runtime)
+    for suffix in ("preparation", "audit", "legal_opinions", "legal_attendance",
+                   "evidence", "citation_check", "structure", "template_preview", "history",
+                   "patch_receipt", "approval"):
+        st.session_state.pop(_chave(doc_key, suffix), None)
+    st.session_state[_chave(doc_key, "message")] = (
+        f"Template governado aplicado como revisão nativa {receipt.revision}.")
+
+
 def _receber(doc_key: str, service: DocumentoService) -> None:
     bridge = st.session_state[_chave(doc_key, "bridge")]
     result = st.session_state.get("wordcraft_" + bridge.instance_id)
@@ -334,6 +366,26 @@ def render(doc_key: str, meta: dict) -> None:
                 try:
                     st.session_state[template_preview_key] = service.previsualizar_template(
                         processo_id, doc_key, template_version)
+                    st.rerun()
+                except ErroDocumento as error:
+                    st.error(str(error))
+            preview = st.session_state.get(template_preview_key)
+            can_apply = (template_version == effective_version
+                and isinstance(preview, Mapping)
+                and (preview.get("template") or {}).get("versionId") == template_version
+                and not (preview.get("preview") or {}).get("pending"))
+            with st.form(_chave(doc_key, "template_apply_form")):
+                template_confirmed = st.checkbox(
+                    "Confirmo a substituição do conteúdo pela prévia e a criação de uma nova revisão.",
+                    key=_chave(doc_key, "template_apply_confirm"))
+                template_submitted = st.form_submit_button(
+                    "Aplicar template efetivo como nova revisão",
+                    disabled=not can_apply or not template_confirmed
+                    or bridge.state not in {"ready", "saved"})
+            if template_submitted:
+                try:
+                    _aplicar_template_operacional(doc_key, service, runtime,
+                                                  processo_id, template_version)
                     st.rerun()
                 except ErroDocumento as error:
                     st.error(str(error))
