@@ -200,6 +200,33 @@ def test_current_structure_reuses_revision_institution_and_decimal_items(patch_o
     assert current['bundleHash'] and not state['rpc_calls']
 
 
+def test_current_structure_rejects_excessive_template_library(patch_owner):
+    service,state,process,_,_=patch_owner
+    service.abrir(processo_id=process,doc_key='memo_a',conteudo=encode(heading('A')),
+        original_format='docx',original_bytes=b'original')
+    tenant=state['claims']['app_metadata']['tenant_id']
+    state['template_artifacts']=[dict(id=str(uuid4()),tenant_id=tenant,
+        secretaria_id=None,tipo_artefato='template',chave_estavel=f'template.{index}',
+        descricao='Modelo QA') for index in range(101)]
+    with pytest.raises(owner.ErroDocumento,match='excessiva'):
+        service.estrutura_atual(process,'memo_a')
+
+
+def test_current_structure_rejects_divergent_published_template(patch_owner):
+    service,state,process,_,_=patch_owner
+    service.abrir(processo_id=process,doc_key='memo_a',conteudo=encode(heading('A')),
+        original_format='docx',original_bytes=b'original')
+    artifact=str(uuid4())
+    state['template_artifacts']=[dict(id=artifact,
+        tenant_id=state['claims']['app_metadata']['tenant_id'],secretaria_id=None,
+        tipo_artefato='template',chave_estavel='template.memo-a',descricao='Modelo QA')]
+    state['template_versions']=[dict(id=str(uuid4()),artefato_id=artifact,versao=1,
+        status='PUBLISHED',vigencia_inicio=None,vigencia_fim=None,hash='invalid',
+        payload={'blocos':[]})]
+    with pytest.raises(owner.ErroDocumento,match='divergente'):
+        service.estrutura_atual(process,'memo_a')
+
+
 def test_persisted_legal_opinion_is_classified_and_bound_read_only(patch_owner):
     service,state,process=patch_owner
     opinion, finding = str(uuid4()), str(uuid4())
