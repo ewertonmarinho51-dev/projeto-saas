@@ -275,6 +275,50 @@ def _snapshot_read(encoded, digest, *, document_id, process_id, tipo):
         raise ErroDocumento("Snapshot institucional divergente.") from None
 
 
+def _vincular_consistencia_nativa(finding: dict, views: dict, texts: dict) -> dict:
+    """Translate a consistency finding only through exact block parity.
+
+    ``consistencia`` remains the rule owner and addresses its legacy text view.
+    The browser supplies none of this mapping. A path becomes executable only
+    when the complete legacy block has exactly one equal, editable native
+    paragraph in the same numbered clause. Any uncertainty remains manual.
+    """
+    from . import blocos as blocos_legados
+
+    result = dict(finding)
+    doc_key = result.get("documentId")
+    view = views.get(doc_key) if isinstance(doc_key, str) else None
+    text = texts.get(doc_key) if isinstance(doc_key, str) else None
+    source_paths = result.get("allowedPaths")
+    if (view is None or not isinstance(text, str) or not isinstance(source_paths, list)
+            or not result.get("autoCorrectable") or not source_paths
+            or not result.get("sourceIds")):
+        result.update(autoCorrectable=False, allowedPaths=[], blockedPaths=[])
+        return result
+
+    legacy = {block["path"]: block
+              for block in blocos_legados.dividir_em_blocos(doc_key, text)}
+    mapped = []
+    for path in source_paths:
+        block = legacy.get(path)
+        if block is None:
+            mapped = []
+            break
+        candidates = [native for native in view.blocos
+            if native.clausula == block.get("clausula")
+            and native.conteudo == block.get("conteudo")
+            and native.bloqueio is None]
+        if len(candidates) != 1:
+            mapped = []
+            break
+        mapped.append(candidates[0].path)
+    if not mapped or len(set(mapped)) != len(mapped):
+        result.update(autoCorrectable=False, allowedPaths=[], blockedPaths=[])
+        return result
+    result.update(autoCorrectable=True, allowedPaths=mapped, blockedPaths=[])
+    return result
+
+
 class DocumentoService:
     def __init__(self, *, node: Path, bundle: Path, manifest_sha256: str):
         # Configuration is supplied by the trusted server, never component data.
@@ -284,6 +328,44 @@ class DocumentoService:
         self._patch_key = secrets.token_bytes(32)
         self._preparacoes: WeakValueDictionary[str, PreparacaoPatches] = WeakValueDictionary()
         self._patch_pendentes: dict[str, PreparacaoPatches] = {}
+
+    def _fontes_patch(self, processo_id, user, claims):
+        context = _execute(db._cliente().rpc("documento_editor_fontes_patch",
+            {"p_process": processo_id, "p_claims": claims}))
+        if (not isinstance(context, dict) or context.keys() != {"processo", "fatos"}
+                or not isinstance(context["processo"], dict)
+                or context["processo"].get("id") != processo_id
+                or not isinstance(context["fatos"], list) or len(context["fatos"]) > 10000
+                or len(_snapshot_bytes(context)) > MAX_BYTES):
+            raise ErroDocumento("Fontes backend de patch incompletas.")
+        heads = _execute(user.table("documentos_editor")
+            .select("id,processo_id,tipo,revision,content_hash,status,tenant_id")
+            .eq("processo_id", processo_id).limit(33))
+        if not isinstance(heads, list) or not 1 <= len(heads) <= 32:
+            raise ErroDocumento("Conjunto nativo vazio ou excessivo.")
+        originals = {}
+        for head in sorted(heads, key=lambda d: d["id"]):
+            if head.get("processo_id") != processo_id or head.get("tipo") in originals:
+                raise ErroDocumento("Mapeamento documental ambíguo.")
+            doc = self._revision(user, head, head["revision"])
+            if (not doc.index or not doc.institutional_snapshot
+                    or doc.engine_build != self._native["manifest_sha256"]):
+                raise ErroDocumento("Uma fonte não possui índice, contexto e build atuais comprovados.")
+            originals[doc.tipo] = doc
+        views = {key: blocos.projetar_documento(key, doc.payload,
+            indice=doc.index, **self._native) for key,doc in originals.items()}
+        if any(not view.apto_analise for view in views.values()):
+            raise ErroDocumento("Cobertura textual incompleta nas fontes do patch.")
+        return context, originals, views
+
+    def auditoria_atual(self, processo_id: str) -> dict:
+        """Read-only contextual report bound to current native revisions."""
+        _uuid(processo_id)
+        user, claims = self._session()
+        context, _, views = self._fontes_patch(processo_id, user, claims)
+        snapshot = blocos.snapshot_nativo(views, versao=1)
+        report = self._auditar_patches(processo_id, views, context, version=1)
+        return json.loads(_snapshot_bytes({"report": report, "snapshot": snapshot}))
 
     def _auditar_patches(self, process_id, views, context, *, version):
         from . import achados, consistencia, validacao
@@ -297,10 +379,7 @@ class DocumentoService:
             finding["allowedPaths"] = [p for p in finding["allowedPaths"] if p in by_path and by_path[p].bloqueio is None]
             finding["autoCorrectable"] = bool(finding["autoCorrectable"] and finding["allowedPaths"])
         for finding in consistencia.verificar(context["fatos"], texts):
-            # Existing cross-document checks consume text. Their older text
-            # addresses cannot authorize a native target; keep the finding manual.
-            finding = dict(finding, autoCorrectable=False, allowedPaths=[], blockedPaths=[])
-            findings.append(finding)
+            findings.append(_vincular_consistencia_nativa(finding, views, texts))
         return {"bundleId": process_id, "bundleVersion": version, "bundleHash": snapshot["hash"],
             "status": "REVIEW_COMPLETED", "findings": findings, "validatorFindings": raw,
             "validatorVersion": validacao.versao_do_auditor(), "model": "validacao-deterministica",
@@ -337,28 +416,7 @@ class DocumentoService:
             return previous
         if len(self._patch_pendentes) >= 4:
             raise ErroDocumento("Há quatro preparações pendentes; conclua ou descarte uma preparação.")
-        context = _execute(db._cliente().rpc("documento_editor_fontes_patch",
-            {"p_process": processo_id, "p_claims": claims}))
-        if (not isinstance(context, dict) or context.keys() != {"processo", "fatos"}
-                or not isinstance(context["processo"], dict) or context["processo"].get("id") != processo_id
-                or not isinstance(context["fatos"], list) or len(context["fatos"]) > 10000
-                or len(_snapshot_bytes(context)) > MAX_BYTES):
-            raise ErroDocumento("Fontes backend de patch incompletas.")
-        heads = _execute(user.table("documentos_editor").select("id,processo_id,tipo,revision,content_hash,status,tenant_id")
-            .eq("processo_id", processo_id).limit(33))
-        if not isinstance(heads, list) or not 1 <= len(heads) <= 32:
-            raise ErroDocumento("Conjunto nativo vazio ou excessivo.")
-        originals = {}
-        for head in sorted(heads, key=lambda d: d["id"]):
-            if head.get("processo_id") != processo_id or head.get("tipo") in originals:
-                raise ErroDocumento("Mapeamento documental ambíguo.")
-            doc = self._revision(user, head, head["revision"])
-            if not doc.index or not doc.institutional_snapshot or doc.engine_build != self._native["manifest_sha256"]:
-                raise ErroDocumento("Uma fonte não possui índice, contexto e build atuais comprovados.")
-            originals[doc.tipo] = doc
-        views = {key: blocos.projetar_documento(key, doc.payload, indice=doc.index, **self._native) for key,doc in originals.items()}
-        if any(not v.apto_analise for v in views.values()):
-            raise ErroDocumento("Cobertura textual incompleta nas fontes do patch.")
+        context, originals, views = self._fontes_patch(processo_id, user, claims)
         before = blocos.snapshot_nativo(views, versao=1)
         report = self._auditar_patches(processo_id, views, context, version=1)
         try:

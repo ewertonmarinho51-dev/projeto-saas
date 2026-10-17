@@ -73,6 +73,19 @@ substituto ou pedir uma sugestão ao gateway GovBot existente. A resposta do
 modelo continua declarativa, restrita ao único path permitido, e é recompilada
 pelo mesmo owner G4; explicação, fonte ou alvo divergente não viram proposta.
 
+A trilha de auditoria contextual agora também pode ser executada sem preparar
+ou gravar um patch. O owner lê as heads autorizadas, reconstrói as projeções e
+devolve relatório e snapshot ligados às revisões e hashes correntes. Achados de
+consistência continuam pertencendo a `consistencia.py`: seu endereço textual
+legado só é traduzido para uma âncora nativa quando o bloco completo possui
+paridade exata com um único parágrafo editável da mesma cláusula e o achado
+declara fonte material. Duplicidade, bloqueio, texto divergente, fonte ausente
+ou endereço sem correspondência deixam o achado manual e sem path autorizado.
+Na superfície operacional, o usuário escolhe esse achado e prepara a correção
+pelo mesmo `CorrecaoContextual`, propositor e `DocumentoService.preparar_patches`
+de G4. A preparação relê fontes e heads, reaudita o resultado e permanece sem
+persistência até a confirmação explícita já existente.
+
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
 manifesto, inventário fechado, hashes/tamanhos dos assets, cabeçalho WASM,
@@ -87,6 +100,10 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 - preparação integrada executa o motor nativo e a reauditoria sem chamar o RPC
   de gravação;
 - finding, caminho e fonte falsos são recusados;
+- a auditoria corrente é somente leitura e fica ligada às heads nativas;
+- achado de consistência com paridade exata e fonte é traduzido para UUID
+  nativo, corrigido pelo owner e encerrado na reauditoria sem RPC de gravação;
+- paridade duplicada, bloqueada, divergente ou sem fonte falha de modo fechado;
 - parecer ambíguo permanece pendente;
 - alteração posterior de logo ou signatário não muda o snapshot capturado;
 - 210 itens preservam numeração e total decimal;
@@ -96,8 +113,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 
 ## Pendências para fechar G5
 
-1. provar no navegador WASM real o fluxo completo de seleção, geração pelo
-   GovBot, confirmação, Undo posterior e stale;
+1. ampliar a prova no navegador WASM real já existente para cobrir geração
+   pelo GovBot, confirmação backend, Undo posterior e stale end-to-end;
 2. completar as trilhas A–D do corpus, incluindo auditoria e parecer reais;
 3. consumir catálogo institucional, RAG vigente e montagem oficial pelos
    owners existentes em ensaio end-to-end;

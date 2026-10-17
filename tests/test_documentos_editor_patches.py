@@ -136,6 +136,16 @@ def test_backend_prepares_native_sources_exact_compiled_commands_and_reaudits(pa
     assert state['proposals']==1
 
 
+def test_current_audit_is_read_only_and_bound_to_native_heads(patch_owner):
+    service,state,process=patch_owner
+    current=service.auditoria_atual(process)
+    assert current.keys()=={'report','snapshot'}
+    assert current['report']['bundleHash']==current['snapshot']['hash']
+    assert set(current['report']['sourceNative'])=={'memo_a','memo_b','memo_c'}
+    assert all(binding['revision']==1 for binding in current['report']['sourceNative'].values())
+    assert not state['rpc_calls'] and all(head['revision']==1 for head in state['heads'])
+
+
 def test_contextual_capability_uses_the_same_owner_preparation_without_writing(patch_owner):
     from src.wordcraft_capacidades import Capacidade, CorrecaoContextual, propositor
     service,state,process=patch_owner
@@ -158,6 +168,67 @@ def test_contextual_capability_uses_the_same_owner_preparation_without_writing(p
     assert prep.auditoria()['plan']['operations'][0]['reason']==\
         'correção da auditoria central'
     assert not state['rpc_calls']
+
+
+def test_consistency_finding_maps_exactly_to_native_anchor_and_reaudits(patch_owner, monkeypatch):
+    from src import consistencia
+    service,state,process=patch_owner
+
+    def consistency(facts, documents):
+        assert facts == [{'path':'valor.total','valor':'10.00'}]
+        text=documents['memo_a']
+        if 'placeholder' not in text:
+            return []
+        return [dict(findingId='C001',documentId='memo_a',clauseId=None,
+            categoria='consistencia_valor',severity='HIGH',descricao='valor divergente',
+            evidencia=['R$ 9,00'],regraViolada='fato canônico',resultadoEsperado='R$ 10,00',
+            autoCorrectable=True,allowedPaths=['memo_a/clausula/1/1'],blockedPaths=[],
+            sourceIds=['valor.total'],blockingReason=None)]
+
+    state['context']['fatos']=[{'path':'valor.total','valor':'10.00'}]
+    monkeypatch.setattr(consistencia,'verificar',consistency)
+
+    def proposal(*,relatorio,snapshot,contexto):
+        finding=next(item for item in relatorio['findings'] if item['findingId']=='C001')
+        assert finding['autoCorrectable'] is True
+        assert finding['allowedPaths'][0].startswith('memo_a/clausula/1/')
+        assert finding['allowedPaths'][0] != 'memo_a/clausula/1/1'
+        path=finding['allowedPaths'][0]
+        block=next(item for item in snapshot['documentos']['memo_a']['blocos']
+                   if item['path']==path)
+        return {'operations':[dict(findingId='C001',documentId='memo_a',op='replace',
+            path=path,expectedOldHash=block['hash'],
+            newValue=block['conteudo'].replace('placeholder','corrigido'),
+            reason='alinhar ao fato canônico',sourceIds=['valor.total'])],
+            'unresolvedFindings':[]}
+
+    prep=service.preparar_patches(process,operation_id=str(uuid4()),propor_plano=proposal)
+    assert [item.fonte.doc_key for item in prep.resultados]==['memo_a']
+    before,after=prep.auditoria()['reports']
+    assert any(item['findingId']=='C001' for item in before['findings'])
+    assert not any(item['findingId']=='C001' for item in after['findings'])
+    assert not state['rpc_calls']
+
+
+@pytest.mark.parametrize('case',['duplicate','blocked','no_source','different_text'])
+def test_consistency_mapping_fails_closed_when_native_parity_is_not_unique(case):
+    from src.documentos_editor import _vincular_consistencia_nativa
+    path='tr/clausula/7/11111111-1111-1111-1111-111111111111'
+    block=SimpleNamespace(path=path,clausula=7,conteudo='Valor estimado R$ 10,00.',bloqueio=None)
+    blocks=[block]
+    if case=='duplicate':
+        blocks.append(SimpleNamespace(path=path[:-1]+'2',clausula=7,
+            conteudo=block.conteudo,bloqueio=None))
+    if case=='blocked': block.bloqueio='clausula_bloqueada'
+    if case=='different_text': block.conteudo='Outro valor.'
+    finding=dict(documentId='tr',autoCorrectable=True,
+        allowedPaths=['tr/clausula/7/1'],blockedPaths=[],
+        sourceIds=[] if case=='no_source' else ['valor.total'])
+    result=_vincular_consistencia_nativa(finding,
+        {'tr':SimpleNamespace(blocos=blocks)},
+        {'tr':'## 7. VALOR\n\nValor estimado R$ 10,00.'})
+    assert result['autoCorrectable'] is False
+    assert result['allowedPaths']==[]
 
 
 def test_one_batch_rpc_returns_only_a_correlated_receipt_and_exact_retry(patch_owner):

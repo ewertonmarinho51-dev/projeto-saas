@@ -8,7 +8,7 @@ from __future__ import annotations
 from ..wordcraft_capacidades import painel_unico
 
 
-def modelo(*, preparacao=None, evidencias=(), template=None, montagem=None,
+def modelo(*, preparacao=None, auditoria_atual=None, evidencias=(), template=None, montagem=None,
            historico=()) -> dict:
     base = painel_unico()
     auditoria = preparacao.auditoria() if preparacao is not None else None
@@ -20,6 +20,7 @@ def modelo(*, preparacao=None, evidencias=(), template=None, montagem=None,
                             "documentos": [r.fonte.doc_key for r in preparacao.resultados],
                             "auditoria": auditoria}
                            if preparacao is not None else None),
+            "auditoria_atual": auditoria_atual,
             "evidencias": list(evidencias),
             "template": template,
             "montagem": montagem,
@@ -46,6 +47,11 @@ def renderizar(modelo_painel: dict) -> None:
             st.metric("Achados antes", len(antes["findings"]))
             st.metric("Achados depois", len(depois["findings"]))
             st.caption("Plano " + preparacao["plan_hash"])
+        elif modelo_painel.get("auditoria_atual"):
+            report = modelo_painel["auditoria_atual"]["report"]
+            st.metric("Achados atuais", len(report["findings"]))
+            for finding in report["findings"]:
+                st.json(finding, expanded=False)
         else:
             st.info("A auditoria contextual será executada pelo owner ao preparar uma proposta.")
         if modelo_painel.get("template"):

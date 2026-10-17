@@ -19,7 +19,9 @@ from ..documentos_editor import (AcessoNegado, ConflitoDocumento,
                                  VinculoAprovacao)
 from ..wordcraft_protocol import Ponte
 from ..wordcraft_runtime import ErroRuntime, Runtime, carregar
-from ..wordcraft_capacidades import (ErroCapacidade, propositor_govbot_selecao,
+from ..wordcraft_capacidades import (Capacidade, CorrecaoContextual,
+                                     ErroCapacidade, propositor,
+                                     propositor_govbot_selecao,
                                      propositor_selecao)
 from .wordcraft_editor import render_editor
 from .wordcraft_painel import modelo as modelo_painel, renderizar as renderizar_painel
@@ -130,6 +132,7 @@ def _receber(doc_key: str, service: DocumentoService) -> None:
                 validation_provenance=receipt.validation_provenance,
                 index=receipt.index, index_mode=receipt.index_mode,
                 restored_from_revision=receipt.restored_from_revision)
+            st.session_state.pop(_chave(doc_key, "audit"), None)
             st.session_state[_chave(doc_key, "message")] = (
                 "Patch nativo aplicado, persistido e confirmado; Undo permanece no canvas."
                 if patch_checkpoint else "Revisão nativa salva e confirmada.")
@@ -173,8 +176,51 @@ def render(doc_key: str, meta: dict) -> None:
                   wasm_url=runtime.wasm_url,
                   on_edit_change=lambda: _receber(doc_key, service))
     preparation_key = _chave(doc_key, "preparation")
+    audit_key = _chave(doc_key, "audit")
+    current_audit = st.session_state.get(audit_key)
+    if current_audit is not None:
+        binding = current_audit.get("report", {}).get("sourceNative", {}).get(doc_key, {})
+        if ((binding.get("documentId"), binding.get("revision"), binding.get("sourceHash"))
+                != (document.id, document.revision, document.content_hash)):
+            st.session_state.pop(audit_key, None)
     selection = bridge.selecao_atual()
     if st.session_state.get(preparation_key) is None:
+        if st.button("Executar auditoria contextual", key=_chave(doc_key, "audit_button")):
+            try:
+                st.session_state[audit_key] = service.auditoria_atual(processo_id)
+                st.rerun()
+            except ErroDocumento as error:
+                st.error(str(error))
+        current_audit = st.session_state.get(audit_key)
+        findings = ([item for item in current_audit["report"]["findings"]
+                     if item.get("documentId") == doc_key] if current_audit else [])
+        correctable = [item for item in findings if item.get("autoCorrectable") is True]
+        if correctable:
+            labels = {item["findingId"]: f"{item['findingId']} · {item.get('descricao','')}"
+                      for item in correctable}
+            finding_id = st.selectbox("Achado auditado para corrigir", tuple(labels),
+                                      format_func=labels.get,
+                                      key=_chave(doc_key, "audit_finding"))
+            audit_replacement = st.text_area("Parágrafo corrigido conforme o achado",
+                key=_chave(doc_key, "audit_replacement"), max_chars=64 * 1024)
+            audit_reason = st.text_input("Justificativa da correção auditada",
+                key=_chave(doc_key, "audit_reason"), max_chars=500)
+            if st.button("Preparar correção auditada", disabled=not audit_replacement.strip(),
+                         key=_chave(doc_key, "prepare_audit")):
+                selected = next(item for item in correctable if item["findingId"] == finding_id)
+                operation = str(uuid5(NAMESPACE_URL, "govconnect-wordcraft-audit:"
+                    + processo_id + ":" + doc_key + ":" + document.content_hash + ":"
+                    + finding_id + ":" + audit_replacement + ":" + audit_reason))
+                correction = CorrecaoContextual(Capacidade.AUDITORIA, finding_id,
+                    audit_replacement, audit_reason or "Correção da auditoria contextual.",
+                    tuple(selected.get("sourceIds") or ()))
+                try:
+                    st.session_state[preparation_key] = service.preparar_patches(
+                        processo_id, operation_id=operation,
+                        propor_plano=propositor(correction))
+                    st.rerun()
+                except (ErroDocumento, ErroCapacidade) as error:
+                    st.error(str(error))
         if st.button("Usar seleção no GovBot", disabled=bridge.state not in {"ready", "saved"}
                      or bridge.controle_pendente() is not None,
                      key=_chave(doc_key, "capture_selection")):
@@ -220,6 +266,7 @@ def render(doc_key: str, meta: dict) -> None:
                     st.error(str(error))
     renderizar_painel(modelo_painel(
         preparacao=st.session_state.get(preparation_key),
+        auditoria_atual=st.session_state.get(audit_key),
         evidencias=st.session_state.get(_chave(doc_key, "evidence"), ()),
         template=st.session_state.get(_chave(doc_key, "template")),
         montagem=st.session_state.get(_chave(doc_key, "assembly")),
