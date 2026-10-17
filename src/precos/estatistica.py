@@ -380,10 +380,15 @@ class PoliticaAmostraAutomatica:
     escolher quantas referências a análise pedir.
     """
 
-    versao: str = "2026-10-17.teto-15"
+    # .2 (17/10/2026, medido em produção): grupo do catálogo limitado e
+    # seleções ANTERIORES da automática reavaliadas sob o teto.
+    versao: str = "2026-10-17.teto-15.2"
     teto: int = 15
     suficiente: int = 6
     limite_por_fonte: int = 50
+    # registros por grupo do catálogo (PDM) no caminho por descrição do
+    # Compras.gov; o manual continua pedindo 500
+    limite_por_grupo: int = 100
     reserva: int = 10
 
 

@@ -258,7 +258,7 @@ class ComprasGovAdapter(FontePesquisaPreco):
                    else "/modulo-pesquisa-preco/1_consultarMaterial")
         dados = self._obter(caminho, {
             "pagina": 1,
-            "tamanhoPagina": PAGINA_MAXIMA,
+            "tamanhoPagina": self._tamanho_de_pagina(consulta.limite_grupo),
             "tipo": "codigoPdm",
             "codigo": codigo_pdm,
             "estado": consulta.uf,

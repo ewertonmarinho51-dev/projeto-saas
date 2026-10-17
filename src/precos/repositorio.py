@@ -935,6 +935,52 @@ def listar_emissoes(pesquisa_id: str, limite: int = 50) -> list[dict]:
         return []
 
 
+def referencias_decididas_por_humano(pesquisa_id: str,
+                                     item_id: str) -> set[str]:
+    """
+    Ids (e identificadores externos) das referências em que uma PESSOA
+    decidiu — incluiu ou excluiu, com motivo. É o que separa a escolha do
+    revisor da seleção que a cotação automática fez sozinha: as duas
+    gravam `selected`, e só a trilha diz quem decidiu.
+    """
+    try:
+        linhas = (_cliente().table(TABELA_EVENTOS).select("payload")
+                  .eq("pesquisa_id", pesquisa_id).eq("item_id", item_id)
+                  .in_("tipo", ["referencia_incluida", "referencia_excluida"])
+                  .execute()).data or []
+    except SemSessao:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+    ids: set[str] = set()
+    for linha in linhas:
+        payload = linha.get("payload") or {}
+        if payload.get("referencia"):
+            ids.add(str(payload["referencia"]))
+        ids.update(str(r) for r in payload.get("referencias") or [] if r)
+    return ids
+
+
+def rebaixar_referencias(referencia_ids: list[str]) -> int:
+    """
+    Tira da cesta, em LOTE, seleções que a cotação automática tinha feito
+    sozinha e que passam do teto: voltam a `candidate`, disponíveis para
+    inclusão manual. Não apaga nada; o motivo vai na trilha da busca.
+    """
+    feitas = 0
+    for inicio in range(0, len(referencia_ids), 200):
+        lote = referencia_ids[inicio:inicio + 200]
+        try:
+            (_cliente().table(TABELA_REFERENCIAS)
+             .update({"status": "candidate"}).in_("id", lote).execute())
+        except SemSessao:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+        feitas += len(lote)
+    return feitas
+
+
 def listar_eventos(pesquisa_id: str, limite: int = 200) -> list[dict]:
     try:
         resposta = (_cliente().table(TABELA_EVENTOS).select("*")

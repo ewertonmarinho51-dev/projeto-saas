@@ -164,10 +164,12 @@ def test_reconsulta_nunca_poe_a_16a(monkeypatch, ja_na_cesta):
                             fontes=_fontes(301))
     linhas = repo.listar_referencias(iid)
     dentro = cesta.consideradas(linhas)
-    # o revisor tira algumas: a cesta fica com `ja_na_cesta`
+    # o revisor tira algumas PELA TELA (com evento): fica com `ja_na_cesta`
     for linha in dentro[ja_na_cesta:]:
-        repo.reclassificar_referencia(str(linha["id"]), "rejected",
-                                      "fora da curva")
+        cotacoes.alterar_status_referencia(
+            CTX, cid, iid, str(linha["id"]), incluir=False,
+            motivo="fora da curva",
+            revisao_esperada=int(repo.obter_item(iid)["revisao"]))
     r = cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                                 fontes=_fontes(301))
     final = repo.listar_referencias(iid)
@@ -216,3 +218,99 @@ def test_rota_legada_respeita_o_mesmo_teto():
     assert len(com.estimativa.cesta.selecionadas) == 15
     assert len(com.referencias) <= POL.teto + POL.reserva
     assert fontes[1].chamadas == 0
+
+
+# ---------------------------------------------------------------------------
+# Correção de 17/10/2026 (medido em produção com o teto ligado: cestas de
+# 65, 258 e 24 referências — seleções da automática ANTERIORES ao teto
+# eram tratadas como decisão humana; e 500 a 611 registros brutos por
+# item, porque o grupo do catálogo pedia 500)
+# ---------------------------------------------------------------------------
+def _cotacao_antiga_sem_teto(monkeypatch):
+    """Item pesquisado ANTES do teto: 452 na cesta, feitas pela máquina."""
+    cid, iid = _nova(monkeypatch, teto=False)
+    cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
+                            fontes=_fontes(301))
+    assert len(cesta.consideradas(repo.listar_referencias(iid))) == 452
+    ligadas = {governanca.FLAG_TETO_AUTOMATICO}
+    monkeypatch.setattr(db, "flag_ativa", lambda nome: nome in ligadas)
+    return cid, iid
+
+
+def test_rodada_com_teto_reavalia_selecoes_antigas_da_maquina(monkeypatch):
+    cid, iid = _cotacao_antiga_sem_teto(monkeypatch)
+    antes = len(repo.listar_referencias(iid))
+    r = cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
+                                fontes=_fontes(301))
+    linhas = repo.listar_referencias(iid)
+    assert len(cesta.consideradas(linhas)) == r.consideradas == 15
+    assert len(linhas) == antes                # nada apagado
+    # as seleções antigas saem da cesta: em lote (`rebaixadas`) ou pelo
+    # upsert da reserva do revisor
+    assert r.rebaixadas >= 452 - 15 - POL.reserva
+    [evento] = [e for e in repo.listar_eventos(cid)
+                if e["tipo"] == "busca_concluida"
+                and (e["payload"] or {}).get("politica")]
+    assert evento["payload"]["rebaixadas"] == r.rebaixadas
+
+
+def test_decisao_de_pessoa_sobrevive_a_reavaliacao(monkeypatch):
+    cid, iid = _cotacao_antiga_sem_teto(monkeypatch)
+    linhas = repo.listar_referencias(iid)
+    dentro = cesta.consideradas(linhas)
+    escolhida, excluida = dentro[-1], dentro[-2]
+    revisao = int(repo.obter_item(iid)["revisao"])
+    # o revisor exclui uma e tira-e-repõe outra (inclusão com motivo)
+    cotacoes.alterar_status_referencia(CTX, cid, iid, str(excluida["id"]),
+                                       incluir=False, motivo="fora da curva",
+                                       revisao_esperada=revisao)
+    revisao = int(repo.obter_item(iid)["revisao"])
+    cotacoes.alterar_status_referencia(CTX, cid, iid, str(escolhida["id"]),
+                                       incluir=True, motivo="mesmo produto",
+                                       revisao_esperada=revisao)
+    cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
+                            fontes=_fontes(301))
+    final = {l["id"]: l for l in repo.listar_referencias(iid)}
+    assert final[excluida["id"]]["status"] == "rejected"
+    assert final[escolhida["id"]]["status"] == "selected"
+    assert len(cesta.consideradas(list(final.values()))) <= 15
+
+
+def test_ia_ve_so_o_que_decide_o_item(monkeypatch):
+    cid, iid = _cotacao_antiga_sem_teto(monkeypatch)
+    vistas = []
+    cotacoes.pesquisar_item(
+        CTX, cid, iid, modo="automatico", fontes=_fontes(301),
+        seletor=lambda cotacao, item, linhas: vistas.append(len(linhas)))
+    assert vistas and vistas[0] <= POL.teto + POL.reserva
+
+
+def test_grupo_do_catalogo_menor_na_automatica_e_inteiro_no_manual(monkeypatch):
+    vistos = {}
+
+    class Espia(FonteSintetica):
+        def pesquisar(self, consulta):
+            vistos[self._modo] = consulta.limite_grupo
+            return super().pesquisar(consulta)
+
+    for modo in ("automatico", "manual"):
+        cid, iid = _nova(monkeypatch)
+        espia = Espia(volume=6)
+        espia._modo = modo
+        espia.registrar({**ITEM, "numero": 1, "valor_unitario": 28.7})
+        cotacoes.pesquisar_item(CTX, cid, iid, modo=modo, fontes=[espia])
+    assert vistos == {"automatico": POL.limite_por_grupo, "manual": 500}
+
+
+def test_adapter_compras_gov_pede_o_grupo_pelo_limite_da_consulta():
+    from src.precos.compras_gov import ComprasGovAdapter
+    from src.precos.fontes import Consulta, ResultadoBusca
+
+    pedidos = []
+    adapter = ComprasGovAdapter(abrir_url=lambda *a, **k: None)
+    adapter._obter = lambda caminho, params, resultado: (
+        pedidos.append(params["tamanhoPagina"]) or None)
+    for limite_grupo in (100, 500):
+        adapter._por_pdm(Consulta(descricao="papel", limite_grupo=limite_grupo),
+                         "123", ResultadoBusca(fonte=adapter.fonte))
+    assert pedidos == [100, 500]
