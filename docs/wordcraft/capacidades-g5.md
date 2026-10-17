@@ -156,7 +156,9 @@ A prévia não altera o canvas, não cria revisão e declara `applicable=false`:
 a aplicação atômica ainda não foi implementada. Blocos de catálogo resolvem
 cláusulas `PUBLISHED` visíveis pela RLS no escopo exato do processo, com
 precedência explícita da secretaria sobre o município. Payload e hash canônico
-de cada cláusula são revalidados antes da montagem. Chave ausente permanece
+de cada cláusula são revalidados antes da montagem. Template e cláusulas também
+precisam estar dentro da vigência UTC declarada, com início inclusivo e fim
+exclusivo; data inválida, futura ou expirada falha fechada. Chave ausente permanece
 pendente; duplicidade de escopo, múltiplas publicadas ou divergência recusam a
 prévia inteira, sem preenchimento por aproximação.
 
@@ -198,6 +200,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   à revisão, rejeita hash canônico divergente e não executa RPC de gravação;
 - cláusula publicada usada pela prévia respeita o tenant e a secretaria do
   processo, prevalece sobre a municipal e tem contrato/hash revalidados;
+- catálogo, template escolhido e cláusulas excluem versões fora da vigência
+  temporal sem promover apenas o status `PUBLISHED` a efetividade;
 - parecer ambíguo permanece pendente;
 - alteração posterior de logo ou signatário não muda o snapshot capturado;
 - 210 itens preservam numeração e total decimal;

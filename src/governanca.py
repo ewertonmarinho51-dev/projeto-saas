@@ -393,6 +393,32 @@ def versao_artefato_editavel(versao: dict) -> bool:
     return versao.get("status") in ESTADOS_ARTEFATO_EDITAVEIS
 
 
+def versao_publicada_vigente(versao: dict,
+                             agora: datetime | None = None) -> bool:
+    """True only for a PUBLISHED artifact effective at the UTC instant."""
+    if not isinstance(versao, dict) or versao.get("status") != "PUBLISHED":
+        return False
+    agora = agora or datetime.now(timezone.utc)
+    if agora.tzinfo is None or agora.utcoffset() is None:
+        return False
+
+    def parse(value):
+        if value is None:
+            return None
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError()
+        return parsed
+
+    try:
+        start = parse(versao.get("vigencia_inicio"))
+        end = parse(versao.get("vigencia_fim"))
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return not ((start is not None and agora < start)
+                or (end is not None and agora >= end))
+
+
 # ---------------------------------------------------------------------------
 # Validação de payload por tipo de artefato
 # ---------------------------------------------------------------------------

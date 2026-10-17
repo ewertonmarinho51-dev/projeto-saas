@@ -736,6 +736,7 @@ class DocumentoService:
 
     def estrutura_atual(self, processo_id: str, doc_key: str) -> dict:
         """Read the revision-bound institution and deterministic item assembly."""
+        from . import governanca
         from .wordcraft_capacidades import ErroCapacidade, montar_itens
 
         _uuid(processo_id)
@@ -791,6 +792,8 @@ class DocumentoService:
                             or not isinstance(version["payload"], dict)
                             or not isinstance(version["payload"].get("blocos"), list)):
                         raise ValueError()
+                    if not governanca.versao_publicada_vigente(version):
+                        continue
                     templates.append({"artifactId": artifact_id,
                         "versionId": version["id"], "key": artifact["chave_estavel"],
                         "description": artifact["descricao"], "version": version["versao"],
@@ -827,7 +830,7 @@ class DocumentoService:
         if document is None:
             raise AcessoNegado("Documento não disponível nesta sessão.")
         version = _one(_execute(user.table("governanca_versoes")
-            .select("id,artefato_id,versao,status,hash,payload")
+            .select("id,artefato_id,versao,status,vigencia_inicio,vigencia_fim,hash,payload")
             .eq("id", version_id).eq("status", "PUBLISHED").limit(1)))
         try:
             artifact_id = str(_uuid(version.get("artefato_id")))
@@ -837,7 +840,8 @@ class DocumentoService:
             .select("id,tenant_id,secretaria_id,tipo_artefato,chave_estavel,descricao")
             .eq("id", artifact_id).eq("tipo_artefato", "template").limit(1)))
         try:
-            expected_version = {"id", "artefato_id", "versao", "status", "hash", "payload"}
+            expected_version = {"id", "artefato_id", "versao", "status",
+                "vigencia_inicio", "vigencia_fim", "hash", "payload"}
             expected_artifact = {"id", "tenant_id", "secretaria_id", "tipo_artefato",
                                  "chave_estavel", "descricao"}
             payload = version["payload"]
@@ -847,6 +851,7 @@ class DocumentoService:
                     or artifact["id"] != artifact_id or artifact["tipo_artefato"] != "template"
                     or type(version["versao"]) is not int or version["versao"] < 1
                     or version["status"] != "PUBLISHED" or not isinstance(payload, dict)
+                    or not governanca.versao_publicada_vigente(version)
                     or not isinstance(payload.get("blocos"), list)
                     or not isinstance(key, str) or not key or len(key) > 200
                     or not isinstance(artifact["descricao"], str)
@@ -908,9 +913,13 @@ class DocumentoService:
                         scoped[item_key] = (rank, item_id)
                 for clause_key, (_, clause_id) in scoped.items():
                     published = _execute(user.table("governanca_versoes")
-                        .select("id,artefato_id,versao,status,hash,payload")
-                        .eq("artefato_id", clause_id).eq("status", "PUBLISHED").limit(2))
-                    if not isinstance(published, list) or len(published) != 1:
+                        .select("id,artefato_id,versao,status,vigencia_inicio,vigencia_fim,hash,payload")
+                        .eq("artefato_id", clause_id).eq("status", "PUBLISHED").limit(17))
+                    if not isinstance(published, list) or len(published) > 16:
+                        raise ValueError()
+                    published = [item for item in published
+                        if governanca.versao_publicada_vigente(item)]
+                    if len(published) != 1:
                         raise ValueError()
                     clause = published[0]
                     if (clause.keys() != expected_version

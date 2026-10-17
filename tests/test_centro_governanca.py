@@ -5,6 +5,7 @@ artefato por tipo, fluxo de estados com versão publicada imutável
 acesso), flags default OFF (T24) e persistência com guardas.
 """
 
+from datetime import datetime, timezone
 import types
 
 import pytest
@@ -36,6 +37,21 @@ def test_versao_publicada_imutavel_editar_deriva_nova():
     assert nova["versao"] == 3 and nova["status"] == "DRAFT"
     assert nova["hash"] != versao["hash"]
     assert versao["status"] == "PUBLISHED"  # original intocada
+
+
+def test_publicacao_so_e_vigente_dentro_do_intervalo_utc():
+    instant = datetime(2026, 10, 17, 12, tzinfo=timezone.utc)
+    base = {"status": "PUBLISHED", "vigencia_inicio": "2026-10-17T11:00:00Z",
+            "vigencia_fim": "2026-10-17T13:00:00+00:00"}
+    assert governanca.versao_publicada_vigente(base, instant)
+    assert not governanca.versao_publicada_vigente(
+        {**base, "vigencia_inicio": "2026-10-17T12:00:01Z"}, instant)
+    assert not governanca.versao_publicada_vigente(
+        {**base, "vigencia_fim": "2026-10-17T12:00:00Z"}, instant)
+    assert not governanca.versao_publicada_vigente(
+        {**base, "vigencia_inicio": "2026-10-17 11:00:00"}, instant)
+    assert not governanca.versao_publicada_vigente(
+        {**base, "status": "SCHEDULED"}, instant)
 
 
 # ---------------------------------------------------------------------------

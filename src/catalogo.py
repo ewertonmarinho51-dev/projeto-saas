@@ -190,7 +190,7 @@ def listar_com_situacao(tipo_artefato: str = "clausula") -> list[dict]:
     for artefato in db.listar_artefatos(tipo_artefato):
         versoes = db.listar_versoes_governanca(artefato["id"])
         publicada = next((v for v in versoes
-                          if v.get("status") == "PUBLISHED"), None)
+                          if governanca.versao_publicada_vigente(v)), None)
         resultado.append({
             "artefato": artefato,
             "versoes": versoes,

@@ -309,6 +309,23 @@ def test_published_template_preview_rejects_divergent_canonical_hash(patch_owner
     assert not state['rpc_calls']
 
 
+def test_published_template_preview_rejects_version_outside_effective_window(patch_owner):
+    from src import governanca
+    service,state,process=patch_owner
+    artifact,version=str(uuid4()),str(uuid4())
+    payload={'blocos':[{'id':'titulo','tipo':'titulo','texto':'Documento QA'}]}
+    state['template_artifacts']=[dict(id=artifact,
+        tenant_id=state['claims']['app_metadata']['tenant_id'],secretaria_id=None,
+        tipo_artefato='template',chave_estavel='template.memo-a',descricao='Modelo QA')]
+    state['template_versions']=[dict(id=version,artefato_id=artifact,versao=2,
+        status='PUBLISHED',vigencia_inicio='2999-01-01T00:00:00Z',vigencia_fim=None,
+        hash=governanca.hash_canonico({'tipo':'template','chave':'template.memo-a',
+            'versao':2,'payload':payload}),payload=payload)]
+    with pytest.raises(owner.ErroDocumento,match='divergente'):
+        service.previsualizar_template(process,'memo_a',version)
+    assert not state['rpc_calls']
+
+
 def test_published_template_preview_resolves_governed_clause_in_process_scope(patch_owner):
     from src import governanca
     service,state,process=patch_owner
