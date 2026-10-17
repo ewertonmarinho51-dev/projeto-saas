@@ -936,13 +936,15 @@ def relatorio_analitico_docx(view: CotacaoReportView) -> bytes:
         "evidência. Mesmo identificador da versão do Relatório de Cotação.",
         pt=8.5, cor=SECUNDARIO)
     colunas = [Coluna("Nº", 0.9, "right"), Coluna("Situação", 2.5),
-               Coluna("Fonte · inciso · natureza", 4.9),
-               Coluna("Órgão · UF · data", 5.0),
+               Coluna("Fonte · inciso · natureza", 4.4),
+               Coluna("Órgão · UF · data", 4.6),
                Coluna("Qtd. · unid.", 2.1, "right"),
                Coluna("Preço unit.", 2.3, "right"),
                Coluna("Compat.", 1.7, "right"),
-               Coluna("Identificador", 3.1),
-               Coluna("Motivo", 4.0)]
+               # cabe o controle PNCP inteiro ("…-1-000006/2026") numa
+               # linha: identificador partido perde o link em leitores
+               Coluna("Identificador", 4.2),
+               Coluna("Motivo", 3.8)]
     _ajustar(colunas, d.util_cm, elastica=8)
     for item in view.itens:
         d.faixa_do_item(f"ITEM {item.numero:02d} · {item.titulo.upper()}",
@@ -1009,11 +1011,24 @@ def carimbar_links(pdf: bytes, links: dict[str, str]) -> bytes:
     if any(link.get("uri") for pagina in doc for link in pagina.get_links()):
         return pdf
     for pagina in doc:
-        for palavra in pagina.get_text("words"):
-            url = links.get(palavra[4])
-            if url:
-                pagina.insert_link({"kind": pymupdf.LINK_URI, "uri": url,
-                                    "from": pymupdf.Rect(palavra[:4])})
+        palavras = pagina.get_text("words")
+        k = 0
+        while k < len(palavras):
+            # o identificador pode quebrar em até 3 pedaços na coluna
+            # estreita ("…-1-" / "000006/2026"): junta pedaços vizinhos
+            for tamanho in (1, 2, 3):
+                trecho = palavras[k:k + tamanho]
+                if len(trecho) < tamanho:
+                    break
+                url = links.get("".join(w[4] for w in trecho))
+                if url:
+                    for w in trecho:
+                        pagina.insert_link({"kind": pymupdf.LINK_URI,
+                                            "uri": url,
+                                            "from": pymupdf.Rect(w[:4])})
+                    k += tamanho - 1
+                    break
+            k += 1
     return doc.tobytes(garbage=3, deflate=True)
 
 

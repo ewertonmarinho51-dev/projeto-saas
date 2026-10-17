@@ -469,3 +469,43 @@ def test_links_carimbados_quando_o_conversor_os_descarta(pdf_historico):
     # com links já presentes, não duplica
     com_links = pdf.tobytes()
     assert dc.carimbar_links(com_links, por_id) is com_links
+
+
+def test_links_carimbados_no_analitico_com_identificador_longo(
+        motor_institucional):
+    """
+    Identificador do PNCP ("10000000000101-1-000002/2026") no anexo: com
+    os links tirados (como o LibreOffice 7.4 entrega), o carimbo devolve
+    um link a TODA referência que tem URL.
+    """
+    import pymupdf
+
+    v = _vista("grande_196")
+    links = dc.links_da_vista(v)
+    assert any("/2026" in i for i in links)          # há identificador longo
+    pdf = pymupdf.open(stream=dc.relatorio_analitico_pdf(v))
+    for pagina in pdf:
+        for link in pagina.get_links():
+            pagina.delete_link(link)
+    carimbado = pymupdf.open(stream=dc.carimbar_links(pdf.tobytes(), links))
+    uris = {l["uri"] for p in carimbado for l in p.get_links()}
+    assert uris == set(links.values())
+
+
+def test_carimbo_junta_identificador_partido_em_duas_linhas():
+    """Coluna estreita: "…-1-" numa linha, "000002/2026" na seguinte."""
+    import pymupdf
+
+    doc = pymupdf.open()
+    pagina = doc.new_page()
+    pagina.insert_text((72, 100), "10000000000101-1-")
+    pagina.insert_text((72, 112), "000002/2026")
+    pagina.insert_text((72, 140), "EXT-SEM-LINK")
+    url = "https://pncp.gov.br/app/editais/10000000000101/2026/2"
+    saida = pymupdf.open(stream=dc.carimbar_links(
+        doc.tobytes(), {"10000000000101-1-000002/2026": url}))
+    links = saida[0].get_links()
+    assert [l["uri"] for l in links] == [url, url]
+    assert {round(l["from"].y0) for l in links} == {
+        round(w[1]) for w in saida[0].get_text("words")
+        if w[4] in ("10000000000101-1-", "000002/2026")}
