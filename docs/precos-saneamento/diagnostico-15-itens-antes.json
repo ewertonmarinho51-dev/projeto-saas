@@ -1,0 +1,234 @@
+{
+  "massa": "sintética — NÃO é dado real",
+  "base": "main 446de49 (sem saneamento)",
+  "itens": [
+    {
+      "item": "ITEM_01",
+      "na_cesta": [
+        "Q01_01",
+        "Q01_02",
+        "Q01_03",
+        "Q01_04",
+        "Q01_05"
+      ],
+      "fora": [],
+      "preco": "58.22",
+      "anomalias": [
+        "Q01_05"
+      ]
+    },
+    {
+      "item": "ITEM_02",
+      "na_cesta": [
+        "Q02_01",
+        "Q02_02",
+        "Q02_03",
+        "Q02_04",
+        "Q02_05"
+      ],
+      "fora": [],
+      "preco": "6.21",
+      "anomalias": [
+        "Q02_05"
+      ]
+    },
+    {
+      "item": "ITEM_03",
+      "na_cesta": [
+        "Q03_01",
+        "Q03_02",
+        "Q03_03",
+        "Q03_04",
+        "Q03_05"
+      ],
+      "fora": [],
+      "preco": "6.04",
+      "anomalias": []
+    },
+    {
+      "item": "ITEM_04",
+      "na_cesta": [
+        "Q04_01",
+        "Q04_02",
+        "Q04_03",
+        "Q04_04"
+      ],
+      "fora": [
+        [
+          "Q04_05",
+          "rejected"
+        ]
+      ],
+      "preco": "1515.00",
+      "anomalias": []
+    },
+    {
+      "item": "ITEM_05",
+      "na_cesta": [
+        "Q05_01",
+        "Q05_02",
+        "Q05_03",
+        "Q05_04"
+      ],
+      "fora": [
+        [
+          "Q05_05",
+          "rejected"
+        ]
+      ],
+      "preco": "1.01",
+      "anomalias": []
+    },
+    {
+      "item": "ITEM_06",
+      "na_cesta": [
+        "Q06_01",
+        "Q06_02",
+        "Q06_03",
+        "Q06_04",
+        "Q06_05"
+      ],
+      "fora": [],
+      "preco": "4594.00",
+      "anomalias": [
+        "Q06_05"
+      ]
+    },
+    {
+      "item": "ITEM_07",
+      "na_cesta": [
+        "Q07_01",
+        "Q07_02",
+        "Q07_03",
+        "Q07_04",
+        "Q07_05"
+      ],
+      "fora": [],
+      "preco": "59.00",
+      "anomalias": []
+    },
+    {
+      "item": "ITEM_08",
+      "na_cesta": [
+        "Q08_01",
+        "Q08_02"
+      ],
+      "fora": [],
+      "preco": "325.00",
+      "anomalias": []
+    },
+    {
+      "item": "ITEM_09",
+      "na_cesta": [
+        "Q09_01",
+        "Q09_02",
+        "Q09_03",
+        "Q09_04",
+        "Q09_05"
+      ],
+      "fora": [],
+      "preco": "504.00",
+      "anomalias": []
+    },
+    {
+      "item": "ITEM_10",
+      "na_cesta": [
+        "Q10_01",
+        "Q10_02",
+        "Q10_03",
+        "Q10_04"
+      ],
+      "fora": [
+        [
+          "Q10_05",
+          "rejected"
+        ]
+      ],
+      "preco": "18.88",
+      "anomalias": []
+    },
+    {
+      "item": "ITEM_11",
+      "na_cesta": [
+        "Q11_01",
+        "Q11_02",
+        "Q11_03",
+        "Q11_04"
+      ],
+      "fora": [
+        [
+          "Q11_05",
+          "rejected"
+        ]
+      ],
+      "preco": "7.03",
+      "anomalias": []
+    },
+    {
+      "item": "ITEM_12",
+      "na_cesta": [],
+      "fora": [
+        [
+          "Q12_01",
+          "rejected"
+        ],
+        [
+          "Q12_02",
+          "rejected"
+        ],
+        [
+          "Q12_03",
+          "rejected"
+        ],
+        [
+          "Q12_04",
+          "rejected"
+        ],
+        [
+          "Q12_05",
+          "rejected"
+        ]
+      ],
+      "preco": null,
+      "anomalias": []
+    },
+    {
+      "item": "ITEM_13",
+      "na_cesta": [
+        "Q13_01",
+        "Q13_02",
+        "Q13_03",
+        "Q13_04",
+        "Q13_05"
+      ],
+      "fora": [],
+      "preco": "45.60",
+      "anomalias": []
+    },
+    {
+      "item": "ITEM_14",
+      "na_cesta": [
+        "Q14_01",
+        "Q14_02",
+        "Q14_03",
+        "Q14_04",
+        "Q14_05"
+      ],
+      "fora": [],
+      "preco": "1684.00",
+      "anomalias": [
+        "Q14_05"
+      ]
+    },
+    {
+      "item": "ITEM_15",
+      "na_cesta": [
+        "Q15_01",
+        "Q15_02"
+      ],
+      "fora": [],
+      "preco": "15.00",
+      "anomalias": []
+    }
+  ]
+}

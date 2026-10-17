@@ -267,8 +267,8 @@ def validar_conclusao(item: dict, justificativa: str) -> str | None:
     """
     if pendencias_do_item(item) and \
             len(str(justificativa or "").strip()) < MINIMO_JUSTIFICATIVA:
-        return ("Este item tem pendência de análise crítica. Exclua os "
-                "discrepantes com motivo ou justifique por que a cesta "
+        return ("Este item tem pendência de análise crítica. Retire os "
+                "discrepantes da cesta ou justifique por que ela "
                 "deve ser mantida como está.")
     return None
 
@@ -524,30 +524,35 @@ def discrepantes(linhas: list[dict], *, perfil: PerfilNormativo,
 
 
 def excluir_discrepantes(pesquisa: dict, item: dict, repositorio, *,
-                         perfil: PerfilNormativo, motivo: str,
+                         perfil: PerfilNormativo, motivo: str | None = None,
                          ator: str | None = None) -> estatistica.Estimativa:
     """
-    O ato HUMANO de excluir, de uma vez, os discrepantes sinalizados — com
-    o motivo do revisor registrado em cada referência e no evento. Depois
-    refaz o preço. A série menor pode revelar outro discrepante: ele será
+    O ato HUMANO de excluir, de uma vez, os discrepantes sinalizados. O
+    critério estatístico de cada um é registrado na referência — é a
+    fundamentação técnica, sempre presente; o motivo do revisor é
+    OPCIONAL (pacote Jev, RF-02) e, quando dado, vai junto. Depois refaz
+    o preço. A série menor pode revelar outro discrepante: ele será
     sinalizado, não excluído — cada exclusão é um clique de alguém.
     """
-    if len(str(motivo or "").strip()) < MINIMO_JUSTIFICATIVA:
-        raise ValueError("registre o motivo da exclusão (critério e por quê)")
+    texto = str(motivo or "").strip()
     regras = str(pesquisa.get("versao_regras") or estatistica.REGRAS_LEGADAS)
     linhas = repositorio.listar_referencias(str(item["id"]))
     alvos = discrepantes(linhas, perfil=perfil, regras=regras)
     for linha, criterio in alvos:
         repositorio.reclassificar_referencia(
             str(linha["id"]), "rejected",
-            f"{motivo.strip()} (sinalizada pelo critério {criterio})")
+            (f"{texto} " if texto else "retirada da cesta pelo usuário ")
+            + f"(sinalizada pelo critério {criterio})")
     estimativa = recalcular_e_gravar(pesquisa, item, repositorio,
                                      perfil=perfil)
     repositorio.registrar_evento(
         str(pesquisa["id"]), "referencia_excluida", ator=ator,
-        item_id=str(item["id"]), descricao=motivo.strip(),
+        item_id=str(item["id"]),
+        descricao=texto or "discrepantes sinalizados retirados da cesta "
+                           "pelo usuário",
         payload={"referencias": [str(linha["id"]) for linha, _ in alvos],
-                 "lote": "discrepantes",
+                 "lote": "discrepantes", "operacao": "manual_removed",
+                 "origem": "user", "user_reason": texto or None,
                  "preco_recalculado": None if estimativa.valor_unitario is None
                  else format(estimativa.valor_unitario, "f"),
                  "metodo": estimativa.metodo,

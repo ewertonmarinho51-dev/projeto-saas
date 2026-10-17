@@ -819,24 +819,27 @@ def listar_referencias(item_id: str,
 
 
 def reclassificar_referencia(referencia_id: str, status: str,
-                             motivo: str) -> dict:
+                             motivo: str | None = None) -> dict:
     """
     Inclui ou exclui uma referência da cesta.
 
-    Exclusão é MUDANÇA DE STATUS, com motivo obrigatório — não é
-    apagar. A 0021 não concede DELETE a ninguém justamente para que este
-    seja o único caminho: preço coletado que some sem rastro é o oposto
-    de pesquisa auditável.
+    Exclusão é MUDANÇA DE STATUS — não é apagar. A 0021 não concede
+    DELETE a ninguém justamente para que este seja o único caminho:
+    preço coletado que some sem rastro é o oposto de pesquisa auditável.
+
+    Incluir exige motivo (vai para a memória de cálculo). Retirar não
+    exige (pacote Jev, RF-02): sem texto, nada é acrescentado a `motivos`
+    e a trilha do serviço registra o ato com `user_reason` nulo.
     """
-    if not motivo.strip():
-        raise ValueError(
-            "excluir ou incluir referência exige motivo registrado")
+    texto = str(motivo or "").strip()
+    if not texto and status in ("selected", "warning"):
+        raise ValueError("incluir referência na cesta exige motivo registrado")
     try:
         atual = (_cliente().table(TABELA_REFERENCIAS).select("motivos")
                  .eq("id", referencia_id).limit(1).execute())
         motivos = list(atual.data[0]["motivos"]) if atual.data else []
-        if motivo not in motivos:
-            motivos.append(motivo)
+        if texto and texto not in motivos:
+            motivos.append(texto)
         resposta = (_cliente().table(TABELA_REFERENCIAS)
                     .update({"status": status, "motivos": motivos})
                     .eq("id", referencia_id).execute())

@@ -360,6 +360,20 @@ FLAG_RELATORIO_VISUAL = "precos_relatorio_visual"
 # referência gravada ou decisão humana.
 FLAG_TETO_AUTOMATICO = "cotacao_automatica_teto"
 
+# Saneamento pré-cesta (pacote Jev de 17/10/2026): antes da cesta
+# automática, cada item passa pela triagem de `precos.saneamento` —
+# invalidação objetiva e suspeita estatística corroborada; o Jev entra
+# com evidência, o motor decide. Retidas ficam gravadas, com motivo, e
+# voltam à cesta por ato humano. Nasce DESLIGADA; desligar volta à
+# seleção anterior sem tocar em referência gravada nem em cesta antiga.
+FLAG_SANEAMENTO_PRE_CESTA = "precos_saneamento_pre_cesta"
+
+# Ciência de alertas na emissão (mesmo pacote): preço atípico na cesta
+# não trava o relatório — pede ciência num aviso, vinculada ao resultado
+# e aos alertas, registrada na trilha e impressa no documento. Nasce
+# DESLIGADA; desligada, vale o aviso de pendências anterior.
+FLAG_CIENCIA_EMISSAO = "precos_ciencia_emissao"
+
 # Consolidação dos Documentos de Formalização de Demanda. Nasce
 # DESLIGADA: a etapa muda a ORIGEM da planilha orçamentária do processo,
 # e ligar sem auditoria colocaria uma quantidade consolidada dentro de um

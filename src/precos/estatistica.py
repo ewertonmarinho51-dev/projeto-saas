@@ -337,6 +337,12 @@ class Cesta:
     # boas referências, disponíveis para o revisor incluir à mão. Vazia
     # quando não há teto (o comportamento histórico).
     excedentes: list[Referencia] = field(default_factory=list)
+    # Retidas pela triagem pré-cesta (`saneamento`): desconsideradas ou em
+    # revisão, com o motivo técnico. Ficam GRAVADAS para revisão e
+    # reinclusão — nunca somem. `triagem` é o resultado completo, com as
+    # métricas, para a trilha. Vazias sem a política de saneamento.
+    retidas: list[Referencia] = field(default_factory=list)
+    triagem: object | None = None
 
     @property
     def valores(self) -> list[Decimal]:
@@ -400,6 +406,8 @@ def selecionar_cesta(
     perfil: PerfilNormativo = PADRAO,
     piso: Decimal = PISO_COMPARABILIDADE,
     teto: int | None = None,
+    saneamento=None,
+    texto_item: str = "",
 ) -> Cesta:
     """
     Monta a cesta por COMPARABILIDADE e prioridade de fonte — nunca por
@@ -412,10 +420,21 @@ def selecionar_cesta(
     `teto` (cotação automática): só as `teto` primeiras dessa ordem entram;
     as demais elegíveis ficam CANDIDATAS em `excedentes`, com o motivo.
     `None` = sem teto, exatamente como antes.
+
+    `saneamento` (`saneamento.PoliticaSaneamento`, flag
+    `precos_saneamento_pre_cesta`): as referências que alcançam o piso de
+    comparabilidade passam ANTES pela triagem do item — invalidação
+    objetiva e suspeita estatística corroborada. Só as elegíveis concorrem
+    à cesta; as demais ficam em `retidas`, com status e motivo técnico.
+    `None` = sem triagem, exatamente como antes.
     """
     cesta = Cesta()
     prioridade = {tipo: i for i, tipo
                   in enumerate(perfil.prioridade_de_fontes)}
+
+    if saneamento is not None:
+        ranqueadas = _triagem_pre_cesta(ranqueadas, cesta, piso, saneamento,
+                                        texto_item)
 
     elegiveis = []
     for referencia, comparabilidade in ranqueadas:
@@ -466,6 +485,45 @@ def selecionar_cesta(
         cesta.motivos.append(
             "nenhuma referência atingiu a comparabilidade mínima")
     return cesta
+
+
+def _triagem_pre_cesta(ranqueadas, cesta: Cesta, piso: Decimal, politica,
+                      texto_item: str):
+    """
+    Roda o motor de saneamento sobre as COMPARÁVEIS (score ≥ piso) e
+    devolve só o que segue para a seleção: as elegíveis e as abaixo do
+    piso (que a seleção trata como sempre tratou).
+    """
+    from . import saneamento
+
+    def entra(referencia, comparabilidade) -> bool:
+        # invalidação objetiva vale para qualquer referência; a estatística,
+        # só para as comparáveis (o motor não mistura objetos diferentes)
+        return (comparabilidade.score >= piso
+                or referencia.valor_unitario_normalizado is None
+                or not referencia.tem_preco)
+
+    analisadas = [(r, c) for r, c in ranqueadas if entra(r, c)]
+    triagem = saneamento.avaliar(
+        [saneamento.observacao_da_referencia(r) for r, _ in analisadas],
+        politica, texto_item=texto_item)
+    cesta.triagem = triagem
+    por_chave = triagem.por_id()
+    seguem = []
+    for referencia, comparabilidade in ranqueadas:
+        avaliacao = (por_chave.get(referencia.chave_dedupe)
+                     if entra(referencia, comparabilidade) else None)
+        if avaliacao is None or avaliacao.desfecho == saneamento.ELEGIVEL:
+            seguem.append((referencia, comparabilidade))
+            continue
+        referencia.status = StatusReferencia(
+            saneamento.status_do_desfecho(avaliacao.desfecho))
+        referencia.com_motivo(saneamento.motivo_da_avaliacao(
+            avaliacao, triagem.versao))
+        cesta.descartadas.append(referencia)
+        if saneamento.retem(avaliacao):
+            cesta.retidas.append(referencia)
+    return seguem
 
 
 # ---------------------------------------------------------------------------
@@ -702,7 +760,7 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
         if anomalias:
             pendencias.append(
                 f"{len(anomalias)} preço(s) discrepante(s) aguardam decisão: "
-                "excluir com motivo ou manter com justificativa")
+                "retirar da cesta ou manter com justificativa")
         if estatisticas.coeficiente_variacao > CV_DISPERSAO:
             pendencias.append(
                 f"dispersão elevada (coeficiente de variação "
@@ -729,7 +787,7 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
         if sinalizadas:
             pendencias.append(
                 f"{len(sinalizadas)} preço(s) sinalizado(s) pelo critério "
-                "percentual da cotação aguardam decisão: excluir com motivo "
+                "percentual da cotação aguardam decisão: retirar da cesta "
                 "ou manter com justificativa")
 
     if pendencias:
