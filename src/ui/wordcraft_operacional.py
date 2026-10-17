@@ -315,7 +315,13 @@ def render(doc_key: str, meta: dict) -> None:
         auditoria_atual=st.session_state.get(audit_key),
         pareceres_atuais=st.session_state.get(opinions_key),
         evidencias=(st.session_state.get(evidence_key) or {}).get("evidencias", ()),
-        template=st.session_state.get(_chave(doc_key, "template")),
+        template=({"publicados": (st.session_state.get(structure_key) or {}).get(
+                      "templatesPublicados", []),
+                   "efetivo": (st.session_state.get(structure_key) or {}).get(
+                      "templateEfetivo"),
+                   "bloqueio": (st.session_state.get(structure_key) or {}).get(
+                      "templateBlockingReason")}
+                  if st.session_state.get(structure_key) else None),
         institucional=(st.session_state.get(structure_key) or {}).get("institucional"),
         montagem=(st.session_state.get(structure_key) or {}).get("montagem"),
         historico=st.session_state.get(_chave(doc_key, "history"), ()),

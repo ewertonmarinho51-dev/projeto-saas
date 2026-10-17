@@ -489,13 +489,63 @@ class DocumentoService:
             assembly = montar_itens(items)
         except ErroCapacidade as error:
             raise ErroDocumento(str(error)) from None
+        artifacts = _execute(user.table("governanca_artefatos")
+            .select("id,tenant_id,secretaria_id,chave_estavel,descricao")
+            .eq("tipo_artefato", "template").limit(101))
+        if (not isinstance(artifacts, list) or len(artifacts) > 100
+                or len(_snapshot_bytes(artifacts)) > MAX_BYTES):
+            raise ErroDocumento("Biblioteca de templates excessiva.")
+        templates = []
+        for artifact in artifacts:
+            try:
+                artifact_id = _uuid(artifact["id"])
+                if artifact.keys() != {"id", "tenant_id", "secretaria_id",
+                        "chave_estavel", "descricao"}:
+                    raise ValueError()
+                _uuid(artifact["tenant_id"])
+                if artifact["secretaria_id"] is not None:
+                    _uuid(artifact["secretaria_id"])
+                if (not isinstance(artifact["chave_estavel"], str)
+                        or not artifact["chave_estavel"]
+                        or len(artifact["chave_estavel"]) > 200
+                        or not isinstance(artifact["descricao"], str)
+                        or len(artifact["descricao"]) > 1000):
+                    raise ValueError()
+                versions = _execute(user.table("governanca_versoes")
+                    .select("id,artefato_id,versao,status,vigencia_inicio,vigencia_fim,hash,payload")
+                    .eq("artefato_id", artifact_id).eq("status", "PUBLISHED").limit(17))
+                if (not isinstance(versions, list) or len(versions) > 16
+                        or len(_snapshot_bytes(versions)) > MAX_BYTES):
+                    raise ValueError()
+                for version in versions:
+                    _uuid(version["id"])
+                    _hash(version["hash"])
+                    if (version["artefato_id"] != artifact_id
+                            or type(version["versao"]) is not int or version["versao"] < 1
+                            or version["status"] != "PUBLISHED"
+                            or not isinstance(version["payload"], dict)
+                            or not isinstance(version["payload"].get("blocos"), list)):
+                        raise ValueError()
+                    templates.append({"artifactId": artifact_id,
+                        "versionId": version["id"], "key": artifact["chave_estavel"],
+                        "description": artifact["descricao"], "version": version["versao"],
+                        "status": version["status"], "hash": version["hash"],
+                        "validFrom": version["vigencia_inicio"], "validTo": version["vigencia_fim"],
+                        "scope": "secretaria" if artifact["secretaria_id"] else "municipio",
+                        "blockCount": len(version["payload"].get("blocos") or [])})
+            except (KeyError, TypeError, ValueError):
+                raise ErroDocumento("Biblioteca de templates divergente.") from None
         snapshot = blocos.snapshot_nativo(views, versao=1)
         return json.loads(_snapshot_bytes({"schema": "gc-wordcraft-structure-panel/v1",
             "bundleHash": snapshot["hash"], "sourceNative": {
                 key: view.vinculo() for key, view in views.items()},
             "documentId": document.id, "docKey": doc_key,
             "institucional": document.institutional_snapshot,
-            "montagem": assembly}))
+            "montagem": assembly, "templatesPublicados": templates,
+            "templateEfetivo": None,
+            "templateBlockingReason": (
+                "Nenhum vínculo canônico tipo documental → chave de template está registrado."
+                if templates else "Nenhum template publicado está visível para esta sessão.")}))
 
     def _auditar_patches(self, process_id, views, context, *, version):
         from . import achados, consistencia, validacao

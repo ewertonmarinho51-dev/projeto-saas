@@ -47,6 +47,7 @@ def patch_owner(engine,monkeypatch):
     claims={'sub':actor,'role':'authenticated','app_metadata':{'tenant_id':tenant,'papel':'usuario'}}
     process_row={'id':process,'tenant_id':tenant,'secretaria_id':None,'criado_em':'2026-01-20T12:00:00Z','dados':{},'aprovados':[]}
     state={'claims':claims,'heads':[],'rows':[],'opinions':[],'opinion_findings':[],
+           'template_artifacts':[],'template_versions':[],
            'rpc_calls':[],'proposals':0,'native_calls':calls,'contexts':0}
     context={'processo':{k:process_row[k] for k in ('id','tenant_id','secretaria_id','dados','aprovados')},'fatos':[]}
     state['context']=context
@@ -58,6 +59,8 @@ def patch_owner(engine,monkeypatch):
         def table(self,name):
             return Query(copy.deepcopy({'documentos_editor':state['heads'],'documentos_editor_revisoes':state['rows'],
                 'pareceres':state['opinions'],'parecer_achados':state['opinion_findings'],
+                'governanca_artefatos':state['template_artifacts'],
+                'governanca_versoes':state['template_versions'],
                 'processos':[process_row]}.get(name,[])))
 
     for key in ('memo_a','memo_b','memo_c'):
@@ -176,6 +179,13 @@ def test_current_structure_reuses_revision_institution_and_decimal_items(patch_o
     state['context']['processo']['dados']={'itens':[
         {'codigo':'A','descricao':'Item A','quantidade':'0.1','valor_unitario':'0.2'},
         {'codigo':'B','descricao':'Item B','quantidade':'3','valor_unitario':'10.00'}]}
+    artifact,version=str(uuid4()),str(uuid4())
+    state['template_artifacts']=[dict(id=artifact,
+        tenant_id=state['claims']['app_metadata']['tenant_id'],secretaria_id=None,
+        tipo_artefato='template',chave_estavel='template.memo-a',descricao='Modelo QA')]
+    state['template_versions']=[dict(id=version,artefato_id=artifact,versao=2,
+        status='PUBLISHED',vigencia_inicio=None,vigencia_fim=None,hash='d'*64,
+        payload={'blocos':[{'id':'b1','tipo':'titulo'}]})]
     current=service.estrutura_atual(process,'memo_a')
     assert current['schema']=='gc-wordcraft-structure-panel/v1'
     assert current['docKey']=='memo_a' and current['documentId']==state['heads'][0]['id']
@@ -183,6 +193,10 @@ def test_current_structure_reuses_revision_institution_and_decimal_items(patch_o
     assert current['institucional']['phase']=='draft_reference'
     assert current['montagem']['quantidade_itens']==2
     assert current['montagem']['valor_total']=='30.02'
+    assert current['templatesPublicados']==[dict(artifactId=artifact,versionId=version,
+        key='template.memo-a',description='Modelo QA',version=2,status='PUBLISHED',
+        hash='d'*64,validFrom=None,validTo=None,scope='municipio',blockCount=1)]
+    assert current['templateEfetivo'] is None and 'vínculo canônico' in current['templateBlockingReason']
     assert current['bundleHash'] and not state['rpc_calls']
 
 

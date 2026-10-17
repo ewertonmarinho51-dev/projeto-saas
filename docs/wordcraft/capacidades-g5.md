@@ -114,6 +114,12 @@ e à revisão, sem consultar ou duplicar cadastros. Os itens do processo são
 montados pelo `montar_itens` determinístico com `Decimal`, numeração, subtotais,
 total e hash canônico. Mudança da head invalida ambos. Esta leitura não escolhe
 nem publica template; a resolução da biblioteca versionada continua pendente.
+Os templates `PUBLISHED` visíveis pela RLS do usuário são listados com artefato,
+versão, hash, vigência, escopo e quantidade de blocos. O owner não escolhe um
+deles por semelhança de nome: como o schema atual não registra vínculo canônico
+entre tipo documental e chave estável, `templateEfetivo` permanece vazio e o
+bloqueio aparece no painel. Isso expõe a biblioteca real sem inventar uma
+precedência ou aplicar um modelo ao documento errado.
 
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
@@ -139,6 +145,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   ou hash divergente a evidência verificada;
 - snapshot institucional e montagem de itens usam as fontes da revisão e do
   processo, preservando portaria/signatários e cálculo `Decimal` sem LLM;
+- biblioteca de templates publicados é lida pela RLS com versão/hash/escopo,
+  mas nenhum template é escolhido sem vínculo canônico de tipo para chave;
 - parecer ambíguo permanece pendente;
 - alteração posterior de logo ou signatário não muda o snapshot capturado;
 - 210 itens preservam numeração e total decimal;
