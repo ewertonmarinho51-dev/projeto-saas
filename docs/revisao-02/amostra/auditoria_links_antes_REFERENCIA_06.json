@@ -1,0 +1,153 @@
+{
+  "arquivo": "ref06.pdf",
+  "total_links": 24,
+  "por_categoria": {
+    "TECNICO_JSON": 24
+  },
+  "links": [
+    {
+      "pagina": 2,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=461828&idCompra=92984205000022026"
+    },
+    {
+      "pagina": 2,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=461819&idCompra=16009305000772026"
+    },
+    {
+      "pagina": 2,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=471762&idCompra=98788505900532026"
+    },
+    {
+      "pagina": 2,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=461828&idCompra=10211705000372026"
+    },
+    {
+      "pagina": 2,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=461863&idCompra=98788505900532026"
+    },
+    {
+      "pagina": 3,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=462546&idCompra=98502305000042026"
+    },
+    {
+      "pagina": 3,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=637468&idCompra=98748905000382026"
+    },
+    {
+      "pagina": 3,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=615588&idCompra=98275505000632026"
+    },
+    {
+      "pagina": 3,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=300812&idCompra=38025706000672026"
+    },
+    {
+      "pagina": 3,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=461461&idCompra=93040205000102026"
+    },
+    {
+      "pagina": 4,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=625647&idCompra=92539605000912026"
+    },
+    {
+      "pagina": 4,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=411871&idCompra=93146506000232026"
+    },
+    {
+      "pagina": 4,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=625647&idCompra=93040205000102026"
+    },
+    {
+      "pagina": 4,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=338022&idCompra=93368306000162026"
+    },
+    {
+      "pagina": 4,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=285553&idCompra=78731006000842026"
+    },
+    {
+      "pagina": 4,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=485627&idCompra=92669705000062026"
+    },
+    {
+      "pagina": 5,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=406605&idCompra=98228905000632026"
+    },
+    {
+      "pagina": 5,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=405907&idCompra=92794705000082026"
+    },
+    {
+      "pagina": 5,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=252305&idCompra=98991505000132026"
+    },
+    {
+      "pagina": 5,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=463460&idCompra=92864805000012026"
+    },
+    {
+      "pagina": 5,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=463460&idCompra=18022405000302026"
+    },
+    {
+      "pagina": 5,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=628797&idCompra=8034306000162026"
+    },
+    {
+      "pagina": 6,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=463460&idCompra=92775906000192026"
+    },
+    {
+      "pagina": 6,
+      "host": "dadosabertos.compras.gov.br",
+      "categoria_aparente": "TECNICO_JSON",
+      "url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=463460&idCompra=10214406000192026"
+    }
+  ]
+}

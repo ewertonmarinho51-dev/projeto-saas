@@ -1,0 +1,512 @@
+{
+  "aviso": "massa TOTALMENTE SINTÉTICA do pacote; não é pesquisa real",
+  "itens": [
+    {
+      "item": "SYN-I01",
+      "descricao": "PAPEL A4 BRANCO",
+      "candidatos": 19,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 17,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 1,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "27.00",
+        "maior_usado": "253.00",
+        "pendencias": [
+          "1 preço(s) atípico(s) aguardam decisão: remover da cesta ou manter o preço",
+          "dispersão elevada (coeficiente de variação 140,17% > 25%): a média pode não representar o mercado; examine a cesta antes de concluir"
+        ]
+      },
+      "v1_teto_15": {
+        "usados": 15,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 2,
+        "valor_unitario": "26.48",
+        "maior_usado": "32.00",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 15,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 2,
+        "valor_unitario": "26.48",
+        "maior_usado": "32.00",
+        "pendencias": []
+      }
+    },
+    {
+      "item": "SYN-I02",
+      "descricao": "CANETA ESFEROGRÁFICA AZUL",
+      "candidatos": 9,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 9,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 2,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "28.50",
+        "maior_usado": "40.00",
+        "pendencias": [
+          "2 preço(s) atípico(s) aguardam decisão: remover da cesta ou manter o preço"
+        ]
+      },
+      "v1_teto_15": {
+        "usados": 8,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 1,
+        "valor_unitario": "27.39",
+        "maior_usado": "29.75",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 9,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 2,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "28.50",
+        "maior_usado": "40.00",
+        "pendencias": [
+          "2 preço(s) atípico(s) aguardam decisão: remover da cesta ou manter o preço"
+        ]
+      }
+    },
+    {
+      "item": "SYN-I03",
+      "descricao": "PASTA ARQUIVO AZ",
+      "candidatos": 4,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 4,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 1,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "19.60",
+        "maior_usado": "44.80",
+        "pendencias": [
+          "1 preço(s) atípico(s) aguardam decisão: remover da cesta ou manter o preço",
+          "dispersão elevada (coeficiente de variação 53,71% > 25%): a média pode não representar o mercado; examine a cesta antes de concluir"
+        ]
+      },
+      "v1_teto_15": {
+        "usados": 3,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 1,
+        "valor_unitario": "17.20",
+        "maior_usado": "22.00",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 4,
+        "sinalizados_na_cesta": 1,
+        "alertas_do_calculo": 1,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "19.60",
+        "maior_usado": "44.80",
+        "pendencias": [
+          "1 preço(s) atípico(s) aguardam decisão: remover da cesta ou manter o preço",
+          "dispersão elevada (coeficiente de variação 53,71% > 25%): a média pode não representar o mercado; examine a cesta antes de concluir"
+        ]
+      }
+    },
+    {
+      "item": "SYN-I04",
+      "descricao": "GRAMPEADOR DE MESA",
+      "candidatos": 12,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 12,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 4,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "11.74",
+        "maior_usado": "29.77",
+        "pendencias": [
+          "4 preço(s) atípico(s) aguardam decisão: remover da cesta ou manter o preço",
+          "dispersão elevada (coeficiente de variação 44,29% > 25%): a média pode não representar o mercado; examine a cesta antes de concluir"
+        ]
+      },
+      "v1_teto_15": {
+        "usados": 8,
+        "sinalizados_na_cesta": 1,
+        "alertas_do_calculo": 1,
+        "fora_pela_triagem": 4,
+        "valor_unitario": "11.64",
+        "maior_usado": "12.10",
+        "pendencias": [
+          "1 preço(s) atípico(s) aguardam decisão: remover da cesta ou manter o preço"
+        ]
+      },
+      "depois_v2_teto_15": {
+        "usados": 11,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 3,
+        "fora_pela_triagem": 1,
+        "valor_unitario": "11.30",
+        "maior_usado": "15.29",
+        "pendencias": [
+          "3 preço(s) atípico(s) aguardam decisão: remover da cesta ou manter o preço"
+        ]
+      }
+    },
+    {
+      "item": "SYN-I05",
+      "descricao": "CLIPES METÁLICOS Nº 2/0",
+      "candidatos": 9,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 9,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 3,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "2.10",
+        "maior_usado": "4.82",
+        "pendencias": [
+          "3 preço(s) atípico(s) aguardam decisão: remover da cesta ou manter o preço",
+          "dispersão elevada (coeficiente de variação 45,02% > 25%): a média pode não representar o mercado; examine a cesta antes de concluir"
+        ]
+      },
+      "v1_teto_15": {
+        "usados": 7,
+        "sinalizados_na_cesta": 1,
+        "alertas_do_calculo": 1,
+        "fora_pela_triagem": 2,
+        "valor_unitario": "2.10",
+        "maior_usado": "2.75",
+        "pendencias": [
+          "1 preço(s) atípico(s) aguardam decisão: remover da cesta ou manter o preço"
+        ]
+      },
+      "depois_v2_teto_15": {
+        "usados": 7,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 1,
+        "fora_pela_triagem": 2,
+        "valor_unitario": "2.10",
+        "maior_usado": "2.75",
+        "pendencias": [
+          "1 preço(s) atípico(s) aguardam decisão: remover da cesta ou manter o preço"
+        ]
+      }
+    },
+    {
+      "item": "SYN-I06",
+      "descricao": "LÁPIS PRETO",
+      "candidatos": 5,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "9.00",
+        "maior_usado": "10.00",
+        "pendencias": []
+      },
+      "v1_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "9.00",
+        "maior_usado": "10.00",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "9.00",
+        "maior_usado": "10.00",
+        "pendencias": []
+      }
+    },
+    {
+      "item": "SYN-I07",
+      "descricao": "BORRACHA BRANCA",
+      "candidatos": 5,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "0.90",
+        "maior_usado": "1.10",
+        "pendencias": []
+      },
+      "v1_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "0.90",
+        "maior_usado": "1.10",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "0.90",
+        "maior_usado": "1.10",
+        "pendencias": []
+      }
+    },
+    {
+      "item": "SYN-I08",
+      "descricao": "COLA BRANCA 90G",
+      "candidatos": 5,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "3.07",
+        "maior_usado": "3.25",
+        "pendencias": []
+      },
+      "v1_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "3.07",
+        "maior_usado": "3.25",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "3.07",
+        "maior_usado": "3.25",
+        "pendencias": []
+      }
+    },
+    {
+      "item": "SYN-I09",
+      "descricao": "ENVELOPE A4",
+      "candidatos": 5,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "0.58",
+        "maior_usado": "0.65",
+        "pendencias": []
+      },
+      "v1_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "0.58",
+        "maior_usado": "0.65",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "0.58",
+        "maior_usado": "0.65",
+        "pendencias": []
+      }
+    },
+    {
+      "item": "SYN-I10",
+      "descricao": "PASTA SUSPENSA",
+      "candidatos": 5,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "2.00",
+        "maior_usado": "2.20",
+        "pendencias": []
+      },
+      "v1_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "2.00",
+        "maior_usado": "2.20",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "2.00",
+        "maior_usado": "2.20",
+        "pendencias": []
+      }
+    },
+    {
+      "item": "SYN-I11",
+      "descricao": "MARCADOR DE TEXTO",
+      "candidatos": 5,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "2.68",
+        "maior_usado": "3.00",
+        "pendencias": []
+      },
+      "v1_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "2.68",
+        "maior_usado": "3.00",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "2.68",
+        "maior_usado": "3.00",
+        "pendencias": []
+      }
+    },
+    {
+      "item": "SYN-I12",
+      "descricao": "FITA ADESIVA 48MM",
+      "candidatos": 5,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "4.25",
+        "maior_usado": "4.50",
+        "pendencias": []
+      },
+      "v1_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "4.25",
+        "maior_usado": "4.50",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "4.25",
+        "maior_usado": "4.50",
+        "pendencias": []
+      }
+    },
+    {
+      "item": "SYN-I13",
+      "descricao": "ESTILETE 18MM",
+      "candidatos": 5,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "3.20",
+        "maior_usado": "3.40",
+        "pendencias": []
+      },
+      "v1_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "3.20",
+        "maior_usado": "3.40",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "3.20",
+        "maior_usado": "3.40",
+        "pendencias": []
+      }
+    },
+    {
+      "item": "SYN-I14",
+      "descricao": "TESOURA 21CM",
+      "candidatos": 5,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "7.84",
+        "maior_usado": "8.50",
+        "pendencias": []
+      },
+      "v1_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "7.84",
+        "maior_usado": "8.50",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "7.84",
+        "maior_usado": "8.50",
+        "pendencias": []
+      }
+    },
+    {
+      "item": "SYN-I15",
+      "descricao": "RÉGUA 30CM",
+      "candidatos": 5,
+      "antes_sem_triagem_sem_teto": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "1.63",
+        "maior_usado": "1.75",
+        "pendencias": []
+      },
+      "v1_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "1.63",
+        "maior_usado": "1.75",
+        "pendencias": []
+      },
+      "depois_v2_teto_15": {
+        "usados": 5,
+        "sinalizados_na_cesta": 0,
+        "alertas_do_calculo": 0,
+        "fora_pela_triagem": 0,
+        "valor_unitario": "1.63",
+        "maior_usado": "1.75",
+        "pendencias": []
+      }
+    }
+  ]
+}

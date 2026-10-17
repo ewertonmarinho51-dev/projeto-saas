@@ -50,7 +50,12 @@ from decimal import Decimal, InvalidOperation
 from . import estatistica
 from .matching import _sem_acento
 
-VERSAO_POLITICA = "2026-10-17.saneamento-v1"
+# v2 (Revisão 02, 17/10/2026): descarte estatístico automático só com
+# 8+ preços comparáveis; IQR só a partir de 4; suspeito de amostra
+# pequena fica NA cesta, sinalizado, em vez de sumir dela; e a cesta
+# formada pelo teto é reavaliada, com reposição (`recompor_cesta`).
+VERSAO_POLITICA = "2026-10-17.saneamento-v2"
+VERSAO_POLITICA_V1 = "2026-10-17.saneamento-v1"
 
 # Desfechos — o "outcome" do contrato do pacote.
 ELEGIVEL = "eligible"
@@ -76,6 +81,12 @@ SINALIZADA_NA_CESTA = "FLAGGED_IN_BASKET"
 # relatório reconhecem o desfecho da triagem sem reler a trilha.
 ROTULO_DESCONSIDERADA = "desconsiderada pelo Jev antes da cesta"
 ROTULO_REVISAO = "requer revisão (triagem pré-cesta)"
+# Na cesta, mas destoante numa amostra pequena demais para decidir: o
+# preço CONTINUA no cálculo e o alerta o acompanha até alguém decidir.
+ROTULO_SINALIZADA = "sinalizada para conferência (triagem)"
+# Reavaliação da cesta já formada pelo teto: saiu para revisão porque
+# havia outra referência elegível para o lugar dela.
+SUBSTITUIDA = "REPLACED_BY_ELIGIBLE_REFERENCE"
 
 # Escolhas do Jev (`decisoes.MOTIVOS`) por peso de evidência.
 JEV_DIVERGENTE = frozenset({"different_product", "different_specification"})
@@ -99,13 +110,28 @@ class PoliticaSaneamento:
     """
 
     versao: str = VERSAO_POLITICA
-    minimo_para_autoexclusao: int = 5
+    # Revisão 02, 02_JEV_TRIAGEM: com menos de 8 comparáveis o grupo não
+    # sustenta descarte só por variação (a v1 usava 5).
+    minimo_para_autoexclusao: int = 8
     minimo_origens_independentes: int = 3
     z_modificado: Decimal = Decimal("3.5")
     fator_iqr: Decimal = Decimal("1.5")
     razao_alta: Decimal = Decimal("3.0")
     razao_baixa: Decimal = Decimal("0.333333")
     autoexclusao_estatistica: bool = True
+    # IQR com 2 ou 3 pontos é ruído: o quartil é interpolado entre eles.
+    minimo_para_iqr: int = 4
+    # Suspeito de amostra pequena: True = fica NA cesta, sinalizado (o
+    # alerta acompanha o preço); False = sai para revisão (a v1).
+    sinalizar_na_cesta_em_amostra_pequena: bool = True
+    # Distância mínima da mediana (fração) para dois critérios de
+    # dispersão virarem suspeita. Medido na massa do pacote: série muito
+    # apertada (grampeador, 12 preços entre R$ 11,50 e R$ 12,10) tem MAD
+    # minúsculo, e z e IQR apontavam R$ 7,00, R$ 8,90 e R$ 15,29 — preços
+    # a 23–40% da mediana, variação normal de mercado. Tirá-los levaria a
+    # cesta para o centro, o vício que o 02_JEV proíbe ("não pegar os que
+    # mais se aproximam da mediana"). Razão extrema continua bastando.
+    desvio_minimo_relativo: Decimal = Decimal("0.5")
 
     def para_registro(self) -> dict:
         return {k: (format(v, "f") if isinstance(v, Decimal) else v)
@@ -113,6 +139,12 @@ class PoliticaSaneamento:
 
 
 POLITICA_PADRAO = PoliticaSaneamento()
+# A política com que as buscas de 17/10/2026 (antes da Revisão 02) foram
+# triadas: continua aqui para reler e reproduzir aquelas decisões.
+POLITICA_V1 = PoliticaSaneamento(
+    versao=VERSAO_POLITICA_V1, minimo_para_autoexclusao=5, minimo_para_iqr=0,
+    sinalizar_na_cesta_em_amostra_pequena=False,
+    desvio_minimo_relativo=Decimal("0"))
 
 
 # Termos que, presentes na referência e AUSENTES no item, indicam
@@ -253,7 +285,7 @@ def _metricas(valor: Decimal, est: estatistica.Estatisticas,
         # mediana é sinal, a ser corroborado pela razão.
         if valor != est.mediana:
             criterios.append("mad_zero")
-    if est.iqr > 0:
+    if est.iqr > 0 and est.quantidade >= politica.minimo_para_iqr:
         inferior = est.q1 - politica.fator_iqr * est.iqr
         superior = est.q3 + politica.fator_iqr * est.iqr
         if not inferior <= valor <= superior:
@@ -274,9 +306,23 @@ def _metricas(valor: Decimal, est: estatistica.Estatisticas,
     return metricas, criterios
 
 
-def _suspeita(criterios: list[str]) -> bool:
-    """Um critério isolado de dispersão é dispersão natural, não suspeita."""
-    return "razao" in criterios or len(criterios) >= 2
+def _suspeita(criterios: list[str], metricas: dict | None = None,
+              politica: "PoliticaSaneamento | None" = None) -> bool:
+    """
+    Um critério isolado de dispersão é dispersão natural, não suspeita; e
+    dois critérios a menos de `desvio_minimo_relativo` da mediana também
+    (série apertada infla z e IQR). Razão extrema basta sozinha.
+    """
+    if "razao" in criterios:
+        return True
+    if len(criterios) < 2:
+        return False
+    minimo = politica.desvio_minimo_relativo if politica is not None \
+        else ZERO
+    razao = _decimal((metricas or {}).get("razao_mediana"))
+    if minimo > 0 and razao is not None and abs(razao - 1) < minimo:
+        return False
+    return True
 
 
 def _forte(criterios: list[str]) -> bool:
@@ -409,7 +455,8 @@ def avaliar(observacoes: list[Observacao],
     calculos = {}
     for obs in validas:
         calculos[obs.id] = _metricas(obs.valor, est, politica)
-    suspeitas = {oid for oid, (_, crit) in calculos.items() if _suspeita(crit)}
+    suspeitas = {oid for oid, (metricas, crit) in calculos.items()
+                 if _suspeita(crit, metricas, politica)}
     normais = [o for o in validas if o.id not in suspeitas]
     origens_normais = {o.origem or o.id for o in normais}
     valores_normais = [o.valor for o in normais]
@@ -583,6 +630,117 @@ def status_do_desfecho(desfecho: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Revisão 02 — sinalizar na cesta e recompor a cesta formada pelo teto
+# ---------------------------------------------------------------------------
+def fica_sinalizada_na_cesta(avaliacao: Avaliacao,
+                             politica: PoliticaSaneamento = POLITICA_PADRAO
+                             ) -> bool:
+    """
+    Suspeita só ESTATÍSTICA numa amostra pequena demais para decidir: o
+    preço fica no cálculo, sinalizado, e o alerta o acompanha (02_JEV:
+    "4 ≤ n < 8: não eliminar apenas por variação"). Divergência apontada
+    pelo Jev, condição comercial ou falta de unidade não entram aqui:
+    essas continuam fora da cesta, em revisão.
+    """
+    if not politica.sinalizar_na_cesta_em_amostra_pequena or \
+            avaliacao.desfecho != REVISAO:
+        return False
+    codigos = set(avaliacao.codigos)
+    return AMOSTRA_PEQUENA in codigos and not codigos & {
+        DIVERGENCIA_JEV, CONTEXTO_COMERCIAL, UNIDADE_NAO_CONVERSIVEL,
+        NATUREZA_NAO_PRECO}
+
+
+def motivo_da_sinalizacao(avaliacao: Avaliacao, versao: str) -> str:
+    return (f"{ROTULO_SINALIZADA}: {avaliacao.explicacao} "
+            f"[{', '.join(avaliacao.codigos)}; política {versao}]")
+
+
+def sinalizada_pela_triagem(linha: dict) -> bool:
+    return str(linha.get("status")) == "warning" and \
+        _tem_rotulo(linha, ROTULO_SINALIZADA)
+
+
+@dataclass
+class Recomposicao:
+    """O que a reavaliação da cesta formada decidiu."""
+
+    selecionadas: list
+    reservas: list
+    # (referência, avaliação) que saíram da cesta: desconsideradas ou
+    # substituídas por outra elegível (revisão)
+    saidas: list = field(default_factory=list)
+    # referências que ficam NA cesta, sinalizadas (sem alternativa)
+    sinalizadas: dict = field(default_factory=dict)
+    rodadas: int = 0
+
+
+def _distancia(avaliacao: Avaliacao) -> Decimal:
+    razao = _decimal(avaliacao.metricas.get("razao_mediana"))
+    if razao is None or razao <= ZERO:
+        return ZERO
+    return max(razao, Decimal(1) / razao)
+
+
+def recompor_cesta(selecionadas: list, reservas: list,
+                   politica: PoliticaSaneamento = POLITICA_PADRAO, *,
+                   texto_item: str = "") -> Recomposicao:
+    """
+    Reavalia a cesta JÁ formada pelo teto e repõe com as próximas
+    elegíveis, na ordem em que vieram (fonte e comparabilidade, nunca
+    preço). 02_JEV, "Reparação da cesta e limite de 15":
+
+    * desconsiderada na cesta (extremo corroborado, n ≥ 8) → sai, e a
+      próxima elegível entra no lugar;
+    * suspeita sem certeza → sai para REVISÃO só se houver outra elegível
+      para o lugar; sem alternativa, fica NA cesta, sinalizada;
+    * nada é apagado: quem sai leva status e motivo técnico.
+
+    Um preço por rodada (o mais distante da mediana): tirar vários de uma
+    vez mudaria a mediana sob os pés dos outros. Termina em no máximo
+    len(selecionadas) + len(reservas) rodadas — cada uma consome alguém.
+    """
+    cesta = list(selecionadas)
+    fila = list(reservas)
+    resultado = Recomposicao(selecionadas=cesta, reservas=fila)
+    limite = len(cesta)
+    for rodada in range(len(selecionadas) + len(reservas) + 1):
+        resultado.rodadas = rodada
+        if not cesta:
+            break
+        triagem = avaliar([observacao_da_referencia(r) for r in cesta],
+                          politica, texto_item=texto_item)
+        por_id = triagem.por_id()
+        problemas = [(r, por_id[r.chave_dedupe]) for r in cesta
+                     if por_id[r.chave_dedupe].desfecho != ELEGIVEL]
+        if not problemas:
+            resultado.sinalizadas = {}
+            break
+        desconsideradas = [p for p in problemas
+                           if p[1].desfecho == DESCONSIDERADA]
+        alvo = (desconsideradas or
+                (problemas if fila else []))
+        if not alvo:
+            # sem alternativa: as suspeitas ficam, sinalizadas
+            resultado.sinalizadas = {r.chave_dedupe: a for r, a in problemas}
+            break
+        referencia, avaliacao = max(alvo, key=lambda p: _distancia(p[1]))
+        cesta.remove(referencia)
+        if avaliacao.desfecho == REVISAO:
+            avaliacao = Avaliacao(
+                avaliacao.id, REVISAO,
+                list(avaliacao.codigos) + [SUBSTITUIDA],
+                "fora do padrão da cesta formada, e havia outra referência "
+                "elegível para o lugar — " + avaliacao.explicacao,
+                avaliacao.metricas, avaliacao.valor, avaliacao.valor_original,
+                avaliacao.suspeita, avaliacao.corroborada)
+        resultado.saidas.append((referencia, avaliacao))
+        while fila and len(cesta) < limite:
+            cesta.append(fila.pop(0))
+    return resultado
+
+
+# ---------------------------------------------------------------------------
 # Resumo por item — "X encontrados • Y incluídos • Z desconsiderados…"
 # ---------------------------------------------------------------------------
 def _tem_rotulo(linha: dict, rotulo: str) -> bool:
@@ -592,6 +750,20 @@ def _tem_rotulo(linha: dict, rotulo: str) -> bool:
 def desconsiderada_pelo_jev(linha: dict) -> bool:
     return str(linha.get("status")) == "rejected" and \
         _tem_rotulo(linha, ROTULO_DESCONSIDERADA)
+
+
+def desconsiderada_por_analise(linha: dict) -> bool:
+    """
+    Desconsiderada pela triagem DEPOIS de analisada como preço do item
+    (extremo corroborado, objeto divergente apontado pelo Jev) — a que
+    pede fundamento na metodologia (08_COMPLIANCE, caso B). Duplicata,
+    valor inválido e unidade sem conversão não chegaram a ser preço do
+    item: ficam contadas, não listadas.
+    """
+    if not desconsiderada_pelo_jev(linha):
+        return False
+    texto = " ".join(str(m) for m in (linha.get("motivos") or []))
+    return any(c in texto for c in (EXTREMO, CORROBORADO, DIVERGENCIA_JEV))
 
 
 def em_revisao_pela_triagem(linha: dict) -> bool:
@@ -608,13 +780,17 @@ def resumo_do_item(linhas: list[dict], encontrados: int | None = None) -> dict:
         "desconsiderados": sum(1 for l in linhas if desconsiderada_pelo_jev(l)),
         "revisao": sum(1 for l in linhas
                        if str(l.get("status")) == "manual_review"),
+        "sinalizados": sum(1 for l in linhas if sinalizada_pela_triagem(l)),
     }
 
 
 def frase_do_resumo(resumo: dict) -> str:
-    return (f"{resumo['encontrados']} encontrado(s) • {resumo['incluidos']} "
-            f"incluído(s) • {resumo['desconsiderados']} desconsiderado(s) "
-            f"pelo Jev • {resumo['revisao']} requer(em) revisão")
+    frase = (f"{resumo['encontrados']} encontrado(s) • {resumo['incluidos']} "
+             f"usado(s) no preço • {resumo['desconsiderados']} "
+             f"desconsiderado(s) pela triagem • {resumo['revisao']} em revisão")
+    if resumo.get("sinalizados"):
+        frase += f" • {resumo['sinalizados']} na cesta para conferir"
+    return frase
 
 
 # ---------------------------------------------------------------------------

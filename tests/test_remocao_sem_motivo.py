@@ -217,8 +217,9 @@ def test_r07_tela_retira_referencia_sem_texto(monkeypatch):
     at.session_state[cotacoes_ui.ITEM] = str(item["id"])
     at.run()
     assert not at.exception
-    retirar = [b for b in at.button if b.label == "Retirar da cesta"]
-    assert retirar, "o formulário de retirada existe"
+    # Revisão 02 (03_CESTA): um botão, sem formulário nem campo de texto
+    retirar = [b for b in at.button if b.label == "Remover da cesta"]
+    assert retirar, "o botão de remover existe"
     retirar[0].click().run()
     assert not at.exception
     assert not at.error, [e.value for e in at.error]

@@ -1,0 +1,19 @@
+{
+  "principal": {
+    "10210305900092025": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=10210305900092025",
+    "10210305900022025": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=10210305900022025",
+    "78481005900292024": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=78481005900292024",
+    "16004505900122024": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=16004505900122024",
+    "25705205900242024": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=25705205900242024",
+    "10806496000149-1-000070/2025": "https://pncp.gov.br/app/editais/10806496000149/2025/70"
+  },
+  "analitico": {
+    "1021030590009202500005": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=10210305900092025",
+    "1021030590002202500001": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=10210305900022025",
+    "7848100590029202400003": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=78481005900292024",
+    "1600450590012202400007": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=16004505900122024",
+    "2570520590024202400022": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=25705205900242024",
+    "7848100590029202400002": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=78481005900292024",
+    "1581460590016202500002": "https://pncp.gov.br/app/editais/10806496000149/2025/70"
+  }
+}

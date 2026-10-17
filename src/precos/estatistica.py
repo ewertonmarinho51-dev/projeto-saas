@@ -222,15 +222,18 @@ def detectar_anomalias(referencias: list[Referencia],
         # A frase dá a BASE e o LIMITE, não só a distância: "mediana de
         # R$ X entre N preços; faixa IQR de R$ A a R$ B" é o que permite
         # ao revisor refazer a conta (dossiê BP, tema 2b).
+        # Preço não é negativo: com série larga, Q1 − 1,5·IQR fica abaixo
+        # de zero e a frase dizia "faixa de -R$ 52,08" (Revisão 02, D11).
+        piso_exibido = max(limite_inferior, ZERO)
         anomalias.append(Anomalia(
             referencia=ref, valor=valor, criterio="+".join(criterios),
             distancia_da_mediana_pct=distancia,
             motivo=(f"o valor está {pct(abs(distancia) / 100, 0)} {sentido} "
                     f"da mediana de {brl(estatisticas.mediana)} entre "
                     f"{estatisticas.quantidade} preços (critério "
-                    f"{'+'.join(criterios)}; faixa IQR de "
-                    f"{brl(limite_inferior)} a {brl(limite_superior)}). "
-                    "O sistema sugere revisão."),
+                    f"{'+'.join(criterios)}; faixa usual de "
+                    f"{brl(piso_exibido)} a {brl(limite_superior)}). "
+                    "Confira a contratação de origem."),
         ))
         ref.status = StatusReferencia.ALERTA
         ref.com_motivo(f"candidato discrepante pelo critério "
@@ -343,6 +346,10 @@ class Cesta:
     # métricas, para a trilha. Vazias sem a política de saneamento.
     retidas: list[Referencia] = field(default_factory=list)
     triagem: object | None = None
+    # Revisão 02: suspeitas que ficam NA cesta, sinalizadas (chave →
+    # avaliação), e o que a reavaliação da cesta formada decidiu.
+    sinalizar: dict = field(default_factory=dict)
+    recomposicao: object | None = None
 
     @property
     def valores(self) -> list[Decimal]:
@@ -469,10 +476,26 @@ def selecionar_cesta(
         prioridade.get(par[0].fonte.tipo, 99), -par[1].score))
 
     limite = len(elegiveis) if teto is None else max(0, int(teto))
-    for referencia, _ in elegiveis[:limite]:
+    escolhidas = [r for r, _ in elegiveis[:limite]]
+    reservas = [r for r, _ in elegiveis[limite:]]
+    if saneamento is not None and teto is not None and escolhidas:
+        # Revisão 02: a cesta formada pelo teto é reavaliada e reposta com
+        # as próximas elegíveis — o que destoa NA cesta não fica nela por
+        # falha de fluxo, e o que sai não some (status e motivo).
+        escolhidas, reservas = _recompor(escolhidas, reservas, cesta,
+                                         saneamento, texto_item)
+    for referencia in escolhidas:
         referencia.status = StatusReferencia.SELECIONADA
         cesta.selecionadas.append(referencia)
-    for referencia, _ in elegiveis[limite:]:
+        avaliacao = cesta.sinalizar.get(referencia.chave_dedupe)
+        if avaliacao is not None:
+            from . import saneamento as saneamento_mod
+
+            referencia.status = StatusReferencia.ALERTA
+            referencia.com_motivo(saneamento_mod.motivo_da_sinalizacao(
+                avaliacao, saneamento.versao))
+    por_chave = {r.chave_dedupe: (r, c) for r, c in elegiveis}
+    for referencia, _ in (por_chave[r.chave_dedupe] for r in reservas):
         referencia.status = StatusReferencia.CANDIDATA
         # sem o número: numa reconsulta o teto que sobra é menor que o da
         # política, e "teto de 2" leria como regra diferente
@@ -516,6 +539,11 @@ def _triagem_pre_cesta(ranqueadas, cesta: Cesta, piso: Decimal, politica,
         if avaliacao is None or avaliacao.desfecho == saneamento.ELEGIVEL:
             seguem.append((referencia, comparabilidade))
             continue
+        if saneamento.fica_sinalizada_na_cesta(avaliacao, politica):
+            # amostra pequena: segue para a cesta e é marcada lá
+            cesta.sinalizar[referencia.chave_dedupe] = avaliacao
+            seguem.append((referencia, comparabilidade))
+            continue
         referencia.status = StatusReferencia(
             saneamento.status_do_desfecho(avaliacao.desfecho))
         referencia.com_motivo(saneamento.motivo_da_avaliacao(
@@ -524,6 +552,30 @@ def _triagem_pre_cesta(ranqueadas, cesta: Cesta, piso: Decimal, politica,
         if saneamento.retem(avaliacao):
             cesta.retidas.append(referencia)
     return seguem
+
+
+def _recompor(escolhidas: list, reservas: list, cesta: Cesta, politica,
+              texto_item: str) -> tuple[list, list]:
+    """
+    Reavalia a cesta formada pelo teto (`saneamento.recompor_cesta`) e
+    aplica o desfecho: quem sai leva status e motivo e fica GRAVADO
+    (`retidas`); quem fica sem alternativa é sinalizado na cesta.
+    """
+    from . import saneamento
+
+    feito = saneamento.recompor_cesta(escolhidas, reservas, politica,
+                                      texto_item=texto_item)
+    cesta.recomposicao = feito
+    for referencia, avaliacao in feito.saidas:
+        cesta.sinalizar.pop(referencia.chave_dedupe, None)
+        referencia.status = StatusReferencia(
+            saneamento.status_do_desfecho(avaliacao.desfecho))
+        referencia.com_motivo(saneamento.motivo_da_avaliacao(
+            avaliacao, politica.versao))
+        cesta.descartadas.append(referencia)
+        cesta.retidas.append(referencia)
+    cesta.sinalizar.update(feito.sinalizadas)
+    return feito.selecionadas, feito.reservas
 
 
 # ---------------------------------------------------------------------------
@@ -556,6 +608,9 @@ class Estimativa:
     criterio_percentual: tuple[Decimal, Decimal] | None = None
     # Exceção formal à regra dos três aplicada nesta estimativa.
     excecao_aplicada: bool = False
+    # (valor pelo método, valor adotado) quando o teto da mediana do
+    # perfil mudou o preço — o relatório mostra os dois (Revisão 02, D15).
+    ajuste_teto: tuple[Decimal, Decimal] | None = None
 
     @property
     def concluida(self) -> bool:
@@ -596,6 +651,9 @@ class Estimativa:
                   "inexequivel": format(self.criterio_percentual[1], "f"),
                   "versao": VERSAO_CRITERIO_PERCENTUAL},
             "excecao_aplicada": self.excecao_aplicada,
+            "ajuste_teto": None if self.ajuste_teto is None else {
+                "pelo_metodo": format(self.ajuste_teto[0], "f"),
+                "adotado": format(self.ajuste_teto[1], "f")},
             "memoria": list(self.memoria),
         }
 
@@ -629,11 +687,34 @@ def _aplicar_metodo(metodo: str, e: Estatisticas) -> Decimal:
     return e.mediana
 
 
+def _data_local(iso) -> str:
+    """ISO em UTC → "17/10/2026 20:16" no horário de Brasília (UTC−3)."""
+    from datetime import datetime, timedelta, timezone
+
+    try:
+        momento = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+    except ValueError:
+        return str(iso)
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return momento.astimezone(timezone(timedelta(hours=-3))).strftime(
+        "%d/%m/%Y %H:%M")
+
+
+def chave_da_referencia(referencia) -> str:
+    """Identidade estável de uma referência no item: fonte + id externo."""
+    if isinstance(referencia, dict):
+        return f"{referencia.get('fonte_id') or ''}:" \
+               f"{referencia.get('id_externo') or ''}"
+    return f"{referencia.fonte.id}:{referencia.id_externo}"
+
+
 def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
             metodo: str = METODO_AUTOMATICO,
             justificativa: str | None = None,
             regras: str = REGRAS_LEGADAS,
-            criterio_percentual: tuple[Decimal, Decimal] | None = None
+            criterio_percentual: tuple[Decimal, Decimal] | None = None,
+            mantidas: dict | None = None
             ) -> Estimativa:
     """
     Forma o preço estimado a partir da cesta.
@@ -703,6 +784,7 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
         "centavo, metade para cima)")
 
     # Teto da mediana quando a estimativa se apoia SÓ em sistema oficial
+    ajuste_teto = None
     if perfil.teto_da_mediana_em_sistema_oficial:
         tipos = {r.fonte.tipo for r in cesta.selecionadas}
         if tipos == {"sistema_oficial"} and valor > estatisticas.mediana:
@@ -711,6 +793,9 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
                 "sistema oficial de preços não supera a mediana da "
                 f"amostra — valor ajustado de {brl(valor)} para "
                 f"{brl(estatisticas.mediana)}")
+            ajuste_teto = (valor.quantize(CENTAVO, rounding=ROUND_HALF_UP),
+                           estatisticas.mediana.quantize(
+                               CENTAVO, rounding=ROUND_HALF_UP))
             valor = estatisticas.mediana
 
     valor = valor.quantize(CENTAVO, rounding=ROUND_HALF_UP)
@@ -743,10 +828,26 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
             "a exceção prevista no perfil — nenhum preço é fabricado para "
             "completar a cesta")
 
-    if anomalias:
+    # Revisão 02: "Manter preço" é a decisão sem texto sobre um atípico —
+    # registrada (quem, quando) e reaplicada a cada recálculo. Mantido não
+    # é pendência; continua sinalizado no relatório, com a decisão.
+    mantidas = mantidas or {}
+    mantidas_agora = [a for a in anomalias
+                      if chave_da_referencia(a.referencia) in mantidas]
+    pendentes = [a for a in anomalias if a not in mantidas_agora]
+    if pendentes:
         memoria.append(
-            f"{len(anomalias)} candidato(s) discrepante(s) sinalizado(s) "
-            "para revisão; nenhum foi excluído automaticamente")
+            f"{len(pendentes)} preço(s) atípico(s) sinalizado(s) para "
+            "conferência; nenhum foi retirado do cálculo automaticamente")
+    for anomalia in mantidas_agora:
+        decisao = mantidas[chave_da_referencia(anomalia.referencia)] or {}
+        # sem o identificador interno de quem decidiu (fica na trilha) e no
+        # horário de Brasília (Revisão 02, D12)
+        memoria.append(
+            f"preço atípico de {brl(anomalia.valor)} mantido na cesta por "
+            "decisão do servidor depois do alerta"
+            + (f", em {_data_local(decisao.get('registrado_em'))}"
+               if decisao.get("registrado_em") else ""))
 
     # Análise crítica pendente — só nas regras da média. Na regra antiga a
     # dispersão já levava à mediana; na nova, a média de uma cesta com
@@ -757,10 +858,10 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
     # mantém com justificativa (IN 65/2021, art. 6º, § 3º, onde aplicável).
     pendencias: list[str] = []
     if regras == REGRAS_MEDIA_PADRAO and escolhido == "media":
-        if anomalias:
+        if pendentes:
             pendencias.append(
-                f"{len(anomalias)} preço(s) discrepante(s) aguardam decisão: "
-                "retirar da cesta ou manter com justificativa")
+                f"{len(pendentes)} preço(s) atípico(s) aguardam decisão: "
+                "remover da cesta ou manter o preço")
         if estatisticas.coeficiente_variacao > CV_DISPERSAO:
             pendencias.append(
                 f"dispersão elevada (coeficiente de variação "
@@ -799,4 +900,4 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
         estatisticas=estatisticas, cesta=cesta, anomalias=anomalias,
         memoria=memoria, perfil_id=perfil.id, pendencias=pendencias,
         marcas_percentuais=marcas, criterio_percentual=criterio_percentual,
-        excecao_aplicada=excecao)
+        excecao_aplicada=excecao, ajuste_teto=ajuste_teto)

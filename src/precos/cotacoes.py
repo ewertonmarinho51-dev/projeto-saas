@@ -954,7 +954,8 @@ MOTIVO_RETIRADA_AUTOMATICO = "retirada da cesta pelo usuário"
 def alterar_status_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
                               referencia_id: str, *, incluir: bool,
                               motivo: str | None = None,
-                              revisao_esperada: int | None = None
+                              revisao_esperada: int | None = None,
+                              lidos: tuple[dict, dict, list[dict]] | None = None
                               ) -> estatistica.Estimativa:
     """
     Põe ou tira UMA referência da cesta e refaz o preço.
@@ -971,12 +972,196 @@ def alterar_status_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
     sem gravar). Se o conflito aparecer na escrita final, a mudança da
     referência é DESFEITA (compensação registrada no motivo) e o
     conflito sobe — nada fica meio gravado.
+
+    `lidos` = (cotação, item, referências) que a tela ACABOU de ler na
+    mesma execução do clique (Revisão 02, 07_PERFORMANCE): poupa três
+    leituras por clique. Não abre brecha de versão: a escrita final do item
+    continua condicionada à revisão esperada.
     """
-    cotacao = _exigir_editavel(repo.obter_pesquisa(cotacao_id))
+    if lidos is not None:
+        cotacao, item, linhas_lidas = lidos
+        _exigir_editavel(cotacao)
+    else:
+        cotacao = _exigir_editavel(repo.obter_pesquisa(cotacao_id))
+        item, linhas_lidas = None, None
     texto = str(motivo or "").strip()
     if incluir and not texto:
         raise ErroCotacao("registre o motivo da inclusão: ele vai para a "
                           "memória de cálculo")
+    if item is None:
+        item = repo.obter_item(item_id)
+    if not item or str(item.get("pesquisa_id")) != str(cotacao_id):
+        raise ErroCotacao("item não encontrado nesta cotação")
+    if revisao_esperada is not None and \
+            int(item.get("revisao") or 1) != int(revisao_esperada):
+        raise repo.ConflitoDeVersao(
+            "Este item foi alterado em outra aba ou por outra pessoa depois "
+            "que você o abriu. Nada foi gravado: recarregue e refaça.")
+    linhas = linhas_lidas if linhas_lidas is not None \
+        else repo.listar_referencias(item_id)
+    alvo = next((r for r in linhas if str(r["id"]) == str(referencia_id)), None)
+    if alvo is None:
+        raise ErroCotacao("referência não pertence a este item")
+    if incluir:
+        problema = _impedimento_de_inclusao(alvo)
+        if problema:
+            raise ErroCotacao(problema)
+    anterior = str(alvo.get("status"))
+    if not incluir and anterior == "rejected":
+        # já retirada: repetir o clique não reescreve nem duplica a trilha
+        return cesta.recalcular(
+            linhas, perfil=obter_perfil(cotacao.get("perfil_normativo")),
+            regras=str(cotacao.get("versao_regras") or
+                       estatistica.REGRAS_LEGADAS),
+            mantidas=cesta.decisoes_do_item(item).get("mantidas") or None)
+    if incluir:
+        reincluida = saneamento.desconsiderada_pelo_jev(alvo) or \
+            saneamento.em_revisao_pela_triagem(alvo)
+        novo = "warning" if reincluida else "selected"
+    else:
+        reincluida = False
+        novo = "rejected"
+    registro = texto or MOTIVO_RETIRADA_AUTOMATICO
+    return _mudar_e_recalcular(
+        ctx, cotacao, item, linhas, alvo, novo, registro,
+        tipo="referencia_incluida" if incluir else "referencia_excluida",
+        operacao=("reinstated" if reincluida else "manual_included")
+        if incluir else "manual_removed",
+        user_reason=texto or None, revisao_esperada=revisao_esperada)
+
+
+def _destino_do_item(item: dict, estimativa) -> str:
+    """O estado em que `atualizar_estimativa` deixa o item (sem reler)."""
+    destino = (EstadoItem.EM_REVISAO if estimativa.concluida
+               else EstadoItem.INCOMPLETO)
+    return destino.value
+
+
+def _mudar_e_recalcular(ctx: Contexto, cotacao: dict, item: dict,
+                        linhas: list[dict], alvo: dict, novo: str,
+                        registro: str, *, tipo: str, operacao: str,
+                        user_reason: str | None,
+                        revisao_esperada: int | None,
+                        decisoes: dict | None = None,
+                        extra: dict | None = None) -> estatistica.Estimativa:
+    """
+    UMA mudança de status na cesta, com o menor caminho até o banco
+    (Revisão 02, 07_PERFORMANCE "mutação granular"):
+
+    * a linha alterada é a que já foi lida — sem reler os motivos nem a
+      lista de referências do item para recalcular;
+    * só o item afetado é recalculado; nenhuma fonte externa, nenhum Jev;
+    * a cotação só é sincronizada quando o ESTADO do item muda (concluir,
+      ficar incompleto) — retirar um preço de item em revisão não mexe
+      no estado da cotação.
+
+    Conflito de versão na escrita final DESFAZ a mudança da referência
+    (compensação registrada) e sobe: nada fica meio gravado.
+    """
+    anterior = str(alvo.get("status"))
+    referencia_id = str(alvo["id"])
+    motivos = list(alvo.get("motivos") or [])
+    repo.reclassificar_referencia(referencia_id, novo, registro,
+                                  motivos_atuais=motivos)
+    if registro and registro not in motivos:
+        motivos.append(registro)
+    atualizadas = [({**linha, "status": novo, "motivos": motivos}
+                    if str(linha.get("id")) == referencia_id else linha)
+                   for linha in linhas]
+    item_para_calculo = item
+    if decisoes is not None:
+        gravado = dict(item.get("estatisticas") or {})
+        gravado["decisoes"] = decisoes
+        item_para_calculo = {**item, "estatisticas": gravado}
+    try:
+        estimativa = cesta.recalcular_e_gravar(
+            cotacao, item_para_calculo, repo,
+            perfil=obter_perfil(cotacao.get("perfil_normativo")),
+            linhas=atualizadas, revisao_esperada=revisao_esperada)
+    except repo.ConflitoDeVersao:
+        repo.reclassificar_referencia(
+            referencia_id, anterior,
+            "desfeito: conflito de versão com outra aba")
+        raise
+    repo.registrar_evento(
+        str(cotacao["id"]), tipo, ator=ctx.auth_user_id,
+        item_id=str(item["id"]), descricao=registro,
+        payload={"referencia": referencia_id, "de": anterior, "para": novo,
+                 "operacao": operacao, "origem": "user",
+                 "user_reason": user_reason,
+                 "revisao_anterior": item.get("revisao"),
+                 "preco_recalculado": None if estimativa.valor_unitario is None
+                 else format(estimativa.valor_unitario, "f"),
+                 "metodo": estimativa.metodo,
+                 "status_da_cesta": estimativa.status, **(extra or {})})
+    if _destino_do_item(item, estimativa) != str(item.get("estado") or ""):
+        sincronizar_estado(str(cotacao["id"]))
+    return estimativa
+
+
+MOTIVO_DESFAZER = "retirada desfeita pelo usuário"
+MOTIVO_MANTIDA = "mantida na cesta pelo usuário depois do alerta de preço atípico"
+
+
+def desfazer_retirada(ctx: Contexto, cotacao_id: str, item_id: str,
+                      referencia_id: str, *,
+                      revisao_esperada: int | None = None
+                      ) -> estatistica.Estimativa:
+    """
+    "Desfazer" da retirada sem justificativa (03_CESTA: "Preço removido
+    da cesta. Estimativa atualizada." + Desfazer).
+
+    Só desfaz a retirada que a PRÓPRIA pessoa acabou de fazer: o último
+    ato sobre a referência tem de ser `manual_removed` deste ator. A
+    referência volta ao status de antes (`de` da trilha) — por isso não
+    pede motivo: não é inclusão nova, é o ato anterior anulado, e a trilha
+    registra os dois.
+    """
+    cotacao = _exigir_editavel(repo.obter_pesquisa(cotacao_id))
+    item = repo.obter_item(item_id)
+    if not item or str(item.get("pesquisa_id")) != str(cotacao_id):
+        raise ErroCotacao("item não encontrado nesta cotação")
+    sobre_ela = [(str(e.get("criado_em") or ""), posicao, e)
+                 for posicao, e in enumerate(
+                     repo.listar_eventos(cotacao_id, limite=200))
+                 if str((e.get("payload") or {}).get("referencia"))
+                 == str(referencia_id)
+                 and e.get("tipo") in ("referencia_excluida",
+                                       "referencia_incluida")]
+    # o mais recente pelo relógio do banco, sem depender da ordem da lista
+    ultimo = max(sobre_ela, key=lambda t: (t[0], t[1]))[2] if sobre_ela \
+        else None
+    payload = (ultimo or {}).get("payload") or {}
+    if not ultimo or ultimo.get("tipo") != "referencia_excluida" or \
+            payload.get("operacao") != "manual_removed" or \
+            str(ultimo.get("ator") or "") != str(ctx.auth_user_id):
+        raise ErroCotacao("só dá para desfazer a sua última retirada desta "
+                          "referência")
+    linhas = repo.listar_referencias(item_id)
+    alvo = next((r for r in linhas if str(r["id"]) == str(referencia_id)), None)
+    if alvo is None or str(alvo.get("status")) != "rejected":
+        raise ErroCotacao("a referência não está mais fora da cesta")
+    volta = str(payload.get("de") or "selected")
+    if volta not in cesta.NA_CESTA:
+        volta = "selected"
+    return _mudar_e_recalcular(
+        ctx, cotacao, item, linhas, alvo, volta, MOTIVO_DESFAZER,
+        tipo="referencia_incluida", operacao="undo_manual_removal",
+        user_reason=None, revisao_esperada=revisao_esperada)
+
+
+def manter_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
+                      referencia_id: str, *,
+                      revisao_esperada: int | None = None
+                      ) -> estatistica.Estimativa:
+    """
+    "Manter preço" no alerta de preço atípico (04_UX): a decisão sem texto
+    de que o preço fica na cesta. Registrada (quem, quando, qual valor) e
+    reaplicada a cada recálculo: o atípico mantido deixa de ser pendência
+    de conclusão, continua SINALIZADO (o alerta acompanha o preço até a
+    emissão) e a memória de cálculo diz que foi mantido por decisão.
+    """
+    cotacao = _exigir_editavel(repo.obter_pesquisa(cotacao_id))
     item = repo.obter_item(item_id)
     if not item or str(item.get("pesquisa_id")) != str(cotacao_id):
         raise ErroCotacao("item não encontrado nesta cotação")
@@ -989,52 +1174,21 @@ def alterar_status_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
     alvo = next((r for r in linhas if str(r["id"]) == str(referencia_id)), None)
     if alvo is None:
         raise ErroCotacao("referência não pertence a este item")
-    if incluir:
-        problema = _impedimento_de_inclusao(alvo)
-        if problema:
-            raise ErroCotacao(problema)
-    anterior = str(alvo.get("status"))
-    if not incluir and anterior == "rejected":
-        # já retirada: repetir o clique não reescreve nem duplica a trilha
-        return cesta.recalcular(
-            repo.listar_referencias(item_id),
-            perfil=obter_perfil(cotacao.get("perfil_normativo")),
-            regras=str(cotacao.get("versao_regras") or
-                       estatistica.REGRAS_LEGADAS))
-    if incluir:
-        reincluida = saneamento.desconsiderada_pelo_jev(alvo) or \
-            saneamento.em_revisao_pela_triagem(alvo)
-        novo = "warning" if reincluida else "selected"
-    else:
-        reincluida = False
-        novo = "rejected"
-    registro = texto or MOTIVO_RETIRADA_AUTOMATICO
-    repo.reclassificar_referencia(str(referencia_id), novo, registro)
-    try:
-        estimativa = cesta.recalcular_e_gravar(
-            cotacao, item, repo,
-            perfil=obter_perfil(cotacao.get("perfil_normativo")),
-            revisao_esperada=revisao_esperada)
-    except repo.ConflitoDeVersao:
-        repo.reclassificar_referencia(
-            str(referencia_id), anterior,
-            "desfeito: conflito de versão com outra aba")
-        raise
-    repo.registrar_evento(
-        cotacao_id, "referencia_incluida" if incluir else "referencia_excluida",
-        ator=ctx.auth_user_id, item_id=item_id, descricao=registro,
-        payload={"referencia": str(referencia_id), "de": anterior,
-                 "para": novo,
-                 "operacao": ("reinstated" if reincluida else "manual_included")
-                 if incluir else "manual_removed",
-                 "origem": "user", "user_reason": texto or None,
-                 "revisao_anterior": item.get("revisao"),
-                 "preco_recalculado": None if estimativa.valor_unitario is None
-                 else format(estimativa.valor_unitario, "f"),
-                 "metodo": estimativa.metodo,
-                 "status_da_cesta": estimativa.status})
-    sincronizar_estado(cotacao_id)
-    return estimativa
+    if str(alvo.get("status")) not in cesta.NA_CESTA:
+        raise ErroCotacao("só um preço que está na cesta pode ser mantido")
+    decisoes = cesta.decisoes_do_item(item)
+    mantidas = dict(decisoes.get("mantidas") or {})
+    chave = estatistica.chave_da_referencia(alvo)
+    mantidas[chave] = {"registrado_por": ctx.auth_user_id,
+                       "registrado_em": cesta._agora(),  # noqa: SLF001
+                       "valor": str(alvo.get("valor_unitario_normalizado")
+                                    or "")}
+    decisoes["mantidas"] = mantidas
+    return _mudar_e_recalcular(
+        ctx, cotacao, item, linhas, alvo, "warning", MOTIVO_MANTIDA,
+        tipo="referencia_incluida", operacao="kept_after_alert",
+        user_reason=None, revisao_esperada=revisao_esperada,
+        decisoes=decisoes, extra={"chave": chave})
 
 
 def _impedimento_de_inclusao(linha: dict) -> str:

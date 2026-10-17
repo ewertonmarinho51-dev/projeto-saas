@@ -138,6 +138,20 @@ def _quantidade(valor) -> str:
     return precos_ui._texto_quantidade(valor)
 
 
+def _precos(n: int) -> str:
+    """ "1 preço", "15 preços" — nunca "317/3" (Revisão 02, 04_UX)."""
+    return f"{n} preço" if n == 1 else f"{n} preços"
+
+
+def _hora_local(texto: str) -> str:
+    """ISO em UTC gravado → "17/10/2026 15:58" no horário de Brasília."""
+    from ..precos.relatorio import _instante  # noqa: PLC0415
+    from ..precos.relatorio_view import BRASILIA
+
+    momento = _instante(texto)
+    return momento.astimezone(BRASILIA).strftime("%d/%m/%Y %H:%M")         if momento else ""
+
+
 def render_cotacoes() -> None:
     """Roteador: Minhas Cotações, Nova cotação, Elaborar Cotação."""
     components.render_page_header(
@@ -361,9 +375,16 @@ def _render_elaborar() -> None:
                     "mão ou pela Cotação automática.")
         return
     referencias = repo.listar_referencias(str(ativo["id"]))
+    # Revisão 02 (07_PERFORMANCE): a trilha é lida UMA vez por tela — a
+    # última busca e as sugestões do Jev vinham de duas consultas iguais.
+    eventos = repo.listar_eventos(cotacao_id, limite=200)
+    # o que ESTA execução leu: o clique de remover (que roda nela) usa sem
+    # reler cotação, item e referências — três idas ao banco a menos
+    st.session_state[LIDOS] = {"item": str(ativo["id"]),
+                               "refs": referencias}
     _revisao_vista(ativo)
     with centro, st.container(key="cot_regiao_busca"):
-        _painel_busca(ctx, cotacao, ativo, referencias, editavel)
+        _painel_busca(ctx, cotacao, ativo, referencias, editavel, eventos)
     with direita, st.container(key="cot_regiao_cesta"):
         _painel_cesta(ctx, cotacao, ativo, referencias, perfil_atual, editavel)
 
@@ -404,10 +425,11 @@ def _cabecalho(ctx, cotacao: dict, itens: list[dict], perfil_atual,
     with st.container(key="cot_kpis"):
         m = st.columns(4)
         m[0].metric("Itens", len(itens))
-        m[1].metric(f"Com {minimo}+ considerados",
-                    f"{com_minimo}/{len(itens)}")
-        m[2].metric("Pendentes", len(itens) - len(concluidos))
-        m[3].metric("Valor (itens concluídos)", _moeda(total))
+        m[1].metric("Com preços suficientes", f"{com_minimo} de {len(itens)}",
+                    help=f"Itens com pelo menos {minimo} preços usados no "
+                         "cálculo (mínimo do perfil normativo).")
+        m[2].metric("A concluir", len(itens) - len(concluidos))
+        m[3].metric("Estimativa (itens concluídos)", _moeda(total))
     if st.session_state.get("cot_confirmar_lote"):
         _confirmar_lote(ctx, cotacao, itens)
 
@@ -539,7 +561,8 @@ def _painel_itens(ctx, cotacao: dict, itens: list[dict], ativo: dict | None,
             # Situação ESCRITA, além do ícone e da cor: nunca só cor (F).
             rotulo = (f"**{int(item.get('numero') or 0):02d}** "
                       f"{titulo_curto(item.get('descricao'), 40)} · "
-                      f"{texto} · {'sem busca' if n is None else f'{n}/{minimo}'}")
+                      f"{texto} · "
+                      f"{'sem busca' if n is None else _precos(n)}")
             if st.button(rotulo, key=f"cot_item_{item['id']}", icon=icone,
                          type="primary" if ativo and item["id"] == ativo["id"]
                          else "secondary", use_container_width=True):
@@ -603,8 +626,11 @@ def _form_item(ctx, cotacao: dict, item: dict | None) -> None:
 # ---------------------------------------------------------------------------
 # Busca e resultados (coluna do centro)
 # ---------------------------------------------------------------------------
-def _ultima_busca(cotacao_id: str, item_id: str) -> dict | None:
-    for evento in repo.listar_eventos(cotacao_id, limite=200):
+def _ultima_busca(cotacao_id: str, item_id: str,
+                  eventos: list[dict] | None = None) -> dict | None:
+    if eventos is None:
+        eventos = repo.listar_eventos(cotacao_id, limite=200)
+    for evento in eventos:
         if str(evento.get("item_id")) == str(item_id) and \
                 evento.get("tipo") in ("busca_concluida", "busca_falhou") and \
                 (evento.get("payload") or {}).get("diagnostico"):
@@ -613,7 +639,7 @@ def _ultima_busca(cotacao_id: str, item_id: str) -> dict | None:
 
 
 def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
-                  editavel: bool) -> None:
+                  editavel: bool, eventos: list[dict] | None = None) -> None:
     estado = str(item.get("estado") or "pending")
     descricao = str(item.get("descricao") or "")
     curto = titulo_curto(descricao, 90)
@@ -683,58 +709,63 @@ def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
             st.session_state[f"_cot_msg_{item['id']}"] = resultado.mensagem
             st.rerun()
 
-    ultima = _ultima_busca(str(cotacao["id"]), str(item["id"]))
+    ultima = _ultima_busca(str(cotacao["id"]), str(item["id"]), eventos)
     if ultima:
         p = ultima.get("payload") or {}
-        texto = cotacoes.DIAGNOSTICOS.get(p.get("diagnostico"), "")
-        tom = {"fonte_indisponivel": st.error, "zero_resultados": st.info,
-               "sem_comparaveis": st.warning,
-               "amostra_insuficiente": st.warning}.get(p.get("diagnostico"),
-                                                       st.success)
-        tom(texto)
-        desfechos = " · ".join(
-            f"{precos_ui.NOME_FONTE.get(f, f)}: "
-            f"{precos_ui.ROTULO_DESFECHO.get(d, d)}"
-            for f, d in sorted((p.get("desfechos") or {}).items()))
-        st.caption(f"Última busca ({p.get('modo')}, "
-                   f"{'termo literal' if (p.get('filtros') or {}).get('literal', True) else 'ampliada'}"
-                   f") em "
-                   f"{str(p.get('em') or ultima.get('criado_em') or '')[:16].replace('T', ' ')}"
-                   f" UTC — {desfechos or 'sem desfecho registrado'}")
-        if p.get("termos_extras"):
-            st.caption("Termos acrescentados à consulta: "
-                       + ", ".join(str(x) for x in p["termos_extras"]))
-        # encontradas / comparáveis / consideradas / descartadas (pacote
-        # de 17/10/2026): o que a fonte devolveu, o que serve de preço, o
-        # que está no cálculo e o que ficou de fora — números distintos.
-        with st.container(key="cot_metricas_busca"):
-            m = st.columns(4)
-            m[0].metric("Encontradas", p.get("brutas", 0))
-            m[1].metric("Comparáveis", p.get("elegiveis", 0))
-            m[2].metric("Consideradas", len(cesta.consideradas(referencias)))
-            m[3].metric("Descartadas", max(0, int(p.get("unicas") or 0)
-                                           - int(p.get("elegiveis") or 0)))
-        consultadas = len(p.get("desfechos") or {})
-        partes = [f"{consultadas} fonte(s) consultada(s)"]
-        if p.get("fontes_nao_consultadas"):
-            partes.append("não consultada(s) por já haver amostra "
-                          "suficiente: " + ", ".join(p["fontes_nao_consultadas"]))
-        if p.get("nao_gravadas"):
-            partes.append(f"{p['nao_gravadas']} candidata(s) contada(s), "
-                          "não gravada(s) (teto da cotação automática)")
-        st.caption(" · ".join(partes))
-        if p.get("saneamento") or any(
-                saneamento.desconsiderada_pelo_jev(r)
-                or saneamento.em_revisao_pela_triagem(r) for r in referencias):
-            # pacote Jev: o resumo da triagem do item, com o ESTADO ATUAL
-            # das referências (uma reinclusão já aparece aqui)
-            resumo = saneamento.resumo_do_item(
-                referencias, int(p.get("unicas") or len(referencias)))
-            st.markdown(f"**Triagem:** {saneamento.frase_do_resumo(resumo)}")
+        diagnostico = p.get("diagnostico")
+        usados = len(cesta.consideradas(referencias))
+        # Revisão 02 (04_UX): aviso só quando há ação concreta. Item
+        # concluído não ouve "revise antes de concluir"; amostra boa vira
+        # uma frase de fato, não uma ordem.
+        if estado != "complete":
+            if diagnostico == "ok":
+                st.success(f"Preço formado com {_precos(usados)}.")
+            else:
+                tom = {"fonte_indisponivel": st.error,
+                       "zero_resultados": st.info}.get(diagnostico, st.warning)
+                tom(cotacoes.DIAGNOSTICOS.get(diagnostico, ""))
+        quando = _hora_local(str(p.get("em") or ultima.get("criado_em") or ""))
+        literal = (p.get("filtros") or {}).get("literal", True)
+        st.caption(f"Última busca em {quando or 'data não registrada'} "
+                   "(horário de Brasília) · "
+                   + ("termo literal" if literal else "busca ampliada"))
+        # encontradas / comparáveis / no cálculo: números da BUSCA, que
+        # não competem com preço e item (04_UX: "Detalhes da busca")
+        with st.expander("Detalhes da busca"):
+            with st.container(key="cot_metricas_busca"):
+                m = st.columns(3)
+                m[0].metric("Resultados encontrados", p.get("brutas", 0),
+                            help="Tudo o que as fontes devolveram.")
+                m[1].metric("Comparáveis", p.get("elegiveis", 0),
+                            help="Mesmo produto, com preço na unidade do item.")
+                m[2].metric("Preços usados", usados,
+                            help="Os que estão no cálculo agora.")
+            desfechos = " · ".join(
+                f"{precos_ui.NOME_FONTE.get(f, f)}: "
+                f"{precos_ui.ROTULO_DESFECHO.get(d, d)}"
+                for f, d in sorted((p.get("desfechos") or {}).items()))
+            st.caption(f"Fontes: {desfechos or 'sem desfecho registrado'}")
+            if p.get("fontes_nao_consultadas"):
+                st.caption("Não consultada(s) por já haver amostra "
+                           "suficiente: " + ", ".join(p["fontes_nao_consultadas"]))
+            if p.get("nao_gravadas"):
+                st.caption(f"{p['nao_gravadas']} resultado(s) contado(s) e "
+                           "não guardado(s): além do limite de 15 da cotação "
+                           "automática.")
+            if p.get("termos_extras"):
+                st.caption("Termos acrescentados à consulta: "
+                           + ", ".join(str(x) for x in p["termos_extras"]))
+            if p.get("saneamento") or any(
+                    saneamento.desconsiderada_pelo_jev(r)
+                    or saneamento.em_revisao_pela_triagem(r)
+                    for r in referencias):
+                resumo = saneamento.resumo_do_item(
+                    referencias, int(p.get("unicas") or len(referencias)))
+                st.caption(f"Triagem: {saneamento.frase_do_resumo(resumo)}")
     elif not referencias:
         st.caption("Nenhuma busca ainda. Pesquise à mão para escolher as "
                    "referências, ou use a Cotação automática.")
-    _render_referencias(ctx, cotacao, item, referencias, editavel)
+    _render_referencias(ctx, cotacao, item, referencias, editavel, eventos)
 
 
 def _acoes_do_item(ctx, cotacao: dict, item: dict) -> None:
@@ -797,10 +828,10 @@ def _chips_da_referencia(linha: dict, dentro: bool) -> list[tuple[str, str]]:
     natureza = precos_ui.ROTULO_NATUREZA.get(str(linha.get("natureza_valor")),
                                              str(linha.get("natureza_valor")))
     return [
-        ("Considerada" if dentro else
-         "Desconsiderada pelo Jev" if saneamento.desconsiderada_pelo_jev(linha)
+        ("No cálculo" if dentro else
+         "Fora pela triagem" if saneamento.desconsiderada_pelo_jev(linha)
          else "Requer revisão" if saneamento.em_revisao_pela_triagem(linha)
-         else {"selected": "Marcada, fora do cálculo", "rejected": "Excluída",
+         else {"selected": "Marcada, sem preço comparável", "rejected": "Fora da cesta",
                "manual_review": "Abaixo do piso", "warning": "Sinalizada",
                "candidate": "Candidata"}.get(status, status),
          "success" if dentro else "danger" if status == "rejected" else ""),
@@ -832,13 +863,16 @@ def _chips_da_sugestao(analise: dict | None) -> list[tuple[str, str]]:
 
 
 def _render_referencias(ctx, cotacao: dict, item: dict, referencias: list[dict],
-                        editavel: bool) -> None:
+                        editavel: bool, eventos: list[dict] | None = None
+                        ) -> None:
     if not referencias:
         return
     from ..precos import seletor
 
     sugestoes = seletor.sugestoes_do_item(
-        repo.listar_eventos(str(cotacao["id"]), limite=200), str(item["id"]))
+        eventos if eventos is not None
+        else repo.listar_eventos(str(cotacao["id"]), limite=200),
+        str(item["id"]))
     st.session_state["_cot_sugestoes"] = sugestoes
     escolhidos = precos_ui._render_filtros(referencias)
     visiveis = filtros_mod.aplicar(referencias, escolhidos)
@@ -854,7 +888,7 @@ def _render_referencias(ctx, cotacao: dict, item: dict, referencias: list[dict],
         desconsideradas = sum(1 for r in retidas
                               if saneamento.desconsiderada_pelo_jev(r))
         with st.expander(
-                f"Desconsideradas pelo Jev ({desconsideradas}) e em revisão "
+                f"Fora da cesta pela triagem ({desconsideradas}) e em revisão "
                 f"({len(retidas) - desconsideradas})"):
             st.caption("Ficaram fora da cesta automática com fundamento "
                        "técnico registrado. Os dados originais estão "
@@ -898,12 +932,22 @@ def _referencia(ctx, cotacao: dict, item: dict, linha: dict, dentro: bool,
         if motivos:
             st.caption(_sem_latex("Por quê: " + "; ".join(
                 str(m) for m in motivos[-3:])))
-        acao, detalhe = st.columns([1.3, 2])
-        if editavel and item.get("estado") != "complete":
+        acao, origem, detalhe = st.columns([1.3, 1.5, 1.6])
+        _botao_de_origem(origem, linha)
+        if editavel and item.get("estado") != "complete" and dentro:
+            # Revisão 02 (03_CESTA): remover é UM clique, sem campo de
+            # justificativa; a trilha registra quem, quando e de onde, e a
+            # tela oferece "Desfazer".
+            if acao.button("Remover da cesta", key=f"cot_rem_ref_{linha['id']}",
+                           use_container_width=True,
+                           help="Tira este preço do cálculo. Não pede "
+                                "justificativa; a retirada fica registrada e "
+                                "pode ser desfeita."):
+                _remover_referencia(ctx, cotacao, item, linha)
+        elif editavel and item.get("estado") != "complete":
             retida = saneamento.desconsiderada_pelo_jev(linha) or \
                 saneamento.em_revisao_pela_triagem(linha)
-            with acao.popover("Tirar da cesta" if dentro else
-                              "Reincluir na cesta" if retida else
+            with acao.popover("Reincluir na cesta" if retida else
                               "Usar na cesta", use_container_width=True):
                 if retida:
                     st.caption("Esta cotação ficou fora da cesta pela "
@@ -911,20 +955,18 @@ def _referencia(ctx, cotacao: dict, item: dict, linha: dict, dentro: bool,
                                "ela entra SINALIZADA e o alerta acompanha o "
                                "preço até a emissão.")
                 with st.form(f"cot_ref_{linha['id']}"):
-                    # retirar não pede justificativa (pacote Jev, RF-02);
-                    # incluir pede, porque muda o preço pelo seu juízo
+                    # incluir pede motivo: muda o preço pelo juízo de quem
+                    # inclui, e esse juízo vai para a memória de cálculo
                     motivo = st.text_input(
-                        "Observação (opcional)" if dentro
-                        else "Motivo da inclusão",
-                        placeholder="mesmo produto e unidade; fora da "
-                                    "curva; …")
-                    ok = st.form_submit_button(
-                        "Retirar da cesta" if dentro else "Confirmar")
+                        "Motivo da inclusão",
+                        placeholder="mesmo produto e unidade, conferido na "
+                                    "fonte; …")
+                    ok = st.form_submit_button("Confirmar")
                 if ok:
                     try:
                         cotacoes.alterar_status_referencia(
                             ctx, str(cotacao["id"]), str(item["id"]),
-                            str(linha["id"]), incluir=not dentro,
+                            str(linha["id"]), incluir=True,
                             motivo=motivo or None,
                             revisao_esperada=_revisao_vista(item))
                     except cotacoes.ErroCotacao as erro:
@@ -945,6 +987,172 @@ def _referencia(ctx, cotacao: dict, item: dict, linha: dict, dentro: bool,
             precos_ui._render_detalhe(linha)
 
 
+DESFAZER = "_cot_desfazer"
+LIDOS = "_cot_lidos"
+
+
+def _botao_de_origem(coluna, linha: dict) -> None:
+    """
+    "Ver contratação" leva à PÁGINA pública da contratação (links.py) —
+    nunca ao JSON da API. Sem página resolvida, nada de botão falso.
+    """
+    from ..precos import links as links_mod
+
+    resolvidos = links_mod.resolver(linha)
+    if resolvidos.contratacao_url:
+        coluna.link_button("Ver contratação", resolvidos.contratacao_url,
+                           use_container_width=True,
+                           help=resolvidos.contratacao_rotulo)
+
+
+def _remover_referencia(ctx, cotacao: dict, item: dict, linha: dict) -> None:
+    valor = _moeda(linha.get("valor_unitario_normalizado")
+                   or linha.get("valor_unitario_original"))
+    try:
+        lidos = st.session_state.get(LIDOS) or {}
+        cotacoes.alterar_status_referencia(
+            ctx, str(cotacao["id"]), str(item["id"]), str(linha["id"]),
+            incluir=False, motivo=None,
+            revisao_esperada=_revisao_vista(item),
+            lidos=(cotacao, item, lidos["refs"])
+            if lidos.get("item") == str(item["id"]) else None)
+    except cotacoes.ErroCotacao as erro:
+        st.error(f"Não foi possível remover: {erro}. Tente novamente.")
+        return
+    except repo.ConflitoDeVersao:
+        # outra aba mexeu no item: o roteador avisa e recarrega a versão
+        # atual (nada foi gravado) — não é falha a esconder
+        raise
+    except db.ErroBanco:
+        st.error("Não foi possível remover agora. Nada mudou na cesta; "
+                 "tente novamente.")
+        return
+    st.session_state[DESFAZER] = {"item": str(item["id"]),
+                                  "referencia": str(linha["id"]),
+                                  "valor": valor,
+                                  "orgao": str(linha.get("orgao") or "")}
+    _renovar_revisoes()
+    st.toast("Preço removido da cesta. Estimativa atualizada.")
+    st.rerun()
+
+
+def _barra_desfazer(ctx, cotacao: dict, item: dict) -> None:
+    """A última retirada DESTE item, com Desfazer (03_CESTA)."""
+    feito = st.session_state.get(DESFAZER)
+    if not feito or feito.get("item") != str(item["id"]):
+        return
+    with st.container(border=True, key="cot_desfazer"):
+        st.markdown(_sem_latex(
+            f"Preço de **{feito['valor']}** removido da cesta"
+            + (f" ({html.escape(feito['orgao'])})" if feito.get("orgao")
+               else "") + ". Estimativa atualizada."))
+        a, b = st.columns(2)
+        if a.button("Desfazer", key="cot_desfazer_btn",
+                    use_container_width=True):
+            try:
+                cotacoes.desfazer_retirada(
+                    ctx, str(cotacao["id"]), str(item["id"]),
+                    feito["referencia"], revisao_esperada=_revisao_vista(item))
+            except cotacoes.ErroCotacao as erro:
+                st.error(str(erro))
+                return
+            st.session_state.pop(DESFAZER, None)
+            _renovar_revisoes()
+            st.toast("Preço devolvido à cesta.")
+            st.rerun()
+        if b.button("Ok", key="cot_desfazer_ok", use_container_width=True):
+            st.session_state.pop(DESFAZER, None)
+            st.rerun()
+
+
+def _alertas_do_item(item: dict, referencias: list[dict]) -> list[dict]:
+    """
+    Os preços DA CESTA que merecem conferência, com tudo que o card
+    precisa: a mesma régua da emissão (`saneamento.alertas_da_cesta`) mais
+    o que o cálculo sinalizou (anomalias gravadas) e as já sinalizadas.
+    """
+    dentro = cesta.consideradas(referencias)
+    if not dentro:
+        return []
+    alvo: set[str] = {str(a.referencia_id) for a in
+                      saneamento.alertas_da_cesta(
+                          [item], {str(item["id"]): referencias})}
+    anomalias = {(str(a.get("fonte_id")), str(a.get("id_externo")))
+                 for a in (item.get("estatisticas") or {}).get("anomalias")
+                 or []}
+    for linha in dentro:
+        if str(linha.get("status")) == "warning" or \
+                (str(linha.get("fonte_id")), str(linha.get("id_externo"))) \
+                in anomalias:
+            alvo.add(str(linha["id"]))
+    mantidas = cesta.decisoes_do_item(item).get("mantidas") or {}
+    saida = []
+    for linha in dentro:
+        if str(linha["id"]) not in alvo:
+            continue
+        outros = [Decimal(str(o["valor_unitario_normalizado"])) for o in dentro
+                  if o is not linha and o.get("valor_unitario_normalizado")
+                  not in (None, "")]
+        saida.append({"linha": linha, "outros": outros,
+                      "mantida": mantidas.get(estatistica.chave_da_referencia(
+                          linha))})
+    return saida
+
+
+def _card_de_alerta(ctx, cotacao: dict, item: dict, alerta: dict,
+                    editavel: bool) -> None:
+    """
+    04_UX: qual preço, de onde, quando, comparado com o quê — e as ações
+    ao lado. Sem MAD, IQR ou faixa negativa; nunca bloqueia a emissão.
+    """
+    linha = alerta["linha"]
+    valor = _moeda(linha.get("valor_unitario_normalizado"))
+    origem = " / ".join(p for p in (str(linha.get("orgao") or ""),
+                                    str(linha.get("uf") or "")) if p)
+    data = precos_ui._data_curta(linha.get("data_resultado")
+                                 or linha.get("data_compra"))
+    with st.container(border=True, key=f"cot_alerta_{linha['id']}"):
+        if alerta.get("mantida"):
+            st.markdown(_sem_latex(
+                f"**{valor}** · {html.escape(origem or 'órgão não informado')}"
+                f" · {data}  \nMantido no cálculo por sua decisão."))
+            return
+        st.markdown("**Confira este preço**")
+        st.markdown(_sem_latex(
+            f"**{valor}** · {html.escape(origem or 'órgão não informado')} · "
+            f"{data}"))
+        if alerta["outros"]:
+            st.caption(_sem_latex(
+                f"Os demais preços usados estão entre "
+                f"{_moeda(min(alerta['outros']))} e "
+                f"{_moeda(max(alerta['outros']))}. Pode haver diferença de "
+                "especificação, embalagem ou condição de fornecimento."))
+        # a cesta é a faixa estreita da tela: o link de origem ocupa a
+        # linha toda e as duas decisões dividem a de baixo
+        _botao_de_origem(st, linha)
+        if not editavel or item.get("estado") == "complete":
+            return
+        b, c = st.columns(2)
+        if b.button("Remover", key=f"cot_alerta_rem_{linha['id']}",
+                    use_container_width=True,
+                    help="Tira o preço do cálculo, sem justificativa."):
+            _remover_referencia(ctx, cotacao, item, linha)
+        if c.button("Manter preço", key=f"cot_alerta_manter_{linha['id']}",
+                    use_container_width=True,
+                    help="O preço fica no cálculo; a decisão fica registrada "
+                         "e o alerta deixa de ser pendência."):
+            try:
+                cotacoes.manter_referencia(
+                    ctx, str(cotacao["id"]), str(item["id"]),
+                    str(linha["id"]), revisao_esperada=_revisao_vista(item))
+            except cotacoes.ErroCotacao as erro:
+                st.error(str(erro))
+                return
+            _renovar_revisoes()
+            st.toast("Preço mantido. A decisão ficou registrada.")
+            st.rerun()
+
+
 # ---------------------------------------------------------------------------
 # Cesta do item (coluna da direita)
 # ---------------------------------------------------------------------------
@@ -960,23 +1168,35 @@ def _painel_cesta(ctx, cotacao: dict, item: dict, referencias: list[dict],
     est = gravado.get("estatisticas") or {}
     n = len(cesta.consideradas(referencias))
     minimo = perfil_atual.minimo_referencias
+    _barra_desfazer(ctx, cotacao, item)
     with st.container(border=True, key="cot_resumo_cesta"):
         st.markdown('<div class="gc-cesta-legenda">Preço estimado do item</div>'
                     f'<div class="gc-cesta-preco">{html.escape(_moeda(item.get("preco_estimado")))}</div>',
                     unsafe_allow_html=True)
-        provisorio = bool(gravado.get("pendencias"))
-        _chips([(f"{n}/{minimo} considerados", "success" if n >= minimo
-                 else "warning"),
-                ("valor provisório" if provisorio and item.get("preco_estimado")
+        em_revisao = bool(gravado.get("pendencias")) and \
+            item.get("estado") != "complete"
+        _chips([(f"{_precos(n)} usados (mínimo {minimo})",
+                 "success" if n >= minimo else "warning"),
+                ("em revisão" if em_revisao and item.get("preco_estimado")
                  else "", "warning"),
                 ("exceção registrada" if (gravado.get("decisoes") or {})
                  .get("excecao") else "", "info"),
                 (cesta.METODOS_ROTULO.get(str(item.get("metodo") or ""),
                                           str(item.get("metodo") or "")), "")])
         st.caption(f"Total do item: {_moeda(item.get('preco_total'))}")
+        for problema in cesta.integridade_do_item(
+                item, referencias, teto=estatistica.POLITICA_AUTOMATICA.teto):
+            st.warning(_sem_latex(problema[:1].upper() + problema[1:] + "."))
         _proximo_passo(ctx, cotacao, item, gravado, n, minimo, editavel)
+    alertas = _alertas_do_item(item, referencias)
+    if alertas:
+        pendentes = sum(1 for a in alertas if not a.get("mantida"))
+        st.markdown(f"**Preços para conferir ({pendentes})**" if pendentes
+                    else "**Preços atípicos mantidos**")
+        for alerta in alertas:
+            _card_de_alerta(ctx, cotacao, item, alerta, editavel)
     if est or gravado.get("anomalias"):
-        with st.expander("Estatística da cesta"):
+        with st.expander("Entenda o cálculo"):
             if est:
                 cv = est.get("coeficiente_variacao")
                 linhas = [
@@ -990,15 +1210,15 @@ def _painel_cesta(ctx, cotacao: dict, item: dict, referencias: list[dict],
                         estatistica.pct(Decimal(str(cv)))
                         if cv not in (None, "") else "—") + " |"]
                 st.markdown("\n".join(linhas).replace("$", "\\$"))
-            for anomalia in gravado.get("anomalias") or []:
-                st.caption(_sem_latex(f"{_moeda(anomalia.get('valor'))}: "
-                                      f"{anomalia.get('motivo', '')}"))
+            if item.get("justificativa"):
+                st.markdown("**Memória de cálculo**")
+                st.text(str(item.get("justificativa")))
     if editavel:
         revisao = _revisao_vista(item)
         precos_ui.render_metodo_do_item(cotacao, item, revisao=revisao)
         precos_ui._render_cotacao(cotacao, item)
-    if item.get("justificativa"):
-        with st.expander("Memória de cálculo"):
+    if item.get("justificativa") and not (est or gravado.get("anomalias")):
+        with st.expander("Entenda o cálculo"):
             st.text(str(item.get("justificativa")))
 
 
@@ -1007,24 +1227,34 @@ def _proximo_passo(ctx, cotacao: dict, item: dict, gravado: dict, n: int,
     """O que falta para fechar ESTE item, com a ação ao lado do aviso."""
     estado = str(item.get("estado") or "pending")
     if estado == EstadoItem.COMPLETO.value:
-        st.success("Item concluído.")
+        st.success("Pesquisa do item concluída.")
         if editavel:
-            st.caption("Para mudar, reabra o item em Ações do item.")
+            with st.popover("Revisar preços deste item",
+                            use_container_width=True):
+                motivo = st.text_input("Por que reabrir?",
+                                       key=f"cot_reab_m_{item['id']}",
+                                       placeholder="ex.: conferir um preço")
+                if st.button("Reabrir item", key=f"cot_reab_{item['id']}",
+                             type="primary"):
+                    cotacoes.reabrir_item(ctx, str(cotacao["id"]),
+                                          str(item["id"]), motivo)
+                    _renovar_revisoes()
+                    st.rerun()
         return
     if not editavel:
         return
     if estado == EstadoItem.EM_REVISAO.value:
         pendencias = gravado.get("pendencias") or []
         if pendencias:
-            st.markdown("**Resolva antes de concluir**")
+            st.markdown("**Antes de concluir**")
             for pendencia in pendencias:
                 st.warning(_sem_latex(pendencia))
         _form_concluir(ctx, cotacao, item)
         return
     if estado == EstadoItem.INCOMPLETO.value:
-        st.warning(f"Faltam referências: {n} de {minimo} consideradas. "
-                   "Amplie a busca, registre cotação de fornecedor ou "
-                   "registre a exceção justificada.")
+        st.warning(f"Restam {_precos(n)}; o mínimo é {minimo}. Busque mais "
+                   "referências, registre cotação de fornecedor ou a "
+                   "exceção justificada.")
         precos_ui.render_excecao_do_item(cotacao, item,
                                          revisao=_revisao_vista(item))
         return

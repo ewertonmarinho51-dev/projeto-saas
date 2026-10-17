@@ -40,9 +40,11 @@ from .perfil import obter as obter_perfil
 
 NAO_INFORMADO = "Não informado"
 
-# Quantas referências o relatório COMPACTO mostra por item. Não muda a
-# cesta: todas as N consideradas compõem o cálculo e estão no anexo.
-REFERENCIAS_EXIBIDAS = 5
+# Quantas referências o relatório COMPACTO mostra por item. Revisão 02:
+# TODAS as consideradas (a cesta automática tem no máximo 15), para o
+# relatório bastar sozinho; o corte só vale para cesta antiga, formada
+# antes do teto, e o documento diz quantas foram exibidas.
+REFERENCIAS_EXIBIDAS = 30
 
 # Brasil sem horário de verão desde 2019: UTC−3 fixo é o horário de
 # Brasília, e não depende de base de fusos instalada no servidor.
@@ -77,6 +79,21 @@ class ReferenciaView:
     link: str | None
     coletado_em: str
     descricao_fonte: str
+    # Revisão 02 (06_FONTES_E_LINKS): página PÚBLICA da contratação, rótulo
+    # do que ela é, identificação impressa e o endpoint técnico à parte.
+    contratacao_url: str | None = None
+    contratacao_rotulo: str = ""
+    identificacao: str = ""
+    dados_url: str | None = None
+    fonte_url: str | None = None
+    # dados da contratação, só quando a fonte os entrega (nunca inventados)
+    objeto_contratacao: str = ""
+    modalidade: str = ""
+    fornecedor_cnpj: str = ""
+    marca: str = ""
+    item_da_compra: str = ""
+    # como a referência saiu da cesta, dito com a autoria certa
+    autoria_da_saida: str = ""
 
 
 @dataclass(frozen=True)
@@ -112,6 +129,15 @@ class ItemView:
     exibidas: tuple[ReferenciaView, ...]
     motivos_de_exclusao: tuple[tuple[str, int], ...]
     cotacoes_diretas: tuple[MappingProxyType, ...]
+    # Revisão 02 — o que o relatório principal precisa, sem inventário:
+    # as saídas que AFETARAM a série (analisadas e tiradas, com autoria
+    # certa), os atípicos mantidos por decisão, o ajuste pelo teto da
+    # mediana e as violações de integridade da leitura.
+    saidas_da_serie: tuple[ReferenciaView, ...] = ()
+    mantidas: tuple[tuple[ReferenciaView, MappingProxyType], ...] = ()
+    ajuste_teto: tuple[Decimal, Decimal] | None = None
+    integridade: tuple[str, ...] = ()
+    nao_usadas: int = 0
 
     @property
     def considerada_lista(self) -> tuple[ReferenciaView, ...]:
@@ -189,6 +215,27 @@ class CotacaoReportView:
     # impressa nos alertas, fora do identificador — a ciência não muda o
     # resultado, só registra que alguém o viu com os alertas.
     ciencia: MappingProxyType | None = None
+    # Revisão 02 (D12): coleta e emissão no horário de Brasília no corpo;
+    # UTC só na identificação técnica.
+    coleta_inicio_local: str = ""
+    coleta_fim_local: str = ""
+    # versões da triagem automática que DE FATO agiram nesta pesquisa (lidas
+    # dos motivos gravados): a metodologia só descreve triagem que ocorreu
+    triagem_versoes: tuple[str, ...] = ()
+
+    @property
+    def emitido_local(self) -> str:
+        return (self.emitido_em.astimezone(BRASILIA).strftime("%d/%m/%Y %H:%M")
+                + " (horário de Brasília)")
+
+    @property
+    def coleta_local(self) -> str:
+        if not self.coleta_inicio_local:
+            return NAO_INFORMADO
+        if self.coleta_inicio_local == self.coleta_fim_local:
+            return f"{self.coleta_inicio_local} (horário de Brasília)"
+        return (f"{self.coleta_inicio_local} a {self.coleta_fim_local} "
+                "(horário de Brasília)")
 
     @property
     def valor_global(self) -> Decimal | None:
@@ -250,8 +297,10 @@ def _situacao_da_referencia(linha: dict, considerada: bool) -> str:
                 else "Considerada")
     if status in cesta_mod.NA_CESTA:
         return "Marcada, fora do cálculo"
+    if status == "rejected":
+        autoria = autoria_da_saida(linha)
+        return autoria[:1].upper() + autoria[1:] if autoria else "Fora da série"
     return {
-        "rejected": "Excluída pelo revisor",
         "candidate": "Não selecionada",
         "manual_review": "Abaixo do piso de comparabilidade",
     }.get(status, rel._ROTULO_STATUS.get(status, status or NAO_INFORMADO))  # noqa: SLF001
@@ -269,7 +318,57 @@ def _motivo(linha: dict, considerada: bool) -> str:
     return ""
 
 
+# Códigos de modalidade do SIASG que a API de preços praticados devolve.
+# Só os conferidos: 05 abriu "Pregão Eletrônico" na página pública da
+# compra (links.py). Código fora da lista não é traduzido nem exibido.
+MODALIDADE_COMPRAS = {"5": "Pregão", "05": "Pregão", "6": "Dispensa",
+                      "06": "Dispensa", "7": "Inexigibilidade",
+                      "07": "Inexigibilidade"}
+
+
+def _cnpj(texto) -> str:
+    digitos = re.sub(r"\D", "", str(texto or ""))
+    if len(digitos) != 14:
+        return ""
+    return (f"{digitos[:2]}.{digitos[2:5]}.{digitos[5:8]}/"
+            f"{digitos[8:12]}-{digitos[12:]}")
+
+
+def autoria_da_saida(linha: dict) -> str:
+    """
+    Quem tirou a referência da série, com a autoria CERTA (Revisão 02,
+    D07: o PDF dizia "excluída pelo revisor" para decisão automática).
+    Vazio quando ela não saiu da série (nunca entrou, ou está nela).
+    """
+    from . import cotacoes, saneamento
+
+    status = str(linha.get("status") or "")
+    motivos = [str(m) for m in (linha.get("motivos") or [])]
+    if status != "rejected":
+        return ""
+    if saneamento.desconsiderada_pelo_jev(linha):
+        return "desconsiderada pela triagem automática"
+    if any(m == cotacoes.MOTIVO_RETIRADA_AUTOMATICO for m in motivos):
+        return "retirada da cesta pelo servidor"
+    if any("critério" in m and "discrepante" in m for m in motivos):
+        return "retirada pelo servidor (preço atípico)"
+    if any(m.startswith("unidade") or "conversão" in m or "grandeza" in m
+           for m in motivos):
+        return "fora da série: unidade sem conversão comprovada"
+    return "retirada pelo servidor"
+
+
 def _referencia(linha: dict, considerada: bool) -> ReferenciaView:
+    from . import links as links_mod
+
+    resolvidos = links_mod.resolver(linha)
+    bruto = linha.get("bruto") or {}
+    objeto = " ".join(str(bruto.get("objetoCompra") or "").split())
+    objeto = re.sub(r"^Objeto:\s*", "", objeto, flags=re.IGNORECASE)
+    modalidade = MODALIDADE_COMPRAS.get(str(bruto.get("modalidade") or ""), "") \
+        if str(linha.get("fonte_id")) == "compras_gov_precos" else \
+        " ".join(str(bruto.get("modalidadeNome") or "").split())
+    numero_item = bruto.get("numeroItemCompra") or bruto.get("numeroItemPncp")
     return ReferenciaView(
         id=str(linha.get("id") or ""),
         considerada=considerada,
@@ -304,6 +403,21 @@ def _referencia(linha: dict, considerada: bool) -> ReferenciaView:
                      if linha.get("coletado_em") else NAO_INFORMADO),
         descricao_fonte=" ".join(
             str(linha.get("descricao_original") or "").split()),
+        contratacao_url=resolvidos.contratacao_url,
+        contratacao_rotulo=resolvidos.contratacao_rotulo,
+        identificacao=resolvidos.identificacao,
+        dados_url=resolvidos.dados_url,
+        fonte_url=resolvidos.fonte_url,
+        objeto_contratacao=objeto[:300],
+        modalidade=modalidade,
+        fornecedor_cnpj=_cnpj(linha.get("ni_fornecedor")
+                              or bruto.get("niFornecedor")
+                              or bruto.get("codFornecedor")),
+        marca=" ".join(str(linha.get("marca") or bruto.get("marca")
+                           or "").split()),
+        item_da_compra=str(numero_item) if numero_item not in (None, "", 0)
+        else "",
+        autoria_da_saida=autoria_da_saida(linha),
     )
 
 
@@ -345,8 +459,31 @@ def _estatisticas(gravado: dict) -> MappingProxyType:
         if bruto.get(chave) not in (None, "")})
 
 
+_TETO = re.compile(r"valor ajustado de R\$\s*([\d.]+,\d{2}) para R\$\s*([\d.]+,\d{2})")
+
+
+def _brl_para_decimal(texto: str) -> Decimal:
+    return Decimal(texto.replace(".", "").replace(",", "."))
+
+
+def _ajuste_teto(gravado: dict, memoria: str) -> tuple[Decimal, Decimal] | None:
+    """O par (pelo método, adotado) — estruturado, ou da memória antiga."""
+    ajuste = gravado.get("ajuste_teto")
+    if isinstance(ajuste, dict) and ajuste.get("adotado"):
+        return (Decimal(str(ajuste["pelo_metodo"])),
+                Decimal(str(ajuste["adotado"])))
+    achado = _TETO.search(memoria or "")
+    if achado:
+        return (_brl_para_decimal(achado.group(1)),
+                _brl_para_decimal(achado.group(2)))
+    return None
+
+
 def _item(item: dict, linhas: list[dict], perfil,
           deficiencias: tuple[str, ...]) -> ItemView:
+    from . import saneamento
+    from .estatistica import POLITICA_AUTOMATICA, chave_da_referencia
+
     consideradas = cesta_mod.consideradas(linhas)
     dentro = {id(linha) for linha in consideradas}
     refs = tuple(_referencia(linha, id(linha) in dentro) for linha in
@@ -362,6 +499,21 @@ def _item(item: dict, linhas: list[dict], perfil,
         if not r.considerada and r.status == "rejected":
             chave = r.motivo or "sem motivo registrado"
             motivos[chave] = motivos.get(chave, 0) + 1
+    por_id = {str(l.get("id")): l for l in linhas}
+    # Saídas que AFETARAM a série: analisadas como preço e tiradas dela —
+    # pela triagem com critério de análise (extremo corroborado, objeto
+    # divergente) ou pela pessoa. Unidade sem conversão, duplicata e
+    # valor inválido não são preço do item: ficam só contados.
+    saidas = tuple(
+        r for r in refs if not r.considerada and r.status == "rejected"
+        and (saneamento.desconsiderada_por_analise(por_id.get(r.id) or {})
+             or r.autoria_da_saida.startswith("retirada")))
+    decisoes_mantidas = (decisoes.get("mantidas") or {})
+    mantidas = tuple(
+        (r, MappingProxyType(dict(decisoes_mantidas[chave])))
+        for r in refs if r.considerada
+        for chave in [chave_da_referencia(por_id.get(r.id) or {})]
+        if chave in decisoes_mantidas)
     return ItemView(
         id=str(item.get("id") or ""),
         numero=int(item.get("numero") or 0),
@@ -418,6 +570,12 @@ def _item(item: dict, linhas: list[dict], perfil,
             })
             for linha in linhas
             if str(linha.get("fonte_id")) == "cotacao_direta"),
+        saidas_da_serie=saidas,
+        mantidas=mantidas,
+        ajuste_teto=_ajuste_teto(gravado, str(item.get("justificativa") or "")),
+        integridade=tuple(cesta_mod.integridade_do_item(
+            item, linhas, teto=POLITICA_AUTOMATICA.teto)),
+        nao_usadas=len(linhas) - len(consideradas),
     )
 
 
@@ -458,6 +616,9 @@ def projetar(pesquisa: dict, itens: list[dict],
     concluidos = [i for i in vistos if i.concluido]
     subtotal = sum((i.preco_total or Decimal("0")) for i in concluidos)
     inicio, fim = rel._janela_de_coleta(referencias)  # noqa: SLF001
+    instantes = [m for lista in referencias.values() for linha in lista
+                 if (m := rel._instante(linha.get("coletado_em")))]  # noqa: SLF001
+    local = (lambda m: m.astimezone(BRASILIA).strftime("%d/%m/%Y %H:%M"))
     filtros = pesquisa.get("filtros") or {}
     regras = str(pesquisa.get("versao_regras") or "")
     processo = processo or {}
@@ -522,4 +683,11 @@ def projetar(pesquisa: dict, itens: list[dict],
         metodos_aplicados=tuple(sorted({i.metodo_rotulo for i in vistos
                                         if i.metodo_rotulo})),
         ciencia=MappingProxyType(dict(ciencia)) if ciencia else None,
+        triagem_versoes=tuple(sorted({
+            achado for lista in referencias.values() for linha in lista
+            for m in (linha.get("motivos") or [])
+            for achado in re.findall(r"política (\d{4}-\d{2}-\d{2}\.saneamento-v\d+)",
+                                     str(m))})),
+        coleta_inicio_local=local(min(instantes)) if instantes else "",
+        coleta_fim_local=local(max(instantes)) if instantes else "",
     )

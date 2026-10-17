@@ -3,7 +3,7 @@ Relatório nunca travado por preço atípico — ciência na emissão (pacote
 Jev de 17/10/2026, objetivo C; plano de testes E01–E14).
 
 Serviço (`precos.ciencia`) no banco falso e a tela de Cotações pelo
-AppTest: aviso, "Voltar e revisar", "Estou ciente, emitir relatório",
+AppTest: aviso, "Voltar e revisar", "Estou ciente, gerar relatório",
 ciência vinculada à versão da cesta e ao usuário, conferida no servidor
 antes de gerar qualquer arquivo. Nenhuma rede, nenhuma IA.
 """
@@ -176,7 +176,12 @@ def test_e09_documento_imprime_a_ciencia_com_linguagem_neutra(monkeypatch):
     docx = dc.relatorio_de_cotacao_docx(vista)
     with zipfile.ZipFile(io.BytesIO(docx)) as zf:
         corpo = zf.read("word/document.xml").decode("utf-8")
-    assert "Ciência na emissão" in corpo and "Servidor Teste" in corpo
+    # Revisão 02 (05_RELATORIO §5): no relatório de cotação a ciência é um
+    # resumo discreto, sem nome de usuário — quem, quando e a assinatura
+    # ficam no registro de emissão (e no Markdown legado, acima).
+    assert "Conferência antes da emissão" in corpo
+    assert "não é aprovação administrativa" in corpo
+    assert "Servidor Teste" not in corpo
 
 
 def test_e10_desconsiderada_antes_da_cesta_nao_entra_no_calculo(monkeypatch):
@@ -191,7 +196,9 @@ def test_e10_desconsiderada_antes_da_cesta_nao_entra_no_calculo(monkeypatch):
     cotacoes.pesquisar_item(CTX, str(c["id"]), str(item["id"]),
                             modo="automatico",
                             fontes=[apoio.FonteDaFixture(fixture)],
-                            triagem=saneamento.POLITICA_PADRAO)
+                            # política v1 (5+ preços): na v2 o toner de n=5
+                            # fica na cesta SINALIZADO — test_revisao02_triagem
+                            triagem=saneamento.POLITICA_V1)
     assert D(str(repo.obter_item(str(item["id"]))["preco_estimado"])) == D("180")
 
 
@@ -315,13 +322,15 @@ def test_tela_aviso_nao_trava_e_voltar_nao_gera(monkeypatch):
     at, cliente = _tela(monkeypatch)
     at.run()
     assert not at.exception
-    avisos = " ".join(str(w.value) for w in at.warning)
-    assert "variação relevante" in avisos and "não impede a emissão" in avisos
+    # Revisão 02 (04_UX): aviso informativo, não vermelho — a emissão não
+    # é impedida, e a tela diz isso
+    avisos = " ".join(str(w.value) for w in at.info)
+    assert "preços para conferir" in avisos and "não é impedida" in avisos
     # nenhuma caixa de "Estou ciente" travando os botões: eles existem
     assert not any("Estou ciente" in c.label for c in at.checkbox)
     _botao(at, "Quadro resumido (PDF)").click().run()
     assert not at.exception
-    assert any(b.label == "Estou ciente, emitir relatório" for b in at.button)
+    assert any(b.label == "Estou ciente, gerar relatório" for b in at.button)
     assert _emissoes(cliente) == [], "E03: o aviso não gera arquivo"
     _botao(at, "Voltar e revisar").click().run()
     assert not at.exception
@@ -334,7 +343,7 @@ def test_tela_estou_ciente_registra_e_gera(monkeypatch):
     at, cliente = _tela(monkeypatch)
     at.run()
     _botao(at, "Quadro resumido (PDF)").click().run()
-    _botao(at, "Estou ciente, emitir relatório").click().run()
+    _botao(at, "Estou ciente, gerar relatório").click().run()
     assert not at.exception
     [ciente] = [e for e in cliente.tabelas["pesquisa_preco_eventos"]
                 if e["tipo"] == ciencia.TIPO_EVENTO]
@@ -347,7 +356,7 @@ def test_tela_estou_ciente_registra_e_gera(monkeypatch):
     assert emissao["hash_decisorio"] == ciente["payload"]["revisao"]
     # segunda emissão da MESMA versão: sem novo aviso, sem nova ciência
     _botao(at, "Quadro resumido (PDF)").click().run()
-    assert not any(b.label == "Estou ciente, emitir relatório"
+    assert not any(b.label == "Estou ciente, gerar relatório"
                    for b in at.button)
     assert len([e for e in cliente.tabelas["pesquisa_preco_eventos"]
                 if e["tipo"] == ciencia.TIPO_EVENTO]) == 1

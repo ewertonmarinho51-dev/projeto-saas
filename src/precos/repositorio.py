@@ -819,7 +819,8 @@ def listar_referencias(item_id: str,
 
 
 def reclassificar_referencia(referencia_id: str, status: str,
-                             motivo: str | None = None) -> dict:
+                             motivo: str | None = None, *,
+                             motivos_atuais: list | None = None) -> dict:
     """
     Inclui ou exclui uma referência da cesta.
 
@@ -835,9 +836,14 @@ def reclassificar_referencia(referencia_id: str, status: str,
     if not texto and status in ("selected", "warning"):
         raise ValueError("incluir referência na cesta exige motivo registrado")
     try:
-        atual = (_cliente().table(TABELA_REFERENCIAS).select("motivos")
-                 .eq("id", referencia_id).limit(1).execute())
-        motivos = list(atual.data[0]["motivos"]) if atual.data else []
+        if motivos_atuais is not None:
+            # quem chama acabou de ler a linha (Revisão 02: uma ida ao
+            # banco a menos por clique de remover)
+            motivos = list(motivos_atuais)
+        else:
+            atual = (_cliente().table(TABELA_REFERENCIAS).select("motivos")
+                     .eq("id", referencia_id).limit(1).execute())
+            motivos = list(atual.data[0]["motivos"]) if atual.data else []
         if texto and texto not in motivos:
             motivos.append(texto)
         resposta = (_cliente().table(TABELA_REFERENCIAS)

@@ -26,6 +26,7 @@ quebra e hyperlink.
 from __future__ import annotations
 
 import io
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 from xml.sax.saxutils import escape
@@ -36,7 +37,7 @@ from .relatorio_view import (NAO_INFORMADO, CotacaoReportView, ItemView,
 
 # Versão do LAYOUT. Entra no nome do registro de emissão e na chave de
 # cache da tela: mudar o desenho muda o arquivo.
-VERSAO_RENDERER = "cotacao-2026-10-16.1"
+VERSAO_RENDERER = "cotacao-2026-10-17.revisao02"
 
 # --- tokens visuais GovConnect (sem cores nem marcas de terceiros) ------
 FONTE = "DejaVu Sans"
@@ -399,7 +400,7 @@ class Documento:
         texto_rodape = (f"GovConnect · Cotação {view.pesquisa_id[:8]} · "
                         f"Rev. {view.revisao} · Versão "
                         f"{view.hash_decisorio[:16]}… · "
-                        f"{view.emitido_em.strftime('%d/%m/%Y %H:%M')} UTC")
+                        f"{view.emitido_local}")
         for rodape in (secao.footer, secao.first_page_footer):
             par = rodape.paragraphs[0]
             if imagem_base:
@@ -487,8 +488,7 @@ def _abertura(d: Documento, view: CotacaoReportView, titulo: str,
     d.paragrafo([T(view.nome, negrito=True), T(f"  ·  Revisão {view.revisao}"),
                  T(f"  ·  {subtitulo}", cor=SECUNDARIO)], pt=10, depois=8)
 
-    coleta = (f"{view.coleta_inicio} a {view.coleta_fim} (UTC)"
-              if view.coleta_inicio else NAO_INFORMADO)
+    coleta = view.coleta_local
     processo = (f"{view.processo_id[:8]} — {view.processo_objeto}"
                 if view.processo_id and view.processo_objeto else
                 view.processo_id[:8] if view.processo_id else
@@ -502,7 +502,7 @@ def _abertura(d: Documento, view: CotacaoReportView, titulo: str,
         ("Perfil normativo", f"{view.perfil_nome} ({view.perfil_base_legal})",
          "Método", ", ".join(view.metodos_aplicados) or "Não aplicado"),
         ("Local de referência", view.local, "Emitido em",
-         view.emitido_em_texto),
+         view.emitido_local),
     ]
     rotulo = 3.1
     valor = (d.util_cm - 2 * rotulo) / 2
@@ -542,7 +542,7 @@ def _quadro_resumo(d: Documento, view: CotacaoReportView) -> None:
         return
     colunas = [Coluna("Nº", 0.9, "center"), Coluna("Item", 6.0),
                Coluna("Qtd. / Unid.", 2.5, "right"),
-               Coluna("Válidas", 1.5, "center"),
+               Coluna("Preços usados", 1.7, "center"),
                Coluna("Unitário", 2.2, "right"), Coluna("Total", 2.5, "right"),
                Coluna("Situação", 2.2)]
     _ajustar(colunas, d.util_cm, elastica=1)
@@ -553,8 +553,9 @@ def _quadro_resumo(d: Documento, view: CotacaoReportView) -> None:
             f"{item.numero:02d}",
             item.titulo,
             f"{quantidade(item.quantidade)} {item.unidade}",
-            f"{item.consideradas}/{item.minimo}",
-            moeda(item.preco_unitario) if concluido else "—",
+            f"{item.consideradas}",
+            (moeda(item.preco_unitario) + (" *" if item.ajuste_teto else ""))
+            if concluido else "—",
             T(moeda(item.preco_total), negrito=True) if concluido else "—",
             T(situacao_curta(item), negrito=not concluido,
               cor=ALERTA_TINTA if not concluido else TINTA),
@@ -580,12 +581,18 @@ def _quadro_resumo(d: Documento, view: CotacaoReportView) -> None:
             "não consolidado. Itens pendentes não entram no subtotal e não "
             "têm preço estimado neste quadro.", pt=NOTA_PT,
             cor=ALERTA_TINTA)
+    if any(i.ajuste_teto for i in view.itens):
+        d.paragrafo(
+            "* Valor limitado à mediana dos preços: a estimativa se apoia só "
+            "em sistema oficial de preços e o perfil normativo da pesquisa "
+            "manda que ela não supere a mediana. O valor calculado pelo "
+            "método e o adotado estão no detalhamento do item.",
+            pt=NOTA_PT, cor=SECUNDARIO)
     d.paragrafo(
-        "Unitário e total são os valores gravados pelo motor da pesquisa, em "
-        "reais com duas casas decimais (arredondamento meio para cima, "
-        "calculado em Decimal); total do item = unitário × quantidade. "
-        "“Válidas” conta só as referências consideradas no cálculo.",
-        pt=NOTA_PT, cor=SECUNDARIO)
+        f"Mínimo por item: {view.minimo} preços. “Preços usados” conta as "
+        "referências que compõem o cálculo. Valores em reais com duas casas "
+        "(arredondamento meio para cima); total do item = unitário × "
+        "quantidade.", pt=NOTA_PT, cor=SECUNDARIO)
 
 
 def _metodo(d: Documento, view: CotacaoReportView) -> None:
@@ -603,13 +610,35 @@ def _metodo(d: Documento, view: CotacaoReportView) -> None:
               else "; sem recorte geográfico")
     linhas.append(["Critérios de busca", busca + "; código de catálogo "
                    "(CATMAT/CATSER) usado quando informado, não exigido"])
-    for titulo, texto in view.criterios:
-        linhas.append([titulo or "Critério", texto.rstrip(";")])
+    # Revisão 02 (05_RELATORIO §3): metodologia sucinta e só do que de
+    # fato ocorreu. A amostra é a USADA; a triagem só é descrita quando
+    # agiu nesta pesquisa (versão lida dos motivos gravados).
     linhas.append([
-        "Contagem N/mínimo",
-        "Só referências CONSIDERADAS: na cesta, com preço normalizado na "
-        "unidade do item e natureza de preço. Selecionar não basta; "
-        "referência excluída depois não conta."])
+        "Seleção da amostra",
+        "Preços praticados em contratações públicas, na unidade do item, "
+        "escolhidos por prioridade da fonte e comparabilidade com a "
+        "especificação — nunca pelo menor preço. Na cotação automática, até "
+        "15 preços por item."])
+    if view.triagem_versoes:
+        linhas.append([
+            "Triagem antes da cesta",
+            "Ficam fora da série: valor inválido, unidade sem conversão "
+            "comprovada pela fonte, a mesma linha de contratação repetida e "
+            "preço atípico corroborado por pelo menos 8 preços comparáveis "
+            "de origens independentes. Com amostra menor, o preço atípico "
+            "fica no cálculo, sinalizado para conferência. Política "
+            + ", ".join(view.triagem_versoes) + "."])
+    linhas.append([
+        "Preços atípicos",
+        "Sinalizados pela distância da mediana do item (desvio absoluto "
+        "mediano e intervalo interquartil). A sinalização não retira o "
+        "preço: o servidor remove ou mantém, e a decisão consta do item."])
+    if view.fundamento_desconsideracao:
+        linhas.append([
+            "Desconsideração de valores",
+            f"Fundamento: {view.fundamento_desconsideracao}. As "
+            "desconsiderações que afetaram a série de cada item estão no "
+            "detalhamento, com o critério."])
     d.tabela([Coluna("", 4.2), Coluna("", d.util_cm - 4.2)],
              [[T(a, negrito=True, cor=SECUNDARIO), b] for a, b in linhas],
              cabecalho=False, pt=8)
@@ -633,6 +662,65 @@ def _celula_orgao(ref: ReferenciaView) -> list[T]:
     return partes
 
 
+def _celula_origem(ref: ReferenciaView) -> list[T]:
+    """
+    Órgão e o que a fonte disse da contratação — só o que existe no
+    registro (Revisão 02, 05 §2: nunca preencher com placeholder).
+    """
+    partes = _celula_orgao(ref)
+    detalhes = []
+    if ref.modalidade:
+        detalhes.append(ref.modalidade)
+    if ref.item_da_compra:
+        detalhes.append(f"item {ref.item_da_compra}")
+    if detalhes:
+        partes.append(T(" · ".join(detalhes), quebra_antes=True,
+                        cor=SECUNDARIO, pt=7))
+    if ref.fornecedor:
+        fornecedor = ref.fornecedor + (f" ({ref.fornecedor_cnpj})"
+                                       if ref.fornecedor_cnpj else "")
+        partes.append(T(f"Fornecedor: {fornecedor}", quebra_antes=True,
+                        cor=SECUNDARIO, pt=7))
+    return partes
+
+
+def _celula_preco(ref: ReferenciaView) -> list[T]:
+    partes = [T(moeda(ref.valor) + (" ⚑" if ref.sinalizada else ""),
+                negrito=True)]
+    if ref.valor_original is not None and ref.valor_original != ref.valor:
+        partes.append(T(f"orig. {moeda(ref.valor_original)} / "
+                        f"{ref.unidade_original}", quebra_antes=True,
+                        cor=SECUNDARIO, pt=7))
+    return partes
+
+
+def _celula_contratacao(ref: ReferenciaView) -> list[T]:
+    """
+    O link da PÁGINA DA CONTRATAÇÃO, sobre o número oficial impresso.
+    Sem página pública resolvida, diz isso — nunca aponta o JSON da API.
+    """
+    if ref.contratacao_url and ref.identificacao:
+        return [T(ref.identificacao, link=ref.contratacao_url, pt=7,
+                  cor=AZUL),
+                T(ref.contratacao_rotulo, quebra_antes=True,
+                  cor=SECUNDARIO, pt=6.5)]
+    return [T("Não disponível na fonte", cor=SECUNDARIO, pt=7)]
+
+
+def _memoria_para_imprimir(item: ItemView) -> list[str]:
+    """
+    A memória gravada, sem contradizer a situação do item (Revisão 02,
+    D06/AC-32): concluído não sai "PROVISÓRIO" nem "aguardam decisão" —
+    a conclusão do revisor já está na própria memória.
+    """
+    if not item.concluido:
+        return list(item.memoria)
+    descartar = ("valor PROVISÓRIO", "Análise crítica:")
+    return [linha for linha in item.memoria
+            if not linha.startswith(descartar)
+            and "aguardam decisão" not in linha]
+
+
 def _detalhe_do_item(d: Documento, view: CotacaoReportView,
                      item: ItemView) -> None:
     d.faixa_do_item(f"ITEM {item.numero:02d} · {item.titulo.upper()}",
@@ -641,24 +729,26 @@ def _detalhe_do_item(d: Documento, view: CotacaoReportView,
     # separado do seu bloco é o defeito de paginação que o pacote proíbe
     d.paragrafo([T("Especificação: ", negrito=True), T(item.descricao)],
                 pt=8.5, depois=3, alinhar="justify", manter=True)
-    catalogo = (f"{item.tipo_catalogo or 'Catálogo'} {item.codigo}"
-                if item.codigo else "não informado (busca por descrição)")
-    d.paragrafo([T("Unidade: ", cor=SECUNDARIO), T(item.unidade, negrito=True),
-                 T("   Quantidade: ", cor=SECUNDARIO),
-                 T(quantidade(item.quantidade), negrito=True),
-                 T("   Catálogo: ", cor=SECUNDARIO), T(catalogo)],
-                pt=8.5, depois=4, manter=True)
+    dados = [T("Unidade: ", cor=SECUNDARIO), T(item.unidade, negrito=True),
+             T("   Quantidade: ", cor=SECUNDARIO),
+             T(quantidade(item.quantidade), negrito=True)]
+    # Revisão 02 (D11): só código de catálogo REAL; o número da linha da
+    # planilha não é catálogo ("Catálogo: Catálogo 1").
+    if item.codigo and item.tipo_catalogo in ("CATMAT", "CATSER"):
+        dados += [T(f"   {item.tipo_catalogo}: ", cor=SECUNDARIO),
+                  T(item.codigo)]
+    d.paragrafo(dados, pt=8.5, depois=4, manter=True)
 
     if item.concluido:
         unitario = moeda(item.preco_unitario)
         total = moeda(item.preco_total)
     elif item.preco_unitario is not None:
-        unitario = f"{moeda(item.preco_unitario)} (provisório)"
+        unitario = f"{moeda(item.preco_unitario)} (em revisão)"
         total = "Não consolidado"
     else:
         unitario, total = "Não estimado", "Não estimado"
     kpis = [("Método", item.metodo_rotulo or "Não aplicado"),
-            ("Referências válidas", f"{item.consideradas}/{item.minimo}"),
+            ("Preços usados", f"{item.consideradas} (mínimo {item.minimo})"),
             ("Valor unitário", unitario), ("Valor do item", total)]
     largura = d.util_cm / 4
     # UMA linha (rótulo e valor na mesma célula): linha não se parte
@@ -669,88 +759,121 @@ def _detalhe_do_item(d: Documento, view: CotacaoReportView,
                for r, v in kpis]],
              cabecalho=False, fundo_linhas=[FAIXA], bordas=False,
              fonte=FONTE)
+    if item.ajuste_teto:
+        pelo_metodo, adotado = item.ajuste_teto
+        d.paragrafo(
+            [T("Valor adotado: ", negrito=True),
+             T(f"{item.metodo_rotulo or 'método'} dos preços = "
+               f"{moeda(pelo_metodo)}; adotada a mediana, {moeda(adotado)}, "
+               "porque a estimativa se apoia só em sistema oficial de preços "
+               f"e o perfil ({view.perfil_nome}) limita o valor à mediana.")],
+            pt=8, cor=SECUNDARIO, depois=3)
 
     if item.deficiencias:
         texto = "; ".join(item.deficiencias)
         d.caixa([T("PENDENTE — " if not item.concluido else "RESSALVA — ",
                    negrito=True),
-                 T(f"{item.consideradas}/{item.minimo} referências válidas. "),
+                 T(f"{item.consideradas} preço(s) usado(s), mínimo "
+                   f"{item.minimo}. "),
                  T(texto[0].upper() + texto[1:] + "."),
                  T(" Este item não integra o subtotal." if not item.concluido
                    else "")])
+    for problema in item.integridade:
+        d.caixa([T("Atenção à cesta — ", negrito=True), T(problema + ".")])
 
     e = item.estatisticas
     if e.get("quantidade"):
-        partes = [T(f"Série considerada ({e.get('quantidade')}): ",
-                    negrito=True)]
+        partes = [T(f"Série usada ({e.get('quantidade')}): ", negrito=True)]
         for rotulo, chave in (("menor", "menor"), ("média", "media"),
                               ("mediana", "mediana"), ("maior", "maior")):
             if e.get(chave) is not None:
                 partes.append(T(f"{rotulo} {moeda(e[chave])}   "))
         if e.get("coeficiente_variacao") is not None:
-            partes.append(T(f"CV {pct(e['coeficiente_variacao'])}"))
+            partes.append(T(f"coef. de variação "
+                            f"{pct(e['coeficiente_variacao'])}"))
         d.paragrafo(partes, pt=8, cor=SECUNDARIO, depois=3)
 
-    # preços considerados — amostra declarada
+    # Revisão 02 (05 §2): TODAS as referências usadas, com a contratação
     if item.consideradas:
         exibidas = len(item.exibidas)
-        if exibidas < item.consideradas:
-            cabeca = (f"Preços considerados — exibidas {exibidas} de "
-                      f"{item.consideradas}")
-            nota = ("Critério de exibição: menor, quartis, mediana e maior da "
-                    "série. Todas as "
-                    f"{item.consideradas} referências consideradas compõem o "
-                    "cálculo e estão no Relatório Analítico Integral e na "
-                    "Memória Analítica (XLSX).")
-        else:
-            cabeca = f"Preços considerados ({item.consideradas})"
-            nota = ""
+        cabeca = (f"Preços usados ({item.consideradas})" if exibidas >=
+                  item.consideradas else
+                  f"Preços usados — exibidos {exibidas} de "
+                  f"{item.consideradas} (menor, quartis, mediana e maior)")
         d.paragrafo(T(cabeca, negrito=True), pt=8.5, depois=2, manter=True)
-        colunas = [Coluna("Fonte / identificador", 5.4),
-                   Coluna("Órgão · UF", 5.2), Coluna("Data", 2.0),
-                   Coluna("Unid.", 2.4), Coluna("Preço unit.", 2.6, "right")]
-        _ajustar(colunas, d.util_cm, elastica=1)
+        colunas = [Coluna("Nº", 0.8, "right"), Coluna("Data", 2.1),
+                   Coluna("Órgão · contratação", 5.4),
+                   Coluna("Fonte · natureza", 3.0),
+                   Coluna("Unitário", 2.3, "right"),
+                   Coluna("Contratação", 4.4)]
+        _ajustar(colunas, d.util_cm, elastica=2)
         d.tabela(colunas, [[
-            _celula_fonte(r), _celula_orgao(r), r.data, r.unidade,
-            T(moeda(r.valor) + (" ⚑" if r.sinalizada else ""), negrito=True),
-        ] for r in item.exibidas])
-        if nota:
-            d.paragrafo(nota, pt=7.5, cor=SECUNDARIO, depois=3)
+            str(n), r.data, _celula_origem(r),
+            [T(r.fonte, negrito=True, pt=7.5),
+             T((f"inc. {r.inciso} · " if r.inciso else "") + r.natureza,
+               quebra_antes=True, cor=SECUNDARIO, pt=7)],
+            _celula_preco(r), _celula_contratacao(r),
+        ] for n, r in enumerate(item.exibidas, start=1)], pt=7.5)
+        if exibidas < item.consideradas:
+            d.paragrafo(f"Todas as {item.consideradas} referências compõem o "
+                        "cálculo e estão na Memória Analítica (XLSX).",
+                        pt=7.5, cor=SECUNDARIO, depois=3)
         if any(r.sinalizada for r in item.exibidas):
-            d.paragrafo("⚑ sinalizada como discrepante: continua no cálculo "
-                        "até decisão do revisor.", pt=7.5, cor=SECUNDARIO)
+            d.paragrafo("⚑ preço atípico que está no cálculo: veja abaixo a "
+                        "decisão sobre ele.", pt=7.5, cor=SECUNDARIO)
 
-    # não consideradas — resumo, com as exclusões do revisor por extenso
-    fora = item.desconsideradas
-    if fora:
-        contagem: dict[str, int] = {}
-        for r in fora:
-            contagem[r.situacao] = contagem.get(r.situacao, 0) + 1
-        resumo = "; ".join(f"{s.lower()}: {n}" for s, n in
-                           sorted(contagem.items(), key=lambda p: -p[1]))
-        d.paragrafo([T(f"Não consideradas ({len(fora)}): ", negrito=True),
-                     T(resumo + ".")], pt=8.5, depois=2, manter=True)
-        excluidas = item.excluidas_pelo_revisor
-        if excluidas and len(excluidas) <= 5:
-            d.tabela(
-                [Coluna("Desconsiderada", 5.4), Coluna("Órgão · UF", 4.4),
-                 Coluna("Preço", 2.4, "right"),
-                 Coluna("Justificativa", d.util_cm - 12.2)],
-                [[_celula_fonte(r), _celula_orgao(r),
-                  T(moeda(r.valor), riscado=True, cor=EXCLUIDA),
-                  r.motivo or "sem motivo registrado"] for r in excluidas])
-        elif excluidas:
-            for motivo, n in item.motivos_de_exclusao[:4]:
-                d.marcador([T(f"{n} excluída(s) pelo revisor: ",
-                              negrito=True), T(motivo)], pt=8)
-            d.paragrafo("Lista integral, com valores e motivos, no Relatório "
-                        "Analítico Integral.", pt=7.5, cor=SECUNDARIO)
+    # Revisão 02 (08_COMPLIANCE, casos B e C): só o que AFETOU a série,
+    # com a autoria certa; o inventário da busca fica na memória analítica
+    saidas = item.saidas_da_serie
+    if saidas:
+        d.paragrafo(T(f"Desconsiderados da série ({len(saidas)})",
+                      negrito=True), pt=8.5, depois=2, manter=True)
+        linhas_saida = []
+        for r in saidas[:10]:
+            motivo = _motivo_curto(r)
+            celula = [T(r.autoria_da_saida[:1].upper()
+                        + r.autoria_da_saida[1:], negrito=True)]
+            if motivo:
+                celula.append(T(motivo, quebra_antes=True, cor=SECUNDARIO,
+                                pt=7))
+            linhas_saida.append([T(moeda(r.valor), riscado=True, cor=EXCLUIDA),
+                                 _celula_orgao(r), celula])
+        d.tabela([Coluna("Preço", 2.4, "right"), Coluna("Órgão · UF", 5.0),
+                  Coluna("Como saiu", d.util_cm - 7.4)], linhas_saida, pt=7.5)
+        if len(saidas) > 10:
+            d.paragrafo(f"E mais {len(saidas) - 10}, na Memória Analítica.",
+                        pt=7.5, cor=SECUNDARIO)
+    if item.nao_usadas > len(saidas):
+        d.paragrafo(
+            f"Outros {item.nao_usadas - len(saidas)} resultado(s) da busca "
+            "não entraram na série (unidade sem conversão comprovada, "
+            "repetição da mesma contratação, comparabilidade baixa ou "
+            "reserva além do limite). Constam da Memória Analítica.",
+            pt=7.5, cor=SECUNDARIO, depois=3)
 
-    # memória e decisões
-    if item.memoria:
+    # decisões sobre preços atípicos que ficaram no cálculo
+    for ref, decisao in item.mantidas:
+        d.marcador([T("Preço atípico mantido: ", negrito=True),
+                    T(f"{moeda(ref.valor)} — {ref.orgao}"
+                      + (f"/{ref.uf}" if ref.uf else "")
+                      + f", {ref.data}. Mantido no cálculo por decisão do "
+                        "servidor depois do alerta, em "
+                        f"{_data_curta(decisao.get('registrado_em'))}.")],
+                   pt=8)
+    mantidas_ids = {r.id for r, _ in item.mantidas}
+    if not item.concluido:
+        for ref in item.considerada_lista:
+            if ref.sinalizada and ref.id not in mantidas_ids:
+                d.marcador([T("Preço a conferir: ", negrito=True),
+                            T(f"{moeda(ref.valor)} — {ref.orgao}"
+                              + (f"/{ref.uf}" if ref.uf else "")
+                              + f", {ref.data}.")], pt=8)
+
+    memoria = _memoria_para_imprimir(item)
+    if memoria:
         d.paragrafo(T("Memória de cálculo", negrito=True), pt=8.5, depois=1,
                     manter=True, antes=2)
-        for linha in item.memoria:
+        for linha in memoria:
             d.marcador(linha, pt=8)
     if item.excecao:
         x = item.excecao
@@ -767,14 +890,10 @@ def _detalhe_do_item(d: Documento, view: CotacaoReportView,
         d.paragrafo([T("Método definido pelo revisor: ", negrito=True),
                      T(f"{m.get('metodo')} — {m.get('justificativa')}")],
                     pt=8)
-    for pendencia in item.analise_critica:
-        d.marcador([T("Análise crítica: ", negrito=True), T(pendencia)], pt=8)
-    if item.anomalias:
-        d.paragrafo(
-            f"Candidatos discrepantes sinalizados: {len(item.anomalias)} "
-            "(critérios estatísticos; não excluídos automaticamente). "
-            "Detalhe no Relatório Analítico Integral.", pt=8,
-            cor=SECUNDARIO)
+    if not item.concluido:
+        for pendencia in item.analise_critica:
+            d.marcador([T("Análise crítica pendente: ", negrito=True),
+                        T(pendencia)], pt=8)
     for marca in item.marcas_percentuais[:3]:
         rotulo = ("elevado" if marca.get("marca") == "elevado_sinalizado"
                   else "inexequível")
@@ -797,6 +916,31 @@ def _detalhe_do_item(d: Documento, view: CotacaoReportView,
              for c in item.cotacoes_diretas])
 
 
+_CODIGOS = re.compile(r"\s*\[[A-Z_, ]+;\s*política [^\]]+\]")
+_ROTULOS = re.compile(r"^(desconsiderada pelo Jev antes da cesta|requer "
+                      r"revisão \(triagem pré-cesta\)):\s*")
+
+
+def _motivo_curto(ref: ReferenciaView) -> str:
+    """O critério, sem códigos internos nem versão de política."""
+    texto = ref.motivo.split("; ")[-1] if ref.motivo else ""
+    if "Jev" in ref.motivo or "triagem" in ref.motivo:
+        texto = next((m for m in ref.motivo.split("; ")
+                      if m.startswith(("desconsiderada pelo Jev",
+                                       "requer revisão"))), texto)
+    texto = _ROTULOS.sub("", _CODIGOS.sub("", texto)).strip()
+    if texto == "retirada da cesta pelo usuário":
+        return ""
+    return texto[:240]
+
+
+def _data_curta(valor) -> str:
+    texto = str(valor or "")
+    if len(texto) >= 10 and texto[4] == "-":
+        return f"{texto[8:10]}/{texto[5:7]}/{texto[:4]}"
+    return texto or NAO_INFORMADO
+
+
 def _fontes(d: Documento, view: CotacaoReportView) -> None:
     d.titulo_de_secao("Fontes consultadas")
     if not view.fontes:
@@ -805,7 +949,7 @@ def _fontes(d: Documento, view: CotacaoReportView) -> None:
         return
     colunas = [Coluna("Fonte", 4.4), Coluna("Enquadramento", 4.6),
                Coluna("Refs.", 1.3, "right"), Coluna("Consid.", 1.5, "right"),
-               Coluna("Coleta (UTC)", 3.0)]
+               Coluna("Coleta (Brasília)", 3.0)]
     _ajustar(colunas, d.util_cm, elastica=1)
     linhas = []
     for f in view.fontes:
@@ -816,7 +960,7 @@ def _fontes(d: Documento, view: CotacaoReportView) -> None:
                                              cor=SECUNDARIO, pt=7.5)]
                                           if desfechos else []),
             f.enquadramento, str(f.referencias), str(f.consideradas),
-            f"{f.primeira_coleta}\n{f.ultima_coleta}"])
+            f"{_local(f.primeira_coleta)}\n{_local(f.ultima_coleta)}"])
     d.tabela(colunas, linhas)
 
 
@@ -824,38 +968,47 @@ def _alertas(d: Documento, view: CotacaoReportView) -> None:
     from .relatorio import texto_da_ciencia
 
     d.titulo_de_secao("Alertas e ressalvas")
-    for titulo, texto in view.alertas:
+    # Revisão 02 (D12): ocorrência operacional de fonte e a frase de
+    # política com código ficam na trilha e na memória analítica; aqui só
+    # o que o leitor precisa para usar o preço.
+    # o "candidatos discrepantes" genérico também sai: cada item já diz
+    # qual preço é atípico, de onde veio e o que foi decidido sobre ele
+    alertas = [(t, x) for t, x in view.alertas
+               if not t.lower().startswith(("ocorrência",
+                                            "candidatos discrepantes"))]
+    for titulo, texto in alertas:
         partes = [T(f"{titulo}: ", negrito=True)] if titulo else []
         d.marcador(partes + [T(texto)], pt=8.5)
-    for texto in texto_da_ciencia(dict(view.ciencia) if view.ciencia
-                                  else None):
-        d.marcador([T("Ciência na emissão: ", negrito=True), T(texto)],
+    if view.ciencia:
+        c = dict(view.ciencia)
+        quantos = len(c.get("alertas") or [])
+        d.marcador([T("Conferência antes da emissão: ", negrito=True),
+                    T(f"{quantos} preço(s) sinalizado(s) foram apresentados "
+                      "antes de emitir e mantidos como estavam; a ciência "
+                      "ficou registrada para esta versão do resultado. "
+                      "Ciência não é aprovação administrativa do preço.")],
                    pt=8.5)
+    if not alertas and not view.ciencia:
+        d.marcador("Nenhuma ressalva para esta versão do resultado.", pt=8.5)
 
 
 def _identificacao(d: Documento, view: CotacaoReportView, *,
-                   anexos: str) -> None:
+                   anexos: str, hash_completo: bool = False) -> None:
     d.titulo_de_secao("Identificação do documento")
     linhas = [
         ["Pesquisa", view.pesquisa_id],
         ["Revisão", str(view.revisao)],
-        ["Identificador da versão", T(view.hash_decisorio, pt=7.5,
-                                      negrito=True)],
-        ["O que o identificador cobre",
-         f"SHA-256 (formato {view.formato_hash}) do conteúdo decisório: "
-         "regras da pesquisa; de cada item descrição, unidade, quantidade, "
-         "método, unitário, total, memória e decisões do revisor; de cada "
-         "referência evidência, situação, valor normalizado e motivos. Não "
-         "inclui a data de emissão: o mesmo resultado gera o mesmo "
-         "identificador."],
+        ["Identificador da versão",
+         [T(view.hash_decisorio, pt=7.5, negrito=True)] if hash_completo
+         else [T(view.hash_decisorio[:16] + "…", negrito=True),
+               T(" (SHA-256 do conteúdo decisório; completo no Relatório "
+                 "Analítico e na Memória Analítica)", cor=SECUNDARIO, pt=7)]],
         ["Conferência", "No GovConnect, em Pesquisa de Preços → Conferir "
-         "identificador de um relatório. Este documento não tem "
-         "certificação digital nem código de autenticação externo."],
+         "identificador. Este documento não tem certificação digital nem "
+         "código de autenticação externo."],
         ["Emitido em", view.emitido_em_texto],
         ["Pesquisa criada em", view.criada_em],
-        ["Coleta realizada entre",
-         f"{view.coleta_inicio} e {view.coleta_fim} (UTC)"
-         if view.coleta_inicio else NAO_INFORMADO],
+        ["Coleta realizada", view.coleta_local],
         ["Referências", f"{view.total_referencias} coletadas, "
          f"{view.total_consideradas} consideradas no cálculo"],
         ["Documentos da mesma versão", anexos],
@@ -863,6 +1016,20 @@ def _identificacao(d: Documento, view: CotacaoReportView, *,
     d.tabela([Coluna("", 4.2), Coluna("", d.util_cm - 4.2)],
              [[T(a, negrito=True, cor=SECUNDARIO), b] for a, b in linhas],
              cabecalho=False, pt=8)
+
+
+def _local(texto_utc: str) -> str:
+    """ "17/10/2026 18:58" em UTC → horário de Brasília; inalterado se não der."""
+    from datetime import datetime, timezone
+
+    from .relatorio_view import BRASILIA
+
+    try:
+        momento = datetime.strptime(str(texto_utc), "%d/%m/%Y %H:%M")
+    except ValueError:
+        return str(texto_utc)
+    return momento.replace(tzinfo=timezone.utc).astimezone(
+        BRASILIA).strftime("%d/%m/%Y %H:%M")
 
 
 def _ajustar(colunas: list[Coluna], util_cm: float, *, elastica: int) -> None:
@@ -888,8 +1055,8 @@ def relatorio_de_cotacao_docx(view: CotacaoReportView) -> bytes:
     _fontes(d, view)
     _alertas(d, view)
     _identificacao(d, view, anexos=(
-        "Memória Analítica (XLSX) e Relatório Analítico Integral (PDF), com "
-        "todas as referências consideradas e não consideradas e o mesmo "
+        "Memória Analítica (XLSX) e Relatório Analítico Integral (PDF): "
+        "todos os resultados da busca, usados ou não, com o mesmo "
         "identificador da versão."))
     return d.bytes()
 
@@ -921,7 +1088,8 @@ def _linhas_do_anexo(item: ItemView) -> tuple[list[list[Trechos]], list]:
             preco,
             pct(r.compatibilidade, 0) if r.compatibilidade is not None
             else "—",
-            [T(r.id_externo, link=r.link, pt=7),
+            [T(r.id_externo, link=r.contratacao_url or r.dados_url or r.link,
+               pt=7),
              T(f"evid. {r.evidencia[:12]}…" if r.evidencia else "",
                quebra_antes=bool(r.evidencia), cor=SECUNDARIO, pt=6.5)],
             T(r.motivo or ("—" if r.considerada else ""), pt=7.5),
@@ -984,17 +1152,29 @@ def relatorio_analitico_docx(view: CotacaoReportView) -> bytes:
     _fontes(d, view)
     _identificacao(d, view, anexos=(
         "Relatório de Cotação de Preços (PDF/DOCX) e Memória Analítica "
-        "(XLSX), com o mesmo identificador da versão."))
+        "(XLSX), com o mesmo identificador da versão."), hash_completo=True)
     return d.bytes()
 
 
 # ---------------------------------------------------------------------------
 # PDF
 # ---------------------------------------------------------------------------
-def links_da_vista(view: CotacaoReportView) -> dict[str, str]:
-    """Identificador impresso → URL real (só as que a fonte fornece)."""
-    return {r.id_externo: r.link for i in view.itens for r in i.referencias
-            if r.link and r.id_externo and r.id_externo != NAO_INFORMADO}
+def links_da_vista(view: CotacaoReportView, *,
+                   analitico: bool = False) -> dict[str, str]:
+    """
+    Texto impresso → URL real. Relatório de cotação: o número oficial da
+    contratação → a PÁGINA pública dela (Revisão 02, D08). Analítico: o
+    identificador da referência → a página da contratação, ou, sem ela, o
+    endpoint de dados da fonte (é o anexo técnico).
+    """
+    if not analitico:
+        return {r.identificacao: r.contratacao_url
+                for i in view.itens for r in i.referencias
+                if r.contratacao_url and r.identificacao}
+    return {r.id_externo: (r.contratacao_url or r.dados_url or r.link)
+            for i in view.itens for r in i.referencias
+            if (r.contratacao_url or r.dados_url or r.link)
+            and r.id_externo and r.id_externo != NAO_INFORMADO}
 
 
 def carimbar_links(pdf: bytes, links: dict[str, str]) -> bytes:
@@ -1068,4 +1248,5 @@ def relatorio_analitico_pdf(view: CotacaoReportView, *,
                             tempo_limite: int = 600) -> bytes:
     return em_pdf(relatorio_analitico_docx(view),
                   dict(view.branding) if view.branding else None,
-                  tempo_limite=tempo_limite, links=links_da_vista(view))
+                  tempo_limite=tempo_limite,
+                  links=links_da_vista(view, analitico=True))

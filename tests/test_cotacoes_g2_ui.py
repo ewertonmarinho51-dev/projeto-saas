@@ -91,7 +91,8 @@ def test_mesmo_item_manual_e_automatico_e_cesta_ao_lado(monkeypatch):
     assert {r["status"] for r in repo.listar_referencias(str(item["id"]))} == \
         {"candidate"}
     metricas = {m.label: m.value for m in at.metric}
-    assert metricas["Encontradas"] == "5" and metricas["Consideradas"] == "0"
+    # Revisão 02: os números da busca ficam em "Detalhes da busca"
+    assert metricas["Resultados encontrados"] == "5" and         metricas["Preços usados"] == "0"
 
     _botao(at, "Cotação automática deste item").click().run()
     assert not at.exception
@@ -101,7 +102,7 @@ def test_mesmo_item_manual_e_automatico_e_cesta_ao_lado(monkeypatch):
     assert linha["estado"] == "review"
     preco = " ".join(str(m.value) for m in at.markdown)
     assert "R$ 24,00" in preco
-    assert any("5/3 considerados" in str(m.value) for m in at.markdown)
+    assert any("5 preços usados (mínimo 3)" in str(m.value) for m in at.markdown)
 
 
 def test_lote_automatico_percorre_os_itens_e_termina(monkeypatch):
@@ -143,21 +144,15 @@ def test_conflito_de_outra_aba_vira_aviso_sem_sobrescrever(monkeypatch):
                                              ["revisao"]))
     antes = {r["id"]: r["status"] for r in
              repo.listar_referencias(str(item["id"]))}
-    # primeiro formulário de referência da tela (a considerada vem antes)
-    motivo = next(t for t in at.text_input
-                  if (t.placeholder or "").startswith("mesmo produto"))
-    motivo.input("fora da curva")
-    _botao(at, "Retirar da cesta").click().run()
+    # Revisão 02: remover é um clique, sem campo de justificativa
+    _botao(at, "Remover da cesta").click().run()
     assert any("outra aba" in str(w.value) for w in at.warning)
     depois = {r["id"]: r["status"] for r in
               repo.listar_referencias(str(item["id"]))}
     assert depois == antes
 
     # atualizar e reaplicar: a tela já mostra a versão nova
-    motivo = next(t for t in at.text_input
-                  if (t.placeholder or "").startswith("mesmo produto"))
-    motivo.input("fora da curva")
-    _botao(at, "Retirar da cesta").click().run()
+    _botao(at, "Remover da cesta").click().run()
     assert not any("outra aba" in str(w.value) for w in at.warning)
     final = [r["status"] for r in repo.listar_referencias(str(item["id"]))]
     assert final.count("rejected") == 1
