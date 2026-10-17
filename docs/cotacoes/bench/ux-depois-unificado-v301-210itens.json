@@ -1,0 +1,32 @@
+{
+  "modo": "unificado",
+  "executado_em": "2026-10-17T04:08:48.604658+00:00",
+  "python": "3.11.9",
+  "maquina": "Windows-10-10.0.26200-SP0",
+  "latencia_simulada_ms": 0,
+  "teto_automatico": true,
+  "limites": "fontes e banco são dublês determinísticos; rede real NÃO medida. Tempos medem o processamento do GovConnect (coleta→procedência→unidade→matching→cesta→gravação).",
+  "rodadas": [
+    {
+      "itens": 210,
+      "rodadas": 210,
+      "tempo_total_s": 22.5207,
+      "p50_item_s": 0.09915,
+      "p95_item_s": 0.19687,
+      "chamadas_fonte_por_item": 1.252,
+      "req_banco_por_item": 8.1,
+      "itens_com_3_considerados": 174,
+      "volume_por_fonte": 301,
+      "fontes": 2,
+      "referencias_gravadas_por_item": 19.01,
+      "consideradas_por_item_media": 11.54,
+      "consideradas_por_item_max": 15,
+      "estados": {
+        "review": 174,
+        "incomplete": 28,
+        "error": 8
+      },
+      "chamadas_ia": 0
+    }
+  ]
+}

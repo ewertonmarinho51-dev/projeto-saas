@@ -1,0 +1,16 @@
+{
+ "fonte": "DOM da prévia local, mesma semente do 'antes' (5 itens; item 01 com 301 candidatas × 2 fontes), flag cotacao_automatica_teto ligada, 17/10/2026",
+ "barra_superior": {"elemento": ".stApp[data-test-script-state=running]::before", "animacao": "gc-rerun-avanco: scaleX 0 -> 0.9, unidirecional, 8 s, sem loop", "oculta_quando": "há spinner, progresso do lote ou overlay de geração na tela"},
+ "sidebar": {"controle": "nativo do Streamlit (aria-expanded), sempre visível, nomes 'Recolher menu' / 'Abrir menu'", "alternancias_testadas": 15, "erros": 0, "aberta": "264 px + recuo de 10 px, canto 14 px, topbar em 274 px", "recolhida": "0 px, topbar em 0, botão de abrir no canto"},
+ "larguras": [
+  {"viewport": "1920x940", "sidebar": "aberta", "colunas_px": [236, 684, 324], "concluir_y_px": 654, "concluir_visivel_sem_rolar": true, "rolagem_horizontal": false},
+  {"viewport": "1440x900", "sidebar": "aberta", "colunas_px": [236, 460, 324], "concluir_y_px": 687, "concluir_visivel_sem_rolar": true, "rolagem_horizontal": false},
+  {"viewport": "1280x800", "sidebar": "recolhida", "colunas_px": [236, 574, 324], "concluir_y_px": 649, "concluir_visivel_sem_rolar": true, "rolagem_horizontal": false},
+  {"viewport": "1280x800", "sidebar": "aberta", "layout": "médio: lista em faixa, busca 596 + cesta 296", "concluir_y_px": 1057, "concluir_visivel_sem_rolar": false, "rolagem_horizontal": false},
+  {"viewport": "1024x768", "sidebar": "aberta", "layout": "uma coluna, cesta antes dos resultados", "concluir_y_px": 1056, "concluir_visivel_sem_rolar": false, "rolagem_horizontal": false},
+  {"viewport": "768x1024", "sidebar": "recolhida", "layout": "uma coluna, cesta antes dos resultados", "concluir_y_px": 1044, "concluir_visivel_sem_rolar": false, "rolagem_horizontal": false},
+  {"viewport": "360x780", "sidebar": "recolhida", "layout": "uma coluna, cesta antes dos resultados", "concluir_y_px": 1497, "concluir_visivel_sem_rolar": false, "rolagem_horizontal": false}
+ ],
+ "botoes_do_cabecalho_truncados": 0,
+ "item_01": "15/3 considerados (teto da cotação automática)"
+}
