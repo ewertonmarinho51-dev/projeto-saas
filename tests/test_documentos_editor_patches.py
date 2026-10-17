@@ -86,6 +86,7 @@ def patch_owner(engine,monkeypatch):
             editor_schema_version=owner.SCHEMA,wordcraft_commit=owner.UPSTREAM,engine_build_sha256='a'*64,
             validation_provenance='server_manifest_sha256',block_index='\\x'+owner.blocos.serializar_indice(index).hex(),
             block_index_sha256=hashlib.sha256(owner.blocos.serializar_indice(index)).hexdigest(),index_mode='initial',
+            restored_from_revision=None,
             institutional_snapshot='\\x'+institution.hex(),institutional_snapshot_sha256=hashlib.sha256(institution).hexdigest()))
     stored={}
 
@@ -259,9 +260,7 @@ def test_current_structure_reuses_revision_institution_and_decimal_items(patch_o
 
 
 def test_current_structure_rejects_excessive_template_library(patch_owner):
-    service,state,process,_,_=patch_owner
-    service.abrir(processo_id=process,doc_key='memo_a',conteudo=encode(heading('A')),
-        original_format='docx',original_bytes=b'original')
+    service,state,process=patch_owner
     tenant=state['claims']['app_metadata']['tenant_id']
     state['template_artifacts']=[dict(id=str(uuid4()),tenant_id=tenant,
         secretaria_id=None,tipo_artefato='template',chave_estavel=f'template.{index}',
@@ -271,9 +270,7 @@ def test_current_structure_rejects_excessive_template_library(patch_owner):
 
 
 def test_current_structure_rejects_divergent_published_template(patch_owner):
-    service,state,process,_,_=patch_owner
-    service.abrir(processo_id=process,doc_key='memo_a',conteudo=encode(heading('A')),
-        original_format='docx',original_bytes=b'original')
+    service,state,process=patch_owner
     artifact=str(uuid4())
     state['template_artifacts']=[dict(id=artifact,
         tenant_id=state['claims']['app_metadata']['tenant_id'],secretaria_id=None,
