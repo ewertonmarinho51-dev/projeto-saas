@@ -53,6 +53,7 @@ def patch_owner(engine,monkeypatch):
     state={'claims':claims,'heads':[],'rows':[],'opinions':[],'opinion_findings':[],
            'patch_audits':[],
            'template_artifacts':[],'template_versions':[],
+           'knowledge_sources':[],'reference_documents':[],'reference_chunks':[],
            'rpc_calls':[],'proposals':0,'native_calls':calls,'contexts':0}
     context={'processo':{k:process_row[k] for k in ('id','tenant_id','secretaria_id','dados','aprovados')},'fatos':[]}
     state['context']=context
@@ -67,6 +68,9 @@ def patch_owner(engine,monkeypatch):
                 'revisoes':state['patch_audits'],
                 'governanca_artefatos':state['template_artifacts'],
                 'governanca_versoes':state['template_versions'],
+                'fontes_conhecimento':state['knowledge_sources'],
+                'documentos_referencia':state['reference_documents'],
+                'chunks_referencia':state['reference_chunks'],
                 'processos':[process_row]}.get(name,[])))
 
     for key in ('memo_a','memo_b','memo_c'):
@@ -176,8 +180,32 @@ def test_current_fact_evidence_is_read_only_and_bound_to_native_heads(patch_owne
     assert current['schema']=='gc-wordcraft-evidence-panel/v1'
     assert current['evidencias'][0]['estado']=='VERIFICADO'
     assert current['evidencias'][0]['source_ref']=='pesquisa_preco:qa-1'
+    assert current['fontesConhecimento']==[]
     assert current['bundleHash'] and set(current['sourceNative'])=={'memo_a','memo_b','memo_c'}
     assert not state['rpc_calls'] and all(head['revision']==1 for head in state['heads'])
+
+
+def test_knowledge_catalog_evidence_preserves_provenance_without_false_verification(patch_owner):
+    service,state,process=patch_owner
+    document=str(uuid4())
+    source, revoked, missing = str(uuid4()), str(uuid4()), str(uuid4())
+    state['knowledge_sources']=[
+        dict(id=source,documento_referencia_id=document,rotulo='Lei sintética',
+            camada='municipio',vigente=True,revogada_em=None,versao=3,hash='a'*64),
+        dict(id=revoked,documento_referencia_id=None,rotulo='Orientação revogada',
+            camada='municipio',vigente=False,revogada_em='2026-10-01T00:00:00Z',
+            versao=1,hash='b'*64),
+        dict(id=missing,documento_referencia_id=str(uuid4()),rotulo='Documento ausente',
+            camada='municipio',vigente=True,revogada_em=None,versao=1,hash='c'*64)]
+    state['reference_documents']=[dict(id=document,titulo='Lei QA',categoria='lei',
+        nome_arquivo='lei.txt',total_chunks=1,criado_em='2026-10-01T00:00:00Z')]
+    state['reference_chunks']=[dict(id=1,documento_id=document,ordem=0,
+        conteudo='Trecho sintético conhecido para comprovar a proveniência do catálogo.')]
+    items=service.evidencias_atuais(process)['fontesConhecimento']
+    assert [item['state'] for item in items]==['PENDENTE','INDISPONIVEL','NAO_ENCONTRADO']
+    assert items[0]['document']['id']==document and items[0]['chunkId']=='1'
+    assert items[0]['snippet'].startswith('Trecho sintético')
+    assert 'recalcular' in items[0]['reason'] and not state['rpc_calls']
 
 
 def test_current_structure_reuses_revision_institution_and_decimal_items(patch_owner):

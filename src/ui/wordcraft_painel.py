@@ -10,7 +10,8 @@ from ..wordcraft_capacidades import painel_unico
 
 def modelo(*, preparacao=None, auditoria_atual=None, pareceres_atuais=None,
            atendimentos_parecer=None,
-           evidencias=(), template=None, institucional=None, montagem=None,
+           evidencias=(), fontes_conhecimento=(), template=None,
+           institucional=None, montagem=None,
            historico=()) -> dict:
     base = painel_unico()
     auditoria = preparacao.auditoria() if preparacao is not None else None
@@ -26,6 +27,7 @@ def modelo(*, preparacao=None, auditoria_atual=None, pareceres_atuais=None,
             "pareceres_atuais": pareceres_atuais,
             "atendimentos_parecer": atendimentos_parecer,
             "evidencias": list(evidencias),
+            "fontes_conhecimento": list(fontes_conhecimento),
             "template": template,
             "institucional": institucional,
             "montagem": montagem,
@@ -92,6 +94,10 @@ def renderizar(modelo_painel: dict) -> None:
                 st.json(item, expanded=False)
         else:
             st.info("Nenhuma evidência foi verificada para a proposta atual.")
+        if modelo_painel["fontes_conhecimento"]:
+            st.caption("Fontes do catálogo e da base RAG visíveis pela sessão")
+            for item in modelo_painel["fontes_conhecimento"]:
+                st.json(item, expanded=False)
     with historico:
         for item in modelo_painel["historico"]:
             st.json(item, expanded=False)

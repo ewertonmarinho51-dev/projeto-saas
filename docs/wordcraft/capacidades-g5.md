@@ -113,6 +113,12 @@ versão, hash e um trecho limitado do valor. `confirmado` só aparece como
 respectivamente os estados `NAO_VERIFICADO`, `REVISAO_HUMANA`, `PENDENTE` ou
 `INDISPONIVEL`. A projeção não consulta a internet, não chama embeddings/LLM,
 não interpreta busca vazia como inexistência e é invalidada quando a head muda.
+Ela também lista, pelo cliente autenticado e pelas RLS existentes, as fontes de
+conhecimento e documentos RAG já catalogados, com versão, vigência, hash
+registrado, identidade do documento e primeiro trecho limitado. Como o schema
+atual não define os campos cobertos pelo hash de `fontes_conhecimento`, uma
+fonte vigente permanece `PENDENTE` em vez de receber verificação falsa;
+revogada fica `INDISPONIVEL` e vínculo RAG invisível fica `NAO_ENCONTRADO`.
 
 A estrutura institucional da revisão também está disponível no painel. Ela é
 lida do `institutional_snapshot` já capturado pelo owner, portanto identidade,
@@ -154,6 +160,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   promove aplicação a correção jurídica comprovada sem revisão humana;
 - fatos canônicos exibem proveniência e status sem promover extraído, disputado
   ou hash divergente a evidência verificada;
+- catálogo de conhecimento/RAG preserva documento e trecho pela RLS, sem
+  promover hash não recalculável a fonte verificada;
 - snapshot institucional e montagem de itens usam as fontes da revisão e do
   processo, preservando portaria/signatários e cálculo `Decimal` sem LLM;
 - biblioteca de templates publicados é lida pela RLS com versão/hash/escopo,

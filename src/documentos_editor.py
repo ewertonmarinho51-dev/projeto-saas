@@ -471,11 +471,84 @@ class DocumentoService:
                         if fact.get("status") != "substituido"]
         except (AttributeError, ErroCapacidade):
             raise ErroDocumento("Fontes factuais incompletas para o painel.") from None
+        sources = _execute(user.table("fontes_conhecimento").select(
+            "id,documento_referencia_id,rotulo,camada,vigente,revogada_em,versao,hash")
+            .limit(33))
+        if (not isinstance(sources, list) or len(sources) > 32
+                or len(_snapshot_bytes(sources)) > MAX_BYTES):
+            raise ErroDocumento("Catálogo de evidências excessivo.")
+        catalog = []
+        expected_source = {"id", "documento_referencia_id", "rotulo", "camada",
+                           "vigente", "revogada_em", "versao", "hash"}
+        try:
+            for source in sources:
+                if not isinstance(source, dict) or source.keys() != expected_source:
+                    raise ValueError()
+                source_id = str(_uuid(source["id"]))
+                if (not isinstance(source["rotulo"], str) or not source["rotulo"].strip()
+                        or len(source["rotulo"]) > 500
+                        or not isinstance(source["camada"], str) or len(source["camada"]) > 50
+                        or type(source["vigente"]) is not bool
+                        or type(source["versao"]) is not int or source["versao"] < 1
+                        or not isinstance(source["hash"], str) or len(source["hash"]) > 128):
+                    raise ValueError()
+                document_id = source["documento_referencia_id"]
+                document = None
+                snippet = None
+                chunk_id = None
+                if document_id is not None:
+                    document_id = str(_uuid(document_id))
+                    documents = _execute(user.table("documentos_referencia").select(
+                        "id,titulo,categoria,nome_arquivo,total_chunks,criado_em")
+                        .eq("id", document_id).limit(2))
+                    if not isinstance(documents, list) or len(documents) > 1:
+                        raise ValueError()
+                    document = documents[0] if documents else None
+                    if document is not None:
+                        if (document.keys() != {"id", "titulo", "categoria", "nome_arquivo",
+                                "total_chunks", "criado_em"}
+                                or str(_uuid(document["id"])) != document_id
+                                or not isinstance(document["titulo"], str)
+                                or not isinstance(document["categoria"], str)
+                                or not isinstance(document["nome_arquivo"], str)
+                                or type(document["total_chunks"]) is not int
+                                or document["total_chunks"] < 0):
+                            raise ValueError()
+                        chunks = _execute(user.table("chunks_referencia").select(
+                            "id,documento_id,ordem,conteudo").eq("documento_id", document_id)
+                            .order("ordem").limit(1))
+                        if not isinstance(chunks, list) or len(chunks) > 1:
+                            raise ValueError()
+                        if chunks:
+                            chunk = chunks[0]
+                            if (chunk.keys() != {"id", "documento_id", "ordem", "conteudo"}
+                                    or str(chunk["documento_id"]) != document_id
+                                    or type(chunk["ordem"]) is not int
+                                    or not isinstance(chunk["conteudo"], str)):
+                                raise ValueError()
+                            chunk_id = str(chunk["id"])
+                            snippet = chunk["conteudo"][:1000]
+                if source["vigente"] is False or source["revogada_em"] is not None:
+                    state = "INDISPONIVEL"
+                    reason = "Fonte revogada ou fora de vigência no catálogo governado."
+                elif document_id is not None and document is None:
+                    state = "NAO_ENCONTRADO"
+                    reason = "Documento RAG vinculado não está visível para esta sessão."
+                else:
+                    state = "PENDENTE"
+                    reason = ("Fonte catalogada e vigente; o schema atual não define contrato "
+                              "para recalcular e comprovar seu hash.")
+                catalog.append({"sourceId": source_id, "label": source["rotulo"],
+                    "layer": source["camada"], "version": source["versao"],
+                    "hash": source["hash"], "state": state, "reason": reason,
+                    "document": document, "chunkId": chunk_id, "snippet": snippet})
+        except (KeyError, TypeError, ValueError):
+            raise ErroDocumento("Catálogo de evidências divergente.") from None
         snapshot = blocos.snapshot_nativo(views, versao=1)
         return json.loads(_snapshot_bytes({"schema": "gc-wordcraft-evidence-panel/v1",
             "bundleHash": snapshot["hash"], "sourceNative": {
                 key: view.vinculo() for key, view in views.items()},
-            "evidencias": evidence}))
+            "evidencias": evidence, "fontesConhecimento": catalog}))
 
     def atendimentos_parecer(self, processo_id: str) -> dict:
         """Derive immutable legal-opinion attendance from committed patch audits."""

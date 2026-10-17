@@ -14,6 +14,7 @@ def test_modelo_reune_seis_capacidades_sem_callbacks_de_mutacao():
     panel = modelo(preparacao=preparation,
         atendimentos_parecer={"reports": [{"operationId": "legal-op"}]},
         evidencias=({"estado": "VERIFICADA"},),
+        fontes_conhecimento=({"state": "PENDENTE"},),
         template={"hash": "template"}, institucional={"hash": "identity"},
         montagem={"hash": "assembly"},
         historico=({"revision": 1},))
@@ -22,6 +23,7 @@ def test_modelo_reune_seis_capacidades_sem_callbacks_de_mutacao():
     assert panel["preparacao"]["documentos"] == ["tr"]
     assert panel["preparacao"]["auditoria"] is audit
     assert panel["evidencias"][0]["estado"] == "VERIFICADA"
+    assert panel["fontes_conhecimento"][0]["state"] == "PENDENTE"
     assert panel["institucional"]["hash"] == "identity"
     assert panel["atendimentos_parecer"]["reports"][0]["operationId"] == "legal-op"
     assert "confirmar" not in panel and "salvar" not in panel

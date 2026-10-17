@@ -363,6 +363,8 @@ def render(doc_key: str, meta: dict) -> None:
         pareceres_atuais=st.session_state.get(opinions_key),
         atendimentos_parecer=st.session_state.get(attendance_key),
         evidencias=(st.session_state.get(evidence_key) or {}).get("evidencias", ()),
+        fontes_conhecimento=(st.session_state.get(evidence_key) or {}).get(
+            "fontesConhecimento", ()),
         template=({"publicados": (st.session_state.get(structure_key) or {}).get(
                       "templatesPublicados", []),
                    "efetivo": (st.session_state.get(structure_key) or {}).get(
