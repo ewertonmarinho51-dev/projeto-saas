@@ -56,6 +56,12 @@ class Consulta:
     data_final: date | None = None
 
     limite: int = 100
+    # Registros por GRUPO do catálogo (PDM), no caminho por descrição do
+    # Compras.gov. O manual pede o máximo da API (500 por grupo, até 2
+    # grupos); a cotação automática pede menos (`PoliticaAmostraAutomatica`)
+    # — medido em produção em 17/10/2026: 500 a 611 registros brutos e
+    # ~30 s por item para uma cesta de no máximo 15.
+    limite_grupo: int = 500
 
     # Sinônimos propostos pela camada semântica (§8), já validados pelo
     # servidor. Eles só AMPLIAM o conjunto de candidatos — quem ranqueia

@@ -45,7 +45,7 @@ from decimal import Decimal, InvalidOperation
 
 from . import estatistica, matching
 from .estados import EstadoItem, EstadoPesquisa, estado_derivado
-from .fontes import Consulta, Desfecho, FontePesquisaPreco
+from .fontes import PAGINA_MAXIMA, Consulta, Desfecho, FontePesquisaPreco
 from .modelo import Referencia
 from .perfil import PADRAO, PerfilNormativo
 
@@ -237,6 +237,7 @@ def consulta_do_item(item: dict, filtros: dict | None = None,
         data_inicial=hoje - timedelta(days=dias),
         data_final=hoje,
         limite=int(filtros.get("limite") or LIMITE_POR_FONTE),
+        limite_grupo=int(filtros.get("limite_grupo") or PAGINA_MAXIMA),
         termos_alternativos=tuple(termos_alternativos),
     )
 

@@ -190,6 +190,7 @@ def coletar(item: dict, fontes: list[FontePesquisaPreco], *,
     filtros = dict(filtros or {})
     if politica is not None:
         filtros.setdefault("limite", politica.limite_por_fonte)
+        filtros.setdefault("limite_grupo", politica.limite_por_grupo)
     inicio = time.monotonic()
     coleta = Coleta()
     consulta = consulta_do_item(item, filtros, termos)

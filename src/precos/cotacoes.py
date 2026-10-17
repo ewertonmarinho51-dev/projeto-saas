@@ -520,6 +520,7 @@ class ResultadoPesquisa:
     # anterior): o que deixou de ser gravado e de ser consultado
     politica: str = ""
     nao_gravadas: int = 0
+    rebaixadas: int = 0
     fontes_nao_consultadas: list[str] = field(default_factory=list)
 
     @property
@@ -655,13 +656,29 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
     # decisão: a Cotação automática pode reavaliá-la pela mesma regra.
     existentes = {(str(r.get("fonte_id")), str(r.get("id_externo"))): r
                   for r in repo.listar_referencias(item_id)}
+    # Com a política de teto, "decidida" é decisão de PESSOA (evento de
+    # inclusão/exclusão, ou cotação direta). A seleção que a própria
+    # automática fez numa rodada anterior também grava `selected`, e
+    # tratá-la como decisão deixou em produção cestas de 258 referências
+    # depois de o teto estar ligado (17/10/2026): ela é reavaliada aqui.
+    humanas = (repo.referencias_decididas_por_humano(cotacao_id, item_id)
+               if politica is not None else set())
+
+    def de_pessoa(linha: dict) -> bool:
+        return (str(linha.get("id")) in humanas
+                or str(linha.get("id_externo")) in humanas
+                or str(linha.get("fonte_id")) == "cotacao_direta")
+
     novas = []
     manter: set[int] = set()
     for referencia, comparabilidade in coleta.referencias:
         chave = (referencia.fonte.id, referencia.id_externo)
         anterior = existentes.get(chave)
-        decidida = anterior is not None and (
-            str(anterior.get("status")) in DECIDIDAS or modo == "manual")
+        if politica is not None:
+            decidida = anterior is not None and de_pessoa(anterior)
+        else:
+            decidida = anterior is not None and (
+                str(anterior.get("status")) in DECIDIDAS or modo == "manual")
         if decidida:
             referencia.status = StatusReferencia(str(anterior.get("status")))
             for motivo in anterior.get("motivos") or []:
@@ -673,9 +690,10 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
     if modo == "automatico" and novas:
         teto = None
         if politica is not None:
-            # o teto é da CESTA do item: as que já estão lá contam, e a
-            # reconsulta nunca põe a 16ª
-            ja = len(cesta.consideradas(list(existentes.values())))
+            # o teto é da CESTA do item: as escolhidas por PESSOA contam,
+            # e a reconsulta nunca põe a 16ª
+            ja = len(cesta.consideradas([l for l in existentes.values()
+                                         if de_pessoa(l)]))
             teto = max(0, politica.teto - ja)
         escolha = estatistica.selecionar_cesta(novas, perfil, teto=teto)
         if politica is not None:
@@ -700,6 +718,24 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
         resultado.nao_gravadas = len(coleta.referencias) - len(gravar)
     gravadas = (repo.registrar_referencias(item_id, gravar)
                 if gravar else [])
+    rebaixadas: list[str] = []
+    if politica is not None and modo == "automatico":
+        # Seleções ANTERIORES da própria automática que não entraram na
+        # cesta desta rodada saem dela (voltam a candidatas, sem apagar):
+        # sem isso o teto só valia para referência nova.
+        na_cesta_agora = {(str(g.get("fonte_id")), str(g.get("id_externo")))
+                          for g in gravadas
+                          if str(g.get("status")) in cesta.NA_CESTA}
+        rebaixadas = [str(linha["id"]) for chave, linha in existentes.items()
+                      if str(linha.get("status")) in cesta.NA_CESTA
+                      and not de_pessoa(linha)
+                      and chave not in na_cesta_agora]
+        if rebaixadas:
+            repo.rebaixar_referencias(rebaixadas)
+            for chave, linha in existentes.items():
+                if str(linha.get("id")) in rebaixadas:
+                    existentes[chave] = {**linha, "status": "candidate"}
+        resultado.rebaixadas = len(rebaixadas)
     item = repo.mover_item(item_id, EstadoItem.CLASSIFICANDO,
                            EstadoItem.BUSCANDO, desfechos=coleta.desfechos,
                            ocorrencias=coleta.ocorrencias, erro="") or item
@@ -711,8 +747,15 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
                    str(gravada.get("id_externo")))] = gravada
     linhas = list(por_chave.values())
     if modo == "automatico" and seletor is not None:
+        # a IA vê o que decide o item (o gravado agora e o decidido por
+        # pessoa), não as centenas de candidatas antigas
+        para_ia = linhas if politica is None else [
+            l for l in linhas
+            if (str(l.get("fonte_id")), str(l.get("id_externo")))
+            in {(str(g.get("fonte_id")), str(g.get("id_externo")))
+                for g in gravadas} or de_pessoa(l)]
         try:
-            resultado.sugestao = seletor(cotacao, item, linhas)
+            resultado.sugestao = seletor(cotacao, item, para_ia)
         except Exception as exc:  # noqa: BLE001 — IA fora não para a cotação
             resultado.ocorrencias.append(
                 "análise complementar indisponível "
@@ -751,6 +794,7 @@ def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
                  "consideradas": resultado.consideradas,
                  "politica": resultado.politica,
                  "nao_gravadas": resultado.nao_gravadas,
+                 "rebaixadas": resultado.rebaixadas,
                  "fontes_nao_consultadas": resultado.fontes_nao_consultadas,
                  "diagnostico": resultado.diagnostico,
                  "duracao_s": round(resultado.duracao_s, 3),
