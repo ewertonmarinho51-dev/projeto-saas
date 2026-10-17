@@ -52,8 +52,9 @@ impl eframe::App for EditorApp {
         input.dropped_files.clear();
         input.hovered_files.clear();
         if self.interaction_lock.get() == InteractionLock::Locked {
+            // egui 0.36 carries modifier state on individual input events;
+            // clearing the queue removes keys, modifiers, text and IME commits.
             input.events.clear();
-            input.modifiers = egui::Modifiers::default();
             input.focused = false;
             return;
         }
