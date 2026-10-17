@@ -437,6 +437,36 @@ def test_published_template_preview_rejects_divergent_governed_clause(patch_owne
     assert not state['rpc_calls']
 
 
+def test_effective_template_preparation_builds_sealed_native_target_without_write(
+        patch_owner, monkeypatch):
+    from src import config, governanca
+    service,state,process=patch_owner
+    artifact,version,operation=(str(uuid4()) for _ in range(3))
+    payload={'documentos_suportados':['memo_a'],
+        'blocos':[{'id':'title','tipo':'titulo','texto':'Documento governado'}]}
+    digest=governanca.hash_canonico({'tipo':'template','chave':'template.memo-a',
+        'versao':4,'payload':payload})
+    state['template_artifacts']=[dict(id=artifact,
+        tenant_id=state['claims']['app_metadata']['tenant_id'],secretaria_id=None,
+        tipo_artefato='template',chave_estavel='template.memo-a',descricao='Modelo efetivo')]
+    state['template_versions']=[dict(id=version,artefato_id=artifact,versao=4,
+        status='PUBLISHED',vigencia_inicio=None,vigencia_fim=None,hash=digest,payload=payload)]
+    target=encode({'schema':owner.SCHEMA,'document':{'body':[heading('Documento governado'),
+        para('Conteúdo nativo produzido pelo importador.')],'parts':{}},'media':{},'passthrough':{}})
+    monkeypatch.setitem(config.DOCUMENTOS,'memo_a',{'titulo':'Memorando A'})
+    monkeypatch.setattr(owner,'importar_docx',lambda *args,**kwargs:target)
+    prepared=service.preparar_template(process,'memo_a',version,operation)
+    assert prepared.operation_id==operation and prepared.template_version_id==version
+    assert prepared.source_revision==1 and prepared.target_index.revision==2
+    assert prepared.target_hash==hashlib.sha256(target).hexdigest()
+    assert prepared.provenance['template']['hash']==digest
+    assert prepared.provenance['targetHash']==prepared.target_hash
+    assert prepared.provenance['officialEmission'] is False
+    assert prepared._selo and not state['rpc_calls']
+    assert service.preparar_template(process,'memo_a',version,operation) is prepared
+    service.descartar_template(prepared)
+
+
 def test_current_structure_rejects_divergent_published_template(patch_owner):
     service,state,process=patch_owner
     artifact=str(uuid4())

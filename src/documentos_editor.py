@@ -213,6 +213,27 @@ class ReciboPatches:
     canvas_confirmado: bool = False
 
 
+@dataclass(frozen=True)
+class PreparacaoTemplate:
+    operation_id: str
+    processo_id: str
+    actor_id: str
+    document_id: str
+    doc_key: str
+    source_revision: int
+    source_hash: str
+    template_version_id: str
+    template_hash: str
+    target_hash: str
+    target_payload: bytes = field(repr=False)
+    target_index: blocos.IndiceNativo = field(repr=False)
+    provenance: dict = field(repr=False)
+    _selo: str = field(repr=False)
+
+    def __reduce_ex__(self, protocol):
+        raise TypeError("Preparação exige a instância viva do owner; não pode ser serializada.")
+
+
 def _execute(query):
     try:
         return query.execute().data
@@ -345,6 +366,7 @@ class DocumentoService:
         self._patch_key = secrets.token_bytes(32)
         self._preparacoes: WeakValueDictionary[str, PreparacaoPatches] = WeakValueDictionary()
         self._patch_pendentes: dict[str, PreparacaoPatches] = {}
+        self._template_pendentes: dict[str, PreparacaoTemplate] = {}
 
     def _fontes_patch(self, processo_id, user, claims):
         context = _execute(db._cliente().rpc("documento_editor_fontes_patch",
@@ -991,6 +1013,92 @@ class DocumentoService:
             "blockingReason": ("Cláusulas ou parâmetros permanecem pendentes."
                 if preview["pendencias"] else
                 "Prévia confirmada; aplicação atômica vinculada à revisão ainda não executada.")}))
+
+    def preparar_template(self, processo_id: str, doc_key: str,
+                          version_id: str, operation_id: str) -> PreparacaoTemplate:
+        """Build the exact native target for an effective template; never persist it."""
+        from . import planilha
+        from .config import DOCUMENTOS
+        from .export import gerar_docx
+
+        _uuid(processo_id); _uuid(version_id); _uuid(operation_id)
+        if doc_key not in DOCUMENTOS:
+            raise ErroDocumento("Tipo documental inválido para template.")
+        user, claims = self._session()
+        prior = self._template_pendentes.get(operation_id)
+        if prior is not None:
+            if ((prior.processo_id, prior.actor_id, prior.doc_key,
+                 prior.template_version_id)
+                    != (processo_id, claims["sub"], doc_key, version_id)):
+                raise ConflitoDocumento("Operação de template pertence a outra preparação.")
+            return prior
+        if len(self._template_pendentes) >= 4:
+            raise ErroDocumento("Há quatro templates preparados; conclua ou descarte uma preparação.")
+        structure = self.estrutura_atual(processo_id, doc_key)
+        effective = structure.get("templateEfetivo")
+        if not isinstance(effective, dict) or effective.get("versionId") != version_id:
+            raise ErroDocumento("Somente o template efetivo pode ser preparado para aplicação.")
+        preview = self.previsualizar_template(processo_id, doc_key, version_id)
+        if preview["preview"]["pending"]:
+            raise ErroDocumento("Template possui cláusulas ou parâmetros pendentes.")
+        context, originals, views = self._fontes_patch(processo_id, user, claims)
+        document = originals.get(doc_key)
+        if document is None or document.status not in {"rascunho", "em_revisao"}:
+            raise AcessoNegado("Documento não pode receber aplicação de template.")
+        current_snapshot = blocos.snapshot_nativo(views, versao=1)
+        if (preview["bundleHash"] != current_snapshot["hash"]
+                or preview["sourceNative"] != {key: view.vinculo() for key, view in views.items()}
+                or (preview["documentId"], preview["docKey"])
+                != (document.id, doc_key)):
+            raise ConflitoDocumento("A revisão mudou depois da prévia do template.")
+        data = context["processo"].get("dados") or {}
+        text = planilha.injetar_tabela(preview["preview"]["text"], data.get("itens"))
+        if (not text.strip() or len(text.encode("utf-8")) > MAX_BYTES
+                or re.search(r"\[\[(?:SECAO_GERADA|MATRIZ_RISCOS|TABELA_ITENS)(?::[^]]*)?\]\]", text)
+                or "[PREENCHER:" in text):
+            raise ErroDocumento("Template ainda contém conteúdo estrutural pendente.")
+        institutional = document.institutional_snapshot
+        if not isinstance(institutional, dict):
+            raise ErroDocumento("Snapshot institucional obrigatório para aplicar template.")
+        try:
+            docx = gerar_docx(DOCUMENTOS[doc_key]["titulo"], text,
+                branding=institutional["identity"]["identidade"],
+                assinaturas=institutional["signature_block"])
+            target = importar_docx(docx, **self._native)
+            self._validate(target)
+            target_hash = hashlib.sha256(target).hexdigest()
+            index = blocos.construir_indice(target, document_id=document.id,
+                revision=document.revision + 1, content_hash=target_hash, **self._native)
+            blocos.validar_indice(index, target, **self._native)
+        except ErroDocumento:
+            raise
+        except Exception:
+            raise ErroDocumento("O motor recusou a aplicação nativa do template.") from None
+        provenance = {"schema": "gc-wordcraft-template-application/v1",
+            "operationId": operation_id, "processId": processo_id,
+            "actorId": claims["sub"], "documentId": document.id, "docKey": doc_key,
+            "sourceRevision": document.revision, "sourceHash": document.content_hash,
+            "sourceBundleHash": current_snapshot["hash"],
+            "template": preview["template"], "clausesUsed": preview["preview"]["clausesUsed"],
+            "renderedTextHash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "targetRevision": document.revision + 1, "targetHash": target_hash,
+            "engineManifestHash": self._native["manifest_sha256"],
+            "officialEmission": False}
+        seal_value = {**provenance,
+            "targetIndexHash": hashlib.sha256(blocos.serializar_indice(index)).hexdigest()}
+        seal = hmac.new(self._patch_key, _snapshot_bytes(seal_value), hashlib.sha256).hexdigest()
+        prepared = PreparacaoTemplate(operation_id, processo_id, claims["sub"],
+            document.id, doc_key, document.revision, document.content_hash,
+            version_id, preview["template"]["hash"], target_hash, target, index,
+            provenance, seal)
+        self._template_pendentes[operation_id] = prepared
+        return prepared
+
+    def descartar_template(self, preparacao: PreparacaoTemplate) -> None:
+        if (not isinstance(preparacao, PreparacaoTemplate)
+                or self._template_pendentes.get(preparacao.operation_id) is not preparacao):
+            raise ErroDocumento("Preparação de template não pertence a este owner.")
+        del self._template_pendentes[preparacao.operation_id]
 
     def _auditar_patches(self, process_id, views, context, *, version):
         from . import achados, consistencia, validacao

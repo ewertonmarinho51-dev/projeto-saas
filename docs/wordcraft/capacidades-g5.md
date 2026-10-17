@@ -164,6 +164,16 @@ exclusivo; data inválida, futura ou expirada falha fechada. Chave ausente perma
 pendente; duplicidade de escopo, múltiplas publicadas ou divergência recusam a
 prévia inteira, sem preenchimento por aproximação.
 
+O owner também consegue preparar, ainda sem persistir, o alvo nativo exato do
+template efetivo. A preparação exige ausência de pendências, injeta a tabela
+canônica do processo, recusa marcadores estruturais restantes, reutiliza o
+renderer institucional, passa o DOCX pelo importador/validador WordCraft e
+reconstrói o índice para a próxima revisão. O envelope preserva revisão/hash de
+origem, template, cláusulas, texto renderizado, alvo e build, e recebe selo da
+instância viva do owner. A confirmação transacional que gravará revisão e
+proveniência juntas continua pendente; por isso essa preparação ainda não é
+exposta como ação de aplicação na UI.
+
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
 manifesto, inventário fechado, hashes/tamanhos dos assets, cabeçalho WASM,
@@ -204,6 +214,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   processo, prevalece sobre a municipal e tem contrato/hash revalidados;
 - catálogo, template escolhido e cláusulas excluem versões fora da vigência
   temporal sem promover apenas o status `PUBLISHED` a efetividade;
+- preparação do template efetivo produz bytes e índice nativos selados, sem
+  RPC, e bloqueia parâmetros ou marcadores estruturais não resolvidos;
 - parecer ambíguo permanece pendente;
 - alteração posterior de logo ou signatário não muda o snapshot capturado;
 - 210 itens preservam numeração e total decimal;
