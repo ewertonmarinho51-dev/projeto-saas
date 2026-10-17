@@ -61,14 +61,17 @@ def _cenario(numero: int) -> str:
 class FonteSintetica:
     """Uma fonte de preço praticado que responde pela fixture."""
 
-    def __init__(self, latencia_ms: int = 0):
+    def __init__(self, latencia_ms: int = 0, *, volume: int = 0,
+                 fonte_id: str = "compras_gov_precos"):
         from src.precos.modelo import Fonte
 
-        self.fonte = Fonte("compras_gov_precos",
-                           "Compras.gov — preços praticados (sintético)",
-                           "sistema_oficial")
+        self.fonte = Fonte(fonte_id,
+                           f"{fonte_id} (sintético)", "sistema_oficial")
         self.latencia = latencia_ms / 1000
         self.chamadas = 0
+        # `volume` > 0: devolve N candidatas por item (1 em 4 é produto
+        # vizinho, não comparável) — o caso das 301 consideradas.
+        self.volume = volume
         self._por_descricao: dict[str, dict] = {}
 
     def registrar(self, item: dict) -> None:
@@ -91,14 +94,18 @@ class FonteSintetica:
         base = Decimal(str(item.get("valor_unitario") or "10")).quantize(
             Decimal("0.01")) or Decimal("10.00")
         fatores = ("0.92", "1.00", "1.05", "1.10", "0.97", "1.02")
+        if self.volume:
+            fatores = tuple(str(Decimal("0.80") + Decimal(k % 41) / 100)
+                            for k in range(self.volume))
         quantas = 2 if cenario == "dois" else len(fatores)
         refs = []
         for i, fator in enumerate(fatores[:quantas]):
+            vizinho = cenario == "vizinhos" or (self.volume and i % 4 == 3)
             descricao = (f"PRODUTO DIFERENTE GENERICO {i} ZZZ"
-                         if cenario == "vizinhos" else consulta.descricao)
+                         if vizinho else consulta.descricao)
             unidade = ("CAIXA" if cenario == "unidade_diferente" and i % 2
                        else str(item.get("unidade") or "UNIDADE"))
-            ident = f"{numero}-{i}"
+            ident = f"{self.fonte.id}-{numero}-{i}"
             refs.append(Referencia(
                 fonte=self.fonte, id_externo=ident,
                 bruto={"idCompra": ident, "valor": str(base * Decimal(fator))},
@@ -175,8 +182,10 @@ def _rodar_legado(itens: list[dict], fonte, contador: Contador) -> list[dict]:
             break
         antes_req, antes_fonte = contador.requisicoes, fonte.chamadas
         inicio = time.perf_counter()
-        execucao.executar_lote(pesquisa, linhas, [fonte], repo, tamanho=1,
-                               tentados=tentados)
+        execucao.executar_lote(pesquisa, linhas, fonte.lista, repo, tamanho=1,
+                               tentados=tentados,
+                               politica=estatistica.POLITICA_AUTOMATICA
+                               if TETO[0] else None)
         medidas.append({"segundos": time.perf_counter() - inicio,
                         "req_banco": contador.requisicoes - antes_req,
                         "chamadas_fonte": fonte.chamadas - antes_fonte})
@@ -206,7 +215,7 @@ def _rodar_unificado(itens: list[dict], fonte, contador: Contador):
         inicio = time.perf_counter()
         resultados, restantes = cotacoes.pesquisar_em_lote(
             ctx, str(cotacao["id"]), modo="automatico",
-            tamanho=LOTE_POR_PASSO, ja_tentados=tentados, fontes=[fonte])
+            tamanho=LOTE_POR_PASSO, ja_tentados=tentados, fontes=fonte.lista)
         n = max(1, len(resultados))
         for _ in resultados:
             medidas.append({
@@ -220,6 +229,18 @@ def _rodar_unificado(itens: list[dict], fonte, contador: Contador):
 
 MODOS = {"legado": _rodar_legado, "unificado": _rodar_unificado}
 
+# `--teto`: liga a política da cotação automática (flag
+# `cotacao_automatica_teto`) — na unificada pela flag, na legada pelo
+# parâmetro que a tela passa.
+TETO = [False]
+
+
+def _ligar_teto() -> None:
+    from src import db, governanca
+
+    TETO[0] = True
+    db.flag_ativa = lambda nome: nome == governanca.FLAG_TETO_AUTOMATICO
+
 
 def _percentil(valores: list[float], fracao: float) -> float:
     if not valores:
@@ -231,15 +252,32 @@ def _percentil(valores: list[float], fracao: float) -> float:
     return ordenados[baixo] + (ordenados[alto] - ordenados[baixo]) * (posicao - baixo)
 
 
-def medir(modo: str, n: int, latencia_ms: int) -> dict:
+class Fontes:
+    """Uma ou duas fontes sintéticas com a interface que os modos usam."""
+
+    def __init__(self, fontes):
+        self.lista = fontes
+
+    @property
+    def chamadas(self) -> int:
+        return sum(f.chamadas for f in self.lista)
+
+
+def medir(modo: str, n: int, latencia_ms: int, *, volume: int = 0,
+          duas_fontes: bool = False) -> dict:
     from src.precos import cesta
 
     contador = Contador()
-    _banco(contador)
-    fonte = FonteSintetica(latencia_ms)
+    cliente = _banco(contador)
+    fontes = [FonteSintetica(latencia_ms, volume=volume)]
+    if duas_fontes:
+        fontes.append(FonteSintetica(latencia_ms, volume=volume,
+                                     fonte_id="pncp"))
+    fonte = Fontes(fontes)
     itens = _itens(n)
     for item in itens:
-        fonte.registrar(item)
+        for f in fontes:
+            f.registrar(item)
     inicio = time.perf_counter()
     medidas, finais = MODOS[modo](itens, fonte, contador)
     total = time.perf_counter() - inicio
@@ -261,6 +299,15 @@ def medir(modo: str, n: int, latencia_ms: int) -> dict:
             statistics.mean(m["req_banco"] for m in medidas), 3)
         if medidas else 0,
         "itens_com_3_considerados": com_tres,
+        "volume_por_fonte": volume or 6,
+        "fontes": len(fontes),
+        "referencias_gravadas_por_item": round(len(cliente.tabelas.get(
+            "pesquisa_preco_referencias", [])) / max(1, n), 2),
+        "consideradas_por_item_media": round(statistics.mean(
+            cesta.na_cesta_do_item(i) or 0 for i in finais), 2)
+        if finais else 0,
+        "consideradas_por_item_max": max(
+            (cesta.na_cesta_do_item(i) or 0 for i in finais), default=0),
         "estados": estados,
         "chamadas_ia": 0,
     }
@@ -273,7 +320,14 @@ def main(argv=None) -> int:
                         default=[1, 10, 50, 210])
     parser.add_argument("--latencia-ms", type=int, default=0)
     parser.add_argument("--saida", type=Path)
+    parser.add_argument("--volume", type=int, default=0,
+                        help="candidatas por fonte e item (0 = 6, o padrão)")
+    parser.add_argument("--duas-fontes", action="store_true")
+    parser.add_argument("--teto", action="store_true",
+                        help="liga a política de teto da cotação automática")
     args = parser.parse_args(argv)
+    if args.teto:
+        _ligar_teto()
 
     resultado = {
         "modo": args.modo,
@@ -281,10 +335,12 @@ def main(argv=None) -> int:
         "python": platform.python_version(),
         "maquina": platform.platform(),
         "latencia_simulada_ms": args.latencia_ms,
+        "teto_automatico": args.teto,
         "limites": ("fontes e banco são dublês determinísticos; rede real "
                     "NÃO medida. Tempos medem o processamento do GovConnect "
                     "(coleta→procedência→unidade→matching→cesta→gravação)."),
-        "rodadas": [medir(args.modo, n, args.latencia_ms)
+        "rodadas": [medir(args.modo, n, args.latencia_ms,
+                          volume=args.volume, duas_fontes=args.duas_fontes)
                     for n in args.tamanhos],
     }
     texto = json.dumps(resultado, ensure_ascii=False, indent=2)

@@ -44,6 +44,10 @@ class Coleta:
     erro: str = ""
     duracao_s: float = 0.0
     codigo_confirmado: bool = False
+    # fontes que a política automática deixou de consultar (amostra já
+    # suficiente) — vão para a trilha, nunca somem
+    fontes_nao_consultadas: list[str] = field(default_factory=list)
+    _ocorrencias_da_fusao: list[str] = field(default_factory=list, repr=False)
 
     @property
     def duplicadas(self) -> int:
@@ -118,66 +122,22 @@ def _decimal(valor) -> Decimal | None:
         return None
 
 
-def coletar(item: dict, fontes: list[FontePesquisaPreco], *,
-            filtros: dict | None = None,
-            termos: tuple[str, ...] = ()) -> Coleta:
+def _ranquear(coletadas: list[Referencia], item: dict, filtros: dict,
+              coleta: Coleta, pdms_inferidos: set[str]
+              ) -> list[tuple[Referencia, matching.Comparabilidade]]:
     """
-    Coleta, depura e ranqueia as referências de um item.
-
-    **Falha de fonte não derruba a busca** (§37): cada adapter roda no
-    seu `try`. Se TODAS as fontes de preço falharem, `erro` diz que é
-    falha técnica — não "o mercado não tem o item".
+    Procedência → deduplicação (inclusive entre portais) → unidade →
+    comparabilidade. Atualiza `brutas`/`unicas` da coleta; as ocorrências
+    da fusão entre portais são registradas por quem chama.
     """
-    from .execucao import codigo_de_catalogo, consulta_do_item
+    from .execucao import codigo_de_catalogo
 
-    filtros = filtros or {}
-    inicio = time.monotonic()
-    coleta = Coleta()
-    consulta = consulta_do_item(item, filtros, termos)
-
-    coletadas: list[Referencia] = []
-    pdms_inferidos: set[str] = set()
-    de_preco: set[str] = set()
-    for fonte in fontes:
-        fid = getattr(getattr(fonte, "fonte", None), "id", "") or repr(fonte)
-        nome = getattr(getattr(fonte, "fonte", None), "nome", "fonte")
-        if fontes_mod.fornece_preco(fonte):
-            de_preco.add(fid)
-        try:
-            busca = fonte.pesquisar(consulta)
-        except Exception as exc:  # noqa: BLE001 — adapter nenhum derruba a busca
-            coleta.desfechos[fid] = Desfecho.FALHA.value
-            coleta.ocorrencias.append(
-                f"{nome}: indisponível no momento ({type(exc).__name__})")
-            continue
-        coleta.desfechos[fid] = busca.desfecho.value
-        coletadas.extend(busca.referencias)
-        pdms_inferidos.update(getattr(busca, "pdms_inferidos", None) or ())
-        coleta.codigo_confirmado |= bool(
-            getattr(busca, "codigo_confirmado", False))
-        coleta.ocorrencias.extend(busca.ocorrencias)
-    coleta.de_preco = frozenset(de_preco)
-
-    falharam = [fid for fid in de_preco
-                if coleta.desfechos.get(fid) == Desfecho.FALHA.value]
-    if de_preco and len(falharam) == len(de_preco):
-        coleta.erro = (
-            "as fontes de preço não responderam "
-            f"({', '.join(sorted(falharam))}) — isto é falha técnica, não "
-            "ausência de preço no mercado; o item volta para a fila")
-    elif not de_preco:
-        coleta.erro = ("nenhuma fonte capaz de fornecer preço foi "
-                       "configurada para esta pesquisa")
-    if coleta.erro:
-        coleta.duracao_s = time.monotonic() - inicio
-        return coleta
-
-    # Procedência ANTES de tudo; depois o mesmo registro visto em dois
-    # caminhos (ou duas fontes) vira um só (§55, "não somar espelhados").
     coleta.brutas = len(coletadas)
+    ocorrencias: list[str] = []
     unicas = conferir_procedencia(
-        fundir_entre_portais(deduplicar(coletadas), coleta.ocorrencias))
+        fundir_entre_portais(deduplicar(coletadas), ocorrencias))
     coleta.unicas = len(unicas)
+    coleta._ocorrencias_da_fusao = ocorrencias
 
     unidade = str(item.get("unidade") or "")
     conteudo = unidades.conteudo_declarado(item.get("descricao"))
@@ -196,7 +156,7 @@ def coletar(item: dict, fontes: list[FontePesquisaPreco], *,
     if codigo and not (item.get("tipo_catalogo") or coleta.codigo_confirmado):
         codigo = None
 
-    coleta.referencias = matching.ordenar_por_comparabilidade(
+    return matching.ordenar_por_comparabilidade(
         normalizadas,
         descricao=str(item.get("descricao") or ""),
         codigo_catalogo=codigo,
@@ -205,5 +165,97 @@ def coletar(item: dict, fontes: list[FontePesquisaPreco], *,
         data_base=data_base,
         pdms_item=frozenset(pdms_inferidos),
     )
+
+
+def coletar(item: dict, fontes: list[FontePesquisaPreco], *,
+            filtros: dict | None = None,
+            termos: tuple[str, ...] = (),
+            politica=None) -> Coleta:
+    """
+    Coleta, depura e ranqueia as referências de um item.
+
+    **Falha de fonte não derruba a busca** (§37): cada adapter roda no
+    seu `try`. Se TODAS as fontes de preço falharem, `erro` diz que é
+    falha técnica — não "o mercado não tem o item".
+
+    `politica` (`estatistica.PoliticaAmostraAutomatica`, só na cotação
+    automática): pede menos registros a cada fonte e PARA de consultar as
+    fontes seguintes quando as elegíveis já bastam (`suficiente`). As
+    fontes vêm em ordem de prioridade normativa, então a que fica de fora
+    é a de menor prioridade — e a trilha diz qual foi e por quê.
+    """
+    from .estatistica import PISO_COMPARABILIDADE
+    from .execucao import consulta_do_item
+
+    filtros = dict(filtros or {})
+    if politica is not None:
+        filtros.setdefault("limite", politica.limite_por_fonte)
+    inicio = time.monotonic()
+    coleta = Coleta()
+    consulta = consulta_do_item(item, filtros, termos)
+
+    coletadas: list[Referencia] = []
+    pdms_inferidos: set[str] = set()
+    de_preco: set[str] = set()
+    ranqueadas = None
+    for posicao, fonte in enumerate(fontes):
+        fid = getattr(getattr(fonte, "fonte", None), "id", "") or repr(fonte)
+        nome = getattr(getattr(fonte, "fonte", None), "nome", "fonte")
+        if politica is not None and ranqueadas is not None:
+            elegiveis = sum(
+                1 for ref, comp in ranqueadas
+                if ref.valor_unitario_normalizado is not None
+                and ref.natureza_valor in NATUREZAS_COMPARAVEIS
+                and comp.score >= PISO_COMPARABILIDADE)
+            if elegiveis >= politica.suficiente:
+                puladas = [getattr(getattr(f, "fonte", None), "nome", "fonte")
+                           for f in fontes[posicao:]]
+                coleta.fontes_nao_consultadas = puladas
+                coleta.ocorrencias.append(
+                    f"busca encerrada com {elegiveis} preço(s) comparável(is) "
+                    f"— suficiente pela política {politica.versao}; não "
+                    f"consultada(s): {', '.join(puladas)}")
+                break
+        if fontes_mod.fornece_preco(fonte):
+            de_preco.add(fid)
+        try:
+            busca = fonte.pesquisar(consulta)
+        except Exception as exc:  # noqa: BLE001 — adapter nenhum derruba a busca
+            coleta.desfechos[fid] = Desfecho.FALHA.value
+            coleta.ocorrencias.append(
+                f"{nome}: indisponível no momento ({type(exc).__name__})")
+            continue
+        coleta.desfechos[fid] = busca.desfecho.value
+        coletadas.extend(busca.referencias)
+        pdms_inferidos.update(getattr(busca, "pdms_inferidos", None) or ())
+        coleta.codigo_confirmado |= bool(
+            getattr(busca, "codigo_confirmado", False))
+        coleta.ocorrencias.extend(busca.ocorrencias)
+        if politica is not None and posicao < len(fontes) - 1:
+            # só a automática paga o ranqueamento parcial: é ele que
+            # decide se vale chamar a próxima fonte
+            ranqueadas = _ranquear(coletadas, item, filtros, coleta,
+                                   pdms_inferidos)
+    coleta.de_preco = frozenset(de_preco)
+
+    falharam = [fid for fid in de_preco
+                if coleta.desfechos.get(fid) == Desfecho.FALHA.value]
+    if de_preco and len(falharam) == len(de_preco):
+        coleta.erro = (
+            "as fontes de preço não responderam "
+            f"({', '.join(sorted(falharam))}) — isto é falha técnica, não "
+            "ausência de preço no mercado; o item volta para a fila")
+    elif not de_preco:
+        coleta.erro = ("nenhuma fonte capaz de fornecer preço foi "
+                       "configurada para esta pesquisa")
+    if coleta.erro:
+        coleta.duracao_s = time.monotonic() - inicio
+        return coleta
+
+    # Procedência ANTES de tudo; depois o mesmo registro visto em dois
+    # caminhos (ou duas fontes) vira um só (§55, "não somar espelhados").
+    coleta.referencias = _ranquear(coletadas, item, filtros, coleta,
+                                   pdms_inferidos)
+    coleta.ocorrencias.extend(coleta._ocorrencias_da_fusao)
     coleta.duracao_s = time.monotonic() - inicio
     return coleta

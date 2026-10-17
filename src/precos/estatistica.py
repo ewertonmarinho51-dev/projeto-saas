@@ -333,6 +333,10 @@ class Cesta:
     selecionadas: list[Referencia] = field(default_factory=list)
     descartadas: list[Referencia] = field(default_factory=list)
     motivos: list[str] = field(default_factory=list)
+    # Elegíveis que ficaram FORA só pelo teto da cotação automática —
+    # boas referências, disponíveis para o revisor incluir à mão. Vazia
+    # quando não há teto (o comportamento histórico).
+    excedentes: list[Referencia] = field(default_factory=list)
 
     @property
     def valores(self) -> list[Decimal]:
@@ -351,10 +355,46 @@ PISO_COMPARABILIDADE = Decimal("0.5")
 CV_DISPERSAO = Decimal("0.25")
 
 
+@dataclass(frozen=True)
+class PoliticaAmostraAutomatica:
+    """
+    Quanto a COTAÇÃO AUTOMÁTICA coleta, grava e considera por item.
+
+    Medido em 17/10/2026: sem teto, um item com 301 candidatas por fonte
+    gravava 602 referências e considerava 452 — o "301/3 considerado" da
+    tela, um relatório inchado e minutos de processamento que não
+    melhoram o preço. A política é uma só, para a cotação unificada e a
+    rota legada, e vai VERSIONADA para a trilha de cada busca.
+
+    * `teto` — máximo absoluto de referências que a automação põe na
+      cesta de um item, contando as que já estavam lá. É teto, não meta;
+    * `suficiente` — a busca para de ampliar (não consulta a próxima
+      fonte) quando já há tantas candidatas elegíveis. 3 a 6 bons preços
+      sustentam o método; chegar a 15 à força não melhora nada;
+    * `limite_por_fonte` — quantos registros pedir a cada fonte;
+    * `reserva` — elegíveis além do teto guardadas como candidatas, para o
+      revisor ter alternativa sem nova consulta. O resto não é gravado: a
+      trilha guarda as CONTAGENS (brutas, únicas, elegíveis), não as linhas.
+
+    O modo MANUAL não usa esta política: o servidor pode trazer e
+    escolher quantas referências a análise pedir.
+    """
+
+    versao: str = "2026-10-17.teto-15"
+    teto: int = 15
+    suficiente: int = 6
+    limite_por_fonte: int = 50
+    reserva: int = 10
+
+
+POLITICA_AUTOMATICA = PoliticaAmostraAutomatica()
+
+
 def selecionar_cesta(
     ranqueadas: list[tuple[Referencia, Comparabilidade]],
     perfil: PerfilNormativo = PADRAO,
     piso: Decimal = PISO_COMPARABILIDADE,
+    teto: int | None = None,
 ) -> Cesta:
     """
     Monta a cesta por COMPARABILIDADE e prioridade de fonte — nunca por
@@ -363,6 +403,10 @@ def selecionar_cesta(
     A ordem é: fonte de maior prioridade normativa primeiro, e dentro
     dela a maior comparabilidade. "Pegue os três menores" produziria uma
     cesta falsa, barata e incomparável (§12).
+
+    `teto` (cotação automática): só as `teto` primeiras dessa ordem entram;
+    as demais elegíveis ficam CANDIDATAS em `excedentes`, com o motivo.
+    `None` = sem teto, exatamente como antes.
     """
     cesta = Cesta()
     prioridade = {tipo: i for i, tipo
@@ -400,11 +444,20 @@ def selecionar_cesta(
     elegiveis.sort(key=lambda par: (
         prioridade.get(par[0].fonte.tipo, 99), -par[1].score))
 
-    for referencia, _ in elegiveis:
+    limite = len(elegiveis) if teto is None else max(0, int(teto))
+    for referencia, _ in elegiveis[:limite]:
         referencia.status = StatusReferencia.SELECIONADA
         cesta.selecionadas.append(referencia)
+    for referencia, _ in elegiveis[limite:]:
+        referencia.status = StatusReferencia.CANDIDATA
+        # sem o número: numa reconsulta o teto que sobra é menor que o da
+        # política, e "teto de 2" leria como regra diferente
+        referencia.com_motivo(
+            "elegível, fora da cesta automática pelo teto de referências "
+            "da cotação automática — disponível para inclusão manual")
+        cesta.excedentes.append(referencia)
 
-    if not cesta.selecionadas:
+    if not cesta.selecionadas and not cesta.excedentes:
         cesta.motivos.append(
             "nenhuma referência atingiu a comparabilidade mínima")
     return cesta
