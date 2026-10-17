@@ -1,0 +1,264 @@
+{
+ "emitido_em": "2026-10-16T23:30:00+00:00",
+ "motor": "libreoffice",
+ "renderer": "cotacao-2026-10-16.1",
+ "amostras": {
+  "compacto_5itens_871": {
+   "cenario": "historico_5_871",
+   "itens": 5,
+   "referencias": 2857,
+   "consideradas": 871,
+   "subtotal_concluidos": "18136.00",
+   "valor_global": "18136.00",
+   "hash_decisorio": "b5b175287bd53445f0a8701ba205ab278a8dccfb278d53eb3ec0a08028b81038",
+   "novo": {
+    "paginas": 6,
+    "bytes": 264296,
+    "segundos": 6.4,
+    "links": 32,
+    "fontes": [
+     "DejaVuSans",
+     "DejaVuSans-Bold",
+     "DejaVuSansCondensed",
+     "DejaVuSansCondensed-Bold"
+    ],
+    "capturas": [
+     "compacto_5itens_871_p001.png",
+     "compacto_5itens_871_p002.png",
+     "compacto_5itens_871_p003.png",
+     "compacto_5itens_871_p006.png"
+    ]
+   },
+   "anterior_completo": {
+    "paginas": 321,
+    "bytes": 13925474,
+    "segundos": 53.8,
+    "links": 922,
+    "fontes": [
+     "TimesNewRomanPS-BoldMT",
+     "TimesNewRomanPSMT"
+    ],
+    "capturas": [
+     "compacto_5itens_871_ANTERIOR_p001.png",
+     "compacto_5itens_871_ANTERIOR_p004.png"
+    ]
+   }
+  },
+  "compacto_210itens": {
+   "cenario": "processo_210",
+   "itens": 210,
+   "referencias": 1474,
+   "consideradas": 949,
+   "subtotal_concluidos": "6051766.39",
+   "valor_global": null,
+   "hash_decisorio": "2ff35c1ed2737b76d4fcbd5ad6cd3a154f9e68d9e6f311b9d08fb2bda8724bfb",
+   "novo": {
+    "paginas": 122,
+    "bytes": 5286251,
+    "segundos": 16.8,
+    "links": 906,
+    "fontes": [
+     "DejaVuSans",
+     "DejaVuSans-Bold",
+     "DejaVuSansCondensed",
+     "DejaVuSansCondensed-Bold"
+    ],
+    "capturas": [
+     "compacto_210itens_p001.png",
+     "compacto_210itens_p004.png",
+     "compacto_210itens_p122.png"
+    ]
+   },
+   "anterior_completo": {
+    "paginas": 374,
+    "bytes": 12657698,
+    "segundos": 63.9,
+    "links": 1014,
+    "fontes": [
+     "TimesNewRomanPS-BoldMT",
+     "TimesNewRomanPSMT"
+    ],
+    "capturas": [
+     "compacto_210itens_ANTERIOR_p001.png",
+     "compacto_210itens_ANTERIOR_p004.png"
+    ]
+   }
+  },
+  "analitico_5itens_871": {
+   "cenario": "historico_5_871",
+   "itens": 5,
+   "referencias": 2857,
+   "consideradas": 871,
+   "subtotal_concluidos": "18136.00",
+   "valor_global": "18136.00",
+   "hash_decisorio": "b5b175287bd53445f0a8701ba205ab278a8dccfb278d53eb3ec0a08028b81038",
+   "novo": {
+    "paginas": 158,
+    "bytes": 12047296,
+    "segundos": 26.6,
+    "links": 2857,
+    "fontes": [
+     "DejaVuSans",
+     "DejaVuSans-Bold",
+     "DejaVuSansCondensed",
+     "DejaVuSansCondensed-Bold"
+    ],
+    "capturas": [
+     "analitico_5itens_871_p001.png",
+     "analitico_5itens_871_p002.png",
+     "analitico_5itens_871_p158.png"
+    ]
+   }
+  },
+  "institucional": {
+   "cenario": "minima",
+   "itens": 1,
+   "referencias": 3,
+   "consideradas": 3,
+   "subtotal_concluidos": "258.50",
+   "valor_global": "258.50",
+   "hash_decisorio": "b91b27b15102f31dcebb04cb9b0a8efc90fbe6bd549a15bbe0e5a54e87418589",
+   "novo": {
+    "paginas": 2,
+    "bytes": 144289,
+    "segundos": 6.2,
+    "links": 3,
+    "fontes": [
+     "DejaVuSans",
+     "DejaVuSans-Bold",
+     "DejaVuSansCondensed",
+     "DejaVuSansCondensed-Bold"
+    ],
+    "capturas": [
+     "institucional_p001.png",
+     "institucional_p002.png"
+    ]
+   },
+   "anterior_completo": {
+    "paginas": 5,
+    "bytes": 159531,
+    "segundos": 5.9,
+    "links": 3,
+    "fontes": [
+     "TimesNewRomanPS-BoldMT",
+     "TimesNewRomanPSMT"
+    ],
+    "capturas": [
+     "institucional_ANTERIOR_p001.png",
+     "institucional_ANTERIOR_p004.png"
+    ]
+   }
+  },
+  "pendencias": {
+   "cenario": "pendencias",
+   "itens": 5,
+   "referencias": 15,
+   "consideradas": 13,
+   "subtotal_concluidos": "13395.50",
+   "valor_global": null,
+   "hash_decisorio": "78a55d1ebc2731c06bbfb549ae1082dd8a5bca6dcb8569a3dee371bb0f36a64e",
+   "novo": {
+    "paginas": 5,
+    "bytes": 217045,
+    "segundos": 5.9,
+    "links": 15,
+    "fontes": [
+     "DejaVuSans",
+     "DejaVuSans-Bold",
+     "DejaVuSansCondensed",
+     "DejaVuSansCondensed-Bold"
+    ],
+    "capturas": [
+     "pendencias_p001.png",
+     "pendencias_p002.png",
+     "pendencias_p003.png"
+    ]
+   },
+   "anterior_completo": {
+    "paginas": 11,
+    "bytes": 318733,
+    "segundos": 6.4,
+    "links": 14,
+    "fontes": [
+     "TimesNewRomanPS-BoldMT",
+     "TimesNewRomanPSMT"
+    ],
+    "capturas": [
+     "pendencias_ANTERIOR_p001.png",
+     "pendencias_ANTERIOR_p004.png"
+    ]
+   }
+  },
+  "vazio": {
+   "cenario": "vazio",
+   "itens": 0,
+   "referencias": 0,
+   "consideradas": 0,
+   "subtotal_concluidos": "0",
+   "valor_global": null,
+   "hash_decisorio": "602a64fa817371a526dd7002a852a50c26659743775b27c7ee25250ccd5aa123",
+   "novo": {
+    "paginas": 1,
+    "bytes": 87176,
+    "segundos": 5.7,
+    "links": 0,
+    "fontes": [
+     "DejaVuSans",
+     "DejaVuSans-Bold",
+     "DejaVuSansCondensed",
+     "DejaVuSansCondensed-Bold"
+    ],
+    "capturas": [
+     "vazio_p001.png"
+    ]
+   }
+  }
+ },
+ "qa_auxiliar": {
+  "analitico_5itens_871": {
+   "paginas": 158,
+   "links": 2857,
+   "problemas": [],
+   "aprovado": true
+  },
+  "compacto_210itens": {
+   "paginas": 122,
+   "links": 906,
+   "problemas": [],
+   "aprovado": true
+  },
+  "compacto_5itens_871": {
+   "paginas": 6,
+   "links": 32,
+   "problemas": [],
+   "aprovado": true
+  },
+  "compacto_5itens_871_ANTERIOR": {
+   "paginas": 321,
+   "links": 922,
+   "problemas": [
+    "excede_meta_paginas",
+    "texto_obrigatorio_ausente"
+   ],
+   "aprovado": false
+  },
+  "institucional": {
+   "paginas": 2,
+   "links": 3,
+   "problemas": [],
+   "aprovado": true
+  },
+  "pendencias": {
+   "paginas": 5,
+   "links": 15,
+   "problemas": [],
+   "aprovado": true
+  },
+  "vazio": {
+   "paginas": 1,
+   "links": 0,
+   "problemas": [],
+   "aprovado": true
+  }
+ }
+}

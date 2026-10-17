@@ -44,7 +44,8 @@ from ..precos import (aplicacao, estatistica, execucao,
                       filtros as filtros_mod, orientacao, perfil, relatorio)
 from ..precos import semantica as precos_semantica
 from ..precos import repositorio as repo
-from ..precos.estados import (EstadoItem, EstadoPesquisa,
+from ..precos.estados import (ROTULO_PESQUISA as _ROTULO_PESQUISA,
+                             EstadoItem, EstadoPesquisa,
                              pode_transitar_pesquisa)
 from . import components
 
@@ -62,17 +63,7 @@ LISTA, NOVA, ITENS, EXECUCAO, REVISAO, RESUMO, BANCO = (
 
 # Rótulos dos estados. O vocabulário do banco é inglês (§42); o que o
 # servidor lê é português — e a tradução mora num lugar só.
-ROTULO_PESQUISA = {
-    EstadoPesquisa.RASCUNHO.value: "Rascunho",
-    EstadoPesquisa.NA_FILA.value: "Na fila",
-    EstadoPesquisa.EXECUTANDO.value: "Pesquisando",
-    EstadoPesquisa.PARCIAL.value: "Com pendências",
-    EstadoPesquisa.EM_REVISAO.value: "Em revisão",
-    EstadoPesquisa.CONCLUIDA.value: "Concluída",
-    EstadoPesquisa.APLICADA.value: "Aplicada ao processo",
-    EstadoPesquisa.ARQUIVADA.value: "Arquivada",
-    EstadoPesquisa.FALHOU.value: "Falhou",
-}
+ROTULO_PESQUISA = _ROTULO_PESQUISA
 
 ROTULO_ITEM = {
     EstadoItem.PENDENTE.value: "Pendente",
@@ -2223,6 +2214,13 @@ def _render_relatorios(pesquisa: dict) -> None:
                    "pendências acima.")
         return
 
+    if _relatorio_visual():
+        _render_relatorios_visuais(pesquisa, itens, referencias,
+                                   identificador)
+        _render_previa_e_conferencia(pesquisa, itens, referencias,
+                                     previas=False)
+        return
+
     if len(itens) >= _ITENS_PARA_AVISAR:
         demora = len(itens) * _SEGUNDOS_POR_ITEM_NO_COMPLETO
         st.info(
@@ -2250,16 +2248,97 @@ def _render_relatorios(pesquisa: dict) -> None:
     _render_previa_e_conferencia(pesquisa, itens, referencias)
 
 
+def _relatorio_visual() -> bool:
+    """Relatório de Cotação no padrão novo (flag, nasce desligada)."""
+    from .. import governanca
+
+    return db.flag_ativa(governanca.FLAG_RELATORIO_VISUAL)
+
+
+# Acima disto o Relatório Analítico Integral não é gerado: a conversão
+# passaria de vários minutos e de centenas de MB de memória no servidor.
+# A memória analítica (XLSX) traz o mesmo conteúdo, sem limite prático.
+LIMITE_DO_ANALITICO = 15000
+
+
+def _branding_da_emissao() -> dict | None:
+    """
+    O timbrado do tenant/secretaria pelo MESMO resolvedor das exportações
+    do processo (`steps`): vínculo do usuário, e não escolha de tela.
+
+    O caminho anterior lia `st.session_state["branding"]`, que nenhuma
+    tela grava — os relatórios de preços saíam sem timbrado. Fica assim
+    só no gerador antigo, para que desligar a flag devolva exatamente o
+    comportamento anterior.
+    """
+    if not db.disponivel():
+        return st.session_state.get("branding") or None
+    try:
+        resolvido = contexto.identidade_para_exportacao()
+        if resolvido is not None:
+            return resolvido[0]
+        orgaos = db.listar_orgaos()
+    except db.ErroBanco:
+        return None
+    return orgaos[0] if orgaos else None
+
+
+def _render_relatorios_visuais(pesquisa: dict, itens: list[dict],
+                               referencias: dict, identificador: str) -> None:
+    """
+    Os mesmos lugares de download, com as saídas do padrão novo — todas
+    da MESMA projeção (`relatorio_view`), e por isso concordantes.
+    """
+    from ..precos import documento_cotacao as dc
+
+    versao = f"{identificador[:16]}-{dc.VERSAO_RENDERER}"
+    colunas = st.columns(3)
+    with colunas[0]:
+        _botao_de_download("Relatório de Cotação (PDF)", pesquisa, itens,
+                           referencias, formato="pdf", tipo="cotacao",
+                           versao=versao)
+    with colunas[1]:
+        _botao_de_download("Relatório de Cotação (DOCX)", pesquisa, itens,
+                           referencias, formato="docx", tipo="cotacao",
+                           versao=versao)
+    with colunas[2]:
+        _botao_de_download("Memória analítica (XLSX)", pesquisa, itens,
+                           referencias, formato="xlsx", tipo="analitico",
+                           versao=versao)
+
+    total = sum(len(v) for v in referencias.values())
+    if total > LIMITE_DO_ANALITICO:
+        st.warning(
+            f"O Relatório Analítico Integral não é gerado para {total} "
+            f"referências (limite {LIMITE_DO_ANALITICO}). A memória "
+            "analítica (XLSX) traz todas elas, consideradas e não "
+            "consideradas, com os motivos.")
+    else:
+        st.caption(
+            f"Relatório Analítico Integral: todas as {total} referências, "
+            "consideradas e não consideradas, em paisagem — cerca de "
+            f"{max(1, round(total / 16))} página(s); a geração pode levar "
+            f"até {10 + total // 50} s. Gere só se precisar do PDF integral: "
+            "a memória analítica (XLSX) traz o mesmo conteúdo na hora.")
+        _botao_de_download("Relatório Analítico Integral (PDF)", pesquisa,
+                           itens, referencias, formato="pdf",
+                           tipo="analitico_integral", versao=versao)
+    _botao_do_pacote(pesquisa, itens, referencias, visual=True,
+                     versao=versao)
+
+
 def _render_previa_e_conferencia(pesquisa: dict, itens: list[dict],
-                                 referencias: dict) -> None:
+                                 referencias: dict, *,
+                                 previas: bool = True) -> None:
     """
     Prévia fiel (o MESMO Markdown que vira PDF/DOCX), histórico das
     emissões registradas e conferência de um identificador impresso.
     """
-    with st.expander("Prévia do quadro resumido"):
-        st.markdown(relatorio.resumido(pesquisa, itens, referencias)
-                    .replace("$", "\\$"))
-    if len(itens) <= _ITENS_PARA_AVISAR:
+    if previas:
+        with st.expander("Prévia do quadro resumido"):
+            st.markdown(relatorio.resumido(pesquisa, itens, referencias)
+                        .replace("$", "\\$"))
+    if previas and len(itens) <= _ITENS_PARA_AVISAR:
         with st.expander("Prévia do relatório completo"):
             st.markdown(relatorio.completo(pesquisa, itens, referencias)
                         .replace("$", "\\$"))
@@ -2334,6 +2413,30 @@ def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
                 "application/vnd.openxmlformats-officedocument."
                 "spreadsheetml.sheet")
 
+    if tipo in ("cotacao", "analitico_integral"):
+        from ..precos import documento_cotacao as dc
+        from ..precos import relatorio_view
+
+        marca = _branding_da_emissao()
+        vista = relatorio_view.projetar(pesquisa, itens, referencias,
+                                        branding=marca)
+        if tipo == "analitico_integral":
+            return (dc.relatorio_analitico_pdf(vista),
+                    relatorio.nome_do_arquivo(
+                        pesquisa, "relatorio-analitico-integral", "pdf"),
+                    "application/pdf")
+        docx = dc.relatorio_de_cotacao_docx(vista)
+        if formato == "docx":
+            return (docx,
+                    relatorio.nome_do_arquivo(pesquisa, "relatorio-cotacao",
+                                              "docx"),
+                    "application/vnd.openxmlformats-officedocument."
+                    "wordprocessingml.document")
+        return (dc.em_pdf(docx, marca),
+                relatorio.nome_do_arquivo(pesquisa, "relatorio-cotacao",
+                                          "pdf"),
+                "application/pdf")
+
     if tipo == "resumido":
         markdown = relatorio.resumido(pesquisa, itens, referencias)
         titulo = "Pesquisa de Preços — Quadro Resumido"
@@ -2352,9 +2455,17 @@ def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
             "application/pdf")
 
 
+# A tabela de emissões da 0029 aceita `completo|resumido|analitico|pacote`.
+# Sem migração nova: o Relatório de Cotação é o relatório PRINCIPAL e se
+# registra como `completo`; o analítico integral, como `analitico`. O nome
+# do arquivo e o hash do arquivo distinguem cada emissão.
+_TIPO_NO_REGISTRO = {"cotacao": "completo",
+                     "analitico_integral": "analitico"}
+
+
 def _botao_de_download(rotulo: str, pesquisa: dict, itens: list[dict],
                        referencias: dict, *, formato: str,
-                       tipo: str) -> None:
+                       tipo: str, versao: str = "") -> None:
     """
     Gera sob demanda e entrega.
 
@@ -2362,8 +2473,14 @@ def _botao_de_download(rotulo: str, pesquisa: dict, itens: list[dict],
     no clique de um botão comum e o download aparece em seguida. É um
     passo a mais para o usuário, e é ele que impede a tela de gerar
     quatro documentos a cada rerun.
+
+    `versao` (identificador do resultado + versão do layout) entra na
+    chave: pesquisa alterada não reaproveita o arquivo da versão anterior.
     """
-    chave = f"precos_export_{tipo}_{formato}_{pesquisa['id']}"
+    from ..precos.documento_cotacao import ErroDeRenderizacao
+
+    chave = (f"precos_export_{tipo}_{formato}_{pesquisa['id']}"
+             + (f"_{versao}" if versao else ""))
     if st.button(rotulo, key=f"btn_{chave}", use_container_width=True):
         with st.spinner(f"Gerando {rotulo.lower()}…"):
             try:
@@ -2371,9 +2488,13 @@ def _botao_de_download(rotulo: str, pesquisa: dict, itens: list[dict],
                     pesquisa, itens, referencias,
                     formato=formato, tipo=tipo)
                 conteudo, nome, _ = st.session_state[chave]
-                _registrar_emissao(pesquisa, itens, referencias, tipo=tipo,
+                _registrar_emissao(pesquisa, itens, referencias,
+                                   tipo=_TIPO_NO_REGISTRO.get(tipo, tipo),
                                    formato=formato, conteudo=conteudo,
                                    nome=nome)
+            except ErroDeRenderizacao as erro:
+                st.error(str(erro))
+                return
             except Exception as erro:  # noqa: BLE001 — exportação não derruba a tela
                 identificador = db.registrar_incidente(
                     erro, contexto="relatório da pesquisa de preços")
@@ -2389,7 +2510,8 @@ def _botao_de_download(rotulo: str, pesquisa: dict, itens: list[dict],
                            mime=mimetype, key=f"dl_{chave}",
                            use_container_width=True)
         emissao = st.session_state.get(
-            f"_emissao_{tipo}_{formato}_{pesquisa['id']}")
+            f"_emissao_{_TIPO_NO_REGISTRO.get(tipo, tipo)}_{formato}_"
+            f"{pesquisa['id']}")
         if emissao:
             dados, registrado = emissao
             st.caption(f"Arquivo SHA-256 `{dados['hash_arquivo'][:16]}…`"
@@ -2399,26 +2521,45 @@ def _botao_de_download(rotulo: str, pesquisa: dict, itens: list[dict],
 
 
 def _botao_do_pacote(pesquisa: dict, itens: list[dict],
-                     referencias: dict) -> None:
+                     referencias: dict, *, visual: bool = False,
+                     versao: str = "") -> None:
     """
     §33 — o pacote ZIP com tudo o que instrui o processo.
 
     Um arquivo só para anexar: relatório completo, quadro resumido e
     memória analítica. É o formato em que o servidor entrega a pesquisa
-    a quem vai auditá-la.
+    a quem vai auditá-la. No padrão novo: Relatório de Cotação (PDF) e
+    memória analítica (XLSX); o analítico integral só se pedido — gerar o
+    PDF de centenas de páginas sem pedido é o custo que o pacote evita.
     """
-    chave = f"precos_pacote_{pesquisa['id']}"
+    from ..precos.documento_cotacao import ErroDeRenderizacao
+
+    chave = f"precos_pacote_{pesquisa['id']}" + (f"_{versao}" if versao
+                                                  else "")
+    com_integral = False
+    if visual:
+        com_integral = st.checkbox(
+            "Incluir o Relatório Analítico Integral (PDF) no pacote",
+            key=f"pacote_integral_{pesquisa['id']}",
+            help="Todas as referências em PDF. Aumenta o tempo de geração.")
+    ajuda = ("Relatório de Cotação em PDF e memória analítica em XLSX, num "
+             "arquivo só." if visual else
+             "Relatório completo em PDF, quadro resumido em PDF e memória "
+             "analítica em XLSX, num arquivo só.")
     if st.button("Pacote completo (ZIP)", use_container_width=True,
-                 help="Relatório completo em PDF, quadro resumido em PDF e "
-                      "memória analítica em XLSX, num arquivo só."):
+                 help=ajuda):
         with st.spinner("Montando o pacote…"):
             try:
                 st.session_state[chave] = _montar_pacote(
-                    pesquisa, itens, referencias)
+                    pesquisa, itens, referencias, visual=visual,
+                    com_integral=com_integral)
                 _registrar_emissao(
                     pesquisa, itens, referencias, tipo="pacote", formato="zip",
                     conteudo=st.session_state[chave],
                     nome=relatorio.nome_do_arquivo(pesquisa, "pacote", "zip"))
+            except ErroDeRenderizacao as erro:
+                st.error(str(erro))
+                return
             except Exception as erro:  # noqa: BLE001
                 identificador = db.registrar_incidente(
                     erro, contexto="pacote da pesquisa de preços")
@@ -2435,19 +2576,28 @@ def _botao_do_pacote(pesquisa: dict, itens: list[dict],
 
 
 def montar_pacote(pesquisa: dict, itens: list[dict],
-                  referencias: dict) -> bytes:
+                  referencias: dict, *, visual: bool = False,
+                  com_integral: bool = False) -> bytes:
     """Público para que o teste monte o pacote sem passar pela tela."""
-    return _montar_pacote(pesquisa, itens, referencias)
+    return _montar_pacote(pesquisa, itens, referencias, visual=visual,
+                          com_integral=com_integral)
 
 
 def _montar_pacote(pesquisa: dict, itens: list[dict],
-                   referencias: dict) -> bytes:
+                   referencias: dict, *, visual: bool = False,
+                   com_integral: bool = False) -> bytes:
     import zipfile
 
+    if visual:
+        partes = [("pdf", "cotacao"), ("xlsx", "analitico")]
+        if com_integral:
+            partes.append(("pdf", "analitico_integral"))
+    else:
+        partes = [("pdf", "completo"), ("pdf", "resumido"),
+                  ("xlsx", "analitico")]
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for formato, tipo in (("pdf", "completo"), ("pdf", "resumido"),
-                              ("xlsx", "analitico")):
+        for formato, tipo in partes:
             conteudo, nome, _ = _conteudo_do_relatorio(
                 pesquisa, itens, referencias, formato=formato, tipo=tipo)
             zf.writestr(nome, conteudo)

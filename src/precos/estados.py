@@ -59,6 +59,21 @@ class EstadoPesquisa(str, Enum):
     FALHOU = "failed"
 
 
+# O que o servidor LÊ (o vocabulário do banco é inglês, §42). Mora aqui,
+# e não na tela, para que o relatório e a tela digam a mesma coisa.
+ROTULO_PESQUISA = {
+    EstadoPesquisa.RASCUNHO.value: "Rascunho",
+    EstadoPesquisa.NA_FILA.value: "Na fila",
+    EstadoPesquisa.EXECUTANDO.value: "Pesquisando",
+    EstadoPesquisa.PARCIAL.value: "Com pendências",
+    EstadoPesquisa.EM_REVISAO.value: "Em revisão",
+    EstadoPesquisa.CONCLUIDA.value: "Concluída",
+    EstadoPesquisa.APLICADA.value: "Aplicada ao processo",
+    EstadoPesquisa.ARQUIVADA.value: "Arquivada",
+    EstadoPesquisa.FALHOU.value: "Falhou",
+}
+
+
 class EstadoItem(str, Enum):
     """
     Ciclo de vida do item dentro da pesquisa.
