@@ -131,7 +131,7 @@ def _restaurar_operacional(doc_key: str, service: DocumentoService, runtime: Run
         raise ErroDocumento("Head restaurada diverge do recibo persistido.")
     _montar(doc_key, restored, runtime)
     for suffix in ("preparation", "audit", "legal_opinions", "legal_attendance",
-                   "evidence", "citation_check", "structure", "history",
+                   "evidence", "citation_check", "structure", "template_preview", "history",
                    "patch_receipt", "approval"):
         st.session_state.pop(_chave(doc_key, suffix), None)
     st.session_state[_chave(doc_key, "message")] = (
@@ -183,6 +183,7 @@ def _receber(doc_key: str, service: DocumentoService) -> None:
             st.session_state.pop(_chave(doc_key, "legal_attendance"), None)
             st.session_state.pop(_chave(doc_key, "evidence"), None)
             st.session_state.pop(_chave(doc_key, "structure"), None)
+            st.session_state.pop(_chave(doc_key, "template_preview"), None)
             st.session_state[_chave(doc_key, "message")] = (
                 "Patch nativo aplicado, persistido e confirmado; Undo permanece no canvas."
                 if patch_checkpoint else "Revisão nativa salva e confirmada.")
@@ -232,6 +233,7 @@ def render(doc_key: str, meta: dict) -> None:
     evidence_key = _chave(doc_key, "evidence")
     citation_key = _chave(doc_key, "citation_check")
     structure_key = _chave(doc_key, "structure")
+    template_preview_key = _chave(doc_key, "template_preview")
     history_key = _chave(doc_key, "history")
     current_audit = st.session_state.get(audit_key)
     if current_audit is not None:
@@ -257,6 +259,7 @@ def render(doc_key: str, meta: dict) -> None:
         if ((binding.get("documentId"), binding.get("revision"), binding.get("sourceHash"))
                 != (document.id, document.revision, document.content_hash)):
             st.session_state.pop(structure_key, None)
+            st.session_state.pop(template_preview_key, None)
     selection = bridge.selecao_atual()
     if st.session_state.get(preparation_key) is None:
         if st.button("Executar auditoria contextual", key=_chave(doc_key, "audit_button")):
@@ -312,6 +315,23 @@ def render(doc_key: str, meta: dict) -> None:
                 st.rerun()
             except ErroDocumento as error:
                 st.error(str(error))
+        template_catalog = ((st.session_state.get(structure_key) or {}).get(
+            "templatesPublicados") or [])
+        if template_catalog:
+            template_labels = {item["versionId"]:
+                f"{item['description'] or item['key']} · v{item['version']}"
+                for item in template_catalog}
+            template_version = st.selectbox("Template publicado para prévia",
+                tuple(template_labels), format_func=template_labels.get,
+                key=_chave(doc_key, "template_version"))
+            if st.button("Gerar prévia determinística do template",
+                         key=_chave(doc_key, "template_preview_button")):
+                try:
+                    st.session_state[template_preview_key] = service.previsualizar_template(
+                        processo_id, doc_key, template_version)
+                    st.rerun()
+                except ErroDocumento as error:
+                    st.error(str(error))
         if st.button("Carregar histórico persistido",
                      key=_chave(doc_key, "history_button")):
             try:
@@ -461,7 +481,8 @@ def render(doc_key: str, meta: dict) -> None:
                    "efetivo": (st.session_state.get(structure_key) or {}).get(
                       "templateEfetivo"),
                    "bloqueio": (st.session_state.get(structure_key) or {}).get(
-                      "templateBlockingReason")}
+                      "templateBlockingReason"),
+                   "previa": st.session_state.get(template_preview_key)}
                   if st.session_state.get(structure_key) else None),
         institucional=(st.session_state.get(structure_key) or {}).get("institucional"),
         montagem=(st.session_state.get(structure_key) or {}).get("montagem"),

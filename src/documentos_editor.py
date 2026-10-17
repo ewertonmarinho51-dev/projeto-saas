@@ -812,6 +812,80 @@ class DocumentoService:
                 "Nenhum vínculo canônico tipo documental → chave de template está registrado."
                 if templates else "Nenhum template publicado está visível para esta sessão.")}))
 
+    def previsualizar_template(self, processo_id: str, doc_key: str,
+                               version_id: str) -> dict:
+        """Render one explicitly selected published template without persisting it."""
+        from . import governanca, templates_gov
+
+        _uuid(processo_id)
+        version_id = str(_uuid(version_id))
+        if not isinstance(doc_key, str) or not doc_key:
+            raise ErroDocumento("Tipo documental inválido para template.")
+        user, claims = self._session()
+        context, originals, views = self._fontes_patch(processo_id, user, claims)
+        document = originals.get(doc_key)
+        if document is None:
+            raise AcessoNegado("Documento não disponível nesta sessão.")
+        version = _one(_execute(user.table("governanca_versoes")
+            .select("id,artefato_id,versao,status,hash,payload")
+            .eq("id", version_id).eq("status", "PUBLISHED").limit(1)))
+        try:
+            artifact_id = str(_uuid(version.get("artefato_id")))
+        except (TypeError, ValueError):
+            raise ErroDocumento("Template publicado divergente.") from None
+        artifact = _one(_execute(user.table("governanca_artefatos")
+            .select("id,tenant_id,secretaria_id,tipo_artefato,chave_estavel,descricao")
+            .eq("id", artifact_id).eq("tipo_artefato", "template").limit(1)))
+        try:
+            expected_version = {"id", "artefato_id", "versao", "status", "hash", "payload"}
+            expected_artifact = {"id", "tenant_id", "secretaria_id", "tipo_artefato",
+                                 "chave_estavel", "descricao"}
+            payload = version["payload"]
+            key = artifact["chave_estavel"]
+            if (version.keys() != expected_version or artifact.keys() != expected_artifact
+                    or version["id"] != version_id or version["artefato_id"] != artifact_id
+                    or artifact["id"] != artifact_id or artifact["tipo_artefato"] != "template"
+                    or type(version["versao"]) is not int or version["versao"] < 1
+                    or version["status"] != "PUBLISHED" or not isinstance(payload, dict)
+                    or not isinstance(payload.get("blocos"), list)
+                    or not isinstance(key, str) or not key or len(key) > 200
+                    or not isinstance(artifact["descricao"], str)
+                    or len(artifact["descricao"]) > 1000):
+                raise ValueError()
+            _uuid(artifact["tenant_id"])
+            if artifact["secretaria_id"] is not None:
+                _uuid(artifact["secretaria_id"])
+            expected_hash = governanca.hash_canonico({"tipo": "template", "chave": key,
+                "versao": version["versao"], "payload": payload})
+            if version["hash"] != expected_hash:
+                raise ValueError()
+            data = context["processo"].get("dados") or {}
+            if not isinstance(data, dict):
+                raise ValueError()
+            preview = templates_gov.montar(payload, data,
+                templates_gov.parametros_do_processo(data), clausulas={})
+            if (not isinstance(preview.get("texto"), str)
+                    or len(preview["texto"].encode("utf-8")) > MAX_BYTES
+                    or not isinstance(preview.get("pendencias"), list)
+                    or not isinstance(preview.get("clausulas_usadas"), list)):
+                raise ValueError()
+        except (KeyError, TypeError, ValueError, templates_gov.ErroTemplate):
+            raise ErroDocumento("Template publicado divergente.") from None
+        snapshot = blocos.snapshot_nativo(views, versao=1)
+        return json.loads(_snapshot_bytes({"schema": "gc-wordcraft-template-preview/v1",
+            "bundleHash": snapshot["hash"], "sourceNative": {
+                item: view.vinculo() for item, view in views.items()},
+            "documentId": document.id, "docKey": doc_key,
+            "template": {"artifactId": artifact_id, "versionId": version_id,
+                "key": key, "description": artifact["descricao"],
+                "version": version["versao"], "hash": version["hash"]},
+            "preview": {"text": preview["texto"], "pending": preview["pendencias"],
+                "clausesUsed": preview["clausulas_usadas"]},
+            "applicable": False,
+            "blockingReason": ("Cláusulas ou parâmetros permanecem pendentes."
+                if preview["pendencias"] else
+                "Prévia confirmada; aplicação atômica vinculada à revisão ainda não executada.")}))
+
     def _auditar_patches(self, process_id, views, context, *, version):
         from . import achados, consistencia, validacao
         texts = {key: view.texto_analise for key, view in views.items()}

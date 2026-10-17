@@ -269,6 +269,46 @@ def test_current_structure_rejects_excessive_template_library(patch_owner):
         service.estrutura_atual(process,'memo_a')
 
 
+def test_published_template_preview_is_revision_bound_read_only_and_deterministic(patch_owner):
+    from src import governanca
+    service,state,process=patch_owner
+    state['context']['processo']['dados']={'orgao':'Secretaria QA','objeto':'Objeto sintético'}
+    artifact,version=str(uuid4()),str(uuid4())
+    payload={'blocos':[{'id':'titulo','tipo':'titulo','texto':'Documento QA'},
+        {'id':'meta','tipo':'metadados','campos':['orgao','objeto']},
+        {'id':'itens','tipo':'lista_itens'}]}
+    digest=governanca.hash_canonico({'tipo':'template','chave':'template.memo-a',
+        'versao':2,'payload':payload})
+    state['template_artifacts']=[dict(id=artifact,
+        tenant_id=state['claims']['app_metadata']['tenant_id'],secretaria_id=None,
+        tipo_artefato='template',chave_estavel='template.memo-a',descricao='Modelo QA')]
+    state['template_versions']=[dict(id=version,artefato_id=artifact,versao=2,
+        status='PUBLISHED',vigencia_inicio=None,vigencia_fim=None,hash=digest,payload=payload)]
+    preview=service.previsualizar_template(process,'memo_a',version)
+    assert preview['schema']=='gc-wordcraft-template-preview/v1'
+    assert preview['documentId']==state['heads'][0]['id']
+    assert preview['template']['versionId']==version and preview['template']['hash']==digest
+    assert '# Documento QA' in preview['preview']['text']
+    assert '**orgao**: Secretaria QA' in preview['preview']['text']
+    assert '[[TABELA_ITENS]]' in preview['preview']['text']
+    assert preview['preview']['pending']==[] and preview['applicable'] is False
+    assert not state['rpc_calls']
+
+
+def test_published_template_preview_rejects_divergent_canonical_hash(patch_owner):
+    service,state,process=patch_owner
+    artifact,version=str(uuid4()),str(uuid4())
+    payload={'blocos':[{'id':'titulo','tipo':'titulo','texto':'Documento QA'}]}
+    state['template_artifacts']=[dict(id=artifact,
+        tenant_id=state['claims']['app_metadata']['tenant_id'],secretaria_id=None,
+        tipo_artefato='template',chave_estavel='template.memo-a',descricao='Modelo QA')]
+    state['template_versions']=[dict(id=version,artefato_id=artifact,versao=2,
+        status='PUBLISHED',vigencia_inicio=None,vigencia_fim=None,hash='d'*64,payload=payload)]
+    with pytest.raises(owner.ErroDocumento,match='divergente'):
+        service.previsualizar_template(process,'memo_a',version)
+    assert not state['rpc_calls']
+
+
 def test_current_structure_rejects_divergent_published_template(patch_owner):
     service,state,process=patch_owner
     artifact=str(uuid4())

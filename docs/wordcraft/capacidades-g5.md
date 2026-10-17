@@ -148,6 +148,15 @@ entre tipo documental e chave estável, `templateEfetivo` permanece vazio e o
 bloqueio aparece no painel. Isso expõe a biblioteca real sem inventar uma
 precedência ou aplicar um modelo ao documento errado.
 
+O usuário pode selecionar explicitamente uma dessas versões para gerar uma
+prévia determinística, somente leitura, ligada às revisões e hashes nativos
+correntes. O owner relê a versão `PUBLISHED` e o artefato pela RLS, recalcula o
+hash canônico da chave, versão e payload, e reutiliza `templates_gov.montar`.
+A prévia não altera o canvas, não cria revisão e declara `applicable=false`:
+a aplicação atômica ainda não foi implementada. Blocos que dependem do catálogo
+de cláusulas permanecem pendentes até a resolução efetiva dessas cláusulas pela
+RLS ser integrada; não são preenchidos por aproximação.
+
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
 manifesto, inventário fechado, hashes/tamanhos dos assets, cabeçalho WASM,
@@ -182,6 +191,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   processo, preservando portaria/signatários e cálculo `Decimal` sem LLM;
 - biblioteca de templates publicados é lida pela RLS com versão/hash/escopo,
   mas nenhum template é escolhido sem vínculo canônico de tipo para chave;
+- versão publicada escolhida explicitamente produz prévia determinística ligada
+  à revisão, rejeita hash canônico divergente e não executa RPC de gravação;
 - parecer ambíguo permanece pendente;
 - alteração posterior de logo ou signatário não muda o snapshot capturado;
 - 210 itens preservam numeração e total decimal;
