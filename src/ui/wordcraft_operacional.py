@@ -115,7 +115,8 @@ def _receber(doc_key: str, service: DocumentoService) -> None:
                 st.session_state[_chave(doc_key, "patch_receipt")] = batch_receipt
                 st.session_state[_chave(doc_key, "preparation")] = None
                 history = list(st.session_state.get(_chave(doc_key, "history"), ()))
-                history.append({"operation_id": batch_receipt.operation_id,
+                history.append({"kind": "receipt",
+                                "operation_id": batch_receipt.operation_id,
                                 "audit_id": batch_receipt.audit_id,
                                 "revision": receipt.revision,
                                 "content_hash": receipt.content_hash,
@@ -186,6 +187,7 @@ def render(doc_key: str, meta: dict) -> None:
     evidence_key = _chave(doc_key, "evidence")
     citation_key = _chave(doc_key, "citation_check")
     structure_key = _chave(doc_key, "structure")
+    history_key = _chave(doc_key, "history")
     current_audit = st.session_state.get(audit_key)
     if current_audit is not None:
         binding = current_audit.get("report", {}).get("sourceNative", {}).get(doc_key, {})
@@ -262,6 +264,14 @@ def render(doc_key: str, meta: dict) -> None:
             try:
                 st.session_state[structure_key] = service.estrutura_atual(
                     processo_id, doc_key)
+                st.rerun()
+            except ErroDocumento as error:
+                st.error(str(error))
+        if st.button("Carregar histórico persistido",
+                     key=_chave(doc_key, "history_button")):
+            try:
+                st.session_state[history_key] = service.historico_revisoes(
+                    document.id)["revisions"]
                 st.rerun()
             except ErroDocumento as error:
                 st.error(str(error))
@@ -393,7 +403,7 @@ def render(doc_key: str, meta: dict) -> None:
                   if st.session_state.get(structure_key) else None),
         institucional=(st.session_state.get(structure_key) or {}).get("institucional"),
         montagem=(st.session_state.get(structure_key) or {}).get("montagem"),
-        historico=st.session_state.get(_chave(doc_key, "history"), ()),
+        historico=st.session_state.get(history_key, ()),
     ))
     preparation = st.session_state.get(_chave(doc_key, "preparation"))
     if preparation is not None:

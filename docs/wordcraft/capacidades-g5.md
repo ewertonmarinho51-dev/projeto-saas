@@ -58,7 +58,12 @@ destino. O host aplica o comando na Session viva, confere os bytes resultantes,
 emite um checkpoint com o mesmo `operation_id` e aguarda o commit atômico do
 owner antes de ACK. Resultado divergente executa o Undo do próprio grupo e
 confere a restauração da origem; nunca vira checkpoint. O recibo confirmado
-entra no Histórico e a pilha nativa permanece disponível para Undo posterior.
+entra no Histórico como recibo transitório da sessão e a pilha nativa permanece
+disponível para Undo posterior. A mesma aba pode recarregar, pela RLS do usuário,
+até cinquenta metadados imutáveis de `documentos_editor_revisoes`; a projeção
+marca a revisão corrente e não expõe o payload do documento. Recibos e revisões
+possuem tipos explícitos para não converter confirmação local em histórico
+persistido.
 Lotes com mais de um canvas continuam bloqueados nesta UI até haver coordenação
 atômica de todos os componentes.
 

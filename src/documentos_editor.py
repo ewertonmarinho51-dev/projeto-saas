@@ -692,6 +692,48 @@ class DocumentoService:
         except (KeyError, TypeError, ValueError):
             raise ErroDocumento("Fonte de citação divergente.") from None
 
+    def historico_revisoes(self, document_id: str) -> dict:
+        """List immutable native revision metadata visible through document RLS."""
+        document_id = str(_uuid(document_id))
+        user, _ = self._session()
+        head = self._head(user, document_id)
+        rows = _execute(user.table("documentos_editor_revisoes").select(
+            "document_id,revision,content_hash,engine_build_sha256,"
+            "block_index_sha256,index_mode,institutional_snapshot_sha256")
+            .eq("document_id", document_id).order("revision", desc=True).limit(51))
+        if (not isinstance(rows, list) or len(rows) > 50
+                or len(_snapshot_bytes(rows)) > MAX_BYTES):
+            raise ErroDocumento("Histórico documental excessivo.")
+        expected = {"document_id", "revision", "content_hash", "engine_build_sha256",
+                    "block_index_sha256", "index_mode", "institutional_snapshot_sha256"}
+        revisions = []
+        try:
+            seen = set()
+            for row in rows:
+                if not isinstance(row, dict) or row.keys() != expected:
+                    raise ValueError()
+                revision = row["revision"]
+                if (str(_uuid(row["document_id"])) != document_id
+                        or type(revision) is not int or revision < 1 or revision in seen
+                        or not isinstance(row["index_mode"], str)):
+                    raise ValueError()
+                for key in ("content_hash", "engine_build_sha256", "block_index_sha256",
+                            "institutional_snapshot_sha256"):
+                    _hash(row[key])
+                seen.add(revision)
+                revisions.append({"kind": "revision", "documentId": document_id, "revision": revision,
+                    "contentHash": row["content_hash"], "engineBuild": row["engine_build_sha256"],
+                    "indexHash": row["block_index_sha256"], "indexMode": row["index_mode"],
+                    "institutionalHash": row["institutional_snapshot_sha256"],
+                    "current": revision == head["revision"],
+                    "status": head["status"] if revision == head["revision"] else "historico"})
+        except (KeyError, TypeError, ValueError):
+            raise ErroDocumento("Histórico documental divergente.") from None
+        if not revisions or sum(1 for item in revisions if item["current"]) != 1:
+            raise ErroDocumento("Histórico não contém a revisão corrente.")
+        return json.loads(_snapshot_bytes({"schema": "gc-wordcraft-revision-history/v1",
+            "documentId": document_id, "revisions": revisions}))
+
     def estrutura_atual(self, processo_id: str, doc_key: str) -> dict:
         """Read the revision-bound institution and deterministic item assembly."""
         from .wordcraft_capacidades import ErroCapacidade, montar_itens

@@ -167,6 +167,20 @@ def test_current_audit_is_read_only_and_bound_to_native_heads(patch_owner):
     assert not state['rpc_calls'] and all(head['revision']==1 for head in state['heads'])
 
 
+def test_native_revision_history_is_persistent_metadata_only(patch_owner):
+    service,state,_=patch_owner
+    document=state['heads'][0]['id']
+    history=service.historico_revisoes(document)
+    assert history['schema']=='gc-wordcraft-revision-history/v1'
+    assert history['documentId']==document
+    assert history['revisions']==[dict(kind='revision',documentId=document,revision=1,
+        contentHash=state['heads'][0]['content_hash'],engineBuild='a'*64,
+        indexHash=state['rows'][0]['block_index_sha256'],indexMode='initial',
+        institutionalHash=state['rows'][0]['institutional_snapshot_sha256'],
+        current=True,status='rascunho')]
+    assert 'payload' not in history['revisions'][0] and not state['rpc_calls']
+
+
 def test_current_fact_evidence_is_read_only_and_bound_to_native_heads(patch_owner):
     from src import governanca
     service,state,process=patch_owner
