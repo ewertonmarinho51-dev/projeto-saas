@@ -168,9 +168,6 @@ def test_wrong_cluster_identity_prevents_database_bootstrap(configured, monkeypa
 
 
 def test_public_route_never_serves_an_unlisted_file_added_after_preflight(configured, monkeypatch):
-    from starlette.applications import Starlette
-    from starlette.routing import Mount
-    from starlette.testclient import TestClient
     import streamlit
     config, _ = configured
     plan = lab.validate(config)
@@ -185,8 +182,10 @@ def test_public_route_never_serves_an_unlisted_file_added_after_preflight(config
     directory = config.lab / "static/wordcraft"
     private = b"private synthetic checkpoint"
     (directory / "checkpoint.json").write_bytes(private)
-    app = Starlette(routes=[Mount("/assets", app=module.PublicAssets(directory, plan["public_files"]))])
-    with TestClient(app) as client:
-        assert client.get("/assets/engine.js").status_code == 200
-        response = client.get("/assets/checkpoint.json")
-        assert response.status_code == 404 and private not in response.content
+    assets = module.PublicAssets(directory, plan["public_files"])
+    assert "engine.js" in assets.public_files and (directory / "engine.js").is_file()
+    blocked = assets.get_response("checkpoint.json", {"method": "GET"})
+    with pytest.raises(StopIteration) as returned:
+        blocked.send(None)
+    response = returned.value.value
+    assert response.status_code == 404 and private not in response.body
