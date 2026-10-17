@@ -107,6 +107,14 @@ respectivamente os estados `NAO_VERIFICADO`, `REVISAO_HUMANA`, `PENDENTE` ou
 `INDISPONIVEL`. A projeção não consulta a internet, não chama embeddings/LLM,
 não interpreta busca vazia como inexistência e é invalidada quando a head muda.
 
+A estrutura institucional da revisão também está disponível no painel. Ela é
+lida do `institutional_snapshot` já capturado pelo owner, portanto identidade,
+portaria, signatários e bloco de assinaturas permanecem vinculados ao documento
+e à revisão, sem consultar ou duplicar cadastros. Os itens do processo são
+montados pelo `montar_itens` determinístico com `Decimal`, numeração, subtotais,
+total e hash canônico. Mudança da head invalida ambos. Esta leitura não escolhe
+nem publica template; a resolução da biblioteca versionada continua pendente.
+
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
 manifesto, inventário fechado, hashes/tamanhos dos assets, cabeçalho WASM,
@@ -129,6 +137,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   ligado a uma âncora somente com citação literal única; leitura não grava;
 - fatos canônicos exibem proveniência e status sem promover extraído, disputado
   ou hash divergente a evidência verificada;
+- snapshot institucional e montagem de itens usam as fontes da revisão e do
+  processo, preservando portaria/signatários e cálculo `Decimal` sem LLM;
 - parecer ambíguo permanece pendente;
 - alteração posterior de logo ou signatário não muda o snapshot capturado;
 - 210 itens preservam numeração e total decimal;

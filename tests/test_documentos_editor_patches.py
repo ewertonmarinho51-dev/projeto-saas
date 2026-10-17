@@ -171,6 +171,21 @@ def test_current_fact_evidence_is_read_only_and_bound_to_native_heads(patch_owne
     assert not state['rpc_calls'] and all(head['revision']==1 for head in state['heads'])
 
 
+def test_current_structure_reuses_revision_institution_and_decimal_items(patch_owner):
+    service,state,process=patch_owner
+    state['context']['processo']['dados']={'itens':[
+        {'codigo':'A','descricao':'Item A','quantidade':'0.1','valor_unitario':'0.2'},
+        {'codigo':'B','descricao':'Item B','quantidade':'3','valor_unitario':'10.00'}]}
+    current=service.estrutura_atual(process,'memo_a')
+    assert current['schema']=='gc-wordcraft-structure-panel/v1'
+    assert current['docKey']=='memo_a' and current['documentId']==state['heads'][0]['id']
+    assert current['institucional']['document_id']==state['heads'][0]['id']
+    assert current['institucional']['phase']=='draft_reference'
+    assert current['montagem']['quantidade_itens']==2
+    assert current['montagem']['valor_total']=='30.02'
+    assert current['bundleHash'] and not state['rpc_calls']
+
+
 def test_persisted_legal_opinion_is_classified_and_bound_read_only(patch_owner):
     service,state,process=patch_owner
     opinion, finding = str(uuid4()), str(uuid4())

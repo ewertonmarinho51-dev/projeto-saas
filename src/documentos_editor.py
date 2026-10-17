@@ -469,6 +469,34 @@ class DocumentoService:
                 key: view.vinculo() for key, view in views.items()},
             "evidencias": evidence}))
 
+    def estrutura_atual(self, processo_id: str, doc_key: str) -> dict:
+        """Read the revision-bound institution and deterministic item assembly."""
+        from .wordcraft_capacidades import ErroCapacidade, montar_itens
+
+        _uuid(processo_id)
+        if not isinstance(doc_key, str) or not doc_key:
+            raise ErroDocumento("Tipo documental inválido para montagem.")
+        user, claims = self._session()
+        context, originals, views = self._fontes_patch(processo_id, user, claims)
+        document = originals.get(doc_key)
+        if document is None or document.institutional_snapshot is None:
+            raise ErroDocumento("Documento não possui snapshot institucional atual.")
+        data = context["processo"].get("dados") or {}
+        items = data.get("itens") or []
+        if not isinstance(items, list) or len(items) > 10000:
+            raise ErroDocumento("Itens do processo inválidos ou excessivos.")
+        try:
+            assembly = montar_itens(items)
+        except ErroCapacidade as error:
+            raise ErroDocumento(str(error)) from None
+        snapshot = blocos.snapshot_nativo(views, versao=1)
+        return json.loads(_snapshot_bytes({"schema": "gc-wordcraft-structure-panel/v1",
+            "bundleHash": snapshot["hash"], "sourceNative": {
+                key: view.vinculo() for key, view in views.items()},
+            "documentId": document.id, "docKey": doc_key,
+            "institucional": document.institutional_snapshot,
+            "montagem": assembly}))
+
     def _auditar_patches(self, process_id, views, context, *, version):
         from . import achados, consistencia, validacao
         texts = {key: view.texto_analise for key, view in views.items()}

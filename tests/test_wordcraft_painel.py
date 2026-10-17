@@ -13,13 +13,15 @@ def test_modelo_reune_seis_capacidades_sem_callbacks_de_mutacao():
         auditoria=lambda: audit)
     panel = modelo(preparacao=preparation,
         evidencias=({"estado": "VERIFICADA"},),
-        template={"hash": "template"}, montagem={"hash": "assembly"},
+        template={"hash": "template"}, institucional={"hash": "identity"},
+        montagem={"hash": "assembly"},
         historico=({"revision": 1},))
     assert panel["capacidades"] == ["govbot", "auditoria", "parecer", "template",
                                       "evidencias", "montagem"]
     assert panel["preparacao"]["documentos"] == ["tr"]
     assert panel["preparacao"]["auditoria"] is audit
     assert panel["evidencias"][0]["estado"] == "VERIFICADA"
+    assert panel["institucional"]["hash"] == "identity"
     assert "confirmar" not in panel and "salvar" not in panel
 
 

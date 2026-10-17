@@ -311,7 +311,7 @@ def montar_itens(itens: Iterable[Mapping]) -> dict:
         try:
             quantidade = Decimal(str(item["quantidade"]))
             unitario = Decimal(str(item["valor_unitario"]))
-        except (KeyError, InvalidOperation, ValueError):
+        except (KeyError, InvalidOperation, TypeError, ValueError):
             raise ErroCapacidade(f"Item {indice} sem quantidade ou valor válido.") from None
         if quantidade < 0 or unitario < 0:
             raise ErroCapacidade(f"Item {indice} possui valor negativo.")
