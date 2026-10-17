@@ -345,6 +345,13 @@ FLAG_JEV_PRECOS = "jev_price_research"  # opt-in independente; ausente = OFF
 # Exige também `price_research` ligada: é a mesma entidade, outra tela.
 FLAG_COTACOES_UNIFICADAS = "unified_quotations"
 
+# Relatório de Cotação no padrão visual novo (pacote de 16/10/2026):
+# compacto + Relatório Analítico Integral, da projeção única
+# `relatorio_view`. Nasce DESLIGADA (sem linha em config_app = OFF);
+# desligada, os botões continuam gerando o relatório Markdown anterior.
+# Desligar não altera cesta, preço, emissão registrada nem PDF já emitido.
+FLAG_RELATORIO_VISUAL = "precos_relatorio_visual"
+
 # Consolidação dos Documentos de Formalização de Demanda. Nasce
 # DESLIGADA: a etapa muda a ORIGEM da planilha orçamentária do processo,
 # e ligar sem auditoria colocaria uma quantidade consolidada dentro de um

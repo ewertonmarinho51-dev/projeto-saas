@@ -604,9 +604,14 @@ def _janela_de_coleta(referencias: dict[str, list[dict]]) -> tuple[str, str]:
     return _hora(min(instantes)), _hora(max(instantes))
 
 
-def _trilha_de_fontes(itens: list[dict], referencias: dict[str, list[dict]],
-                      perfil) -> str:
-    """Uma linha por fonte: coleta, desfechos (inclusive falhas) e inciso."""
+def fontes_consultadas(itens: list[dict], referencias: dict[str, list[dict]],
+                       perfil) -> list[dict]:
+    """
+    Uma entrada por fonte: coleta, desfechos (inclusive falhas) e inciso.
+
+    É o DADO da trilha; o Markdown legado e o relatório de cotação
+    formatam daqui, para que os dois nunca contem diferente.
+    """
     fontes: dict[str, dict] = {}
     for lista in referencias.values():
         for linha in lista:
@@ -627,21 +632,38 @@ def _trilha_de_fontes(itens: list[dict], referencias: dict[str, list[dict]],
                 "coletas": [], "refs": 0, "consideradas": 0, "desfechos": {}})
             rotulo = ROTULO_DESFECHO.get(str(desfecho), str(desfecho))
             info["desfechos"][rotulo] = info["desfechos"].get(rotulo, 0) + 1
+    saida = []
+    for fid, info in sorted(fontes.items(), key=lambda par: str(par[1]["nome"])):
+        coletas = info["coletas"]
+        saida.append({
+            "id": fid, "nome": str(info["nome"] or fid),
+            "enquadramento": enquadramento(fid, info["tipo"], perfil),
+            "referencias": info["refs"], "consideradas": info["consideradas"],
+            "primeira_coleta": _hora(min(coletas)) if coletas else AUSENTE,
+            "ultima_coleta": _hora(max(coletas)) if coletas else AUSENTE,
+            "desfechos": dict(sorted(info["desfechos"].items())),
+        })
+    return saida
+
+
+def _trilha_de_fontes(itens: list[dict], referencias: dict[str, list[dict]],
+                      perfil) -> str:
+    """Uma linha por fonte: coleta, desfechos (inclusive falhas) e inciso."""
+    fontes = fontes_consultadas(itens, referencias, perfil)
     if not fontes:
         return "Nenhuma fonte consultada."
     saida = ["| Fonte | Enquadramento | Referências | Consideradas | "
              "Primeira coleta | Última coleta | Desfechos por item |",
              "|---|---|---|---|---|---|---|"]
-    for fid, info in sorted(fontes.items(), key=lambda par: str(par[1]["nome"])):
-        coletas = info["coletas"]
+    for info in fontes:
         desfechos = "; ".join(f"{rotulo}: {n}" for rotulo, n
-                              in sorted(info["desfechos"].items())) or AUSENTE
+                              in info["desfechos"].items()) or AUSENTE
         saida.append(
             f"| {_texto(info['nome'])} "
-            f"| {enquadramento(fid, info['tipo'], perfil)} "
-            f"| {info['refs']} | {info['consideradas']} "
-            f"| {_hora(min(coletas)) if coletas else AUSENTE} "
-            f"| {_hora(max(coletas)) if coletas else AUSENTE} "
+            f"| {info['enquadramento']} "
+            f"| {info['referencias']} | {info['consideradas']} "
+            f"| {info['primeira_coleta']} "
+            f"| {info['ultima_coleta']} "
             f"| {_texto(desfechos)} |")
     return "\n".join(saida)
 
@@ -919,17 +941,28 @@ def _analise_do_item(item: dict, referencias: dict[str, list[dict]],
     return saida
 
 
-def _links_de_verificacao(linhas: list[dict]) -> list[str]:
+def url_de_verificacao(linha: dict) -> str | None:
+    """
+    O link OFICIAL que devolve esta referência, montado pelo adaptador da
+    própria fonte a partir do registro bruto — `None` quando o registro não
+    traz os identificadores. Nunca fabricado.
+    """
     from . import compras_gov
     from . import pncp as pncp_mod
 
+    bruto = linha.get("bruto") or {}
+    fid = str(linha.get("fonte_id") or "")
+    if fid == "pncp":
+        return pncp_mod.url_de_verificacao(bruto)
+    if fid.startswith("compras_gov"):
+        return compras_gov.url_de_verificacao(bruto)
+    return None
+
+
+def _links_de_verificacao(linhas: list[dict]) -> list[str]:
     links = []
     for linha in linhas:
-        bruto = linha.get("bruto") or {}
-        fid = str(linha.get("fonte_id") or "")
-        url = (pncp_mod.url_de_verificacao(bruto) if fid == "pncp"
-               else compras_gov.url_de_verificacao(bruto)
-               if fid.startswith("compras_gov") else None)
+        url = url_de_verificacao(linha)
         if url:
             links.append(f"[{_texto(linha.get('id_externo'))}]({url})")
     return links
@@ -1022,13 +1055,23 @@ def _tabela_de_referencias(linhas: list[dict], *, perfil=None,
 
 def _alertas(itens: list[dict], referencias: dict[str, list[dict]],
              perfil) -> list[str]:
+    """§31.19 em Markdown, a partir de `alertas_estruturados`."""
+    return [f"- **{titulo}:** {texto}" if titulo else f"- {texto}"
+            for titulo, texto in alertas_estruturados(itens, referencias,
+                                                      perfil)]
+
+
+def alertas_estruturados(itens: list[dict],
+                         referencias: dict[str, list[dict]],
+                         perfil) -> list[tuple[str, str]]:
     """
-    §31.19 — o que o leitor precisa saber antes de usar este preço.
+    §31.19 — o que o leitor precisa saber antes de usar este preço, como
+    pares (título, texto).
 
     Escrito em linguagem de RESSALVA, nunca de conclusão jurídica: uma
     fórmula estatística sinaliza dispersão, não ilegalidade.
     """
-    saida: list[str] = []
+    saida: list[tuple[str, str]] = []
     incompletos = [i for i in itens
                    if str(i.get("estado")) == EstadoItem.INCOMPLETO.value]
     se_erro = [i for i in itens
@@ -1039,20 +1082,21 @@ def _alertas(itens: list[dict], referencias: dict[str, list[dict]],
     if incompletos:
         numeros = ", ".join(str(int(i.get("numero") or 0))
                             for i in incompletos)
-        saida.append(
-            f"- **Itens sem preço formado ({len(incompletos)}):** {numeros}. "
-            f"A amostra não alcançou o mínimo de {perfil.minimo_referencias} "
-            "referências defensáveis exigido pelo perfil, e nenhum preço "
-            "foi fabricado para completar a cesta.")
+        saida.append((
+            f"Itens sem preço formado ({len(incompletos)})",
+            f"{numeros}. A amostra não alcançou o mínimo de "
+            f"{perfil.minimo_referencias} referências defensáveis exigido "
+            "pelo perfil, e nenhum preço foi fabricado para completar a "
+            "cesta."))
     if por_revisar:
-        saida.append(
-            f"- **Itens ainda em revisão ({len(por_revisar)}):** o preço "
-            "calculado não passou por confirmação humana.")
+        saida.append((
+            f"Itens ainda em revisão ({len(por_revisar)})",
+            "o preço calculado não passou por confirmação humana."))
     if se_erro:
-        saida.append(
-            f"- **Itens com falha técnica ({len(se_erro)}):** a consulta às "
-            "fontes não se completou; a pesquisa desses itens precisa ser "
-            "repetida.")
+        saida.append((
+            f"Itens com falha técnica ({len(se_erro)})",
+            "a consulta às fontes não se completou; a pesquisa desses itens "
+            "precisa ser repetida."))
 
     discrepantes = 0
     manuais = 0
@@ -1063,16 +1107,16 @@ def _alertas(itens: list[dict], referencias: dict[str, list[dict]],
         manuais += sum(1 for r in lista
                        if str(r.get("status")) == "manual_review")
     if discrepantes:
-        saida.append(
-            f"- **Candidatos discrepantes sinalizados ({discrepantes}):** "
+        saida.append((
+            f"Candidatos discrepantes sinalizados ({discrepantes})",
             "valores distantes da mediana da própria amostra. A "
             "sinalização é estatística e pede revisão — não afirma "
-            "inexequibilidade nem irregularidade.")
+            "inexequibilidade nem irregularidade."))
     if manuais:
-        saida.append(
-            f"- **Referências abaixo do piso de comparabilidade "
-            f"({manuais}):** não entraram na cesta automaticamente e "
-            "permanecem disponíveis para inclusão manual justificada.")
+        saida.append((
+            f"Referências abaixo do piso de comparabilidade ({manuais})",
+            "não entraram na cesta automaticamente e permanecem "
+            "disponíveis para inclusão manual justificada."))
 
     ocorrencias: list[str] = []
     for item in itens:
@@ -1080,10 +1124,10 @@ def _alertas(itens: list[dict], referencias: dict[str, list[dict]],
             if ocorrencia not in ocorrencias:
                 ocorrencias.append(str(ocorrencia))
     for ocorrencia in ocorrencias[:10]:
-        saida.append(f"- **Ocorrência de fonte:** {ocorrencia}")
+        saida.append(("Ocorrência de fonte", ocorrencia))
 
     if not saida:
-        saida.append("- Nenhuma ressalva registrada nesta pesquisa.")
+        saida.append(("", "Nenhuma ressalva registrada nesta pesquisa."))
     return saida
 
 
@@ -1275,7 +1319,10 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
                     "Preço original", "Unid. normalizada",
                     "Preço normalizado", "Comparabilidade", "Identidade",
                     "Circunstâncias", "Identificador externo",
-                    "Impressão da evidência", "Motivos"])
+                    "Impressão da evidência", "Motivos",
+                    # ao FIM, para não deslocar quem lê por posição: o
+                    # vínculo com o Relatório Analítico Integral (PDF)
+                    "Link de verificação", "ID da referência"])
     for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
         numero = int(item.get("numero") or 0)
         lista = referencias.get(str(item.get("id")), [])
@@ -1311,6 +1358,8 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
                 str(linha.get("id_externo") or ""),
                 str(linha.get("raw_hash") or ""),
                 "; ".join(str(m) for m in (linha.get("motivos") or [])),
+                url_de_verificacao(linha) or "",
+                str(linha.get("id") or ""),
             ]))
     for coluna, largura in zip(
             ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
@@ -1329,6 +1378,11 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
             ("Situação", pesquisa.get("estado")),
             ("Identificador da versão",
              identificador_da_versao(pesquisa, itens, referencias)),
+            ("Formato do identificador", FORMATO),
+            ("Regra de formação do preço",
+             "média aritmética simples (regra de 15/10/2026)"
+             if str(pesquisa.get("versao_regras") or "") == REGRAS_MEDIA_PADRAO
+             else "regra anterior a 15/10/2026 (mediana em série dispersa)"),
     ):
         ficha.append([rotulo, str(valor if valor is not None else "")])
     ficha.column_dimensions["A"].width = 24
