@@ -98,6 +98,15 @@ head muda. Este incremento é deliberadamente somente leitura: aplicação e
 relatório persistente de atendimento no modelo nativo ainda são pendências,
 pois não é seguro considerar a instrução jurídica como texto substituto.
 
+A aba Evidências agora pode carregar os fatos canônicos correntes pelo mesmo
+RPC privado usado pelo owner de patches. Cada item preserva ID, path, origem,
+versão, hash e um trecho limitado do valor. `confirmado` só aparece como
+`VERIFICADO` quando a origem existe e o hash canônico confere; `extraido`,
+`disputado`, hash divergente, estado desconhecido e versão substituída mantêm
+respectivamente os estados `NAO_VERIFICADO`, `REVISAO_HUMANA`, `PENDENTE` ou
+`INDISPONIVEL`. A projeção não consulta a internet, não chama embeddings/LLM,
+não interpreta busca vazia como inexistência e é invalidada quando a head muda.
+
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
 manifesto, inventário fechado, hashes/tamanhos dos assets, cabeçalho WASM,
@@ -118,6 +127,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 - paridade duplicada, bloqueada, divergente ou sem fonte falha de modo fechado;
 - parecer normalizado é relido pela RLS, classificado pelo owner existente e
   ligado a uma âncora somente com citação literal única; leitura não grava;
+- fatos canônicos exibem proveniência e status sem promover extraído, disputado
+  ou hash divergente a evidência verificada;
 - parecer ambíguo permanece pendente;
 - alteração posterior de logo ou signatário não muda o snapshot capturado;
 - 210 itens preservam numeração e total decimal;

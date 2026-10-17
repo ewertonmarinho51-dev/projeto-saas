@@ -451,6 +451,24 @@ class DocumentoService:
                 key: view.vinculo() for key, view in views.items()},
             "pareceres": sources, "findings": findings}))
 
+    def evidencias_atuais(self, processo_id: str) -> dict:
+        """Read current canonical facts as source evidence for the panel."""
+        from .wordcraft_capacidades import ErroCapacidade, evidencia_fato
+
+        _uuid(processo_id)
+        user, claims = self._session()
+        context, _, views = self._fontes_patch(processo_id, user, claims)
+        try:
+            evidence = [evidencia_fato(fact) for fact in context["fatos"]
+                        if fact.get("status") != "substituido"]
+        except (AttributeError, ErroCapacidade):
+            raise ErroDocumento("Fontes factuais incompletas para o painel.") from None
+        snapshot = blocos.snapshot_nativo(views, versao=1)
+        return json.loads(_snapshot_bytes({"schema": "gc-wordcraft-evidence-panel/v1",
+            "bundleHash": snapshot["hash"], "sourceNative": {
+                key: view.vinculo() for key, view in views.items()},
+            "evidencias": evidence}))
+
     def _auditar_patches(self, process_id, views, context, *, version):
         from . import achados, consistencia, validacao
         texts = {key: view.texto_analise for key, view in views.items()}

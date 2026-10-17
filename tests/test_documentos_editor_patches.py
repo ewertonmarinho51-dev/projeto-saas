@@ -154,6 +154,23 @@ def test_current_audit_is_read_only_and_bound_to_native_heads(patch_owner):
     assert not state['rpc_calls'] and all(head['revision']==1 for head in state['heads'])
 
 
+def test_current_fact_evidence_is_read_only_and_bound_to_native_heads(patch_owner):
+    from src import governanca
+    service,state,process=patch_owner
+    fact={'id':str(uuid4()),'path':'valor.total','tipo':'numero','valor':'10.00',
+        'fonte':'pesquisa_preco:qa-1','status':'confirmado','versao':1,'hash':'',
+        'processo_id':process,'tenant_id':state['claims']['app_metadata']['tenant_id']}
+    fact['hash']=governanca.hash_canonico({key:fact[key]
+        for key in ('path','tipo','valor','versao')})
+    state['context']['fatos']=[fact]
+    current=service.evidencias_atuais(process)
+    assert current['schema']=='gc-wordcraft-evidence-panel/v1'
+    assert current['evidencias'][0]['estado']=='VERIFICADO'
+    assert current['evidencias'][0]['source_ref']=='pesquisa_preco:qa-1'
+    assert current['bundleHash'] and set(current['sourceNative'])=={'memo_a','memo_b','memo_c'}
+    assert not state['rpc_calls'] and all(head['revision']==1 for head in state['heads'])
+
+
 def test_persisted_legal_opinion_is_classified_and_bound_read_only(patch_owner):
     service,state,process=patch_owner
     opinion, finding = str(uuid4()), str(uuid4())

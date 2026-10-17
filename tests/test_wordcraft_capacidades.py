@@ -2,10 +2,10 @@ from decimal import Decimal
 
 import pytest
 
-from src import parecer_correcao
+from src import governanca, parecer_correcao
 from src.wordcraft_capacidades import (
     ABAS, Capacidade, CorrecaoContextual, ErroCapacidade,
-    compilar_correcao, montar_itens, painel_unico, parecer_para_correcao,
+    compilar_correcao, evidencia_fato, montar_itens, painel_unico, parecer_para_correcao,
     propositor, propositor_govbot_selecao, propositor_selecao,
     snapshot_template, verificar_evidencia,
 )
@@ -123,6 +123,25 @@ def test_estados_de_evidencia_nao_confundem_ausencia_com_prova():
     fonte = {"id": "L3", "ativo": True, "citacoes": ["art. 1"]}
     assert verificar_evidencia(fonte, citacao="art. 99")["estado"] == "PENDENTE"
     assert verificar_evidencia({"id": "L4"}, citacao="art. inventado")["estado"] == "PENDENTE"
+
+
+@pytest.mark.parametrize(('status','source','digest','expected'), [
+    ('confirmado','formulario:objeto','valid','VERIFICADO'),
+    ('extraido','formulario:objeto','valid','NAO_VERIFICADO'),
+    ('disputado','formulario:objeto','valid','REVISAO_HUMANA'),
+    ('confirmado','','valid','NAO_VERIFICADO'),
+    ('confirmado','formulario:objeto','divergent','PENDENTE'),
+])
+def test_evidencia_factual_preserva_estado_hash_e_origem(status, source, digest, expected):
+    fact = {'id':'11111111-1111-1111-1111-111111111111',
+        'path':'objeto.descricao','tipo':'texto','valor':'Material escolar',
+        'fonte':source,'status':status,'versao':2,'hash':''}
+    fact['hash'] = governanca.hash_canonico({key:fact[key]
+        for key in ('path','tipo','valor','versao')}) if digest == 'valid' else '0'*64
+    evidence = evidencia_fato(fact)
+    assert evidence['estado'] == expected
+    assert evidence['source_id'] == fact['id'] and evidence['version'] == 2
+    assert evidence['trecho'] == 'Material escolar'
 
 
 def test_snapshot_institucional_nao_muda_quando_a_origem_muda_depois():

@@ -13,6 +13,7 @@ from enum import StrEnum
 import hashlib
 import json
 from typing import Iterable, Mapping
+from uuid import UUID
 
 
 class ErroCapacidade(ValueError):
@@ -245,6 +246,52 @@ def verificar_evidencia(fonte: Mapping | None, *, citacao: str | None = None) ->
             estado, motivo = "PENDENTE", "Citação não corresponde às referências da fonte."
     return {"schema": "gc-wordcraft-evidence/v1", "source_id": identificador,
             "citacao": citacao, "estado": estado, "motivo": motivo}
+
+
+def evidencia_fato(fato: Mapping) -> dict:
+    """Project one canonical fact without upgrading its evidence status."""
+    from . import governanca
+
+    required = {"id", "path", "tipo", "valor", "fonte", "status", "versao", "hash"}
+    if not isinstance(fato, Mapping) or not required.issubset(fato):
+        raise ErroCapacidade("Fato canônico incompleto para evidência.")
+    identifier = str(fato["id"])
+    path = str(fato["path"] or "").strip()
+    source = str(fato["fonte"] or "").strip()
+    digest = str(fato["hash"] or "")
+    try:
+        version = int(fato["versao"])
+    except (TypeError, ValueError):
+        raise ErroCapacidade("Versão factual inválida.") from None
+    try:
+        if str(UUID(identifier)) != identifier:
+            raise ValueError()
+    except ValueError:
+        raise ErroCapacidade("Identificador factual inválido.") from None
+    if not path or len(path) > 500 or len(source) > 1000 or version < 1:
+        raise ErroCapacidade("Identidade factual inválida.")
+    expected = governanca.hash_canonico({key: fato[key]
+        for key in ("path", "tipo", "valor", "versao")})
+    status = str(fato["status"] or "")
+    if not source:
+        state, reason = "NAO_VERIFICADO", "Fato sem referência de origem."
+    elif digest != expected:
+        state, reason = "PENDENTE", "Hash factual ausente ou divergente."
+    elif status == "confirmado":
+        state, reason = "VERIFICADO", "Fato confirmado e hash canônico válido."
+    elif status == "disputado":
+        state, reason = "REVISAO_HUMANA", "Fato canônico está disputado."
+    elif status == "extraido":
+        state, reason = "NAO_VERIFICADO", "Fato extraído ainda não foi confirmado."
+    elif status == "substituido":
+        state, reason = "INDISPONIVEL", "Versão factual substituída."
+    else:
+        state, reason = "PENDENTE", "Estado factual desconhecido."
+    return {"schema": "gc-wordcraft-fact-evidence/v1", "source_id": identifier,
+            "path": path, "source_ref": source, "version": version,
+            "recorded_at": str(fato.get("criado_em") or ""),
+            "hash": digest, "estado": state, "motivo": reason,
+            "trecho": str(fato["valor"])[:500]}
 
 
 def snapshot_template(template_publicado: Mapping, contexto_institucional: Mapping,

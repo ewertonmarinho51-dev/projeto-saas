@@ -134,6 +134,7 @@ def _receber(doc_key: str, service: DocumentoService) -> None:
                 restored_from_revision=receipt.restored_from_revision)
             st.session_state.pop(_chave(doc_key, "audit"), None)
             st.session_state.pop(_chave(doc_key, "legal_opinions"), None)
+            st.session_state.pop(_chave(doc_key, "evidence"), None)
             st.session_state[_chave(doc_key, "message")] = (
                 "Patch nativo aplicado, persistido e confirmado; Undo permanece no canvas."
                 if patch_checkpoint else "Revisão nativa salva e confirmada.")
@@ -179,6 +180,7 @@ def render(doc_key: str, meta: dict) -> None:
     preparation_key = _chave(doc_key, "preparation")
     audit_key = _chave(doc_key, "audit")
     opinions_key = _chave(doc_key, "legal_opinions")
+    evidence_key = _chave(doc_key, "evidence")
     current_audit = st.session_state.get(audit_key)
     if current_audit is not None:
         binding = current_audit.get("report", {}).get("sourceNative", {}).get(doc_key, {})
@@ -191,6 +193,12 @@ def render(doc_key: str, meta: dict) -> None:
         if ((binding.get("documentId"), binding.get("revision"), binding.get("sourceHash"))
                 != (document.id, document.revision, document.content_hash)):
             st.session_state.pop(opinions_key, None)
+    current_evidence = st.session_state.get(evidence_key)
+    if current_evidence is not None:
+        binding = current_evidence.get("sourceNative", {}).get(doc_key, {})
+        if ((binding.get("documentId"), binding.get("revision"), binding.get("sourceHash"))
+                != (document.id, document.revision, document.content_hash)):
+            st.session_state.pop(evidence_key, None)
     selection = bridge.selecao_atual()
     if st.session_state.get(preparation_key) is None:
         if st.button("Executar auditoria contextual", key=_chave(doc_key, "audit_button")):
@@ -203,6 +211,13 @@ def render(doc_key: str, meta: dict) -> None:
                      key=_chave(doc_key, "legal_opinions_button")):
             try:
                 st.session_state[opinions_key] = service.pareceres_atuais(processo_id)
+                st.rerun()
+            except ErroDocumento as error:
+                st.error(str(error))
+        if st.button("Carregar fontes factuais verificadas",
+                     key=_chave(doc_key, "evidence_button")):
+            try:
+                st.session_state[evidence_key] = service.evidencias_atuais(processo_id)
                 st.rerun()
             except ErroDocumento as error:
                 st.error(str(error))
@@ -283,7 +298,7 @@ def render(doc_key: str, meta: dict) -> None:
         preparacao=st.session_state.get(preparation_key),
         auditoria_atual=st.session_state.get(audit_key),
         pareceres_atuais=st.session_state.get(opinions_key),
-        evidencias=st.session_state.get(_chave(doc_key, "evidence"), ()),
+        evidencias=(st.session_state.get(evidence_key) or {}).get("evidencias", ()),
         template=st.session_state.get(_chave(doc_key, "template")),
         montagem=st.session_state.get(_chave(doc_key, "assembly")),
         historico=st.session_state.get(_chave(doc_key, "history"), ()),
