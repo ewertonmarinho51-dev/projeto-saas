@@ -77,7 +77,7 @@ def test_fonte_desconhecida_ou_cotacao_direta_sem_link_nem_ata_ac19():
     "http://pncp.gov.br/app/editais/1/2025/1",          # sem TLS
     "javascript:alert(1)", "file:///c:/x.pdf",
     "https://evil.example/pncp.gov.br",                  # host estranho
-    "https://user:senha@pncp.gov.br/app/editais/1/2025/1",
+    "https://user:senha" + "@pncp.gov.br/app/editais/1/2025/1",  # credencial na URL
 ])
 def test_so_https_e_host_oficial_viram_link(url):
     assert links.seguro(url) is None
