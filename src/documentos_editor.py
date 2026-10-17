@@ -275,8 +275,8 @@ def _snapshot_read(encoded, digest, *, document_id, process_id, tipo):
         raise ErroDocumento("Snapshot institucional divergente.") from None
 
 
-def _vincular_consistencia_nativa(finding: dict, views: dict, texts: dict) -> dict:
-    """Translate a consistency finding only through exact block parity.
+def _vincular_achado_nativo(finding: dict, views: dict, texts: dict) -> dict:
+    """Translate a legacy finding only through exact block parity.
 
     ``consistencia`` remains the rule owner and addresses its legacy text view.
     The browser supplies none of this mapping. A path becomes executable only
@@ -317,6 +317,23 @@ def _vincular_consistencia_nativa(finding: dict, views: dict, texts: dict) -> di
         return result
     result.update(autoCorrectable=True, allowedPaths=mapped, blockedPaths=[])
     return result
+
+
+def _alvo_objetivo_parecer(item, texts: dict) -> list[str]:
+    """Narrow a clause-wide opinion to one block quoted by its evidence."""
+    from . import blocos as blocos_legados
+
+    if not item.documento or item.documento not in texts:
+        return []
+    evidences = [value.strip() for value in item.evidencias
+                 if isinstance(value, str) and len(value.strip()) >= 16]
+    if not evidences:
+        return []
+    candidates = [block["path"] for block in blocos_legados.dividir_em_blocos(
+        item.documento, texts[item.documento])
+        if block["path"] in item.caminhos
+        and any(evidence in block["conteudo"] for evidence in evidences)]
+    return candidates if len(set(candidates)) == 1 else []
 
 
 class DocumentoService:
@@ -367,6 +384,73 @@ class DocumentoService:
         report = self._auditar_patches(processo_id, views, context, version=1)
         return json.loads(_snapshot_bytes({"report": report, "snapshot": snapshot}))
 
+    def pareceres_atuais(self, processo_id: str) -> dict:
+        """Project persisted legal-opinion findings onto current native heads."""
+        from . import parecer_correcao
+
+        _uuid(processo_id)
+        user, claims = self._session()
+        context, _, views = self._fontes_patch(processo_id, user, claims)
+        opinions = _execute(user.table("pareceres")
+            .select("id,nome_arquivo,hash_origem,status")
+            .eq("processo_id", processo_id).eq("status", "NORMALIZED").limit(17))
+        if (not isinstance(opinions, list) or len(opinions) > 16
+                or len(_snapshot_bytes(opinions)) > MAX_BYTES):
+            raise ErroDocumento("Conjunto de pareceres vazio ou excessivo.")
+        texts = {key: view.texto_analise for key, view in views.items()}
+        findings, sources = [], []
+        for opinion in opinions:
+            try:
+                opinion_id = str(_uuid(opinion["id"]))
+                if opinion.keys() != {"id", "nome_arquivo", "hash_origem", "status"}:
+                    raise ValueError()
+                if (not isinstance(opinion["nome_arquivo"], str)
+                        or len(opinion["nome_arquivo"]) > 255
+                        or opinion["status"] != "NORMALIZED"):
+                    raise ValueError()
+                _hash(opinion["hash_origem"])
+                rows = _execute(user.table("parecer_achados").select(
+                    "id,categoria,gravidade,problema,documento_afetado,clausula_afetada,"
+                    "fundamento,correcao_solicitada,causa,sistemico,confianca,evidencias")
+                    .eq("parecer_id", opinion_id).limit(101))
+                expected = {"id", "categoria", "gravidade", "problema",
+                    "documento_afetado", "clausula_afetada", "fundamento",
+                    "correcao_solicitada", "causa", "sistemico", "confianca", "evidencias"}
+                if (not isinstance(rows, list) or len(rows) > 100
+                        or any(not isinstance(row, dict) or row.keys() != expected for row in rows)
+                        or len(_snapshot_bytes(rows)) > MAX_BYTES):
+                    raise ValueError()
+                situated = parecer_correcao.situar(rows, texts,
+                    context["processo"].get("dados") or {})
+                if len(situated) != len(rows):
+                    raise ValueError()
+            except (KeyError, TypeError, ValueError):
+                raise ErroDocumento("Parecer contextual incompleto ou excessivo.") from None
+            sources.append({"parecerId": opinion_id,
+                "nomeArquivo": str(opinion["nome_arquivo"])[:255],
+                "hashOrigem": str(opinion["hash_origem"]), "status": opinion["status"]})
+            for row, item in zip(rows, situated):
+                targets = (_alvo_objetivo_parecer(item, texts)
+                           if item.situacao == parecer_correcao.CORRECAO_AUTOMATICA else [])
+                finding = {"findingId": f"PJ:{opinion_id}:{_uuid(row['id'])}",
+                    "documentId": item.documento, "clauseId": item.clausula or None,
+                    "categoria": "parecer_juridico", "severity": item.gravidade,
+                    "descricao": item.problema, "evidencia": list(item.evidencias),
+                    "regraViolada": item.fundamento,
+                    "resultadoEsperado": item.recomendacao,
+                    "autoCorrectable": bool(targets),
+                    "allowedPaths": targets, "blockedPaths": [],
+                    "sourceIds": [f"parecer:{opinion_id}", f"parecer_achado:{row['id']}"],
+                    "blockingReason": (item.motivo or None) if targets else
+                        (item.motivo or "O parecer não contém citação única do bloco a corrigir."),
+                    "parecerStatus": item.situacao}
+                findings.append(_vincular_achado_nativo(finding, views, texts))
+        snapshot = blocos.snapshot_nativo(views, versao=1)
+        return json.loads(_snapshot_bytes({"schema": "gc-wordcraft-legal-opinions/v1",
+            "bundleHash": snapshot["hash"], "sourceNative": {
+                key: view.vinculo() for key, view in views.items()},
+            "pareceres": sources, "findings": findings}))
+
     def _auditar_patches(self, process_id, views, context, *, version):
         from . import achados, consistencia, validacao
         texts = {key: view.texto_analise for key, view in views.items()}
@@ -379,7 +463,7 @@ class DocumentoService:
             finding["allowedPaths"] = [p for p in finding["allowedPaths"] if p in by_path and by_path[p].bloqueio is None]
             finding["autoCorrectable"] = bool(finding["autoCorrectable"] and finding["allowedPaths"])
         for finding in consistencia.verificar(context["fatos"], texts):
-            findings.append(_vincular_consistencia_nativa(finding, views, texts))
+            findings.append(_vincular_achado_nativo(finding, views, texts))
         return {"bundleId": process_id, "bundleVersion": version, "bundleHash": snapshot["hash"],
             "status": "REVIEW_COMPLETED", "findings": findings, "validatorFindings": raw,
             "validatorVersion": validacao.versao_do_auditor(), "model": "validacao-deterministica",

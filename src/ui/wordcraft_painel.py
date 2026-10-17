@@ -8,7 +8,8 @@ from __future__ import annotations
 from ..wordcraft_capacidades import painel_unico
 
 
-def modelo(*, preparacao=None, auditoria_atual=None, evidencias=(), template=None, montagem=None,
+def modelo(*, preparacao=None, auditoria_atual=None, pareceres_atuais=None,
+           evidencias=(), template=None, montagem=None,
            historico=()) -> dict:
     base = painel_unico()
     auditoria = preparacao.auditoria() if preparacao is not None else None
@@ -21,6 +22,7 @@ def modelo(*, preparacao=None, auditoria_atual=None, evidencias=(), template=Non
                             "auditoria": auditoria}
                            if preparacao is not None else None),
             "auditoria_atual": auditoria_atual,
+            "pareceres_atuais": pareceres_atuais,
             "evidencias": list(evidencias),
             "template": template,
             "montagem": montagem,
@@ -65,6 +67,12 @@ def renderizar(modelo_painel: dict) -> None:
             "unresolvedFindings", [])
         if pendencias:
             st.json(pendencias, expanded=False)
+        elif modelo_painel.get("pareceres_atuais"):
+            current = modelo_painel["pareceres_atuais"]
+            st.metric("Pareceres vinculados", len(current["pareceres"]))
+            st.metric("Apontamentos", len(current["findings"]))
+            for finding in current["findings"]:
+                st.json(finding, expanded=False)
         else:
             st.info("Nenhuma pendência de parecer vinculada à proposta atual.")
     with evidencias:

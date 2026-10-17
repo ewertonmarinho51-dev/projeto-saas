@@ -19,8 +19,11 @@ from tests.test_patches_nativos import engine, encode, heading, para
 
 
 class Query:
-    def __init__(self, rows): self.rows=rows
-    def select(self,*args): return self
+    def __init__(self, rows): self.rows=rows; self.columns=None
+    def select(self,*args):
+        if len(args)==1 and args[0] != '*':
+            self.columns=tuple(item.strip() for item in args[0].split(','))
+        return self
     def eq(self,key,value):
         self.rows=[r for r in self.rows if r.get(key)==value]
         return self
@@ -29,7 +32,10 @@ class Query:
         return self
     def execute(self):
         if isinstance(self.rows,Exception): raise self.rows
-        return SimpleNamespace(data=copy.deepcopy(self.rows))
+        rows=copy.deepcopy(self.rows)
+        if self.columns and isinstance(rows,list):
+            rows=[{key:row[key] for key in self.columns} for row in rows]
+        return SimpleNamespace(data=rows)
 
 
 @pytest.fixture
@@ -40,7 +46,8 @@ def patch_owner(engine,monkeypatch):
     actor,tenant,process=(str(uuid4()) for _ in range(3))
     claims={'sub':actor,'role':'authenticated','app_metadata':{'tenant_id':tenant,'papel':'usuario'}}
     process_row={'id':process,'tenant_id':tenant,'secretaria_id':None,'criado_em':'2026-01-20T12:00:00Z','dados':{},'aprovados':[]}
-    state={'claims':claims,'heads':[],'rows':[],'rpc_calls':[],'proposals':0,'native_calls':calls,'contexts':0}
+    state={'claims':claims,'heads':[],'rows':[],'opinions':[],'opinion_findings':[],
+           'rpc_calls':[],'proposals':0,'native_calls':calls,'contexts':0}
     context={'processo':{k:process_row[k] for k in ('id','tenant_id','secretaria_id','dados','aprovados')},'fatos':[]}
     state['context']=context
 
@@ -50,6 +57,7 @@ def patch_owner(engine,monkeypatch):
             return Query(state['claims'])
         def table(self,name):
             return Query(copy.deepcopy({'documentos_editor':state['heads'],'documentos_editor_revisoes':state['rows'],
+                'pareceres':state['opinions'],'parecer_achados':state['opinion_findings'],
                 'processos':[process_row]}.get(name,[])))
 
     for key in ('memo_a','memo_b','memo_c'):
@@ -146,6 +154,46 @@ def test_current_audit_is_read_only_and_bound_to_native_heads(patch_owner):
     assert not state['rpc_calls'] and all(head['revision']==1 for head in state['heads'])
 
 
+def test_persisted_legal_opinion_is_classified_and_bound_read_only(patch_owner):
+    service,state,process=patch_owner
+    opinion, finding = str(uuid4()), str(uuid4())
+    state['opinions']=[dict(id=opinion,nome_arquivo='parecer.pdf',
+        hash_origem='f'*64,status='NORMALIZED',processo_id=process)]
+    state['opinion_findings']=[dict(id=finding,parecer_id=opinion,
+        categoria='operacional',gravidade='HIGH',
+        problema='Redação imprecisa.',documento_afetado='memo_a',
+        clausula_afetada='1',fundamento='art. 1',
+        correcao_solicitada='Substituir por redação objetiva.',causa='',
+        sistemico=False,confianca=.9,
+        evidencias=['Texto placeholder sintético do documento memo_a, requer ajuste pontual.'])]
+    current=service.pareceres_atuais(process)
+    assert current['schema']=='gc-wordcraft-legal-opinions/v1'
+    assert len(current['pareceres'])==len(current['findings'])==1
+    item=current['findings'][0]
+    assert item['findingId']==f'PJ:{opinion}:{finding}'
+    assert item['autoCorrectable'] is True
+    assert item['allowedPaths'][0].startswith('memo_a/clausula/1/')
+    assert item['sourceIds']==[f'parecer:{opinion}',f'parecer_achado:{finding}']
+    assert not state['rpc_calls'] and all(head['revision']==1 for head in state['heads'])
+
+
+def test_legal_opinion_without_one_literal_native_target_stays_manual(patch_owner):
+    service,state,process=patch_owner
+    opinion, finding = str(uuid4()), str(uuid4())
+    state['opinions']=[dict(id=opinion,nome_arquivo='parecer.pdf',
+        hash_origem='e'*64,status='NORMALIZED',processo_id=process)]
+    state['opinion_findings']=[dict(id=finding,parecer_id=opinion,
+        categoria='operacional',gravidade='MEDIUM',problema='Revisar a cláusula.',
+        documento_afetado='memo_a',clausula_afetada='1',fundamento='',
+        correcao_solicitada='Melhorar a redação.',causa='',sistemico=False,
+        confianca=.8,evidencias=['trecho que não pertence ao documento'])]
+    item=service.pareceres_atuais(process)['findings'][0]
+    assert item['parecerStatus']=='CORRECAO_AUTOMATICA'
+    assert item['autoCorrectable'] is False and item['allowedPaths']==[]
+    assert 'citação única' in item['blockingReason']
+    assert not state['rpc_calls']
+
+
 def test_contextual_capability_uses_the_same_owner_preparation_without_writing(patch_owner):
     from src.wordcraft_capacidades import Capacidade, CorrecaoContextual, propositor
     service,state,process=patch_owner
@@ -212,7 +260,7 @@ def test_consistency_finding_maps_exactly_to_native_anchor_and_reaudits(patch_ow
 
 @pytest.mark.parametrize('case',['duplicate','blocked','no_source','different_text'])
 def test_consistency_mapping_fails_closed_when_native_parity_is_not_unique(case):
-    from src.documentos_editor import _vincular_consistencia_nativa
+    from src.documentos_editor import _vincular_achado_nativo
     path='tr/clausula/7/11111111-1111-1111-1111-111111111111'
     block=SimpleNamespace(path=path,clausula=7,conteudo='Valor estimado R$ 10,00.',bloqueio=None)
     blocks=[block]
@@ -224,7 +272,7 @@ def test_consistency_mapping_fails_closed_when_native_parity_is_not_unique(case)
     finding=dict(documentId='tr',autoCorrectable=True,
         allowedPaths=['tr/clausula/7/1'],blockedPaths=[],
         sourceIds=[] if case=='no_source' else ['valor.total'])
-    result=_vincular_consistencia_nativa(finding,
+    result=_vincular_achado_nativo(finding,
         {'tr':SimpleNamespace(blocos=blocks)},
         {'tr':'## 7. VALOR\n\nValor estimado R$ 10,00.'})
     assert result['autoCorrectable'] is False

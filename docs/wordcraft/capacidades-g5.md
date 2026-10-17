@@ -86,6 +86,18 @@ pelo mesmo `CorrecaoContextual`, propositor e `DocumentoService.preparar_patches
 de G4. A preparação relê fontes e heads, reaudita o resultado e permanece sem
 persistência até a confirmação explícita já existente.
 
+Pareceres já ingeridos e normalizados pelo owner legado também podem ser
+carregados, sob a RLS do cliente autenticado, no painel do mesmo documento.
+`parecer_correcao.situar` continua responsável por classificar recomendação
+objetiva, decisão administrativa, dado faltante, ambiguidade e conflito. Uma
+recomendação classificada como objetiva só recebe âncora nativa quando uma
+citação literal do próprio achado identifica exatamente um bloco permitido;
+sem essa prova, ela permanece manual mesmo que tenha nomeado a cláusula. A
+origem preserva os IDs do parecer e do achado e o painel é invalidado quando a
+head muda. Este incremento é deliberadamente somente leitura: aplicação e
+relatório persistente de atendimento no modelo nativo ainda são pendências,
+pois não é seguro considerar a instrução jurídica como texto substituto.
+
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
 manifesto, inventário fechado, hashes/tamanhos dos assets, cabeçalho WASM,
@@ -104,6 +116,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 - achado de consistência com paridade exata e fonte é traduzido para UUID
   nativo, corrigido pelo owner e encerrado na reauditoria sem RPC de gravação;
 - paridade duplicada, bloqueada, divergente ou sem fonte falha de modo fechado;
+- parecer normalizado é relido pela RLS, classificado pelo owner existente e
+  ligado a uma âncora somente com citação literal única; leitura não grava;
 - parecer ambíguo permanece pendente;
 - alteração posterior de logo ou signatário não muda o snapshot capturado;
 - 210 itens preservam numeração e total decimal;
