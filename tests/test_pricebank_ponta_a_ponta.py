@@ -13,8 +13,6 @@ from __future__ import annotations
 from decimal import Decimal
 from io import BytesIO
 
-import pytest
-
 from src import db, export
 from src.precos import aplicacao, busca, cesta, perfil, relatorio
 from src.precos import repositorio as repo
@@ -168,9 +166,8 @@ def test_exclusao_humana_dos_discrepantes_refaz_o_preco_e_registra(monkeypatch):
     assert cesta.pendencias_do_item(item), "média com 500,00 é provisória"
     assert cesta.validar_conclusao(item, "")
 
-    with pytest.raises(ValueError):
-        cesta.excluir_discrepantes(pesquisa, item, repo,
-                                   perfil=perfil.LEI_14133, motivo="")
+    # o motivo do revisor é opcional (pacote Jev, RF-02 — a retirada sem
+    # texto está em test_remocao_sem_motivo); quando dado, vai junto
     estimativa = cesta.excluir_discrepantes(
         pesquisa, item, repo, perfil=perfil.LEI_14133,
         motivo="preço 20× acima da série, sem justificativa de mercado")

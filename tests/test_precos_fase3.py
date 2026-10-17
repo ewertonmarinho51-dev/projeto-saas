@@ -547,14 +547,22 @@ def test_o_motor_calcula_e_para_na_revisao(banco):
     assert "discrepantes mantidos" in confirmado["justificativa"]
 
 
-def test_excluir_referencia_exige_motivo(banco):
+def test_incluir_exige_motivo_e_excluir_nao(banco):
     """
-    A 0021 não concede DELETE a ninguém: excluir é mudar status. E
-    mudar status sem dizer por quê seria exclusão silenciosa com outro
-    nome.
+    A 0021 não concede DELETE a ninguém: excluir é mudar status. Incluir
+    exige motivo (vai para a memória de cálculo); excluir não exige
+    (pacote Jev, RF-02) — a trilha do serviço registra o ato sozinha.
     """
     with pytest.raises(ValueError):
-        repo.reclassificar_referencia("qualquer", "rejected", "   ")
+        repo.reclassificar_referencia("qualquer", "selected", "   ")
+    pesquisa = _pesquisa(banco)
+    item = repo.salvar_itens(pesquisa["id"], [{"descricao": "CANETA"}])[0]
+    referencia = repo.registrar_referencias(
+        item["id"], [_referencia("ref-sem-motivo")])[0]
+    linha = repo.reclassificar_referencia(referencia["id"], "rejected", "   ")
+    assert linha["status"] == "rejected"
+    assert linha["motivos"] == referencia.get("motivos", []), \
+        "sem texto, nada é inventado nos motivos"
 
 
 def test_excluir_referencia_acumula_o_motivo(banco):
