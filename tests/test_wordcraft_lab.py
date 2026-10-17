@@ -189,3 +189,24 @@ def test_public_route_never_serves_an_unlisted_file_added_after_preflight(config
         blocked.send(None)
     response = returned.value.value
     assert response.status_code == 404 and private not in response.body
+
+
+def test_g4_lab_routes_canvas_checkpoint_through_atomic_patch_owner_before_ack():
+    source = (Path(__file__).resolve().parents[1]
+              / "integrations/wordcraft/lab/app.py").read_text(encoding="utf-8")
+    start = source.index("def receive():")
+    receive = source[start:source.index("\n\nbridge = st.session_state.bridge", start)]
+    assert "checkpoint.request_id == preparation.operation_id" in receive
+    assert "service.confirmar_patches(" in receive
+    assert "checkpoints={document.tipo: checkpoint}" in receive
+    assert receive.index("service.confirmar_patches(") < receive.index("bridge.confirmar_checkpoint(")
+    assert "bridge.falhar_checkpoint" in receive
+
+
+def test_g4_lab_only_prepares_findings_marked_autocorrectable_for_current_document():
+    source = (Path(__file__).resolve().parents[1]
+              / "integrations/wordcraft/lab/app.py").read_text(encoding="utf-8")
+    assert 'item.get("documentId") == document.tipo' in source
+    assert 'item.get("autoCorrectable") is True' in source
+    assert "service.preparar_patches(" in source
+    assert "bridge.solicitar_patch(preparation.operation_id" in source

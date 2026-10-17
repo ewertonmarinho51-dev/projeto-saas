@@ -15,6 +15,8 @@ import streamlit as st
 from src import auth, db
 from src.documentos_editor import DocumentoService, AcessoNegado, ConflitoDocumento, ErroDocumento
 from src.wordcraft_protocol import Ponte
+from src.wordcraft_capacidades import (Capacidade, CorrecaoContextual,
+                                       ErroCapacidade, propositor)
 
 CONFIG = json.loads(os.environ["GOVDOCS_WORDCRAFT_LAB"])
 st.set_page_config(layout="wide")
@@ -104,7 +106,19 @@ def receive():
     try:
         checkpoint = bridge.receber_lote(batch, origin=bridge.origin, source_ok=True)
         if checkpoint is not None:
-            receipt = service.checkpoint(bridge.document_id, checkpoint)
+            preparation = st.session_state.get("qa_patch_preparation")
+            patch_checkpoint = (preparation is not None
+                                and checkpoint.request_id == preparation.operation_id)
+            if patch_checkpoint:
+                batch_receipt = service.confirmar_patches(
+                    preparation, checkpoints={document.tipo: checkpoint})
+                if len(batch_receipt.documentos) != 1:
+                    raise ErroDocumento("Recibo G4 não corresponde ao canvas único.")
+                receipt = batch_receipt.documentos[0]
+                st.session_state.qa_patch_receipt = batch_receipt
+                st.session_state.qa_patch_preparation = None
+            else:
+                receipt = service.checkpoint(bridge.document_id, checkpoint)
             bridge.confirmar_checkpoint(request_id=receipt.request_id, revision=receipt.revision,
                                          content_hash=receipt.content_hash)
             st.session_state.document = replace(st.session_state.document, revision=receipt.revision,
@@ -113,7 +127,10 @@ def receive():
                                                  validation_provenance=receipt.validation_provenance,
                                                  index=receipt.index, index_mode=receipt.index_mode,
                                                  restored_from_revision=receipt.restored_from_revision)
-            st.session_state.backend_message = "Commit confirmado no PostgreSQL; ACK correlacionado à operação."
+            st.session_state.backend_message = (
+                "Patch G4 confirmado atomicamente no PostgreSQL; ACK correlacionado à operação."
+                if patch_checkpoint else
+                "Commit confirmado no PostgreSQL; ACK correlacionado à operação.")
         elif bridge.canvas_bloqueado() is not None:
             st.session_state.backend_message = "Canvas bloqueado e hash confirmado para análise; nenhum ato foi aprovado."
         elif bridge.falha_controle() is not None:
@@ -146,11 +163,93 @@ if st.session_state.get("qa_history", (None,))[0] == document.id:
     history_panel.append({"revision": historical_revision, "content_hash": historical_hash})
 renderizar_painel(modelo_painel(
     preparacao=st.session_state.get("qa_context_preparation"),
+    auditoria_atual=st.session_state.get("qa_context_audit"),
     evidencias=st.session_state.get("qa_context_evidence", ()),
     template=st.session_state.get("qa_context_template"),
     montagem=st.session_state.get("qa_context_assembly"),
     historico=history_panel,
 ))
+
+# QA do percurso G4 real: usa exatamente o owner, compilador, motor nativo,
+# transação e ACK do produto. O laboratório só fornece corpus/ator sintéticos.
+if st.button("Carregar auditoria contextual G4",
+             disabled=bridge.state not in {"ready", "saved"}
+             or bridge.controle_pendente() is not None):
+    try:
+        st.session_state.qa_context_audit = service.auditoria_atual(document.processo_id)
+        st.rerun()
+    except ErroDocumento as error:
+        st.error(str(error))
+audit = st.session_state.get("qa_context_audit")
+findings = ([item for item in audit["report"]["findings"]
+             if item.get("documentId") == document.tipo
+             and item.get("autoCorrectable") is True] if audit else [])
+if audit is not None:
+    st.caption("Auditoria vinculada ao bundle " + audit["report"]["bundleHash"]
+               + " · achados autocorrigíveis deste documento: " + str(len(findings)))
+    finding_counts = {}
+    for item in audit["report"]["findings"]:
+        if item.get("autoCorrectable") is True:
+            key = str(item.get("documentId") or "sem-documento")
+            finding_counts[key] = finding_counts.get(key, 0) + 1
+    st.caption("Achados autocorrigíveis no pacote por documento: "
+               + (json.dumps(finding_counts, sort_keys=True, ensure_ascii=False)
+                  if finding_counts else "nenhum"))
+if findings and st.session_state.get("qa_patch_preparation") is None:
+    labels = {item["findingId"]: item["findingId"] + " · "
+              + str(item.get("descricao") or "") for item in findings}
+    finding_id = st.selectbox("Achado G4 para corrigir", tuple(labels),
+                              format_func=labels.get)
+    replacement = st.text_area("Parágrafo corrigido para o ensaio G4",
+        value="Texto sintético revisado pelo aplicador único G4, sem alterar dados materiais.",
+        max_chars=64 * 1024)
+    reason = st.text_input("Justificativa sintética G4",
+                           value="Correção sintética autorizada para prova end-to-end.",
+                           max_chars=500)
+    if st.button("Preparar patch G4 e diff", disabled=not replacement.strip()):
+        selected_finding = next(item for item in findings
+                                if item["findingId"] == finding_id)
+        operation = str(uuid5(NAMESPACE_URL, "wordcraft-lab-g4:"
+            + document.id + ":" + document.content_hash + ":" + finding_id
+            + ":" + replacement + ":" + reason))
+        correction = CorrecaoContextual(Capacidade.AUDITORIA, finding_id,
+            replacement, reason, tuple(selected_finding.get("sourceIds") or ()))
+        try:
+            st.session_state.qa_patch_preparation = service.preparar_patches(
+                document.processo_id, operation_id=operation,
+                propor_plano=propositor(correction))
+            st.rerun()
+        except (ErroDocumento, ErroCapacidade) as error:
+            st.error(str(error))
+preparation = st.session_state.get("qa_patch_preparation")
+if preparation is not None:
+    results = tuple(r for r in preparation.resultados
+                    if r.fonte.doc_key == document.tipo)
+    commands = tuple(c for c in preparation.comandos
+                     if c.fonte.doc_key == document.tipo)
+    source_ok = (len(preparation.resultados) == len(preparation.comandos) == 1
+                 and len(results) == len(commands) == 1
+                 and results[0].fonte.document_id == document.id
+                 and results[0].fonte.revision == document.revision
+                 and results[0].fonte.content_hash == document.content_hash)
+    st.warning("Patch preparado sem gravação. Confirme para aplicar os bytes exatos no canvas.")
+    apply_col, reject_col = st.columns(2)
+    if apply_col.button("Aplicar patch G4 no canvas", type="primary",
+                        disabled=not source_ok or bridge.state not in {"ready", "saved"}
+                        or bridge.controle_pendente() is not None):
+        bridge.solicitar_patch(preparation.operation_id,
+            plano=commands[0].plano_nativo(), target_hash=results[0].content_hash)
+        st.rerun()
+    if reject_col.button("Rejeitar patch G4"):
+        service.descartar_patches(preparation)
+        st.session_state.qa_patch_preparation = None
+        st.session_state.backend_message = "Patch G4 rejeitado sem alterar o documento."
+        st.rerun()
+receipt = st.session_state.get("qa_patch_receipt")
+if receipt is not None:
+    st.success("Recibo G4 persistido: operação " + receipt.operation_id
+               + " · auditoria " + receipt.audit_id
+               + " · canvas confirmado: " + str(receipt.canvas_confirmado))
 
 # Fixed position after the editor preserves the component mount across reruns.
 if st.button("Bloquear esta revisão para análise", disabled=bridge.state not in {"ready", "saved"} or bridge.controle_pendente() is not None):

@@ -68,7 +68,7 @@ Nenhuma remoção de legado antes da prova de substituição e do aceite corresp
 | Componente planejado | Responsabilidade | Reuso e prova |
 |---|---|---|
 | `scripts/wordcraft_lab.py` | preparar banco sintético próprio e servir laboratório somente em loopback; reabrir o mesmo banco em restart | `homologacao_local`, `homologacao_stack`, marcador do instalador e owner existente; DSN/paths/portas validados antes de mutações |
-| `integrations/wordcraft/lab/app.py`, `server.py` | página de ensaio do componente real, commit/ACK e download de revisão persistida | `auth.entrar`, `DocumentoService`, `Ponte`, renderer; não entra nos consumidores operacionais |
+| `integrations/wordcraft/lab/app.py`, `server.py` | página de ensaio do componente real, commit/ACK, download e preparação/aplicação G4 condicionada a finding autocorrigível corrente | `auth.entrar`, `DocumentoService`, `Ponte`, renderer e aplicador atômico; o corpus aprovado atual não possui finding G4 elegível e o laboratório não entra nos consumidores operacionais |
 | `tests/test_wordcraft_lab.py` | recusar configuração remota, namespaces alheios, alteração do manifesto e corpus não verificado | sem banco nos testes de contrato; execução real local separada |
 
 O runner substitui os roteiros avulsos de `work/` na reprodução da prova; não cria
