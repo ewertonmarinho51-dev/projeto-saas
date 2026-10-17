@@ -37,6 +37,7 @@ from ..precos import filtros as filtros_mod
 from ..precos import repositorio as repo
 from ..precos.estados import EstadoItem
 from ..precos.perfil import inciso_da_fonte
+from ..precos.relatorio_view import titulo_curto
 from . import components, precos_ui
 
 # Navegação interna (estado de INTERAÇÃO, nunca fonte de preço ou cesta).
@@ -185,8 +186,11 @@ def _render_lista() -> None:
         st.rerun()
 
     ctx = _ctx()
+    carregando = st.empty()
+    components.render_skeleton(carregando, "Carregando as cotações", linhas=3)
     todas = cotacoes.listar_cotacoes(ctx, recorte="Todas")
     linhas = cotacoes.listar_cotacoes(ctx, busca_texto=termo, recorte=recorte)
+    carregando.empty()
 
     m = st.columns(4)
     m[0].metric("Em elaboração", sum(1 for c in todas if c.estado in
@@ -313,12 +317,18 @@ def _render_nova() -> None:
 def _render_elaborar() -> None:
     ctx = _ctx()
     cotacao_id = str(st.session_state[COTACAO])
+    # Skeleton só enquanto a leitura no banco está de fato acontecendo:
+    # com latência real, a forma da tela aparece antes dos dados.
+    carregando = st.empty()
+    components.render_skeleton(carregando, "Carregando a cotação", linhas=4)
     cotacao = repo.obter_pesquisa(cotacao_id)
     if not cotacao:
+        carregando.empty()
         st.warning("Cotação não encontrada ou fora do seu acesso.")
         _ir(LISTA)
         return
     itens = cotacoes.ativos(repo.listar_itens(cotacao_id))
+    carregando.empty()
     perfil_atual = perfil.obter(cotacao.get("perfil_normativo"))
     editavel = cotacao.get("estado") not in ("applied", "archived")
 
@@ -335,26 +345,31 @@ def _render_elaborar() -> None:
         ativo = itens[0]
         st.session_state[ITEM] = str(ativo["id"])
 
-    esquerda, centro, direita = st.columns([1.05, 2.3, 1.35], gap="medium")
-    with esquerda:
+    # Três REGIÕES com nome: o CSS (`assets/govconnect.css`, "Elaborar
+    # Cotação") dá largura útil a cada uma por faixa de tela — lista
+    # estreita, busca flexível, cesta legível; em tela média a lista vira
+    # faixa no topo e a cesta vem antes dos resultados, para "Concluir
+    # item" ficar à vista. As proporções abaixo só valem sem o CSS.
+    esquerda, centro, direita = st.columns([1, 2.4, 1.4], gap="medium")
+    with esquerda, st.container(key="cot_regiao_itens"):
         _painel_itens(ctx, cotacao, itens, ativo, editavel)
     if ativo is None:
-        with centro:
+        with centro, st.container(key="cot_regiao_busca"):
             st.info("Inclua o primeiro item à esquerda, ou importe uma "
-                    "planilha. Depois escolha o item e pesquise preços — à "
+                    "planilha. Depois escolha o item e pesquise preços, à "
                     "mão ou pela Cotação automática.")
         return
     referencias = repo.listar_referencias(str(ativo["id"]))
     _revisao_vista(ativo)
-    with centro:
+    with centro, st.container(key="cot_regiao_busca"):
         _painel_busca(ctx, cotacao, ativo, referencias, editavel)
-    with direita:
+    with direita, st.container(key="cot_regiao_cesta"):
         _painel_cesta(ctx, cotacao, ativo, referencias, perfil_atual, editavel)
 
 
 def _cabecalho(ctx, cotacao: dict, itens: list[dict], perfil_atual,
                editavel: bool) -> None:
-    titulo, botoes = st.columns([3.2, 2.2])
+    titulo, botoes = st.columns([2.6, 2.4])
     with titulo:
         versao = int(cotacao.get("versao") or 1)
         st.markdown(f"### {html.escape(str(cotacao.get('nome') or ''))}"
@@ -364,7 +379,7 @@ def _cabecalho(ctx, cotacao: dict, itens: list[dict], perfil_atual,
                 (f"data-base {precos_ui._data_base(cotacao):%d/%m/%Y}", ""),
                 ("vinculada a processo" if cotacao.get("processo_id")
                  else "autônoma", "")])
-    with botoes:
+    with botoes, st.container(key="cot_acoes"):
         b1, b2, b3 = st.columns(3)
         if b1.button("Cotação automática", type="primary",
                      use_container_width=True, disabled=not (editavel and itens),
@@ -385,11 +400,13 @@ def _cabecalho(ctx, cotacao: dict, itens: list[dict], perfil_atual,
     concluidos = [i for i in itens if i.get("estado") == "complete"]
     total = sum((Decimal(str(i["preco_total"])) for i in concluidos
                  if i.get("preco_total") not in (None, "")), Decimal(0))
-    m = st.columns(4)
-    m[0].metric("Itens", len(itens))
-    m[1].metric(f"Com {minimo}+ considerados", f"{com_minimo}/{len(itens)}")
-    m[2].metric("Pendentes", len(itens) - len(concluidos))
-    m[3].metric("Valor (itens concluídos)", _moeda(total))
+    with st.container(key="cot_kpis"):
+        m = st.columns(4)
+        m[0].metric("Itens", len(itens))
+        m[1].metric(f"Com {minimo}+ considerados",
+                    f"{com_minimo}/{len(itens)}")
+        m[2].metric("Pendentes", len(itens) - len(concluidos))
+        m[3].metric("Valor (itens concluídos)", _moeda(total))
     if st.session_state.get("cot_confirmar_lote"):
         _confirmar_lote(ctx, cotacao, itens)
 
@@ -465,6 +482,10 @@ def _render_lote(ctx, cotacao: dict, itens: list[dict]) -> None:
     lote = st.session_state[LOTE]
     tentados = set(lote["tentados"])
     feitos = len(tentados)
+    # Progresso REAL (itens já tentados, gravados no estado de cada item);
+    # o marcador esconde a faixa do topo enquanto este painel fala.
+    st.markdown('<span class="gc-progresso-local" hidden></span>',
+                unsafe_allow_html=True)
     st.progress(feitos / max(1, lote["total"]),
                 text=f"Cotação automática: {feitos} de {lote['total']} item(ns)")
     parar = st.button("Interromper", key="cot_parar_lote",
@@ -507,18 +528,22 @@ def _painel_itens(ctx, cotacao: dict, itens: list[dict], ativo: dict | None,
     paginas = max(1, -(-len(visiveis) // POR_PAGINA_ITENS))
     pagina = min(pagina, paginas)
     minimo = perfil.obter(cotacao.get("perfil_normativo")).minimo_referencias
-    for item in visiveis[(pagina - 1) * POR_PAGINA_ITENS:
-                         pagina * POR_PAGINA_ITENS]:
-        n = cesta.na_cesta_do_item(item)
-        icone = ICONE_ITEM.get(str(item.get("estado")), "○")
-        rotulo = (f"{int(item.get('numero') or 0):02d} {icone} "
-                  f"{str(item.get('descricao') or '')[:34]}"
-                  f" · {'—' if n is None else n}/{minimo}")
-        if st.button(rotulo, key=f"cot_item_{item['id']}",
-                     type="primary" if ativo and item["id"] == ativo["id"]
-                     else "secondary", use_container_width=True):
-            st.session_state[ITEM] = str(item["id"])
-            st.rerun()
+    with st.container(key="cot_lista_itens"):
+        for item in visiveis[(pagina - 1) * POR_PAGINA_ITENS:
+                             pagina * POR_PAGINA_ITENS]:
+            n = cesta.na_cesta_do_item(item)
+            estado = str(item.get("estado") or "pending")
+            texto, icone, _ = components.ESTADO_ITEM.get(
+                estado, components.ESTADO_ITEM["pending"])
+            # Situação ESCRITA, além do ícone e da cor: nunca só cor (F).
+            rotulo = (f"**{int(item.get('numero') or 0):02d}** "
+                      f"{titulo_curto(item.get('descricao'), 40)} · "
+                      f"{texto} · {'sem busca' if n is None else f'{n}/{minimo}'}")
+            if st.button(rotulo, key=f"cot_item_{item['id']}", icon=icone,
+                         type="primary" if ativo and item["id"] == ativo["id"]
+                         else "secondary", use_container_width=True):
+                st.session_state[ITEM] = str(item["id"])
+                st.rerun()
     if paginas > 1:
         a, b = st.columns(2)
         if a.button("‹", disabled=pagina <= 1, key="cot_itens_ant"):
@@ -527,8 +552,7 @@ def _painel_itens(ctx, cotacao: dict, itens: list[dict], ativo: dict | None,
         if b.button("›", disabled=pagina >= paginas, key="cot_itens_prox"):
             st.session_state["cot_pag_itens"] = pagina + 1
             st.rerun()
-    st.caption("○ não pesquisado · ◐ em revisão · ! abaixo do mínimo · "
-               "⚠ falha da fonte · ✓ concluído")
+    components.render_legenda_estados()
     if not editavel:
         return
     with st.expander("+ Novo item"):
@@ -590,14 +614,18 @@ def _ultima_busca(cotacao_id: str, item_id: str) -> dict | None:
 def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
                   editavel: bool) -> None:
     estado = str(item.get("estado") or "pending")
-    st.markdown(f"**Item {int(item.get('numero') or 0):02d}** — "
-                f"{html.escape(str(item.get('descricao') or ''))}")
+    descricao = str(item.get("descricao") or "")
+    curto = titulo_curto(descricao, 90)
+    # Título curto + situação no primeiro olhar; a especificação inteira
+    # sob demanda (era um parágrafo de 4 linhas antes de qualquer ação).
+    st.markdown(f"**Item {int(item.get('numero') or 0):02d}** · "
+                f"{html.escape(curto)} &nbsp; {components.selo_de_estado(estado)}")
+    if curto != " ".join(descricao.split()):
+        with st.expander("Especificação completa"):
+            st.markdown(html.escape(descricao))
     _chips([(f"{_quantidade(item.get('quantidade'))} "
              f"{item.get('unidade') or ''}", ""),
-            (f"código {item.get('codigo')}" if item.get("codigo") else "", ""),
-            (precos_ui.ROTULO_ITEM.get(estado, estado),
-             "success" if estado == "complete" else
-             "warning" if estado in ("incomplete", "error") else "info")])
+            (f"código {item.get('codigo')}" if item.get("codigo") else "", "")])
     if editavel:
         _acoes_do_item(ctx, cotacao, item)
 
@@ -608,7 +636,8 @@ def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
                                   help="A descrição do item continua sendo a "
                                        "referência de comparação; o termo só "
                                        "amplia a consulta.")
-            a, b, c = st.columns([2, 1, 1])
+            filtros_box = st.expander("Fontes, janela e UF")
+            a, b, c = filtros_box.columns([2, 1, 1])
             nomes = {getattr(f.fonte, "id", ""): getattr(f.fonte, "nome", "")
                      for f in _fontes() if getattr(f, "fonte", None)}
             fontes = a.multiselect("Fontes", list(nomes),
@@ -626,7 +655,7 @@ def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
             uf = c.text_input("UF", max_chars=2,
                               value=str((cotacao.get("filtros") or {})
                                         .get("uf") or ""))
-            literal = st.checkbox(
+            literal = filtros_box.checkbox(
                 "Apenas o termo digitado (sem ampliação semântica)",
                 value=True,
                 help="Desmarcado, a camada semântica (quando configurada) "
@@ -674,11 +703,25 @@ def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
         if p.get("termos_extras"):
             st.caption("Termos acrescentados à consulta: "
                        + ", ".join(str(x) for x in p["termos_extras"]))
-        m = st.columns(4)
-        m[0].metric("Encontradas", p.get("brutas", 0))
-        m[1].metric("Únicas", p.get("unicas", 0))
-        m[2].metric("Elegíveis", p.get("elegiveis", 0))
-        m[3].metric("Consideradas", len(cesta.consideradas(referencias)))
+        # encontradas / comparáveis / consideradas / descartadas (pacote
+        # de 17/10/2026): o que a fonte devolveu, o que serve de preço, o
+        # que está no cálculo e o que ficou de fora — números distintos.
+        with st.container(key="cot_metricas_busca"):
+            m = st.columns(4)
+            m[0].metric("Encontradas", p.get("brutas", 0))
+            m[1].metric("Comparáveis", p.get("elegiveis", 0))
+            m[2].metric("Consideradas", len(cesta.consideradas(referencias)))
+            m[3].metric("Descartadas", max(0, int(p.get("unicas") or 0)
+                                           - int(p.get("elegiveis") or 0)))
+        consultadas = len(p.get("desfechos") or {})
+        partes = [f"{consultadas} fonte(s) consultada(s)"]
+        if p.get("fontes_nao_consultadas"):
+            partes.append("não consultada(s) por já haver amostra "
+                          "suficiente: " + ", ".join(p["fontes_nao_consultadas"]))
+        if p.get("nao_gravadas"):
+            partes.append(f"{p['nao_gravadas']} candidata(s) contada(s), "
+                          "não gravada(s) (teto da cotação automática)")
+        st.caption(" · ".join(partes))
     elif not referencias:
         st.caption("Nenhuma busca ainda. Pesquise à mão para escolher as "
                    "referências, ou use a Cotação automática.")
@@ -828,7 +871,16 @@ def _referencia(ctx, cotacao: dict, item: dict, linha: dict, dentro: bool,
                         return
                     _renovar_revisoes()
                     st.rerun()
-        with detalhe.expander("Detalhe e evidência"):
+        # Sob demanda: o conteúdo de um expander é montado mesmo fechado,
+        # e eram ~15 elementos por referência, 12 referências por página.
+        chave_detalhe = f"_cot_det_{linha['id']}"
+        aberto = bool(st.session_state.get(chave_detalhe))
+        if detalhe.button("Ocultar detalhe" if aberto else "Detalhe e evidência",
+                          key=f"cot_detbtn_{linha['id']}",
+                          use_container_width=True):
+            st.session_state[chave_detalhe] = not aberto
+            st.rerun()
+        if aberto:
             precos_ui._render_detalhe(linha)
 
 
@@ -837,11 +889,17 @@ def _referencia(ctx, cotacao: dict, item: dict, linha: dict, dentro: bool,
 # ---------------------------------------------------------------------------
 def _painel_cesta(ctx, cotacao: dict, item: dict, referencias: list[dict],
                   perfil_atual, editavel: bool) -> None:
+    """
+    Ordem de leitura (pacote de 17/10/2026, G3): preço e N/mínimo; o
+    PRÓXIMO PASSO (pendências e "Concluir item" juntos, sem rolar até o
+    fim); só então os detalhes, recolhidos. Antes, o botão ficava abaixo
+    da estatística, do método e do aviso — fora da primeira tela.
+    """
     gravado = item.get("estatisticas") or {}
     est = gravado.get("estatisticas") or {}
     n = len(cesta.consideradas(referencias))
     minimo = perfil_atual.minimo_referencias
-    with st.container(border=True):
+    with st.container(border=True, key="cot_resumo_cesta"):
         st.markdown('<div class="gc-cesta-legenda">Preço estimado do item</div>'
                     f'<div class="gc-cesta-preco">{html.escape(_moeda(item.get("preco_estimado")))}</div>',
                     unsafe_allow_html=True)
@@ -855,37 +913,65 @@ def _painel_cesta(ctx, cotacao: dict, item: dict, referencias: list[dict],
                 (cesta.METODOS_ROTULO.get(str(item.get("metodo") or ""),
                                           str(item.get("metodo") or "")), "")])
         st.caption(f"Total do item: {_moeda(item.get('preco_total'))}")
-        if est:
-            # Quadro compacto: a coluna da cesta é estreita, e `st.metric`
-            # truncava "R$ 24,27" em "R$ 24…" (visto no navegador).
-            cv = est.get("coeficiente_variacao")
-            linhas = [
-                "| Diagnóstico | |", "|---|---:|",
-                f"| Média | {_moeda(est.get('media'))} |",
-                f"| Mediana | {_moeda(est.get('mediana'))} |",
-                f"| Menor / maior | {_moeda(est.get('menor'))} / "
-                f"{_moeda(est.get('maior'))} |",
-                f"| Desvio-padrão | {_moeda(est.get('desvio_padrao'))} |",
-                "| Coef. de variação | " + (
-                    estatistica.pct(Decimal(str(cv)))
-                    if cv not in (None, "") else "—") + " |"]
-            st.markdown("\n".join(linhas).replace("$", "\\$"))
-        for pendencia in gravado.get("pendencias") or []:
-            st.warning(_sem_latex(pendencia))
-        for anomalia in gravado.get("anomalias") or []:
-            st.caption(_sem_latex(f"⚠ {_moeda(anomalia.get('valor'))}: "
-                                  f"{anomalia.get('motivo', '')}"))
+        _proximo_passo(ctx, cotacao, item, gravado, n, minimo, editavel)
+    if est or gravado.get("anomalias"):
+        with st.expander("Estatística da cesta"):
+            if est:
+                cv = est.get("coeficiente_variacao")
+                linhas = [
+                    "| Diagnóstico | |", "|---|---:|",
+                    f"| Média | {_moeda(est.get('media'))} |",
+                    f"| Mediana | {_moeda(est.get('mediana'))} |",
+                    f"| Menor / maior | {_moeda(est.get('menor'))} / "
+                    f"{_moeda(est.get('maior'))} |",
+                    f"| Desvio-padrão | {_moeda(est.get('desvio_padrao'))} |",
+                    "| Coef. de variação | " + (
+                        estatistica.pct(Decimal(str(cv)))
+                        if cv not in (None, "") else "—") + " |"]
+                st.markdown("\n".join(linhas).replace("$", "\\$"))
+            for anomalia in gravado.get("anomalias") or []:
+                st.caption(_sem_latex(f"{_moeda(anomalia.get('valor'))}: "
+                                      f"{anomalia.get('motivo', '')}"))
     if editavel:
         revisao = _revisao_vista(item)
         precos_ui.render_metodo_do_item(cotacao, item, revisao=revisao)
-        if item.get("estado") == EstadoItem.INCOMPLETO.value:
-            precos_ui.render_excecao_do_item(cotacao, item, revisao=revisao)
-        if item.get("estado") == EstadoItem.EM_REVISAO.value:
-            _form_concluir(ctx, cotacao, item)
         precos_ui._render_cotacao(cotacao, item)
     if item.get("justificativa"):
         with st.expander("Memória de cálculo"):
             st.text(str(item.get("justificativa")))
+
+
+def _proximo_passo(ctx, cotacao: dict, item: dict, gravado: dict, n: int,
+                   minimo: int, editavel: bool) -> None:
+    """O que falta para fechar ESTE item, com a ação ao lado do aviso."""
+    estado = str(item.get("estado") or "pending")
+    if estado == EstadoItem.COMPLETO.value:
+        st.success("Item concluído.")
+        if editavel:
+            st.caption("Para mudar, reabra o item em Ações do item.")
+        return
+    if not editavel:
+        return
+    if estado == EstadoItem.EM_REVISAO.value:
+        pendencias = gravado.get("pendencias") or []
+        if pendencias:
+            st.markdown("**Resolva antes de concluir**")
+            for pendencia in pendencias:
+                st.warning(_sem_latex(pendencia))
+        _form_concluir(ctx, cotacao, item)
+        return
+    if estado == EstadoItem.INCOMPLETO.value:
+        st.warning(f"Faltam referências: {n} de {minimo} consideradas. "
+                   "Amplie a busca, registre cotação de fornecedor ou "
+                   "registre a exceção justificada.")
+        precos_ui.render_excecao_do_item(cotacao, item,
+                                         revisao=_revisao_vista(item))
+        return
+    if estado == EstadoItem.ERRO.value:
+        st.error("A última busca falhou nas fontes. Pesquise de novo.")
+        return
+    st.info("Pesquise preços para este item, à mão ou pela cotação "
+            "automática deste item.")
 
 
 def _form_concluir(ctx, cotacao: dict, item: dict) -> None:
@@ -903,11 +989,42 @@ def _form_concluir(ctx, cotacao: dict, item: dict) -> None:
                                justificativa=justificativa,
                                revisao_esperada=_revisao_vista(item))
     except cotacoes.ErroCotacao as erro:
+        # validação recusou: fica no item, com o motivo
         st.error(str(erro))
         return
+    # Conflito de versão e erro de banco sobem para `render_cotacoes`
+    # ANTES daqui: só a conclusão confirmada avança.
     _renovar_revisoes()
-    st.success("Item concluído.")
+    _avancar_depois_de_concluir(cotacao, item)
     st.rerun()
+
+
+def _avancar_depois_de_concluir(cotacao: dict, item: dict) -> None:
+    """
+    Abre o próximo item pendente (pacote de 17/10/2026, G2). O estado é
+    RELIDO depois da conclusão; filtro da lista e decisões ficam como
+    estavam. Sem próximo, abre o painel de conclusão da cotação.
+    """
+    itens = cotacoes.ativos(repo.listar_itens(str(cotacao["id"])))
+    proximo = cotacoes.proximo_item_para_revisao(itens, str(item["id"]))
+    numero = int(item.get("numero") or 0)
+    if proximo is None:
+        st.session_state["cot_painel_relatorio"] = True
+        st.toast(f"Item {numero:02d} concluído. Todos os itens estão "
+                 "concluídos — conclua a cotação no painel abaixo.")
+        return
+    st.session_state[ITEM] = str(proximo["id"])
+    # A página da lista acompanha o item aberto, DENTRO do filtro que o
+    # servidor digitou (o filtro não é apagado).
+    filtro = str(st.session_state.get("cot_filtro_itens") or "").strip().casefold()
+    visiveis = [i for i in itens
+                if filtro in str(i.get("descricao") or "").casefold()]
+    posicao = next((k for k, i in enumerate(visiveis)
+                    if str(i["id"]) == str(proximo["id"])), None)
+    if posicao is not None:
+        st.session_state["cot_pag_itens"] = posicao // POR_PAGINA_ITENS + 1
+    st.toast(f"Item {numero:02d} concluído. Abrindo o item "
+             f"{int(proximo.get('numero') or 0):02d}.")
 
 
 # ---------------------------------------------------------------------------

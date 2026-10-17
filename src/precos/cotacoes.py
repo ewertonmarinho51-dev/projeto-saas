@@ -135,6 +135,26 @@ def ativos(itens: list[dict]) -> list[dict]:
                   key=lambda i: int(i.get("numero") or 0))
 
 
+def proximo_item_para_revisao(itens: list[dict], atual_id: str) -> dict | None:
+    """
+    Depois de concluir `atual_id`: o próximo item ATIVO e NÃO concluído,
+    pela ordem do número — primeiro os que vêm depois do atual, senão o
+    primeiro pendente antes dele. `None` quando não sobra nenhum.
+
+    Recebe o estado JÁ relido depois da conclusão (não o que a tela tinha
+    antes): item que outra aba concluiu nesse meio-tempo não é sugerido.
+    Item difícil não é pulado — se não está concluído, é candidato.
+    """
+    lista = ativos(itens)
+    atual = next((i for i in lista if str(i["id"]) == str(atual_id)), None)
+    numero_atual = int((atual or {}).get("numero") or 0)
+    pendentes = [i for i in lista
+                 if str(i["id"]) != str(atual_id)
+                 and str(i.get("estado")) != EstadoItem.COMPLETO.value]
+    depois = [i for i in pendentes if int(i.get("numero") or 0) > numero_atual]
+    return (depois or pendentes or [None])[0]
+
+
 @dataclass
 class Resumo:
     """Uma linha de Minhas Cotações."""
@@ -496,6 +516,11 @@ class ResultadoPesquisa:
     duracao_s: float = 0.0
     estimativa: estatistica.Estimativa | None = None
     sugestao: dict | None = None
+    # política da cotação automática (vazio = sem teto, o comportamento
+    # anterior): o que deixou de ser gravado e de ser consultado
+    politica: str = ""
+    nao_gravadas: int = 0
+    fontes_nao_consultadas: list[str] = field(default_factory=list)
 
     @property
     def mensagem(self) -> str:
@@ -520,6 +545,20 @@ def _fontes_padrao():
     from . import fontes_padrao
 
     return fontes_padrao()
+
+
+def politica_automatica() -> estatistica.PoliticaAmostraAutomatica | None:
+    """
+    A política da cotação automática, se a flag estiver ligada. Um lugar
+    só decide: a rota unificada e a legada perguntam aqui.
+    """
+    from .. import governanca
+
+    try:
+        ligada = db.flag_ativa(governanca.FLAG_TETO_AUTOMATICO)
+    except Exception:  # noqa: BLE001 — sem banco, sem flag: comportamento anterior
+        ligada = False
+    return estatistica.POLITICA_AUTOMATICA if ligada else None
 
 
 def _ao_buscar(item_id: str, atual: EstadoItem) -> None:
@@ -589,14 +628,16 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
     if escolhidas:
         fontes = [f for f in fontes
                   if getattr(getattr(f, "fonte", None), "id", "") in escolhidas]
+    politica = politica_automatica() if modo == "automatico" else None
     coleta = busca.coletar(item, fontes, filtros=filtros_efetivos,
-                           termos=termos)
+                           termos=termos, politica=politica)
     resultado = ResultadoPesquisa(
         item_id=item_id, modo=modo, diagnostico="", brutas=coleta.brutas,
         unicas=coleta.unicas,
         elegiveis=coleta.elegiveis(estatistica.PISO_COMPARABILIDADE),
         desfechos=dict(coleta.desfechos), ocorrencias=list(coleta.ocorrencias),
-        termos=list(termos))
+        termos=list(termos), politica=politica.versao if politica else "",
+        fontes_nao_consultadas=list(coleta.fontes_nao_consultadas))
 
     if coleta.erro:
         repo.mover_item(item_id, EstadoItem.ERRO, EstadoItem.BUSCANDO,
@@ -615,6 +656,7 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
     existentes = {(str(r.get("fonte_id")), str(r.get("id_externo"))): r
                   for r in repo.listar_referencias(item_id)}
     novas = []
+    manter: set[int] = set()
     for referencia, comparabilidade in coleta.referencias:
         chave = (referencia.fonte.id, referencia.id_externo)
         anterior = existentes.get(chave)
@@ -625,10 +667,20 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
             for motivo in anterior.get("motivos") or []:
                 referencia.com_motivo(str(motivo))
             resultado.preservadas += 1
+            manter.add(id(referencia))
         else:
             novas.append((referencia, comparabilidade))
     if modo == "automatico" and novas:
-        estatistica.selecionar_cesta(novas, perfil)
+        teto = None
+        if politica is not None:
+            # o teto é da CESTA do item: as que já estão lá contam, e a
+            # reconsulta nunca põe a 16ª
+            ja = len(cesta.consideradas(list(existentes.values())))
+            teto = max(0, politica.teto - ja)
+        escolha = estatistica.selecionar_cesta(novas, perfil, teto=teto)
+        if politica is not None:
+            manter |= {id(r) for r in escolha.selecionadas}
+            manter |= {id(r) for r in escolha.excedentes[:politica.reserva]}
     else:
         for referencia, _ in novas:
             referencia.status = StatusReferencia.CANDIDATA
@@ -639,8 +691,15 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
                 referencia.com_motivo(f"{referencia.rotulo_da_natureza} — "
                                       "não é preço praticado")
     resultado.novas = len(novas)
-    gravadas = (repo.registrar_referencias(item_id, coleta.referencias)
-                if coleta.referencias else [])
+    gravar = coleta.referencias
+    if politica is not None and modo == "automatico":
+        # só o que sustenta a cesta, o que já foi decidido e a reserva do
+        # revisor; o restante fica CONTADO na trilha (brutas, únicas,
+        # elegíveis), não gravado linha a linha
+        gravar = [par for par in coleta.referencias if id(par[0]) in manter]
+        resultado.nao_gravadas = len(coleta.referencias) - len(gravar)
+    gravadas = (repo.registrar_referencias(item_id, gravar)
+                if gravar else [])
     item = repo.mover_item(item_id, EstadoItem.CLASSIFICANDO,
                            EstadoItem.BUSCANDO, desfechos=coleta.desfechos,
                            ocorrencias=coleta.ocorrencias, erro="") or item
@@ -690,6 +749,9 @@ def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
                  "elegiveis": resultado.elegiveis, "novas": resultado.novas,
                  "preservadas": resultado.preservadas,
                  "consideradas": resultado.consideradas,
+                 "politica": resultado.politica,
+                 "nao_gravadas": resultado.nao_gravadas,
+                 "fontes_nao_consultadas": resultado.fontes_nao_consultadas,
                  "diagnostico": resultado.diagnostico,
                  "duracao_s": round(resultado.duracao_s, 3),
                  "em": datetime.now(timezone.utc).isoformat(

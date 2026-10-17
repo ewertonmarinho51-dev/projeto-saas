@@ -1242,11 +1242,15 @@ def _render_execucao() -> None:
         repo.mover_pesquisa(str(pesquisa["id"]), EstadoPesquisa.EXECUTANDO,
                             estado)
 
+    from ..precos import cotacoes
+
     with st.spinner("Consultando fontes oficiais…"):
         _, relato = execucao.executar_lote(
             pesquisa, itens, _fontes(), repo,
             perfil=perfil.obter(pesquisa.get("perfil_normativo")),
             motor_semantico=_motor_semantico(), tentados=tentados,
+            # a mesma política da cotação unificada (flag de teto)
+            politica=cotacoes.politica_automatica(),
             **_opcoes_triagem())
 
     acumulado = list(st.session_state.get(RELATO) or [])

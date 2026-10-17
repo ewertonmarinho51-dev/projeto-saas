@@ -1,0 +1,4 @@
+Origem: https://github.com/kylezantos/design-motion-principles
+Commit: 4a9ca87 (clonado em 17/10/2026)
+Instalação manual (sem npx): revisado — só Markdown e HTML de referência, sem scripts.
+Licença: MIT (LICENSE nesta pasta).

@@ -19,7 +19,11 @@
     --gc-radius-button: 7px;
     --gc-radius-card: 11px;
     --gc-sidebar-width: 264px;
+    --gc-sidebar-gap: 10px;
     --gc-topbar-height: 66px;
+    /* movimento do shell: curto e de saída rápida (Emil Kowalski) */
+    --gc-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --gc-shell-ms: 200ms;
     --gc-z-base: 0;
     --gc-z-sticky: 20;
     --gc-z-nav: 30;
@@ -28,7 +32,9 @@
 }
 
 html {
-    scroll-behavior: smooth;
+    /* Salto de âncora e de teclado é instantâneo: navegação frequente não
+       anima (auditoria de movimento, 17/10/2026). */
+    scroll-behavior: auto;
     background: var(--gc-canvas);
 }
 
@@ -106,11 +112,41 @@ hr {
     background: transparent;
 }
 
-[data-testid="stToolbar"],
 [data-testid="stDecoration"],
 #MainMenu,
-footer {
+footer,
+[data-testid="stAppDeployButton"],
+[data-testid="stToolbarActions"],
+[data-testid="stMainMenu"] {
     display: none !important;
+}
+
+/* A barra de ferramentas do Streamlit fica de pé SÓ para o botão nativo
+   de reabrir a sidebar ("stExpandSidebarButton"). Escondê-la inteira
+   deixava a sidebar recolhida sem volta. */
+[data-testid="stToolbar"] {
+    position: fixed !important;
+    z-index: var(--gc-z-overlay);
+    inset: 0 auto auto 0;
+    display: block !important;
+    width: 0;
+    height: 0;
+    background: transparent !important;
+}
+
+[data-testid="stExpandSidebarButton"] {
+    position: fixed;
+    z-index: var(--gc-z-overlay);
+    top: 13px;
+    left: 12px;
+    display: flex !important;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--gc-border);
+    border-radius: var(--gc-radius-button);
+    background: var(--gc-surface);
 }
 
 [data-testid="stSidebarCollapsedControl"] {
@@ -136,7 +172,6 @@ div[data-testid="stElementContainer"]:has(.gc-topbar) {
     color: #FFFFFF;
     text-decoration: none;
     transform: translateY(-160%);
-    transition: transform 180ms ease;
 }
 
 .gc-skip-link:focus {
@@ -342,27 +377,84 @@ div[data-testid="stColumn"]:has(.gc-login-panel) [data-testid="stHeading"] h3 {
     font-weight: 600;
 }
 
-/* Sidebar */
+/* Sidebar — recolhível pelo controle NATIVO do Streamlit (aria-expanded).
+   O CSS só fixa a largura quando ela está ABERTA; recolhida, solta o
+   espaço e a topbar ocupa a área recuperada. Antes a largura era forçada
+   nos dois estados e o botão de recolher ficava escondido. */
 section[data-testid="stSidebar"] {
+    background: var(--gc-surface);
+    border: 1px solid var(--gc-border);
+    box-shadow: 0 1px 2px rgba(23, 32, 51, 0.04),
+        0 8px 24px rgba(23, 32, 51, 0.05);
+    transition: min-width var(--gc-shell-ms) var(--gc-ease-out),
+        max-width var(--gc-shell-ms) var(--gc-ease-out),
+        transform var(--gc-shell-ms) var(--gc-ease-out) !important;
+}
+
+section[data-testid="stSidebar"][aria-expanded="true"] {
     width: var(--gc-sidebar-width) !important;
     min-width: var(--gc-sidebar-width) !important;
     max-width: var(--gc-sidebar-width) !important;
-    background: var(--gc-surface);
-    border-right: 1px solid var(--gc-border);
-    box-shadow: none;
+    height: calc(100dvh - 2 * var(--gc-sidebar-gap)) !important;
+    margin: var(--gc-sidebar-gap) 0 var(--gc-sidebar-gap) var(--gc-sidebar-gap);
+    border-radius: 14px;
+    overflow: hidden;
 }
 
-section[data-testid="stSidebar"] > div {
+section[data-testid="stSidebar"][aria-expanded="true"] > div {
     width: var(--gc-sidebar-width) !important;
     background: var(--gc-surface);
+}
+
+section[data-testid="stSidebar"][aria-expanded="false"] {
+    border: 0;
+    box-shadow: none;
 }
 
 section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
     padding: 20px 12px 18px;
 }
 
+/* Controle de recolher: o do próprio Streamlit, sempre visível no canto,
+   com nome acessível (o botão nativo vem com aria-label vazio). */
 section[data-testid="stSidebar"] [data-testid="stSidebarHeader"] {
-    display: none;
+    position: absolute;
+    z-index: 2;
+    top: 18px;
+    right: 10px;
+    display: flex;
+    height: auto;
+    padding: 0;
+}
+
+[data-testid="stSidebarCollapseButton"] {
+    display: flex !important;
+    visibility: visible !important;
+}
+
+[data-testid="stSidebarCollapseButton"] button,
+button[data-testid="stExpandSidebarButton"] {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--gc-radius-button);
+}
+
+[data-testid="stSidebarCollapseButton"] button::after,
+button[data-testid="stExpandSidebarButton"]::after {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+[data-testid="stSidebarCollapseButton"] button::after {
+    content: "Recolher menu";
+}
+
+button[data-testid="stExpandSidebarButton"]::after {
+    content: "Abrir menu";
 }
 
 .gc-sidebar-brand {
@@ -507,7 +599,7 @@ section[data-testid="stSidebar"] .stButton > button {
     z-index: var(--gc-z-nav);
     top: 0;
     right: 0;
-    left: var(--gc-sidebar-width);
+    left: calc(var(--gc-sidebar-width) + var(--gc-sidebar-gap));
     display: flex;
     height: var(--gc-topbar-height);
     align-items: center;
@@ -1026,13 +1118,16 @@ div[data-testid="stHorizontalBlock"]:has(.gc-step-marker)
     text-align: center;
 }
 
-/* Processando um clique.
-   O Streamlit desbota o que vai ser redesenhado para 33% — a tela
-   inteira parece quebrada, não ocupada. Fica em 72%: legível, e ainda
-   visivelmente "em espera". O sinal de trabalho passa a ser uma faixa
-   fina no topo, que só aparece se a execução passar de 0,3s — clique
-   rápido não pisca nada. Atributos do próprio Streamlit 1.64; se
-   sumirem numa versão nova, volta o comportamento padrão. */
+/* Processando um clique (origem confirmada no DOM em 17/10/2026: este
+   pseudo-elemento, não o "stDecoration" do Streamlit, que fica oculto).
+   O que mudou na auditoria de movimento:
+   * a faixa NÃO oscila mais (ia de 15% a 85% e voltava, em loop infinito,
+     fingindo progresso). Agora avança num sentido só, rápido no começo e
+     cada vez mais devagar, e para antes do fim: sem porcentagem inventada;
+   * só aparece se a execução passar de 0,3 s, e some quando a própria
+     tela já mostra o andamento (spinner, progresso do lote, geração de
+     documento): duas indicações para a mesma espera é ruído.
+   Os elementos em espera ficam em 72% de opacidade depois de 0,5 s. */
 [data-testid="stElementContainer"][data-stale="true"] {
     opacity: 0.72 !important;
     transition: opacity 300ms ease-in 500ms;
@@ -1049,8 +1144,13 @@ div[data-testid="stHorizontalBlock"]:has(.gc-step-marker)
     background: #1B4F8A;
     pointer-events: none;
     transform-origin: left;
-    animation: gc-rerun-surge 160ms ease-out 300ms both,
-        gc-rerun-faixa 1.4s ease-in-out 300ms infinite;
+    animation: gc-rerun-surge 120ms ease-out 300ms both,
+        gc-rerun-avanco 8s cubic-bezier(0.1, 0.6, 0.2, 1) 300ms both;
+}
+
+.stApp[data-test-script-state="running"]:has([data-testid="stSpinner"],
+    .gc-progresso-local, .gc-generation-overlay)::before {
+    display: none;
 }
 
 @keyframes gc-rerun-surge {
@@ -1058,15 +1158,176 @@ div[data-testid="stHorizontalBlock"]:has(.gc-step-marker)
     to { opacity: 1; }
 }
 
-@keyframes gc-rerun-faixa {
-    0%, 100% { transform: scaleX(0.15); }
-    50% { transform: scaleX(0.85); }
+@keyframes gc-rerun-avanco {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(0.9); }
+}
+
+/* Topbar e atalho de teclado acompanham a sidebar recolhida. */
+.gc-topbar {
+    transition: left var(--gc-shell-ms) var(--gc-ease-out);
+}
+
+body:has(section[data-testid="stSidebar"][aria-expanded="false"]) .gc-topbar {
+    left: 0;
+    padding-left: 68px;
+}
+
+body:has(section[data-testid="stSidebar"][aria-expanded="false"]) .gc-skip-link {
+    left: 64px;
+}
+
+/* Elaborar Cotação (G3, 17/10/2026). Três regiões com nome
+   (`cotacoes_ui._render_elaborar`): lista estreita, busca flexível e
+   cesta legível. Medido antes: em 1024 px as colunas tinham 135, 322 e
+   180 px, e "Concluir item" ficava abaixo da dobra em todas as larguras. */
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"] .st-key-cot_regiao_cesta) {
+    align-items: flex-start;
+}
+
+div[data-testid="stColumn"]:has(.st-key-cot_regiao_itens) {
+    flex: 0 0 236px !important;
+    min-width: 216px;
+    max-width: 256px;
+}
+
+div[data-testid="stColumn"]:has(.st-key-cot_regiao_busca) {
+    flex: 1 1 0 !important;
+    min-width: 0;
+}
+
+div[data-testid="stColumn"]:has(.st-key-cot_regiao_cesta) {
+    flex: 0 0 324px !important;
+    min-width: 292px;
+    max-width: 340px;
+}
+
+/* As faixas abaixo medem o ESPAÇO ÚTIL do conteúdo (container query),
+   não a janela: abrir ou recolher a sidebar muda o espaço, e 1280 px com
+   a sidebar aberta tem menos lugar que 1280 px com ela recolhida. */
+.stMainBlockContainer {
+    container: gc-conteudo / inline-size;
+}
+
+/* Espaço largo: a cesta acompanha a rolagem, com rolagem própria se
+   passar da altura da tela — o preço e "Concluir item" ficam à vista. */
+@container gc-conteudo (min-width: 1061px) {
+    div[data-testid="stColumn"]:has(.st-key-cot_regiao_cesta) {
+        position: sticky;
+        top: calc(var(--gc-topbar-height) + 12px);
+        max-height: calc(100dvh - var(--gc-topbar-height) - 24px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+}
+
+/* Ações do cabeçalho: rótulo numa linha só (botão truncado ou
+   quebrado é defeito); no espaço médio o grupo desce para uma linha
+   própria, abaixo do título. */
+.st-key-cot_acoes button p {
+    white-space: nowrap;
+}
+
+@container gc-conteudo (max-width: 1060px) {
+    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"] .st-key-cot_acoes) {
+        flex-wrap: wrap;
+    }
+
+    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"] .st-key-cot_acoes) > div[data-testid="stColumn"] {
+        flex: 1 1 100% !important;
+    }
+}
+
+.st-key-cot_lista_itens button {
+    min-height: 44px;
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.st-key-cot_lista_itens button p {
+    overflow: hidden;
+    font-size: 0.84rem;
+    line-height: 1.3;
+    text-align: left;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.st-key-cot_kpis [data-testid="stMetricValue"],
+.st-key-cot_metricas_busca [data-testid="stMetricValue"] {
+    font-size: 1.45rem;
+    line-height: 1.2;
+}
+
+.st-key-cot_kpis [data-testid="stMetric"],
+.st-key-cot_metricas_busca [data-testid="stMetric"] {
+    padding-bottom: 0;
+}
+
+/* Espaço médio: a lista vira faixa no topo (rolável), busca e cesta
+   lado a lado. Três colunas microscópicas não. */
+@container gc-conteudo (max-width: 1060px) {
+    div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"] .st-key-cot_regiao_cesta) {
+        flex-wrap: wrap;
+    }
+
+    div[data-testid="stColumn"]:has(.st-key-cot_regiao_itens) {
+        flex: 1 1 100% !important;
+        max-width: none;
+    }
+
+    /* uma linha só, rolando na horizontal: a faixa não empurra a cesta
+       para baixo da dobra */
+    .st-key-cot_lista_itens {
+        display: grid !important;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(210px, 240px);
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scroll-snap-type: x proximity;
+    }
+
+    .st-key-cot_lista_itens > div {
+        scroll-snap-align: start;
+    }
+
+    /* a situação já vem escrita em cada item; a legenda sobra aqui */
+    .st-key-cot_regiao_itens [data-testid="stCaptionContainer"] {
+        display: none;
+    }
+
+    div[data-testid="stColumn"]:has(.st-key-cot_regiao_cesta) {
+        flex: 0 0 296px !important;
+        min-width: 280px;
+    }
+}
+
+/* Espaço estreito: uma coluna, e a cesta (preço e "Concluir item") vem
+   ANTES da lista de resultados. Toque ≥ 44 px. */
+@container gc-conteudo (max-width: 720px) {
+    div[data-testid="stColumn"]:has(.st-key-cot_regiao_cesta),
+    div[data-testid="stColumn"]:has(.st-key-cot_regiao_busca) {
+        flex: 1 1 100% !important;
+        max-width: none;
+        min-width: 0;
+    }
+
+    div[data-testid="stColumn"]:has(.st-key-cot_regiao_cesta) {
+        order: 1;
+    }
+
+    div[data-testid="stColumn"]:has(.st-key-cot_regiao_busca) {
+        order: 2;
+    }
 }
 
 /* Motion reduzido */
 @media (prefers-reduced-motion: reduce) {
     .stApp[data-test-script-state="running"]::before {
-        transform: none;
+        transform: scaleX(0.9);
         animation: gc-rerun-surge 0.01ms linear 300ms both;
     }
 
@@ -1116,11 +1377,17 @@ div[data-testid="stHorizontalBlock"]:has(.gc-step-marker)
         --gc-topbar-height: 58px;
     }
 
-    section[data-testid="stSidebar"],
-    section[data-testid="stSidebar"] > div {
+    section[data-testid="stSidebar"][aria-expanded="true"],
+    section[data-testid="stSidebar"][aria-expanded="true"] > div {
         width: min(86vw, 320px) !important;
         min-width: min(86vw, 320px) !important;
         max-width: min(86vw, 320px) !important;
+    }
+
+    section[data-testid="stSidebar"][aria-expanded="true"] {
+        height: 100dvh !important;
+        margin: 0;
+        border-radius: 0 14px 14px 0;
     }
 
     [data-testid="stAppViewContainer"] {
@@ -1150,9 +1417,11 @@ div[data-testid="stHorizontalBlock"]:has(.gc-step-marker)
         justify-content: center;
     }
 
-    .gc-topbar {
+    .gc-topbar,
+    body:has(section[data-testid="stSidebar"][aria-expanded="false"]) .gc-topbar {
         left: 0;
         height: var(--gc-topbar-height);
+        /* botão de abrir o menu + símbolo à esquerda */
         padding: 0 16px 0 104px;
     }
 

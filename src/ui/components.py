@@ -190,6 +190,59 @@ def render_document_skeleton(alvo, sigla: str) -> None:
     )
 
 
+def render_skeleton(alvo, rotulo: str, *, linhas: int = 3,
+                    variante: str = "lista") -> None:
+    """
+    Skeleton de CONTEÚDO que está de fato chegando (lista de itens,
+    resultados, cesta). Mesma base do de documento — um conjunto só de
+    primitivas —, com a forma aproximada do bloco final para a página não
+    pular quando ele chega. `alvo` é um `st.empty()` que o chamador
+    substitui pelo conteúdo; nunca fica na tela sem tarefa por trás.
+    """
+    partes = "".join(
+        '<span class="gc-skeleton-line'
+        + (" gc-skeleton-short" if k == linhas - 1 and linhas > 1 else "")
+        + '"></span>' for k in range(linhas))
+    alvo.markdown(
+        f'<section class="gc-document-skeleton gc-skeleton-{html.escape(variante)}"'
+        f' role="status" aria-live="polite" aria-busy="true"'
+        f' aria-label="{html.escape(rotulo)}">'
+        f'<span class="gc-visually-hidden">{html.escape(rotulo)}…</span>'
+        f"{partes}</section>",
+        unsafe_allow_html=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Estados de item — UM vocabulário: palavra + ícone + tom (nunca só cor)
+#
+# Ícones Material Symbols, que o Streamlit já embute (sem dependência
+# nova); o nome do estado vai sempre ESCRITO ao lado. Os tons mapeiam
+# para as cores de badge do Streamlit, que têm contraste AA no tema claro.
+# ---------------------------------------------------------------------------
+ESTADO_ITEM = {
+    "pending": ("Pendente", ":material/radio_button_unchecked:", "gray"),
+    "searching": ("Buscando preços", ":material/search:", "blue"),
+    "matching": ("Analisando", ":material/manage_search:", "blue"),
+    "review": ("Revisar", ":material/fact_check:", "blue"),
+    "incomplete": ("Faltam referências", ":material/error:", "orange"),
+    "complete": ("Concluído", ":material/check_circle:", "green"),
+    "error": ("Erro na pesquisa", ":material/cancel:", "red"),
+}
+
+
+def selo_de_estado(estado: str) -> str:
+    """Markdown de badge do Streamlit: ícone + palavra, com tom."""
+    texto, icone, tom = ESTADO_ITEM.get(str(estado), ESTADO_ITEM["pending"])
+    return f":{tom}-badge[{icone} {texto}]"
+
+
+def render_legenda_estados() -> None:
+    st.caption(" ".join(selo_de_estado(e) for e in
+                        ("pending", "review", "incomplete", "complete",
+                         "error")))
+
+
 def render_stepper(etapa_atual: int) -> None:
     """Navegação entre etapas disponíveis, preservando keys e callbacks."""
     disponiveis = state.etapas_navegaveis()

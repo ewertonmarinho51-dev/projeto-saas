@@ -518,7 +518,9 @@ textarea:disabled {
 /* Mascote vetorial: cada estado altera expressão, sinal e movimento. */
 .govbot-body {
   transform-origin: 90px 136px;
-  animation: govbot-float 4.8s ease-in-out infinite;
+  /* dois ciclos ao aparecer e para: ambiente infinito é ruído numa
+     ferramenta de uso contínuo (auditoria de movimento, 17/10/2026) */
+  animation: govbot-float 4.8s ease-in-out 2;
 }
 
 .govbot-antenna path,
@@ -774,11 +776,11 @@ textarea:disabled {
 
 .govbot-root[data-state="CELEBRATE"] .govbot-confetti {
   opacity: 1;
-  animation: govbot-confetti 700ms ease-out infinite alternate;
+  animation: govbot-confetti 700ms ease-out 2 alternate;
 }
 
 .govbot-root[data-state="CELEBRATE"] .govbot-body {
-  animation: govbot-celebrate 600ms ease-in-out infinite alternate;
+  animation: govbot-celebrate 600ms ease-in-out 2 alternate;
 }
 
 .govbot-root.is-paused *,

@@ -31,7 +31,7 @@ st.set_page_config(
     page_title="GovConnect | GovDocs",
     page_icon=components.page_icon(),
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",  # desktop aberta; celular recolhida
 )
 
 # Estado persistente entre os passos (dados, documentos, aprovações)

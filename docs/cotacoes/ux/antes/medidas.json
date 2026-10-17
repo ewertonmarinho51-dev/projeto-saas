@@ -1,0 +1,13 @@
+{
+ "fonte": "DOM da prévia local (banco falso, cotação semeada pelo serviço real, item 01 com 301 candidatas × 2 fontes), 17/10/2026, HEAD bd5803b",
+ "barra_superior": {"elemento": ".stApp[data-test-script-state=running]::before", "origem": "assets/govconnect.css:1041 (PR #54)", "animacoes": "gc-rerun-surge, gc-rerun-faixa (scaleX 0.15<->0.85, infinita)", "stDecoration": "oculto pelo CSS; não aparece"},
+ "larguras": [
+  {"viewport": "1920x940", "sidebar_px": 264, "colunas_px": [271, 619, 354], "concluir_y_px": 1003, "rolagem_horizontal": false},
+  {"viewport": "1440x900", "sidebar_px": 264, "colunas_px": [223, 514, 293], "concluir_y_px": 1087, "rolagem_horizontal": false},
+  {"viewport": "1280x800", "sidebar_px": 264, "colunas_px": [187, 436, 247], "concluir_y_px": 1143, "rolagem_horizontal": false},
+  {"viewport": "1024x768", "sidebar_px": 264, "colunas_px": [135, 322, 180], "concluir_y_px": 1315, "rolagem_horizontal": false},
+  {"viewport": "768x1024", "sidebar_px": 320, "colunas_px": [139, 330, 185], "concluir_y_px": 1280, "rolagem_horizontal": false, "obs": "sidebar sobre o conteúdo, sem controle visível de fechar"},
+  {"viewport": "360x780", "sidebar_px": 310, "colunas_px": [320, 320, 320], "concluir_y_px": 9160, "rolagem_horizontal": false}
+ ],
+ "item_01": "452/3 considerados (301 candidatas × 2 fontes)"
+}

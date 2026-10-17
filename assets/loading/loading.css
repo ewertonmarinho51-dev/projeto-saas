@@ -3,7 +3,9 @@
 .gc-generation-card h2 { font-size:21px;line-height:1.4;margin:0 0 22px; }
 .gc-generation-card p { font-size:16px;line-height:1.6; }
 .gc-generation-bar { height:3px;overflow:hidden;background:#e8edf3;margin:24px 0; }
-.gc-generation-bar::after { content:'';display:block;height:3px;background:#1b4f8a;transform-origin:left;animation:gc-generation-motion 1.6s ease-in-out infinite; }
-@keyframes gc-generation-motion { 0%,100% { transform:scaleX(.15); } 50% { transform:scaleX(.85); } }
-@media(prefers-reduced-motion:reduce) { .gc-generation-bar::after { animation:none;transform:scaleX(1); } }
+.gc-generation-bar { position:relative; }
+.gc-generation-bar::after { content:'';display:block;width:34%;height:3px;background:#1b4f8a;animation:gc-generation-motion 1.5s cubic-bezier(0.4,0,0.2,1) infinite; }
+/* Indeterminado UNIDIRECIONAL: o trecho corre da esquerda para a direita e recomeça; não vai e volta (auditoria de movimento, 17/10/2026). A geração não informa porcentagem, então nenhuma é inventada. */
+@keyframes gc-generation-motion { from { transform:translateX(-100%); } to { transform:translateX(300%); } }
+@media(prefers-reduced-motion:reduce) { .gc-generation-bar::after { animation:none;width:100%;transform:none; } }
 @media(max-width:600px) { .gc-generation-card { padding:24px; } .gc-generation-card h2 { font-size:19px; } }

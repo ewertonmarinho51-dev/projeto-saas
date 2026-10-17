@@ -352,6 +352,14 @@ FLAG_COTACOES_UNIFICADAS = "unified_quotations"
 # Desligar não altera cesta, preço, emissão registrada nem PDF já emitido.
 FLAG_RELATORIO_VISUAL = "precos_relatorio_visual"
 
+# Teto da cotação automática (pacote de 17/10/2026): no máximo 15
+# referências na cesta automática de cada item, busca que para quando a
+# amostra já basta, e só o necessário gravado. Política única em
+# `estatistica.POLITICA_AUTOMATICA`, para a rota unificada e a legada.
+# Nasce DESLIGADA; desligar volta ao comportamento anterior sem tocar em
+# referência gravada ou decisão humana.
+FLAG_TETO_AUTOMATICO = "cotacao_automatica_teto"
+
 # Consolidação dos Documentos de Formalização de Demanda. Nasce
 # DESLIGADA: a etapa muda a ORIGEM da planilha orçamentária do processo,
 # e ligar sem auditoria colocaria uma quantidade consolidada dentro de um
