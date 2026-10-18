@@ -231,6 +231,10 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   comprova que checkpoints contra heads `aprovado` e `emitido` são recusados
   sem criar revisão, alterar bytes/hash ou deslocar o vínculo da aprovação.
   Evidência detalhada: `c11-aceite-imutabilidade.md`.
+- o cenário C12 executa duas fronteiras locais: RLS real separa revisões e
+  bloqueia escrita cruzada entre tenants, enquanto troca de identidade revoga
+  owner, documento, bridge, preparação, projeção e payload do componente da
+  sessão anterior. Evidência detalhada: `c12-aceite-isolamento.md`.
 
 ## Pendências para fechar G5
 
@@ -241,7 +245,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
    em seus relatórios para aceite end-to-end;
 3. consumir catálogo institucional, RAG vigente e montagem oficial pelos
    owners existentes em ensaio end-to-end;
-4. provar isolamento entre tenants e o fluxo completo em sessão JWT real.
+4. completar C12 com GoTrue/PostgREST, Storage pertinente e navegador; RLS SQL
+   e revogação do namespace de sessão já possuem PASS local parcial.
 
 Também falta produzir e homologar o artefato com status operacional. O bundle
 atual de QA não satisfaz esse requisito e não foi promovido por renomeação.

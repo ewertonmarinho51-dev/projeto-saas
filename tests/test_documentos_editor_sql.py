@@ -162,6 +162,53 @@ def test_rls_uses_existing_process_scope(banco, scenario, who, expected):
         assert cursor.fetchone()[0] == expected
 
 
+def test_c12_two_tenants_cannot_read_or_write_each_others_native_document(banco):
+    """C12 SQL boundary with disjoint markers and real RLS policies."""
+    import psycopg
+    from psycopg.types.json import Jsonb
+    tenant_a = seed_scenario(banco)
+    tenant_b = {"doc": uuid4(), "operation": uuid4(), "owner": tenant_a["other"]}
+    with banco.cursor() as cursor:
+        meta = tenant_b["owner"]["app_metadata"]
+        cursor.execute("insert into public.processos(tenant_id,secretaria_id,auth_user_id,documentos) "
+                       "values(%s,%s,%s,%s) returning id",
+                       (meta["tenant_id"], meta["secretaria_id"], tenant_b["owner"]["sub"],
+                        Jsonb({"dfd": "QA-TENANT-B-ONLY legacy"})))
+        tenant_b["process"] = cursor.fetchone()[0]
+
+    marker_a = b"QA-TENANT-A-ONLY native checkpoint"
+    marker_b = b"QA-TENANT-B-ONLY native checkpoint"
+    commit(banco, tenant_a, payload=marker_a)
+    commit(banco, tenant_b, payload=marker_b)
+
+    for own, foreign, own_marker, foreign_marker in (
+            (tenant_a, tenant_b, marker_a, marker_b),
+            (tenant_b, tenant_a, marker_b, marker_a)):
+        with role(banco, "authenticated", own["owner"]) as cursor:
+            cursor.execute("select r.document_id,r.payload from public.documentos_editor_revisoes r "
+                           "where r.document_id in (%s,%s) order by r.document_id",
+                           (own["doc"], foreign["doc"]))
+            visible = cursor.fetchall()
+            assert len(visible) == 1
+            assert visible[0][0] == own["doc"] and bytes(visible[0][1]) == own_marker
+            assert foreign_marker not in bytes(visible[0][1])
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            commit(banco, foreign, expected=1, operation=uuid4(),
+                   payload=b"cross-tenant overwrite", claims=own["owner"])
+
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        with role(banco, "anon") as cursor:
+            cursor.execute("select count(*) from public.documentos_editor_revisoes "
+                           "where document_id in (%s,%s)",
+                           (tenant_a["doc"], tenant_b["doc"]))
+    with banco.cursor() as cursor:
+        cursor.execute("select document_id,revision,payload from public.documentos_editor_revisoes "
+                       "where document_id in (%s,%s) order by document_id",
+                       (tenant_a["doc"], tenant_b["doc"]))
+        persisted = {row[0]:(row[1],bytes(row[2])) for row in cursor.fetchall()}
+        assert persisted == {tenant_a["doc"]:(1,marker_a), tenant_b["doc"]:(1,marker_b)}
+
+
 @pytest.mark.parametrize("who", ["colleague", "other"])
 def test_server_commit_cannot_impersonate_a_reader_as_owner(banco, scenario, who):
     import psycopg

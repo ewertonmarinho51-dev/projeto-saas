@@ -100,6 +100,29 @@ def test_login_as_another_identity_revokes_native_state_before_storing_user(monk
     assert session[db.CHAVE_DA_SESSAO] == "new-private-jwt"
 
 
+def test_c12_tenant_switch_revokes_document_cache_bridge_and_component_payload(monkeypatch):
+    session = Session(_session())
+    session.update({
+        "_wordcraft_owner": object(),
+        "_wordcraft_dfd_document": b"QA-TENANT-A-ONLY native checkpoint",
+        "_wordcraft_dfd_bridge": {"tenant": "tenant-a", "private": True},
+        "_wordcraft_dfd_preparation": {"tenant": "tenant-a"},
+        "wordcraft_11111111-1111-1111-1111-111111111111": {
+            "edit": "QA-TENANT-A-ONLY browser payload"},
+        "_documentos_editor_contexto": {"dfd": "QA-TENANT-A-ONLY projection"},
+    })
+    monkeypatch.setattr(auth, "st", type("St", (), {"session_state": session})())
+
+    auth.entrar({"id": "u-b", "auth_user_id": "auth-b", "login": "b",
+                "tenant_id": "tenant-b", "secretaria_id": "secretary-b",
+                "_token": "tenant-b-private-jwt"})
+
+    assert session["tenant_id"] == "tenant-b"
+    assert session["usuario"]["secretaria_id"] == "secretary-b"
+    assert not any(key.startswith(wordcraft_session._PREFIXES) for key in session)
+    assert "QA-TENANT-A-ONLY" not in repr(session)
+
+
 def test_platform_login_without_tenant_cannot_inherit_previous_tenant(monkeypatch):
     session = Session(_session())
     session["_wordcraft_owner"] = object()
