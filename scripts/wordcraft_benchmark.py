@@ -43,6 +43,15 @@ def _sha(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def _closed_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("Duplicate JSON key")
+        value[key] = item
+    return value
+
+
 def _runtime(node: Path, bundle: Path, manifest_sha256: str) -> dict:
     if not node.is_absolute() or not node.is_file() or not bundle.is_absolute() or not bundle.is_dir():
         raise ValueError("Explicit local runtime and bundle are required")
@@ -165,13 +174,107 @@ def benchmark(*, node: Path, bundle: Path, manifest_sha256: str, inputs: Path,
         "cases": cases}
 
 
+def benchmark_full_roundtrip(*, node: Path, bundle: Path, manifest_sha256: str,
+                             roundtrip: Path, repetitions: int) -> dict:
+    """Measure every artifact admitted by the canonical full-roundtrip receipt."""
+    if type(repetitions) is not int or not 1 <= repetitions <= 10:
+        raise ValueError("Repetitions must be an integer from 1 to 10")
+    root = roundtrip.resolve()
+    receipt_path = root / "comparison.json"
+    receipt = json.loads(_bounded_file(receipt_path, 512 * 1024),
+                         object_pairs_hook=_closed_object)
+    if (not isinstance(receipt, dict)
+            or receipt.get("schema") != "gc-wordcraft-full-roundtrip/v1"
+            or receipt.get("status") != "NATIVE_EXECUTION_FIDELITY_NOT_APPROVED"
+            or receipt.get("engine_manifest_sha256") != manifest_sha256
+            or not isinstance(receipt.get("cases"), list)
+            or len(receipt["cases"]) != 16):
+        raise ValueError("Full-roundtrip receipt is incomplete or belongs to another engine")
+    runtime = _runtime(node.resolve(), bundle.resolve(), manifest_sha256)
+    kwargs = {"node": node.resolve(), "bundle": bundle.resolve(),
+              "manifest_sha256": manifest_sha256}
+    admitted = []
+    identities = set()
+    for entry in receipt["cases"]:
+        required = {"case", "source", "checkpoint_sha256", "checkpoint_bytes",
+                    "docx_sha256", "docx_bytes", "pdf_sha256", "pdf_bytes",
+                    "pdf_pages", "pdf_item_code_count", "steps"}
+        if (not isinstance(entry, dict) or not required <= entry.keys()
+                or not isinstance(entry["source"], str)):
+            raise ValueError("Malformed full-roundtrip case")
+        relative = Path(entry["source"]).with_suffix("")
+        case_root = (root / relative).resolve()
+        if not case_root.is_relative_to(root) or (entry["case"], entry["source"]) in identities:
+            raise ValueError("Full-roundtrip case escaped its root or was duplicated")
+        identities.add((entry["case"], entry["source"]))
+        checkpoint = _bounded_file(case_root / "checkpoint.json", MAX_BYTES)
+        expected_docx = _bounded_file(case_root / "roundtrip.docx", MAX_BYTES)
+        expected_pdf = _bounded_file(case_root / "roundtrip.pdf", MAX_BYTES * 4)
+        for content, digest, size in (
+                (checkpoint, entry["checkpoint_sha256"], entry["checkpoint_bytes"]),
+                (expected_docx, entry["docx_sha256"], entry["docx_bytes"]),
+                (expected_pdf, entry["pdf_sha256"], entry["pdf_bytes"])):
+            if _sha(content) != digest or len(content) != size:
+                raise ValueError("Full-roundtrip artifact differs from its receipt")
+        if set(entry["steps"].values()) != {"PASS"}:
+            raise ValueError("Full-roundtrip case did not pass every native step")
+        admitted.append((entry, checkpoint))
+
+    # No native process starts until every path, receipt field and artifact hash
+    # has been admitted. A malformed later case cannot leave partial execution.
+    for entry, checkpoint in admitted:
+        validar(checkpoint, **kwargs)
+        if (_sha(exportar(checkpoint, formato="docx", **kwargs)) != entry["docx_sha256"]
+                or _sha(exportar(checkpoint, formato="pdf", **kwargs)) != entry["pdf_sha256"]):
+            raise ValueError("Current engine does not reproduce the admitted roundtrip")
+
+    cases = []
+    for entry, checkpoint in admitted:
+        operations = {"validate": [], "export_docx": [], "export_pdf": []}
+        for _ in range(repetitions):
+            started = time.perf_counter_ns()
+            validar(checkpoint, **kwargs)
+            operations["validate"].append({"elapsed_ms": (time.perf_counter_ns() - started) / 1_000_000})
+            for format in ("docx", "pdf"):
+                started = time.perf_counter_ns()
+                content = exportar(checkpoint, formato=format, **kwargs)
+                elapsed_ms = (time.perf_counter_ns() - started) / 1_000_000
+                if _sha(content) != entry[format + "_sha256"]:
+                    raise ValueError("Measured export differs from admitted artifact")
+                operations["export_" + format].append({"elapsed_ms": elapsed_ms,
+                    "output_bytes": len(content), "output_sha256": _sha(content)})
+        cases.append({"case": entry["case"], "source": entry["source"],
+            "pdf_pages": entry["pdf_pages"],
+            "pdf_item_code_count": entry["pdf_item_code_count"],
+            "native_checkpoint_sha256": entry["checkpoint_sha256"],
+            "native_checkpoint_bytes": len(checkpoint),
+            "operations": {key: _summary(samples) for key, samples in operations.items()}})
+    return {"schema": "gc-wordcraft-native-benchmark/v2",
+        "status": "LOCAL_FULL_SYNTHETIC_OBSERVATIONS_NOT_PRODUCTION_ACCEPTANCE",
+        "measured_at_utc": datetime.now(timezone.utc).isoformat(), "runtime": runtime,
+        "method": {"repetitions_per_operation_and_case": repetitions,
+            "process_model": "NEW_NODE_PROCESS_PER_OPERATION",
+            "clock": "time.perf_counter_ns",
+            "includes": ["process_spawn", "asset_hash_verification", "wasm_initialization", "native_operation", "ipc"],
+            "p95_definition": "Empirical nearest rank: sorted_samples[ceil(0.95*n)-1]; maximum for n<=10",
+            "admission": "All 16 canonical full-roundtrip artifacts and hashes verified before timing",
+            "browser_startup_measured": False, "browser_memory_measured": False,
+            "hundred_page_case_measured": False, "visual_fidelity_approved": False},
+        "coverage": {"case_count": len(cases),
+            "maximum_pdf_pages": max(case["pdf_pages"] for case in cases),
+            "contains_at_least_twenty_pages": any(case["pdf_pages"] >= 20 for case in cases),
+            "contains_210_item_case": any(case["pdf_item_code_count"] == 210 for case in cases)},
+        "cases": cases}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--node", type=Path, required=True)
     parser.add_argument("--bundle", type=Path, required=True)
     parser.add_argument("--manifest-sha256", required=True)
     parser.add_argument("--inputs", type=Path, default=ROOT / "tests/fixtures/wordcraft")
-    parser.add_argument("--checkpoints", type=Path, required=True)
+    parser.add_argument("--checkpoints", type=Path)
+    parser.add_argument("--full-roundtrip", type=Path)
     parser.add_argument("--repetitions", type=int, default=3, choices=range(1, 11))
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
@@ -179,8 +282,15 @@ def main() -> int:
     if destination.exists() or not destination.parent.is_dir() or destination.suffix.lower() != ".json":
         parser.error("Output must be a new .json file in an existing directory")
     try:
-        result = benchmark(node=args.node, bundle=args.bundle, manifest_sha256=args.manifest_sha256,
-                           inputs=args.inputs, checkpoints=args.checkpoints, repetitions=args.repetitions)
+        if (args.checkpoints is None) == (args.full_roundtrip is None):
+            parser.error("Choose exactly one of --checkpoints or --full-roundtrip")
+        if args.full_roundtrip is not None:
+            result = benchmark_full_roundtrip(node=args.node, bundle=args.bundle,
+                manifest_sha256=args.manifest_sha256, roundtrip=args.full_roundtrip,
+                repetitions=args.repetitions)
+        else:
+            result = benchmark(node=args.node, bundle=args.bundle, manifest_sha256=args.manifest_sha256,
+                               inputs=args.inputs, checkpoints=args.checkpoints, repetitions=args.repetitions)
         encoded = (json.dumps(result, ensure_ascii=True, indent=2, allow_nan=False) + "\n").encode("utf-8")
         with destination.open("xb") as output:
             output.write(encoded)
@@ -188,7 +298,7 @@ def main() -> int:
         # No native exception, document payload or arbitrary input path is echoed.
         print("Benchmark refused or failed; no benchmark result was confirmed.", file=sys.stderr)
         return 2
-    print("3 reviewed synthetic cases measured; local benchmark JSON written; no document artifact persisted.")
+    print(f"{len(result['cases'])} reviewed synthetic cases measured; local benchmark JSON written; no document artifact persisted.")
     return 0
 
 

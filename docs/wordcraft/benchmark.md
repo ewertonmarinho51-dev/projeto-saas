@@ -42,3 +42,29 @@ python scripts/wordcraft_benchmark.py `
 
 O destino deve ser novo e seu diretório deve existir. O script não sobrescreve
 relatórios existentes nem publica qualquer artefato.
+
+## Medição integral v2 executada em 18/10/2026
+
+O mesmo medidor passou a aceitar `--full-roundtrip`, sempre de forma exclusiva a
+`--checkpoints`. Nesse modo ele exige o recibo canônico
+`gc-wordcraft-full-roundtrip/v1`, exatamente 16 casos, o mesmo manifesto do motor,
+todas as etapas `PASS` e os hashes/tamanhos de checkpoint, DOCX e PDF. A admissão
+estrutural e criptográfica de todos os casos termina antes da primeira chamada ao
+motor. Depois, o motor atual precisa reproduzir os hashes DOCX/PDF admitidos antes
+que qualquer amostra seja registrada.
+
+A execução local real usou três repetições por operação e produziu
+`WORDCRAFT_BENCHMARK_FULL_16_20261018.json`, SHA-256
+`b9f52f09376c7b573be58f4f7187943cbe141a2757d66adcff446f41029aadd4`.
+Foram medidos 16 casos. C02 gerou 29 páginas: validação P50/P95 443,52/492,10 ms,
+DOCX 502,77/630,43 ms e PDF 836,03/1.072,51 ms. C08 gerou 16 páginas e preservou
+210 itens: validação 409,42/417,84 ms, DOCX 501,63/516,41 ms e PDF
+1.258,44/1.288,37 ms. Cada amostra inclui novo processo Node, conferência dos
+assets, inicialização WASM, operação nativa e IPC.
+
+Esses números são observações locais sintéticas. O relatório declara como falsos
+`browser_startup_measured`, `browser_memory_measured`,
+`hundred_page_case_measured` e `visual_fidelity_approved`. Portanto fecha a
+medição atual de checkpoint/exportação para o corpus de 16 casos, incluindo 20+
+páginas e 210 itens, mas não fecha o orçamento G7 de navegador nem o caso de 100
+páginas.
