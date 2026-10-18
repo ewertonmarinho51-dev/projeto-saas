@@ -283,6 +283,25 @@ RPCS = {
         "p_conversion_report": None, "p_restored_from_revision": None,
         "p_institutional_snapshot": "\\x7b7d", "p_institutional_snapshot_sha256": hashlib.sha256(b"{}").hexdigest(),
     },
+    "documento_editor_emitir": {
+        "p_process": "00000000-0000-0000-0000-000000000001",
+        "p_operation": "00000000-0000-0000-0000-000000000001",
+        "p_engine_manifest_sha256": "a" * 64, "p_documents": [], "p_manifest": {},
+        "p_docx": "\\x7b7d", "p_docx_sha256": hashlib.sha256(b"{}").hexdigest(),
+        "p_pdf": "\\x7b7d", "p_pdf_sha256": hashlib.sha256(b"{}").hexdigest(), "p_claims": {},
+    },
+    "documento_editor_aplicar_template": {
+        "p_document": "00000000-0000-0000-0000-000000000001",
+        "p_process": "00000000-0000-0000-0000-000000000001", "p_tipo": "dfd",
+        "p_expected_revision": 1, "p_operation": "00000000-0000-0000-0000-000000000001",
+        "p_payload": "\\x7b7d", "p_content_hash": hashlib.sha256(b"{}").hexdigest(),
+        "p_engine_build_sha256": "a" * 64, "p_block_index": "\\x7b7d",
+        "p_block_index_sha256": hashlib.sha256(b"{}").hexdigest(),
+        "p_institutional_snapshot": "\\x7b7d",
+        "p_institutional_snapshot_sha256": hashlib.sha256(b"{}").hexdigest(),
+        "p_template_version": "00000000-0000-0000-0000-000000000001",
+        "p_template_hash": "a" * 64, "p_provenance": {}, "p_claims": {},
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -347,7 +366,7 @@ def tabelas_do_inventario() -> list[str]:
     nomes: set[str] = set()
     for arquivo in sorted(MIGRACOES.glob("*.sql")):
         sql = "\n".join(
-            linha for linha in arquivo.read_text().splitlines()
+            linha for linha in arquivo.read_text(encoding="utf-8").splitlines()
             if not linha.lstrip().startswith("--")
         )
         nomes.update(m.group(1).lower()

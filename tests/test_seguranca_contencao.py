@@ -2162,7 +2162,10 @@ def test_a_0020_usa_app_metadata_e_nunca_user_metadata():
 
 @pytest.fixture()
 def cliente_anon():
-    from supabase import create_client
+    if os.getenv("GOVDOCS_ENSAIO_CLIENTE_HTTP_MINIMO") == "1":
+        from http_supabase_client import create_client
+    else:
+        from supabase import create_client
 
     return create_client(exigir_ensaio(), ENSAIO_ANON)
 
@@ -2181,7 +2184,10 @@ def cliente_servidor():
         "GOVDOCS_ENSAIO_SECRET_KEY é obrigatória quando o ensaio está "
         "configurado: sem servidor não há como preparar o objeto "
         "descartável nem provar que a operação legítima segue")
-    from supabase import create_client
+    if os.getenv("GOVDOCS_ENSAIO_CLIENTE_HTTP_MINIMO") == "1":
+        from http_supabase_client import create_client
+    else:
+        from supabase import create_client
 
     return create_client(exigir_ensaio(), chave)
 

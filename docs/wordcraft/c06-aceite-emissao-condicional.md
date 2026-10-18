@@ -30,6 +30,7 @@ validado pela RPC. A função do trigger não é executável diretamente por `an
 Em PostgreSQL 16 local descartável, uma chamada `service_role` com processo SRP
 sem ARP e outra com processo não SRP contendo ARP residual foram recusadas com
 `PT409`; nenhuma emissão parcial permaneceu. A emissão não SRP coerente, retry
-idempotente, imutabilidade e isolamento continuaram aprovados. O transporte
-PostgREST/GoTrue real permanece fora deste aceite local. Nenhuma migration remota,
+idempotente, imutabilidade e isolamento continuaram aprovados. O PostgREST local
+também recusou `anon` na RPC de emissão; o caminho positivo autenticado com JWT
+emitido pelo GoTrue permanece fora deste aceite. Nenhuma migration remota,
 emissão oficial ou produção foi tocada.

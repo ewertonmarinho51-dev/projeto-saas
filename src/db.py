@@ -454,8 +454,6 @@ def cliente_do_usuario():
     primeiro token para sempre — e, num app multiusuário, o token de
     quem chegou primeiro para todo mundo.
     """
-    from supabase import create_client
-
     token = sessao_do_usuario()
     if not token:
         return None
@@ -464,6 +462,8 @@ def cliente_do_usuario():
     publica = _segredo(NOME_CHAVE_PUBLICA)
     if not (url and publica):
         return None
+    from supabase import create_client
+
     cliente = create_client(url, publica)
     cliente.postgrest.auth(token)
     return cliente

@@ -23,6 +23,7 @@ HTTP_SELECTION = " or ".join([
     "test_catalogo_", "test_anon_nao_le_tabela_privada",
     "test_anon_nao_escreve_no_objeto_descartavel", "test_anon_nao_executa_rpc",
     "test_funcao_nova_nasce_fechada", "test_servidor_continua_operando",
+    "test_storage_sem_bucket_e_nao_aplicavel",
 ])
 
 
@@ -76,6 +77,7 @@ def executar(*, dsn: str, postgrest: Path, work: Path, pg_bin: Path | None = Non
             "GOVDOCS_ENSAIO_PROJETO": "loopback",
             "GOVDOCS_ENSAIO_ANON_KEY": homologacao_stack.cunhar_jwt("anon", secret),
             "GOVDOCS_ENSAIO_SECRET_KEY": homologacao_stack.cunhar_jwt("service_role", secret),
+            "GOVDOCS_ENSAIO_CLIENTE_HTTP_MINIMO": "1",
             "PYTHONUTF8": "1",
         })
         result = subprocess.run([

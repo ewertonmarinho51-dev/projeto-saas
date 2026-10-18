@@ -24,6 +24,7 @@ fecha o head aprovado/emitido; uma futura edição institucional deve iniciar um
 novo fluxo explicitamente autorizado, sem alterar a revisão ou aprovação
 históricas. Inventar esse fluxo dentro do teste esconderia uma lacuna de produto.
 
-Ainda faltam a mesma prova pelo transporte PostgREST com JWT GoTrue real e a
+O PostgREST local já provou a contenção anônima das superfícies documentais.
+Ainda faltam a mesma prova positiva/negativa com JWT GoTrue real e a
 observação no navegador de que a UI não oferece autosave/edição sobre o head
 fechado. Esses limites impedem promover C11 a aceite end-to-end ou encerrar G7.
