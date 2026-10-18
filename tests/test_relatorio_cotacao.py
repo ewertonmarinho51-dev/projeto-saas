@@ -373,9 +373,10 @@ def test_pdf_compacto_5_itens_871_referencias(pdf_historico):
     assert "RELATÓRIO DE COTAÇÃO DE PREÇOS" in texto
     _conferir_geometria(pdf, margem_pt=1.6 / 2.54 * 72)
     _conferir_paginacao(pdf)
-    _cabecalhos_inteiros(pdf, ["Nº", "Item", "Qtd. / Unid.", "Válidas",
-                               "Unitário", "Total", "Situação",
-                               "Fonte / identificador", "Preço unit."])
+    _cabecalhos_inteiros(pdf, ["Nº", "Item", "Qtd. / Unid.", "Preços usados",
+                               "Unitário", "Total", "Situação", "Data",
+                               "Órgão · contratação", "Fonte · natureza",
+                               "Contratação"])
     for proibido in ("Méto\ndo", "Situaç\não", "Unitá\nrio"):
         assert proibido not in texto
 
@@ -442,7 +443,7 @@ def test_pdf_bloco_do_item_nao_se_parte(motor_institucional):
             faixa.setdefault(int(achado.group(1)), numero)
         if texto == "Valor do item":
             rotulo.append(numero)
-        if re.fullmatch(r"\d+/\d+", texto) and span["size"] >= 9.5:
+        if re.fullmatch(r"\d+ \(mínimo \d+\)", texto) and span["size"] >= 9.5:
             valor.append(numero)
     assert len(faixa) == len(v.itens) == len(rotulo) == len(valor)
     for item, pagina_rotulo, pagina_valor in zip(v.itens, rotulo, valor):

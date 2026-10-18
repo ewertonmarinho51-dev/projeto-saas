@@ -542,7 +542,7 @@ def _quadro_resumo(d: Documento, view: CotacaoReportView) -> None:
         return
     colunas = [Coluna("Nº", 0.9, "center"), Coluna("Item", 6.0),
                Coluna("Qtd. / Unid.", 2.5, "right"),
-               Coluna("Preços usados", 1.7, "center"),
+               Coluna("Preços usados", 2.8, "center"),
                Coluna("Unitário", 2.2, "right"), Coluna("Total", 2.5, "right"),
                Coluna("Situação", 2.2)]
     _ajustar(colunas, d.util_cm, elastica=1)
