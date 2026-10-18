@@ -254,7 +254,7 @@ def test_discrepante_sinalizado_gera_pendencia_sem_sair_da_cesta():
     valores = ("20.00", "21.00", "22.00", "23.00", "200.00")
     e = estimar(Cesta(selecionadas=[_ref(v, v) for v in valores]),
                 regras=estatistica.REGRAS_MEDIA_PADRAO)
-    assert any("discrepante" in p for p in e.pendencias)
+    assert any("atípico" in p for p in e.pendencias)
     assert len(e.cesta.selecionadas) == 5
 
 

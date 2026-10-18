@@ -1,0 +1,1403 @@
+{
+  "_warning": "TOTALMENTE SINTETICO. NAO PUBLICAR COMO PESQUISA REAL. Usar como fixture para testes; critérios estatísticos devem ser testados separadamente.",
+  "policy": {
+    "max_considered": 15,
+    "min_considered": 3
+  },
+  "items": [
+    {
+      "id": "SYN-I01",
+      "number": 1,
+      "description": "PAPEL A4 BRANCO",
+      "unit": "PACOTE",
+      "package_size": 500,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I01-R01",
+          "same_origin_key": "FAKE-ORG-01-PROC-01",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "19.03",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R02",
+          "same_origin_key": "FAKE-ORG-01-PROC-02",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "22.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R03",
+          "same_origin_key": "FAKE-ORG-01-PROC-03",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "25.46",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R04",
+          "same_origin_key": "FAKE-ORG-01-PROC-04",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "28.20",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R05",
+          "same_origin_key": "FAKE-ORG-01-PROC-05",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "29.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R06",
+          "same_origin_key": "FAKE-ORG-01-PROC-06",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "30.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R07",
+          "same_origin_key": "FAKE-ORG-01-PROC-07",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "31.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R08",
+          "same_origin_key": "FAKE-ORG-01-PROC-08",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "32.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R09",
+          "same_origin_key": "FAKE-ORG-01-PROC-09",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "26.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R10",
+          "same_origin_key": "FAKE-ORG-01-PROC-10",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "27.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R11",
+          "same_origin_key": "FAKE-ORG-01-PROC-11",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "28.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R12",
+          "same_origin_key": "FAKE-ORG-01-PROC-12",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "25.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R13",
+          "same_origin_key": "FAKE-ORG-01-PROC-13",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "24.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R14",
+          "same_origin_key": "FAKE-ORG-01-PROC-14",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "23.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R15",
+          "same_origin_key": "FAKE-ORG-01-PROC-15",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "27.50",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-R16",
+          "same_origin_key": "FAKE-ORG-01-PROC-16",
+          "description": "PAPEL A4 BRANCO (especificação sintética), embalagem inadequada",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "253.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-DUPLICATE",
+          "same_origin_key": "FAKE-ORG-01-PROC-01",
+          "description": "PAPEL A4 BRANCO (especificação sintética)",
+          "unit": "PACOTE",
+          "package_size": 500,
+          "price_original": "19.03",
+          "source": "FONTE_FICTICIA_ESPELHO",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-PACK-100",
+          "same_origin_key": "FAKE-ORG-01-OTHER",
+          "description": "PAPEL A4 BRANCO embalagem 100 folhas",
+          "unit": "PACOTE",
+          "package_size": 100,
+          "price_original": "8.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I01-PACK-UNKNOWN",
+          "same_origin_key": "FAKE-ORG-01-UNKNOWN",
+          "description": "PAPEL A4 BRANCO pacote sem quantidade de folhas",
+          "unit": "PACOTE",
+          "package_size": null,
+          "price_original": "5.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "nunca tratar pack 100/500 como mesma referência sem fator de conversão e ajuste documentados",
+        "duplicata da mesma origem não conta duas vezes",
+        "máximo de 15 consideradas",
+        "número considerado não supera número comparável",
+        "extremamente alto; consultar embalagem e preço unitário"
+      ]
+    },
+    {
+      "id": "SYN-I02",
+      "number": 2,
+      "description": "CANETA ESFEROGRÁFICA AZUL",
+      "unit": "CAIXA",
+      "package_size": 50,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I02-R01",
+          "same_origin_key": "FAKE-ORG-02-PROC-01",
+          "description": "CANETA ESFEROGRÁFICA AZUL (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 50,
+          "price_original": "23.28",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I02-R02",
+          "same_origin_key": "FAKE-ORG-02-PROC-02",
+          "description": "CANETA ESFEROGRÁFICA AZUL (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 50,
+          "price_original": "26.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I02-R03",
+          "same_origin_key": "FAKE-ORG-02-PROC-03",
+          "description": "CANETA ESFEROGRÁFICA AZUL (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 50,
+          "price_original": "28.81",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I02-R04",
+          "same_origin_key": "FAKE-ORG-02-PROC-04",
+          "description": "CANETA ESFEROGRÁFICA AZUL (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 50,
+          "price_original": "29.75",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I02-R05",
+          "same_origin_key": "FAKE-ORG-02-PROC-05",
+          "description": "CANETA ESFEROGRÁFICA AZUL (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 50,
+          "price_original": "40.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I02-R06",
+          "same_origin_key": "FAKE-ORG-02-PROC-06",
+          "description": "CANETA ESFEROGRÁFICA AZUL (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 50,
+          "price_original": "27.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I02-R07",
+          "same_origin_key": "FAKE-ORG-02-PROC-07",
+          "description": "CANETA ESFEROGRÁFICA AZUL (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 50,
+          "price_original": "26.80",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I02-R08",
+          "same_origin_key": "FAKE-ORG-02-PROC-08",
+          "description": "CANETA ESFEROGRÁFICA AZUL (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 50,
+          "price_original": "29.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I02-R09",
+          "same_origin_key": "FAKE-ORG-02-PROC-09",
+          "description": "CANETA ESFEROGRÁFICA AZUL (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 50,
+          "price_original": "28.50",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto"
+      ]
+    },
+    {
+      "id": "SYN-I03",
+      "number": 3,
+      "description": "PASTA ARQUIVO AZ",
+      "unit": "UNIDADE",
+      "package_size": 1,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I03-R01",
+          "same_origin_key": "FAKE-ORG-03-PROC-01",
+          "description": "PASTA ARQUIVO AZ (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "16.07",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I03-R02",
+          "same_origin_key": "FAKE-ORG-03-PROC-02",
+          "description": "PASTA ARQUIVO AZ (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "17.20",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I03-R03",
+          "same_origin_key": "FAKE-ORG-03-PROC-03",
+          "description": "PASTA ARQUIVO AZ (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "22.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I03-R04",
+          "same_origin_key": "FAKE-ORG-03-PROC-04",
+          "description": "PASTA ARQUIVO AZ (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "44.80",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto",
+        "n=4; comparar especificação e buscar reforço antes de exclusão somente estatística"
+      ]
+    },
+    {
+      "id": "SYN-I04",
+      "number": 4,
+      "description": "GRAMPEADOR DE MESA",
+      "unit": "UNIDADE",
+      "package_size": 1,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I04-R01",
+          "same_origin_key": "FAKE-ORG-04-PROC-01",
+          "description": "GRAMPEADOR DE MESA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "7.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I04-R02",
+          "same_origin_key": "FAKE-ORG-04-PROC-02",
+          "description": "GRAMPEADOR DE MESA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "8.90",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I04-R03",
+          "same_origin_key": "FAKE-ORG-04-PROC-03",
+          "description": "GRAMPEADOR DE MESA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "11.68",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I04-R04",
+          "same_origin_key": "FAKE-ORG-04-PROC-04",
+          "description": "GRAMPEADOR DE MESA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "15.29",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I04-R05",
+          "same_origin_key": "FAKE-ORG-04-PROC-05",
+          "description": "GRAMPEADOR DE MESA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "29.77",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I04-R06",
+          "same_origin_key": "FAKE-ORG-04-PROC-06",
+          "description": "GRAMPEADOR DE MESA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "10.50",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I04-R07",
+          "same_origin_key": "FAKE-ORG-04-PROC-07",
+          "description": "GRAMPEADOR DE MESA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "12.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I04-R08",
+          "same_origin_key": "FAKE-ORG-04-PROC-08",
+          "description": "GRAMPEADOR DE MESA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "11.90",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I04-R09",
+          "same_origin_key": "FAKE-ORG-04-PROC-09",
+          "description": "GRAMPEADOR DE MESA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "11.80",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I04-R10",
+          "same_origin_key": "FAKE-ORG-04-PROC-10",
+          "description": "GRAMPEADOR DE MESA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "12.10",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I04-R11",
+          "same_origin_key": "FAKE-ORG-04-PROC-11",
+          "description": "GRAMPEADOR DE MESA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "11.50",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I04-R12",
+          "same_origin_key": "FAKE-ORG-04-PROC-12",
+          "description": "GRAMPEADOR DE MESA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "11.60",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto",
+        "testar semântica e dispersão em pool >=8"
+      ]
+    },
+    {
+      "id": "SYN-I05",
+      "number": 5,
+      "description": "CLIPES METÁLICOS Nº 2/0",
+      "unit": "CAIXA",
+      "package_size": 100,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I05-R01",
+          "same_origin_key": "FAKE-ORG-05-PROC-01",
+          "description": "CLIPES METÁLICOS Nº 2/0 (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 100,
+          "price_original": "0.98",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I05-R02",
+          "same_origin_key": "FAKE-ORG-05-PROC-02",
+          "description": "CLIPES METÁLICOS Nº 2/0 (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 100,
+          "price_original": "1.88",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I05-R03",
+          "same_origin_key": "FAKE-ORG-05-PROC-03",
+          "description": "CLIPES METÁLICOS Nº 2/0 (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 100,
+          "price_original": "2.15",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I05-R04",
+          "same_origin_key": "FAKE-ORG-05-PROC-04",
+          "description": "CLIPES METÁLICOS Nº 2/0 (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 100,
+          "price_original": "2.75",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I05-R05",
+          "same_origin_key": "FAKE-ORG-05-PROC-05",
+          "description": "CLIPES METÁLICOS Nº 2/0 (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 100,
+          "price_original": "4.82",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I05-R06",
+          "same_origin_key": "FAKE-ORG-05-PROC-06",
+          "description": "CLIPES METÁLICOS Nº 2/0 (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 100,
+          "price_original": "2.20",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I05-R07",
+          "same_origin_key": "FAKE-ORG-05-PROC-07",
+          "description": "CLIPES METÁLICOS Nº 2/0 (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 100,
+          "price_original": "1.95",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I05-R08",
+          "same_origin_key": "FAKE-ORG-05-PROC-08",
+          "description": "CLIPES METÁLICOS Nº 2/0 (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 100,
+          "price_original": "2.05",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I05-R09",
+          "same_origin_key": "FAKE-ORG-05-PROC-09",
+          "description": "CLIPES METÁLICOS Nº 2/0 (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 100,
+          "price_original": "2.10",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto"
+      ]
+    },
+    {
+      "id": "SYN-I06",
+      "number": 6,
+      "description": "LÁPIS PRETO",
+      "unit": "CAIXA",
+      "package_size": 12,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I06-R01",
+          "same_origin_key": "FAKE-ORG-06-PROC-01",
+          "description": "LÁPIS PRETO (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 12,
+          "price_original": "8.50",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I06-R02",
+          "same_origin_key": "FAKE-ORG-06-PROC-02",
+          "description": "LÁPIS PRETO (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 12,
+          "price_original": "9.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I06-R03",
+          "same_origin_key": "FAKE-ORG-06-PROC-03",
+          "description": "LÁPIS PRETO (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 12,
+          "price_original": "9.70",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I06-R04",
+          "same_origin_key": "FAKE-ORG-06-PROC-04",
+          "description": "LÁPIS PRETO (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 12,
+          "price_original": "10.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I06-R05",
+          "same_origin_key": "FAKE-ORG-06-PROC-05",
+          "description": "LÁPIS PRETO (especificação sintética)",
+          "unit": "CAIXA",
+          "package_size": 12,
+          "price_original": "8.90",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto"
+      ]
+    },
+    {
+      "id": "SYN-I07",
+      "number": 7,
+      "description": "BORRACHA BRANCA",
+      "unit": "UNIDADE",
+      "package_size": 1,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I07-R01",
+          "same_origin_key": "FAKE-ORG-07-PROC-01",
+          "description": "BORRACHA BRANCA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "0.70",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I07-R02",
+          "same_origin_key": "FAKE-ORG-07-PROC-02",
+          "description": "BORRACHA BRANCA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "0.80",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I07-R03",
+          "same_origin_key": "FAKE-ORG-07-PROC-03",
+          "description": "BORRACHA BRANCA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "0.90",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I07-R04",
+          "same_origin_key": "FAKE-ORG-07-PROC-04",
+          "description": "BORRACHA BRANCA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "1.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I07-R05",
+          "same_origin_key": "FAKE-ORG-07-PROC-05",
+          "description": "BORRACHA BRANCA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "1.10",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto"
+      ]
+    },
+    {
+      "id": "SYN-I08",
+      "number": 8,
+      "description": "COLA BRANCA 90G",
+      "unit": "UNIDADE",
+      "package_size": 1,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I08-R01",
+          "same_origin_key": "FAKE-ORG-08-PROC-01",
+          "description": "COLA BRANCA 90G (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "2.80",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I08-R02",
+          "same_origin_key": "FAKE-ORG-08-PROC-02",
+          "description": "COLA BRANCA 90G (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "3.10",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I08-R03",
+          "same_origin_key": "FAKE-ORG-08-PROC-03",
+          "description": "COLA BRANCA 90G (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "3.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I08-R04",
+          "same_origin_key": "FAKE-ORG-08-PROC-04",
+          "description": "COLA BRANCA 90G (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "3.25",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I08-R05",
+          "same_origin_key": "FAKE-ORG-08-PROC-05",
+          "description": "COLA BRANCA 90G (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "3.20",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto"
+      ]
+    },
+    {
+      "id": "SYN-I09",
+      "number": 9,
+      "description": "ENVELOPE A4",
+      "unit": "UNIDADE",
+      "package_size": 1,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I09-R01",
+          "same_origin_key": "FAKE-ORG-09-PROC-01",
+          "description": "ENVELOPE A4 (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "0.50",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I09-R02",
+          "same_origin_key": "FAKE-ORG-09-PROC-02",
+          "description": "ENVELOPE A4 (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "0.58",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I09-R03",
+          "same_origin_key": "FAKE-ORG-09-PROC-03",
+          "description": "ENVELOPE A4 (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "0.60",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I09-R04",
+          "same_origin_key": "FAKE-ORG-09-PROC-04",
+          "description": "ENVELOPE A4 (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "0.65",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I09-R05",
+          "same_origin_key": "FAKE-ORG-09-PROC-05",
+          "description": "ENVELOPE A4 (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "0.55",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto"
+      ]
+    },
+    {
+      "id": "SYN-I10",
+      "number": 10,
+      "description": "PASTA SUSPENSA",
+      "unit": "UNIDADE",
+      "package_size": 1,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I10-R01",
+          "same_origin_key": "FAKE-ORG-10-PROC-01",
+          "description": "PASTA SUSPENSA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "1.80",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I10-R02",
+          "same_origin_key": "FAKE-ORG-10-PROC-02",
+          "description": "PASTA SUSPENSA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "1.90",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I10-R03",
+          "same_origin_key": "FAKE-ORG-10-PROC-03",
+          "description": "PASTA SUSPENSA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "2.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I10-R04",
+          "same_origin_key": "FAKE-ORG-10-PROC-04",
+          "description": "PASTA SUSPENSA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "2.20",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I10-R05",
+          "same_origin_key": "FAKE-ORG-10-PROC-05",
+          "description": "PASTA SUSPENSA (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "2.10",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto"
+      ]
+    },
+    {
+      "id": "SYN-I11",
+      "number": 11,
+      "description": "MARCADOR DE TEXTO",
+      "unit": "UNIDADE",
+      "package_size": 1,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I11-R01",
+          "same_origin_key": "FAKE-ORG-11-PROC-01",
+          "description": "MARCADOR DE TEXTO (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "2.40",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I11-R02",
+          "same_origin_key": "FAKE-ORG-11-PROC-02",
+          "description": "MARCADOR DE TEXTO (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "2.50",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I11-R03",
+          "same_origin_key": "FAKE-ORG-11-PROC-03",
+          "description": "MARCADOR DE TEXTO (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "2.70",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I11-R04",
+          "same_origin_key": "FAKE-ORG-11-PROC-04",
+          "description": "MARCADOR DE TEXTO (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "3.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I11-R05",
+          "same_origin_key": "FAKE-ORG-11-PROC-05",
+          "description": "MARCADOR DE TEXTO (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "2.80",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto"
+      ]
+    },
+    {
+      "id": "SYN-I12",
+      "number": 12,
+      "description": "FITA ADESIVA 48MM",
+      "unit": "ROLO",
+      "package_size": 1,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I12-R01",
+          "same_origin_key": "FAKE-ORG-12-PROC-01",
+          "description": "FITA ADESIVA 48MM (especificação sintética)",
+          "unit": "ROLO",
+          "package_size": 1,
+          "price_original": "4.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I12-R02",
+          "same_origin_key": "FAKE-ORG-12-PROC-02",
+          "description": "FITA ADESIVA 48MM (especificação sintética)",
+          "unit": "ROLO",
+          "package_size": 1,
+          "price_original": "4.30",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I12-R03",
+          "same_origin_key": "FAKE-ORG-12-PROC-03",
+          "description": "FITA ADESIVA 48MM (especificação sintética)",
+          "unit": "ROLO",
+          "package_size": 1,
+          "price_original": "4.50",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I12-R04",
+          "same_origin_key": "FAKE-ORG-12-PROC-04",
+          "description": "FITA ADESIVA 48MM (especificação sintética)",
+          "unit": "ROLO",
+          "package_size": 1,
+          "price_original": "4.10",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I12-R05",
+          "same_origin_key": "FAKE-ORG-12-PROC-05",
+          "description": "FITA ADESIVA 48MM (especificação sintética)",
+          "unit": "ROLO",
+          "package_size": 1,
+          "price_original": "4.35",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto"
+      ]
+    },
+    {
+      "id": "SYN-I13",
+      "number": 13,
+      "description": "ESTILETE 18MM",
+      "unit": "UNIDADE",
+      "package_size": 1,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I13-R01",
+          "same_origin_key": "FAKE-ORG-13-PROC-01",
+          "description": "ESTILETE 18MM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "3.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I13-R02",
+          "same_origin_key": "FAKE-ORG-13-PROC-02",
+          "description": "ESTILETE 18MM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "3.20",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I13-R03",
+          "same_origin_key": "FAKE-ORG-13-PROC-03",
+          "description": "ESTILETE 18MM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "3.30",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I13-R04",
+          "same_origin_key": "FAKE-ORG-13-PROC-04",
+          "description": "ESTILETE 18MM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "3.40",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I13-R05",
+          "same_origin_key": "FAKE-ORG-13-PROC-05",
+          "description": "ESTILETE 18MM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "3.10",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto"
+      ]
+    },
+    {
+      "id": "SYN-I14",
+      "number": 14,
+      "description": "TESOURA 21CM",
+      "unit": "UNIDADE",
+      "package_size": 1,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I14-R01",
+          "same_origin_key": "FAKE-ORG-14-PROC-01",
+          "description": "TESOURA 21CM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "7.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I14-R02",
+          "same_origin_key": "FAKE-ORG-14-PROC-02",
+          "description": "TESOURA 21CM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "8.00",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I14-R03",
+          "same_origin_key": "FAKE-ORG-14-PROC-03",
+          "description": "TESOURA 21CM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "8.50",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I14-R04",
+          "same_origin_key": "FAKE-ORG-14-PROC-04",
+          "description": "TESOURA 21CM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "7.50",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I14-R05",
+          "same_origin_key": "FAKE-ORG-14-PROC-05",
+          "description": "TESOURA 21CM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "8.20",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto"
+      ]
+    },
+    {
+      "id": "SYN-I15",
+      "number": 15,
+      "description": "RÉGUA 30CM",
+      "unit": "UNIDADE",
+      "package_size": 1,
+      "quantity": 100,
+      "references": [
+        {
+          "id": "SYN-I15-R01",
+          "same_origin_key": "FAKE-ORG-15-PROC-01",
+          "description": "RÉGUA 30CM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "1.50",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I15-R02",
+          "same_origin_key": "FAKE-ORG-15-PROC-02",
+          "description": "RÉGUA 30CM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "1.65",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I15-R03",
+          "same_origin_key": "FAKE-ORG-15-PROC-03",
+          "description": "RÉGUA 30CM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "1.75",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I15-R04",
+          "same_origin_key": "FAKE-ORG-15-PROC-04",
+          "description": "RÉGUA 30CM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "1.55",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        },
+        {
+          "id": "SYN-I15-R05",
+          "same_origin_key": "FAKE-ORG-15-PROC-05",
+          "description": "RÉGUA 30CM (especificação sintética)",
+          "unit": "UNIDADE",
+          "package_size": 1,
+          "price_original": "1.70",
+          "source": "FONTE_FICTICIA",
+          "organization": "ORGAO FICTICIO",
+          "source_url": null
+        }
+      ],
+      "expected_invariants": [
+        "regras de método e unidade válidas",
+        "IDs e preços preservados",
+        "sem outliers eliminados apenas por valor alto"
+      ]
+    }
+  ],
+  "cross_cutting_cases": [
+    {
+      "id": "T-CROSS-01",
+      "condition": "comparable=308, considered=317 na MESMA versão",
+      "expected": "falha de invariante, bloquear estado inconsistente, refetch por snapshot e registrar erro de integridade"
+    },
+    {
+      "id": "T-CROSS-02",
+      "condition": "PDF antes da remoção e tela depois da remoção",
+      "expected": "mostrar revisões diferentes explicitamente; emissão a partir de snapshot atual congelado"
+    },
+    {
+      "id": "T-CROSS-03",
+      "condition": "preço discrepante confirmado em rev 3 e usuário altera a cesta em rev 4",
+      "expected": "reavaliar/renovar ciência apenas se houver novo alerta no rev 4"
+    },
+    {
+      "id": "T-CROSS-04",
+      "condition": "link 200 JSON para endpoint de dados abertos",
+      "expected": "não rotular como consulta da contratação"
+    },
+    {
+      "id": "T-CROSS-05",
+      "condition": "fornecedor sem informação de vencedor",
+      "expected": "não assinalar vencedor no PDF"
+    },
+    {
+      "id": "T-CROSS-06",
+      "condition": "operação manual remove preço com falha 500 backend",
+      "expected": "UI faz rollback e mostra ação para tentar novamente"
+    }
+  ]
+}

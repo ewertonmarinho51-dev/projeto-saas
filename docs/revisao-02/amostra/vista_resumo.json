@@ -1,0 +1,85 @@
+[
+  {
+    "item": 1,
+    "titulo": "ALICATE WATTIMETRO, POTÊNCIA ATIVA: 1.200 KW, TENSÃO AC: 600…",
+    "estado": "complete",
+    "usados": 6,
+    "unitario": "2208.28",
+    "total": "8833.12",
+    "referencias": [
+      {
+        "orgao": "ESP-UNIVERSIDADE DE SAO PAULO - USP",
+        "valor": "1240.67",
+        "considerada": true,
+        "sinalizada": false,
+        "situacao": "Considerada",
+        "contratacao_url": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=10210305900092025",
+        "dados_url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=236168&idCompra=10210305900092025"
+      },
+      {
+        "orgao": "ESP-UNIVERSIDADE DE SAO PAULO - USP",
+        "valor": "4334.31",
+        "considerada": true,
+        "sinalizada": false,
+        "situacao": "Considerada",
+        "contratacao_url": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=10210305900022025",
+        "dados_url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=236168&idCompra=10210305900022025"
+      },
+      {
+        "orgao": "COMANDO DA MARINHA",
+        "valor": "2399.88",
+        "considerada": true,
+        "sinalizada": false,
+        "situacao": "Considerada",
+        "contratacao_url": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=78481005900292024",
+        "dados_url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=236168&idCompra=78481005900292024"
+      },
+      {
+        "orgao": "COMANDO DO EXERCITO",
+        "valor": "1980.0",
+        "considerada": true,
+        "sinalizada": false,
+        "situacao": "Considerada",
+        "contratacao_url": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=16004505900122024",
+        "dados_url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=236168&idCompra=16004505900122024"
+      },
+      {
+        "orgao": "MINISTERIO DA SAUDE",
+        "valor": "2016.67",
+        "considerada": true,
+        "sinalizada": false,
+        "situacao": "Considerada",
+        "contratacao_url": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=25705205900242024",
+        "dados_url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=236168&idCompra=25705205900242024"
+      },
+      {
+        "orgao": "COMANDO DA MARINHA",
+        "valor": "7999.88",
+        "considerada": true,
+        "sinalizada": true,
+        "situacao": "Considerada (sinalizada)",
+        "contratacao_url": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=78481005900292024",
+        "dados_url": "https://dadosabertos.compras.gov.br/modulo-pesquisa-preco/1_consultarMaterial?pagina=1&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo=236168&idCompra=78481005900292024"
+      }
+    ]
+  },
+  {
+    "item": 2,
+    "titulo": "MULTÍMETRO, TENSÃO 1.000 V, TENSÃO AC 750 V, CORRENTE DC 10 A…",
+    "estado": "incomplete",
+    "usados": 1,
+    "unitario": "39.50",
+    "total": "79.00",
+    "referencias": [
+      {
+        "orgao": "10806496000149",
+        "valor": "39.5",
+        "considerada": true,
+        "sinalizada": false,
+        "situacao": "Considerada",
+        "contratacao_url": "https://pncp.gov.br/app/editais/10806496000149/2025/70",
+        "dados_url": null
+      }
+    ]
+  }
+]

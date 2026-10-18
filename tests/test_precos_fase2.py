@@ -265,7 +265,7 @@ def test_discrepante_e_sinalizado_com_a_distancia_da_mediana():
     a = anomalias[0]
     assert a.valor == Decimal("83.90")
     assert a.distancia_da_mediana_pct > 300
-    assert "acima da mediana" in a.motivo and "revisão" in a.motivo
+    assert "acima da mediana" in a.motivo and "Confira" in a.motivo
 
 
 def test_anomalia_nunca_afirma_inexequibilidade():

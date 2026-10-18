@@ -20,7 +20,18 @@ from src.precos import busca, cotacoes, estatistica, saneamento, seletor
 from src.precos import repositorio as repo
 from src.precos.perfil import obter as obter_perfil
 from src.precos.saneamento import (DESCONSIDERADA, ELEGIVEL, REVISAO,
-                                   Observacao, avaliar)
+                                   Observacao)
+
+# Estas provas são da política v1 (pacote Jev de 17/10/2026: descarte
+# estatístico a partir de 5 preços). A Revisão 02 trocou o padrão pela v2
+# (8+ preços, suspeito de amostra pequena sinalizado NA cesta) e a v1
+# continua viva para reler as buscas antigas — então elas a fixam. A v2
+# tem provas próprias em `test_revisao02_triagem.py`.
+V1 = saneamento.POLITICA_V1
+
+
+def avaliar(observacoes, politica=V1, **kw):
+    return saneamento.avaliar(observacoes, politica, **kw)
 from tests import saneamento_apoio as apoio
 from tests.cotacoes_apoio import ligar_banco_falso
 
@@ -70,7 +81,7 @@ def test_t02_caixa_de_dez_e_normalizada_e_nao_descartada():
     assert caixa.valor_unitario_normalizado == D("6")
     cesta = estatistica.selecionar_cesta(
         coleta.referencias, obter_perfil(None),
-        saneamento=saneamento.POLITICA_PADRAO, texto_item=item["description"])
+        saneamento=V1, texto_item=item["description"])
     assert caixa in cesta.selecionadas
 
 
@@ -91,7 +102,7 @@ def test_t04_escopo_incompativel_hora_por_mes_e_desconsiderado():
                            [apoio.FonteDaFixture(item)], filtros={})
     cesta = estatistica.selecionar_cesta(
         coleta.referencias, obter_perfil(None),
-        saneamento=saneamento.POLITICA_PADRAO, texto_item=item["description"])
+        saneamento=V1, texto_item=item["description"])
     hora = next(r for r, _ in coleta.referencias if r.id_externo == "Q04_05")
     assert hora not in cesta.selecionadas
     # unidade incompatível já ficava fora antes: com teto, só contada
@@ -174,7 +185,7 @@ def test_t11_quinze_itens_simultaneos_sem_vazamento_de_amostra():
                                [apoio.FonteDaFixture(item)], filtros={})
         cesta = estatistica.selecionar_cesta(
             coleta.referencias, obter_perfil(None),
-            saneamento=saneamento.POLITICA_PADRAO,
+            saneamento=V1,
             texto_item=item["description"])
         ids = {a.id for a in cesta.triagem.avaliacoes}
         assert all(i.startswith(f"compras_gov_precos:Q{item['item_id'][-2:]}_")
@@ -187,7 +198,7 @@ def test_t11_quinze_itens_simultaneos_sem_vazamento_de_amostra():
 
 def test_t13_versao_da_politica_e_gravada_e_mudar_limiar_exige_versao():
     t = avaliar(_obs(["10", "10", "10", "10", "45"]))
-    assert t.versao == saneamento.VERSAO_POLITICA
+    assert t.versao == V1.versao
     outra = saneamento.PoliticaSaneamento(versao="teste.v2",
                                          autoexclusao_estatistica=False)
     t2 = avaliar(_obs(["10", "10", "10", "10", "45"]), outra)
@@ -275,14 +286,14 @@ def _triagem_do_item(item: dict, numero: int):
                            [apoio.FonteDaFixture(item)], filtros={})
     cesta = estatistica.selecionar_cesta(
         coleta.referencias, obter_perfil(None),
-        saneamento=saneamento.POLITICA_PADRAO, texto_item=item["description"])
+        saneamento=V1, texto_item=item["description"])
     por_id = cesta.triagem.por_id()
     desfechos = {}
     for ref, _ in coleta.referencias:
         avaliacao = por_id.get(ref.chave_dedupe)
         escolha = apoio.JEV_SIMULADO.get(ref.id_externo)
         if avaliacao is not None and escolha:
-            avaliacao = saneamento.reavaliar_com_jev(avaliacao, escolha)
+            avaliacao = saneamento.reavaliar_com_jev(avaliacao, escolha, V1)
         desfechos[ref.id_externo] = (avaliacao.desfecho if avaliacao
                                      else "fora_do_piso")
     return desfechos, coleta
@@ -340,7 +351,7 @@ def test_integracao_retem_com_fundamento_e_nao_poe_na_cesta(monkeypatch):
     resultado = cotacoes.pesquisar_item(
         CTX, cid, iid, modo="automatico",
         fontes=[apoio.FonteDaFixture(fixture)],
-        triagem=saneamento.POLITICA_PADRAO)
+        triagem=V1)
     linhas = repo.listar_referencias(iid)
     extremo = next(l for l in linhas if l["id_externo"] == "Q01_05")
     assert extremo["status"] == "rejected"
@@ -352,10 +363,11 @@ def test_integracao_retem_com_fundamento_e_nao_poe_na_cesta(monkeypatch):
     [evento] = [e for e in cliente.tabelas["pesquisa_preco_eventos"]
                 if e["tipo"] == "busca_concluida"]
     triagem = evento["payload"]["saneamento"]
-    assert triagem["versao"] == saneamento.VERSAO_POLITICA
+    assert triagem["versao"] == V1.versao
     assert triagem["contagem"][DESCONSIDERADA] == 1
     assert triagem["resumo"] == {"encontrados": 5, "incluidos": 4,
-                                 "desconsiderados": 1, "revisao": 0}
+                                 "desconsiderados": 1, "revisao": 0,
+                                 "sinalizados": 0}
     [retida] = triagem["avaliacoes"]
     assert retida["metricas"]["mediana"] and retida["codigos"]
 
@@ -369,11 +381,11 @@ def test_integracao_com_teto_grava_a_retida_e_nao_a_rebaixa(monkeypatch):
                         lambda: estatistica.POLITICA_AUTOMATICA)
     cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                             fontes=[apoio.FonteDaFixture(fixture)],
-                            triagem=saneamento.POLITICA_PADRAO)
+                            triagem=V1)
     # segunda rodada: a retida continua retida (não volta a candidata)
     cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                             fontes=[apoio.FonteDaFixture(fixture)],
-                            triagem=saneamento.POLITICA_PADRAO)
+                            triagem=V1)
     linhas = repo.listar_referencias(iid)
     assert len(linhas) == 5, "T12: reexecutar não duplica referência"
     extremo = next(l for l in linhas if l["id_externo"] == "Q09_05")
@@ -393,7 +405,7 @@ def test_integracao_jev_simulado_desconsidera_objeto_distinto(monkeypatch):
 
     resultado = cotacoes.pesquisar_item(
         CTX, cid, iid, modo="automatico", fontes=[apoio.FonteDaFixture(fixture)],
-        seletor=jev, triagem=saneamento.POLITICA_PADRAO)
+        seletor=jev, triagem=V1)
     workstation = next(l for l in repo.listar_referencias(iid)
                        if l["id_externo"] == "Q06_05")
     assert workstation["status"] == "rejected"
@@ -407,7 +419,7 @@ def test_integracao_jev_nao_toca_decisao_de_pessoa(monkeypatch):
     _, cid, iid = _cotacao(monkeypatch, fixture)
     cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                             fontes=[apoio.FonteDaFixture(fixture)],
-                            triagem=saneamento.POLITICA_PADRAO)
+                            triagem=V1)
     alvo = repo.listar_referencias(iid)[0]
     cotacoes.alterar_status_referencia(CTX, cid, iid, str(alvo["id"]),
                                        incluir=False)
@@ -423,7 +435,7 @@ def test_integracao_jev_nao_toca_decisao_de_pessoa(monkeypatch):
                         lambda: estatistica.POLITICA_AUTOMATICA)
     cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                             fontes=[apoio.FonteDaFixture(fixture)],
-                            seletor=jev, triagem=saneamento.POLITICA_PADRAO)
+                            seletor=jev, triagem=V1)
     depois = next(l for l in repo.listar_referencias(iid)
                   if l["id"] == alvo["id"])
     assert depois["status"] == "selected", "inclusão humana é preservada"
@@ -446,7 +458,7 @@ def test_reincluir_desconsiderada_entra_sinalizada_com_trilha(monkeypatch):
     cliente, cid, iid = _cotacao(monkeypatch, fixture)
     cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                             fontes=[apoio.FonteDaFixture(fixture)],
-                            triagem=saneamento.POLITICA_PADRAO)
+                            triagem=V1)
     extremo = next(l for l in repo.listar_referencias(iid)
                    if l["id_externo"] == "Q01_05")
     with pytest.raises(cotacoes.ErroCotacao, match="motivo da inclusão"):

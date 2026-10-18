@@ -106,7 +106,8 @@ def desconsideradas(linhas: list[dict]) -> list[dict]:
 def recalcular(linhas: list[dict], *, perfil: PerfilNormativo,
                regras: str, justificativa: str | None = None,
                metodo: str = estatistica.METODO_AUTOMATICO,
-               criterio_percentual=None) -> estatistica.Estimativa:
+               criterio_percentual=None,
+               mantidas: dict | None = None) -> estatistica.Estimativa:
     """
     Estimativa da cesta formada pelas linhas CONSIDERADAS.
 
@@ -131,7 +132,8 @@ def recalcular(linhas: list[dict], *, perfil: PerfilNormativo,
             "órgão) ficaram fora do cálculo")
     estimativa = estatistica.estimar(
         cesta, perfil=perfil, justificativa=justificativa, regras=regras,
-        metodo=metodo, criterio_percentual=criterio_percentual)
+        metodo=metodo, criterio_percentual=criterio_percentual,
+        mantidas=mantidas)
     estimativa.memoria[:0] = cesta.motivos
     return estimativa
 
@@ -204,7 +206,8 @@ def recalcular_e_gravar(pesquisa: dict, item: dict, repositorio, *,
                    estatistica.REGRAS_LEGADAS),
         justificativa=justificativa, metodo=metodo,
         criterio_percentual=estatistica.criterio_percentual_da(
-            pesquisa.get("filtros")))
+            pesquisa.get("filtros")),
+        mantidas=decisoes.get("mantidas") or None)
     metodo_decidido = decisoes.get("metodo")
     if metodo_decidido:
         estimativa.memoria.append(
@@ -216,6 +219,46 @@ def recalcular_e_gravar(pesquisa: dict, item: dict, repositorio, *,
         item, estimativa, quantidade=_decimal(item.get("quantidade")),
         decisoes=decisoes or None, revisao_esperada=revisao_esperada)
     return estimativa
+
+
+def integridade_do_item(item: dict, linhas: list[dict], *,
+                        teto: int | None = None) -> list[str]:
+    """
+    Invariantes do item na MESMA leitura (Revisão 02, 02_JEV "Invariantes
+    em runtime"): consideradas ≤ na cesta ≤ gravadas; o N gravado no item
+    é o N das linhas; total = unitário × quantidade; e, com `teto`, nunca
+    mais consideradas que o teto da cotação automática.
+
+    Devolve as violações em texto para quem decide o que fazer (a tela
+    avisa, o teste falha) — não conserta nada sozinha: recalcular cesta
+    antiga sem comando explícito é o que o roteiro proíbe.
+    """
+    problemas: list[str] = []
+    n = len(consideradas(linhas))
+    na_cesta = sum(1 for l in linhas if str(l.get("status")) in NA_CESTA)
+    if not n <= na_cesta <= len(linhas):
+        problemas.append(f"contagem incoerente: {n} consideradas, {na_cesta} "
+                         f"na cesta, {len(linhas)} gravadas")
+    gravado = na_cesta_do_item(item)
+    if gravado is not None and gravado != n:
+        problemas.append(f"o item registra {gravado} preço(s) considerado(s), "
+                         f"mas a cesta tem {n}: recalcule o item")
+    if teto is not None and n > teto:
+        problemas.append(f"{n} preços na cesta, acima do limite de {teto} da "
+                         "cotação automática (cesta formada antes do limite): "
+                         "refaça a cotação automática deste item")
+    unitario, quantidade = (_decimal(item.get("preco_estimado")),
+                            _decimal(item.get("quantidade")))
+    total = _decimal(item.get("preco_total"))
+    if unitario is not None and quantidade is not None and total is not None:
+        from decimal import ROUND_HALF_UP
+
+        esperado = (unitario * quantidade).quantize(Decimal("0.01"),
+                                                    rounding=ROUND_HALF_UP)
+        if esperado != total.quantize(Decimal("0.01")):
+            problemas.append(f"total gravado {total} difere de unitário × "
+                             f"quantidade ({esperado})")
+    return problemas
 
 
 def validas_na_cesta(linhas: list[dict]) -> int:

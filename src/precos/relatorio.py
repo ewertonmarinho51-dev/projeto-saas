@@ -1330,7 +1330,9 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
     """
     from openpyxl import Workbook
 
+    from . import links as links_mod
     from .perfil import inciso_da_fonte
+    from .relatorio_view import autoria_da_saida
 
     wb = Workbook()
 
@@ -1378,7 +1380,11 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
                     "Impressão da evidência", "Motivos",
                     # ao FIM, para não deslocar quem lê por posição: o
                     # vínculo com o Relatório Analítico Integral (PDF)
-                    "Link de verificação", "ID da referência"])
+                    "Link de verificação", "ID da referência",
+                    # Revisão 02: a página PÚBLICA da contratação (o link de
+                    # verificação acima é o endpoint de dados) e a autoria
+                    # de quem tirou a referência da série
+                    "Página da contratação", "Como saiu da série"])
     for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
         numero = int(item.get("numero") or 0)
         lista = referencias.get(str(item.get("id")), [])
@@ -1416,6 +1422,8 @@ def xlsx_analitico(pesquisa: dict, itens: list[dict],
                 "; ".join(str(m) for m in (linha.get("motivos") or [])),
                 url_de_verificacao(linha) or "",
                 str(linha.get("id") or ""),
+                links_mod.resolver(linha).contratacao_url or "",
+                autoria_da_saida(linha),
             ]))
     for coluna, largura in zip(
             ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",

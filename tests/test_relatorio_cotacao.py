@@ -97,7 +97,9 @@ def test_valor_provisorio_nao_entra_no_quadro_nem_no_subtotal():
     item = v.itens[0]
     assert item.preco_unitario is not None and item.valor_provisorio
     texto = _texto_docx(dc.relatorio_de_cotacao_docx(v))
-    assert f"{dc.moeda(item.preco_unitario)} (provisório)" in texto
+    # Revisão 02: "em revisão" (o item não foi concluído), sem contradizer
+    # a situação — "provisório" junto de "Concluído" era o defeito D06
+    assert f"{dc.moeda(item.preco_unitario)} (em revisão)" in texto
     assert "Não consolidado" in texto
     assert v.subtotal_concluidos == 0
 
@@ -151,11 +153,13 @@ def test_volume_exibe_amostra_declarada_e_anexo_tem_todas():
                                ("grande_317", 317, 30)):
         v = _vista(nome)
         item = v.itens[0]
-        assert item.consideradas == n and len(item.exibidas) == 5
+        # Revisão 02: até 30 exibidas (a cesta automática tem no máximo 15 —
+        # todas aparecem); só cesta antiga, sem teto, é amostrada
+        assert item.consideradas == n and len(item.exibidas) == 30
         compacto = _texto_docx(dc.relatorio_de_cotacao_docx(v))
-        assert f"exibidas 5 de {n}" in compacto
-        assert f"Todas as {n} referências consideradas compõem o cálculo" \
-            in compacto
+        assert f"exibidos 30 de {n}" in compacto
+        assert f"Todas as {n} referências compõem o cálculo" in compacto
+        assert "acima do limite de 15" in compacto, "integridade avisada"
         analitico = _texto_docx(dc.relatorio_analitico_docx(v))
         for r in item.referencias:
             assert r.id_externo in analitico
@@ -184,7 +188,10 @@ def test_tres_saidas_concordam():
         relatorio.xlsx_analitico(p, itens, refs)))
     ficha = {linha[0].value: linha[1].value
              for linha in planilha["Identificação"].iter_rows(min_row=2)}
-    assert v.hash_decisorio in compacto and v.hash_decisorio in analitico
+    # Revisão 02 (D12): o relatório de cotação imprime o identificador
+    # abreviado; o completo fica no analítico e na planilha
+    assert v.hash_decisorio[:16] in compacto
+    assert v.hash_decisorio in analitico
     assert ficha["Identificador da versão"] == v.hash_decisorio
     aba = planilha["Itens"]
     cabecalho = [c.value for c in aba[1]]
@@ -194,7 +201,7 @@ def test_tres_saidas_concordam():
     for item in v.itens:
         linha = por_numero[item.numero]
         assert linha[col_n].value == item.consideradas
-        assert f"{item.consideradas}/{item.minimo}" in compacto
+        assert f"{item.consideradas} (mínimo {item.minimo})" in compacto
         assert f"{item.consideradas}/{item.minimo}" in analitico
         if item.preco_total is not None:
             assert Decimal(str(linha[col_total].value)) == item.preco_total
@@ -366,9 +373,10 @@ def test_pdf_compacto_5_itens_871_referencias(pdf_historico):
     assert "RELATÓRIO DE COTAÇÃO DE PREÇOS" in texto
     _conferir_geometria(pdf, margem_pt=1.6 / 2.54 * 72)
     _conferir_paginacao(pdf)
-    _cabecalhos_inteiros(pdf, ["Nº", "Item", "Qtd. / Unid.", "Válidas",
-                               "Unitário", "Total", "Situação",
-                               "Fonte / identificador", "Preço unit."])
+    _cabecalhos_inteiros(pdf, ["Nº", "Item", "Qtd. / Unid.", "Preços usados",
+                               "Unitário", "Total", "Situação", "Data",
+                               "Órgão · contratação", "Fonte · natureza",
+                               "Contratação"])
     for proibido in ("Méto\ndo", "Situaç\não", "Unitá\nrio"):
         assert proibido not in texto
 
@@ -435,7 +443,7 @@ def test_pdf_bloco_do_item_nao_se_parte(motor_institucional):
             faixa.setdefault(int(achado.group(1)), numero)
         if texto == "Valor do item":
             rotulo.append(numero)
-        if re.fullmatch(r"\d+/\d+", texto) and span["size"] >= 9.5:
+        if re.fullmatch(r"\d+ \(mínimo \d+\)", texto) and span["size"] >= 9.5:
             valor.append(numero)
     assert len(faixa) == len(v.itens) == len(rotulo) == len(valor)
     for item, pagina_rotulo, pagina_valor in zip(v.itens, rotulo, valor):

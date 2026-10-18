@@ -2323,8 +2323,8 @@ def _frase_dos_alertas(preparo) -> str:
     itens = preparo.itens_com_alerta
     rotulo = ", ".join(f"{n:02d}" for n in itens[:12]) + (
         " …" if len(itens) > 12 else "")
-    return (f"O Jev identificou {len(preparo.alertas)} cotação(ões) que "
-            f"merecem conferência no(s) item(ns) {rotulo}.")
+    return (f"{len(preparo.alertas)} preço(s) merecem conferência — "
+            f"item(ns) {rotulo}.")
 
 
 def _render_aviso_nao_bloqueante(pesquisa: dict, itens: list[dict],
@@ -2336,11 +2336,10 @@ def _render_aviso_nao_bloqueante(pesquisa: dict, itens: list[dict],
     if not preparo.requer_ciencia:
         return
     if preparo.alertas:
-        st.warning("**Atenção: há preços com variação relevante.** "
-                   + _frase_dos_alertas(preparo)
-                   + " Você pode revisar agora ou emitir com os valores que "
-                   "estão na cesta; a ciência será pedida ao emitir. Isso "
-                   "**não impede a emissão**.")
+        st.info("**Há preços para conferir.** " + _frase_dos_alertas(preparo)
+                + " Você pode revisá-los agora ou emitir com a cesta atual: "
+                "ao gerar o relatório, uma confirmação simples é pedida. A "
+                "emissão não é impedida.")
     if preparo.pendencias:
         texto = "\n".join(
             f"- Item {p['numero']:02d} — {p['descricao'][:60]}: "
@@ -2353,9 +2352,15 @@ def _render_aviso_nao_bloqueante(pesquisa: dict, itens: list[dict],
                                    _identidade()[0] or None,
                                    _trilha_da_ciencia())
     if registrada:
-        st.caption("Ciência registrada para esta versão da cesta em "
-                   f"{str((registrada.get('payload') or {}).get('registrada_em') or registrada.get('criado_em') or '')[:16].replace('T', ' ')} "
-                   "UTC. Se a cesta mudar, o aviso volta.")
+        from ..precos.relatorio import _instante
+        from ..precos.relatorio_view import BRASILIA
+
+        quando = _instante((registrada.get("payload") or {}).get(
+            "registrada_em") or registrada.get("criado_em"))
+        st.caption("Confirmação registrada para esta versão da cesta"
+                   + (f" em {quando.astimezone(BRASILIA):%d/%m/%Y %H:%M} "
+                      "(horário de Brasília)" if quando else "")
+                   + ". Se a cesta mudar, a confirmação é pedida de novo.")
 
 
 def _pedir_ciencia(pesquisa: dict, preparo, chave: str) -> None:
@@ -2380,7 +2385,7 @@ def _ao_fechar_aviso() -> None:
     st.session_state.pop(_CIENCIA_PREPARO, None)
 
 
-@st.dialog("Preços com variação relevante", width="large",
+@st.dialog("Preços que merecem conferência", width="large",
            on_dismiss=_ao_fechar_aviso)
 def _dialogo_de_ciencia(pesquisa: dict) -> None:
     from ..precos import ciencia
@@ -2394,22 +2399,19 @@ def _dialogo_de_ciencia(pesquisa: dict) -> None:
         st.warning("A cesta mudou desde o aviso anterior. Confira os alertas "
                    "atualizados abaixo antes de confirmar.")
     if preparo.alertas:
-        st.markdown("**Atenção: há preços com variação relevante.** "
-                    + _frase_dos_alertas(preparo)
-                    + " Você pode revisar agora ou continuar com os valores "
-                    "que estão na cesta. Ao continuar, sua ciência será "
-                    "registrada no histórico da pesquisa. Isso **não impede "
-                    "a emissão** do relatório, e os valores serão "
-                    "preservados como estão.")
-        linhas = ["| Item | Cotação | Valor | Mediana do item | Por quê |",
-                  "|---|---|---:|---:|---|"]
+        # Revisão 02 (04_UX, modal leve): o que é, de onde veio, e as duas
+        # saídas — sem estatística na superfície e sem pedir texto.
+        st.markdown(f"**Há {len(preparo.alertas)} preço(s) que merecem "
+                    "conferência.** Você pode revisar os valores sinalizados "
+                    "ou continuar com a cesta atual. A emissão não será "
+                    "impedida.")
         for alerta in preparo.alertas[:40]:
-            linhas.append(
-                f"| {alerta.numero:02d} — {html.escape(alerta.descricao[:40])} "
-                f"| {html.escape(alerta.origem or alerta.referencia_id[:8])} "
-                f"| {_moeda(alerta.valor)} | {_moeda(alerta.mediana)} "
-                f"| {html.escape(alerta.mensagem).replace('|', '/')} |")
-        st.markdown("\n".join(linhas).replace("$", "\\$"))
+            st.markdown(
+                f"- Item {alerta.numero:02d} · "
+                f"{html.escape(alerta.descricao[:48])} · "
+                f"**{_moeda(alerta.valor)}** · "
+                f"{html.escape(alerta.origem or 'origem não informada')}"
+                .replace("$", "\\$"))
         if len(preparo.alertas) > 40:
             st.caption(f"… e mais {len(preparo.alertas) - 40} cotação(ões).")
     if preparo.pendencias:
@@ -2423,7 +2425,7 @@ def _dialogo_de_ciencia(pesquisa: dict) -> None:
                      key="ciencia_voltar"):
         st.session_state.pop(_CIENCIA_PREPARO, None)
         st.rerun()
-    if seguir.button("Estou ciente, emitir relatório", type="primary",
+    if seguir.button("Estou ciente, gerar relatório", type="primary",
                      use_container_width=True, key="ciencia_seguir"):
         try:
             ciencia.registrar(pesquisa, preparo,
