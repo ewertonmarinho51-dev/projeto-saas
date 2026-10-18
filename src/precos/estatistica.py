@@ -440,6 +440,10 @@ def selecionar_cesta(
                   in enumerate(perfil.prioridade_de_fontes)}
 
     if saneamento is not None:
+        # Auditoria de 18/10/2026 (C-1): o atributo que define o produto
+        # (formato, numeração, tipo, finalidade) é confrontado com o item
+        # ANTES da triagem — produto diferente não entra na estatística.
+        ranqueadas = _barreira_de_atributos(ranqueadas, cesta, texto_item)
         ranqueadas = _triagem_pre_cesta(ranqueadas, cesta, piso, saneamento,
                                         texto_item)
 
@@ -508,6 +512,31 @@ def selecionar_cesta(
         cesta.motivos.append(
             "nenhuma referência atingiu a comparabilidade mínima")
     return cesta
+
+
+def _barreira_de_atributos(ranqueadas, cesta: Cesta, texto_item: str):
+    """
+    Tira da disputa o que a própria descrição da fonte mostra ser outro
+    produto (rejeitada) ou não permite conferir (revisão). As duas ficam
+    em `retidas` — GRAVADAS com o motivo, para o servidor reincluir se
+    discordar. Nunca some referência.
+    """
+    from . import atributos
+
+    if not texto_item:
+        return ranqueadas
+    seguem = []
+    for referencia, comparabilidade in ranqueadas:
+        achado = atributos.conflito(texto_item, referencia.descricao_original)
+        if achado is None:
+            seguem.append((referencia, comparabilidade))
+            continue
+        referencia.status = (StatusReferencia.REJEITADA
+                             if achado.tipo == atributos.CONTRADIZ
+                             else StatusReferencia.REVISAO_MANUAL)
+        referencia.com_motivo(atributos.motivo(achado))
+        cesta.retidas.append(referencia)
+    return seguem
 
 
 def _triagem_pre_cesta(ranqueadas, cesta: Cesta, piso: Decimal, politica,

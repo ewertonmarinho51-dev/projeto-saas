@@ -668,6 +668,11 @@ def _celula_origem(ref: ReferenciaView) -> list[T]:
     registro (Revisão 02, 05 §2: nunca preencher com placeholder).
     """
     partes = _celula_orgao(ref)
+    # quem comprou, como o portal identifica: o órgão superior (ex.:
+    # "PRESIDENCIA DA REPUBLICA") nem sempre é a UASG da compra (C-7)
+    if ref.unidade_compradora:
+        partes.append(T(ref.unidade_compradora, quebra_antes=True,
+                        cor=SECUNDARIO, pt=7))
     detalhes = []
     if ref.modalidade:
         detalhes.append(ref.modalidade)
@@ -698,13 +703,22 @@ def _celula_contratacao(ref: ReferenciaView) -> list[T]:
     """
     O link da PÁGINA DA CONTRATAÇÃO, sobre o número oficial impresso.
     Sem página pública resolvida, diz isso — nunca aponta o JSON da API.
+
+    Auditoria de 18/10/2026 (C-2): sem link, o número da contratação é
+    impresso MESMO ASSIM — é o que permite localizá-la à mão. E a frase
+    não culpa a fonte quando quem não montou o endereço foi o sistema.
     """
     if ref.contratacao_url and ref.identificacao:
         return [T(ref.identificacao, link=ref.contratacao_url, pt=7,
                   cor=AZUL),
                 T(ref.contratacao_rotulo, quebra_antes=True,
                   cor=SECUNDARIO, pt=6.5)]
-    return [T("Não disponível na fonte", cor=SECUNDARIO, pt=7)]
+    if ref.identificacao:
+        return [T(ref.identificacao, pt=7),
+                T("Página pública não localizada pelo sistema",
+                  quebra_antes=True, cor=SECUNDARIO, pt=6.5)]
+    return [T("Identificador não informado pela fonte", cor=SECUNDARIO,
+              pt=7)]
 
 
 def _memoria_para_imprimir(item: ItemView) -> list[str]:

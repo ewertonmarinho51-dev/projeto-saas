@@ -261,6 +261,44 @@ def integridade_do_item(item: dict, linhas: list[dict], *,
     return problemas
 
 
+def itens_acima_do_teto(itens: list[dict], referencias: dict,
+                        teto: int | None,
+                        decididas_por_humano=None) -> list[str]:
+    """
+    Itens cuja cesta passa do teto da cotação automática — formada antes
+    do limite e da triagem, por política que já não vale.
+
+    Auditoria de 18/10/2026 (C-4): a pesquisa de 08/10 seguia emitível com
+    cestas de 196, 317 e 270 preços, com papel A3, offset e grampeador
+    cirúrgico dentro. O aviso de integridade só AVISAVA. A emissão pergunta
+    aqui e não sai enquanto a lista não estiver vazia; a saída é refazer a
+    cotação automática do item (nada é recalculado sozinho).
+
+    Conta só o que a MÁQUINA escolheu: preço incluído por pessoa (evento
+    de decisão ou cotação direta) é decisão do servidor e não trava nada
+    — o mesmo critério da cotação automática (`cotacoes.de_pessoa`).
+    `decididas_por_humano(item_id)` devolve os ids/id_externo decididos;
+    só é chamada para item que já passou do teto.
+    """
+    if teto is None:
+        return []
+    acima = []
+    for item in itens:
+        linhas = consideradas(referencias.get(item.get("id"), []) or [])
+        if len(linhas) <= teto:
+            continue
+        humanas = (set(decididas_por_humano(item.get("id")))
+                   if decididas_por_humano is not None else set())
+        da_maquina = [l for l in linhas
+                      if str(l.get("fonte_id")) != "cotacao_direta"
+                      and str(l.get("id")) not in humanas
+                      and str(l.get("id_externo")) not in humanas]
+        if len(da_maquina) > teto:
+            acima.append(f"item {item.get('numero')}: {len(linhas)} preços "
+                         f"na cesta (limite de {teto})")
+    return acima
+
+
 def validas_na_cesta(linhas: list[dict]) -> int:
     """Quantas referências são consideradas no cálculo — o N de "N/3"."""
     return len(consideradas(linhas))

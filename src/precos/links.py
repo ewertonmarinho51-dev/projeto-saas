@@ -28,6 +28,15 @@ comparando órgão, número e item com o registro da API:
 Ata e outros documentos: só quando a fonte entrega o endereço do
 documento. Nenhuma das fontes atuais entrega — então não há link de ata
 (nunca botão falso). Nada aqui faz rede: o PDF não consulta a internet.
+
+Auditoria de 18/10/2026 (C-2): a API devolve `idCompra` como NÚMERO
+JSON, e o zero inicial das UASG que começam com 0 (060001, 092601...)
+some — `6000105001912026`, 16 dígitos. 300 das 5.741 referências de
+produção ficavam sem link e o PDF dizia "Não disponível na fonte", o que
+era falso. A própria fonte guarda o identificador certo em `idCompraItem`,
+que vem como TEXTO (`0600010500191202600193`); `id_compra_oficial` usa
+esse campo, ou a UASG, e só quando os dois concordam com o número.
+Conferido no portal: `06000105001912026` abriu o Pregão 191/2026 do STM.
 """
 
 from __future__ import annotations
@@ -44,6 +53,7 @@ ACOMPANHAMENTO_COMPRA = ("https://cnetmobile.estaleiro.serpro.gov.br/"
 CONTRATACAO_PNCP = "https://pncp.gov.br/app/editais/{cnpj}/{ano}/{sequencial}"
 
 ID_COMPRA = re.compile(r"^\d{17}$")
+ID_COMPRA_ITEM = re.compile(r"^\d{22}$")
 CONTROLE_PNCP = re.compile(r"^(\d{14})-\d+-(\d{1,6})/(\d{4})$")
 
 # Hosts aceitos em qualquer link impresso: só os oficiais acima.
@@ -63,8 +73,11 @@ class Links:
     contratacao_rotulo: str = ""
     dados_url: str | None = None
     # número oficial impresso (idCompra ou controle PNCP) — é sobre ele
-    # que o PDF grava o link
+    # que o PDF grava o link. Impresso MESMO sem link: é o que permite
+    # localizar a contratação à mão.
     identificacao: str = ""
+    # quem comprou, como o portal identifica: "UASG 110120 — ABIN/GSI/PR"
+    unidade_compradora: str = ""
 
 
 def seguro(url: str | None) -> str | None:
@@ -102,6 +115,43 @@ def acompanhamento_compra(id_compra) -> str | None:
         if ID_COMPRA.match(texto) else None
 
 
+def id_compra_oficial(bruto: dict, referencia_externa=None) -> str:
+    """
+    O `idCompra` de 17 dígitos, só com o que a fonte entregou.
+
+    Ordem: o número já com 17 dígitos; o prefixo de `idCompraItem` (texto,
+    22 dígitos) quando representa o MESMO número; a UASG com zero inicial
+    quando o número começa por ela sem o zero. Fora disso, "" — nunca um
+    número completado por palpite.
+    """
+    bruto = bruto or {}
+    compra = str(bruto.get("idCompra") or referencia_externa or "").strip()
+    if not compra.isdigit():
+        return ""
+    if ID_COMPRA.match(compra):
+        return compra
+    item = bruto.get("idCompraItem")
+    if isinstance(item, str) and ID_COMPRA_ITEM.match(item.strip()):
+        prefixo = item.strip()[:17]
+        if int(prefixo) == int(compra):
+            return prefixo
+    uasg = str(bruto.get("codigoUasg") or "").strip()
+    if (len(compra) < 17 and uasg.isdigit() and uasg.startswith("0")
+            and compra.zfill(17).startswith(uasg)):
+        return compra.zfill(17)
+    return ""
+
+
+def unidade_compradora(bruto: dict) -> str:
+    """'UASG 110120 — NOME', quando a fonte traz o código."""
+    bruto = bruto or {}
+    codigo = str(bruto.get("codigoUasg") or "").strip()
+    nome = " ".join(str(bruto.get("nomeUasg") or "").split())
+    if not codigo:
+        return ""
+    return f"UASG {codigo}" + (f" — {nome}" if nome else "")
+
+
 def resolver(linha: dict) -> Links:
     """Os links verificáveis de UMA referência gravada (sem rede)."""
     from . import compras_gov
@@ -110,16 +160,18 @@ def resolver(linha: dict) -> Links:
     bruto = linha.get("bruto") or {}
     fid = str(linha.get("fonte_id") or "")
     if fid == "compras_gov_precos":
-        compra = str(bruto.get("idCompra") or linha.get("referencia_externa")
-                     or "")
+        compra = id_compra_oficial(bruto, linha.get("referencia_externa"))
         url = acompanhamento_compra(compra)
+        cru = str(bruto.get("idCompra") or linha.get("referencia_externa")
+                  or "").strip()
         return Links(
             fonte_url=FONTE_COMPRAS, fonte_rotulo="Compras.gov.br",
             contratacao_url=url,
             contratacao_rotulo="Acompanhar contratação (Compras.gov.br)"
             if url else "",
             dados_url=seguro(compras_gov.url_de_verificacao(bruto)),
-            identificacao=compra if url else "")
+            identificacao=compra or cru,
+            unidade_compradora=unidade_compradora(bruto))
     if fid == "compras_gov_itens":
         controle = (bruto.get("numeroControlePNCPCompra")
                     or bruto.get("idContratacaoPNCP")
@@ -130,14 +182,15 @@ def resolver(linha: dict) -> Links:
             contratacao_url=url,
             contratacao_rotulo="Contratação no PNCP" if url else "",
             dados_url=seguro(compras_gov.url_de_verificacao(bruto)),
-            identificacao=str(controle) if url else "")
+            identificacao=" ".join(str(controle or "").split()),
+            unidade_compradora=unidade_compradora(bruto))
     if fid == "pncp":
         url = seguro(pncp_mod.url_de_verificacao(bruto))
         return Links(
             fonte_url=FONTE_PNCP, fonte_rotulo="PNCP", contratacao_url=url,
             contratacao_rotulo="Contratação no PNCP" if url else "",
-            identificacao=str(bruto.get("numeroControlePNCP") or "")
-            if url else "")
+            identificacao=" ".join(
+                str(bruto.get("numeroControlePNCP") or "").split()))
     return Links()
 
 
