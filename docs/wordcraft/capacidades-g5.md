@@ -154,8 +154,8 @@ O usuário pode selecionar explicitamente uma dessas versões para gerar uma
 prévia determinística, somente leitura, ligada às revisões e hashes nativos
 correntes. O owner relê a versão `PUBLISHED` e o artefato pela RLS, recalcula o
 hash canônico da chave, versão e payload, e reutiliza `templates_gov.montar`.
-A prévia não altera o canvas, não cria revisão e declara `applicable=false`:
-a aplicação atômica ainda não foi implementada. Blocos de catálogo resolvem
+A prévia não altera o canvas nem cria revisão; ela só declara `applicable=true`
+quando todos os parâmetros e cláusulas foram resolvidos. Blocos de catálogo resolvem
 cláusulas `PUBLISHED` visíveis pela RLS no escopo exato do processo, com
 precedência explícita da secretaria sobre o município. Payload e hash canônico
 de cada cláusula são revalidados antes da montagem. Template e cláusulas também
@@ -164,15 +164,17 @@ exclusivo; data inválida, futura ou expirada falha fechada. Chave ausente perma
 pendente; duplicidade de escopo, múltiplas publicadas ou divergência recusam a
 prévia inteira, sem preenchimento por aproximação.
 
-O owner também consegue preparar, ainda sem persistir, o alvo nativo exato do
-template efetivo. A preparação exige ausência de pendências, injeta a tabela
+O owner prepara o alvo nativo exato do template efetivo antes da confirmação.
+A preparação exige ausência de pendências, injeta a tabela
 canônica do processo, recusa marcadores estruturais restantes, reutiliza o
 renderer institucional, passa o DOCX pelo importador/validador WordCraft e
 reconstrói o índice para a próxima revisão. O envelope preserva revisão/hash de
 origem, template, cláusulas, texto renderizado, alvo e build, e recebe selo da
-instância viva do owner. A confirmação transacional que gravará revisão e
-proveniência juntas continua pendente; por isso essa preparação ainda não é
-exposta como ação de aplicação na UI.
+instância viva do owner. A confirmação chama a RPC privada
+`documento_editor_aplicar_template`, que revalida ator, processo, head, versão
+publicada, vigência, escopo e unicidade do template e grava revisão, índice e
+proveniência juntos. A UI operacional somente remonta o canvas depois de reler
+e conferir a nova head. Evidência e limites: `c05-aceite-template.md`.
 
 `src/wordcraft_runtime.py` admite somente configuração de servidor, executável
 absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
@@ -215,7 +217,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 - catálogo, template escolhido e cláusulas excluem versões fora da vigência
   temporal sem promover apenas o status `PUBLISHED` a efetividade;
 - preparação do template efetivo produz bytes e índice nativos selados, sem
-  RPC, e bloqueia parâmetros ou marcadores estruturais não resolvidos;
+  persistir antes da confirmação, bloqueia parâmetros ou marcadores estruturais
+  não resolvidos e a confirmação SQL preserva CAS e proveniência;
 - parecer ambíguo permanece pendente;
 - alteração posterior de logo ou signatário não muda o snapshot capturado;
 - 210 itens preservam numeração e total decimal;

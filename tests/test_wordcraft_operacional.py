@@ -287,8 +287,11 @@ def test_template_operacional_prepara_confirma_reabre_e_remonta_head(monkeypatch
     session = Session()
     session[ui._chave("tr", "document")] = document
     session[ui._chave("tr", "bridge")] = SimpleNamespace(state="ready")
-    session[ui._chave("tr", "template_preview")] = {"stale": True}
-    session[ui._chave("tr", "structure")] = {"stale": True}
+    invalidated = ("preparation", "audit", "legal_opinions", "legal_attendance",
+        "evidence", "citation_check", "structure", "template_preview", "history",
+        "patch_receipt", "approval")
+    for suffix in invalidated:
+        session[ui._chave("tr", suffix)] = {"stale": True}
     monkeypatch.setattr(ui.st, "session_state", session)
     monkeypatch.setattr(ui, "_montar", lambda key, value, runtime:
         session.__setitem__(ui._chave(key, "document"), value))
@@ -298,8 +301,7 @@ def test_template_operacional_prepara_confirma_reabre_e_remonta_head(monkeypatch
     assert calls == [("prepare", process, "tr", version, expected_operation),
                      ("confirm", prepared)]
     assert session[ui._chave("tr", "document")] is applied
-    assert ui._chave("tr", "template_preview") not in session
-    assert ui._chave("tr", "structure") not in session
+    assert all(ui._chave("tr", suffix) not in session for suffix in invalidated)
     assert "revisão nativa 4" in session[ui._chave("tr", "message")]
 
 
