@@ -118,10 +118,22 @@ test('stale or divergent patch never receives a checkpoint', async () => {
     revision: c.revision, content_hash: c.currentHash, target_hash: 'a'.repeat(64),
     plan_json: JSON.stringify({schema: 'gc-wordcraft-native-patch/v1'})};
   await assert.rejects(c.control({...base, revision: 1}));
-  await assert.rejects(c.control(base));
+  await c.control(base);
   assert.equal(c.state, 'ready');
   assert.deepEqual(native.bytes, bytes);
   assert.equal(sent.filter(x => x.event === 'document.checkpoint').length, 0);
+  assert.equal(sent.at(-1).event, 'document.control_failed');
+  assert.equal(sent.at(-1).payload.reason, 'target_mismatch');
+});
+
+test('native patch refusal preserves the exact clean canvas and reports a closed reason', async () => {
+  const {controller: c, native, sent} = await setup();
+  const command = {schema: 'gc-wordcraft-control/v1', action: 'patch', command_id: crypto.randomUUID(),
+    revision: c.revision, content_hash: c.currentHash, target_hash: 'a'.repeat(64), plan_json: '{}'};
+  await c.control(command);
+  assert.equal(c.state, 'ready'); assert.deepEqual(native.bytes, bytes);
+  assert.equal(sent.at(-1).event, 'document.control_failed');
+  assert.equal(sent.at(-1).payload.reason, 'patch_refused');
 });
 function ack(data, cp, revision = 1) {
   return {...data, revision, ack: {request_id: cp.request_id, content_hash: cp.payload.content_hash, revision}};

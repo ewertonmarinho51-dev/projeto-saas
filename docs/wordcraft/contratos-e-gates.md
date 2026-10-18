@@ -62,9 +62,17 @@ Falha no segundo alvo ou evento reverte tudo. Checkpoints do host precisam
 corresponder exatamente aos bytes preparados. Para alvo único, o host agora
 aplica o comando na Session viva, valida o hash de destino e correlaciona o
 checkpoint ao mesmo `operation_id`; o ACK só sai depois do recibo transacional.
-Divergência desfaz o grupo e verifica a origem. A prova automatizada atual usa
-stub explícito do objeto WASM; seleção GovBot, Undo posterior no navegador real
-e coordenação de múltiplos canvas permanecem pendentes.
+Divergência ou recusa nativa verifica a restauração exata e mantém o canvas
+utilizável, sem inventar checkpoint ou ACK. O hash usado pela Session viva é o
+dos bytes persistidos que abriram o editor; ele só muda após ACK do backend ou
+recarga limpa. Isso evita recusar um contêiner JSON válido apenas porque sua
+serialização não canônica difere da serialização interna do documento. A prova
+positiva foi preparada no navegador com um finding real e chegou ao comando
+WASM, mas o bundle instalado ainda contém a implementação anterior e recusou o
+plano antes de mutar. A recompilação local ficou indisponível porque este host
+não possui Rust, Docker nem WSL. O teste patch→commit→ACK→Undo deve ser repetido
+com o próximo bundle compilado; seleção GovBot e múltiplos canvas também seguem
+pendentes.
 
 A captura de seleção agora é um comando servidor, ligado à revisão/hash limpos.
 O texto retornado serve apenas para resolver um bloco integral único entre paths
@@ -81,7 +89,7 @@ permanece aberta.
 | G1 Percurso mínimo | PASS LOCAL LIMITADO | navegador abriu/editou/salvou/recarregou/exportou texto, timbrado e tabela de 210 itens; g1-evidencias.md; sem promoção a G3/G7 |
 | G2 Persistência | PARCIAL | importação, originais, índices, restauração, aprovação, consumidor source-aware, ZIP auditável e emissão oficial transacional implementados; documento consolidado e prova PostgREST/Auth real pendentes |
 | G3 Fidelidade | PARCIAL | 16 DOCX passam no roundtrip nativo; LO baseline16/70 páginas; derivado6/16 casos,44/50 PNGs iguais e6 diferenças em tabelas; prova Linux pendente após duas falhas limitadas Windows |
-| G4 Patches | PARCIAL | motor real preservou79 IDs/27 blocos protegidos,8 negativos recusados;188 SQL passaram; host e laboratório de alvo único correlacionam operação, canvas, transação atômica e ACK; navegador confirmou fail closed porque os três corpora aprovados têm zero findings autocorrigíveis; prova positiva WASM/Undo, multi-canvas e GovBot permanecem pendentes |
+| G4 Patches | PARCIAL | motor real preservou79 IDs/27 blocos protegidos,8 negativos recusados;188 SQL passaram; host e laboratório correlacionam operação, canvas, transação atômica e ACK; cenário privado positivo confirmou auditoria/preparo e recusa limpa do bundle antigo; fonte corrige vínculo aos bytes persistidos, porém build WASM e prova positiva completa/Undo, multi-canvas e GovBot permanecem pendentes |
 | G5 Seis capacidades | PARCIAL | compilador/painel/host, consumidor source-aware e pacote auditável ligados sob flag OFF; admissão recusa bundle QA; falta artefato operacional homologado e corpus A-D completo |
 | G6 Paridade e retirada | PENDENTE | nenhuma funcionalidade legada retirada; substituição só após comprovação |
 | G7 Homologação | PARCIAL | CAS/RLS/imutabilidade SQL e HTTP sintéticos; GoTrue Linux implementado,primeiro run falhou preflight; Auth real,emissão e orçamento de performance pendentes |

@@ -230,23 +230,30 @@ export class EditorController {
       }
       this.lastControl = identity;
       let applied = false;
+      let failureReason = 'patch_refused';
       try {
         this.native.apply_text_patch(this.revision, command.plan_json);
         applied = true;
         const bytes = this.native.serialize();
         if (!bytes.length || bytes.length > maxBytes || await sha256(bytes) !== command.target_hash) {
+          failureReason = 'target_mismatch';
           throw new Error('Native patch result differs from authorized target.');
         }
       } catch (error) {
-        if (applied) {
-          try {
+        try {
+          if (applied) {
             this.native.undo();
-            const restored = this.native.serialize();
-            if (await sha256(restored) !== command.content_hash) throw new Error('rollback differs');
-            this.generation = this.native.generation();
-          } catch { this.state = 'conflict'; }
+          }
+          const restored = this.native.serialize();
+          if (await sha256(restored) !== command.content_hash) throw new Error('rollback differs');
+          this.generation = this.native.generation();
+          this.state = 'ready';
+          this.publish('document.control_failed', {command_id: command.command_id, reason: failureReason});
+          return;
+        } catch {
+          this.state = 'conflict';
+          throw error;
         }
-        throw error;
       }
       this.generation = this.native.generation();
       this.state = 'dirty';

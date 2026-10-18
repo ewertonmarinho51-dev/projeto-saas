@@ -27,6 +27,7 @@ from wordcraft_local_assets import MARKER, ROOT, WORK_ROOT, safe_name
 import wordcraft_notices
 
 CASES = ("01-texto-listas-links", "02-tabela-210-itens", "03-timbrado-assinaturas")
+G4_CASE = "04-g4-autocorrecao"
 NOTICE_NAMES = frozenset(
     ["wordcraft/" + Path(name).name for name in wordcraft_notices.UPSTREAM_FILES]
     + ["wordcraft/fonts/" + name for name in wordcraft_notices.UPSTREAM_FONTS]
@@ -44,6 +45,7 @@ class Config:
     manifest_sha256: str
     cluster_data: Path
     pg_bin: Path | None = None
+    g4_checkpoint: Path | None = None
     app_port: int = 8884
     rest_port: int = 55450
     gateway_port: int = 55451
@@ -146,11 +148,19 @@ def validate(config: Config) -> dict:
     # them again with the pinned engine before creating even a synthetic user.
     sys.path.insert(0, str(ROOT))
     from src.wordcraft_native import validar
-    for case in CASES:
-        payload = (config.corpus / case / "checkpoint.json").read_bytes()
+    checkpoints = {case: config.corpus / case / "checkpoint.json" for case in CASES}
+    if config.g4_checkpoint is not None:
+        candidate = config.g4_checkpoint.resolve(strict=True)
+        if (not candidate.is_file() or candidate.stat().st_size > 8 * 1024 * 1024
+                or candidate.is_relative_to(assets.resolve())):
+            raise ValueError("Explicit private G4 checkpoint required")
+        checkpoints[G4_CASE] = candidate
+    for case, checkpoint in checkpoints.items():
+        payload = checkpoint.read_bytes()
         validar(payload, node=config.node, bundle=assets, manifest_sha256=config.manifest_sha256)
     return {"module_url": urls[".js"], "wasm_url": urls[".wasm"], "public_files": sorted(public_files),
-            "host": "127.0.0.1", "port": address.port or 5432}
+            "host": "127.0.0.1", "port": address.port or 5432,
+            "checkpoints": {case: str(path) for case, path in checkpoints.items()}}
 
 
 def pinned_dsn(dsn: str) -> str:
@@ -238,7 +248,7 @@ def prepare(config: Config, plan: dict) -> dict:
             auth_id = connection.execute("insert into auth.users (email,raw_app_meta_data) values (%s,%s) returning id", (uuid4().hex + "@example.invalid", Jsonb(metadata))).fetchone()[0]
             user_id = connection.execute("insert into public.usuarios (nome,login,senha_hash,papel,tenant_id,secretaria_id,auth_user_id) values ('Operador sintético',%s,'NO_PASSWORD_LOGIN','usuario',%s,%s,%s) returning id", (uuid4().hex, tenant, secretary, auth_id)).fetchone()[0]
             processes = {}
-            for case in CASES:
+            for case in plan["checkpoints"]:
                 process = connection.execute("insert into public.processos (orgao,objeto,tenant_id,secretaria_id,auth_user_id,documentos) values ('Laboratório',%s,%s,%s,%s,%s) returning id", (case, tenant, secretary, auth_id, Jsonb({"dfd": "Original sintético preservado", "tr": "# Fonte legada sintética\n\nImportação Markdown com **acentuação** e original preservado.\n\n1. Material sintético autorizado para o ensaio."}))).fetchone()[0]
                 processes[case] = str(process)
         state = {"schema": "gc-wordcraft-lab/v1", "id": lab_id, "database": database,
@@ -312,6 +322,7 @@ def main() -> int:
     for name in ("lab", "corpus", "node", "postgrest", "cluster-data"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--pg-bin", type=Path)
+    parser.add_argument("--g4-checkpoint", type=Path)
     for name, default in (("app-port", 8884), ("rest-port", 55450), ("gateway-port", 55451)):
         parser.add_argument("--" + name, type=int, default=default)
     config = Config(**vars(parser.parse_args()))

@@ -135,6 +135,20 @@ def test_patch_control_is_server_owned_and_acknowledged_only_after_checkpoint(po
         ponte.solicitar_patch(command, plano=plan, target_hash=target)
 
 
+@pytest.mark.parametrize("reason", ["patch_refused", "target_mismatch"])
+def test_patch_failure_clears_control_without_fabricating_checkpoint_or_ack(ponte, reason):
+    abrir(ponte)
+    command = str(uuid4())
+    ponte.solicitar_patch(command, plano={"schema": "gc-wordcraft-native-patch/v1",
+        "operations": []}, target_hash="a" * 64)
+    receber(ponte, evento(ponte, "control_failed",
+                          dict(command_id=command, reason=reason)))
+    assert ponte.state == "ready"
+    assert ponte.controle_pendente() is None
+    assert ponte.falha_controle() == {"command_id": command, "reason": reason}
+    assert ponte.ack_persistido() is None
+
+
 def test_selection_is_bound_to_clean_revision_and_invalidated_by_edit(ponte):
     abrir(ponte)
     command = str(uuid4())

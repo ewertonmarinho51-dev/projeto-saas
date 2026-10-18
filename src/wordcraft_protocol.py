@@ -193,9 +193,13 @@ class Ponte:
                     raise ErroPonte("Liberação de canvas não solicitada.")
                 next_state = "saved"
             else:
-                if (command["action"] != "freeze" or self._frozen is not None
+                allowed = ({"dirty", "pending", "stale", "unavailable"}
+                           if command["action"] == "freeze" else
+                           {"patch_refused", "target_mismatch"}
+                           if command["action"] == "patch" else set())
+                if (not allowed or self._frozen is not None
                         or not isinstance(payload["reason"], str)
-                        or payload["reason"] not in {"dirty", "pending", "stale", "unavailable"}):
+                        or payload["reason"] not in allowed):
                     raise ErroPonte("Falha de controle inválida.")
                 next_state = self.state
         else:

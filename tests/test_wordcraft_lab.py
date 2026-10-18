@@ -76,11 +76,22 @@ def test_remote_or_ambiguous_dsn_rejected_before_engine_or_writes(configured, ds
 def test_validated_assets_and_corpus_are_passed_to_the_same_native_worker(configured):
     config, calls = configured
     result = lab.validate(config)
-    assert {k: v for k, v in result.items() if k != "public_files"} == {"module_url": "/app/static/wordcraft/engine.js", "wasm_url": "/app/static/wordcraft/engine.wasm", "host": "127.0.0.1", "port": 55439}
+    assert {k: v for k, v in result.items() if k not in {"public_files", "checkpoints"}} == {"module_url": "/app/static/wordcraft/engine.js", "wasm_url": "/app/static/wordcraft/engine.wasm", "host": "127.0.0.1", "port": 55439}
+    assert result["checkpoints"] == {case: str(config.corpus / case / "checkpoint.json") for case in lab.CASES}
     assert set(result["public_files"]) == {"engine.js", "engine.wasm", "qa-manifest.json", "notices/manifest.json", *("notices/" + name for name in lab.NOTICE_NAMES)}
     assert [content for content, _ in calls] == [case.encode() for case in lab.CASES]
     assert all(conf["bundle"] == config.lab / "static/wordcraft" and conf["manifest_sha256"] == config.manifest_sha256 for _, conf in calls)
     assert not (config.lab / "qa-state.json").exists()
+
+
+def test_private_g4_checkpoint_is_explicit_validated_and_never_public(configured, tmp_path):
+    config, calls = configured
+    checkpoint = tmp_path / "g4-private.checkpoint.json"
+    checkpoint.write_bytes(b"g4 synthetic checkpoint")
+    result = lab.validate(replace(config, g4_checkpoint=checkpoint))
+    assert result["checkpoints"][lab.G4_CASE] == str(checkpoint.resolve())
+    assert calls[-1][0] == checkpoint.read_bytes()
+    assert str(checkpoint.resolve()) not in result["public_files"]
 
 
 @pytest.mark.parametrize("change", ["marker", "asset", "manifest", "ports", "runtime", "cluster", "extra"])

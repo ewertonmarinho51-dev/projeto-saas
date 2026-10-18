@@ -180,7 +180,7 @@ def montar(dsn_admin: str = DSN_ADMIN_PADRAO, banco: str = BANCO_PADRAO,
             for arquivo in list(migracoes_do_schema()) + list(
                     sequencia_em_ensaio()):
                 try:
-                    cursor.execute(arquivo.read_text())
+                    cursor.execute(arquivo.read_text(encoding="utf-8"))
                 except Exception as erro:  # noqa: BLE001
                     raise EnsaioLocal(
                         f"{arquivo.name}: {type(erro).__name__}: {erro}"

@@ -59,6 +59,12 @@ fn sha256(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+/// Hash of the exact persisted checkpoint container. Browser sessions retain
+/// this binding across deserialization and change it only after backend ACK.
+pub fn checkpoint_sha256(bytes: &[u8]) -> String {
+    sha256(bytes)
+}
+
 fn inline_patch_text(text: &str) -> bool {
     !text.chars().any(|c| c.is_control() || matches!(c, '\u{2028}' | '\u{2029}' | '\u{FFFC}'))
 }
@@ -231,17 +237,27 @@ fn apply_native_patch(session: &mut Session, request: NativePatchRequest) -> Res
 
 /// The same typed command on an existing work session, preserving its undo history.
 /// This validates a source binding, never backend authorization or persistence.
-pub fn apply_session_patch(session: &mut Session, current_revision: u32, plan_json: &[u8]) -> Result<(), String> {
+pub fn apply_session_patch(
+    session: &mut Session,
+    current_revision: u32,
+    persisted_source_hash: &str,
+    plan_json: &[u8],
+) -> Result<(), String> {
     let mut apply = || -> Result<(), String> {
         if plan_json.is_empty() || plan_json.len() > MAX_PATCH_BYTES {
             return Err(patch_error());
         }
         let plan: NativePatchPlan = serde_json::from_slice(plan_json).map_err(|_| patch_error())?;
-        let observed_source_hash = sha256(&serialize(&session.doc)?);
-        if plan.source_hash != observed_source_hash {
+        if persisted_source_hash.len() != 64
+            || !persisted_source_hash.bytes().all(|value| value.is_ascii_hexdigit() && !value.is_ascii_uppercase())
+            || plan.source_hash != persisted_source_hash
+        {
             return Err(patch_error());
         }
-        apply_native_patch(session, NativePatchRequest { current_revision, observed_source_hash, plan })
+        apply_native_patch(
+            session,
+            NativePatchRequest { current_revision, observed_source_hash: persisted_source_hash.to_owned(), plan },
+        )
     };
     apply().map_err(|_| patch_error())
 }
@@ -756,7 +772,7 @@ mod tests {
         let prior_depth = session.undo_depth();
         assert!(prior_depth > 0);
         let plan = patch_plan(&original, vec![replace(StoryRef::Body, vec![0], 0, "Texto", "Trecho")]);
-        apply_session_patch(&mut session, 1, &serde_json::to_vec(&plan).unwrap()).unwrap();
+        apply_session_patch(&mut session, 1, &sha256(&original), &serde_json::to_vec(&plan).unwrap()).unwrap();
         let applied = serialize(&session.doc).unwrap();
         assert_eq!(session.undo_depth(), prior_depth + 1);
         assert_eq!(session.doc.para(StoryRef::Body, &Path::top(0)).unwrap().text, "Trecho manual preservado.");
@@ -765,6 +781,30 @@ mod tests {
         assert_eq!(session.undo_depth(), prior_depth);
         command(&mut session, UserEdit::Redo).unwrap();
         assert_eq!(serialize(&session.doc).unwrap(), applied);
+    }
+
+    #[test]
+    fn session_patch_binds_to_exact_noncanonical_persisted_bytes() {
+        let canonical = serialize(&Document::from_text("Texto original preservado.")).unwrap();
+        let value: Value = serde_json::from_slice(&canonical).unwrap();
+        let persisted = serde_json::to_vec_pretty(&value).unwrap();
+        assert_ne!(persisted, canonical);
+        let persisted_hash = sha256(&persisted);
+        let plan = patch_plan(&persisted, vec![replace(StoryRef::Body, vec![0], 0, "Texto", "Trecho")]);
+        let plan_json = serde_json::to_vec(&plan).unwrap();
+
+        let mut session = Session::new(load_bytes(&persisted).unwrap());
+        restrict_embedded_session(&mut session);
+        apply_session_patch(&mut session, 1, &persisted_hash, &plan_json).unwrap();
+        assert_eq!(session.doc.para(StoryRef::Body, &Path::top(0)).unwrap().text, "Trecho original preservado.");
+        assert_eq!(session.undo_depth(), 1);
+
+        let mut refused = Session::new(load_bytes(&persisted).unwrap());
+        restrict_embedded_session(&mut refused);
+        let before = serialize(&refused.doc).unwrap();
+        assert!(apply_session_patch(&mut refused, 1, &sha256(&canonical), &plan_json).is_err());
+        assert_eq!(serialize(&refused.doc).unwrap(), before);
+        assert_eq!(refused.undo_depth(), 0);
     }
 
     #[test]
@@ -779,7 +819,7 @@ mod tests {
         let dirty = session.dirty;
         let mut plan = patch_plan(&original, vec![replace(StoryRef::Body, vec![0], 0, "Texto", "Trecho")]);
         plan["source_revision"] = json!(2);
-        assert!(apply_session_patch(&mut session, 1, &serde_json::to_vec(&plan).unwrap()).is_err());
+        assert!(apply_session_patch(&mut session, 1, &sha256(&original), &serde_json::to_vec(&plan).unwrap()).is_err());
         assert_eq!(serialize(&session.doc).unwrap(), original);
         assert_eq!(session.undo_depth(), depth);
         assert_eq!(session.sel, selection);

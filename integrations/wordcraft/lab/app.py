@@ -68,7 +68,7 @@ def open_document(case, source_format):
     except AcessoNegado:
         operation = str(uuid5(NAMESPACE_URL, "wordcraft-qa-initial:" + process_id + ":" + source_format))
         if source_format == "checkpoint":
-            content = (Path(CONFIG["corpus"]) / case / "checkpoint.json").read_bytes()
+            content = Path(CONFIG["checkpoints"][case]).read_bytes()
             document = service.criar(processo_id=process_id, tipo=doc_type, payload=content, operation_id=operation)
         else:
             original = None
@@ -134,7 +134,11 @@ def receive():
         elif bridge.canvas_bloqueado() is not None:
             st.session_state.backend_message = "Canvas bloqueado e hash confirmado para análise; nenhum ato foi aprovado."
         elif bridge.falha_controle() is not None:
-            st.session_state.backend_message = "Bloqueio recusado; preserve o rascunho e aguarde a gravação antes de uma nova análise."
+            failure = bridge.falha_controle()
+            st.session_state.backend_message = (
+                "Patch G4 recusado pelo canvas sem alterar a revisão: " + failure["reason"] + "."
+                if failure["reason"] in {"patch_refused", "target_mismatch"} else
+                "Bloqueio recusado; preserve o rascunho e aguarde a gravação antes de uma nova análise.")
     except Exception as error:
         if checkpoint is not None:
             bridge.falhar_checkpoint(request_id=checkpoint.request_id, conflict=isinstance(error, ConflitoDocumento))

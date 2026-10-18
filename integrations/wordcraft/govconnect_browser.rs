@@ -79,6 +79,7 @@ pub struct GovConnectEditor {
     runner: eframe::WebRunner,
     context: Option<egui::Context>,
     pending: Option<Pending>,
+    persisted_hash: String,
     started: bool,
     interaction_lock: Rc<Cell<InteractionLock>>,
     input_ready: Rc<Cell<bool>>,
@@ -90,6 +91,7 @@ impl Default for GovConnectEditor {
             runner: eframe::WebRunner::new(),
             context: None,
             pending: None,
+            persisted_hash: String::new(),
             started: false,
             interaction_lock: Rc::new(Cell::new(InteractionLock::Open)),
             input_ready: Rc::new(Cell::new(false)),
@@ -170,6 +172,7 @@ impl GovConnectEditor {
             return Err(error("editor already started"));
         }
         let doc = adapter::load_bytes(&bytes).map_err(error)?;
+        let persisted_hash = adapter::checkpoint_sha256(&bytes);
         let mut options = eframe::WebOptions::default();
         if webgl && let eframe::egui_wgpu::WgpuSetup::CreateNew(create) = &mut options.wgpu_options.wgpu_setup {
             create.instance_descriptor.backends = eframe::wgpu::Backends::GL;
@@ -195,6 +198,7 @@ impl GovConnectEditor {
             )
             .await?;
         self.context = captured.borrow().clone();
+        self.persisted_hash = persisted_hash;
         self.started = true;
         Ok(())
     }
@@ -205,6 +209,7 @@ impl GovConnectEditor {
         if self.pending.is_some() {
             return Err(error("checkpoint pending; reconcile before reload"));
         }
+        let persisted_hash = adapter::checkpoint_sha256(&bytes);
         self.with_session(|session| {
             if session.dirty {
                 return Err("unsaved local edits; reconcile before reload".into());
@@ -212,7 +217,9 @@ impl GovConnectEditor {
             adapter::load_into(session, &bytes)?;
             adapter::restrict_embedded_session(session);
             Ok(())
-        })
+        })?;
+        self.persisted_hash = persisted_hash;
+        Ok(())
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>, JsValue> {
@@ -247,6 +254,7 @@ impl GovConnectEditor {
             session.dirty = adapter::serialize(&session.doc)? != saved;
             Ok(())
         })?;
+        self.persisted_hash = adapter::checkpoint_sha256(&saved);
         self.pending = None;
         Ok(())
     }
@@ -281,11 +289,12 @@ impl GovConnectEditor {
         if self.pending.is_some() {
             return Err(error("checkpoint pending; reconcile before patch"));
         }
+        let persisted_hash = self.persisted_hash.clone();
         self.with_session(|session| {
             if session.dirty {
                 return Err("unsaved local edits; reconcile before patch".into());
             }
-            adapter::apply_session_patch(session, current_revision, plan_json.as_bytes())
+            adapter::apply_session_patch(session, current_revision, &persisted_hash, plan_json.as_bytes())
         })
     }
 
