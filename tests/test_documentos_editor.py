@@ -253,6 +253,8 @@ def test_package_refuses_a_draft_before_export(setup, monkeypatch):
 def test_official_emission_binds_both_packages_and_accepts_only_exact_receipt(setup, monkeypatch):
     service, state, _ = setup
     process, operation = state["head"]["processo_id"], str(uuid4())
+    state["process"] = {"id": process, "dados": {}}
+    monkeypatch.setattr(owner.config, "exportaveis_do_processo", lambda dados, docs: ["dfd"])
     approval, snapshot = str(uuid4()), "b" * 64
     def package(fmt):
         payload = (fmt + " package").encode()
@@ -286,6 +288,8 @@ def test_official_emission_binds_both_packages_and_accepts_only_exact_receipt(se
 def test_official_emission_refuses_packages_from_different_sources(setup, monkeypatch):
     service, state, _ = setup
     process = state["head"]["processo_id"]
+    state["process"] = {"id": process, "dados": {}}
+    monkeypatch.setattr(owner.config, "exportaveis_do_processo", lambda dados, docs: ["dfd"])
     def package(fmt):
         payload = fmt.encode()
         manifest = {"documents": [{"tipo": "dfd", "document_id": state["head"]["id"],
@@ -299,6 +303,34 @@ def test_official_emission_refuses_packages_from_different_sources(setup, monkey
     monkeypatch.setattr(owner.db, "_cliente", lambda: pytest.fail("RPC must not run"))
     with pytest.raises(owner.ConflitoDocumento, match="mesma revisão"):
         service.emitir_aprovados(process, tipos=("dfd",), operation_id=str(uuid4()))
+
+
+@pytest.mark.parametrize("dados,tipos,allowed", [
+    ({"modelo_execucao": "Sistema de Registro de Preços (SRP)"},
+     ("dfd", "etp", "mapa_riscos", "tr", "edital", "arp"), True),
+    ({"modelo_execucao": "Entrega integral"},
+     ("dfd", "etp", "mapa_riscos", "tr", "edital"), True),
+    ({"modelo_execucao": "Entrega integral"},
+     ("dfd", "etp", "mapa_riscos", "tr", "edital", "arp"), False),
+    ({"modelo_execucao": "Sistema de Registro de Preços (SRP)"},
+     ("dfd", "etp", "mapa_riscos", "tr", "edital"), False),
+])
+def test_official_emission_derives_arp_from_server_process_form(setup, monkeypatch,
+                                                               dados, tipos, allowed):
+    service, state, _ = setup
+    process = state["head"]["processo_id"]
+    state["process"] = {"id": process, "dados": dados}
+    class PackagingReached(RuntimeError):
+        pass
+    monkeypatch.setattr(service, "empacotar_aprovados", lambda *a, **k:
+        (_ for _ in ()).throw(PackagingReached()))
+    if allowed:
+        # Reaching packaging proves the owner accepted the canonical set.
+        with pytest.raises(PackagingReached):
+            service.emitir_aprovados(process, tipos=tipos, operation_id=str(uuid4()))
+    else:
+        with pytest.raises(owner.ErroDocumento, match="instrumentos do processo"):
+            service.emitir_aprovados(process, tipos=tipos, operation_id=str(uuid4()))
 
 
 def test_persisted_emission_reopens_exact_bytes_without_export(setup, monkeypatch):

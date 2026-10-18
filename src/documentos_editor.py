@@ -17,7 +17,7 @@ from uuid import NAMESPACE_URL, uuid5
 from weakref import WeakValueDictionary
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
-from . import db
+from . import config, db
 from . import wordcraft_blocos as blocos
 from .wordcraft_native import validar, exportar, importar_docx
 from .wordcraft_protocol import Checkpoint, MAX_BYTES, _uuid, _hash
@@ -1988,6 +1988,15 @@ class DocumentoService:
         """Persiste os dois pacotes e cruza o limite oficial em uma RPC CAS."""
         _uuid(processo_id)
         _uuid(operation_id)
+        user, claims = self._session()
+        process = _one(_execute(user.table("processos").select("id,dados")
+            .eq("id", processo_id).limit(1)))
+        if not isinstance(process.get("dados"), dict):
+            raise ErroDocumento("Formulário do processo indisponível para emissão.")
+        expected_types = tuple(config.exportaveis_do_processo(
+            process["dados"], config.DOCUMENTOS))
+        if tipos != expected_types:
+            raise ErroDocumento("O conjunto pedido não corresponde aos instrumentos do processo.")
         docx = self.empacotar_aprovados(processo_id, tipos=tipos, formato="docx")
         pdf = self.empacotar_aprovados(processo_id, tipos=tipos, formato="pdf")
         docx_entries = {entry["tipo"]: entry for entry in docx.manifest["documents"]}
@@ -2012,7 +2021,6 @@ class DocumentoService:
             "documents": documents,
             "packages": {"docx": {"sha256": docx.content_hash, "bytes": len(docx.payload)},
                          "pdf": {"sha256": pdf.content_hash, "bytes": len(pdf.payload)}}}
-        _, claims = self._session()
         response = _execute(db._cliente().rpc("documento_editor_emitir", {
             "p_process": processo_id, "p_operation": operation_id,
             "p_engine_manifest_sha256": self._native["manifest_sha256"],
