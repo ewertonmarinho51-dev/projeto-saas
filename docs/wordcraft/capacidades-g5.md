@@ -227,13 +227,18 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   plano G4, o diff prova os demais documentos intactos, o checkpoint exato é
   confirmado e a trilha mantém os outros itens pendentes. Evidência detalhada:
   `c09-aceite-owner.md`.
+- o cenário C11 em PostgreSQL real local aprova a revisão sintética original e
+  comprova que checkpoints contra heads `aprovado` e `emitido` são recusados
+  sem criar revisão, alterar bytes/hash ou deslocar o vínculo da aprovação.
+  Evidência detalhada: `c11-aceite-imutabilidade.md`.
 
 ## Pendências para fechar G5
 
 1. ampliar a prova no navegador WASM real já existente para cobrir geração
    pelo GovBot, confirmação backend, Undo posterior e stale end-to-end;
-2. completar as trilhas A–D do corpus; C09 possui PASS local do owner, mas ainda
-   exige navegador/WASM, SQL real e sessão JWT para aceite end-to-end;
+2. completar as trilhas A–D do corpus; C09 possui PASS local do owner e C11
+   possui PASS SQL local, mas ambos ainda exigem os transportes e a UI previstos
+   em seus relatórios para aceite end-to-end;
 3. consumir catálogo institucional, RAG vigente e montagem oficial pelos
    owners existentes em ensaio end-to-end;
 4. provar isolamento entre tenants e o fluxo completo em sessão JWT real.

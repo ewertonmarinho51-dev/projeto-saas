@@ -87,6 +87,45 @@ def test_atomic_act_freezes_history_and_retry_without_reinterpreting_registry(ap
         commit(approval_db, scenario, expected=1, operation=uuid4())
 
 
+def test_c11_approved_and_emitted_head_never_rewrites_historical_revision(approval_db):
+    """C11: approval/emission close the head while preserving its exact bytes."""
+    import psycopg
+    scenario = seed_scenario(approval_db)
+    competence(approval_db, scenario, "revisor_juridico")
+    original = b"C11-LEGACY-ORIGINAL Texto protegido de teste."
+    revised = b"C11-REVISION-NEW Nova revisao separada de teste."
+    commit(approval_db, scenario, payload=original)
+    data = inputs(approval_db, scenario)
+    approved = approve(approval_db, scenario, data)
+
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        commit(approval_db, scenario, expected=1, operation=uuid4(), payload=revised)
+    with approval_db.cursor() as cursor:
+        cursor.execute("select revision,payload,content_hash from public.documentos_editor_revisoes "
+                       "where document_id=%s order by revision", (scenario["doc"],))
+        rows = cursor.fetchall()
+        assert [(row[0], bytes(row[1])) for row in rows] == [(1, original)]
+        assert rows[0][2] == hashlib.sha256(original).hexdigest()
+        cursor.execute("select status,revision,content_hash from public.documentos_editor where id=%s",
+                       (scenario["doc"],))
+        assert cursor.fetchone() == ("aprovado", 1, hashlib.sha256(original).hexdigest())
+        cursor.execute("update public.documentos_editor set status='emitido' where id=%s",
+                       (scenario["doc"],))
+
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        commit(approval_db, scenario, expected=1, operation=uuid4(), payload=revised)
+    with approval_db.cursor() as cursor:
+        cursor.execute("select revision,payload from public.documentos_editor_revisoes "
+                       "where document_id=%s order by revision", (scenario["doc"],))
+        assert [(row[0], bytes(row[1])) for row in cursor.fetchall()] == [(1, original)]
+        cursor.execute("select status,revision from public.documentos_editor where id=%s",
+                       (scenario["doc"],))
+        assert cursor.fetchone() == ("emitido", 1)
+        cursor.execute("select native_revision,native_content_hash from public.governanca_aprovacoes "
+                       "where id=%s", (approved[0],))
+        assert cursor.fetchone() == (1, hashlib.sha256(original).hexdigest())
+
+
 @pytest.mark.parametrize("changed", ["revision", "sources", "quality", "snapshot", "build"])
 def test_stale_or_misbound_act_rolls_back_everything(approval_db, scenario, changed):
     import psycopg
