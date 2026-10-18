@@ -91,7 +91,7 @@ permanece aberta.
 | G3 Fidelidade | PARCIAL | 16 DOCX passam no roundtrip nativo; LO baseline16/70 páginas; derivado6/16 casos,44/50 PNGs iguais e6 diferenças em tabelas; prova Linux pendente após duas falhas limitadas Windows |
 | G4 Patches | PARCIAL | motor real preservou79 IDs/27 blocos protegidos,8 negativos recusados;188 SQL passaram; host e laboratório correlacionam operação, canvas, transação atômica e ACK; cenário privado positivo confirmou auditoria/preparo e recusa limpa do bundle antigo; fonte corrige vínculo aos bytes persistidos, porém build WASM e prova positiva completa/Undo, multi-canvas e GovBot permanecem pendentes |
 | G5 Seis capacidades | PARCIAL | compilador/painel/host, consumidor source-aware e pacote auditável ligados sob flag OFF; admissão recusa bundle QA; falta artefato operacional homologado e corpus A-D completo |
-| G6 Paridade e retirada | PENDENTE | nenhuma funcionalidade legada retirada; substituição só após comprovação |
+| G6 Paridade e retirada | PENDENTE | nenhuma funcionalidade legada retirada; a transição agora falha fechada antes de runtime/importação quando existe rascunho legado divergente e o preserva na sessão; substituição e retirada continuam condicionadas à comprovação integral |
 | G7 Homologação | PARCIAL | CAS/RLS/imutabilidade SQL e HTTP sintéticos; GoTrue Linux implementado,primeiro run falhou preflight; Auth real,emissão e orçamento de performance pendentes |
 
 CI: f23a6c5 teve build WASM e produto aprovados. O commit publicado 428acb6
@@ -118,6 +118,12 @@ Logout e mudança de usuário, tenant ou secretaria revogam owner, bridges,
 checkpoints, preparações, widgets, pacotes e eventos do componente antes de uma
 nova montagem. Renovação de token para a mesma identidade conserva o estado.
 Essa defesa local não substitui a prova RLS com JWT real de G7.
+
+Ao ligar a superfície WordCraft durante uma sessão, um rascunho divergente no
+bucket ou widget do editor legado bloqueia a nova montagem antes de carregar o
+runtime, criar owner ou importar documento. O texto permanece na sessão e o
+operador deve salvar ou descartar no fluxo legado. Isso evita ocultação e
+importação prematura; ainda não comprova paridade nem autoriza retirar o legado.
 
 Todos os recursos da matriz03 permanecem LEGADO MANTIDO PARA COMPATIBILIDADE.
 TipTap, exportador e consumidores antigos não foram retirados. Não há flag

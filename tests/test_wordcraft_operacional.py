@@ -84,6 +84,46 @@ def test_runtime_invalido_falha_fechado_sem_montar_editor(monkeypatch):
     assert "não é exibido junto" in messages[1][1]
 
 
+def test_rascunho_legado_pendente_compara_editor_e_bucket_com_documento_canonico(monkeypatch):
+    session = Session(documentos={"tr": "Texto salvo", "etp": "ETP salvo"})
+    monkeypatch.setattr(ui.st, "session_state", session)
+    assert ui._rascunho_legado_pendente("tr") is False
+
+    session["edicoes_pendentes"] = {"etp": "Outro documento", "tr": "Texto salvo"}
+    session["editor_tr"] = "Texto salvo"
+    assert ui._rascunho_legado_pendente("tr") is False
+
+    session["edicoes_pendentes"]["tr"] = "Texto ainda não salvo"
+    assert ui._rascunho_legado_pendente("tr") is True
+
+    session["edicoes_pendentes"].pop("tr")
+    session["editor_tr"] = ""
+    assert ui._rascunho_legado_pendente("tr") is True
+
+
+def test_rascunho_legado_impede_runtime_importacao_e_canvas(monkeypatch):
+    session = Session(documentos={"tr": "Texto salvo"},
+                      edicoes_pendentes={"tr": "Texto local"},
+                      editor_tr="Texto local")
+    messages = []
+    monkeypatch.setattr(ui.st, "session_state", session)
+    monkeypatch.setattr(ui.st, "error", lambda value: messages.append(("error", value)))
+    monkeypatch.setattr(ui.st, "info", lambda value: messages.append(("info", value)))
+    monkeypatch.setattr(ui, "carregar", lambda: (_ for _ in ()).throw(
+        AssertionError("runtime não pode ser carregado")))
+    monkeypatch.setattr(ui, "_abrir", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("documento não pode ser aberto ou importado")))
+    monkeypatch.setattr(ui, "render_editor", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("canvas não pode montar")))
+
+    ui.render("tr", {"etapa": 3, "sigla": "TR"})
+
+    assert session["edicoes_pendentes"]["tr"] == "Texto local"
+    assert session["editor_tr"] == "Texto local"
+    assert "edição não salva" in messages[0][1]
+    assert "nenhum documento nativo" in messages[1][1]
+
+
 def test_sincronizacao_reidrata_so_aprovacao_nativa_com_projecao(monkeypatch):
     approved = SimpleNamespace(id="doc-a", tipo="dfd", status="aprovado",
                                approval=SimpleNamespace(id="approval-a"))

@@ -32,6 +32,18 @@ def _chave(doc_key: str, sufixo: str) -> str:
     return f"_wordcraft_{doc_key}_{sufixo}"
 
 
+def _rascunho_legado_pendente(doc_key: str) -> bool:
+    """Detecta texto local que ainda não foi incorporado ao documento canônico."""
+    documents = st.session_state.get("documentos")
+    canonical = documents.get(doc_key) if isinstance(documents, Mapping) else None
+    pending = st.session_state.get("edicoes_pendentes")
+    candidates = []
+    if isinstance(pending, Mapping):
+        candidates.append(pending.get(doc_key))
+    candidates.append(st.session_state.get(f"editor_{doc_key}"))
+    return any(isinstance(value, str) and value != canonical for value in candidates)
+
+
 def _owner(runtime: Runtime) -> DocumentoService:
     wordcraft_session.bind(st.session_state)
     config = (str(runtime.node), str(runtime.bundle), runtime.manifest_sha256)
@@ -235,6 +247,16 @@ def _receber(doc_key: str, service: DocumentoService) -> None:
 
 def render(doc_key: str, meta: dict) -> None:
     """Renderiza exclusivamente WordCraft; nunca monta o editor antigo junto."""
+    if _rascunho_legado_pendente(doc_key):
+        st.error(
+            "Existe uma edição não salva no editor legado. Desative temporariamente "
+            "a flag WordCraft e salve ou descarte esse rascunho antes da migração."
+        )
+        st.info(
+            "O rascunho continua preservado nesta sessão; nenhum documento nativo "
+            "foi aberto ou importado."
+        )
+        return
     try:
         runtime = carregar()
         service = _owner(runtime)
