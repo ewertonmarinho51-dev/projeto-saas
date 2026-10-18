@@ -86,6 +86,8 @@ class ReferenciaView:
     identificacao: str = ""
     dados_url: str | None = None
     fonte_url: str | None = None
+    # quem comprou, como o portal identifica (auditoria de 18/10, C-7)
+    unidade_compradora: str = ""
     # dados da contratação, só quando a fonte os entrega (nunca inventados)
     objeto_contratacao: str = ""
     modalidade: str = ""
@@ -348,6 +350,9 @@ def autoria_da_saida(linha: dict) -> str:
         return ""
     if saneamento.desconsiderada_pelo_jev(linha):
         return "desconsiderada pela triagem automática"
+    if any("[barreira por atributo]" in m for m in motivos):
+        # auditoria de 18/10 (C-1): decisão do sistema, não do servidor
+        return "fora da série: produto diferente do item"
     if any(m == cotacoes.MOTIVO_RETIRADA_AUTOMATICO for m in motivos):
         return "retirada da cesta pelo servidor"
     if any("critério" in m and "discrepante" in m for m in motivos):
@@ -406,6 +411,7 @@ def _referencia(linha: dict, considerada: bool) -> ReferenciaView:
         contratacao_url=resolvidos.contratacao_url,
         contratacao_rotulo=resolvidos.contratacao_rotulo,
         identificacao=resolvidos.identificacao,
+        unidade_compradora=resolvidos.unidade_compradora,
         dados_url=resolvidos.dados_url,
         fonte_url=resolvidos.fonte_url,
         objeto_contratacao=objeto[:300],

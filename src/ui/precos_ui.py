@@ -2597,6 +2597,31 @@ def _registrar_emissao(pesquisa: dict, itens: list[dict], referencias: dict,
         dados, registrado is not None)
 
 
+def _conferir_cestas(pesquisa: dict, itens: list[dict],
+                     referencias: dict) -> None:
+    """
+    Cesta acima do teto não vai para documento (auditoria de 18/10, C-4).
+    Todo caminho de emissão passa por `_conteudo_do_relatorio`, que chama
+    aqui; a mensagem diz quais itens e o que fazer.
+    """
+    from ..precos import cesta as cesta_mod
+    from ..precos import cotacoes
+    from ..precos.documento_cotacao import ErroDeRenderizacao
+
+    politica = cotacoes.politica_automatica()
+    pesquisa_id = str(pesquisa.get("id") or "")
+    acima = cesta_mod.itens_acima_do_teto(
+        itens, referencias, politica.teto if politica is not None else None,
+        decididas_por_humano=lambda item_id: repo.referencias_decididas_por_humano(
+            pesquisa_id, item_id))
+    if acima:
+        raise ErroDeRenderizacao(
+            "O relatório não pode ser gerado: a cesta destes itens foi "
+            "formada antes do limite de preços e da triagem — "
+            + "; ".join(acima)
+            + ". Refaça a cotação automática desses itens e gere de novo.")
+
+
 def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
                            referencias: dict, *, formato: str,
                            tipo: str, ciencia_doc=_VERIFICAR
@@ -2611,6 +2636,7 @@ def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
     """
     from .. import export
 
+    _conferir_cestas(pesquisa, itens, referencias)
     if ciencia_doc is _VERIFICAR:
         # a conferência do SERVIDOR: botão, pacote ou outra aba, todos
         # passam aqui (pacote Jev, RF-03 — sem bypass da ciência)
