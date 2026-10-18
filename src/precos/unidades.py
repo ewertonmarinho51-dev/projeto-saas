@@ -120,6 +120,57 @@ MOTIVO_ITEM_SEM_UNIDADE = (
     "comparado até o item ter unidade válida")
 
 
+# Segunda auditoria de 18/10/2026 (N-06): 43 referências da cesta de
+# Material de Expediente com fator ≥ 10× ou ≤ 0,1× — papel A4 "EMB" com
+# capacidade 1 lido como uma folha, normalizado a R$ 14.029,00 o pacote.
+# O fator pode até estar certo (caixa com 50 canetas), mas um preço
+# multiplicado ou dividido por dez ou mais não entra na cesta sem uma
+# pessoa conferir a capacidade na fonte.
+FATOR_EXTREMO_ACIMA = Decimal("10")
+FATOR_EXTREMO_ABAIXO = Decimal("0.1")
+MOTIVO_FATOR_EXTREMO = (
+    "[conversão extrema] {frase} — fator ≥ 10× ou ≤ 0,1× não entra na "
+    "cesta automática; confira a capacidade da embalagem na fonte antes de "
+    "incluir")
+
+
+def fator_extremo(original, normalizado) -> Decimal | None:
+    """
+    O fator aplicado (`original ÷ normalizado`) quando ele é extremo
+    (≥ 10× ou ≤ 0,1×); `None` quando não é, ou quando não há os dois
+    preços para calcular.
+    """
+    try:
+        original = Decimal(str(original))
+        normalizado = Decimal(str(normalizado))
+    except (ArithmeticError, ValueError, TypeError):
+        return None
+    if not (original.is_finite() and normalizado.is_finite()) or \
+            original <= 0 or normalizado <= 0:
+        return None
+    fator = original / normalizado
+    if fator >= FATOR_EXTREMO_ACIMA or fator <= FATOR_EXTREMO_ABAIXO:
+        return fator
+    return None
+
+
+def frase_do_fator_extremo(fator: Decimal, original, normalizado) -> str:
+    """A conta do fator, em português, para o motivo e o alerta."""
+    def br(valor) -> str:
+        texto = f"{Decimal(str(valor)):,.2f}"
+        return texto.replace(",", "_").replace(".", ",").replace("_", ".")
+
+    curto = fator.quantize(Decimal("0.000001")).normalize()
+    return (f"preço convertido pelo fator {format(curto, 'f').replace('.', ',')}"
+            f" (R$ {br(original)} na unidade da fonte → R$ {br(normalizado)} "
+            "na unidade do item)")
+
+
+def motivo_do_fator_extremo(fator: Decimal, original, normalizado) -> str:
+    return MOTIVO_FATOR_EXTREMO.format(
+        frase=frase_do_fator_extremo(fator, original, normalizado))
+
+
 def unidade_valida(unidade: str | None) -> bool:
     """O item pode formar cesta com esta unidade? (dicionário canônico)"""
     return canonizar(unidade) is not None

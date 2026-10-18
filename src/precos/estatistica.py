@@ -343,7 +343,8 @@ class Cesta:
     # Retidas pela triagem pré-cesta (`saneamento`): desconsideradas ou em
     # revisão, com o motivo técnico. Ficam GRAVADAS para revisão e
     # reinclusão — nunca somem. `triagem` é o resultado completo, com as
-    # métricas, para a trilha. Vazias sem a política de saneamento.
+    # métricas, para a trilha. Sem a política de saneamento, só as de
+    # fator de conversão extremo (N-06), que valem sempre.
     retidas: list[Referencia] = field(default_factory=list)
     triagem: object | None = None
     # Revisão 02: suspeitas que ficam NA cesta, sinalizadas (chave →
@@ -439,6 +440,10 @@ def selecionar_cesta(
     prioridade = {tipo: i for i, tipo
                   in enumerate(perfil.prioridade_de_fontes)}
 
+    # Segunda auditoria de 18/10/2026 (N-06): fator de conversão extremo
+    # sai ANTES de tudo, com ou sem triagem — um preço multiplicado por
+    # 500 também desloca a mediana com que a triagem julga os outros.
+    ranqueadas = _barreira_de_conversao(ranqueadas, cesta)
     if saneamento is not None:
         # Auditoria de 18/10/2026 (C-1): o atributo que define o produto
         # (formato, numeração, tipo, finalidade) é confrontado com o item
@@ -512,6 +517,30 @@ def selecionar_cesta(
         cesta.motivos.append(
             "nenhuma referência atingiu a comparabilidade mínima")
     return cesta
+
+
+def _barreira_de_conversao(ranqueadas, cesta: Cesta):
+    """
+    Fator de conversão ≥ 10× ou ≤ 0,1× (`unidades.fator_extremo`) não
+    entra na cesta automática: vai para revisão manual, GRAVADA em
+    `retidas` com o fator e os dois preços no motivo. Quem confere a
+    capacidade na fonte pode reincluir.
+    """
+    from . import unidades
+
+    seguem = []
+    for referencia, comparabilidade in ranqueadas:
+        fator = unidades.fator_extremo(referencia.valor_unitario_original,
+                                       referencia.valor_unitario_normalizado)
+        if fator is None:
+            seguem.append((referencia, comparabilidade))
+            continue
+        referencia.status = StatusReferencia.REVISAO_MANUAL
+        referencia.com_motivo(unidades.motivo_do_fator_extremo(
+            fator, referencia.valor_unitario_original,
+            referencia.valor_unitario_normalizado))
+        cesta.retidas.append(referencia)
+    return seguem
 
 
 def _barreira_de_atributos(ranqueadas, cesta: Cesta, texto_item: str):
