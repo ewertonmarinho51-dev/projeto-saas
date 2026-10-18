@@ -23,7 +23,11 @@ def institutional(setup, monkeypatch):
         "dados": {"signatarios_escolhidos": {"dfd": [{"servidor_id": person, "funcao": "EQUIPE_PLANEJAMENTO"}]}}}
     state["catalogs"] = {
         "secretarias": [{"id": secretary, "tenant_id": tenant, "nome": "Secretaria Sintética", "ativo": True,
-            "cabecalho": "CABEÇALHO AUTORIZADO", "rodape": "RODAPÉ AUTORIZADO", "padrao": False}],
+            "cabecalho": "CABEÇALHO AUTORIZADO", "rodape": "RODAPÉ AUTORIZADO",
+            "cabecalho_img": "data:image/png;base64,LOGO-ORIGINAL",
+            "rodape_img": "data:image/png;base64,RODAPE-ORIGINAL",
+            "marca_img": "data:image/png;base64,MARCA-ORIGINAL",
+            "cabecalho_pct": 14, "rodape_pct": 10, "padrao": False}],
         "servidores": [{"id": person, "tenant_id": tenant, "nome": "Ana Sintética", "cargo": "Analista", "ativo": True}],
         "servidor_funcoes": [],
         "portarias": [{"id": portaria, "tenant_id": tenant, "secretaria_id": secretary, "tipo": "EQUIPE_PLANEJAMENTO",
@@ -93,18 +97,28 @@ def test_later_registry_changes_do_not_reinterpret_open_export_or_next_checkpoin
     service, state, checkpoint = institutional
     document = create(institutional)
     digest = document.institutional_snapshot_hash
+    frozen = owner._snapshot_bytes(document.institutional_snapshot)
     reads = len(state["catalog_reads"])
-    state["catalogs"]["secretarias"][0]["cabecalho"] = "OUTRA IDENTIDADE"
+    state["catalogs"]["secretarias"][0].update(
+        cabecalho="OUTRA IDENTIDADE", rodape="OUTRO RODAPÉ",
+        cabecalho_img="data:image/png;base64,LOGO-NOVA",
+        rodape_img="data:image/png;base64,RODAPE-NOVO",
+        marca_img="data:image/png;base64,MARCA-NOVA",
+        cabecalho_pct=25, rodape_pct=20)
     state["catalogs"]["servidores"][0].update(nome="Outra Pessoa", cargo="Outro", ativo=False)
     state["catalogs"]["portarias"][0].update(numero="999", status="REVOGADA")
     reopened = service.abrir(document.id)
     assert reopened.institutional_snapshot_hash == digest
+    assert owner._snapshot_bytes(reopened.institutional_snapshot) == frozen
+    assert reopened.institutional_snapshot["identity"]["identidade"]["cabecalho_img"].endswith("LOGO-ORIGINAL")
     assert reopened.institutional_snapshot["signatories"][0]["nome_snapshot"] == "Ana Sintética"
     monkeypatch.setattr(owner, "exportar", lambda *args, **kwargs: b"%PDF-synthetic")
     artifact = service.exportar(document.id, expected_revision=1, content_hash=document.content_hash, formato="pdf")
     assert artifact.institutional_snapshot_hash == digest
     receipt = service.checkpoint(document.id, checkpoint)
     assert receipt.institutional_snapshot_hash == digest and receipt.revision == 2
+    after_checkpoint = service.abrir(document.id)
+    assert owner._snapshot_bytes(after_checkpoint.institutional_snapshot) == frozen
     assert len(state["catalog_reads"]) == reads
 
 

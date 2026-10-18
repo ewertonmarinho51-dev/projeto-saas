@@ -79,12 +79,12 @@ def test_entrar_deriva_tenant_do_vinculo(monkeypatch):
 
 
 def test_entrar_sem_tenant_nao_polui_sessao(monkeypatch):
-    """Usuário anterior às migrações (sem tenant_id): sessão fica no padrão."""
+    """Usuário sem tenant limpa explicitamente qualquer contexto municipal."""
     falso_st = types.SimpleNamespace(session_state=types.SimpleNamespace())
     monkeypatch.setattr(auth, "st", falso_st)
     auth.entrar({"id": "u1", "nome": "Fulano"})
     assert falso_st.session_state.usuario["id"] == "u1"
-    assert not hasattr(falso_st.session_state, "tenant_id")
+    assert falso_st.session_state.tenant_id is None
 
 
 # ---------------------------------------------------------------------------
