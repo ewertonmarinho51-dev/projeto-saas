@@ -32,7 +32,7 @@ def test_importacao_legada_e_idempotente_e_derivada_do_processo():
 
 
 def test_owner_e_estavel_e_recusa_troca_de_build(monkeypatch):
-    session = Session()
+    session = Session(usuario={"id": "u1", "tenant_id": "t1"}, tenant_id="t1")
     monkeypatch.setattr(ui.st, "session_state", session)
     created = []
     monkeypatch.setattr(ui, "DocumentoService", lambda **kw: created.append(kw) or object())
@@ -48,6 +48,26 @@ def test_owner_e_estavel_e_recusa_troca_de_build(monkeypatch):
         assert type(error).__name__ == "ErroRuntime"
     else:
         raise AssertionError("troca de build deveria ser recusada")
+
+
+def test_owner_revoga_estado_ao_trocar_identidade_diretamente(monkeypatch):
+    session = Session(usuario={"id": "u1", "tenant_id": "t1"}, tenant_id="t1")
+    monkeypatch.setattr(ui.st, "session_state", session)
+    created = []
+    monkeypatch.setattr(ui, "DocumentoService", lambda **kw: created.append(kw) or object())
+    runtime = SimpleNamespace(node=Path("C:/node.exe"), bundle=Path("C:/static/wordcraft"),
+                              manifest_sha256="a" * 64)
+    first = ui._owner(runtime)
+    session[ui._chave("tr", "document")] = b"private checkpoint"
+    session["wordcraft_11111111-1111-1111-1111-111111111111"] = {"edit": "private"}
+
+    session["usuario"] = {"id": "u2", "tenant_id": "t2"}
+    session["tenant_id"] = "t2"
+    second = ui._owner(runtime)
+
+    assert second is not first and len(created) == 2
+    assert ui._chave("tr", "document") not in session
+    assert "wordcraft_11111111-1111-1111-1111-111111111111" not in session
 
 
 def test_runtime_invalido_falha_fechado_sem_montar_editor(monkeypatch):

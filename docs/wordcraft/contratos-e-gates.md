@@ -113,6 +113,12 @@ a única confirmação de persistência continua sendo o ACK do backend. Provas
 históricas e limitações estão em g1-evidencias.md, persistencia-g2.md,
 ato-unico-aprovacao.md, patches-persistencia.md e libreoffice-local.md.
 
+Estado documental mantido pelo Streamlit é ligado à identidade autenticada.
+Logout e mudança de usuário, tenant ou secretaria revogam owner, bridges,
+checkpoints, preparações, widgets, pacotes e eventos do componente antes de uma
+nova montagem. Renovação de token para a mesma identidade conserva o estado.
+Essa defesa local não substitui a prova RLS com JWT real de G7.
+
 Todos os recursos da matriz03 permanecem LEGADO MANTIDO PARA COMPATIBILIDADE.
 TipTap, exportador e consumidores antigos não foram retirados. Não há flag
 operacional WordCraft ativa, merge, migration remota ou deploy autorizado.

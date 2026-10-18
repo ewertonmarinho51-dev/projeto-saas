@@ -368,10 +368,22 @@ def entrar(usuario: dict) -> None:
     carregar credencial, porque esse dicionário é lido pela interface
     inteira.
     """
+    from . import wordcraft_session
+
     token = usuario.pop("_token", "")
+    previous_identity = wordcraft_session.identity(st.session_state)
+    next_identity = (
+        usuario.get("id"), usuario.get("auth_user_id"), usuario.get("login"),
+        usuario.get("tenant_id"), usuario.get("secretaria_id"),
+        usuario.get("tenant_id"),
+    )
+    if previous_identity != tuple(
+            item if isinstance(item, str) else None for item in next_identity):
+        wordcraft_session.clear(st.session_state)
     st.session_state.usuario = usuario
-    if usuario.get("tenant_id"):
-        st.session_state.tenant_id = usuario["tenant_id"]
+    # Inclusive assignment matters for platform identities without a tenant:
+    # they must not inherit the previous user's municipal context.
+    st.session_state.tenant_id = usuario.get("tenant_id")
     if token:
         st.session_state[db.CHAVE_DA_SESSAO] = token
     elif usuario.get("auth_user_id"):
@@ -469,6 +481,9 @@ def somente_auditoria() -> bool:
 
 
 def sair() -> None:
+    from . import wordcraft_session
+
+    wordcraft_session.clear(st.session_state)
     st.session_state.usuario = None
     st.session_state.tenant_id = None
     # o token sai PRIMEIRO e sempre: uma sessão encerrada que deixasse

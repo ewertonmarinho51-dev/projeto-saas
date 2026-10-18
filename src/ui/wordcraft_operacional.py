@@ -19,6 +19,7 @@ from ..documentos_editor import (AcessoNegado, ConflitoDocumento,
                                  VinculoAprovacao)
 from ..wordcraft_protocol import Ponte
 from ..wordcraft_runtime import ErroRuntime, Runtime, carregar
+from .. import wordcraft_session
 from ..wordcraft_capacidades import (Capacidade, CorrecaoContextual,
                                      ErroCapacidade, propositor,
                                      propositor_govbot_selecao,
@@ -32,6 +33,7 @@ def _chave(doc_key: str, sufixo: str) -> str:
 
 
 def _owner(runtime: Runtime) -> DocumentoService:
+    wordcraft_session.bind(st.session_state)
     config = (str(runtime.node), str(runtime.bundle), runtime.manifest_sha256)
     current = st.session_state.get("_wordcraft_owner")
     if current is None:
