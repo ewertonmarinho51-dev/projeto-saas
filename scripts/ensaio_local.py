@@ -144,6 +144,7 @@ SEQUENCIA_EM_ENSAIO = (
     "20261016041756_documentos_editor_patch_lote.sql",
     "20261016231514_documentos_editor_emissao_nativa.sql",
     "20261017204526_documento_editor_aplicacao_template_nativa.sql",
+    "20261018120000_documento_editor_emissao_arp_condicional.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

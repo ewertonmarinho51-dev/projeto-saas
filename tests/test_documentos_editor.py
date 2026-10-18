@@ -254,7 +254,8 @@ def test_official_emission_binds_both_packages_and_accepts_only_exact_receipt(se
     service, state, _ = setup
     process, operation = state["head"]["processo_id"], str(uuid4())
     state["process"] = {"id": process, "dados": {}}
-    monkeypatch.setattr(owner.config, "exportaveis_do_processo", lambda dados, docs: ["dfd"])
+    monkeypatch.setattr(service, "listar_processo", lambda value: ())
+    monkeypatch.setattr(owner.config, "sequencia_do_processo", lambda dados, docs: ["dfd"])
     approval, snapshot = str(uuid4()), "b" * 64
     def package(fmt):
         payload = (fmt + " package").encode()
@@ -289,7 +290,8 @@ def test_official_emission_refuses_packages_from_different_sources(setup, monkey
     service, state, _ = setup
     process = state["head"]["processo_id"]
     state["process"] = {"id": process, "dados": {}}
-    monkeypatch.setattr(owner.config, "exportaveis_do_processo", lambda dados, docs: ["dfd"])
+    monkeypatch.setattr(service, "listar_processo", lambda value: ())
+    monkeypatch.setattr(owner.config, "sequencia_do_processo", lambda dados, docs: ["dfd"])
     def package(fmt):
         payload = fmt.encode()
         manifest = {"documents": [{"tipo": "dfd", "document_id": state["head"]["id"],
@@ -307,19 +309,20 @@ def test_official_emission_refuses_packages_from_different_sources(setup, monkey
 
 @pytest.mark.parametrize("dados,tipos,allowed", [
     ({"modelo_execucao": "Sistema de Registro de Preços (SRP)"},
-     ("dfd", "etp", "mapa_riscos", "tr", "edital", "arp"), True),
+     ("dfd", "etp", "tr", "edital", "arp"), True),
     ({"modelo_execucao": "Entrega integral"},
-     ("dfd", "etp", "mapa_riscos", "tr", "edital"), True),
+     ("dfd", "etp", "tr", "edital"), True),
     ({"modelo_execucao": "Entrega integral"},
-     ("dfd", "etp", "mapa_riscos", "tr", "edital", "arp"), False),
+     ("dfd", "etp", "tr", "edital", "arp"), False),
     ({"modelo_execucao": "Sistema de Registro de Preços (SRP)"},
-     ("dfd", "etp", "mapa_riscos", "tr", "edital"), False),
+     ("dfd", "etp", "tr", "edital"), False),
 ])
 def test_official_emission_derives_arp_from_server_process_form(setup, monkeypatch,
                                                                dados, tipos, allowed):
     service, state, _ = setup
     process = state["head"]["processo_id"]
     state["process"] = {"id": process, "dados": dados}
+    monkeypatch.setattr(service, "listar_processo", lambda value: ())
     class PackagingReached(RuntimeError):
         pass
     monkeypatch.setattr(service, "empacotar_aprovados", lambda *a, **k:

@@ -1993,8 +1993,11 @@ class DocumentoService:
             .eq("id", processo_id).limit(1)))
         if not isinstance(process.get("dados"), dict):
             raise ErroDocumento("Formulário do processo indisponível para emissão.")
-        expected_types = tuple(config.exportaveis_do_processo(
-            process["dados"], config.DOCUMENTOS))
+        present = {document.tipo: True for document in self.listar_processo(processo_id)}
+        expected = config.sequencia_do_processo(process["dados"], present)
+        if config.adota_srp(process["dados"]):
+            expected.append("arp")
+        expected_types = tuple(expected)
         if tipos != expected_types:
             raise ErroDocumento("O conjunto pedido não corresponde aos instrumentos do processo.")
         docx = self.empacotar_aprovados(processo_id, tipos=tipos, formato="docx")

@@ -123,3 +123,36 @@ def test_authenticated_cannot_call_or_forge_emission_and_other_tenant_cannot_rea
     with role(emission_db, "authenticated", scenario["other"]):
         assert emission_db.execute("select id from public.documentos_editor_emissoes where id=%s",
                                    (receipt[0],)).fetchall() == []
+
+
+def test_sql_refuses_srp_emission_without_arp(emission_db, emission):
+    import psycopg
+    scenario = emission[0]
+    emission_db.execute("update public.processos set dados=jsonb_build_object("
+        "'modelo_execucao','Sistema de Registro de Preços (SRP)') where id=%s",
+        (scenario["process"],))
+    with pytest.raises(psycopg.ProgrammingError) as captured:
+        emit(emission_db, emission)
+    assert captured.value.sqlstate == "PT409"
+    assert emission_db.execute("select count(*) from public.documentos_editor_emissoes "
+        "where processo_id=%s", (scenario["process"],)).fetchone() == (0,)
+
+
+def test_sql_refuses_residual_arp_in_non_srp_process(emission_db, emission):
+    import copy
+    import psycopg
+    scenario, documents, packages, manifest, _ = emission
+    emission_db.execute("update public.processos set dados=jsonb_build_object("
+        "'modelo_execucao','Entrega integral') where id=%s", (scenario["process"],))
+    emission_db.execute("update public.documentos_editor set tipo='arp' where id=%s",
+                        (scenario["doc"],))
+    altered_documents = copy.deepcopy(documents)
+    altered_documents[0]["tipo"] = "arp"
+    altered_manifest = copy.deepcopy(manifest)
+    altered_manifest["documents"] = altered_documents
+    with pytest.raises(psycopg.ProgrammingError) as captured:
+        emit(emission_db, emission, documents=altered_documents,
+             manifest=altered_manifest)
+    assert captured.value.sqlstate == "PT409"
+    assert emission_db.execute("select count(*) from public.documentos_editor_emissoes "
+        "where processo_id=%s", (scenario["process"],)).fetchone() == (0,)

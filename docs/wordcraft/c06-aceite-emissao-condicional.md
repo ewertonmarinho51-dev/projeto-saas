@@ -1,6 +1,6 @@
 # C06 — emissão condicional da ARP
 
-Estado: **PASS LOCAL DO OWNER E UI LEGADA; RPC SQL REAL AINDA PENDENTE**
+Estado: **PASS LOCAL DO OWNER, UI LEGADA E POSTGRESQL REAL**
 
 O owner da emissão oficial deixou de aceitar o conjunto de documentos indicado
 pela UI como autoridade. Antes de exportar qualquer byte, ele relê `processos.dados`
@@ -22,7 +22,14 @@ antes de montar DOCX/PDF ou chamar a RPC de emissão.
 - transições SRP → não SRP e não SRP → SRP no estado legado;
 - ZIP/PDF/DOCX legado e botões finais seguem a mesma regra canônica.
 
-Os testes do owner usam transporte e motor determinísticos; os testes legados
-exercitam a geração e a UI Streamlit. Ainda falta repetir a recusa por PostgREST
-contra a RPC real com estado SQL adulterado para que o banco seja também uma
-linha independente de defesa. Nenhuma emissão oficial ou produção foi tocada.
+Uma migration aditiva instala um trigger antes da inserção do snapshot oficial.
+Ele relê `processos.dados` e compara a decisão SRP com a presença da ARP no JSON
+validado pela RPC. A função do trigger não é executável diretamente por `anon`,
+`authenticated` ou `service_role`.
+
+Em PostgreSQL 16 local descartável, uma chamada `service_role` com processo SRP
+sem ARP e outra com processo não SRP contendo ARP residual foram recusadas com
+`PT409`; nenhuma emissão parcial permaneceu. A emissão não SRP coerente, retry
+idempotente, imutabilidade e isolamento continuaram aprovados. O transporte
+PostgREST/GoTrue real permanece fora deste aceite local. Nenhuma migration remota,
+emissão oficial ou produção foi tocada.

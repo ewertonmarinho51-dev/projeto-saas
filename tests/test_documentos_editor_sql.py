@@ -335,7 +335,8 @@ def test_migration_preserves_legacy_revision_without_retroattributing_a_build(en
                         migration, "20261015122441_documentos_editor_persistencia_g2.sql",
                         "20261015124841_documentos_editor_snapshot_institucional.sql",
                             "20261016041756_documentos_editor_patch_lote.sql",
-                            "20261017204526_documento_editor_aplicacao_template_nativa.sql"}))
+                            "20261017204526_documento_editor_aplicacao_template_nativa.sql",
+                            "20261018120000_documento_editor_emissao_arp_condicional.sql"}))
                 harness.preparar(connection)
             old = seed_scenario(connection)
             before = commit(connection, old, legacy=True)
