@@ -1,6 +1,6 @@
 # C08 — integridade de 210 itens
 
-Estado: **PASS NATIVO NOS QUATRO NÍVEIS; REVISÃO VISUAL PENDENTE**
+Estado: **PASS NATIVO NOS QUATRO NÍVEIS E REVISÃO VISUAL DAS 16 PÁGINAS**
 
 O cenário C08 prova explicitamente os 210 itens na fonte canônica, no checkpoint
 editável do WordCraft, no DOCX reexportado e no texto do PDF nativo. Cada código
@@ -32,6 +32,21 @@ de campos JSON, `media` e `passthrough` não podem fabricar cobertura. Ausência
 duplicação de qualquer código transforma a etapa em `DIFFERENT` e faz a execução
 falhar.
 
-Este PASS cobre integridade semântica e estrutural do corpus sintético. A
-comparação visual ampliada das 16 páginas continua necessária e não foi inferida
-a partir de contagem, hash ou extração de texto.
+## Revisão visual ampliada
+
+Em 2026-10-18, o PDF exato identificado pelo hash acima foi renderizado com
+Poppler `pdftoppm` a 144 DPI. As 16 páginas A4 foram abertas individualmente em
+resolução de 1191 x 1684 pixels, além de uma folha de contato integral. A revisão
+observou:
+
+- sequência contínua de `GC-SYN-0001` a `GC-SYN-0210`;
+- cabeçalho de sete colunas repetido em todas as páginas;
+- descrições, unidades, quantidades, valores e links legíveis, sem sobreposição;
+- linhas e bordas fechadas, sem células ou texto cortados nas quebras de página;
+- margens preservadas: nenhuma página teve tinta nos oito pixels das bordas;
+- fechamento na página 16 com os itens 209 e 210 e `VALOR GLOBAL R$ 92.900,30`.
+
+Este PASS cobre a integridade semântica, estrutural e a legibilidade visual do
+PDF nativo sintético C08. Ele não é uma comparação pixel a pixel contra um
+documento institucional real, não aprova os outros quinze casos do corpus e não
+substitui homologação do editor no navegador ou de emissão oficial.
