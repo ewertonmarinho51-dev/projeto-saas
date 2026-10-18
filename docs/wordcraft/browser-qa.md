@@ -5,7 +5,7 @@ software do repositório em Linux CI, com três fixtures sintéticas verificadas
 Não é observação manual pelo conector Browser, homologação G1, prova GoTrue,
 persistência de produção, aprovação institucional ou aceite visual de layout.
 
-O script planejado `scripts/wordcraft_browser_qa.mjs` recebe caminhos de servidor
+O script `scripts/wordcraft_browser_qa.mjs` recebe caminhos de servidor
 explícitos para bundle recém-compilado, manifesto com SHA confiável, checkpoints
 do mesmo build, corpus imutável, Python e pacote QA. Antes de criar saídas ou
 abrir HTTP, reutiliza `wordcraft_corpus.verify_inputs`, o validador/exportador
@@ -22,6 +22,14 @@ versão 141.0.7390.37. O script confere pacote, catálogo, revisão e versão do
 browser executado, registra hashes locais e não escolhe outro browser se faltar.
 Instalação segue o CLI pinado, com browsers/cache QA em RUNNER_TEMP; nenhuma
 dependência runtime do produto é adicionada.
+
+O runner aceita somente Linux e Windows. Em ambos exige
+`PLAYWRIGHT_BROWSERS_PATH` absoluto e resolve explicitamente o
+`chromium_headless_shell-1194`; o mesmo executável cujo hash é registrado é
+passado ao `launch`. O ambiente do processo admite apenas variáveis básicas de
+runtime e o caminho do browser, sem encaminhar URLs, chaves ou proxies da
+aplicação. Falhas preservam estágio, contagens de rede e diagnóstico limitado,
+sem transformar execução incompleta em evidência positiva.
 
 O servidor estático escuta somente 127.0.0.1 e responde a um mapa fechado de
 HTML/JS/WASM de teste e host. Não serve diretórios, manifests, JSONs, checkpoints,
@@ -69,6 +77,19 @@ O step fica depois dos roundtrips/import/export/patch puro e antes dos artifacts
 de `wordcraft-build.yml`, sem build alternativo, deploy ou produção. Testes Node
 offline do novo harness cobrem mapa estático, limites, confinamento e saídas
 sanitizadas; não são apresentados como execução Chromium.
+
+Em 18/10/2026, a execução local Windows confirmou o Chromium pinado
+`141.0.7390.37`, SHA-256 do executável
+`ed19d88b4486c39c0265b0c07cbf1d6835d06069e600bede1adb09db0df46c8e`,
+servidor loopback e ausência de requisições bloqueadas/erros de página. O bundle
+histórico produtor `39fec20`, manifesto
+`bd306cdb4709a43314366375da91ca1d00b2dd6db3c7683fff44eb15eb087548`, foi
+corretamente recusado ao abrir o primeiro caso porque ainda não exportava
+`interaction_lock_ready`, `set_interaction_locked` e `apply_text_patch`. Portanto
+essa tentativa prova o fail-closed e a portabilidade da inicialização, mas não é
+uma nova passagem positiva do canvas atual. Uma repetição local completa exige
+bundle reconstruído do adapter atual; o fluxo CI já registra a passagem dos três
+casos com bundle coevo.
 
 Fontes primárias verificadas:
 [release Playwright 1.56.1](https://github.com/microsoft/playwright/releases/tag/v1.56.1),

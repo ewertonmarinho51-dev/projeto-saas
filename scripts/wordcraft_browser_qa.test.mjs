@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
-import {CASES, QA_PIN, BrowserQaFailure, failureRecord, pageModule, parseArgs,
+import {CASES, QA_PIN, BrowserQaFailure, browserEnvironment, browserExecutablePath, failureRecord, pageModule, parseArgs,
   rendererMetrics, serveAssets, staticResponse, summarizePerformance,
   verifyPlaywright} from './wordcraft_browser_qa.mjs';
 
@@ -60,6 +60,29 @@ test('performance summary uses nearest-rank percentiles and labels mixed fixture
     document_open:{samples:3, p50_ms:3, p95_ms:4},
     max_renderer_js_heap_used_bytes:301, max_renderer_dom_nodes:8});
   assert.throws(() => summarizePerformance([]), BrowserQaFailure);
+});
+
+test('runtime platform allowlist is explicit and bounded', () => {
+  assert.deepEqual(QA_PIN.supportedPlatforms, ['linux', 'win32']);
+  assert.equal(QA_PIN.supportedPlatforms.includes('darwin'), false);
+});
+
+test('browser environment admits Windows runtime keys without hosted secrets', () => {
+  const environment = browserEnvironment({PATH:'bin', SystemRoot:'C:/Windows', WINDIR:'C:/Windows',
+    TEMP:'tmp', PLAYWRIGHT_BROWSERS_PATH:'browsers', SUPABASE_URL:'https://outside.invalid',
+    OPENAI_API_KEY:'must-not-pass', HTTPS_PROXY:'https://outside.invalid'});
+  assert.deepEqual(environment, {PATH:'bin', TEMP:'tmp', SystemRoot:'C:/Windows',
+    WINDIR:'C:/Windows', PLAYWRIGHT_BROWSERS_PATH:'browsers'});
+});
+
+test('headless executable is pinned inside the explicit browser store', () => {
+  const root = resolve(tmpdir(), 'browser-store');
+  assert.equal(browserExecutablePath({PLAYWRIGHT_BROWSERS_PATH:root}, 'win32'),
+    resolve(root, 'chromium_headless_shell-1194', 'chrome-win', 'headless_shell.exe'));
+  assert.equal(browserExecutablePath({PLAYWRIGHT_BROWSERS_PATH:root}, 'linux'),
+    resolve(root, 'chromium_headless_shell-1194', 'chrome-linux', 'headless_shell'));
+  assert.throws(() => browserExecutablePath({}, 'win32'), BrowserQaFailure);
+  assert.throws(() => browserExecutablePath({PLAYWRIGHT_BROWSERS_PATH:root}, 'darwin'), BrowserQaFailure);
 });
 
 test('static route map rejects traversal, queries and writes', () => {

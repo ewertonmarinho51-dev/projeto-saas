@@ -4,14 +4,15 @@ import {createHash} from 'node:crypto';
 import {createServer} from 'node:http';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {dirname, isAbsolute, relative, resolve, sep} from 'node:path';
+import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {verifyBundle} from '../assets/wordcraft_editor/validate.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const runFile = promisify(execFile);
 export const QA_PIN = Object.freeze({playwright: '1.56.1', chromiumRevision: '1194', chromiumVersion: '141.0.7390.37',
-  packageSha512: 'hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ=='});
+  packageSha512: 'hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ==',
+  supportedPlatforms: Object.freeze(['linux', 'win32'])});
 export const CASES = Object.freeze(['01-texto-listas-links', '02-tabela-210-itens', '03-timbrado-assinaturas']);
 const MAX_INPUT = 8 * 1024 * 1024;
 const MAX_SCREENSHOT = 8 * 1024 * 1024;
@@ -66,6 +67,21 @@ export function summarizePerformance(cases) {
     canvas_ready: distribution('canvas_ready_ms'), document_open: distribution('document_open_ms'),
     max_renderer_js_heap_used_bytes: Math.max(...readings.map(item => item.js_heap_used_bytes)),
     max_renderer_dom_nodes: Math.max(...readings.map(item => item.nodes))};
+}
+
+export function browserEnvironment(source = process.env) {
+  return Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP',
+    'SystemRoot', 'WINDIR', 'PLAYWRIGHT_BROWSERS_PATH']
+    .filter(key => source[key]).map(key => [key, source[key]]));
+}
+
+export function browserExecutablePath(source = process.env, platform = process.platform) {
+  const root = source.PLAYWRIGHT_BROWSERS_PATH;
+  check(typeof root === 'string' && isAbsolute(root), 'playwright_pin');
+  const leaf = platform === 'win32' ? ['chrome-win', 'headless_shell.exe']
+    : platform === 'linux' ? ['chrome-linux', 'headless_shell'] : null;
+  check(Boolean(leaf), 'playwright_pin');
+  return join(root, `chromium_headless_shell-${QA_PIN.chromiumRevision}`, ...leaf);
 }
 
 export function parseArgs(args) {
@@ -382,6 +398,8 @@ async function buildAssets(config) {
 
 export async function run(config) {
   let phase = 'configuration', outputReady = false, server, browser, context, page;
+  let deniedRequests = 0, pageErrors = 0, consoleErrors = 0;
+  const diagnostics = [];
   const evidence = {schema: 'gc-wordcraft-headless-browser-qa/v1', status: 'FAIL_HEADLESS_BROWSER_QA',
     manual_browser_observation: false, gotrue_or_database_proof: false, production_access: false,
     ack_model: 'SIMULATED_TRANSPORT_ONLY_NOT_PERSISTENCE', cases: [],
@@ -393,22 +411,25 @@ export async function run(config) {
   const stage = async (name, operation) => { phase = name; return operation(); };
   let watchdog;
   try {
-    check(process.platform === 'linux', phase);
+    check(QA_PIN.supportedPlatforms.includes(process.platform), phase);
     for (const key of ['bundle', 'checkpoints', 'inputs', 'playwright', 'python']) config[key] = await realpath(config[key]);
     check(!(await stat(config.out).catch(() => null)), phase);
     const built = await stage('bundle_admission', () => buildAssets(config));
     const cases = await stage('synthetic_admission', () => admitInputs(config));
     const pkg = await stage('playwright_pin', () => verifyPlaywright(config.playwright));
     await mkdir(config.out, {mode: 0o700}); outputReady = true;
-    evidence.runtime = {...QA_PIN, engine_manifest_sha256: config['manifest-sha256'],
+    evidence.runtime = {...QA_PIN, platform_observed: process.platform,
+      engine_manifest_sha256: config['manifest-sha256'],
       producer_commit: built.manifest.govconnect_commit, upstream_commit: built.manifest.upstream_commit,
       host_sha256: built.host_sha256, playwright_catalog_sha256: pkg.catalog_sha256};
     server = await stage('http_confinement', () => serveAssets(built.assets));
     const {chromium} = await stage('playwright_pin', () => import(pathToFileURL(pkg.entry).href));
-    const environment = Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'PLAYWRIGHT_BROWSERS_PATH']
-      .filter(key => process.env[key]).map(key => [key, process.env[key]]));
+    const environment = browserEnvironment();
+    const executablePath = await stage('playwright_pin', () => realpath(browserExecutablePath()));
+    evidence.runtime.browser_executable_sha256 = hash(await stage('playwright_pin', () => readFile(executablePath)));
     const browserStarted = process.hrtime.bigint();
     browser = await stage('chromium_start', () => chromium.launch({headless: true, timeout: 45_000, env: environment,
+      executablePath,
       args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-dev-shm-usage',
         '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run']}));
     evidence.performance.browser_startup_ms = elapsedMs(browserStarted);
@@ -416,11 +437,9 @@ export async function run(config) {
       && evidence.performance.browser_startup_ms >= 0, 'performance_metrics');
     check(browser.version() === QA_PIN.chromiumVersion, 'chromium_start');
     evidence.runtime.browser_version_observed = browser.version();
-    evidence.runtime.browser_executable_sha256 = hash(await readFile(chromium.executablePath()));
     context = await browser.newContext({viewport: {width: 1366, height: 900}, locale: 'pt-BR', timezoneId: 'UTC',
       acceptDownloads: false, serviceWorkers: 'block'});
     context.setDefaultTimeout(45_000);
-    let deniedRequests = 0, pageErrors = 0, consoleErrors = 0;
     await context.route('**/*', route => {
       const url = new URL(route.request().url());
       if (url.origin === server.origin && built.assets.has(url.pathname) && !url.search) return route.continue();
@@ -430,8 +449,10 @@ export async function run(config) {
     for (const [caseIndex, item] of cases.entries()) {
       page = await context.newPage();
       const cdp = await context.newCDPSession(page);
-      page.on('pageerror', () => { pageErrors++; });
-      page.on('console', message => { if (message.type() === 'error') consoleErrors++; });
+      page.on('pageerror', error => { pageErrors++; diagnostics.push({kind: 'pageerror', message: String(error).slice(0, 1000)}); });
+      page.on('console', message => { if (message.type() === 'error') {
+        consoleErrors++; diagnostics.push({kind: 'console', message: message.text().slice(0, 1000)});
+      }});
       const canvasStarted = process.hrtime.bigint();
       await stage('canvas_open', async () => {
         await page.goto(server.origin + '/', {waitUntil: 'load'});
@@ -477,7 +498,11 @@ export async function run(config) {
     evidence.network = {external_requests_blocked: deniedRequests, page_errors: pageErrors, console_errors: consoleErrors,
       static_document_routes: 0, loopback_only: true};
     evidence.status = 'PASS_HEADLESS_NATIVE_CANVAS_TRANSPORT_QA_NOT_MANUAL_ACCEPTANCE';
-  } catch {
+  } catch (error) {
+    diagnostics.push({kind: 'runner', name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 1000)});
+    evidence.diagnostics = diagnostics.slice(0, 10);
+    evidence.network_observed_before_failure = {external_requests_blocked: deniedRequests, page_errors: pageErrors,
+      console_errors: consoleErrors};
     Object.assign(evidence, failureRecord(phase));
   } finally {
     clearTimeout(watchdog);
