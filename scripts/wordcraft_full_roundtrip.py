@@ -96,6 +96,26 @@ def _declared_feature_snapshot(docx: bytes) -> dict:
     }
 
 
+def _checkpoint_code_counts(content: bytes, codes: list[str]) -> dict[str, int]:
+    """Count item identifiers in editor text nodes, never in JSON field names."""
+    model = json.loads(content)
+    counts = {code: 0 for code in codes}
+
+    def visit(value):
+        if isinstance(value, str):
+            for code in codes:
+                counts[code] += value.count(code)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+        elif isinstance(value, dict):
+            for child in value.values():
+                visit(child)
+
+    visit(model.get("document"))
+    return counts
+
+
 def run(inputs: Path, output: Path, *, node: Path, bundle: Path, manifest_sha256: str) -> dict:
     manifest = verify_full_inputs(inputs)
     inputs, output = inputs.resolve(strict=True), output.resolve()
@@ -136,6 +156,14 @@ def run(inputs: Path, output: Path, *, node: Path, bundle: Path, manifest_sha256
                 (target / "checkpoint.json").write_bytes(content)
                 entry["checkpoint_sha256"] = digest(content)
                 entry["checkpoint_bytes"] = len(content)
+                if case["id"] == "C08":
+                    oracle = json.loads((inputs / variant["oracle"]).read_bytes())
+                    counts = _checkpoint_code_counts(content, oracle["codes"])
+                    entry["checkpoint_item_code_count"] = len(counts)
+                    entry["checkpoint_item_code_occurrences"] = sum(counts.values())
+                    entry["steps"]["checkpoint_item_codes"] = (
+                        "PASS" if len(counts) == 210 and set(counts.values()) == {1}
+                        else "DIFFERENT")
             except Exception as error:
                 entry["steps"][stage] = "REFUSED_" + type(error).__name__
                 entry["elapsed_ms"] = round((time.perf_counter()-start)*1000,2)

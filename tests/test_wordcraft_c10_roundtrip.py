@@ -57,3 +57,22 @@ def test_c10_controlled_edit_targets_exactly_one_editor_text_node():
     with pytest.raises(ValueError, match="target count differs: 2"):
         roundtrip._c10_patch_plan(duplicated)
 
+
+def test_checkpoint_item_counter_uses_document_values_and_detects_duplicates():
+    checkpoint = json.dumps({
+        "schema": "synthetic",
+        "document": {
+            "GC-C08-0001": "field name is not editor text",
+            "body": [
+                {"text": "GC-C08-0001"},
+                {"children": [{"text": "GC-C08-0002 and GC-C08-0002"}]},
+            ],
+        },
+    }).encode()
+    assert roundtrip._checkpoint_code_counts(
+        checkpoint, ["GC-C08-0001", "GC-C08-0002", "GC-C08-0003"]) == {
+            "GC-C08-0001": 1,
+            "GC-C08-0002": 2,
+            "GC-C08-0003": 0,
+        }
+
