@@ -204,6 +204,29 @@ def identificador_da_versao(pesquisa: dict, itens: list[dict],
     return hashlib.sha256(canonico.encode("utf-8")).hexdigest()
 
 
+# Emissões anteriores a este instante saíram sem as correções das
+# auditorias das fontes de 18/10/2026 (v1.9.8, publicada às ~05:52 UTC):
+# sem barreira por atributo (preço de outro produto na cesta — Material de
+# Expediente ficava 16,2% acima) e sem o número da compra quando a UASG
+# começa por zero (57 preços). O sistema guarda o hash, não o arquivo:
+# não dá para corrigir o PDF entregue, só avisar quem o tem (N-05).
+# Se houver emissão entre este corte e a publicação da conferência de
+# atributos na emissão, o corte avança para essa publicação.
+CORTE_DAS_CORRECOES_DE_FONTES = datetime(2026, 10, 18, 5, 52,
+                                         tzinfo=timezone.utc)
+
+
+def emissoes_superadas(emissoes: list[dict]) -> list[dict]:
+    """
+    As emissões registradas antes do corte — documento que pode trazer
+    preço de outro produto e referência sem número da compra. Emissão
+    sem data legível não entra: não se afirma o que não se sabe.
+    """
+    return [e for e in emissoes
+            if (momento := _instante(e.get("criado_em"))) is not None
+            and momento < CORTE_DAS_CORRECOES_DE_FONTES]
+
+
 def dados_da_emissao(pesquisa: dict, itens: list[dict],
                      referencias: dict[str, list[dict]], *, tipo: str,
                      formato: str, conteudo: bytes, nome_arquivo: str) -> dict:

@@ -299,6 +299,58 @@ def itens_acima_do_teto(itens: list[dict], referencias: dict,
     return acima
 
 
+def contradicoes_na_cesta(itens: list[dict], referencias: dict,
+                          decididas_por_humano=None) -> list[str]:
+    """
+    Itens cuja cesta GRAVADA tem preço de outro produto, pela barreira
+    por atributo (`atributos.conflito`) aplicada na hora de emitir.
+
+    Segunda auditoria de 18/10/2026 (N-01/N-04): a barreira da v1.9.8 só
+    age quando a cotação automática roda, e as cestas formadas antes dela
+    seguiam emitíveis — 298 de 983 preços contradiziam o item, o total de
+    Material de Expediente ficava 16,2% acima, e "aquisição" passava no
+    teto com 10 preços de outro produto. O teto mede tamanho; aqui se
+    mede o conteúdo.
+
+    Só CONTRADIZ trava (a fonte informa o atributo e ele difere do item);
+    atributo ausente é conferência, não erro. Preço que uma PESSOA
+    decidiu (evento de inclusão/exclusão ou cotação direta) não trava: o
+    servidor discordou da barreira e isso está na trilha — o mesmo
+    critério de `itens_acima_do_teto`. `decididas_por_humano(item_id)`
+    só é chamada para item que tem contradição.
+    """
+    from . import atributos
+
+    saida = []
+    for item in itens:
+        texto = str(item.get("descricao") or "")
+        if not texto:
+            continue
+        achados = []
+        for linha in consideradas(referencias.get(item.get("id"), []) or []):
+            if str(linha.get("fonte_id")) == "cotacao_direta":
+                continue
+            achado = atributos.conflito(texto, linha.get("descricao_original"))
+            if achado is not None and achado.tipo == atributos.CONTRADIZ:
+                achados.append((linha, achado))
+        if not achados:
+            continue
+        humanas = (set(decididas_por_humano(item.get("id")))
+                   if decididas_por_humano is not None else set())
+        achados = [(linha, achado) for linha, achado in achados
+                   if str(linha.get("id")) not in humanas
+                   and str(linha.get("id_externo")) not in humanas]
+        if not achados:
+            continue
+        exemplos = list(dict.fromkeys(achado.motivo for _, achado in achados))
+        saida.append(
+            f"item {item.get('numero')}: {len(achados)} "
+            f"{'preço' if len(achados) == 1 else 'preços'} de outro produto "
+            f"na cesta ({'; '.join(exemplos[:2])}"
+            f"{'; …' if len(exemplos) > 2 else ''})")
+    return saida
+
+
 def validas_na_cesta(linhas: list[dict]) -> int:
     """Quantas referências são consideradas no cálculo — o N de "N/3"."""
     return len(consideradas(linhas))
