@@ -10,8 +10,12 @@ tabela aninhada, mescla horizontal, cabeçalho, rodapé, campo `PAGE` e quebra d
 página.
 
 A aprovação é restrita ao corpus sintético e à fidelidade estrutural declarada.
-A revisão visual continua `PENDING`; portanto este resultado não aprova
-homologação, substituição do editor legado, deploy ou uso em produção.
+As duas páginas do PDF nativo exato foram revisadas visualmente em 2026-10-18:
+cabeçalho, rodapé com campo de página, hyperlink, tabela externa, célula mesclada
+e tabela aninhada estavam legíveis e sem corte. A abertura visual do DOCX em
+Word/LibreOffice continua pendente; portanto este resultado não aprova
+homologação, substituição do editor legado, deploy ou uso em produção. A revisão
+do PDF está consolidada em `revisao-visual-pdf-nativo.md`.
 
 ## Evidência local reproduzível
 
