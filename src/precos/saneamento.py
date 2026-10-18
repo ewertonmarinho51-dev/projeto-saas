@@ -76,7 +76,8 @@ CONTEXTO_COMERCIAL = "PLAUSIBLE_COMMERCIAL_CONTEXT"
 DIVERGENCIA_JEV = "JEV_COMPARABILITY_CONCERN"
 VARIACAO_RELEVANTE = "PRICE_VARIATION_REQUIRES_ATTENTION"
 SINALIZADA_NA_CESTA = "FLAGGED_IN_BASKET"
-# fator de conversão ≥ 10× ou ≤ 0,1× (`unidades.fator_extremo`, N-06)
+# fator de conversão ≥ 10× ou ≤ 0,1× sem respaldo dos pares
+# (`unidades.conversao_extrema`, N-06)
 FATOR_EXTREMO = "UNIT_CONVERSION_FACTOR_EXTREME"
 
 # Rótulos que vão para `motivos` da referência — e pelos quais a tela e o
@@ -832,7 +833,8 @@ def alertas_da_cesta(itens: list[dict], referencias: dict[str, list[dict]],
     conferência de uma pessoa antes de emitir.
 
     Também vira alerta o preço da cesta com fator de conversão extremo
-    (N-06): as cestas formadas antes da barreira de conversão.
+    sem o respaldo dos pares (N-06, `unidades.conversao_extrema`): as
+    cestas formadas antes da barreira de conversão.
     """
     from . import cesta, unidades
 
@@ -847,17 +849,21 @@ def alertas_da_cesta(itens: list[dict], referencias: dict[str, list[dict]],
                 pareceres.get(str(l.get("id"))))) for l in linhas],
             politica, texto_item=str(item.get("descricao") or ""))
         por_id = triagem.por_id()
+        pares = [v for v in (unidades.sem_conversao(
+            l.get("valor_unitario_original"),
+            l.get("valor_unitario_normalizado")) for l in linhas)
+            if v is not None]
         for linha in linhas:
             avaliacao = por_id[str(linha.get("id"))]
             sinalizada = str(linha.get("status")) == "warning"
-            fator = unidades.fator_extremo(
+            extrema = unidades.conversao_extrema(
                 linha.get("valor_unitario_original"),
-                linha.get("valor_unitario_normalizado"))
+                linha.get("valor_unitario_normalizado"), pares)
             if avaliacao.desfecho == ELEGIVEL and not sinalizada and \
-                    fator is None:
+                    extrema is None:
                 continue
             codigos = list(avaliacao.codigos)
-            if fator is not None:
+            if extrema is not None:
                 codigos.append(FATOR_EXTREMO)
             codigos = codigos or [VARIACAO_RELEVANTE]
             if sinalizada and SINALIZADA_NA_CESTA not in codigos:
@@ -874,7 +880,7 @@ def alertas_da_cesta(itens: list[dict], referencias: dict[str, list[dict]],
                 mensagem=_mensagem_do_alerta(
                     avaliacao, sinalizada,
                     _parecer_divergente(pareceres.get(str(linha.get("id")))),
-                    fator, linha),
+                    extrema),
                 origem=" · ".join(str(p) for p in (
                     linha.get("fonte_nome"), linha.get("orgao")) if p)))
     return saida
@@ -886,14 +892,11 @@ def _parecer_divergente(escolha: str | None) -> str:
 
 
 def _mensagem_do_alerta(avaliacao: Avaliacao, sinalizada: bool,
-                        escolha: str = "", fator: Decimal | None = None,
-                        linha: dict | None = None) -> str:
+                        escolha: str = "", extrema=None) -> str:
     """
     Na emissão, o preço já está NA CESTA: a frase diz a variação e as
     contas, não o desfecho que a triagem daria antes da cesta.
     """
-    from . import unidades
-
     partes = []
     if sinalizada:
         partes.append("mantida na cesta como sinalizada por decisão "
@@ -905,10 +908,10 @@ def _mensagem_do_alerta(avaliacao: Avaliacao, sinalizada: bool,
                else "especificação diferente")
             + " do item — parecer da IA, não decisão: confira a fonte e "
             "decida se o preço fica na cesta")
-    if fator is not None and linha is not None:
-        partes.append(unidades.frase_do_fator_extremo(
-            fator, linha.get("valor_unitario_original"),
-            linha.get("valor_unitario_normalizado")))
+    if extrema is not None:
+        partes.append(extrema.frase() + " sem o respaldo de 3 referências "
+                      "sem conversão na faixa de 1/3 a 3× da mediana ("
+                      + extrema.frase_dos_pares() + ")")
     if avaliacao.metricas.get("criterios") and avaliacao.valor is not None:
         partes.append("variação relevante: " + _frase(avaliacao.valor,
                                                      avaliacao.metricas))

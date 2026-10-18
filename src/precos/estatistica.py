@@ -344,7 +344,7 @@ class Cesta:
     # revisão, com o motivo técnico. Ficam GRAVADAS para revisão e
     # reinclusão — nunca somem. `triagem` é o resultado completo, com as
     # métricas, para a trilha. Sem a política de saneamento, só as de
-    # fator de conversão extremo (N-06), que valem sempre.
+    # fator de conversão extremo sem respaldo (N-06), que valem sempre.
     retidas: list[Referencia] = field(default_factory=list)
     triagem: object | None = None
     # Revisão 02: suspeitas que ficam NA cesta, sinalizadas (chave →
@@ -441,8 +441,9 @@ def selecionar_cesta(
                   in enumerate(perfil.prioridade_de_fontes)}
 
     # Segunda auditoria de 18/10/2026 (N-06): fator de conversão extremo
-    # sai ANTES de tudo, com ou sem triagem — um preço multiplicado por
-    # 500 também desloca a mediana com que a triagem julga os outros.
+    # sem respaldo dos pares sai ANTES de tudo, com ou sem triagem — um
+    # preço multiplicado por 500 também desloca a mediana com que a
+    # triagem julga os outros.
     ranqueadas = _barreira_de_conversao(ranqueadas, cesta)
     if saneamento is not None:
         # Auditoria de 18/10/2026 (C-1): o atributo que define o produto
@@ -521,24 +522,30 @@ def selecionar_cesta(
 
 def _barreira_de_conversao(ranqueadas, cesta: Cesta):
     """
-    Fator de conversão ≥ 10× ou ≤ 0,1× (`unidades.fator_extremo`) não
-    entra na cesta automática: vai para revisão manual, GRAVADA em
-    `retidas` com o fator e os dois preços no motivo. Quem confere a
-    capacidade na fonte pode reincluir.
+    Fator de conversão ≥ 10× ou ≤ 0,1× só concorre à cesta automática
+    com o respaldo de ao menos 3 referências SEM conversão do mesmo item
+    (preço praticado), e com o valor convertido entre 1/3 e 3× da mediana
+    delas (`unidades.conversao_extrema`). Sem esse respaldo vai para
+    revisão manual, GRAVADA em `retidas` com o fator, os dois preços e a
+    regra no motivo. Quem confere a capacidade na fonte pode reincluir.
     """
     from . import unidades
 
+    pares = [v for v in (
+        unidades.sem_conversao(r.valor_unitario_original,
+                               r.valor_unitario_normalizado)
+        for r, _ in ranqueadas if r.natureza_valor in NATUREZAS_COMPARAVEIS)
+        if v is not None]
     seguem = []
     for referencia, comparabilidade in ranqueadas:
-        fator = unidades.fator_extremo(referencia.valor_unitario_original,
-                                       referencia.valor_unitario_normalizado)
-        if fator is None:
+        extrema = unidades.conversao_extrema(
+            referencia.valor_unitario_original,
+            referencia.valor_unitario_normalizado, pares)
+        if extrema is None:
             seguem.append((referencia, comparabilidade))
             continue
         referencia.status = StatusReferencia.REVISAO_MANUAL
-        referencia.com_motivo(unidades.motivo_do_fator_extremo(
-            fator, referencia.valor_unitario_original,
-            referencia.valor_unitario_normalizado))
+        referencia.com_motivo(extrema.motivo())
         cesta.retidas.append(referencia)
     return seguem
 

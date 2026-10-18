@@ -20,6 +20,7 @@ aceita sugestão: este arquivo só olha para dado de fonte oficial.
 from __future__ import annotations
 
 import unicodedata
+from dataclasses import dataclass
 from decimal import Decimal
 
 from .modelo import Referencia
@@ -122,16 +123,31 @@ MOTIVO_ITEM_SEM_UNIDADE = (
 
 # Segunda auditoria de 18/10/2026 (N-06): 43 referências da cesta de
 # Material de Expediente com fator ≥ 10× ou ≤ 0,1× — papel A4 "EMB" com
-# capacidade 1 lido como uma folha, normalizado a R$ 14.029,00 o pacote.
-# O fator pode até estar certo (caixa com 50 canetas), mas um preço
-# multiplicado ou dividido por dez ou mais não entra na cesta sem uma
-# pessoa conferir a capacidade na fonte.
+# capacidade 10 (uma caixa de 10 pacotes) lida como 10 folhas,
+# normalizado a R$ 14.029,00 o pacote. Mas o fator extremo também é o da
+# caixa com 10 pastas a R$ 60,00 (R$ 6,00 cada, entre pares a R$ 6,00).
+# A regra: fator extremo só entra na cesta automática quando há ao menos
+# 3 referências SEM conversão no item e o valor convertido fica entre 1/3
+# e 3× da mediana delas. Fora disso, revisão manual, com o motivo.
 FATOR_EXTREMO_ACIMA = Decimal("10")
 FATOR_EXTREMO_ABAIXO = Decimal("0.1")
+MINIMO_PARES_SEM_CONVERSAO = 3
+FAIXA_DOS_PARES = Decimal("3")
+REGRA_DO_FATOR_EXTREMO = (
+    "fator ≥ 10× ou ≤ 0,1× só entra na cesta automática se houver ao menos "
+    "3 referências sem conversão no item e o valor convertido ficar entre "
+    "1/3 e 3× da mediana delas")
 MOTIVO_FATOR_EXTREMO = (
-    "[conversão extrema] {frase} — fator ≥ 10× ou ≤ 0,1× não entra na "
-    "cesta automática; confira a capacidade da embalagem na fonte antes de "
-    "incluir")
+    "[conversão extrema] {frase} — " + REGRA_DO_FATOR_EXTREMO + "; aqui, "
+    "{pares}. Confira a capacidade da embalagem na fonte antes de incluir")
+
+
+def _positivo(valor) -> Decimal | None:
+    try:
+        numero = Decimal(str(valor))
+    except (ArithmeticError, ValueError, TypeError):
+        return None
+    return numero if numero.is_finite() and numero > 0 else None
 
 
 def fator_extremo(original, normalizado) -> Decimal | None:
@@ -140,13 +156,8 @@ def fator_extremo(original, normalizado) -> Decimal | None:
     (≥ 10× ou ≤ 0,1×); `None` quando não é, ou quando não há os dois
     preços para calcular.
     """
-    try:
-        original = Decimal(str(original))
-        normalizado = Decimal(str(normalizado))
-    except (ArithmeticError, ValueError, TypeError):
-        return None
-    if not (original.is_finite() and normalizado.is_finite()) or \
-            original <= 0 or normalizado <= 0:
+    original, normalizado = _positivo(original), _positivo(normalizado)
+    if original is None or normalizado is None:
         return None
     fator = original / normalizado
     if fator >= FATOR_EXTREMO_ACIMA or fator <= FATOR_EXTREMO_ABAIXO:
@@ -154,21 +165,75 @@ def fator_extremo(original, normalizado) -> Decimal | None:
     return None
 
 
-def frase_do_fator_extremo(fator: Decimal, original, normalizado) -> str:
-    """A conta do fator, em português, para o motivo e o alerta."""
-    def br(valor) -> str:
-        texto = f"{Decimal(str(valor)):,.2f}"
-        return texto.replace(",", "_").replace(".", ",").replace("_", ".")
-
-    curto = fator.quantize(Decimal("0.000001")).normalize()
-    return (f"preço convertido pelo fator {format(curto, 'f').replace('.', ',')}"
-            f" (R$ {br(original)} na unidade da fonte → R$ {br(normalizado)} "
-            "na unidade do item)")
+def sem_conversao(original, normalizado) -> Decimal | None:
+    """O preço, quando a referência está na unidade do item (fator 1)."""
+    original, normalizado = _positivo(original), _positivo(normalizado)
+    if original is None or original != normalizado:
+        return None
+    return normalizado
 
 
-def motivo_do_fator_extremo(fator: Decimal, original, normalizado) -> str:
-    return MOTIVO_FATOR_EXTREMO.format(
-        frase=frase_do_fator_extremo(fator, original, normalizado))
+def _mediana(valores: list[Decimal]) -> Decimal:
+    ordenados = sorted(valores)
+    meio = len(ordenados) // 2
+    if len(ordenados) % 2:
+        return ordenados[meio]
+    return (ordenados[meio - 1] + ordenados[meio]) / 2
+
+
+@dataclass(frozen=True)
+class ConversaoExtrema:
+    """Fator extremo SEM respaldo dos pares: vai para revisão."""
+
+    fator: Decimal
+    original: Decimal
+    normalizado: Decimal
+    pares: int                     # referências sem conversão no item
+    mediana: Decimal | None        # mediana delas (None sem pares)
+
+    def frase(self) -> str:
+        curto = self.fator.quantize(Decimal("0.000001")).normalize()
+        return (f"preço convertido pelo fator "
+                f"{format(curto, 'f').replace('.', ',')} (R$ {_brl(self.original)}"
+                f" na unidade da fonte → R$ {_brl(self.normalizado)} na unidade "
+                "do item)")
+
+    def frase_dos_pares(self) -> str:
+        if not self.pares:
+            return "nenhuma referência sem conversão"
+        return (f"{self.pares} sem conversão, mediana R$ "
+                f"{_brl(self.mediana)}")
+
+    def motivo(self) -> str:
+        return MOTIVO_FATOR_EXTREMO.format(frase=self.frase(),
+                                           pares=self.frase_dos_pares())
+
+
+def _brl(valor) -> str:
+    texto = f"{Decimal(str(valor)):,.2f}"
+    return texto.replace(",", "_").replace(".", ",").replace("_", ".")
+
+
+def conversao_extrema(original, normalizado,
+                      pares_sem_conversao) -> ConversaoExtrema | None:
+    """
+    `None` quando a referência pode concorrer à cesta automática: fator
+    comum, ou fator extremo com o valor convertido entre 1/3 e 3× da
+    mediana de ao menos 3 referências sem conversão do mesmo item
+    (`pares_sem_conversao`, os preços delas). Senão, o que vai no motivo.
+    """
+    fator = fator_extremo(original, normalizado)
+    if fator is None:
+        return None
+    pares = [v for v in (_positivo(p) for p in pares_sem_conversao or [])
+             if v is not None]
+    mediana = _mediana(pares) if pares else None
+    valor = _positivo(normalizado)
+    if len(pares) >= MINIMO_PARES_SEM_CONVERSAO and \
+            mediana / FAIXA_DOS_PARES <= valor <= mediana * FAIXA_DOS_PARES:
+        return None
+    return ConversaoExtrema(fator, _positivo(original), valor, len(pares),
+                            mediana)
 
 
 def unidade_valida(unidade: str | None) -> bool:

@@ -123,28 +123,90 @@ NORMAIS = [(A4_BRANCO, p, "500") for p in
            ("24.10", "25.00", "25.46", "26.00", "23.90", "24.80")]
 
 
-@pytest.mark.parametrize("saneamento_ligado", [True, False])
-def test_papel_emb_com_capacidade_errada_vai_para_revisao_n06(
-        saneamento_ligado):
-    coleta = busca.coletar(
-        ITEM_PAPEL, [_Fonte(NORMAIS + [(A4_EMB_25, "24.75", "25")])],
-        filtros={})
+REGRA = ("fator ≥ 10× ou ≤ 0,1× só entra na cesta automática se houver ao "
+         "menos 3 referências sem conversão no item e o valor convertido "
+         "ficar entre 1/3 e 3× da mediana delas")
+
+
+def _selecionar(item, fontes, saneamento_ligado, texto_item):
+    coleta = busca.coletar(item, fontes, filtros={})
     # piso 0: o texto curto da fonte não alcança o piso de comparabilidade,
-    # e aqui só o fator está em prova — sem a barreira, as 7 entrariam
-    escolha = estatistica.selecionar_cesta(
+    # e aqui só a conversão está em prova
+    return coleta, estatistica.selecionar_cesta(
         coleta.referencias, obter_perfil("in_65_2021"), D("0"), teto=15,
         saneamento=POLITICA_PADRAO if saneamento_ligado else None,
-        texto_item=PAPEL_A4)
-    assert A4_EMB_25 not in {r.descricao_original for r in escolha.selecionadas}
+        texto_item=texto_item)
+
+
+@pytest.mark.parametrize("saneamento_ligado", [True, False])
+@pytest.mark.parametrize("texto,preco,capacidade,fator,de,para", [
+    (A4_EMB_25, "24.75", "25", "0,05", "24,75", "495,00"),
+    (A4_CAIXA_10, "280.58", "10", "0,02", "280,58", "14.029,00")])
+def test_papel_convertido_longe_dos_pares_vai_para_revisao_n06(
+        saneamento_ligado, texto, preco, capacidade, fator, de, para):
+    _, escolha = _selecionar(
+        ITEM_PAPEL, [_Fonte(NORMAIS + [(texto, preco, capacidade)])],
+        saneamento_ligado, PAPEL_A4)
+    assert texto not in {r.descricao_original for r in escolha.selecionadas}
     assert len(escolha.selecionadas) == 6
-    [retida] = [r for r in escolha.retidas
-                if r.descricao_original == A4_EMB_25]
+    [retida] = [r for r in escolha.retidas if r.descricao_original == texto]
     assert retida.status == StatusReferencia.REVISAO_MANUAL
     [motivo] = [m for m in retida.motivos if "[conversão extrema]" in m]
-    assert "fator 0,05" in motivo
-    assert "R$ 24,75 na unidade da fonte → R$ 495,00 na unidade do item" \
-        in motivo
-    assert "não entra na cesta automática" in motivo
+    assert f"preço convertido pelo fator {fator} (R$ {de} na unidade da "         f"fonte → R$ {para} na unidade do item)" in motivo
+    assert REGRA in motivo
+    # os 6 pares estão no pacote de 500 (fator 1): mediana R$ 24,90
+    assert "aqui, 6 sem conversão, mediana R$ 24,90" in motivo
+
+
+def _pasta(sem_as_primeiras: int = 0):
+    from tests import saneamento_apoio as apoio
+
+    [item] = [i for i in apoio.itens() if i["item_id"] == "ITEM_03"]
+    item = {**item, "quotes": item["quotes"][sem_as_primeiras:]}
+    return apoio.item_do_banco(item, 3), apoio.FonteDaFixture(item),         item["description"]
+
+
+@pytest.mark.parametrize("saneamento_ligado", [True, False])
+def test_caixa_com_10_entre_pares_a_6_reais_continua_na_cesta_n06(
+        saneamento_ligado):
+    """CX com 10 de R$ 60,00 → R$ 6,00, entre 4 pares sem conversão a
+    R$ 5,90–6,20: fator 10, legítimo, com respaldo."""
+    item, fonte, texto = _pasta()
+    coleta, escolha = _selecionar(item, [fonte], saneamento_ligado, texto)
+    caixa = next(r for r, _ in coleta.referencias if r.id_externo == "Q03_05")
+    assert unidades.fator_extremo(caixa.valor_unitario_original,
+                                  caixa.valor_unitario_normalizado) == D("10")
+    assert caixa in escolha.selecionadas
+    assert not any("[conversão extrema]" in m for m in caixa.motivos)
+
+
+def test_sem_3_pares_sem_conversao_a_caixa_vai_para_revisao_n06():
+    """A mesma caixa, com só 2 referências sem conversão no item."""
+    item, fonte, texto = _pasta(sem_as_primeiras=2)
+    coleta, escolha = _selecionar(item, [fonte], True, texto)
+    caixa = next(r for r, _ in coleta.referencias if r.id_externo == "Q03_05")
+    assert caixa not in escolha.selecionadas and caixa in escolha.retidas
+    assert caixa.status == StatusReferencia.REVISAO_MANUAL
+    [motivo] = [m for m in caixa.motivos if "[conversão extrema]" in m]
+    assert REGRA in motivo
+    assert "aqui, 2 sem conversão, mediana R$ 6,05" in motivo
+
+
+def test_respaldo_dos_pares_nos_limites_n06():
+    pares = ["6", "6", "6"]
+    # dentro da faixa, nos dois limites: 1/3 e 3× da mediana
+    assert unidades.conversao_extrema("20", "2", pares) is None
+    assert unidades.conversao_extrema("180", "18", pares) is None
+    # fora da faixa
+    assert unidades.conversao_extrema("19.9", "1.99", pares) is not None
+    assert unidades.conversao_extrema("181", "18.1", pares) is not None
+    # dois pares não bastam; e só convertidas, nenhum
+    assert unidades.conversao_extrema("60", "6", pares[:2]).pares == 2
+    sem = unidades.conversao_extrema("60", "6", [])
+    assert sem.pares == 0 and sem.mediana is None
+    assert "aqui, nenhuma referência sem conversão" in sem.motivo()
+    # fator comum não depende de par nenhum
+    assert unidades.conversao_extrema("9", "1", []) is None
 
 
 def _linha(rid, texto, original, normalizado, i, status="selected"):
@@ -168,15 +230,17 @@ def test_cesta_antiga_com_fator_extremo_alerta_na_emissao_n06():
     [alerta] = [a for a in alertas if a.referencia_id == "bc4c170f"]
     assert saneamento.FATOR_EXTREMO in alerta.codigos
     assert ("preço convertido pelo fator 0,02 (R$ 280,58 na unidade da fonte "
-            "→ R$ 14.029,00 na unidade do item)") in alerta.mensagem
+            "→ R$ 14.029,00 na unidade do item) sem o respaldo de 3 "
+            "referências sem conversão na faixa de 1/3 a 3× da mediana (6 sem "
+            "conversão, mediana R$ 24,90)") in alerta.mensagem
     # os preços sem conversão não ganham o código
     assert not any(saneamento.FATOR_EXTREMO in a.codigos for a in alertas
                    if a.referencia_id != "bc4c170f")
 
 
-def test_fator_extremo_sozinho_ja_e_alerta_na_emissao_n06():
-    """Sem variação estatística (todos com fator extremo), o alerta vem
-    só do fator — não depende da triagem achar o preço atípico."""
+def test_cesta_so_de_convertidas_alerta_na_emissao_n06():
+    """Sem variação estatística e sem par sem conversão, o alerta vem só
+    do fator — não depende da triagem achar o preço atípico."""
     linhas = [_linha(f"x{i}", A4_EMB_25, p, str(D(p) * 20), i)
               for i, (_, p, _) in enumerate(NORMAIS)]
     alertas = saneamento.alertas_da_cesta([ITEM_PAPEL], {"it": linhas})
