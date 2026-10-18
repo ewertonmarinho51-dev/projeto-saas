@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import hashlib
+import io
 import json
 import math
 import os
@@ -20,13 +21,14 @@ import statistics
 import subprocess
 import sys
 import time
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts import wordcraft_corpus as corpus
-from src.wordcraft_native import MAX_BYTES, exportar, validar
+from src.wordcraft_native import MAX_BYTES, exportar, importar_docx, validar
 
 
 def _bounded_file(path: Path, maximum: int) -> bytes:
@@ -50,6 +52,37 @@ def _closed_object(pairs):
             raise ValueError("Duplicate JSON key")
         value[key] = item
     return value
+
+
+def _synthetic_paged_docx(pages: int = 100) -> bytes:
+    """Create a deterministic in-memory scale fixture, never a product exporter."""
+    if type(pages) is not int or not 1 <= pages <= 100:
+        raise ValueError("Synthetic page count is outside the benchmark bound")
+    from docx import Document
+    document = Document()
+    document.core_properties.title = "GovConnect WordCraft synthetic scale benchmark"
+    document.core_properties.subject = "No tenant or production data"
+    for page in range(1, pages + 1):
+        document.add_heading(f"GC-SCALE-PAGE-{page:03d}", level=1)
+        document.add_paragraph("Conteúdo sintético determinístico para medição local do motor nativo.")
+        if page < pages:
+            document.add_page_break()
+    raw = io.BytesIO()
+    document.save(raw)
+    # python-docx writes current ZIP timestamps. Normalize the package so its
+    # hash identifies the fixture definition rather than the execution clock.
+    normalized = io.BytesIO()
+    with ZipFile(io.BytesIO(raw.getvalue())) as source, ZipFile(normalized, "w", ZIP_DEFLATED) as target:
+        for name in sorted(source.namelist()):
+            info = ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = ZIP_DEFLATED
+            target.writestr(info, source.read(name))
+    return normalized.getvalue()
+
+
+def _pdf_pages(content: bytes) -> int:
+    from pypdf import PdfReader
+    return len(PdfReader(io.BytesIO(content)).pages)
 
 
 def _runtime(node: Path, bundle: Path, manifest_sha256: str) -> dict:
@@ -249,6 +282,35 @@ def benchmark_full_roundtrip(*, node: Path, bundle: Path, manifest_sha256: str,
             "native_checkpoint_sha256": entry["checkpoint_sha256"],
             "native_checkpoint_bytes": len(checkpoint),
             "operations": {key: _summary(samples) for key, samples in operations.items()}})
+
+    scale_source = _synthetic_paged_docx(100)
+    scale_checkpoint = importar_docx(scale_source, **kwargs)
+    validar(scale_checkpoint, **kwargs)
+    scale_pdf = exportar(scale_checkpoint, formato="pdf", **kwargs)
+    if _pdf_pages(scale_pdf) != 100:
+        raise ValueError("Native 100-page scale fixture changed its page count")
+    scale_operations = {"import_docx": [], "validate": [], "export_pdf": []}
+    for _ in range(repetitions):
+        started = time.perf_counter_ns()
+        imported = importar_docx(scale_source, **kwargs)
+        scale_operations["import_docx"].append({"elapsed_ms": (time.perf_counter_ns() - started) / 1_000_000,
+            "output_bytes": len(imported)})
+        if _sha(imported) != _sha(scale_checkpoint):
+            raise ValueError("Repeated 100-page import changed its checkpoint")
+        started = time.perf_counter_ns()
+        validar(scale_checkpoint, **kwargs)
+        scale_operations["validate"].append({"elapsed_ms": (time.perf_counter_ns() - started) / 1_000_000})
+        started = time.perf_counter_ns()
+        rendered = exportar(scale_checkpoint, formato="pdf", **kwargs)
+        scale_operations["export_pdf"].append({"elapsed_ms": (time.perf_counter_ns() - started) / 1_000_000,
+            "output_bytes": len(rendered), "output_sha256": _sha(rendered)})
+        if _sha(rendered) != _sha(scale_pdf) or _pdf_pages(rendered) != 100:
+            raise ValueError("Repeated 100-page export changed its admitted PDF")
+    scale_profile = {"profile": "synthetic-explicit-breaks-100-pages",
+        "source_docx_sha256": _sha(scale_source), "source_docx_bytes": len(scale_source),
+        "native_checkpoint_sha256": _sha(scale_checkpoint), "native_checkpoint_bytes": len(scale_checkpoint),
+        "pdf_sha256": _sha(scale_pdf), "pdf_bytes": len(scale_pdf), "pdf_pages": 100,
+        "operations": {key: _summary(samples) for key, samples in scale_operations.items()}}
     return {"schema": "gc-wordcraft-native-benchmark/v2",
         "status": "LOCAL_FULL_SYNTHETIC_OBSERVATIONS_NOT_PRODUCTION_ACCEPTANCE",
         "measured_at_utc": datetime.now(timezone.utc).isoformat(), "runtime": runtime,
@@ -259,12 +321,14 @@ def benchmark_full_roundtrip(*, node: Path, bundle: Path, manifest_sha256: str,
             "p95_definition": "Empirical nearest rank: sorted_samples[ceil(0.95*n)-1]; maximum for n<=10",
             "admission": "All 16 canonical full-roundtrip artifacts and hashes verified before timing",
             "browser_startup_measured": False, "browser_memory_measured": False,
-            "hundred_page_case_measured": False, "visual_fidelity_approved": False},
+            "hundred_page_case_measured": True, "hundred_page_measurement_kind": "native_import_validate_export_not_browser_open",
+            "visual_fidelity_approved": False},
         "coverage": {"case_count": len(cases),
             "maximum_pdf_pages": max(case["pdf_pages"] for case in cases),
             "contains_at_least_twenty_pages": any(case["pdf_pages"] >= 20 for case in cases),
-            "contains_210_item_case": any(case["pdf_item_code_count"] == 210 for case in cases)},
-        "cases": cases}
+            "contains_210_item_case": any(case["pdf_item_code_count"] == 210 for case in cases),
+            "contains_100_page_scale_profile": True},
+        "cases": cases, "scale_profiles": [scale_profile]}
 
 
 def main() -> int:

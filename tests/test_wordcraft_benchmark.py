@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from scripts import wordcraft_benchmark as benchmark
+from scripts import wordcraft_corpus as corpus
 
 
 def _sha(value: bytes) -> str:
@@ -43,20 +44,35 @@ def _roundtrip(tmp_path: Path):
     return artifacts
 
 
+def test_hundred_page_fixture_is_deterministic_and_has_explicit_boundaries():
+    first = benchmark._synthetic_paged_docx(100)
+    second = benchmark._synthetic_paged_docx(100)
+    inspection = corpus.inspect_full_docx(first)
+    assert first == second
+    assert inspection["explicit_page_breaks"] == 99
+    assert "GC-SCALE-PAGE-001" in inspection["text"]
+    assert "GC-SCALE-PAGE-100" in inspection["text"]
+
+
 def test_full_roundtrip_benchmark_admits_all_cases_and_measures_scale(tmp_path, monkeypatch):
     artifacts = _roundtrip(tmp_path)
     monkeypatch.setattr(benchmark, "_runtime", lambda *args: {"engine": "synthetic"})
     monkeypatch.setattr(benchmark, "validar", lambda content, **kwargs: None)
     monkeypatch.setattr(benchmark, "exportar", lambda content, *, formato, **kwargs:
-                        artifacts[content]["roundtrip." + formato])
+                        artifacts[content]["roundtrip." + formato] if content in artifacts else b"%PDF-scale")
+    monkeypatch.setattr(benchmark, "_synthetic_paged_docx", lambda pages: b"scale-docx")
+    monkeypatch.setattr(benchmark, "importar_docx", lambda content, **kwargs: b"scale-checkpoint")
+    monkeypatch.setattr(benchmark, "_pdf_pages", lambda content: 100)
     result = benchmark.benchmark_full_roundtrip(node=Path("node").resolve(),
         bundle=Path("bundle").resolve(), manifest_sha256="a" * 64,
         roundtrip=tmp_path, repetitions=2)
     assert result["schema"] == "gc-wordcraft-native-benchmark/v2"
     assert result["coverage"] == {"case_count": 16, "maximum_pdf_pages": 29,
-        "contains_at_least_twenty_pages": True, "contains_210_item_case": True}
+        "contains_at_least_twenty_pages": True, "contains_210_item_case": True,
+        "contains_100_page_scale_profile": True}
     assert all(case["operations"]["validate"]["sample_count"] == 2 for case in result["cases"])
-    assert result["method"]["hundred_page_case_measured"] is False
+    assert result["method"]["hundred_page_case_measured"] is True
+    assert result["scale_profiles"][0]["pdf_pages"] == 100
 
 
 @pytest.mark.parametrize("change", ["hash", "duplicate", "step"])

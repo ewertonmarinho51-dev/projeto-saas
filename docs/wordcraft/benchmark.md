@@ -63,8 +63,19 @@ DOCX 502,77/630,43 ms e PDF 836,03/1.072,51 ms. C08 gerou 16 páginas e preservo
 assets, inicialização WASM, operação nativa e IPC.
 
 Esses números são observações locais sintéticas. O relatório declara como falsos
-`browser_startup_measured`, `browser_memory_measured`,
-`hundred_page_case_measured` e `visual_fidelity_approved`. Portanto fecha a
-medição atual de checkpoint/exportação para o corpus de 16 casos, incluindo 20+
-páginas e 210 itens, mas não fecha o orçamento G7 de navegador nem o caso de 100
-páginas.
+`browser_startup_measured`, `browser_memory_measured` e
+`visual_fidelity_approved`. Portanto fecha a medição atual de
+checkpoint/exportação para o corpus de 16 casos, incluindo 20+ páginas e 210
+itens, mas não fecha o orçamento G7 de navegador.
+
+O mesmo modo gera ainda um DOCX sintético determinístico somente em memória,
+com 100 marcadores e 99 quebras explícitas. O arquivo passa pelo preflight e
+importador nativo existentes; o checkpoint é validado e o PDF exportado precisa
+conter exatamente 100 páginas pelo `PdfReader`. Três repetições produziram:
+importação P50/P95 472,39/478,16 ms, validação 285,91/293,75 ms e PDF
+1.104,71/1.113,60 ms. O relatório atualizado é
+`WORDCRAFT_BENCHMARK_FULL_16_PLUS_100P_20261018.json`, 47.188 bytes, SHA-256
+`66302123a324a8be1f4ac8be9bf9148dd7bf8600def571588239cf3e83d28f06`.
+O campo `hundred_page_measurement_kind` registra
+`native_import_validate_export_not_browser_open`: esta prova mede o motor/IPC,
+sem reclassificá-la como abertura ou memória de navegador.
