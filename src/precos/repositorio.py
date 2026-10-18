@@ -1033,3 +1033,32 @@ def analises_do_item(item_id: str) -> list[dict]:
                 .eq("tipo", "busca_concluida").like("idempotency_key", "jev:result:%")
                 .order("criado_em", desc=True).limit(1000).execute())
     return [r["payload"] for r in resposta.data or []]
+
+
+def pareceres_jev(pesquisa_id: str, pagina: int = 1000) -> list[dict]:
+    """
+    Os pareceres do Jev gravados na trilha da pesquisa (`decisoes`), do
+    mais novo ao mais velho: só o id da referência e a escolha fechada,
+    sem o payload inteiro. Paginado: uma pesquisa real tem mais de mil.
+    """
+    saida: list[dict] = []
+    try:
+        while True:
+            resposta = (
+                _cliente().table(TABELA_EVENTOS)
+                .select("criado_em,referencia_id:payload->>referencia_id,"
+                        "escolha:payload->response->answers->"
+                        "price_reference_mismatch->>choice")
+                .eq("tenant_id", db.tenant_atual())
+                .eq("pesquisa_id", pesquisa_id).eq("tipo", "busca_concluida")
+                .like("idempotency_key", "jev:result:%")
+                .order("criado_em", desc=True).order("id", desc=True)
+                .range(len(saida), len(saida) + pagina - 1).execute())
+            linhas = resposta.data or []
+            saida.extend(linhas)
+            if len(linhas) < pagina:
+                return saida
+    except SemSessao:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001

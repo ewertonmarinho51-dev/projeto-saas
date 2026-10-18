@@ -76,6 +76,9 @@ CONTEXTO_COMERCIAL = "PLAUSIBLE_COMMERCIAL_CONTEXT"
 DIVERGENCIA_JEV = "JEV_COMPARABILITY_CONCERN"
 VARIACAO_RELEVANTE = "PRICE_VARIATION_REQUIRES_ATTENTION"
 SINALIZADA_NA_CESTA = "FLAGGED_IN_BASKET"
+# fator de conversão ≥ 10× ou ≤ 0,1× sem respaldo dos pares
+# (`unidades.conversao_extrema`, N-06)
+FATOR_EXTREMO = "UNIT_CONVERSION_FACTOR_EXTREME"
 
 # Rótulos que vão para `motivos` da referência — e pelos quais a tela e o
 # relatório reconhecem o desfecho da triagem sem reler a trilha.
@@ -813,29 +816,56 @@ class Alerta:
 
 
 def alertas_da_cesta(itens: list[dict], referencias: dict[str, list[dict]],
-                     politica: PoliticaSaneamento = POLITICA_PADRAO
+                     politica: PoliticaSaneamento = POLITICA_PADRAO, *,
+                     pareceres: dict[str, str] | None = None
                      ) -> list[Alerta]:
     """
     Preços DA CESTA que merecem conferência antes de emitir: os que o
     motor não daria como elegíveis hoje, e os que alguém já marcou como
     sinalizados. Não muda nada — só aponta, e a emissão segue.
-    """
-    from . import cesta
 
+    `pareceres` é a escolha do Jev GRAVADA na trilha, por id da
+    referência (`ciencia.pareceres_do_jev`). Segunda auditoria de
+    18/10/2026 (N-03): 347 referências estavam na cesta com o Jev dizendo
+    "produto/especificação diferente", e este aviso recalculava a triagem
+    sem o parecer. Agora "diferente" passa pelo mesmo `reavaliar_com_jev`
+    da coleta e vira alerta. A IA não tira nada da cesta: o alerta pede a
+    conferência de uma pessoa antes de emitir.
+
+    Também vira alerta o preço da cesta com fator de conversão extremo
+    sem o respaldo dos pares (N-06, `unidades.conversao_extrema`): as
+    cestas formadas antes da barreira de conversão.
+    """
+    from . import cesta, unidades
+
+    pareceres = pareceres or {}
     saida: list[Alerta] = []
     for item in sorted(itens, key=lambda i: int(i.get("numero") or 0)):
         linhas = cesta.consideradas(referencias.get(str(item.get("id")), []))
         if not linhas:
             continue
-        triagem = avaliar([observacao_da_linha(l) for l in linhas], politica,
-                          texto_item=str(item.get("descricao") or ""))
+        triagem = avaliar(
+            [observacao_da_linha(l, jev=_parecer_divergente(
+                pareceres.get(str(l.get("id"))))) for l in linhas],
+            politica, texto_item=str(item.get("descricao") or ""))
         por_id = triagem.por_id()
+        pares = [v for v in (unidades.sem_conversao(
+            l.get("valor_unitario_original"),
+            l.get("valor_unitario_normalizado")) for l in linhas)
+            if v is not None]
         for linha in linhas:
             avaliacao = por_id[str(linha.get("id"))]
             sinalizada = str(linha.get("status")) == "warning"
-            if avaliacao.desfecho == ELEGIVEL and not sinalizada:
+            extrema = unidades.conversao_extrema(
+                linha.get("valor_unitario_original"),
+                linha.get("valor_unitario_normalizado"), pares)
+            if avaliacao.desfecho == ELEGIVEL and not sinalizada and \
+                    extrema is None:
                 continue
-            codigos = list(avaliacao.codigos) or [VARIACAO_RELEVANTE]
+            codigos = list(avaliacao.codigos)
+            if extrema is not None:
+                codigos.append(FATOR_EXTREMO)
+            codigos = codigos or [VARIACAO_RELEVANTE]
             if sinalizada and SINALIZADA_NA_CESTA not in codigos:
                 codigos.append(SINALIZADA_NA_CESTA)
             saida.append(Alerta(
@@ -847,13 +877,22 @@ def alertas_da_cesta(itens: list[dict], referencias: dict[str, list[dict]],
                 mediana=avaliacao.metricas.get("mediana")
                 or triagem.serie.get("mediana"),
                 codigos=codigos,
-                mensagem=_mensagem_do_alerta(avaliacao, sinalizada),
+                mensagem=_mensagem_do_alerta(
+                    avaliacao, sinalizada,
+                    _parecer_divergente(pareceres.get(str(linha.get("id")))),
+                    extrema),
                 origem=" · ".join(str(p) for p in (
                     linha.get("fonte_nome"), linha.get("orgao")) if p)))
     return saida
 
 
-def _mensagem_do_alerta(avaliacao: Avaliacao, sinalizada: bool) -> str:
+def _parecer_divergente(escolha: str | None) -> str:
+    """Só "produto/especificação diferente" do Jev vira alerta na emissão."""
+    return escolha if escolha in JEV_DIVERGENTE else ""
+
+
+def _mensagem_do_alerta(avaliacao: Avaliacao, sinalizada: bool,
+                        escolha: str = "", extrema=None) -> str:
     """
     Na emissão, o preço já está NA CESTA: a frase diz a variação e as
     contas, não o desfecho que a triagem daria antes da cesta.
@@ -862,10 +901,21 @@ def _mensagem_do_alerta(avaliacao: Avaliacao, sinalizada: bool) -> str:
     if sinalizada:
         partes.append("mantida na cesta como sinalizada por decisão "
                       "registrada")
+    if escolha:
+        partes.append(
+            "o Jev registrou parecer de "
+            + ("produto diferente" if escolha == "different_product"
+               else "especificação diferente")
+            + " do item — parecer da IA, não decisão: confira a fonte e "
+            "decida se o preço fica na cesta")
+    if extrema is not None:
+        partes.append(extrema.frase() + " sem o respaldo de 3 referências "
+                      "sem conversão na faixa de 1/3 a 3× da mediana ("
+                      + extrema.frase_dos_pares() + ")")
     if avaliacao.metricas.get("criterios") and avaliacao.valor is not None:
         partes.append("variação relevante: " + _frase(avaliacao.valor,
                                                      avaliacao.metricas))
-    elif avaliacao.explicacao:
+    elif avaliacao.explicacao and not escolha:
         partes.append(avaliacao.explicacao)
     return "; ".join(partes) or "confira antes de emitir"
 

@@ -280,6 +280,8 @@ class TabelaPrecosFalsa:
         self._dados = None
         self._filtros: list[tuple] = []
         self._conflito = ""
+        self._colunas = "*"
+        self._faixa: tuple[int, int] | None = None
 
     def insert(self, dados):
         self._acao, self._dados = "insert", dados
@@ -294,9 +296,32 @@ class TabelaPrecosFalsa:
         self._acao, self._dados = "update", dados
         return self
 
-    def select(self, *_):
+    def select(self, *colunas):
         self._acao = "select"
+        self._colunas = colunas[0] if colunas else "*"
         return self
+
+    def range(self, inicio, fim):
+        self._faixa = (int(inicio), int(fim))
+        return self
+
+    def _projetar(self, registro):
+        """`alias:payload->a->>b` do PostgREST; sem `->`, a linha inteira."""
+        import re
+
+        saida = {}
+        for parte in str(self._colunas).split(","):
+            alias, _, caminho = parte.strip().rpartition(":")
+            caminho = caminho or alias
+            alias = alias or caminho
+            nomes = re.split(r"->>?", caminho)
+            valor = registro.get(nomes[0])
+            for nome in nomes[1:]:
+                valor = valor.get(nome) if isinstance(valor, dict) else None
+            if "->>" in caminho and valor is not None:
+                valor = str(valor)
+            saida[alias] = valor
+        return saida
 
     def eq(self, campo, valor):
         self._filtros.append((campo, valor))
@@ -382,6 +407,10 @@ class TabelaPrecosFalsa:
         if self._acao == "update":
             for r in filtrados:
                 r.update(self._dados)
+        if self._faixa is not None:
+            filtrados = filtrados[self._faixa[0]:self._faixa[1] + 1]
+        if self._acao == "select" and "->" in str(self._colunas):
+            filtrados = [self._projetar(r) for r in filtrados]
         return types.SimpleNamespace(data=filtrados)
 
 

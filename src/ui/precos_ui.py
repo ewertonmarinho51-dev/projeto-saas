@@ -2332,7 +2332,10 @@ def _render_aviso_nao_bloqueante(pesquisa: dict, itens: list[dict],
     """O que a emissão vai pedir — antes do clique, sem travar nada."""
     from ..precos import ciencia
 
-    preparo = ciencia.preparar(pesquisa, itens, referencias)
+    preparo = ciencia.preparar(
+        pesquisa, itens, referencias,
+        pareceres=ciencia.pareceres_do_jev(str(pesquisa.get("id") or ""),
+                                           _trilha_da_ciencia()))
     if not preparo.requer_ciencia:
         return
     if preparo.alertas:

@@ -89,13 +89,38 @@ class CienciaDesatualizada(CienciaNecessaria):
     """A cesta mudou entre o aviso e a confirmação: novo aviso."""
 
 
+def pareceres_do_jev(pesquisa_id: str, repositorio) -> dict[str, str]:
+    """
+    A escolha MAIS RECENTE do Jev para cada referência da pesquisa, como
+    está gravada na trilha (`decisoes.revisar_referencia`). Entra nos
+    alertas da emissão (N-03 da segunda auditoria de 18/10/2026).
+
+    O aviso, a confirmação e a exigência do servidor leem daqui — a mesma
+    leitura nos três, senão as assinaturas não batem. Repositório sem a
+    leitura (dublê de teste antigo): nenhum parecer.
+    """
+    from .decisoes import MOTIVOS
+
+    ler = getattr(repositorio, "pareceres_jev", None)
+    if ler is None or not pesquisa_id:
+        return {}
+    saida: dict[str, str] = {}
+    for linha in ler(pesquisa_id) or []:   # do mais novo ao mais velho
+        rid = str(linha.get("referencia_id") or "")
+        escolha = str(linha.get("escolha") or "")
+        if rid and escolha in MOTIVOS:
+            saida.setdefault(rid, escolha)
+    return saida
+
+
 def preparar(pesquisa: dict, itens: list[dict],
              referencias: dict[str, list[dict]],
-             politica: saneamento.PoliticaSaneamento = saneamento.POLITICA_PADRAO
-             ) -> Preparo:
+             politica: saneamento.PoliticaSaneamento = saneamento.POLITICA_PADRAO,
+             *, pareceres: dict[str, str] | None = None) -> Preparo:
     pesquisa_id = str(pesquisa.get("id") or "")
     revisao = relatorio.identificador_da_versao(pesquisa, itens, referencias)
-    alertas = saneamento.alertas_da_cesta(itens, referencias, politica)
+    alertas = saneamento.alertas_da_cesta(itens, referencias, politica,
+                                          pareceres=pareceres)
     pendencias = [p for p in relatorio.pendencias_nominais(
         itens, referencias, obter_perfil(pesquisa.get("perfil_normativo")))
         if p.get("impede")]
@@ -133,7 +158,9 @@ def registrar(pesquisa: dict, preparo: Preparo, *, ator: str | None,
     o aviso novo. Repetir o clique devolve a ciência já gravada.
     """
     itens, referencias = recarregar()
-    atual = preparar(pesquisa, itens, referencias)
+    atual = preparar(pesquisa, itens, referencias,
+                     pareceres=pareceres_do_jev(str(pesquisa.get("id") or ""),
+                                                repositorio))
     if atual.assinatura != preparo.assinatura:
         raise CienciaDesatualizada(atual)
     pesquisa_id = str(pesquisa.get("id") or "")
@@ -170,7 +197,9 @@ def exigir(pesquisa: dict, itens: list[dict],
     Sem alerta nem pendência: None (emite direto). Com: a ciência válida
     — ou `CienciaNecessaria`. Nunca recusa por causa do preço em si.
     """
-    preparo = preparar(pesquisa, itens, referencias)
+    preparo = preparar(pesquisa, itens, referencias,
+                       pareceres=pareceres_do_jev(
+                           str(pesquisa.get("id") or ""), repositorio))
     if not preparo.requer_ciencia:
         return None
     evento = localizar(preparo.pesquisa_id, preparo.assinatura, ator,
