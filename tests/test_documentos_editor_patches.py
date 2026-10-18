@@ -588,6 +588,74 @@ def test_legal_opinion_preparation_reuses_native_owner_and_reaudits(patch_owner)
     assert not state['rpc_calls']
 
 
+def test_c09_acceptance_routes_objective_ambiguous_and_conflicting_findings(patch_owner):
+    """C09: only the evidenced objective recommendation reaches the G4 owner."""
+    from src.wordcraft_capacidades import Capacidade, CorrecaoContextual, propositor
+    service,state,process=patch_owner
+    opinion=str(uuid4())
+    objective,ambiguous,conflicting=(str(uuid4()) for _ in range(3))
+    exact='Texto placeholder sintético do documento memo_a, requer ajuste pontual.'
+    state['opinions']=[dict(id=opinion,nome_arquivo='C09-parecer-sintetico.pdf',
+        hash_origem='9'*64,status='NORMALIZED',processo_id=process)]
+    common=dict(parecer_id=opinion,categoria='operacional',gravidade='HIGH',
+        documento_afetado='memo_a',fundamento='art. QA-09',causa='',sistemico=False,
+        confianca=.9)
+    state['opinion_findings']=[
+        dict(common,id=objective,problema='O prazo está indeterminado.',
+            clausula_afetada='1',correcao_solicitada='Definir prazo sintético de 30 dias.',
+            evidencias=[exact]),
+        dict(common,id=ambiguous,problema='A adequação pode ser melhorada.',
+            clausula_afetada='1',
+            correcao_solicitada='Reescrever ou, alternativamente, manter a redação.',
+            evidencias=[exact]),
+        dict(common,id=conflicting,problema='Remover assinaturas institucionais preservadas.',
+            clausula_afetada='assinaturas preservadas',
+            correcao_solicitada='Remover o bloco institucional.',
+            evidencias=['Assinaturas institucionais que não pertencem ao texto editável.']),
+    ]
+
+    current=service.pareceres_atuais(process)
+    by_source={item['sourceIds'][-1].split(':',1)[1]:item for item in current['findings']}
+    assert by_source[objective]['autoCorrectable'] is True
+    assert by_source[ambiguous]['autoCorrectable'] is False
+    assert by_source[ambiguous]['parecerStatus']=='AMBIGUO'
+    assert by_source[conflicting]['autoCorrectable'] is False
+    assert by_source[conflicting]['allowedPaths']==[]
+
+    finding=by_source[objective]
+    correction=CorrecaoContextual(Capacidade.PARECER,finding['findingId'],
+        'C09-ALVO O prazo sintético de teste é de 30 dias.',
+        'Atender somente a recomendação objetiva C09.',tuple(finding['sourceIds']))
+    operation=str(uuid4())
+    prep=service.preparar_parecer(process,operation_id=operation,
+        propor_plano=propositor(correction))
+    audit=prep.auditoria()
+    assert [item['findingId'] for item in audit['plan']['operations']]==[finding['findingId']]
+    diffs=audit['diff']['documentos']
+    assert set(diffs)=={'memo_a','memo_b','memo_c'}
+    assert len(diffs['memo_a']['alterados'])==1
+    assert diffs['memo_a']['adicionados']==diffs['memo_a']['removidos']==[]
+    assert all(diffs[key]['alterados']==diffs[key]['adicionados']==diffs[key]['removidos']==[]
+               for key in ('memo_b','memo_c'))
+    assert {item['findingId'] for item in audit['reports'][1]['findings']} == \
+        {item['findingId'] for item in current['findings']}
+    checkpoints={result.fonte.doc_key:Checkpoint(operation,result.fonte.revision,
+        result.content_hash,result.payload) for result in prep.resultados}
+    receipt=service.confirmar_patches(prep,checkpoints=checkpoints)
+    assert receipt.canvas_confirmado is True and len(receipt.documentos)==1
+
+    state['patch_audits']=[dict(id=receipt.audit_id,processo_id=process,
+        criado_em='2026-10-18T00:00:00Z',native_patch_operation=operation,
+        native_patch_actor=state['claims']['sub'],relatorios=audit['reports'],
+        planos=[audit['plan']],diffs=[audit['diff']])]
+    attendance=service.atendimentos_parecer(process)['reports'][0]
+    statuses={item['findingId']:item['status'] for item in attendance['items']}
+    assert statuses[finding['findingId']]=='APLICADO_PENDENTE_REVISAO'
+    assert statuses[by_source[ambiguous]['findingId']]=='PENDENTE'
+    assert statuses[by_source[conflicting]['findingId']]=='PENDENTE'
+    assert len(state['rpc_calls'])==1
+
+
 def test_legal_opinion_preparation_rejects_unpersisted_finding(patch_owner):
     from src.wordcraft_capacidades import Capacidade, CorrecaoContextual, propositor
     service,state,process=patch_owner

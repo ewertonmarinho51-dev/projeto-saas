@@ -222,12 +222,18 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 - o modelo de painel reúne as seis capacidades sem expor ação de persistência.
 - o host recusa patch stale, excessivo ou com hash de destino divergente,
   correlaciona exatamente operação/checkpoint/recibo e não ACKa antes do commit.
+- o cenário C09 do owner classifica em conjunto uma recomendação objetiva, uma
+  ambígua e uma incompatível com o texto editável; somente a objetiva entra no
+  plano G4, o diff prova os demais documentos intactos, o checkpoint exato é
+  confirmado e a trilha mantém os outros itens pendentes. Evidência detalhada:
+  `c09-aceite-owner.md`.
 
 ## Pendências para fechar G5
 
 1. ampliar a prova no navegador WASM real já existente para cobrir geração
    pelo GovBot, confirmação backend, Undo posterior e stale end-to-end;
-2. completar as trilhas A–D do corpus, incluindo auditoria e parecer reais;
+2. completar as trilhas A–D do corpus; C09 possui PASS local do owner, mas ainda
+   exige navegador/WASM, SQL real e sessão JWT para aceite end-to-end;
 3. consumir catálogo institucional, RAG vigente e montagem oficial pelos
    owners existentes em ensaio end-to-end;
 4. provar isolamento entre tenants e o fluxo completo em sessão JWT real.
