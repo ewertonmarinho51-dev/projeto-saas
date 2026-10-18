@@ -76,3 +76,26 @@ def test_checkpoint_item_counter_uses_document_values_and_detects_duplicates():
             "GC-C08-0003": 0,
         }
 
+
+def test_pdf_item_rows_require_every_value_inside_its_own_code_window():
+    oracle = {
+        "codes": ["ITEM-1", "ITEM-2"],
+        "source_items": [
+            {"descricao": "Descrição longa um", "unidade": "UN", "quantidade": "2",
+             "valor_unitario": "10,00"},
+            {"descricao": "Descrição longa dois", "unidade": "CX", "quantidade": "3",
+             "valor_unitario": "20,00"},
+        ],
+        "expected_money": ["R$ 20,00", "R$ 60,00"],
+        "global_total_display": "R$ 80,00",
+    }
+    text = ("ITEM-1 Descrição longa\num UN 2 R$ 10,00 R$ 20,00 "
+            "ITEM-2 Descrição longa dois CX 3 R$ 20,00 R$ 60,00 TOTAL R$ 80,00")
+    assert roundtrip._pdf_item_row_coverage(text, oracle) == {
+        "applicable": True, "checked": 2, "missing": [], "global_total_present": True}
+
+    # A value present in the next row cannot conceal a truncated first row.
+    broken = text.replace("ITEM-1 Descrição longa\num UN 2 R$ 10,00 R$ 20,00 ", "ITEM-1 ")
+    result = roundtrip._pdf_item_row_coverage(broken, oracle)
+    assert result["missing"] == ["ITEM-1"]
+

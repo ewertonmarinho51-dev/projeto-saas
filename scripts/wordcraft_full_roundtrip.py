@@ -7,16 +7,19 @@ database, AI call, hosted Supabase or deployment is involved.
 from __future__ import annotations
 
 import argparse
+from decimal import Decimal
 import hashlib
 import io
 import json
 from pathlib import Path
+import re
 import sys
 import time
 import zipfile
 
 from wordcraft_corpus import (ROOT, inspect_full_docx, text_blocks,
-                              verify_full_inputs, _verificar_entrada_docx)
+                              verify_full_inputs, _moeda_oraculo,
+                              _verificar_entrada_docx)
 
 sys.path.insert(0, str(ROOT))
 from src.wordcraft_native import aplicar_patch, importar_docx, exportar, validar
@@ -114,6 +117,30 @@ def _checkpoint_code_counts(content: bytes, codes: list[str]) -> dict[str, int]:
 
     visit(model.get("document"))
     return counts
+
+
+def _pdf_item_row_coverage(pdf_text: str, oracle: dict) -> dict:
+    """Check each monetary row in its own code-delimited PDF text window."""
+    compact = re.sub(r"\s+", " ", pdf_text).strip()
+    codes = oracle.get("codes", [])
+    source_items = oracle.get("source_items", [])
+    expected_money = oracle.get("expected_money", [])
+    if not codes or len(codes) != len(source_items) or len(codes) != len(expected_money):
+        return {"applicable": False, "checked": 0, "missing": []}
+    missing = []
+    for index, (code, item, total) in enumerate(zip(codes, source_items, expected_money)):
+        start = compact.find(code)
+        end = compact.find(codes[index + 1], start + len(code)) if index + 1 < len(codes) else len(compact)
+        window = compact[start:end] if start >= 0 and end >= 0 else ""
+        unit_price = _moeda_oraculo(Decimal(item["valor_unitario"].replace(",", ".")))
+        expected = [code, re.sub(r"\s+", " ", item["descricao"]).strip(),
+                    item["unidade"], item["quantidade"],
+                    unit_price, total]
+        if not window or any(value not in window for value in expected):
+            missing.append(code)
+    global_total = oracle.get("global_total_display")
+    return {"applicable": True, "checked": len(codes), "missing": missing,
+            "global_total_present": global_total in compact if global_total else None}
 
 
 def run(inputs: Path, output: Path, *, node: Path, bundle: Path, manifest_sha256: str) -> dict:
@@ -223,6 +250,15 @@ def run(inputs: Path, output: Path, *, node: Path, bundle: Path, manifest_sha256
                         entry["pdf_item_code_coverage"] = "CHECKED" if entry["pdf_item_code_count"] else "NOT_APPLICABLE"
                         stage = "pdf_item_codes"
                         entry["steps"]["pdf_item_codes"] = "PASS" if all(code in pdf_text for code in oracle.get("codes",[])) else "DIFFERENT"
+                        rows = _pdf_item_row_coverage(pdf_text, oracle)
+                        if rows["applicable"]:
+                            stage = "pdf_item_rows"
+                            entry["pdf_item_rows_checked"] = rows["checked"]
+                            entry["pdf_item_rows_missing"] = rows["missing"]
+                            entry["pdf_global_total_present"] = rows["global_total_present"]
+                            entry["steps"][stage] = (
+                                "PASS" if not rows["missing"] and rows["global_total_present"] is True
+                                else "DIFFERENT")
                 except Exception as error:
                     entry["steps"][stage] = "REFUSED_" + type(error).__name__
             entry["elapsed_ms"] = round((time.perf_counter()-start)*1000,2)
