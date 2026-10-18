@@ -92,7 +92,7 @@ permanece aberta.
 | G4 Patches | PARCIAL | motor real preservou79 IDs/27 blocos protegidos,8 negativos recusados;188 SQL passaram; host e laboratório correlacionam operação, canvas, transação atômica e ACK; cenário privado positivo confirmou auditoria/preparo e recusa limpa do bundle antigo; fonte corrige vínculo aos bytes persistidos, porém build WASM e prova positiva completa/Undo, multi-canvas e GovBot permanecem pendentes |
 | G5 Seis capacidades | PARCIAL | compilador/painel/host, consumidor source-aware, aplicação transacional de template e pacote auditável ligados sob flag OFF; admissão recusa bundle QA; falta artefato operacional homologado e corpus A-D completo |
 | G6 Paridade e retirada | PENDENTE | nenhuma funcionalidade legada retirada; a transição agora falha fechada antes de runtime/importação quando existe rascunho legado divergente e o preserva na sessão; substituição e retirada continuam condicionadas à comprovação integral |
-| G7 Homologação | PARCIAL | CAS/RLS/imutabilidade SQL e HTTP sintéticos; GoTrue Linux implementado,primeiro run falhou preflight; Auth real,emissão e orçamento de performance pendentes |
+| G7 Homologação | PARCIAL | CAS/RLS/imutabilidade SQL e HTTP sintéticos; runner Chromium mede startup, abertura e heap JS/DOM no próximo CI; GoTrue Linux implementado, primeiro run falhou preflight; Auth real, memória total/WASM e orçamento na infraestrutura-alvo pendentes |
 
 CI: f23a6c5 teve build WASM e produto aprovados. O commit publicado 428acb6
 acrescentou aprovação/Auth e falhou no scanner por URLs sintéticas de loopback e

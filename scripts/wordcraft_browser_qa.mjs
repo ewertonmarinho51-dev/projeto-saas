@@ -17,9 +17,10 @@ const MAX_INPUT = 8 * 1024 * 1024;
 const MAX_SCREENSHOT = 8 * 1024 * 1024;
 const STAGES = new Set(['configuration', 'bundle_admission', 'synthetic_admission', 'playwright_pin', 'http_confinement',
   'chromium_start', 'canvas_open', 'api_edit', 'queued_input', 'keyboard_input', 'freeze_release',
-  'native_patch_undo', 'native_export', 'screenshot', 'runtime_errors', 'cleanup', 'global_timeout']);
+  'native_patch_undo', 'native_export', 'screenshot', 'performance_metrics', 'runtime_errors', 'cleanup', 'global_timeout']);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const check = (condition, stage) => { if (condition !== true) throw new BrowserQaFailure(stage); };
+const elapsedMs = started => Number(process.hrtime.bigint() - started) / 1_000_000;
 
 export class BrowserQaFailure extends Error {
   constructor(stage) { super('Browser QA refused.'); this.stage = STAGES.has(stage) ? stage : 'configuration'; }
@@ -28,6 +29,43 @@ export class BrowserQaFailure extends Error {
 export function failureRecord(stage) {
   return {status: 'FAIL_HEADLESS_BROWSER_QA', failed_stage: STAGES.has(stage) ? stage : 'configuration',
     manual_browser_observation: false, gotrue_or_database_proof: false};
+}
+
+export async function rendererMetrics(session) {
+  await session.send('Performance.enable');
+  const [{metrics}, dom] = await Promise.all([
+    session.send('Performance.getMetrics'), session.send('Memory.getDOMCounters'),
+  ]);
+  const values = Object.fromEntries(metrics.map(item => [item.name, item.value]));
+  const result = {
+    js_heap_used_bytes: values.JSHeapUsedSize,
+    js_heap_total_bytes: values.JSHeapTotalSize,
+    documents: dom.documents,
+    nodes: dom.nodes,
+    listeners: dom.jsEventListeners,
+  };
+  check(Object.values(result).every(value => Number.isFinite(value) && value >= 0)
+    && result.js_heap_total_bytes >= result.js_heap_used_bytes, 'performance_metrics');
+  return result;
+}
+
+export function summarizePerformance(cases) {
+  check(Array.isArray(cases) && cases.length > 0, 'performance_metrics');
+  const distribution = key => {
+    const values = cases.map(item => item.performance?.[key]);
+    check(values.every(value => Number.isFinite(value) && value >= 0), 'performance_metrics');
+    values.sort((left, right) => left - right);
+    const rank = percentile => values[Math.max(0, Math.ceil(percentile * values.length) - 1)];
+    return {samples: values.length, p50_ms: rank(.50), p95_ms: rank(.95)};
+  };
+  const readings = cases.flatMap(item => [item.performance?.after_open,
+    item.performance?.after_interactions]);
+  check(readings.every(item => item && Number.isFinite(item.js_heap_used_bytes)
+    && Number.isFinite(item.nodes)), 'performance_metrics');
+  return {mixed_synthetic_documents: true,
+    canvas_ready: distribution('canvas_ready_ms'), document_open: distribution('document_open_ms'),
+    max_renderer_js_heap_used_bytes: Math.max(...readings.map(item => item.js_heap_used_bytes)),
+    max_renderer_dom_nodes: Math.max(...readings.map(item => item.nodes))};
 }
 
 export function parseArgs(args) {
@@ -347,6 +385,9 @@ export async function run(config) {
   const evidence = {schema: 'gc-wordcraft-headless-browser-qa/v1', status: 'FAIL_HEADLESS_BROWSER_QA',
     manual_browser_observation: false, gotrue_or_database_proof: false, production_access: false,
     ack_model: 'SIMULATED_TRANSPORT_ONLY_NOT_PERSISTENCE', cases: [],
+    performance: {scope: 'HEADLESS_CHROMIUM_QA_SYNTHETIC_NOT_TARGET_INFRASTRUCTURE',
+      browser_process_total_memory_measured: false, wasm_linear_memory_measured: false,
+      renderer_js_heap_and_dom_measured: true, cold_warm_kind: 'NEW_PAGE_SAME_BROWSER_CONTEXT_CACHE'},
     limits: {cases: 3, checkpoint_bytes: MAX_INPUT, stage_timeout_ms: 45_000, global_timeout_ms: 300_000},
     pending: ['MANUAL_IME', 'TOOLBAR_UI', 'FULL_STREAMLIT', 'DATABASE_PERSISTENCE', 'HUMAN_VISUAL_FIDELITY_REVIEW']};
   const stage = async (name, operation) => { phase = name; return operation(); };
@@ -366,9 +407,13 @@ export async function run(config) {
     const {chromium} = await stage('playwright_pin', () => import(pathToFileURL(pkg.entry).href));
     const environment = Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'PLAYWRIGHT_BROWSERS_PATH']
       .filter(key => process.env[key]).map(key => [key, process.env[key]]));
+    const browserStarted = process.hrtime.bigint();
     browser = await stage('chromium_start', () => chromium.launch({headless: true, timeout: 45_000, env: environment,
       args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-dev-shm-usage',
         '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run']}));
+    evidence.performance.browser_startup_ms = elapsedMs(browserStarted);
+    check(Number.isFinite(evidence.performance.browser_startup_ms)
+      && evidence.performance.browser_startup_ms >= 0, 'performance_metrics');
     check(browser.version() === QA_PIN.chromiumVersion, 'chromium_start');
     evidence.runtime.browser_version_observed = browser.version();
     evidence.runtime.browser_executable_sha256 = hash(await readFile(chromium.executablePath()));
@@ -382,18 +427,26 @@ export async function run(config) {
       deniedRequests++; return route.abort();
     });
     watchdog = setTimeout(() => { phase = 'global_timeout'; void browser?.close(); }, 300_000);
-    for (const item of cases) {
+    for (const [caseIndex, item] of cases.entries()) {
       page = await context.newPage();
+      const cdp = await context.newCDPSession(page);
       page.on('pageerror', () => { pageErrors++; });
       page.on('console', message => { if (message.type() === 'error') consoleErrors++; });
+      const canvasStarted = process.hrtime.bigint();
       await stage('canvas_open', async () => {
         await page.goto(server.origin + '/', {waitUntil: 'load'});
         await page.waitForFunction(() => Boolean(window.qa));
       });
       const result = {case: item.case, input_sha256: item.checkpoint_sha256, fixture_sha256: item.fixture_sha256,
-        source_bytes: item.checkpoint_bytes, steps: {}};
+        source_bytes: item.checkpoint_bytes, steps: {}, performance: {
+          cache_state: caseIndex === 0 ? 'cold_browser_context' : 'warm_browser_context',
+          canvas_ready_ms: elapsedMs(canvasStarted),
+        }};
+      const openStarted = process.hrtime.bigint();
       result.steps.open = await stage('canvas_open', () => page.evaluate(({content, sha}) => window.qa.open(content, sha),
         {content: item.bytes.toString('base64'), sha: item.checkpoint_sha256}));
+      result.performance.document_open_ms = elapsedMs(openStarted);
+      result.performance.after_open = await stage('performance_metrics', () => rendererMetrics(cdp));
       await page.locator('#canvas').click({position: {x: 600, y: 500}});
       await page.locator('input[type="text"]').focus();
       result.steps.api_edit = await stage('api_edit', () => page.evaluate(() => window.qa.apiEdit()));
@@ -409,6 +462,7 @@ export async function run(config) {
       result.steps.freeze_release = await stage('freeze_release', () => page.evaluate(() => window.qa.freezeRelease()));
       result.steps.patch_undo_redo = await stage('native_patch_undo', () => page.evaluate(() => window.qa.nativePatchUndo()));
       result.steps.exports = await stage('native_export', () => page.evaluate(() => window.qa.exports()));
+      result.performance.after_interactions = await stage('performance_metrics', () => rendererMetrics(cdp));
       const screenshot = await stage('screenshot', () => page.screenshot({animations: 'disabled', fullPage: false}));
       check(screenshot.length > 1024 && screenshot.length <= MAX_SCREENSHOT
         && screenshot.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), 'screenshot');
@@ -416,8 +470,9 @@ export async function run(config) {
       await writeFile(resolve(config.out, screenshotName), screenshot, {flag: 'wx'});
       result.screenshot = {path: screenshotName, bytes: screenshot.length, sha256: hash(screenshot), human_visual_approval: false};
       evidence.cases.push(result);
-      await page.evaluate(() => window.qa.close()); await page.close(); page = undefined;
+      await page.evaluate(() => window.qa.close()); await cdp.detach(); await page.close(); page = undefined;
     }
+    evidence.performance.summary = await stage('performance_metrics', () => summarizePerformance(evidence.cases));
     check(deniedRequests === 0 && pageErrors === 0 && consoleErrors === 0, 'runtime_errors');
     evidence.network = {external_requests_blocked: deniedRequests, page_errors: pageErrors, console_errors: consoleErrors,
       static_document_routes: 0, loopback_only: true};

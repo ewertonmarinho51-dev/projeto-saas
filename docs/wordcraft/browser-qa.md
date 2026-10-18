@@ -54,6 +54,17 @@ timeout ou API ausente falha o job; não há skip ou PASS condicional. Screensho
 toolbar real, Streamlit completo e persistência completa permanecem pendentes
 quando não exercitados por esse teste.
 
+O mesmo runner registra desempenho sem criar um segundo cenário: tempo de
+startup do processo Chromium, tempo até a API do canvas ficar pronta e tempo de
+`open` para cada fixture. O primeiro caso é rotulado como contexto frio; os dois
+seguintes usam nova página no mesmo contexto/processo e são rotulados como
+cache quente. O relatório inclui amostras e P50/P95 pelo método nearest-rank,
+declarando que os três documentos são diferentes. CDP fornece heap JavaScript
+do renderer e contadores de DOM antes e depois das interações. Esses números
+**não** incluem memória total do processo/browser nem memória linear do WASM;
+ambas permanecem `false` no contrato para impedir promoção indevida da medida.
+Falha ou ausência das métricas esperadas falha a etapa `performance_metrics`.
+
 O step fica depois dos roundtrips/import/export/patch puro e antes dos artifacts
 de `wordcraft-build.yml`, sem build alternativo, deploy ou produção. Testes Node
 offline do novo harness cobrem mapa estático, limites, confinamento e saídas

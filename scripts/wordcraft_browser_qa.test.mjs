@@ -4,7 +4,8 @@ import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {CASES, QA_PIN, BrowserQaFailure, failureRecord, pageModule, parseArgs,
-  serveAssets, staticResponse, verifyPlaywright} from './wordcraft_browser_qa.mjs';
+  rendererMetrics, serveAssets, staticResponse, summarizePerformance,
+  verifyPlaywright} from './wordcraft_browser_qa.mjs';
 
 const sha = 'a'.repeat(64), commit = 'b'.repeat(40);
 const absolute = name => resolve(tmpdir(), name);
@@ -24,6 +25,41 @@ test('failure evidence never upgrades browser or backend claims', () => {
     manual_browser_observation: false, gotrue_or_database_proof: false,
   });
   assert.equal(failureRecord('invented').failed_stage, 'configuration');
+});
+
+test('renderer metrics preserve their bounded CDP meaning', async () => {
+  const calls = [];
+  const session = {send: async method => {
+    calls.push(method);
+    if (method === 'Performance.enable') return {};
+    if (method === 'Performance.getMetrics') return {metrics: [
+      {name:'JSHeapUsedSize', value:12_000}, {name:'JSHeapTotalSize', value:20_000},
+    ]};
+    if (method === 'Memory.getDOMCounters') return {documents:2, nodes:300, jsEventListeners:14};
+    throw new Error('unexpected method');
+  }};
+  assert.deepEqual(await rendererMetrics(session), {js_heap_used_bytes:12_000,
+    js_heap_total_bytes:20_000, documents:2, nodes:300, listeners:14});
+  assert.deepEqual(calls, ['Performance.enable', 'Performance.getMetrics', 'Memory.getDOMCounters']);
+  session.send = async method => method === 'Performance.enable' ? {}
+    : method === 'Performance.getMetrics' ? {metrics:[
+      {name:'JSHeapUsedSize', value:30}, {name:'JSHeapTotalSize', value:20},
+    ]} : {documents:1, nodes:1, jsEventListeners:1};
+  await assert.rejects(rendererMetrics(session), error =>
+    error instanceof BrowserQaFailure && error.stage === 'performance_metrics');
+});
+
+test('performance summary uses nearest-rank percentiles and labels mixed fixtures', () => {
+  const sample = (ready, open, heap, nodes) => ({performance: {canvas_ready_ms: ready,
+    document_open_ms: open, after_open: {js_heap_used_bytes:heap, nodes},
+    after_interactions: {js_heap_used_bytes:heap + 1, nodes:nodes + 1}}});
+  assert.deepEqual(summarizePerformance([
+    sample(10, 4, 100, 5), sample(30, 2, 300, 7), sample(20, 3, 200, 6),
+  ]), {mixed_synthetic_documents:true,
+    canvas_ready:{samples:3, p50_ms:20, p95_ms:30},
+    document_open:{samples:3, p50_ms:3, p95_ms:4},
+    max_renderer_js_heap_used_bytes:301, max_renderer_dom_nodes:8});
+  assert.throws(() => summarizePerformance([]), BrowserQaFailure);
 });
 
 test('static route map rejects traversal, queries and writes', () => {
