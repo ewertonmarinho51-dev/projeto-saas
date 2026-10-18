@@ -8,19 +8,92 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 from pathlib import Path
 import sys
 import time
+import zipfile
 
-from wordcraft_corpus import ROOT, text_blocks, verify_full_inputs, _verificar_entrada_docx
+from wordcraft_corpus import (ROOT, inspect_full_docx, text_blocks,
+                              verify_full_inputs, _verificar_entrada_docx)
 
 sys.path.insert(0, str(ROOT))
-from src.wordcraft_native import importar_docx, exportar, validar
+from src.wordcraft_native import aplicar_patch, importar_docx, exportar, validar
 
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+
+C10_EDIT_FROM = "C10-EXTERNAL"
+C10_EDIT_TO = "C10-EXTERNAL-EDITED"
+
+
+def _replace_json_text_once(value, old: str, new: str):
+    """Apply one controlled editor mutation without depending on model layout."""
+    count = 0
+
+    def visit(item):
+        nonlocal count
+        if isinstance(item, str):
+            occurrences = item.count(old)
+            count += occurrences
+            return item.replace(old, new)
+        if isinstance(item, list):
+            return [visit(child) for child in item]
+        if isinstance(item, dict):
+            return {key: visit(child) for key, child in item.items()}
+        return item
+
+    changed = visit(value)
+    if count != 1:
+        raise ValueError(f"controlled edit target count differs: {count}")
+    return changed
+
+
+def _c10_patch_plan(content: bytes) -> dict:
+    """Build the same bounded native replace command used by product patches."""
+    model = json.loads(content)
+    matches = []
+    occurrences = 0
+    for index, block in enumerate(model["document"]["body"]):
+        if isinstance(block, dict) and isinstance(block.get("text"), str):
+            occurrences += block["text"].count(C10_EDIT_FROM)
+            start = block["text"].find(C10_EDIT_FROM)
+            if start >= 0:
+                matches.append((index, block["text"], start))
+    if occurrences != 1 or len(matches) != 1:
+        raise ValueError(f"controlled edit target count differs: {occurrences}")
+    index, text, start_chars = matches[0]
+    start_byte = len(text[:start_chars].encode("utf-8"))
+    old_bytes = C10_EDIT_FROM.encode("utf-8")
+    return {
+        "schema": "gc-wordcraft-native-patch/v1",
+        "source_hash": digest(content),
+        "source_revision": 1,
+        "operations": [{
+            "op": "replace_text", "story": "body", "path": [index],
+            "start_byte": start_byte, "end_byte": start_byte + len(old_bytes),
+            "old_text": C10_EDIT_FROM, "new_text": C10_EDIT_TO,
+        }],
+    }
+
+
+def _declared_feature_snapshot(docx: bytes) -> dict:
+    """Measure every feature that C10 declares, including the PAGE field."""
+    inspected = inspect_full_docx(docx)
+    with zipfile.ZipFile(io.BytesIO(docx)) as archive:
+        footer_xml = b"\n".join(archive.read(name) for name in archive.namelist()
+                                 if name.startswith("word/footer") and name.endswith(".xml"))
+    return {
+        "nested_table": inspected["table_rows"] == [2, 2],
+        "horizontal_merge": inspected["horizontal_spans"] == [2],
+        "header": inspected["headers"] == 1,
+        "footer": inspected["footers"] == 1,
+        "page_field": b"PAGE" in footer_xml,
+        "page_break": inspected["explicit_page_breaks"] == 1,
+    }
 
 
 def run(inputs: Path, output: Path, *, node: Path, bundle: Path, manifest_sha256: str) -> dict:
@@ -49,15 +122,22 @@ def run(inputs: Path, output: Path, *, node: Path, bundle: Path, manifest_sha256
             target.mkdir(parents=True)
             entry["source_sha256"] = digest(source)
             start = time.perf_counter()
+            stage = "native_import_and_validation"
             try:
                 content = importar_docx(source, **runtime)
                 validar(content, **runtime)
+                entry["steps"][stage] = "PASS"
+                if case["id"] == "C10":
+                    stage = "controlled_edit"
+                    content = aplicar_patch(
+                        content, revision=1, plano=_c10_patch_plan(content), **runtime)
+                    validar(content, **runtime)
+                    entry["steps"][stage] = "PASS"
                 (target / "checkpoint.json").write_bytes(content)
                 entry["checkpoint_sha256"] = digest(content)
                 entry["checkpoint_bytes"] = len(content)
-                entry["steps"]["native_import_and_validation"] = "PASS"
             except Exception as error:
-                entry["steps"]["native_import_and_validation"] = "REFUSED_" + type(error).__name__
+                entry["steps"][stage] = "REFUSED_" + type(error).__name__
                 entry["elapsed_ms"] = round((time.perf_counter()-start)*1000,2)
                 failures += 1
                 print(json.dumps({"case":entry["source"],"import":"REFUSED","error_type":type(error).__name__}),flush=True)
@@ -72,8 +152,15 @@ def run(inputs: Path, output: Path, *, node: Path, bundle: Path, manifest_sha256
                     entry[fmt+"_bytes"] = len(artifact)
                     if fmt == "docx":
                         stage = "ordered_text_stories_links"
-                        entry["steps"]["ordered_text_stories_links"] = "PASS" if text_blocks(source) == text_blocks(artifact) else "DIFFERENT"
+                        expected_blocks = text_blocks(source)
+                        if case["id"] == "C10":
+                            expected_blocks = _replace_json_text_once(
+                                expected_blocks, C10_EDIT_FROM, C10_EDIT_TO)
+                        entry["steps"]["ordered_text_stories_links"] = "PASS" if expected_blocks == text_blocks(artifact) else "DIFFERENT"
                         oracle = json.loads((inputs / variant["oracle"]).read_bytes())
+                        if case["id"] == "C10":
+                            oracle = _replace_json_text_once(
+                                oracle, C10_EDIT_FROM, C10_EDIT_TO)
                         stage = "source_oracles_and_structures"
                         try:
                             _verificar_entrada_docx(artifact,oracle)
@@ -83,6 +170,14 @@ def run(inputs: Path, output: Path, *, node: Path, bundle: Path, manifest_sha256
                             # contains no native exception or document text.
                             entry["steps"]["source_oracles_and_structures"] = "DIFFERENT"
                             entry["oracle_difference"] = str(error)
+                        if case["id"] == "C10":
+                            stage = "declared_feature_fidelity"
+                            before = _declared_feature_snapshot(source)
+                            after = _declared_feature_snapshot(artifact)
+                            entry["declared_features_before"] = before
+                            entry["declared_features_after"] = after
+                            entry["steps"][stage] = (
+                                "PASS" if before == after and all(after.values()) else "DIFFERENT")
                         stage = "reimport_exported_docx"
                         reopened = importar_docx(artifact, **runtime)
                         (target / "reimported-checkpoint.json").write_bytes(reopened)
