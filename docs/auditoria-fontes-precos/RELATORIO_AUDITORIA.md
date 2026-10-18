@@ -442,9 +442,13 @@ item), nunca para os 500 candidatos.
    conjunto emitido (C-5, C-8).
 
 6. **Riscos a corrigir antes do uso em processos licitatórios reais:**
-   C-1, C-2 e C-4 (fase 1 do plano). Até lá, o servidor deve conferir a
-   descrição de cada preço da cesta e não emitir a pesquisa "Material de
-   Expediente" de 08/10 sem refazer a busca.
+   C-1, C-2 e C-4 (fase 1 do plano), corrigidos no branch
+   `claude/auditoria-fontes-fase1` (seção F). Valem em produção só depois
+   do deploy. Mesmo com o deploy, as cestas já gravadas só se ajustam
+   quando a cotação automática do item é refeita. Até lá, o servidor deve
+   conferir a descrição de cada preço da cesta. A pesquisa "Material de
+   Expediente" de 08/10 fica bloqueada para emissão até a busca ser
+   refeita. Fases 2 e 3 (C-3, C-5, C-6, C-8 a C-11) continuam pendentes.
 
 ---
 

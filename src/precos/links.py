@@ -54,6 +54,7 @@ CONTRATACAO_PNCP = "https://pncp.gov.br/app/editais/{cnpj}/{ano}/{sequencial}"
 
 ID_COMPRA = re.compile(r"^\d{17}$")
 ID_COMPRA_ITEM = re.compile(r"^\d{22}$")
+ID_COMPRA_CRU = re.compile(r"^\d{15,17}$")
 CONTROLE_PNCP = re.compile(r"^(\d{14})-\d+-(\d{1,6})/(\d{4})$")
 
 # Hosts aceitos em qualquer link impresso: só os oficiais acima.
@@ -164,6 +165,10 @@ def resolver(linha: dict) -> Links:
         url = acompanhamento_compra(compra)
         cru = str(bruto.get("idCompra") or linha.get("referencia_externa")
                   or "").strip()
+        # sem link, imprime o número só se ele TEM a forma de um idCompra
+        # (15–17 dígitos); lixo ("abc/2025") não vira identificação (AC-21)
+        if not ID_COMPRA_CRU.match(cru):
+            cru = ""
         return Links(
             fonte_url=FONTE_COMPRAS, fonte_rotulo="Compras.gov.br",
             contratacao_url=url,
@@ -182,15 +187,15 @@ def resolver(linha: dict) -> Links:
             contratacao_url=url,
             contratacao_rotulo="Contratação no PNCP" if url else "",
             dados_url=seguro(compras_gov.url_de_verificacao(bruto)),
-            identificacao=" ".join(str(controle or "").split()),
+            identificacao=str(controle) if url else "",
             unidade_compradora=unidade_compradora(bruto))
     if fid == "pncp":
         url = seguro(pncp_mod.url_de_verificacao(bruto))
         return Links(
             fonte_url=FONTE_PNCP, fonte_rotulo="PNCP", contratacao_url=url,
             contratacao_rotulo="Contratação no PNCP" if url else "",
-            identificacao=" ".join(
-                str(bruto.get("numeroControlePNCP") or "").split()))
+            identificacao=str(bruto.get("numeroControlePNCP") or "")
+            if url else "")
     return Links()
 
 
