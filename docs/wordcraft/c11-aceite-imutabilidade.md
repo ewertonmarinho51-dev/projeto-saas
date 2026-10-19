@@ -4,7 +4,7 @@ Data: 19/10/2026
 
 Escopo: PostgreSQL/PostgREST/JWT/RLS local, RPC canônica e Chromium/WASM coevo
 
-Estado: **PASS LOCAL INTEGRADO PARA APROVADO; emitido/GoTrue-alvo ainda parciais**
+Estado: **PASS LOCAL INTEGRADO PARA APROVADO E EMITIDO; GoTrue-alvo ainda parcial**
 
 O manifesto offline continua `NOT_TESTED`: seus dois arquivos são sementes e
 não podem declarar que o banco executou o fluxo. A prova funcional está no teste
@@ -42,8 +42,26 @@ e hash permaneceram idênticos. A revisão 1 continuou byte-idêntica. Evidênci
 `993c4416f473c8b51cb4b8860eb15aa2c6fe8cdc6e11a575561eb4f5dce8011e`,
 34/34 checks verdadeiros e cleanup completo.
 
-O estado `emitido` continua provado no SQL local, mas ainda não atravessa essa
-mesma UI congelada. O JWT é cunhado pelo harness; GoTrue real e homologação na
+Em 19/10/2026, a prova foi estendida à sequência canônica completa. DFD, ETP,
+TR e Edital foram criados a partir do corpus sintético admitido, passaram pelos
+gates individuais e foram aprovados pelo owner. A emissão chamou a RPC
+`documento_editor_emitir` por PostgREST/JWT/RLS, persistiu os pacotes DOCX e
+PDF e mudou atomicamente os quatro heads para `emitido`. A reabertura recuperou
+o mesmo `emission_id` e bytes idênticos para ambos os pacotes. O canvas do DFD
+continuou congelado na mesma instância, geração e hash.
+
+Essa execução também encontrou duas assimetrias reais no consumidor: uma RPC
+`RETURNS TABLE` chegava do PostgREST como lista de uma linha, mas a emissão
+esperava um objeto direto; e `_revision` reidratava a aprovação em `aprovado`,
+mas não em `emitido`. O owner agora reutiliza `_one` para o recibo e reconstrói
+a mesma prova nativa nos dois estados imutáveis. Evidência:
+`outputs/WORDCRAFT_G4_OWNER_REAL_PERSISTENCE.json`, SHA-256
+`3dcdc0e2009044fee81e60c93e2396f6d6880b1252afd3aca0a5f1f27fa7069d`,
+status `PASS_REAL_CANVAS_BACKEND_ACK_UNDO_EMISSION_LOCAL`, 35/35 checks e 12/12
+assertivas de emissão verdadeiras. Pacotes persistidos: DOCX
+`099750710c4f57effc03d1fecfd9a27dd52a8ccac85189d017249f9e359cc2b4`
+e PDF `fdcd6d49f5372a87a8bc8e2b4599b95ca9070276de6ecab8321c52b4773bcf76`.
+O JWT ainda é cunhado pelo harness; GoTrue real e homologação na
 infraestrutura-alvo permanecem necessários para G7.
 
 O preflight da sequência completa também encontrou e fechou um defeito de
@@ -54,6 +72,5 @@ com mesmo nome, nas duas bordas de um título tipado de primeiro nível. O títu
 continua bloqueado para edição pelo motor nativo. Objeto opaco, marcador interno
 ou não pareado continua falhando fechado. No checkpoint real de 329.216 bytes,
 o resultado passou de zero para 32 cláusulas, com 141 blocos, zero lacunas e
-aptidão de análise/autocorreção. Isso remove o bloqueio estrutural do Edital,
-mas não declara a emissão completa, que ainda exige aprovar os quatro heads e
-atravessar a RPC canônica em uma única prova integrada.
+aptidão de análise/autocorreção. Essa correção foi exercitada pela emissão
+integrada descrita acima.

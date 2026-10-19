@@ -125,6 +125,16 @@ def test_listar_processo_reusa_sessao_e_revisao_autorizadas(setup):
     assert documents[0].payload == checkpoint.content
 
 
+@pytest.mark.parametrize("status", ["aprovado", "emitido"])
+def test_open_rehydrates_native_approval_for_every_immutable_head_status(setup, monkeypatch, status):
+    service, state, _ = setup
+    state["head"]["status"] = status
+    proof = object()
+    monkeypatch.setattr(service, "_approval", lambda user, document: proof)
+    document = service.abrir(state["head"]["id"])
+    assert document.status == status and document.approval is proof
+
+
 def test_texto_aprovado_exige_prova_indice_e_cobertura(setup, monkeypatch):
     service, state, checkpoint = setup
     document = SimpleNamespace(id=state["head"]["id"], tipo="dfd",
@@ -275,7 +285,8 @@ def test_official_emission_binds_both_packages_and_accepts_only_exact_receipt(se
         "pdf_sha256": packages["pdf"].content_hash, "event_id": str(uuid4()),
         "replayed": False}
     monkeypatch.setattr(owner.db, "_cliente", lambda: SimpleNamespace(
-        rpc=lambda name, params: calls.append((name, params)) or Query(result)))
+        # PostgREST represents a RETURNS TABLE RPC as a one-row JSON array.
+        rpc=lambda name, params: calls.append((name, params)) or Query([result])))
     emission = service.emitir_aprovados(process, tipos=("dfd",), operation_id=operation)
     assert emission.id == result["emission_id"] and emission.replayed is False
     assert calls[0][0] == "documento_editor_emitir"

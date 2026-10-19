@@ -1,7 +1,7 @@
 # G5 — capacidades contextuais no owner nativo
 
-Estado: **parcial**. Este incremento estabelece a fronteira comum das seis
-capacidades, mas não encerra as trilhas A–D do corpus de aceitação.
+Estado: **parcial**. A sequência nativa completa já possui aprovação e emissão
+local integrada; as trilhas A–D restantes do corpus ainda não estão encerradas.
 
 ## Fronteira implementada
 

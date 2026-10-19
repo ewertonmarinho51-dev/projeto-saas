@@ -1665,7 +1665,7 @@ class DocumentoService:
                          digest, head["status"] if revision == head["revision"] else "historico",
                          payload, engine_build, provenance, index, mode,
                          row.get("restored_from_revision"), institutional, row.get("institutional_snapshot_sha256"))
-        if head["status"] == "aprovado":
+        if head["status"] in {"aprovado", "emitido"}:
             document = replace(document, approval=self._approval(user, document))
         return document
 
@@ -2024,13 +2024,13 @@ class DocumentoService:
             "documents": documents,
             "packages": {"docx": {"sha256": docx.content_hash, "bytes": len(docx.payload)},
                          "pdf": {"sha256": pdf.content_hash, "bytes": len(pdf.payload)}}}
-        response = _execute(db._cliente().rpc("documento_editor_emitir", {
+        response = _one(_execute(db._cliente().rpc("documento_editor_emitir", {
             "p_process": processo_id, "p_operation": operation_id,
             "p_engine_manifest_sha256": self._native["manifest_sha256"],
             "p_documents": documents, "p_manifest": manifest,
             "p_docx": "\\x" + docx.payload.hex(), "p_docx_sha256": docx.content_hash,
             "p_pdf": "\\x" + pdf.payload.hex(), "p_pdf_sha256": pdf.content_hash,
-            "p_claims": claims}))
+            "p_claims": claims})))
         expected = {"emission_id", "processo_id", "operation_id", "docx_sha256",
                     "pdf_sha256", "event_id", "replayed"}
         if (not isinstance(response, dict) or response.keys() != expected
