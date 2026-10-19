@@ -24,6 +24,20 @@ Migration nova gerada pela CLI: `20261016041756_documentos_editor_patch_lote.sql
 
 Advisors oficiais executados em outro banco novo descartável, `ensaio_6d36b746dabb`, com 32 migrations: exit 0, zero ERROR e 16 WARN do schema-base; nenhum achado em objeto documental novo. Evidência da tarefa: `work/patches-lote-advisors-final.json`. Estado da CLI isolado no workspace, telemetria desabilitada e ambiente reduzido; o banco foi eliminado por finally. A DSN usada foi exclusivamente loopback. Nenhum resultado aqui declara G4 completo, Undo/ACK real, emissão oficial ou ativação operacional.
 
+Em 18/10/2026, a prova do owner foi repetida com o bundle atual de manifesto
+`f5aabf8a7923dd7cc941f855072f9c8967bf380870e852730ccd502957e4143c`
+e um C01 reimportado pelo mesmo WASM. PostgreSQL 16 e PostgREST 12 descartáveis
+em loopback receberam as 35 migrations atuais; o cliente Supabase 2.33.0 usou
+JWT sintético com RLS. O owner criou revisão 1, preparou sem escrever, confirmou
+revisão 2, reabriu os bytes exatos, preservou 27 regiões protegidas e todos os
+IDs/posições/tipos, persistiu auditoria/plano/diff e aceitou retry idempotente.
+Preparação stale e de outro owner foram recusadas sem escrita parcial. Os dois
+históricos e três eventos canônicos foram observados; banco, login e processos
+foram eliminados. Evidência
+`outputs/WORDCRAFT_G4_OWNER_REAL_PERSISTENCE.json`, SHA-256
+`0e979eeb1fbb136f8039ceb01f018458ea1315fc9d534f16f8be0ee08dd67131`.
+Essa prova usa backend/JWT/RLS reais locais, mas não confirma canvas nem GoTrue.
+
 ### Conflitos esperados na fronteira PostgREST
 
 Decisão registrada em 16/10/2026 antes da correção: divergência de revisão,

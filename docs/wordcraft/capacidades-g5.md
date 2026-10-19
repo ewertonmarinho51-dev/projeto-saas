@@ -241,9 +241,9 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 
 ## Pendências para fechar G5
 
-1. ampliar a prova no navegador WASM real, que já cobre seleção e geração
-   GovBot mockada pelo gateway/compilador reais, para confirmação backend,
-   Undo posterior e stale end-to-end no mesmo percurso;
+1. unir a prova no navegador WASM real, que já cobre seleção e geração GovBot
+   mockada pelo gateway/compilador reais, à prova backend coeva já aprovada,
+   para ACK real, Undo posterior e stale end-to-end no mesmo percurso;
 2. completar as trilhas A–D do corpus; C09 possui PASS local do owner e C11
    possui PASS SQL local, mas ambos ainda exigem os transportes e a UI previstos
    em seus relatórios para aceite end-to-end;
