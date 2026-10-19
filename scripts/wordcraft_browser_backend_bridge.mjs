@@ -66,6 +66,8 @@ async function main() {
       let value;
       if (command.action === 'open') {
         value = await page.evaluate(input => window.qa.open(input.content_base64, input.content_hash), command);
+      } else if (command.action === 'probe') {
+        value = await page.evaluate(() => window.qa.probe());
       } else if (command.action === 'apply') {
         value = await page.evaluate(input => window.qa.applyPersistedPatch(
           input.operation_id, input.revision, input.target_hash, input.plan), command);

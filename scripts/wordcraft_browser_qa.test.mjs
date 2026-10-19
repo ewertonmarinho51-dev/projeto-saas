@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises';
+import {mkdtemp, mkdir, readFile, writeFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {CASES, QA_PIN, BrowserQaFailure, admitGovbotProposal, browserEnvironment, browserExecutablePath, failureRecord, pageModule, parseArgs,
@@ -113,6 +113,12 @@ test('page module accepts only confined WordCraft asset URLs', () => {
   assert.match(code.toString(), /async acceptPersistedUndo\(ack\)/);
   assert.throws(() => pageModule('/outside.js', '/app/static/wordcraft/engine.wasm'), BrowserQaFailure);
   assert.throws(() => pageModule('/app/static/wordcraft/../engine.js', '/app/static/wordcraft/engine.wasm'), BrowserQaFailure);
+});
+
+test('backend proof bridge exposes a read-only correlated canvas probe', async () => {
+  const source = await readFile(new URL('./wordcraft_browser_backend_bridge.mjs', import.meta.url), 'utf8');
+  assert.match(source, /command\.action === 'probe'/);
+  assert.match(source, /window\.qa\.probe\(\)/);
 });
 
 test('Playwright package and browser catalog are pinned', async t => {

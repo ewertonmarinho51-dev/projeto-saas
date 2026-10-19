@@ -228,6 +228,10 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 - o modelo de painel reúne as seis capacidades sem expor ação de persistência.
 - o host recusa patch stale, excessivo ou com hash de destino divergente,
   correlaciona exatamente operação/checkpoint/recibo e não ACKa antes do commit.
+- a prova coeva mantém a mesma instância Chromium/WASM viva durante uma
+  confirmação stale recusada pelo owner; probes somente leitura antes/depois
+  conservam `instance_token`, hash e geração, enquanto revisões e auditorias no
+  banco permanecem idênticas.
 - o cenário C09 do owner classifica em conjunto uma recomendação objetiva, uma
   ambígua e uma incompatível com o texto editável; somente a objetiva entra no
   plano G4, o diff prova os demais documentos intactos, o checkpoint exato é
@@ -244,14 +248,12 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 
 ## Pendências para fechar G5
 
-1. ampliar a recusa stale já comprovada separadamente no canvas e no owner para
-   uma tentativa stale no percurso coevo browser/backend, sem escrita parcial;
-2. completar as trilhas A–D do corpus; C09 possui PASS local do owner e C11
+1. completar as trilhas A–D do corpus; C09 possui PASS local do owner e C11
    possui PASS SQL local, mas ambos ainda exigem os transportes e a UI previstos
    em seus relatórios para aceite end-to-end;
-3. consumir catálogo institucional, RAG vigente e montagem oficial pelos
+2. consumir catálogo institucional, RAG vigente e montagem oficial pelos
    owners existentes em ensaio end-to-end;
-4. completar C12 com GoTrue/PostgREST, Storage pertinente e navegador; RLS SQL
+3. completar C12 com GoTrue/PostgREST, Storage pertinente e navegador; RLS SQL
    e revogação do namespace de sessão já possuem PASS local parcial.
 
 Também falta produzir e homologar o artefato com status operacional. O bundle
