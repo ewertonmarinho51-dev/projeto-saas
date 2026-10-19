@@ -108,6 +108,15 @@ marcadas sem aprovação humana de fidelidade. IME, toolbar, Streamlit completo,
 persistência de banco, memória total do processo e memória linear WASM continuam
 fora do escopo dessa passagem.
 
+O runner foi ampliado na sequência para abrir simultaneamente os dois primeiros
+documentos em páginas separadas do mesmo contexto. A prova exige tokens de
+instância distintos, edita o primeiro sem alterar hash ou geração do segundo,
+fecha o primeiro e ainda edita o segundo. A repetição passou com fechamento
+independente, zero erros/requisições externas e JSON SHA-256
+`782d186811b7797454fa015b27835d32a6612e5882041b93b7d198ae5ba386a3`.
+Isso fecha o risco local de colisão entre dois canvas no mesmo processo; não
+substitui concorrência entre usuários nem CAS/persistência backend.
+
 Fontes primárias verificadas:
 [release Playwright 1.56.1](https://github.com/microsoft/playwright/releases/tag/v1.56.1),
 [catálogo de browsers pinado](https://raw.githubusercontent.com/microsoft/playwright/v1.56.1/packages/playwright-core/browsers.json),

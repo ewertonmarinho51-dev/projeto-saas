@@ -18,7 +18,7 @@ const MAX_INPUT = 8 * 1024 * 1024;
 const MAX_SCREENSHOT = 8 * 1024 * 1024;
 const STAGES = new Set(['configuration', 'bundle_admission', 'synthetic_admission', 'playwright_pin', 'http_confinement',
   'chromium_start', 'canvas_open', 'api_edit', 'queued_input', 'keyboard_input', 'freeze_release',
-  'native_patch_undo', 'native_export', 'screenshot', 'performance_metrics', 'runtime_errors', 'cleanup', 'global_timeout']);
+  'native_patch_undo', 'native_export', 'multi_canvas', 'screenshot', 'performance_metrics', 'runtime_errors', 'cleanup', 'global_timeout']);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const check = (condition, stage) => { if (condition !== true) throw new BrowserQaFailure(stage); };
 const elapsedMs = started => Number(process.hrtime.bigint() - started) / 1_000_000;
@@ -182,6 +182,7 @@ async function installCanvasHarness(paths) {
   await engine.default({module_or_path: paths.wasm});
   const assert = condition => { if (!condition) throw new Error('Closed canvas QA assertion.'); };
   const frames = async count => { for (let index = 0; index < count; index++) await new Promise(requestAnimationFrame); };
+  const instanceToken = crypto.randomUUID();
   let native, controller, initialNative, data, outbox;
   let events = [], acks = 0, reruns = 0;
   const snapshot = () => native.serialize();
@@ -221,6 +222,7 @@ async function installCanvasHarness(paths) {
         start_byte: 0, end_byte: 6, old_text: 'Corpus', new_text: 'Ensaio'}]};
   };
   window.qa = Object.freeze({
+    async probe() { return {instance_token: instanceToken, source_hash: await snapshotHash(), generation: native.generation()}; },
     async open(base64, expectedHash) {
       assert(!native);
       const bytes = fromBase64(base64);
@@ -398,6 +400,7 @@ async function buildAssets(config) {
 
 export async function run(config) {
   let phase = 'configuration', outputReady = false, server, browser, context, page;
+  const extraPages = [];
   let deniedRequests = 0, pageErrors = 0, consoleErrors = 0;
   const diagnostics = [];
   const evidence = {schema: 'gc-wordcraft-headless-browser-qa/v1', status: 'FAIL_HEADLESS_BROWSER_QA',
@@ -493,6 +496,38 @@ export async function run(config) {
       evidence.cases.push(result);
       await page.evaluate(() => window.qa.close()); await cdp.detach(); await page.close(); page = undefined;
     }
+    const pair = cases.slice(0, 2), opened = [];
+    for (const item of pair) {
+      const concurrent = await context.newPage(); extraPages.push(concurrent);
+      concurrent.on('pageerror', error => { pageErrors++; diagnostics.push({kind: 'pageerror', message: String(error).slice(0, 1000)}); });
+      concurrent.on('console', message => { if (message.type() === 'error') {
+        consoleErrors++; diagnostics.push({kind: 'console', message: message.text().slice(0, 1000)});
+      }});
+      await stage('multi_canvas', async () => {
+        await concurrent.goto(server.origin + '/', {waitUntil: 'load'});
+        await concurrent.waitForFunction(() => Boolean(window.qa));
+        await concurrent.evaluate(({content, sha}) => window.qa.open(content, sha),
+          {content: item.bytes.toString('base64'), sha: item.checkpoint_sha256});
+      });
+      opened.push(await concurrent.evaluate(() => window.qa.probe()));
+    }
+    check(opened[0].instance_token !== opened[1].instance_token
+      && opened[0].source_hash === pair[0].checkpoint_sha256
+      && opened[1].source_hash === pair[1].checkpoint_sha256, 'multi_canvas');
+    const firstEdit = await stage('multi_canvas', () => extraPages[0].evaluate(() => window.qa.apiEdit()));
+    const [firstAfter, secondUntouched] = await Promise.all(extraPages.map(item => item.evaluate(() => window.qa.probe())));
+    check(firstAfter.source_hash !== opened[0].source_hash && firstAfter.generation !== opened[0].generation
+      && secondUntouched.source_hash === opened[1].source_hash && secondUntouched.generation === opened[1].generation,
+    'multi_canvas');
+    await extraPages[0].evaluate(() => window.qa.close()); await extraPages[0].close();
+    const secondEdit = await stage('multi_canvas', () => extraPages[1].evaluate(() => window.qa.apiEdit()));
+    const secondAfter = await extraPages[1].evaluate(() => window.qa.probe());
+    check(secondAfter.source_hash !== opened[1].source_hash && secondAfter.generation !== opened[1].generation,
+      'multi_canvas');
+    evidence.multi_canvas = {simultaneous_instances: 2, distinct_instance_tokens: true,
+      first_edit_hash: firstEdit.content_hash, second_unchanged_while_first_edited: true,
+      second_edit_after_first_closed_hash: secondEdit.content_hash, independent_close: true};
+    await extraPages[1].evaluate(() => window.qa.close()); await extraPages[1].close();
     evidence.performance.summary = await stage('performance_metrics', () => summarizePerformance(evidence.cases));
     check(deniedRequests === 0 && pageErrors === 0 && consoleErrors === 0, 'runtime_errors');
     evidence.network = {external_requests_blocked: deniedRequests, page_errors: pageErrors, console_errors: consoleErrors,
@@ -507,7 +542,8 @@ export async function run(config) {
   } finally {
     clearTimeout(watchdog);
     let cleanup = true;
-    for (const action of [() => page?.close(), () => context?.close(), () => browser?.close(), () => server?.close()]) {
+    for (const action of [...extraPages.map(item => () => item.isClosed() ? undefined : item.close()),
+      () => page?.close(), () => context?.close(), () => browser?.close(), () => server?.close()]) {
       try { await action(); } catch { cleanup = false; }
     }
     evidence.cleanup = cleanup;

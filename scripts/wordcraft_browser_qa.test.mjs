@@ -95,6 +95,7 @@ test('static route map rejects traversal, queries and writes', () => {
 test('page module accepts only confined WordCraft asset URLs', () => {
   const code = pageModule('/app/static/wordcraft/engine.js', '/app/static/wordcraft/engine.wasm');
   assert.ok(code.length > 1000);
+  assert.match(code.toString(), /async probe\(\)/);
   assert.throws(() => pageModule('/outside.js', '/app/static/wordcraft/engine.wasm'), BrowserQaFailure);
   assert.throws(() => pageModule('/app/static/wordcraft/../engine.js', '/app/static/wordcraft/engine.wasm'), BrowserQaFailure);
 });
