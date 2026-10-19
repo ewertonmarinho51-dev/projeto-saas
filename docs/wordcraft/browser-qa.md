@@ -171,6 +171,14 @@ o canvas A permanece vivo e byte-identical, e a leitura administrativa mínima
 confirma que head, revisões e auditoria não mudaram. O harness cunha os JWTs;
 esta evidência não substitui login ou revogação pelo GoTrue.
 
+Na expansão seguinte, cada tenant recebeu documento próprio, owner separado e
+um processo Chromium/WASM simultâneo. Os canvas apresentaram tokens de instância
+e hashes distintos; leituras cruzadas A→B e B→A foram recusadas, e o commit no
+documento A conservou integralmente o probe do canvas B. O relatório conjunto
+passou 40/40 checks, SHA-256
+`167bb5080ea1e71304a478873890b2565c0ccdc01f1954e4b7ed08c519a19ea0`.
+Os JWTs ainda são sintéticos e não provam emissão, refresh ou revogação GoTrue.
+
 Ainda com o canvas A vivo, os owners existentes carregam pelo PostgREST/RLS o
 snapshot institucional ligado à revisão, a montagem determinística de dois
 itens (`30.02` por `Decimal`), uma fonte RAG vigente e a conferência literal de

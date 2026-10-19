@@ -1,8 +1,8 @@
 # G5 — capacidades contextuais no owner nativo
 
 Estado: **parcial**. As trilhas A–D possuem passagem local integrada pelos
-owners existentes; Auth real, artefato operacional homologado e C12 com dois
-processos autenticados continuam pendentes.
+owners existentes; Auth real, artefato operacional homologado e a entrega de
+sessão GoTrue aos dois processos C12 continuam pendentes.
 
 ## Fronteira implementada
 
@@ -258,12 +258,17 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   bloqueia escrita cruzada entre tenants, enquanto troca de identidade revoga
   owner, documento, bridge, preparação, projeção e payload do componente da
   sessão anterior. Evidência detalhada: `c12-aceite-isolamento.md`.
+- a expansão C12 abre simultaneamente dois processos Chromium/WASM, um por
+  tenant, com heads, hashes e tokens de instância distintos. Cada owner/JWT
+  sintético relê sua própria head, ambas as leituras cruzadas são recusadas e o
+  commit de A não altera o canvas B.
 
 ## Pendências para fechar G5
 
-1. completar C12 com GoTrue real e dois processos de navegador autenticados;
-   RLS SQL, PostgREST com JWT sintético, canvas vivo, Storage não aplicável e
-   revogação do namespace de sessão já possuem PASS local parcial.
+1. completar C12 com login/refresh/revogação pelo GoTrue real e entregar essas
+   sessões aos dois processos de navegador; RLS SQL, PostgREST com dois JWTs
+   sintéticos, dois canvas vivos, Storage não aplicável e revogação do namespace
+   de sessão já possuem PASS local parcial.
 
 Também falta produzir e homologar o artefato com status operacional. O bundle
 atual de QA não satisfaz esse requisito e não foi promovido por renomeação.
