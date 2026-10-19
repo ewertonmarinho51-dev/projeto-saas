@@ -48,7 +48,9 @@ afetado recursos da máquina; estes números não são orçamento de produção 
 uma comparação controlada de motores. Evidência bruta externa ao repositório:
 `outputs/WORDCRAFT_BENCHMARK_LOCAL_240.json`. A escolha do contêiner permanece
 provisória para homologação G2: os resultados sustentam a implementação funcional,
-mas faltam memória/startup do navegador, 20/100 páginas e comparação completa.
+mas a amostra posterior de startup/memória do navegador continua local e
+sintética; faltam 20/100 páginas, comparação completa e orçamento na
+infraestrutura-alvo.
 
 ## IDs, patches e migração
 

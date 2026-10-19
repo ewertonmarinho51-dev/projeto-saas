@@ -77,6 +77,49 @@ export function summarizePerformance(cases) {
     max_wasm_linear_memory_bytes: Math.max(...readings.map(item => item.wasm_linear_memory_bytes))};
 }
 
+export async function chromiumProcessMemory(session, platform = process.platform,
+  execute = runFile, read = readFile) {
+  const {processInfo} = await session.send('SystemInfo.getProcessInfo');
+  check(Array.isArray(processInfo) && processInfo.length > 0, 'performance_metrics');
+  const processes = processInfo.map(item => ({pid: item.id, type: item.type}));
+  check(processes.every(item => Number.isSafeInteger(item.pid) && item.pid > 0
+    && typeof item.type === 'string' && item.type.length > 0)
+    && new Set(processes.map(item => item.pid)).size === processes.length, 'performance_metrics');
+  let workingSets;
+  if (platform === 'win32') {
+    const script = `$ids=@(${processes.map(item => item.pid).join(',')});`
+      + 'Get-Process -Id $ids -ErrorAction Stop|Select-Object Id,WorkingSet64|ConvertTo-Json -Compress';
+    const {stdout} = await execute('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive',
+      '-Command', script],
+    {timeout: 15_000, maxBuffer: 256 * 1024, windowsHide: true});
+    const parsed = JSON.parse(stdout);
+    workingSets = (Array.isArray(parsed) ? parsed : [parsed]).map(item =>
+      ({pid: item.Id, bytes: item.WorkingSet64}));
+  } else if (platform === 'linux') {
+    workingSets = await Promise.all(processes.map(async item => {
+      const status = await read(`/proc/${item.pid}/status`, 'utf8');
+      const match = /^VmRSS:\s+(\d+)\s+kB$/m.exec(status);
+      check(Boolean(match), 'performance_metrics');
+      return {pid: item.pid, bytes: Number(match[1]) * 1024};
+    }));
+  } else {
+    throw new BrowserQaFailure('performance_metrics');
+  }
+  const byPid = new Map(workingSets.map(item => [item.pid, item.bytes]));
+  check(workingSets.length === processes.length && byPid.size === processes.length
+    && processes.every(item => Number.isSafeInteger(byPid.get(item.pid)) && byPid.get(item.pid) > 0),
+  'performance_metrics');
+  const byType = {};
+  for (const item of processes) {
+    const current = byType[item.type] ?? {processes: 0, working_set_bytes: 0};
+    current.processes += 1; current.working_set_bytes += byPid.get(item.pid); byType[item.type] = current;
+  }
+  const total = [...byPid.values()].reduce((sum, value) => sum + value, 0);
+  check(Number.isSafeInteger(total) && total > 0, 'performance_metrics');
+  return {metric: platform === 'win32' ? 'WORKING_SET_SUM' : 'RSS_SUM',
+    process_count: processes.length, total_bytes: total, by_type: byType};
+}
+
 export function browserEnvironment(source = process.env) {
   return Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP',
     'SystemRoot', 'WINDIR', 'PLAYWRIGHT_BROWSERS_PATH']
@@ -601,7 +644,7 @@ export async function run(config) {
     manual_browser_observation: false, gotrue_or_database_proof: false, production_access: false,
     ack_model: 'SIMULATED_TRANSPORT_ONLY_NOT_PERSISTENCE', cases: [],
     performance: {scope: 'HEADLESS_CHROMIUM_QA_SYNTHETIC_NOT_TARGET_INFRASTRUCTURE',
-      browser_process_total_memory_measured: false, wasm_linear_memory_measured: true,
+      browser_process_total_memory_measured: true, wasm_linear_memory_measured: true,
       renderer_js_heap_and_dom_measured: true, cold_warm_kind: 'NEW_PAGE_SAME_BROWSER_CONTEXT_CACHE'},
     limits: {cases: 3, checkpoint_bytes: MAX_INPUT, stage_timeout_ms: 45_000, global_timeout_ms: 300_000},
     pending: ['MANUAL_IME', 'TOOLBAR_UI', 'FULL_STREAMLIT', 'DATABASE_PERSISTENCE', 'HUMAN_VISUAL_FIDELITY_REVIEW']};
@@ -721,6 +764,13 @@ export async function run(config) {
     check(firstAfter.source_hash !== opened[0].source_hash && firstAfter.generation !== opened[0].generation
       && secondUntouched.source_hash === opened[1].source_hash && secondUntouched.generation === opened[1].generation,
     'multi_canvas');
+    const browserCdp = await browser.newBrowserCDPSession();
+    try {
+      evidence.performance.browser_process_memory_at_two_canvas_peak = await stage('performance_metrics', () =>
+        chromiumProcessMemory(browserCdp));
+    } finally {
+      await browserCdp.detach();
+    }
     await extraPages[0].evaluate(() => window.qa.close()); await extraPages[0].close();
     const secondEdit = await stage('multi_canvas', () => extraPages[1].evaluate(() => window.qa.apiEdit()));
     const secondAfter = await extraPages[1].evaluate(() => window.qa.probe());

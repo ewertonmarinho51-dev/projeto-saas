@@ -71,14 +71,27 @@ declarando que os três documentos são diferentes. CDP fornece heap JavaScript
 do renderer e contadores de DOM antes e depois das interações. A própria
 instância wasm-bindgen fornece a capacidade corrente de sua `WebAssembly.Memory`
 antes e depois das interações; o relatório registra o máximo observado em bytes.
-Esses números **não** incluem memória total do processo/browser, que permanece
-`false` no contrato para impedir promoção indevida da medida.
+No pico simultâneo de dois canvas, `SystemInfo.getProcessInfo` enumera o conjunto
+de processos Chromium e a coleta exige uma amostra para cada PID: soma de
+`WorkingSet64` no Windows e de `VmRSS` no Linux, discriminada pelo tipo CDP.
+Essa soma pode contar páginas compartilhadas em mais de um processo e representa
+somente uma fotografia do runner local, não memória privada nem orçamento-alvo.
 Falha ou ausência das métricas esperadas falha a etapa `performance_metrics`.
 
 O step fica depois dos roundtrips/import/export/patch puro e antes dos artifacts
 de `wordcraft-build.yml`, sem build alternativo, deploy ou produção. Testes Node
 offline do novo harness cobrem mapa estático, limites, confinamento e saídas
 sanitizadas; não são apresentados como execução Chromium.
+
+Em 19/10/2026, o runner Windows passou novamente os três casos e mediu, no pico
+de dois canvas, cinco processos CDP e soma de working sets de **785.494.016
+bytes**: browser 56.037.376, dois renderers 514.211.840, GPU 181.309.440 e rede
+33.935.360. O mesmo ensaio observou máximo de 71.041.024 bytes de memória linear
+WASM, 20.328.264 bytes de heap JS usado e 25 nós DOM. O relatório externo
+`wordcraft-browser-qa-current-win-19/browser-qa.json` tem SHA-256
+`8c46bdad227c75d93d94c402debe3f84a2a879fcf387cfc1d7a260afbd7fed42`.
+São medidas locais do corpus sintético, sem afirmar capacidade da infraestrutura
+de homologação ou produção.
 
 Em 18/10/2026, a execução local Windows confirmou o Chromium pinado
 `141.0.7390.37`, SHA-256 do executável
@@ -118,7 +131,9 @@ renderer foi 19.169.296 bytes e o DOM chegou a 25 nós. O JSON em
 `work/wordcraft-browser-qa-current-win-17/browser-qa.json` tem SHA-256
 `7773441e25c3a711f484cd17e46f0a689c1646d1541fa5a5e126f13806685f5d`.
 Isso fecha a medida local da memória linear WASM; memória total do processo,
-orçamento na infraestrutura-alvo e Auth real continuam pendentes.
+naquela repetição, permaneceu sem amostra. A passagem posterior descrita acima
+mede a soma de working sets; orçamento na infraestrutura-alvo e Auth real
+continuam pendentes.
 
 O runner foi ampliado na sequência para abrir simultaneamente os dois primeiros
 documentos em páginas separadas do mesmo contexto. A prova exige tokens de

@@ -4,7 +4,7 @@ import {mkdtemp, mkdir, readFile, writeFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {CASES, QA_PIN, BrowserQaFailure, admitGovbotProposal, browserEnvironment, browserExecutablePath, failureRecord, pageModule, parseArgs,
-  rendererMetrics, serveAssets, staticResponse, summarizePerformance,
+  chromiumProcessMemory, rendererMetrics, serveAssets, staticResponse, summarizePerformance,
   verifyPlaywright} from './wordcraft_browser_qa.mjs';
 
 const sha = 'a'.repeat(64), commit = 'b'.repeat(40);
@@ -69,6 +69,39 @@ test('performance summary uses nearest-rank percentiles and labels mixed fixture
     document_open:{samples:3, p50_ms:3, p95_ms:4},
     max_renderer_js_heap_used_bytes:301, max_renderer_dom_nodes:8, max_wasm_linear_memory_bytes:131_072});
   assert.throws(() => summarizePerformance([]), BrowserQaFailure);
+});
+
+test('Chromium process memory sums the complete CDP process set on Windows', async () => {
+  const session = {send: async method => {
+    assert.equal(method, 'SystemInfo.getProcessInfo');
+    return {processInfo: [{id: 11, type: 'browser'}, {id: 12, type: 'renderer'},
+      {id: 13, type: 'renderer'}]};
+  }};
+  const execute = async (command, args, options) => {
+    assert.equal(command, 'powershell.exe');
+    assert.match(args.at(-1), /^\$ids=@\(11,12,13\);/);
+    assert.equal(options.windowsHide, true);
+    return {stdout: JSON.stringify([{Id:11, WorkingSet64:1000}, {Id:12, WorkingSet64:2000},
+      {Id:13, WorkingSet64:3000}])};
+  };
+  assert.deepEqual(await chromiumProcessMemory(session, 'win32', execute), {
+    metric:'WORKING_SET_SUM', process_count:3, total_bytes:6000,
+    by_type:{browser:{processes:1, working_set_bytes:1000},
+      renderer:{processes:2, working_set_bytes:5000}},
+  });
+});
+
+test('Chromium process memory reads Linux RSS and fails closed on incomplete samples', async () => {
+  const session = {send: async () => ({processInfo:[{id:21, type:'browser'}, {id:22, type:'gpu-process'}]})};
+  const read = async path => path.includes('/21/') ? 'Name:\tchrome\nVmRSS:\t10 kB\n'
+    : 'Name:\tchrome\nVmRSS:\t20 kB\n';
+  assert.deepEqual(await chromiumProcessMemory(session, 'linux', undefined, read), {
+    metric:'RSS_SUM', process_count:2, total_bytes:30 * 1024,
+    by_type:{browser:{processes:1, working_set_bytes:10 * 1024},
+      'gpu-process':{processes:1, working_set_bytes:20 * 1024}},
+  });
+  await assert.rejects(chromiumProcessMemory(session, 'linux', undefined, async () => 'Name:\tchrome\n'),
+    error => error instanceof BrowserQaFailure && error.stage === 'performance_metrics');
 });
 
 test('runtime platform allowlist is explicit and bounded', () => {
