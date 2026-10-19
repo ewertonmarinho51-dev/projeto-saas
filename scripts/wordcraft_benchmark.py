@@ -283,34 +283,36 @@ def benchmark_full_roundtrip(*, node: Path, bundle: Path, manifest_sha256: str,
             "native_checkpoint_bytes": len(checkpoint),
             "operations": {key: _summary(samples) for key, samples in operations.items()}})
 
-    scale_source = _synthetic_paged_docx(100)
-    scale_checkpoint = importar_docx(scale_source, **kwargs)
-    validar(scale_checkpoint, **kwargs)
-    scale_pdf = exportar(scale_checkpoint, formato="pdf", **kwargs)
-    if _pdf_pages(scale_pdf) != 100:
-        raise ValueError("Native 100-page scale fixture changed its page count")
-    scale_operations = {"import_docx": [], "validate": [], "export_pdf": []}
-    for _ in range(repetitions):
-        started = time.perf_counter_ns()
-        imported = importar_docx(scale_source, **kwargs)
-        scale_operations["import_docx"].append({"elapsed_ms": (time.perf_counter_ns() - started) / 1_000_000,
-            "output_bytes": len(imported)})
-        if _sha(imported) != _sha(scale_checkpoint):
-            raise ValueError("Repeated 100-page import changed its checkpoint")
-        started = time.perf_counter_ns()
+    scale_profiles = []
+    for pages in (20, 100):
+        scale_source = _synthetic_paged_docx(pages)
+        scale_checkpoint = importar_docx(scale_source, **kwargs)
         validar(scale_checkpoint, **kwargs)
-        scale_operations["validate"].append({"elapsed_ms": (time.perf_counter_ns() - started) / 1_000_000})
-        started = time.perf_counter_ns()
-        rendered = exportar(scale_checkpoint, formato="pdf", **kwargs)
-        scale_operations["export_pdf"].append({"elapsed_ms": (time.perf_counter_ns() - started) / 1_000_000,
-            "output_bytes": len(rendered), "output_sha256": _sha(rendered)})
-        if _sha(rendered) != _sha(scale_pdf) or _pdf_pages(rendered) != 100:
-            raise ValueError("Repeated 100-page export changed its admitted PDF")
-    scale_profile = {"profile": "synthetic-explicit-breaks-100-pages",
-        "source_docx_sha256": _sha(scale_source), "source_docx_bytes": len(scale_source),
-        "native_checkpoint_sha256": _sha(scale_checkpoint), "native_checkpoint_bytes": len(scale_checkpoint),
-        "pdf_sha256": _sha(scale_pdf), "pdf_bytes": len(scale_pdf), "pdf_pages": 100,
-        "operations": {key: _summary(samples) for key, samples in scale_operations.items()}}
+        scale_pdf = exportar(scale_checkpoint, formato="pdf", **kwargs)
+        if _pdf_pages(scale_pdf) != pages:
+            raise ValueError(f"Native {pages}-page scale fixture changed its page count")
+        scale_operations = {"import_docx": [], "validate": [], "export_pdf": []}
+        for _ in range(repetitions):
+            started = time.perf_counter_ns()
+            imported = importar_docx(scale_source, **kwargs)
+            scale_operations["import_docx"].append({"elapsed_ms": (time.perf_counter_ns() - started) / 1_000_000,
+                "output_bytes": len(imported)})
+            if _sha(imported) != _sha(scale_checkpoint):
+                raise ValueError(f"Repeated {pages}-page import changed its checkpoint")
+            started = time.perf_counter_ns()
+            validar(scale_checkpoint, **kwargs)
+            scale_operations["validate"].append({"elapsed_ms": (time.perf_counter_ns() - started) / 1_000_000})
+            started = time.perf_counter_ns()
+            rendered = exportar(scale_checkpoint, formato="pdf", **kwargs)
+            scale_operations["export_pdf"].append({"elapsed_ms": (time.perf_counter_ns() - started) / 1_000_000,
+                "output_bytes": len(rendered), "output_sha256": _sha(rendered)})
+            if _sha(rendered) != _sha(scale_pdf) or _pdf_pages(rendered) != pages:
+                raise ValueError(f"Repeated {pages}-page export changed its admitted PDF")
+        scale_profiles.append({"profile": f"synthetic-explicit-breaks-{pages}-pages",
+            "source_docx_sha256": _sha(scale_source), "source_docx_bytes": len(scale_source),
+            "native_checkpoint_sha256": _sha(scale_checkpoint), "native_checkpoint_bytes": len(scale_checkpoint),
+            "pdf_sha256": _sha(scale_pdf), "pdf_bytes": len(scale_pdf), "pdf_pages": pages,
+            "operations": {key: _summary(samples) for key, samples in scale_operations.items()}})
     return {"schema": "gc-wordcraft-native-benchmark/v2",
         "status": "LOCAL_FULL_SYNTHETIC_OBSERVATIONS_NOT_PRODUCTION_ACCEPTANCE",
         "measured_at_utc": datetime.now(timezone.utc).isoformat(), "runtime": runtime,
@@ -321,14 +323,14 @@ def benchmark_full_roundtrip(*, node: Path, bundle: Path, manifest_sha256: str,
             "p95_definition": "Empirical nearest rank: sorted_samples[ceil(0.95*n)-1]; maximum for n<=10",
             "admission": "All 16 canonical full-roundtrip artifacts and hashes verified before timing",
             "browser_startup_measured": False, "browser_memory_measured": False,
-            "hundred_page_case_measured": True, "hundred_page_measurement_kind": "native_import_validate_export_not_browser_open",
+            "scale_page_counts_measured": [20, 100], "scale_measurement_kind": "native_import_validate_export_not_browser_open",
             "visual_fidelity_approved": False},
         "coverage": {"case_count": len(cases),
             "maximum_pdf_pages": max(case["pdf_pages"] for case in cases),
             "contains_at_least_twenty_pages": any(case["pdf_pages"] >= 20 for case in cases),
             "contains_210_item_case": any(case["pdf_item_code_count"] == 210 for case in cases),
-            "contains_100_page_scale_profile": True},
-        "cases": cases, "scale_profiles": [scale_profile]}
+            "contains_20_page_scale_profile": True, "contains_100_page_scale_profile": True},
+        "cases": cases, "scale_profiles": scale_profiles}
 
 
 def main() -> int:

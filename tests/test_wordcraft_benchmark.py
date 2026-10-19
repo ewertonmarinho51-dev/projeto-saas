@@ -60,19 +60,23 @@ def test_full_roundtrip_benchmark_admits_all_cases_and_measures_scale(tmp_path, 
     monkeypatch.setattr(benchmark, "validar", lambda content, **kwargs: None)
     monkeypatch.setattr(benchmark, "exportar", lambda content, *, formato, **kwargs:
                         artifacts[content]["roundtrip." + formato] if content in artifacts else b"%PDF-scale")
-    monkeypatch.setattr(benchmark, "_synthetic_paged_docx", lambda pages: b"scale-docx")
-    monkeypatch.setattr(benchmark, "importar_docx", lambda content, **kwargs: b"scale-checkpoint")
-    monkeypatch.setattr(benchmark, "_pdf_pages", lambda content: 100)
+    monkeypatch.setattr(benchmark, "_synthetic_paged_docx", lambda pages: f"scale-docx-{pages}".encode())
+    monkeypatch.setattr(benchmark, "importar_docx", lambda content, **kwargs: b"scale-checkpoint-" + content.rsplit(b"-", 1)[1])
+    monkeypatch.setattr(benchmark, "exportar", lambda content, *, formato, **kwargs:
+                        artifacts[content]["roundtrip." + formato] if content in artifacts
+                        else b"%PDF-scale-" + content.rsplit(b"-", 1)[1])
+    monkeypatch.setattr(benchmark, "_pdf_pages", lambda content: int(content.rsplit(b"-", 1)[1]))
     result = benchmark.benchmark_full_roundtrip(node=Path("node").resolve(),
         bundle=Path("bundle").resolve(), manifest_sha256="a" * 64,
         roundtrip=tmp_path, repetitions=2)
     assert result["schema"] == "gc-wordcraft-native-benchmark/v2"
     assert result["coverage"] == {"case_count": 16, "maximum_pdf_pages": 29,
         "contains_at_least_twenty_pages": True, "contains_210_item_case": True,
+        "contains_20_page_scale_profile": True,
         "contains_100_page_scale_profile": True}
     assert all(case["operations"]["validate"]["sample_count"] == 2 for case in result["cases"])
-    assert result["method"]["hundred_page_case_measured"] is True
-    assert result["scale_profiles"][0]["pdf_pages"] == 100
+    assert result["method"]["scale_page_counts_measured"] == [20, 100]
+    assert [profile["pdf_pages"] for profile in result["scale_profiles"]] == [20, 100]
 
 
 @pytest.mark.parametrize("change", ["hash", "duplicate", "step"])

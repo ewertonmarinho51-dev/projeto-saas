@@ -69,14 +69,25 @@ Esses números são observações locais sintéticas. O relatório declara como 
 checkpoint/exportação para o corpus de 16 casos, incluindo 20+ páginas e 210
 itens, mas não fecha o orçamento G7 de navegador.
 
-O mesmo modo gera ainda um DOCX sintético determinístico somente em memória,
-com 100 marcadores e 99 quebras explícitas. O arquivo passa pelo preflight e
-importador nativo existentes; o checkpoint é validado e o PDF exportado precisa
-conter exatamente 100 páginas pelo `PdfReader`. Três repetições produziram:
+O mesmo modo gera ainda DOCX sintéticos determinísticos somente em memória para
+20 e 100 páginas, com respectivamente 19 e 99 quebras explícitas. Cada arquivo
+passa pelo preflight e importador nativo existentes; o checkpoint é validado e o
+PDF exportado precisa conter exatamente a contagem declarada pelo `PdfReader`.
+Na execução histórica do perfil de 100 páginas, três repetições produziram:
 importação P50/P95 472,39/478,16 ms, validação 285,91/293,75 ms e PDF
 1.104,71/1.113,60 ms. O relatório atualizado é
 `WORDCRAFT_BENCHMARK_FULL_16_PLUS_100P_20261018.json`, 47.188 bytes, SHA-256
 `66302123a324a8be1f4ac8be9bf9148dd7bf8600def571588239cf3e83d28f06`.
-O campo `hundred_page_measurement_kind` registra
+O campo `scale_measurement_kind` registra
 `native_import_validate_export_not_browser_open`: esta prova mede o motor/IPC,
 sem reclassificá-la como abertura ou memória de navegador.
+
+A implementação ampliada foi executada novamente com o bundle corrente e o
+round-trip integral regenerado: **16/16 casos, zero diferenças**, `comparison.json`
+SHA-256 `b41ca4f7c11d323ffc5148e4c6c17e95e2294a536f78d057cc0f44cf70706db4`.
+Com três repetições por operação, o perfil de 20 páginas obteve importação
+P50/P95 503,0097/635,4754 ms, validação 310,348/350,49 ms e PDF
+679,732/731,3025 ms. O perfil de 100 páginas obteve respectivamente
+490,1563/492,2653 ms, 323,9769/331,5153 ms e 1.145,978/1.149,4995 ms. O relatório
+`WORDCRAFT_BENCHMARK_FULL_16_PLUS_20P_100P_20261019.json` tem 49.837 bytes e
+SHA-256 `b04aa3f4215b093eecf8cb5b4e2db3f1030c6cb9856a49442ee695aedc1a9c00`.

@@ -2,7 +2,7 @@
 
 Contrato registrado antes do código em 16/10/2026. Este incremento é teste de
 software do repositório em Linux CI, com três fixtures sintéticas verificadas e
-um perfil determinístico adicional de 100 páginas.
+perfis determinísticos adicionais de 20 e 100 páginas.
 Não é observação manual pelo conector Browser, homologação G1, prova GoTrue,
 persistência de produção, aprovação institucional ou aceite visual de layout.
 
@@ -106,8 +106,20 @@ No momento da amostra, a memória linear WASM era 41.091.072 bytes e a soma dos
 working sets de quatro processos CDP era 623.947.776 bytes. O relatório externo
 `wordcraft-browser-qa-current-win-21/browser-qa.json` tem SHA-256
 `8e3387c2528e06b3e886eaa66cf520ebf028bd8bfdba9fe3e5daafbfc330ce6e`.
-Essa prova fecha abertura e exportação automatizadas do perfil sintético de 100
-páginas; não constitui inspeção visual humana nem orçamento da infraestrutura-alvo.
+Uma nova passagem Windows em 19/10/2026 ampliou a admissão fechada para os perfis
+exatos de 20 e 100 páginas. O perfil de 20 páginas abriu em 863,8332 ms, com
+checkpoint de 289.677 bytes, memória linear WASM de 40.501.248 bytes e working
+set agregado de 529.883.136 bytes; o PDF reproduzido tem SHA-256
+`4f0d23454afc99f5d69cd218cceae01648dfd2d03bd486713329d6d8b4449241`.
+O perfil de 100 páginas abriu em 973,3872 ms, com checkpoint de 310.397 bytes,
+memória linear WASM de 41.091.072 bytes e working set agregado de 699.203.584
+bytes; seu PDF repetiu o SHA-256 já admitido. Houve zero requisições recusadas,
+erros de página ou console. Evidência externa:
+`wordcraft-browser-qa-current-win-22/browser-qa.json`, SHA-256
+`5fb03fd6caf36684d5486344b670111801e2a7ecebfae8227a0f5666b78fca61`.
+Essa prova fecha abertura e exportação automatizadas dos perfis sintéticos de 20
+e 100 páginas; não constitui inspeção visual humana nem orçamento da
+infraestrutura-alvo.
 
 Em 18/10/2026, a execução local Windows confirmou o Chromium pinado
 `141.0.7390.37`, SHA-256 do executável

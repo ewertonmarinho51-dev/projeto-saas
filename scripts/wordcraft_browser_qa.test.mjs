@@ -208,3 +208,12 @@ test('loopback server serves only the explicit in-memory map', async t => {
 test('reviewed corpus inventory remains exactly three fixtures', () => {
   assert.deepEqual(CASES, ['01-texto-listas-links', '02-tabela-210-itens', '03-timbrado-assinaturas']);
 });
+
+test('browser scale admission measures exact 20 and 100 page profiles', async () => {
+  const source = await readFile(new URL('./wordcraft_browser_qa.mjs', import.meta.url), 'utf8');
+  assert.match(source, /for pages in \(20,100\):/);
+  assert.match(source, /admission\.scale_profiles\.map\(item => item\.pages\)/);
+  assert.match(source, /evidence\.scale_profiles = \[\]/);
+  assert.match(source, /for \(const scale of scales\)/);
+  assert.doesNotMatch(source, /evidence\.scale_profile =/);
+});

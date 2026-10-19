@@ -202,20 +202,23 @@ for item in manifest['files']:
         raise ValueError('Native checkpoint differs from reviewed synthetic fixture')
     cases.append({'case':name,'checkpoint_sha256':hashlib.sha256(content).hexdigest(),
       'checkpoint_bytes':len(content),'fixture_sha256':hashlib.sha256(source).hexdigest()})
-scale_source=_synthetic_paged_docx(100)
-scale=importar_docx(scale_source,**config)
-validar(scale,**config)
-scale_pdf=exportar(scale,formato='pdf',**config)
-if not 0<len(scale)<=8*1024*1024:
-    raise ValueError('Synthetic scale checkpoint boundary differs')
-if _pdf_pages(scale_pdf)!=100:
-    raise ValueError('Synthetic scale PDF page count differs')
+scales=[]
+for pages in (20,100):
+    scale_source=_synthetic_paged_docx(pages)
+    scale=importar_docx(scale_source,**config)
+    validar(scale,**config)
+    scale_pdf=exportar(scale,formato='pdf',**config)
+    if not 0<len(scale)<=8*1024*1024:
+        raise ValueError('Synthetic scale checkpoint boundary differs')
+    if _pdf_pages(scale_pdf)!=pages:
+        raise ValueError('Synthetic scale PDF page count differs')
+    scales.append({'profile':f'synthetic-explicit-breaks-{pages}-pages','pages':pages,
+      'checkpoint_sha256':hashlib.sha256(scale).hexdigest(),'checkpoint_bytes':len(scale),
+      'source_sha256':hashlib.sha256(scale_source).hexdigest(),
+      'pdf_sha256':hashlib.sha256(scale_pdf).hexdigest(),'pdf_bytes':len(scale_pdf),
+      'content_base64':base64.b64encode(scale).decode()})
 print(json.dumps({'schema':'gc-wordcraft-browser-inputs/v1','synthetic_only':True,'cases':cases,
-  'scale':{'profile':'synthetic-explicit-breaks-100-pages','pages':100,
-    'checkpoint_sha256':hashlib.sha256(scale).hexdigest(),'checkpoint_bytes':len(scale),
-    'source_sha256':hashlib.sha256(scale_source).hexdigest(),
-    'pdf_sha256':hashlib.sha256(scale_pdf).hexdigest(),'pdf_bytes':len(scale_pdf),
-    'content_base64':base64.b64encode(scale).decode()}}))
+  'scale_profiles':scales}))
 `;
 
 const GOVBOT_SELECTION = String.raw`
@@ -300,16 +303,21 @@ async function admitInputs(config) {
     check(bytes.length === item.checkpoint_bytes && hash(bytes) === item.checkpoint_sha256, 'synthetic_admission');
     cases.push({...item, bytes});
   }
-  const scale = admission.scale;
-  check(scale && scale.profile === 'synthetic-explicit-breaks-100-pages' && scale.pages === 100
-    && /^[0-9a-f]{64}$/.test(scale.checkpoint_sha256) && /^[0-9a-f]{64}$/.test(scale.source_sha256)
-    && /^[0-9a-f]{64}$/.test(scale.pdf_sha256) && Number.isSafeInteger(scale.pdf_bytes) && scale.pdf_bytes > 0
-    && Number.isSafeInteger(scale.checkpoint_bytes) && scale.checkpoint_bytes > 0
-    && scale.checkpoint_bytes <= MAX_INPUT && typeof scale.content_base64 === 'string', 'synthetic_admission');
-  const scaleBytes = Buffer.from(scale.content_base64, 'base64');
-  check(scaleBytes.length === scale.checkpoint_bytes && hash(scaleBytes) === scale.checkpoint_sha256,
-    'synthetic_admission');
-  return {cases, scale: {...scale, bytes: scaleBytes, content_base64: undefined}};
+  check(Array.isArray(admission.scale_profiles) && admission.scale_profiles.length === 2
+    && JSON.stringify(admission.scale_profiles.map(item => item.pages)) === JSON.stringify([20, 100]),
+  'synthetic_admission');
+  const scales = admission.scale_profiles.map(scale => {
+    check(scale.profile === `synthetic-explicit-breaks-${scale.pages}-pages`
+      && /^[0-9a-f]{64}$/.test(scale.checkpoint_sha256) && /^[0-9a-f]{64}$/.test(scale.source_sha256)
+      && /^[0-9a-f]{64}$/.test(scale.pdf_sha256) && Number.isSafeInteger(scale.pdf_bytes) && scale.pdf_bytes > 0
+      && Number.isSafeInteger(scale.checkpoint_bytes) && scale.checkpoint_bytes > 0
+      && scale.checkpoint_bytes <= MAX_INPUT && typeof scale.content_base64 === 'string', 'synthetic_admission');
+    const bytes = Buffer.from(scale.content_base64, 'base64');
+    check(bytes.length === scale.checkpoint_bytes && hash(bytes) === scale.checkpoint_sha256,
+      'synthetic_admission');
+    return {...scale, bytes, content_base64: undefined};
+  });
+  return {cases, scales};
 }
 
 // This function is serialized as reviewed test JS, never as a document/command payload.
@@ -679,7 +687,7 @@ export async function run(config) {
     check(!(await stat(config.out).catch(() => null)), phase);
     const built = await stage('bundle_admission', () => buildAssets(config));
     const admitted = await stage('synthetic_admission', () => admitInputs(config));
-    const {cases, scale} = admitted;
+    const {cases, scales} = admitted;
     const pkg = await stage('playwright_pin', () => verifyPlaywright(config.playwright));
     await mkdir(config.out, {mode: 0o700}); outputReady = true;
     evidence.runtime = {...QA_PIN, platform_observed: process.platform,
@@ -805,38 +813,41 @@ export async function run(config) {
       second_edit_after_first_closed_hash: secondEdit.content_hash, independent_close: true};
     await extraPages[1].evaluate(() => window.qa.close()); await extraPages[1].close();
     evidence.performance.summary = await stage('performance_metrics', () => summarizePerformance(evidence.cases));
-    page = await context.newPage();
-    const scaleCdp = await context.newCDPSession(page);
-    const scaleStarted = process.hrtime.bigint();
-    await stage('canvas_open', async () => {
-      await page.goto(server.origin + '/', {waitUntil: 'load'});
-      await page.waitForFunction(() => Boolean(window.qa));
-    });
-    const scaleCanvasReadyMs = elapsedMs(scaleStarted);
-    const scaleOpenStarted = process.hrtime.bigint();
-    const scaleOpen = await stage('canvas_open', () => page.evaluate(({content, sha}) => window.qa.open(content, sha),
-      {content: scale.bytes.toString('base64'), sha: scale.checkpoint_sha256}));
-    const scaleDocumentOpenMs = elapsedMs(scaleOpenStarted);
-    const scaleProbe = await page.evaluate(() => window.qa.probe());
-    check(scaleProbe.source_hash === scale.checkpoint_sha256, 'canvas_open');
-    const scaleMetrics = await stage('performance_metrics', () => rendererMetrics(scaleCdp));
-    const scaleExports = await stage('native_export', () => page.evaluate(() => window.qa.exports()));
-    check(scaleExports?.formats?.pdf?.sha256 === scale.pdf_sha256
-      && scaleExports?.formats?.pdf?.bytes === scale.pdf_bytes, 'native_export');
-    const scaleBrowserCdp = await browser.newBrowserCDPSession();
-    let scaleProcessMemory;
-    try {
-      scaleProcessMemory = await stage('performance_metrics', () => chromiumProcessMemory(scaleBrowserCdp));
-    } finally {
-      await scaleBrowserCdp.detach();
+    evidence.scale_profiles = [];
+    for (const scale of scales) {
+      page = await context.newPage();
+      const scaleCdp = await context.newCDPSession(page);
+      const scaleStarted = process.hrtime.bigint();
+      await stage('canvas_open', async () => {
+        await page.goto(server.origin + '/', {waitUntil: 'load'});
+        await page.waitForFunction(() => Boolean(window.qa));
+      });
+      const scaleCanvasReadyMs = elapsedMs(scaleStarted);
+      const scaleOpenStarted = process.hrtime.bigint();
+      const scaleOpen = await stage('canvas_open', () => page.evaluate(({content, sha}) => window.qa.open(content, sha),
+        {content: scale.bytes.toString('base64'), sha: scale.checkpoint_sha256}));
+      const scaleDocumentOpenMs = elapsedMs(scaleOpenStarted);
+      const scaleProbe = await page.evaluate(() => window.qa.probe());
+      check(scaleProbe.source_hash === scale.checkpoint_sha256, 'canvas_open');
+      const scaleMetrics = await stage('performance_metrics', () => rendererMetrics(scaleCdp));
+      const scaleExports = await stage('native_export', () => page.evaluate(() => window.qa.exports()));
+      check(scaleExports?.formats?.pdf?.sha256 === scale.pdf_sha256
+        && scaleExports?.formats?.pdf?.bytes === scale.pdf_bytes, 'native_export');
+      const scaleBrowserCdp = await browser.newBrowserCDPSession();
+      let scaleProcessMemory;
+      try {
+        scaleProcessMemory = await stage('performance_metrics', () => chromiumProcessMemory(scaleBrowserCdp));
+      } finally {
+        await scaleBrowserCdp.detach();
+      }
+      evidence.scale_profiles.push({profile: scale.profile, declared_pages: scale.pages,
+        source_sha256: scale.source_sha256, checkpoint_sha256: scale.checkpoint_sha256,
+        checkpoint_bytes: scale.checkpoint_bytes, canvas_ready_ms: scaleCanvasReadyMs,
+        document_open_ms: scaleDocumentOpenMs, open_generation: scaleOpen.generation,
+        admitted_pdf_pages: scale.pages, admitted_pdf_sha256: scale.pdf_sha256,
+        renderer: scaleMetrics, browser_process_memory: scaleProcessMemory, exports: scaleExports});
+      await page.evaluate(() => window.qa.close()); await scaleCdp.detach(); await page.close(); page = undefined;
     }
-    evidence.scale_profile = {profile: scale.profile, declared_pages: scale.pages,
-      source_sha256: scale.source_sha256, checkpoint_sha256: scale.checkpoint_sha256,
-      checkpoint_bytes: scale.checkpoint_bytes, canvas_ready_ms: scaleCanvasReadyMs,
-      document_open_ms: scaleDocumentOpenMs, open_generation: scaleOpen.generation,
-      admitted_pdf_pages: scale.pages, admitted_pdf_sha256: scale.pdf_sha256,
-      renderer: scaleMetrics, browser_process_memory: scaleProcessMemory, exports: scaleExports};
-    await page.evaluate(() => window.qa.close()); await scaleCdp.detach(); await page.close(); page = undefined;
     check(deniedRequests === 0 && pageErrors === 0 && consoleErrors === 0, 'runtime_errors');
     evidence.network = {external_requests_blocked: deniedRequests, page_errors: pageErrors, console_errors: consoleErrors,
       static_document_routes: 0, loopback_only: true};
