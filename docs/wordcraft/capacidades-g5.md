@@ -245,8 +245,9 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 - o cenário C11 aprova por RPC canônica uma revisão congelada no
   Chromium/WASM sob identidade de governança segregada e PostgREST/JWT/RLS. O
   checkpoint posterior é recusado sem efeito, e seis APIs de edição permanecem
-  bloqueadas. A recusa de `emitido` continua comprovada no SQL local. Evidência
-  detalhada: `c11-aceite-imutabilidade.md`.
+  bloqueadas. DFD, ETP, TR e Edital são então aprovados e emitidos na mesma
+  prova; os pacotes persistidos são reabertos byte a byte e o canvas continua
+  congelado. Evidência detalhada: `c11-aceite-imutabilidade.md`.
 - o cenário C12 executa duas fronteiras locais: RLS real separa revisões e
   bloqueia escrita cruzada entre tenants, enquanto troca de identidade revoga
   owner, documento, bridge, preparação, projeção e payload do componente da
@@ -254,9 +255,8 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 
 ## Pendências para fechar G5
 
-1. completar as trilhas A–D do corpus; C09 possui PASS local integrado e C11
-   possui PASS local integrado para `aprovado`; o estado `emitido` de C11 ainda
-   exige o mesmo transporte/UI, embora sua imutabilidade tenha PASS SQL local;
+1. completar as trilhas A–D do corpus; C09 e C11 possuem PASS local integrado,
+   incluindo transporte/UI, aprovação e emissão de C11;
 2. completar C12 com GoTrue real e dois processos de navegador autenticados;
    RLS SQL, PostgREST com JWT sintético, canvas vivo, Storage não aplicável e
    revogação do namespace de sessão já possuem PASS local parcial.
