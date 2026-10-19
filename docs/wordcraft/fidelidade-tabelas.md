@@ -190,6 +190,22 @@ marca de parágrafo vazio e layout de tabela. A evidência fechada está em
 `docs/wordcraft/evidencia-io-fidelity-rust-windows.json`.
 
 O workflow Linux continua executando explicitamente os dois pacotes. Permanecem
-pendentes o round-trip do corpus corrigido, a nova comparação raster, atribuição
-por ablação e aceite visual. Nenhuma funcionalidade antiga foi removida e
-nenhuma conclusão de fidelidade final foi emitida.
+pendentes a nova comparação raster, atribuição por ablação e aceite visual.
+Nenhuma funcionalidade antiga foi removida e nenhuma conclusão de fidelidade
+final foi emitida.
+
+O bundle coevo corrigido, manifesto
+`f5aabf8a7923dd7cc941f855072f9c8967bf380870e852730ccd502957e4143c`,
+também executou um corpus novo completo em Windows: **16/16 variantes**, 135
+etapas nativas aprovadas, zero falhas/diferenças estruturais e 87 páginas PDF.
+O `comparison.json` tem SHA-256
+`66834565272f5ed2a700ca29f7ca6931937190b5f8f8ce0b533ea5f493a52fae`.
+
+Para a comparação raster, o MSI oficial 26.8.1 foi reextraído sem instalação em
+um namespace novo, com o SHA-256 publicado
+`c6298b10cfa1748bcbedad94c62ce771e240e5021bfd6d7a967cd571b04b5312`.
+As duas tentativas permitidas para o primeiro DOCX terminaram com o mesmo código
+Windows `3221226505`, sem PDF e sem saída textual; o runner preservou os logs e
+falhou fechado. Não houve terceira tentativa nem troca de motor. Assim, o
+round-trip corrigido está comprovado, mas a comparação visual permanece para o
+job Linux descartável já definido.

@@ -41,8 +41,28 @@
     "passed": 493,
     "failed": 0
   },
+  "corrected_bundle_roundtrip": {
+    "engine_manifest_sha256": "f5aabf8a7923dd7cc941f855072f9c8967bf380870e852730ccd502957e4143c",
+    "input_manifest_sha256": "540cfc8e879985d4e4157753d68705a938c6af330b7bd2bb5f5f63723ebef62a",
+    "comparison_sha256": "66834565272f5ed2a700ca29f7ca6931937190b5f8f8ce0b533ea5f493a52fae",
+    "variants": 16,
+    "passed_steps": 135,
+    "failed_steps": 0,
+    "failures_or_differences": 0,
+    "native_pdf_pages": 87
+  },
+  "libreoffice_raster_attempt": {
+    "runtime": "LibreOffice 26.8.1 official MSI fresh read-only extraction",
+    "msi_sha256": "c6298b10cfa1748bcbedad94c62ce771e240e5021bfd6d7a967cd571b04b5312",
+    "source": "C01/dfd.docx",
+    "attempts": 2,
+    "returncodes": [3221226505, 3221226505],
+    "pdf_created": false,
+    "status": "WINDOWS_RUNTIME_FAILED_CLOSED_RASTER_PENDING_LINUX"
+  },
   "claims": {
     "rust_compile_and_tests": true,
+    "corrected_bundle_full_native_roundtrip": true,
     "linux_ci": false,
     "corrected_corpus_raster_comparison": false,
     "human_visual_fidelity_approved": false,
