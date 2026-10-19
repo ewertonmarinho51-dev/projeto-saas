@@ -45,3 +45,15 @@ e hash permaneceram idênticos. A revisão 1 continuou byte-idêntica. Evidênci
 O estado `emitido` continua provado no SQL local, mas ainda não atravessa essa
 mesma UI congelada. O JWT é cunhado pelo harness; GoTrue real e homologação na
 infraestrutura-alvo permanecem necessários para G7.
+
+O preflight da sequência completa também encontrou e fechou um defeito de
+projeção no C05: bookmarks DOCX delimitavam os títulos de 32 cláusulas com
+`U+FFFC`, fazendo o Edital aparecer sem estrutura e fora da cobertura. A
+projeção agora reconhece somente o par estrito `bookmarkStart`/`bookmarkEnd`,
+com mesmo nome, nas duas bordas de um título tipado de primeiro nível. O título
+continua bloqueado para edição pelo motor nativo. Objeto opaco, marcador interno
+ou não pareado continua falhando fechado. No checkpoint real de 329.216 bytes,
+o resultado passou de zero para 32 cláusulas, com 141 blocos, zero lacunas e
+aptidão de análise/autocorreção. Isso remove o bloqueio estrutural do Edital,
+mas não declara a emissão completa, que ainda exige aprovar os quatro heads e
+atravessar a RPC canônica em uma única prova integrada.

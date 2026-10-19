@@ -127,6 +127,43 @@ def test_projection_does_not_promote_heading_in_cell_to_document_clause(engine):
     assert [b.clausula for b in projection.blocos] == [1, 1, 1, 1]
 
 
+def test_bookmark_boundary_markers_identify_blocked_clause_heading_only(engine):
+    first, second = heading("\ufffc1. OBJETO\ufffc"), heading("\ufffc2. JUSTIFICATIVA\ufffc")
+    first["objects"] = [{"type": "bookmarkStart", "name": "gc_clause_1"},
+                        {"type": "bookmarkEnd", "name": "gc_clause_1"}]
+    second["objects"] = [{"type": "bookmarkStart", "name": "gc_clause_2"},
+                         {"type": "bookmarkEnd", "name": "gc_clause_2"}]
+    projection = view(source(checkpoint([
+        first, para("Corpo elegível."), second, para("Outro corpo elegível."),
+    ])))
+    assert projection.apto_analise and projection.apto_autocorrecao
+    assert [b.clausula for b in projection.blocos] == [1, 1, 2, 2]
+    assert projection.blocos[0].conteudo == "## 1. OBJETO"
+    assert projection.blocos[0].bloqueio == "titulo"
+
+
+@pytest.mark.parametrize("text,style", [
+    ("1. OBJ\ufffcETO", "GovDocsClausula"),
+    ("\ufffc1. OBJETO", "GovDocsClausula"),
+    ("1. OBJETO\ufffc", "GovDocsClausula"),
+    ("Corpo \ufffc opaco", None),
+])
+def test_non_boundary_or_non_heading_object_marker_remains_uncovered(engine, text, style):
+    block = heading(text, style) if style else para(text)
+    projection = view(source(checkpoint([heading("1. OBJETO"), block])))
+    assert not projection.apto_analise and not projection.apto_autocorrecao
+    assert any(area.startswith("objeto:") for area in projection.areas_nao_cobertas)
+
+
+def test_boundary_markers_with_non_bookmark_or_mismatched_objects_remain_uncovered(engine):
+    for objects in ([{"type": "drawing", "name": "gc_clause_1"}],
+                    [{"type": "bookmarkStart", "name": "gc_clause_1"},
+                     {"type": "bookmarkEnd", "name": "gc_clause_2"}]):
+        block = heading("\ufffc1. OBJETO\ufffc")
+        block["objects"] = objects
+        assert not view(source(checkpoint([block, para("Corpo.")]))).apto_analise
+
+
 def test_fixed_without_structure_untyped_numbering_and_duplicate_heading_fail_closed(engine):
     for body in ([para("Texto sem títulos")], [heading("1. OBJETO"), para("9. EQUIPE")],
                  [heading("1. OBJETO"), para("Nome sem delimitação da cláusula fixa")],

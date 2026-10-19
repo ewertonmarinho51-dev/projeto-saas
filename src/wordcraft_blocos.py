@@ -414,6 +414,36 @@ CLAUSE_STYLES = frozenset({"GovDocsClausula", "Heading1", "Heading2", "Heading3"
 INSTITUTIONAL_STYLES = frozenset({"GovDocsTitulo", "GovDocsNota", "Header", "Footer"})
 
 
+def _titulo_estrutural(text: str, objects: object, *, heading: bool,
+                       top_level: bool) -> str | None:
+    """Read a bookmarked clause title without making its paragraph editable.
+
+    WordCraft represents the start/end of a DOCX bookmark as U+FFFC around the
+    visible paragraph text.  Only that exact boundary form is structural.  An
+    inline marker, an unpaired marker, or a marker outside a top-level typed
+    heading remains an opaque object and therefore outside complete coverage.
+    """
+    if "\ufffc" not in text:
+        return text if not objects else None
+    if (not heading or not top_level or not text.startswith("\ufffc")
+            or not text.endswith("\ufffc")):
+        return None
+    visible = text[1:-1]
+    if not visible or "\ufffc" in visible:
+        return None
+    if (not isinstance(objects, list) or len(objects) != 2
+            or not isinstance(objects[0], dict) or not isinstance(objects[1], dict)
+            or set(objects[0]) != {"type", "name"}
+            or set(objects[1]) != {"type", "name"}
+            or objects[0]["type"] != "bookmarkStart"
+            or objects[1]["type"] != "bookmarkEnd"
+            or objects[0]["name"] != objects[1]["name"]
+            or not isinstance(objects[0]["name"], str)
+            or re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", objects[0]["name"]) is None):
+        return None
+    return visible
+
+
 @dataclass(frozen=True)
 class DocumentoNativo:
     checkpoint: bytes
@@ -535,12 +565,15 @@ def projetar_documento(doc_key: str, content: bytes, *, indice: IndiceNativo,
         text, style = block["text"], block.get("props", {}).get("style")
         if not isinstance(text, str):
             raise ErroAncora("Parágrafo sem texto reconhecível na projeção.")
-        if block.get("objects") or "\ufffc" in text:
-            gaps.append(f"objeto:{anchor.block_id}")
         body = anchor.story_kind == "body"
         top_level = body and len(anchor.caminho.indices) == 1
         heading = style in CLAUSE_STYLES
-        match = validacao._RE_CLAUSULA.fullmatch("## " + text) if heading else None
+        structural_text = _titulo_estrutural(text, block.get("objects", []),
+                                             heading=heading, top_level=top_level)
+        if structural_text is None:
+            gaps.append(f"objeto:{anchor.block_id}")
+        visible_text = structural_text if structural_text is not None else text
+        match = validacao._RE_CLAUSULA.fullmatch("## " + visible_text) if heading else None
         if top_level and match:
             clause = int(match.group(1))
             occurrences[clause] += 1
@@ -553,13 +586,13 @@ def projetar_documento(doc_key: str, content: bytes, *, indice: IndiceNativo,
             # Do not let an unnumbered heading silently inherit FIXED policy.
             clause, section = None, "preambulo"
             signature_section = False
-        elif top_level and (validacao._RE_CLAUSULA.fullmatch(text)
-                            or validacao._RE_CLAUSULA.fullmatch("## " + text)):
+        elif top_level and (validacao._RE_CLAUSULA.fullmatch(visible_text)
+                            or validacao._RE_CLAUSULA.fullmatch("## " + visible_text)):
             impediments.append("titulo_sem_estilo_comprovado")
         if body and (style == "GovDocsAssinatura" or "____" in text):
             signature_section = True
         block_clause, block_section = (clause, section) if body else (None, "institucional")
-        view_text = "## " + text if heading and body else text
+        view_text = "## " + visible_text if heading and body else visible_text
         reason = ("institucional" if not body or style in INSTITUTIONAL_STYLES else
                   "titulo" if heading else "assinatura" if signature_section else
                   "preambulo" if block_clause is None else
