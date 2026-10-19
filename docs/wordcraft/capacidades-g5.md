@@ -253,8 +253,9 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
    em seus relatórios para aceite end-to-end;
 2. consumir catálogo institucional, RAG vigente e montagem oficial pelos
    owners existentes em ensaio end-to-end;
-3. completar C12 com GoTrue/PostgREST, Storage pertinente e navegador; RLS SQL
-   e revogação do namespace de sessão já possuem PASS local parcial.
+3. completar C12 com GoTrue real e dois processos de navegador autenticados;
+   RLS SQL, PostgREST com JWT sintético, canvas vivo, Storage não aplicável e
+   revogação do namespace de sessão já possuem PASS local parcial.
 
 Também falta produzir e homologar o artefato com status operacional. O bundle
 atual de QA não satisfaz esse requisito e não foi promovido por renomeação.

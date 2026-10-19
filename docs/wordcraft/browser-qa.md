@@ -144,7 +144,7 @@ deixa controller e WASM em `saved`, com o hash nativo igual ao head reaberto.
 PostgreSQL 16, PostgREST 12, adaptador, JWT/RLS e Chromium são locais e
 descartáveis; zero requisições externas, erros de página ou console. Evidência
 `outputs/WORDCRAFT_G4_OWNER_REAL_PERSISTENCE.json`, SHA-256
-`9ed6e58d29a8bf7ad1c1c416d54ef58541bc7b0b952a91f445e60f3cdc801df4`,
+`9eff4335afddff0b6e062b2c02fcd43272b4d7a6c03fb5cb5172c7c709c6bc28`,
 status `PASS_REAL_CANVAS_BACKEND_ACK_UNDO_LOCAL`. GoTrue e homologação na
 infraestrutura-alvo não fazem parte dessa prova.
 
@@ -152,6 +152,12 @@ A mesma execução agora observa a negativa stale com um `probe` estritamente de
 leitura antes e depois da tentativa. O owner recusa a preparação antiga sem
 criar revisão ou auditoria, e o canvas conserva `instance_token`, geração e
 hash. Nenhum comando que o backend recusou é enviado ao editor.
+
+O mesmo stack cria um segundo tenant e entrega ao owner um JWT sintético B.
+PostgREST/RLS recusam tanto a abertura quanto o checkpoint contra o documento A;
+o canvas A permanece vivo e byte-identical, e a leitura administrativa mínima
+confirma que head, revisões e auditoria não mudaram. O harness cunha os JWTs;
+esta evidência não substitui login ou revogação pelo GoTrue.
 
 Fontes primárias verificadas:
 [release Playwright 1.56.1](https://github.com/microsoft/playwright/releases/tag/v1.56.1),
