@@ -133,6 +133,21 @@ e ACKs de transporte consecutivos nas revisões 5 e 6. JSON SHA-256
 `ea0765f1ffbe9c5eacd5cb659b3fadce6d0bba79644bb2f77aea13639ec09270`.
 Não houve chamada paga, rede externa, persistência ou elevação de autoridade.
 
+Uma segunda prova confinada mantém a mesma instância Chromium/WASM viva enquanto
+o backend descartável executa o commit. O canvas recebe o `ComandoPatch` selado
+do owner pela ação `patch` real, emite checkpoint com o mesmo `operation_id`, e
+`DocumentoService.confirmar_patches(..., checkpoints=...)` persiste a revisão 2
+somente após comparar operação, revisão, hash e bytes. O recibo real é entregue
+ao `EditorController`; só então a mesma instância executa Undo, emite outro
+checkpoint e o owner persiste a restauração como revisão 3. O segundo recibo
+deixa controller e WASM em `saved`, com o hash nativo igual ao head reaberto.
+PostgreSQL 16, PostgREST 12, adaptador, JWT/RLS e Chromium são locais e
+descartáveis; zero requisições externas, erros de página ou console. Evidência
+`outputs/WORDCRAFT_G4_OWNER_REAL_PERSISTENCE.json`, SHA-256
+`a1e3df5f22f2e95fa09e43b3ceacabe06138738387b841497ee459129aba8468`,
+status `PASS_REAL_CANVAS_BACKEND_ACK_UNDO_LOCAL`. GoTrue e homologação na
+infraestrutura-alvo não fazem parte dessa prova.
+
 Fontes primárias verificadas:
 [release Playwright 1.56.1](https://github.com/microsoft/playwright/releases/tag/v1.56.1),
 [catálogo de browsers pinado](https://raw.githubusercontent.com/microsoft/playwright/v1.56.1/packages/playwright-core/browsers.json),

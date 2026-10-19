@@ -401,6 +401,51 @@ async function installCanvasHarness(paths) {
         undo_ack_revision: undoAck.revision, undo_ack_hash: undoAck.content_hash,
         undo_after_patch_ack: true, exact_undo: undoAck.content_hash === before, gateway_mocked: true};
     },
+    async applyPersistedPatch(operationId, expectedRevision, targetHash, plan) {
+      assert(typeof operationId === 'string' && typeof targetHash === 'string');
+      assert(Number.isSafeInteger(expectedRevision) && expectedRevision === controller.revision);
+      assert(plan && plan.schema === 'gc-wordcraft-native-patch/v1'
+        && plan.source_revision === expectedRevision && plan.source_hash === controller.currentHash);
+      const before = await snapshotHash();
+      const eventCount = events.length;
+      await controller.control({schema: 'gc-wordcraft-control/v1', command_id: operationId,
+        action: 'patch', revision: expectedRevision, content_hash: before,
+        target_hash: targetHash, plan_json: JSON.stringify(plan)});
+      const patched = await snapshotHash();
+      const checkpoint = events.slice(eventCount).findLast(item => item.event === 'document.checkpoint');
+      assert(checkpoint && checkpoint.payload.content_hash === patched
+        && checkpoint.expected_revision === expectedRevision && checkpoint.request_id === operationId
+        && patched === targetHash && native.dirty());
+      return {request_id: checkpoint.request_id, expected_revision: checkpoint.expected_revision,
+        ...checkpoint.payload, source_hash: before};
+    },
+    async acceptPersistedPatchAndUndo(ack) {
+      if (!(ack && ack.request_id && ack.revision === controller.revision + 1
+          && ack.content_hash === await snapshotHash())) throw new Error('PATCH_ACK_INPUT');
+      data = {...data, revision: ack.revision, content_hash: ack.content_hash, ack};
+      controller.receive(data); outbox.acknowledge(controller.sequence);
+      if (!(controller.state === 'saved' && native.dirty() === false)) throw new Error('PATCH_ACK_REJECTED');
+      const persisted = await snapshotHash();
+      try { native.undo(); } catch { throw new Error('UNDO_COMMAND_REFUSED'); }
+      const restored = await snapshotHash();
+      if (!(restored !== persisted && native.dirty())) throw new Error('UNDO_DID_NOT_CHANGE');
+      controller.changed();
+      const checkpoint = await controller.checkpoint();
+      if (!(checkpoint && checkpoint.expected_revision === ack.revision
+          && checkpoint.payload.content_hash === restored)) throw new Error('UNDO_CHECKPOINT_INVALID');
+      return {request_id: checkpoint.request_id, expected_revision: checkpoint.expected_revision,
+        ...checkpoint.payload, persisted_hash: persisted};
+    },
+    async acceptPersistedUndo(ack) {
+      assert(ack && ack.request_id && ack.revision === controller.revision + 1
+        && ack.content_hash === await snapshotHash());
+      data = {...data, revision: ack.revision, content_hash: ack.content_hash, ack};
+      controller.receive(data); outbox.acknowledge(controller.sequence);
+      assert(controller.state === 'saved' && native.dirty() === false
+        && controller.revision === ack.revision && controller.currentHash === ack.content_hash);
+      return {revision: controller.revision, content_hash: controller.currentHash,
+        native_hash: await snapshotHash(), saved: true};
+    },
     async nativePatchUndo() {
       const before = await snapshotHash(), plan = targetPlan();
       assert(plan.source_hash === before && native.dirty() === false);
@@ -473,7 +518,7 @@ export async function serveAssets(assets) {
   })};
 }
 
-async function buildAssets(config) {
+export async function buildAssets(config) {
   const bundle = await verifyBundle(config.bundle, config['manifest-sha256']);
   const manifestRaw = await boundedFile(resolve(config.bundle, 'qa-manifest.json'), 128 * 1024, 'bundle_admission');
   const manifest = JSON.parse(manifestRaw);

@@ -74,7 +74,10 @@ simulado. O mesmo runner capturou a seleção nativa, passou uma resposta mockad
 pelo gateway e compilador GovBot reais, aplicou o resultado no canvas, confirmou
 o hash alterado por ACK simulado e só então desfez para o hash exato, confirmado
 por outro ACK simulado. O teste conjunto que substitui esses ACKs pelo commit e
-recibo reais do backend no mesmo percurso permanece pendente.
+recibo reais do backend também passou: a mesma instância aplicou o comando
+preparado, confirmou a revisão 2, executou Undo depois do ACK e confirmou a
+restauração persistida como revisão 3. A recusa stale permanece comprovada nas
+duas fronteiras, mas ainda não foi repetida como tentativa única coeva.
 
 A captura de seleção agora é um comando servidor, ligado à revisão/hash limpos.
 O texto retornado serve apenas para resolver um bloco integral único entre paths
@@ -91,7 +94,7 @@ usa IA mockada, conforme o plano de testes, e não afirma chamada de provedor.
 | G1 Percurso mínimo | PASS LOCAL LIMITADO | navegador abriu/editou/salvou/recarregou/exportou texto, timbrado e tabela de 210 itens; g1-evidencias.md; sem promoção a G3/G7 |
 | G2 Persistência | PARCIAL | importação, originais, índices, restauração, aprovação, consumidor source-aware, ZIP auditável e emissão oficial transacional implementados; documento consolidado e prova PostgREST/Auth real pendentes |
 | G3 Fidelidade | PARCIAL | 16 DOCX passam no roundtrip nativo; 16 PDFs/87 páginas têm revisão visual local sem corte; LO baseline16/70 páginas; derivado6/16 casos,44/50 PNGs iguais e6 diferenças em tabelas; prova Linux pendente após duas falhas limitadas Windows |
-| G4 Patches | PARCIAL | motor real preservou79 IDs/27 blocos protegidos,8 negativos recusados;188 SQL passaram; bundle atual passou canvas/patch/Undo, multi-canvas e seleção GovBot mockada pelo gateway real; prova backend coeva passou commit/reopen/retry/stale/auditoria em PostgreSQL/PostgREST/JWT/RLS descartáveis; falta unir canvas→commit→ACK real→Undo posterior no mesmo percurso |
+| G4 Patches | PASS LOCAL | motor único preservou 79 IDs/27 blocos protegidos e recusou 8 negativos; 188 SQL passaram; a prova coeva manteve o canvas Chromium/WASM vivo através de comando preparado, checkpoint exato, commit/RLS, ACK real, Undo posterior, revisão restaurada, retry, stale e auditoria; GoTrue e homologação-alvo pertencem a G7 |
 | G5 Seis capacidades | PARCIAL | compilador/painel/host, consumidor source-aware, aplicação transacional de template e pacote auditável ligados sob flag OFF; admissão recusa bundle QA; falta artefato operacional homologado e corpus A-D completo |
 | G6 Paridade e retirada | PENDENTE | nenhuma funcionalidade legada retirada; a transição agora falha fechada antes de runtime/importação quando existe rascunho legado divergente e o preserva na sessão; substituição e retirada continuam condicionadas à comprovação integral |
 | G7 Homologação | PARCIAL | CAS/RLS/imutabilidade SQL e HTTP sintéticos; runner Chromium passou em CI e Windows coevo, medindo startup, abertura e heap JS/DOM; GoTrue Linux implementado, primeiro run falhou preflight; Auth real, memória total/WASM e orçamento na infraestrutura-alvo pendentes |

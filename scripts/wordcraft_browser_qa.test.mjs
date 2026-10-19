@@ -108,6 +108,9 @@ test('page module accepts only confined WordCraft asset URLs', () => {
   assert.match(code.toString(), /const patchAck = await checkpointAck\(\)/);
   assert.match(code.toString(), /native\.undo\(\)/);
   assert.match(code.toString(), /undo_after_patch_ack: true/);
+  assert.match(code.toString(), /async applyPersistedPatch\(operationId, expectedRevision, targetHash, plan\)/);
+  assert.match(code.toString(), /async acceptPersistedPatchAndUndo\(ack\)/);
+  assert.match(code.toString(), /async acceptPersistedUndo\(ack\)/);
   assert.throws(() => pageModule('/outside.js', '/app/static/wordcraft/engine.wasm'), BrowserQaFailure);
   assert.throws(() => pageModule('/app/static/wordcraft/../engine.js', '/app/static/wordcraft/engine.wasm'), BrowserQaFailure);
 });

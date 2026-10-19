@@ -22,7 +22,7 @@ Evidência offline final: 229 PASS, zero falhas/skips, em 7,93 s, em owner novo 
 
 Migration nova gerada pela CLI: `20261016041756_documentos_editor_patch_lote.sql`, SHA-256 `d8da4db709dd7a9a9a8fee3dd67fb1280097cbe9e4513a9ccad8a31a3b5ba8d7`. O integrador executou os 32 casos novos e os 156 de integração SQL existentes: **188 PASS**, zero falhas/skips, em 30,63 s; XML na pasta da tarefa `outputs/tests-wordcraft-patches-lote-sql.xml`. O hash final foi reconferido após a execução. A revisão independente final conferiu os guards de leitura com perfil atual, a liberação de capacidade/retry, a competência antes dos locks e a rechecagem depois deles, sem novo achado nos deltas.
 
-Advisors oficiais executados em outro banco novo descartável, `ensaio_6d36b746dabb`, com 32 migrations: exit 0, zero ERROR e 16 WARN do schema-base; nenhum achado em objeto documental novo. Evidência da tarefa: `work/patches-lote-advisors-final.json`. Estado da CLI isolado no workspace, telemetria desabilitada e ambiente reduzido; o banco foi eliminado por finally. A DSN usada foi exclusivamente loopback. Nenhum resultado aqui declara G4 completo, Undo/ACK real, emissão oficial ou ativação operacional.
+Advisors oficiais executados em outro banco novo descartável, `ensaio_6d36b746dabb`, com 32 migrations: exit 0, zero ERROR e 16 WARN do schema-base; nenhum achado em objeto documental novo. Evidência da tarefa: `work/patches-lote-advisors-final.json`. Estado da CLI isolado no workspace, telemetria desabilitada e ambiente reduzido; o banco foi eliminado por finally. A DSN usada foi exclusivamente loopback. Esse ensaio de advisors, isoladamente, não declara Undo/ACK real, emissão oficial ou ativação operacional; a prova coeva posterior está registrada abaixo.
 
 Em 18/10/2026, a prova do owner foi repetida com o bundle atual de manifesto
 `f5aabf8a7923dd7cc941f855072f9c8967bf380870e852730ccd502957e4143c`
@@ -35,8 +35,14 @@ Preparação stale e de outro owner foram recusadas sem escrita parcial. Os dois
 históricos e três eventos canônicos foram observados; banco, login e processos
 foram eliminados. Evidência
 `outputs/WORDCRAFT_G4_OWNER_REAL_PERSISTENCE.json`, SHA-256
-`0e979eeb1fbb136f8039ceb01f018458ea1315fc9d534f16f8be0ee08dd67131`.
-Essa prova usa backend/JWT/RLS reais locais, mas não confirma canvas nem GoTrue.
+`a1e3df5f22f2e95fa09e43b3ceacabe06138738387b841497ee459129aba8468`.
+A passagem coeva usa o canvas Chromium/WASM real: o comando preparado gerou o
+checkpoint exato, o lote persistiu a revisão 2 com `canvas_confirmado=true`, o
+recibo real precedeu o Undo e o checkpoint restaurado persistiu como revisão 3.
+O head reaberto, o hash nativo e o controller salvo convergiram para os bytes da
+revisão 1. A mesma execução manteve retry idempotente, stale/outro owner sem
+escrita parcial, auditoria/plano/diff e 27 regiões protegidas. Todos os serviços,
+banco e login foram eliminados. A prova não usa GoTrue nem infraestrutura-alvo.
 
 ### Conflitos esperados na fronteira PostgREST
 
