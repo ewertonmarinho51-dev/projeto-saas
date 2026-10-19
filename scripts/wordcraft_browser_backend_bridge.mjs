@@ -71,6 +71,8 @@ async function main() {
       } else if (command.action === 'apply') {
         value = await page.evaluate(input => window.qa.applyPersistedPatch(
           input.operation_id, input.revision, input.target_hash, input.plan), command);
+      } else if (command.action === 'ack') {
+        value = await page.evaluate(input => window.qa.acceptPersistedPatch(input.ack), command);
       } else if (command.action === 'patch_ack_undo') {
         value = await page.evaluate(input => window.qa.acceptPersistedPatchAndUndo(input.ack), command);
       } else if (command.action === 'undo_ack') {

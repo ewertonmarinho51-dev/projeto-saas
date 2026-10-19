@@ -35,7 +35,7 @@ Preparação stale e de outro owner foram recusadas sem escrita parcial. Os dois
 históricos e três eventos canônicos foram observados; banco, login e processos
 foram eliminados. Evidência
 `outputs/WORDCRAFT_G4_OWNER_REAL_PERSISTENCE.json`, SHA-256
-`d6a007e0a1e96fa05416211aafafb5e68abfa3f3fa6adc46cafbba371a50fbcd`.
+`6d5f526058a4af97f7133a82fc9c7148c281601a3685da7f5ac65e4896a2b2d8`.
 A passagem coeva usa o canvas Chromium/WASM real: o comando preparado gerou o
 checkpoint exato, o lote persistiu a revisão 2 com `canvas_confirmado=true`, o
 recibo real precedeu o Undo e o checkpoint restaurado persistiu como revisão 3.

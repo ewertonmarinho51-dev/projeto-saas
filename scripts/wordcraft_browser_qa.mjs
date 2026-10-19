@@ -419,6 +419,18 @@ async function installCanvasHarness(paths) {
       return {request_id: checkpoint.request_id, expected_revision: checkpoint.expected_revision,
         ...checkpoint.payload, source_hash: before};
     },
+    async acceptPersistedPatch(ack) {
+      if (!(ack && ack.request_id && ack.revision === controller.revision + 1
+          && ack.content_hash === await snapshotHash())) throw new Error('PATCH_ACK_INPUT');
+      data = {...data, revision: ack.revision, content_hash: ack.content_hash, ack};
+      controller.receive(data); outbox.acknowledge(controller.sequence);
+      if (!(controller.state === 'saved' && native.dirty() === false
+          && controller.revision === ack.revision && controller.currentHash === ack.content_hash)) {
+        throw new Error('PATCH_ACK_REJECTED');
+      }
+      return {revision: controller.revision, content_hash: controller.currentHash,
+        native_hash: await snapshotHash(), saved: true};
+    },
     async acceptPersistedPatchAndUndo(ack) {
       if (!(ack && ack.request_id && ack.revision === controller.revision + 1
           && ack.content_hash === await snapshotHash())) throw new Error('PATCH_ACK_INPUT');

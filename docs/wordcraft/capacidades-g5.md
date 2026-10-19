@@ -238,9 +238,10 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   somente leitura: canvas, head, revisões e auditoria permanecem idênticos.
 - o cenário C09 do owner classifica em conjunto uma recomendação objetiva, uma
   ambígua e uma incompatível com o texto editável; somente a objetiva entra no
-  plano G4, o diff prova os demais documentos intactos, o checkpoint exato é
-  confirmado e a trilha mantém os outros itens pendentes. Evidência detalhada:
-  `c09-aceite-owner.md`.
+  plano G4. A prova integrada relê o parecer pelo PostgREST/JWT/RLS, aplica o
+  comando no Chromium/WASM vivo, confirma os bytes no owner, persiste a revisão
+  4, entrega o ACK ao canvas e mantém os outros itens pendentes. Evidência
+  detalhada: `c09-aceite-owner.md`.
 - o cenário C11 em PostgreSQL real local aprova a revisão sintética original e
   comprova que checkpoints contra heads `aprovado` e `emitido` são recusados
   sem criar revisão, alterar bytes/hash ou deslocar o vínculo da aprovação.
@@ -252,9 +253,9 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 
 ## Pendências para fechar G5
 
-1. completar as trilhas A–D do corpus; C09 possui PASS local do owner e C11
-   possui PASS SQL local, mas ambos ainda exigem os transportes e a UI previstos
-   em seus relatórios para aceite end-to-end;
+1. completar as trilhas A–D do corpus; C09 possui PASS local integrado do
+   transporte PostgREST/JWT/RLS até o canvas, enquanto C11 possui PASS SQL local
+   e ainda exige o transporte/UI previsto em seu relatório;
 2. completar C12 com GoTrue real e dois processos de navegador autenticados;
    RLS SQL, PostgREST com JWT sintético, canvas vivo, Storage não aplicável e
    revogação do namespace de sessão já possuem PASS local parcial.

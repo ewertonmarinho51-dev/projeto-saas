@@ -144,7 +144,7 @@ deixa controller e WASM em `saved`, com o hash nativo igual ao head reaberto.
 PostgreSQL 16, PostgREST 12, adaptador, JWT/RLS e Chromium são locais e
 descartáveis; zero requisições externas, erros de página ou console. Evidência
 `outputs/WORDCRAFT_G4_OWNER_REAL_PERSISTENCE.json`, SHA-256
-`d6a007e0a1e96fa05416211aafafb5e68abfa3f3fa6adc46cafbba371a50fbcd`,
+`6d5f526058a4af97f7133a82fc9c7148c281601a3685da7f5ac65e4896a2b2d8`,
 status `PASS_REAL_CANVAS_BACKEND_ACK_UNDO_LOCAL`. GoTrue e homologação na
 infraestrutura-alvo não fazem parte dessa prova.
 
@@ -164,6 +164,13 @@ snapshot institucional ligado à revisão, a montagem determinística de dois
 itens (`30.02` por `Decimal`), uma fonte RAG vigente e a conferência literal de
 citação. Os probes e a leitura persistida mínima provam que essas projeções não
 alteram canvas, head, revisões ou auditoria.
+
+Na mesma execução, C09 lê um parecer normalizado e três achados pelo
+PostgREST/JWT/RLS. Somente a recomendação objetiva recebe âncora e comando; o
+Chromium/WASM em revisão 3 emite o checkpoint exato, o owner persiste a revisão
+4 e o ACK deixa o controller em `saved`. A trilha marca o item aplicado como
+pendente de revisão humana e mantém os dois demais pendentes. As revisões
+anteriores permanecem relíveis e byte-idênticas.
 
 Fontes primárias verificadas:
 [release Playwright 1.56.1](https://github.com/microsoft/playwright/releases/tag/v1.56.1),

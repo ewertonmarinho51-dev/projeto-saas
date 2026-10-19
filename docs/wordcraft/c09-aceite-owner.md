@@ -1,8 +1,10 @@
 # C09 — aceite funcional do owner de parecer
 
-Data: 18/10/2026  
-Escopo: owner Python, aplicador canônico G4 e recibo transacional simulado  
-Estado: **PASS LOCAL DO OWNER; navegador/WASM e SQL real ainda pendentes**
+Data: 19/10/2026
+
+Escopo: owner Python, PostgREST/JWT/RLS/SQL local e Chromium/WASM coevo
+
+Estado: **PASS LOCAL INTEGRADO; GoTrue e homologação-alvo ainda pendentes**
 
 Este ensaio consome o cenário funcional exigido para C09 sem alterar o
 manifesto de sementes do corpus. O manifesto continua `NOT_TESTED` porque sua
@@ -25,6 +27,19 @@ backend. Texto jurídico não escolhe livremente o caminho. A recomendação
 ambígua não chega ao aplicador; a tentativa de remover assinatura que não
 pertence ao texto editável não recebe path nativo.
 
-O resultado ainda não cobre a Session WASM real, Undo posterior no navegador,
-PostgreSQL/RLS real ou JWT GoTrue. Esses itens continuam necessários antes de
-promover C09 a aceite end-to-end ou encerrar G5/G7.
+Em 19/10/2026, o mesmo cenário foi repetido no stack descartável integrado. O
+parecer e os três achados foram persistidos no PostgreSQL real; o owner os leu
+pelo PostgREST sob JWT sintético e RLS. A recomendação objetiva foi preparada
+pelo aplicador G4, enviada ao mesmo Chromium/WASM que mantinha a revisão 3,
+confirmada por checkpoint byte a byte e persistida como revisão 4. O recibo do
+backend foi entregue ao controller, que terminou em `saved` com hash nativo
+igual ao head. O atendimento persistido marcou somente o objetivo como
+`APLICADO_PENDENTE_REVISAO`; os itens ambíguo e incompatível permaneceram
+`PENDENTE`. As revisões 1, 2 e 3 foram relidas com os bytes esperados.
+
+A evidência canônica é
+`outputs/WORDCRAFT_G4_OWNER_REAL_PERSISTENCE.json`, SHA-256
+`6d5f526058a4af97f7133a82fc9c7148c281601a3685da7f5ac65e4896a2b2d8`:
+32/32 checks verdadeiros e cleanup positivo de navegador, processos, banco e
+login. O harness cunha o JWT; portanto GoTrue real e homologação na
+infraestrutura-alvo continuam necessários para G7.
