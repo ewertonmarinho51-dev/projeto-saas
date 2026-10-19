@@ -49,7 +49,10 @@ build. Uma ação separada, com confirmação explícita, registra os dois pacot
 como snapshot oficial: reutiliza `governanca_publicacoes` e
 `publicacao_registrada`, persiste os bytes, revalida todas as aprovações sob
 lock e muda os heads para `emitido` na mesma transação. A reabertura lê os
-bytes persistidos. O documento único consolidado continua pendente.
+bytes persistidos. Os requisitos 01–07 pedem artefatos DOCX/PDF por revisão e
+snapshots oficiais, não um arquivo que funda instrumentos distintos. Os pacotes
+source-aware cumprem esse contrato e evitam restaurar o consolidador Markdown
+legado como segundo caminho documental.
 
 A preparação G4 de alvo único agora pode ser aceita ou rejeitada na superfície
 operacional. Ao aceitar, a ponte entrega ao canvas somente o plano nativo já

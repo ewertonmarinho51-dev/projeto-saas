@@ -50,8 +50,11 @@ A navegação e o pacote ZIP auditável já consomem somente revisões nativas
 aprovadas. A emissão oficial é uma ação separada: persiste os pacotes DOCX/PDF,
 vincula fontes, artefatos, aprovação, snapshot e build, registra a publicação
 na governança existente e cruza `aprovado` → `emitido` atomicamente. Reabrir a
-emissão usa os bytes imutáveis persistidos. O documento consolidado único e a
-prova via PostgREST/Auth real permanecem pendentes. O controle
+emissão usa os bytes imutáveis persistidos. Os requisitos 01–07 definem
+artefatos imutáveis por revisão e snapshots oficiais; não exigem fundir
+instrumentos distintos em um único DOCX/PDF. Portanto os pacotes oficiais
+source-aware satisfazem esse limite sem reativar o consolidador Markdown
+legado. A prova via PostgREST/Auth real permanece pendente. O controle
 freeze/release do canvas está em implementação e testes; não se declara frescor
 da revisão visível apenas porque o backend conhecia o estado ready/saved.
 
@@ -92,7 +95,7 @@ usa IA mockada, conforme o plano de testes, e não afirma chamada de provedor.
 |---|---|---|
 | G0 Auditoria | PARCIAL | baseline reproduzido; closure WASM com 251 pacotes/186 textos; 17 expressões para revisão, 12 pacotes sem texto e 14 sem texto da licença de código; distribuição não aprovada |
 | G1 Percurso mínimo | PASS LOCAL LIMITADO | navegador abriu/editou/salvou/recarregou/exportou texto, timbrado e tabela de 210 itens; g1-evidencias.md; sem promoção a G3/G7 |
-| G2 Persistência | PARCIAL | importação, originais, índices, restauração, aprovação, consumidor source-aware, ZIP auditável e emissão oficial transacional implementados; documento consolidado e prova PostgREST/Auth real pendentes |
+| G2 Persistência | PARCIAL | importação, originais, índices, restauração, aprovação, consumidor source-aware, ZIP auditável e emissão oficial transacional implementados; requisitos de artefato por revisão atendidos sem consolidador Markdown paralelo; prova PostgREST/Auth real pendente |
 | G3 Fidelidade | PARCIAL | 16 DOCX passam no roundtrip nativo; 16 PDFs/87 páginas têm revisão visual local sem corte; LO baseline16/70 páginas; derivado6/16 casos,44/50 PNGs iguais e6 diferenças em tabelas; prova Linux pendente após duas falhas limitadas Windows |
 | G4 Patches | PASS LOCAL | motor único preservou 79 IDs/27 blocos protegidos e recusou 8 negativos; 188 SQL passaram; a prova coeva manteve o canvas Chromium/WASM vivo através de comando preparado, checkpoint exato, commit/RLS, ACK real, Undo posterior, revisão restaurada, retry, stale e auditoria; GoTrue e homologação-alvo pertencem a G7 |
 | G5 Seis capacidades | PARCIAL | compilador/painel/host, consumidor source-aware, aplicação transacional de template e pacote auditável ligados sob flag OFF; admissão recusa bundle QA; falta artefato operacional homologado e corpus A-D completo |
