@@ -232,6 +232,10 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   confirmação stale recusada pelo owner; probes somente leitura antes/depois
   conservam `instance_token`, hash e geração, enquanto revisões e auditorias no
   banco permanecem idênticas.
+- com o mesmo canvas vivo, o owner lê pelo PostgREST/RLS o snapshot
+  institucional da revisão, monta dois itens e total `Decimal` de `30.02`,
+  carrega a fonte RAG vigente e comprova uma citação literal. Os painéis são
+  somente leitura: canvas, head, revisões e auditoria permanecem idênticos.
 - o cenário C09 do owner classifica em conjunto uma recomendação objetiva, uma
   ambígua e uma incompatível com o texto editável; somente a objetiva entra no
   plano G4, o diff prova os demais documentos intactos, o checkpoint exato é
@@ -251,9 +255,7 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 1. completar as trilhas A–D do corpus; C09 possui PASS local do owner e C11
    possui PASS SQL local, mas ambos ainda exigem os transportes e a UI previstos
    em seus relatórios para aceite end-to-end;
-2. consumir catálogo institucional, RAG vigente e montagem oficial pelos
-   owners existentes em ensaio end-to-end;
-3. completar C12 com GoTrue real e dois processos de navegador autenticados;
+2. completar C12 com GoTrue real e dois processos de navegador autenticados;
    RLS SQL, PostgREST com JWT sintético, canvas vivo, Storage não aplicável e
    revogação do namespace de sessão já possuem PASS local parcial.
 
