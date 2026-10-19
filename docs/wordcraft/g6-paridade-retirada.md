@@ -45,13 +45,14 @@ canário, nem autorizam apagar o código legado.
 
 ## Revisão regressiva
 
-Em 19/10/2026, todos os testes Python `test_wordcraft*.py` disponíveis no
-ambiente, exceto o analisador YAML do workflow, passaram: **490 passed em
-66,12 s**. O arquivo `test_wordcraft_fidelity_workflow.py` não foi coletado
-porque o Python local não possui `PyYAML`; a ausência não foi convertida em
-skip ou PASS e não invalida os resultados anteriores desse contrato em ambiente
-com a dependência instalada. Os contratos Node do browser passaram 18/18 na
-mesma sequência de trabalho.
+Em 19/10/2026, a dependência de QA `PyYAML 6.0.3` foi instalada em diretório
+isolado do workspace, sem alterar o Python do sistema. O contrato específico de
+`.github/workflows/wordcraft-fidelity.yml` passou com **9 passed e 1 skipped em
+0,66 s**; o skip é a verificação `bash -n`, indisponível neste Windows. Em
+seguida, a execução agregada de todos os arquivos `test_wordcraft*.py`, agora
+incluindo o analisador YAML do workflow, encerrou com **499 passed e 1 skipped
+em 48,53 s**. Os contratos Node do browser passaram 18/18 na mesma sequência
+de trabalho.
 
 ## Decisão de retirada
 
