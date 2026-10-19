@@ -105,6 +105,9 @@ test('page module accepts only confined WordCraft asset URLs', () => {
   const code = pageModule('/app/static/wordcraft/engine.js', '/app/static/wordcraft/engine.wasm');
   assert.ok(code.length > 1000);
   assert.match(code.toString(), /async probe\(\)/);
+  assert.match(code.toString(), /const patchAck = await checkpointAck\(\)/);
+  assert.match(code.toString(), /native\.undo\(\)/);
+  assert.match(code.toString(), /undo_after_patch_ack: true/);
   assert.throws(() => pageModule('/outside.js', '/app/static/wordcraft/engine.wasm'), BrowserQaFailure);
   assert.throws(() => pageModule('/app/static/wordcraft/../engine.js', '/app/static/wordcraft/engine.wasm'), BrowserQaFailure);
 });

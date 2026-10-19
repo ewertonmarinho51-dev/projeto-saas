@@ -71,9 +71,10 @@ positiva com finding real havia parado num bundle anterior. O adapter atual foi
 recompilado localmente e o runner provou patch, stale rejection, Undo/Redo e dois
 canvas simultâneos independentes; essa prova ainda usa ACK de transporte
 simulado. O mesmo runner capturou a seleção nativa, passou uma resposta mockada
-pelo gateway e compilador GovBot reais, aplicou o resultado no canvas e desfez
-para o hash exato. O teste conjunto patch→commit backend→ACK→Undo posterior
-permanece pendente.
+pelo gateway e compilador GovBot reais, aplicou o resultado no canvas, confirmou
+o hash alterado por ACK simulado e só então desfez para o hash exato, confirmado
+por outro ACK simulado. O teste conjunto que substitui esses ACKs pelo commit e
+recibo reais do backend no mesmo percurso permanece pendente.
 
 A captura de seleção agora é um comando servidor, ligado à revisão/hash limpos.
 O texto retornado serve apenas para resolver um bloco integral único entre paths

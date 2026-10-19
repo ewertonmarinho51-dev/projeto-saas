@@ -123,13 +123,14 @@ subprocesso Python com ambiente reduzido chama o
 `wordcraft_capacidades.propositor_govbot_selecao`; a resposta da IA é mockada,
 como exige o plano de testes inicial, mas atravessa o parser do gateway e o
 compilador G4 reais. O runner admite somente uma substituição TR fechada, sem
-fontes, aplica o novo texto no canvas e exige Undo ao hash de origem antes do
-ACK simulado. A execução passou com hash de origem/restauração
+fontes, aplica o novo texto no canvas, confirma por ACK simulado o hash alterado,
+executa o Undo somente depois desse ACK e confirma o hash restaurado por um
+segundo ACK simulado. A execução passou com hash de origem/restauração
 `2457749e8fa58bc338d9baff291843006f66e68073370707cde4eb87ee454d40`,
 hash transitório aplicado
 `50bd11340abc83a6121eeb88449e5bc57ef8d50677f4a0489ff71c58a94fec63`
-e JSON SHA-256
-`d4a8c6c3da146af16ed78cd2a9de3423d9f4df87a7bcc64a70bba97971a778ba`.
+e ACKs de transporte consecutivos nas revisões 5 e 6. JSON SHA-256
+`ea0765f1ffbe9c5eacd5cb659b3fadce6d0bba79644bb2f77aea13639ec09270`.
 Não houve chamada paga, rede externa, persistência ou elevação de autoridade.
 
 Fontes primárias verificadas:

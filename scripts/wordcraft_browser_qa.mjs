@@ -388,10 +388,18 @@ async function installCanvasHarness(paths) {
           end_byte: new TextEncoder().encode(oldText).length, old_text: oldText, new_text: newText}]};
       native.apply_text_patch(controller.revision, JSON.stringify(plan));
       const patched = await snapshotHash(); assert(patched !== before && model().document.body[index].text === newText);
-      native.undo(); assert(await snapshotHash() === before && model().document.body[index].text === oldText);
-      const ack = await checkpointAck();
-      return {source_hash: before, patched_hash: patched, restored_hash: ack.content_hash,
-        exact_undo: ack.content_hash === before, gateway_mocked: true};
+      controller.changed();
+      const patchAck = await checkpointAck();
+      assert(patchAck.content_hash === patched);
+      native.undo();
+      assert(await snapshotHash() === before && model().document.body[index].text === oldText);
+      controller.changed();
+      const undoAck = await checkpointAck();
+      assert(undoAck.content_hash === before && undoAck.revision === patchAck.revision + 1);
+      return {source_hash: before, patched_hash: patched, restored_hash: undoAck.content_hash,
+        patch_ack_revision: patchAck.revision, patch_ack_hash: patchAck.content_hash,
+        undo_ack_revision: undoAck.revision, undo_ack_hash: undoAck.content_hash,
+        undo_after_patch_ack: true, exact_undo: undoAck.content_hash === before, gateway_mocked: true};
     },
     async nativePatchUndo() {
       const before = await snapshotHash(), plan = targetPlan();
