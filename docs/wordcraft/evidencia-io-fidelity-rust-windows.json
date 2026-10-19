@@ -1,0 +1,51 @@
+{
+  "schema": "gc-wordcraft-io-fidelity-rust-qa/v1",
+  "status": "PASS_LOCAL_WINDOWS_GNU_NOT_LINUX_VISUAL_ACCEPTANCE",
+  "date": "2026-10-19",
+  "upstream_commit": "533615620ef91ae57fa7aa4cd77fd98b2179e693",
+  "patch_sha256": "b00ad8387175ad351bb2030e45b7aa1070fd043d23b6ecc3012a235a4ed3647b",
+  "rust": {
+    "version": "1.99.0",
+    "commit": "b940084d7eb6a299eb4bfeb8e34901bc051e7ac4",
+    "target": "x86_64-pc-windows-gnu",
+    "link_self_contained": true
+  },
+  "portable_linker": {
+    "name": "llvm-mingw-20260908-ucrt-x86_64",
+    "source": "https://github.com/mstorsjo/llvm-mingw/releases/tag/20260908",
+    "observed_archive_sha256": "1bcf74d06b724aeecaa6412ca85f5b26fb1da770e7cdcefa9263c9c5c3ad34b6",
+    "installed_globally": false
+  },
+  "suites": [
+    {
+      "package": "wordcraft-docx",
+      "command": "cargo +stable-x86_64-pc-windows-gnu test -p wordcraft-docx",
+      "passed": 243,
+      "failed": 0
+    },
+    {
+      "package": "wordcraft-layout",
+      "command": "cargo +stable-x86_64-pc-windows-gnu test -p wordcraft-layout",
+      "passed": 250,
+      "failed": 0
+    }
+  ],
+  "patch_regressions_observed": [
+    "formatted_empty_run_becomes_the_paragraph_mark",
+    "known_compatibility_flags_preserve_absent_true_and_false",
+    "known_compatibility_flags_round_trip",
+    "derived_table_style_merges_its_base",
+    "compatibility_mode_decides_where_a_table_s_edge_sits"
+  ],
+  "totals": {
+    "passed": 493,
+    "failed": 0
+  },
+  "claims": {
+    "rust_compile_and_tests": true,
+    "linux_ci": false,
+    "corrected_corpus_raster_comparison": false,
+    "human_visual_fidelity_approved": false,
+    "production_access": false
+  }
+}

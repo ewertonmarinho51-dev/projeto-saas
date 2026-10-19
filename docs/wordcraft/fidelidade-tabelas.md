@@ -1,6 +1,10 @@
 # Investigação de fidelidade das tabelas — G3
 
-Estado: correção tipada implementada no overlay e validada estruturalmente; build/testes Rust e aceite visual ainda dependem do CI Linux. Escopo: as seis páginas com diferenças raster entre LO do DOCX original e LO do DOCX reexportado nativo: C01/DFD p2, C03/Mapa p2–3, C04/TR p1–2 e C06/ARP p1.
+Estado: correção tipada implementada no overlay, compilada e testada localmente
+no alvo Windows GNU; round-trip/raster do corpus corrigido e aceite visual ainda
+dependem da execução Linux. Escopo: as seis páginas com diferenças raster entre
+LO do DOCX original e LO do DOCX reexportado nativo: C01/DFD p2, C03/Mapa p2–3,
+C04/TR p1–2 e C06/ARP p1.
 
 As entradas são os DOCX sintéticos exatos de `work/wordcraft-full-corpus-01` e `work/wordcraft-full-roundtrip-a9f-01`, correlacionados pelo `comparison.json` nativo pinado `183f8a86afbcfd5a5e936eaa792f450abd498a32f99f7116fe2fce8606feb552` e pelas evidências de LO existentes em `work/wordcraft-lo-windows-review-01`. O checkout local de leitura `work/wordcraft-filtered` tem HEAD `533615620ef91ae57fa7aa4cd77fd98b2179e693`, igual a `docs/wordcraft/upstream.lock.json`.
 
@@ -176,4 +180,16 @@ As três correções estão identificáveis por hunks independentes no artefato 
 
 Escopo realizado nesta etapa: patch/fixtures de IO em `integrations/wordcraft`, integração estreita no script de overlay, testes Python do planejamento/confinamento e este documento. O patch altera oito arquivos do upstream pinado, com 93 inserções e duas substituições. A aplicação foi provada em worktree limpo no commit `533615620ef91ae57fa7aa4cd77fd98b2179e693`; `git apply --check`, aplicação, `git apply --reverse --check`, `git diff --check` e `cargo fmt --all -- --check` passaram. O overlay reconhece de modo idempotente os estados pendente/aplicado e recusa qualquer terceiro estado antes das demais escritas.
 
-Os testes Python do overlay passaram (`18 passed`). A tentativa de executar os testes Rust localmente parou antes de compilar o projeto porque o host Windows não possui o linker MSVC `link.exe`; isso não é evidência de falha no patch. O workflow Linux agora executa explicitamente `wordcraft-docx` e `wordcraft-layout`, além das verificações já existentes. Até essa execução e a nova comparação raster, permanecem pendentes: compilação Rust, round-trip do corpus corrigido, atribuição por ablação e aceite visual. Nenhuma funcionalidade antiga foi removida e nenhuma conclusão de fidelidade final foi emitida.
+Os testes Python do overlay passaram (`18 passed`). A primeira tentativa Rust
+local parou pela ausência do linker MSVC `link.exe`. Em 19/10/2026, a mesma
+fonte com o patch aplicado foi compilada pelo Rust 1.99.0 para
+`x86_64-pc-windows-gnu`, usando link autocontido e LLVM-MinGW portátil no
+workspace. `wordcraft-docx` passou **243/243** testes e `wordcraft-layout`
+passou **250/250**, incluindo as regressões novas de indentação/compatibilidade,
+marca de parágrafo vazio e layout de tabela. A evidência fechada está em
+`docs/wordcraft/evidencia-io-fidelity-rust-windows.json`.
+
+O workflow Linux continua executando explicitamente os dois pacotes. Permanecem
+pendentes o round-trip do corpus corrigido, a nova comparação raster, atribuição
+por ablação e aceite visual. Nenhuma funcionalidade antiga foi removida e
+nenhuma conclusão de fidelidade final foi emitida.
