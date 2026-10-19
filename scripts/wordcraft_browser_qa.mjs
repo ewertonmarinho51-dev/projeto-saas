@@ -2,7 +2,7 @@
 import {readFile, realpath, stat, mkdir, writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {createServer} from 'node:http';
-import {execFile} from 'node:child_process';
+import {execFile, spawn} from 'node:child_process';
 import {promisify} from 'node:util';
 import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
@@ -18,7 +18,8 @@ const MAX_INPUT = 8 * 1024 * 1024;
 const MAX_SCREENSHOT = 8 * 1024 * 1024;
 const STAGES = new Set(['configuration', 'bundle_admission', 'synthetic_admission', 'playwright_pin', 'http_confinement',
   'chromium_start', 'canvas_open', 'api_edit', 'queued_input', 'keyboard_input', 'freeze_release',
-  'native_patch_undo', 'native_export', 'multi_canvas', 'screenshot', 'performance_metrics', 'runtime_errors', 'cleanup', 'global_timeout']);
+  'native_patch_undo', 'native_export', 'govbot_capture', 'govbot_backend', 'govbot_apply', 'multi_canvas',
+  'screenshot', 'performance_metrics', 'runtime_errors', 'cleanup', 'global_timeout']);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const check = (condition, stage) => { if (condition !== true) throw new BrowserQaFailure(stage); };
 const elapsedMs = started => Number(process.hrtime.bigint() - started) / 1_000_000;
@@ -152,6 +153,69 @@ for item in manifest['files']:
       'checkpoint_bytes':len(content),'fixture_sha256':hashlib.sha256(source).hexdigest()})
 print(json.dumps({'schema':'gc-wordcraft-browser-inputs/v1','synthetic_only':True,'cases':cases}))
 `;
+
+const GOVBOT_SELECTION = String.raw`
+import hashlib,json,sys
+from src.wordcraft_capacidades import propositor_govbot_selecao
+value=json.loads(sys.stdin.buffer.read(128*1024))
+if set(value)!={'selected'} or not isinstance(value['selected'],str) or not value['selected'].strip():
+    raise ValueError('invalid selection')
+selected=value['selected']
+path='tr/clausula/4/11111111-1111-1111-1111-111111111111'
+report={'findings':[{'findingId':'QA-GOVBOT-1','documentId':'tr','autoCorrectable':True,
+  'allowedPaths':[path],'blockedPaths':[],'sourceIds':[]}]}
+snapshot={'documentos':{'tr':{'blocos':[{'path':path,
+  'hash':hashlib.sha256(selected.encode()).hexdigest(),'conteudo':selected}]}}}
+new=selected.replace('Corpus','Ensaio',1)
+if new==selected:
+    raise ValueError('selection target differs')
+def model(system,user,**kwargs):
+    del system,user,kwargs
+    return json.dumps({'intent':'suggest_section_patch','response':'Sugestão sintética','target':path,
+      'payload':{'new_value':new,'reason':'clareza sintética'},'sources':[]},ensure_ascii=False)
+proposal=propositor_govbot_selecao(doc_key='tr',texto_selecionado=selected,
+  pedido='Melhore a clareza sem alterar dados materiais',chamar=model)(
+  relatorio=report,snapshot=snapshot,contexto={'processo':{'id':'qa','dados':{}},'fatos':[]})
+sys.stdout.write(json.dumps(proposal,ensure_ascii=False,separators=(',',':')))
+`;
+
+export function admitGovbotProposal(value) {
+  check(value && !Array.isArray(value) && Object.keys(value).sort().join(',') === 'operations,unresolvedFindings'
+    && Array.isArray(value.operations) && value.operations.length === 1
+    && Array.isArray(value.unresolvedFindings) && value.unresolvedFindings.length === 0, 'govbot_backend');
+  const operation = value.operations[0];
+  check(operation && !Array.isArray(operation)
+    && Object.keys(operation).sort().join(',') === 'documentId,expectedOldHash,findingId,newValue,op,path,reason,sourceIds'
+    && operation.documentId === 'tr' && operation.findingId === 'QA-GOVBOT-1' && operation.op === 'replace'
+    && typeof operation.path === 'string' && operation.path.startsWith('tr/clausula/4/')
+    && /^[0-9a-f]{64}$/.test(operation.expectedOldHash) && typeof operation.newValue === 'string'
+    && operation.newValue.length > 0 && Buffer.byteLength(operation.newValue) <= 64 * 1024
+    && typeof operation.reason === 'string' && Array.isArray(operation.sourceIds) && operation.sourceIds.length === 0,
+  'govbot_backend');
+  return operation;
+}
+
+async function govbotProposal(config, selected) {
+  check(typeof selected === 'string' && selected.length > 0 && Buffer.byteLength(selected) <= 64 * 1024,
+    'govbot_backend');
+  const environment = Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP', 'SystemRoot', 'WINDIR']
+    .filter(key => process.env[key]).map(key => [key, process.env[key]]));
+  environment.PYTHONUTF8 = '1';
+  const child = spawn(config.python, ['-c', GOVBOT_SELECTION],
+    {cwd: ROOT, env: environment, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']});
+  const chunks = [], errors = []; let size = 0, errorSize = 0;
+  child.stdout.on('data', chunk => { size += chunk.length; if (size <= 128 * 1024) chunks.push(chunk); });
+  child.stderr.on('data', chunk => { errorSize += chunk.length; if (errorSize <= 4 * 1024) errors.push(chunk); });
+  child.stdin.end(JSON.stringify({selected}));
+  const exitCode = await new Promise((done, reject) => {
+    const timer = setTimeout(() => { child.kill(); reject(new BrowserQaFailure('govbot_backend')); }, 30_000);
+    child.once('error', error => { clearTimeout(timer); reject(error); });
+    child.once('close', code => { clearTimeout(timer); done(code); });
+  });
+  if (exitCode !== 0) throw new Error(`GovBot backend exited ${exitCode}: ${Buffer.concat(errors).toString('utf8').slice(0, 1000)}`);
+  check(exitCode === 0 && size > 0 && size <= 128 * 1024, 'govbot_backend');
+  return admitGovbotProposal(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+}
 
 async function admitInputs(config) {
   const environment = Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP', 'SystemRoot', 'WINDIR']
@@ -303,6 +367,31 @@ async function installCanvasHarness(paths) {
       native.select_text('Corpus');
       return {frame_barrier_observed: true, frozen_source_hash: before, blocked_edit_apis: calls.length,
         exact_release_and_terminal_replay: true, same_native_instance: native === initialNative};
+    },
+    async captureGovbotSelection() {
+      await settle();
+      const block = model().document.body.find(item => item.kind === 'para' && item.text.startsWith('Corpus plenamente sintético'));
+      assert(block && block.text.length > 0); native.select_text(block.text); await frames(2);
+      const request = control('selection'); await controller.control(request);
+      const event = events.at(-1);
+      assert(event.event === 'document.selection' && event.payload.command_id === request.command_id
+        && event.payload.text === block.text && await snapshotHash() === request.content_hash);
+      return {command_id: request.command_id, text: event.payload.text, source_hash: request.content_hash};
+    },
+    async applyGovbotSelection(newText) {
+      assert(typeof newText === 'string' && newText.startsWith('Ensaio plenamente sintético'));
+      const before = await snapshotHash(), source = model();
+      const index = source.document.body.findIndex(item => item.kind === 'para' && item.text.startsWith('Corpus plenamente sintético'));
+      assert(index >= 0); const oldText = source.document.body[index].text;
+      const plan = {schema: 'gc-wordcraft-native-patch/v1', source_revision: controller.revision,
+        source_hash: before, operations: [{op: 'replace_text', story: 'body', path: [index], start_byte: 0,
+          end_byte: new TextEncoder().encode(oldText).length, old_text: oldText, new_text: newText}]};
+      native.apply_text_patch(controller.revision, JSON.stringify(plan));
+      const patched = await snapshotHash(); assert(patched !== before && model().document.body[index].text === newText);
+      native.undo(); assert(await snapshotHash() === before && model().document.body[index].text === oldText);
+      const ack = await checkpointAck();
+      return {source_hash: before, patched_hash: patched, restored_hash: ack.content_hash,
+        exact_undo: ack.content_hash === before, gateway_mocked: true};
     },
     async nativePatchUndo() {
       const before = await snapshotHash(), plan = targetPlan();
@@ -484,6 +573,14 @@ export async function run(config) {
       result.steps.keyboard = await stage('keyboard_input', () => page.evaluate(before => window.qa.verifyKeyboard(before), beforeKeyboard));
       result.steps.rerun = await page.evaluate(() => window.qa.rerun());
       result.steps.freeze_release = await stage('freeze_release', () => page.evaluate(() => window.qa.freezeRelease()));
+      if (caseIndex === 0) {
+        const selection = await stage('govbot_capture', () => page.evaluate(() => window.qa.captureGovbotSelection()));
+        const proposal = await stage('govbot_backend', () => govbotProposal(config, selection.text));
+        result.steps.govbot_selection = await stage('govbot_apply', () =>
+          page.evaluate(value => window.qa.applyGovbotSelection(value), proposal.newValue));
+        result.steps.govbot_selection.selection_bound_to_source = selection.source_hash;
+        result.steps.govbot_selection.backend_compiler = 'wordcraft_capacidades.propositor_govbot_selecao';
+      }
       result.steps.patch_undo_redo = await stage('native_patch_undo', () => page.evaluate(() => window.qa.nativePatchUndo()));
       result.steps.exports = await stage('native_export', () => page.evaluate(() => window.qa.exports()));
       result.performance.after_interactions = await stage('performance_metrics', () => rendererMetrics(cdp));

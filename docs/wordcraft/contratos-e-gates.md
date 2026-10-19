@@ -70,15 +70,17 @@ serialização não canônica difere da serialização interna do documento. A p
 positiva com finding real havia parado num bundle anterior. O adapter atual foi
 recompilado localmente e o runner provou patch, stale rejection, Undo/Redo e dois
 canvas simultâneos independentes; essa prova ainda usa ACK de transporte
-simulado. O teste conjunto patch→commit backend→ACK→Undo posterior e a seleção
-GovBot no browser permanecem pendentes.
+simulado. O mesmo runner capturou a seleção nativa, passou uma resposta mockada
+pelo gateway e compilador GovBot reais, aplicou o resultado no canvas e desfez
+para o hash exato. O teste conjunto patch→commit backend→ACK→Undo posterior
+permanece pendente.
 
 A captura de seleção agora é um comando servidor, ligado à revisão/hash limpos.
 O texto retornado serve apenas para resolver um bloco integral único entre paths
 já autorizados por finding do owner; posição do navegador nunca vira endereço
 de patch. Edição invalida a seleção. Propostas manuais e do gateway GovBot
-existente passam pelo mesmo compilador e diff; a prova com browser/bundle reais
-permanece aberta.
+existente passam pelo mesmo compilador e diff. A passagem browser/bundle real
+usa IA mockada, conforme o plano de testes, e não afirma chamada de provedor.
 
 ## Gates da missão integral
 
@@ -88,7 +90,7 @@ permanece aberta.
 | G1 Percurso mínimo | PASS LOCAL LIMITADO | navegador abriu/editou/salvou/recarregou/exportou texto, timbrado e tabela de 210 itens; g1-evidencias.md; sem promoção a G3/G7 |
 | G2 Persistência | PARCIAL | importação, originais, índices, restauração, aprovação, consumidor source-aware, ZIP auditável e emissão oficial transacional implementados; documento consolidado e prova PostgREST/Auth real pendentes |
 | G3 Fidelidade | PARCIAL | 16 DOCX passam no roundtrip nativo; 16 PDFs/87 páginas têm revisão visual local sem corte; LO baseline16/70 páginas; derivado6/16 casos,44/50 PNGs iguais e6 diferenças em tabelas; prova Linux pendente após duas falhas limitadas Windows |
-| G4 Patches | PARCIAL | motor real preservou79 IDs/27 blocos protegidos,8 negativos recusados;188 SQL passaram; runner CI e repetição Windows coeva exercitaram canvas, patch e Undo/Redo em três casos com ACK simulado; dois canvas simultâneos provaram edição e fechamento independentes; confirmação backend e Undo posterior no mesmo percurso e GovBot browser permanecem pendentes |
+| G4 Patches | PARCIAL | motor real preservou79 IDs/27 blocos protegidos,8 negativos recusados;188 SQL passaram; runner CI e repetição Windows coeva exercitaram canvas, patch e Undo/Redo em três casos com ACK simulado; dois canvas simultâneos são independentes; seleção GovBot mockada atravessou gateway/compilador reais, canvas e Undo exato; confirmação backend e Undo posterior no mesmo percurso permanecem pendentes |
 | G5 Seis capacidades | PARCIAL | compilador/painel/host, consumidor source-aware, aplicação transacional de template e pacote auditável ligados sob flag OFF; admissão recusa bundle QA; falta artefato operacional homologado e corpus A-D completo |
 | G6 Paridade e retirada | PENDENTE | nenhuma funcionalidade legada retirada; a transição agora falha fechada antes de runtime/importação quando existe rascunho legado divergente e o preserva na sessão; substituição e retirada continuam condicionadas à comprovação integral |
 | G7 Homologação | PARCIAL | CAS/RLS/imutabilidade SQL e HTTP sintéticos; runner Chromium passou em CI e Windows coevo, medindo startup, abertura e heap JS/DOM; GoTrue Linux implementado, primeiro run falhou preflight; Auth real, memória total/WASM e orçamento na infraestrutura-alvo pendentes |

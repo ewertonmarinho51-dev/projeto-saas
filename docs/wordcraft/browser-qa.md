@@ -117,6 +117,21 @@ independente, zero erros/requisições externas e JSON SHA-256
 Isso fecha o risco local de colisão entre dois canvas no mesmo processo; não
 substitui concorrência entre usuários nem CAS/persistência backend.
 
+O primeiro caso também seleciona no `GovConnectEditor` o parágrafo integral e
+exige que o evento `document.selection` permaneça ligado ao hash limpo. Um
+subprocesso Python com ambiente reduzido chama o
+`wordcraft_capacidades.propositor_govbot_selecao`; a resposta da IA é mockada,
+como exige o plano de testes inicial, mas atravessa o parser do gateway e o
+compilador G4 reais. O runner admite somente uma substituição TR fechada, sem
+fontes, aplica o novo texto no canvas e exige Undo ao hash de origem antes do
+ACK simulado. A execução passou com hash de origem/restauração
+`2457749e8fa58bc338d9baff291843006f66e68073370707cde4eb87ee454d40`,
+hash transitório aplicado
+`50bd11340abc83a6121eeb88449e5bc57ef8d50677f4a0489ff71c58a94fec63`
+e JSON SHA-256
+`d4a8c6c3da146af16ed78cd2a9de3423d9f4df87a7bcc64a70bba97971a778ba`.
+Não houve chamada paga, rede externa, persistência ou elevação de autoridade.
+
 Fontes primárias verificadas:
 [release Playwright 1.56.1](https://github.com/microsoft/playwright/releases/tag/v1.56.1),
 [catálogo de browsers pinado](https://raw.githubusercontent.com/microsoft/playwright/v1.56.1/packages/playwright-core/browsers.json),

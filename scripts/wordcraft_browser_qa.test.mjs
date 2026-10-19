@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
-import {CASES, QA_PIN, BrowserQaFailure, browserEnvironment, browserExecutablePath, failureRecord, pageModule, parseArgs,
+import {CASES, QA_PIN, BrowserQaFailure, admitGovbotProposal, browserEnvironment, browserExecutablePath, failureRecord, pageModule, parseArgs,
   rendererMetrics, serveAssets, staticResponse, summarizePerformance,
   verifyPlaywright} from './wordcraft_browser_qa.mjs';
 
@@ -83,6 +83,15 @@ test('headless executable is pinned inside the explicit browser store', () => {
     resolve(root, 'chromium_headless_shell-1194', 'chrome-linux', 'headless_shell'));
   assert.throws(() => browserExecutablePath({}, 'win32'), BrowserQaFailure);
   assert.throws(() => browserExecutablePath({PLAYWRIGHT_BROWSERS_PATH:root}, 'darwin'), BrowserQaFailure);
+});
+
+test('GovBot proposal admission is closed to one contextual replacement', () => {
+  const operation = {findingId:'QA-GOVBOT-1', documentId:'tr', op:'replace',
+    path:'tr/clausula/4/11111111-1111-1111-1111-111111111111', expectedOldHash:'a'.repeat(64),
+    newValue:'Ensaio plenamente sintético', sourceIds:[], reason:'clareza'};
+  assert.equal(admitGovbotProposal({operations:[operation], unresolvedFindings:[]}), operation);
+  assert.throws(() => admitGovbotProposal({operations:[{...operation, sourceIds:['invented']}], unresolvedFindings:[]}), BrowserQaFailure);
+  assert.throws(() => admitGovbotProposal({operations:[operation], unresolvedFindings:[], extra:true}), BrowserQaFailure);
 });
 
 test('static route map rejects traversal, queries and writes', () => {
