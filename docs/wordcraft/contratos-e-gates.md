@@ -93,7 +93,7 @@ usa IA mockada, conforme o plano de testes, e não afirma chamada de provedor.
 
 | Gate | Estado | Evidência e lacuna material |
 |---|---|---|
-| G0 Auditoria | PARCIAL | baseline reproduzido; closure WASM com 251 pacotes/186 textos; 17 expressões para revisão, 12 pacotes sem texto e 14 sem texto da licença de código; distribuição não aprovada |
+| G0 Auditoria | PARCIAL | coleta do lock integrado reproduzida byte a byte: closure WASM com 251 pacotes/186 textos e manifesto SHA-256 `3a69505c...`; 17 pacotes exigem revisão, 12 não trazem texto algum e 14 não trazem texto da licença de código; distribuição não aprovada |
 | G1 Percurso mínimo | PASS LOCAL LIMITADO | navegador abriu/editou/salvou/recarregou/exportou texto, timbrado e tabela de 210 itens; g1-evidencias.md; sem promoção a G3/G7 |
 | G2 Persistência | PARCIAL | importação, originais, índices, restauração, aprovação, consumidor source-aware, ZIP auditável e emissão oficial transacional atravessaram PostgREST/JWT sintético/RLS local; quatro heads emitidos e pacotes reabertos byte a byte; Auth/GoTrue real ainda pendente |
 | G3 Fidelidade | PARCIAL | novo corpus corrigido passa 16/16 roundtrips,135 etapas e87 páginas nativas; patch tipado de IO passou 243 testes DOCX e250 de layout no Windows GNU; LO histórico baseline16/70 páginas e derivado6/16 casos tinha44/50 PNGs iguais; runtime Windows fresco falhou fechado nas duas tentativas; raster corrigido e prova Linux pendentes |

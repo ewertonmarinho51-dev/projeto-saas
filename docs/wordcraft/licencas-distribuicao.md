@@ -96,8 +96,31 @@ com `serde` e `sha2` nas dependências diretas do root; recusa silenciosamente
 reutilizar metadata anterior. A contagem após integração deve ser observada de
 novo, ainda que os dois nós já existam. O workflow prepara
 `cargo-metadata-wasm-integration.json`, a nova coleta e os hashes integrados;
-sua execução ainda está pendente. O artefato `wasm-03` acima permanece evidência
-do lock upstream anterior, sem ser renomeado como resultado da integração G4.
+sua execução precisava ser observada novamente. O artefato `wasm-03` acima
+permanece evidência do lock upstream anterior, sem ser renomeado como resultado
+da integração G4. A reprodução integrada está registrada na seção seguinte.
+
+## Coleta integrada reproduzida em 19/10/2026
+
+A metadata filtrada da integração, SHA-256
+`8c146289fee50310583ed0878d918309a8321f6301911edb3237c240dde84438`,
+foi reconciliada com o checkout exato que a produziu. O coletor atual aceitou
+somente o modo `APPROVED_INTEGRATION_DIRECT_DEPENDENCY_DELTA` e o Cargo.lock LF
+`e6b2bae022650e4fdc2dacdcb3ba90e7f3037e6a8cfa2a87dfa6b25be2883170`.
+A reprodução em destino novo gerou exatamente o mesmo manifesto da execução
+integrada anterior, SHA-256
+`3a69505c2beaeb70be351e4259b91b3108823a9bb0666b39672a94c26d3ecf41`.
+
+O resultado conserva 251 pacotes, 186 textos únicos e 675.195 bytes; os 186
+arquivos foram relidos, e seus tamanhos e SHA-256 conferem com o manifesto.
+Permanecem 17 pacotes com revisão, 12 sem qualquer texto e 14 sem texto da
+licença do código. Portanto a coleta integrada deixou de ser uma pendência de
+execução, mas o estado continua `DISTRIBUTION_REVIEW_REQUIRED`: nenhuma escolha
+entre ramos SPDX, revisão de fonte/marca ou aprovação jurídica foi inferida.
+
+Os 11 testes do coletor passaram novamente. A tentativa inicial no diretório
+temporário protegido do sandbox falhou apenas ao criar o repositório Git da
+fixture; a repetição com `--basetemp` confinado ao workspace passou 11/11.
 
 Comando reproduzível, a partir da raiz do produto, com destino novo:
 
