@@ -177,6 +177,13 @@ itens (`30.02` por `Decimal`), uma fonte RAG vigente e a conferência literal de
 citação. Os probes e a leitura persistida mínima provam que essas projeções não
 alteram canvas, head, revisões ou auditoria.
 
+Uma execução posterior acrescentou a aplicação governada de template à mesma
+prova. Um canvas abriu a revisão-fonte; seleção, prévia e preparação do template
+efetivo permaneceram somente leitura. A RPC canônica persistiu revisão, índice
+e linhagem, e um novo canvas abriu exatamente os bytes e o hash da revisão 2,
+mantendo a revisão 1 intacta. O relatório conjunto passou 37/37 checks, SHA-256
+`fab7f077c60120135bc8141f87677ef62cf875637490c55e0306a3bb9f26a899`.
+
 Na mesma execução, C09 lê um parecer normalizado e três achados pelo
 PostgREST/JWT/RLS. Somente a recomendação objetiva recebe âncora e comando; o
 Chromium/WASM em revisão 3 emite o checkpoint exato, o owner persiste a revisão

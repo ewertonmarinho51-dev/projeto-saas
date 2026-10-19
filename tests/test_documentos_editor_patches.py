@@ -98,7 +98,7 @@ def patch_owner(engine,monkeypatch):
                 return Query(context)
             if name=='documento_editor_aplicar_template':
                 state['rpc_calls'].append(params)
-                return Query(dict(document_id=params['p_document'],
+                return Query([dict(document_id=params['p_document'],
                     revision=params['p_expected_revision']+1,
                     content_hash=params['p_content_hash'],operation_id=params['p_operation'],
                     replayed=False,engine_build_sha256=params['p_engine_build_sha256'],
@@ -107,7 +107,7 @@ def patch_owner(engine,monkeypatch):
                     index_mode='template_application',
                     institutional_snapshot_sha256=params['p_institutional_snapshot_sha256'],
                     template_version_id=params['p_template_version'],
-                    template_hash=params['p_template_hash'],template_proof=params['p_provenance']))
+                    template_hash=params['p_template_hash'],template_proof=params['p_provenance'])])
             assert name=='documento_editor_patch_lote'
             state['rpc_calls'].append(params)
             if state.get('error'): return Query(state['error'])

@@ -1141,7 +1141,7 @@ class DocumentoService:
                 or not isinstance(current.institutional_snapshot, dict)):
             raise ConflitoDocumento("A revisão mudou depois da preparação do template.")
         institutional = _snapshot_bytes(current.institutional_snapshot)
-        response = _execute(db._cliente().rpc("documento_editor_aplicar_template", {
+        response = _one(_execute(db._cliente().rpc("documento_editor_aplicar_template", {
             "p_document": prep.document_id, "p_process": prep.processo_id,
             "p_tipo": prep.doc_key, "p_expected_revision": prep.source_revision,
             "p_operation": prep.operation_id,
@@ -1154,7 +1154,7 @@ class DocumentoService:
             "p_institutional_snapshot_sha256": current.institutional_snapshot_hash,
             "p_template_version": prep.template_version_id,
             "p_template_hash": prep.template_hash,
-            "p_provenance": prep.provenance, "p_claims": claims}))
+            "p_provenance": prep.provenance, "p_claims": claims})))
         fields = {"document_id", "revision", "content_hash", "operation_id", "replayed",
             "engine_build_sha256", "validation_provenance", "block_index_sha256",
             "index_mode", "institutional_snapshot_sha256", "template_version_id",

@@ -1,7 +1,7 @@
 # C05 — aplicação governada de template institucional
 
-Data: 18/10/2026
-Estado: **PASS LOCAL DO OWNER, UI E POSTGRESQL; navegador/Auth real pendentes**
+Data: 19/10/2026
+Estado: **PASS LOCAL INTEGRADO COM POSTGREST/RLS E CHROMIUM/WASM; AUTH REAL PENDENTE**
 
 O fluxo reutiliza a biblioteca `governanca_artefatos` / `governanca_versoes`, o
 `DocumentoService`, o renderer institucional, o importador/validador WordCraft,
@@ -36,6 +36,21 @@ Evidência automatizada:
   `test_wordcraft*.py`: **499 passed, 1 skipped em 77,20 s**;
 - contenção HTTP anônima da RPC incluída no ensaio PostgREST local de 68 testes.
 
-Este aceite não prova login GoTrue, JWT real, RLS através do PostgREST nem a
-interação visual no navegador com a Session WASM. Também não promove o bundle
-de QA a artefato operacional, não ativa flag e não autoriza produção.
+Em 19/10/2026, o ensaio integrado criou um processo e um template sintéticos
+no PostgreSQL descartável. O owner abriu a revisão 1 no Chromium/WASM, leu pelo
+PostgREST/RLS o template efetivo, snapshot institucional e montagem Decimal,
+preparou o alvo sem alterar canvas, head, histórico ou auditoria, e confirmou a
+aplicação pela RPC canônica. A revisão 2 persistiu bytes, índice e proveniência
+do template na mesma transação; a revisão 1 continuou relível. Um novo canvas
+foi montado com os bytes da head persistida e devolveu o mesmo hash nativo.
+
+O ensaio também revelou e corrigiu o consumidor do recibo: funções
+`RETURNS TABLE` chegam pelo PostgREST como uma lista de uma linha. O mock agora
+reproduz esse transporte e o owner normaliza a linha antes de validar o contrato.
+O relatório conjunto passou com 37/37 checks e limpeza de browser, processos,
+banco e login, SHA-256
+`fab7f077c60120135bc8141f87677ef62cf875637490c55e0306a3bb9f26a899`.
+
+Este aceite não prova login GoTrue nem JWT emitido pelo Auth real. Também não
+promove o bundle de QA a artefato operacional, não ativa flag e não autoriza
+produção.

@@ -1,7 +1,8 @@
 # G5 — capacidades contextuais no owner nativo
 
-Estado: **parcial**. A sequência nativa completa já possui aprovação e emissão
-local integrada; as trilhas A–D restantes do corpus ainda não estão encerradas.
+Estado: **parcial**. As trilhas A–D possuem passagem local integrada pelos
+owners existentes; Auth real, artefato operacional homologado e C12 com dois
+processos autenticados continuam pendentes.
 
 ## Fronteira implementada
 
@@ -236,6 +237,11 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   institucional da revisão, monta dois itens e total `Decimal` de `30.02`,
   carrega a fonte RAG vigente e comprova uma citação literal. Os painéis são
   somente leitura: canvas, head, revisões e auditoria permanecem idênticos.
+- a trilha B agora seleciona um template `PUBLISHED` da secretaria pelo owner,
+  prepara o alvo nativo mantendo canvas e persistência intactos, aplica a RPC
+  transacional sob PostgREST/JWT sintético/RLS e remonta um novo Chromium/WASM
+  com exatamente a revisão e o hash persistidos. A origem permanece relível e
+  a revisão nova conserva versão, hash e prova do template.
 - o cenário C09 do owner classifica em conjunto uma recomendação objetiva, uma
   ambígua e uma incompatível com o texto editável; somente a objetiva entra no
   plano G4. A prova integrada relê o parecer pelo PostgREST/JWT/RLS, aplica o
@@ -255,9 +261,7 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 
 ## Pendências para fechar G5
 
-1. completar as trilhas A–D do corpus; C09 e C11 possuem PASS local integrado,
-   incluindo transporte/UI, aprovação e emissão de C11;
-2. completar C12 com GoTrue real e dois processos de navegador autenticados;
+1. completar C12 com GoTrue real e dois processos de navegador autenticados;
    RLS SQL, PostgREST com JWT sintético, canvas vivo, Storage não aplicável e
    revogação do namespace de sessão já possuem PASS local parcial.
 
