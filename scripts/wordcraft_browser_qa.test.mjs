@@ -110,6 +110,8 @@ test('page module accepts only confined WordCraft asset URLs', () => {
   assert.match(code.toString(), /undo_after_patch_ack: true/);
   assert.match(code.toString(), /async applyPersistedPatch\(operationId, expectedRevision, targetHash, plan\)/);
   assert.match(code.toString(), /async acceptPersistedPatch\(ack\)/);
+  assert.match(code.toString(), /async freezeForApproval\(\)/);
+  assert.match(code.toString(), /async verifyApprovedFrozen\(expected\)/);
   assert.match(code.toString(), /async acceptPersistedPatchAndUndo\(ack\)/);
   assert.match(code.toString(), /async acceptPersistedUndo\(ack\)/);
   assert.throws(() => pageModule('/outside.js', '/app/static/wordcraft/engine.wasm'), BrowserQaFailure);
@@ -126,6 +128,14 @@ test('backend proof bridge exposes persisted patch acknowledgement without undo'
   const source = await readFile(new URL('./wordcraft_browser_backend_bridge.mjs', import.meta.url), 'utf8');
   assert.match(source, /command\.action === 'ack'/);
   assert.match(source, /window\.qa\.acceptPersistedPatch\(input\.ack\)/);
+});
+
+test('backend proof bridge exposes the real approval freeze without a release action', async () => {
+  const source = await readFile(new URL('./wordcraft_browser_backend_bridge.mjs', import.meta.url), 'utf8');
+  assert.match(source, /command\.action === 'freeze_approval'/);
+  assert.match(source, /window\.qa\.freezeForApproval\(\)/);
+  assert.match(source, /command\.action === 'verify_approved_frozen'/);
+  assert.match(source, /window\.qa\.verifyApprovedFrozen\(input\.expected\)/);
 });
 
 test('Playwright package and browser catalog are pinned', async t => {

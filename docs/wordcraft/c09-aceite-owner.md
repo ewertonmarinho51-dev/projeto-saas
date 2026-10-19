@@ -39,7 +39,7 @@ igual ao head. O atendimento persistido marcou somente o objetivo como
 
 A evidência canônica é
 `outputs/WORDCRAFT_G4_OWNER_REAL_PERSISTENCE.json`, SHA-256
-`6d5f526058a4af97f7133a82fc9c7148c281601a3685da7f5ac65e4896a2b2d8`:
+`993c4416f473c8b51cb4b8860eb15aa2c6fe8cdc6e11a575561eb4f5dce8011e`:
 32/32 checks verdadeiros e cleanup positivo de navegador, processos, banco e
 login. O harness cunha o JWT; portanto GoTrue real e homologação na
 infraestrutura-alvo continuam necessários para G7.

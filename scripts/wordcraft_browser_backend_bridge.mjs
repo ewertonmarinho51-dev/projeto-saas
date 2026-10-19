@@ -73,6 +73,10 @@ async function main() {
           input.operation_id, input.revision, input.target_hash, input.plan), command);
       } else if (command.action === 'ack') {
         value = await page.evaluate(input => window.qa.acceptPersistedPatch(input.ack), command);
+      } else if (command.action === 'freeze_approval') {
+        value = await page.evaluate(() => window.qa.freezeForApproval());
+      } else if (command.action === 'verify_approved_frozen') {
+        value = await page.evaluate(input => window.qa.verifyApprovedFrozen(input.expected), command);
       } else if (command.action === 'patch_ack_undo') {
         value = await page.evaluate(input => window.qa.acceptPersistedPatchAndUndo(input.ack), command);
       } else if (command.action === 'undo_ack') {

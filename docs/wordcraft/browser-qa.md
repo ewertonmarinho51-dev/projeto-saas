@@ -144,7 +144,7 @@ deixa controller e WASM em `saved`, com o hash nativo igual ao head reaberto.
 PostgreSQL 16, PostgREST 12, adaptador, JWT/RLS e Chromium são locais e
 descartáveis; zero requisições externas, erros de página ou console. Evidência
 `outputs/WORDCRAFT_G4_OWNER_REAL_PERSISTENCE.json`, SHA-256
-`6d5f526058a4af97f7133a82fc9c7148c281601a3685da7f5ac65e4896a2b2d8`,
+`993c4416f473c8b51cb4b8860eb15aa2c6fe8cdc6e11a575561eb4f5dce8011e`,
 status `PASS_REAL_CANVAS_BACKEND_ACK_UNDO_LOCAL`. GoTrue e homologação na
 infraestrutura-alvo não fazem parte dessa prova.
 
@@ -171,6 +171,14 @@ Chromium/WASM em revisão 3 emite o checkpoint exato, o owner persiste a revisã
 4 e o ACK deixa o controller em `saved`. A trilha marca o item aplicado como
 pendente de revisão humana e mantém os dois demais pendentes. As revisões
 anteriores permanecem relíveis e byte-idênticas.
+
+Um segundo canvas coevo executa C11 com DFD sintético apto aos gates. A
+identidade de governança `admin_municipal` é separada do operador G4; o
+preflight resulta em score `90,5`, sem achados ou pendências. O canvas confirma
+o `freeze` da revisão 1 e a RPC registra a aprovação sob PostgREST/JWT/RLS. Um
+checkpoint posterior é recusado sem nova revisão; seis APIs editáveis permanecem
+bloqueadas no mesmo token de instância, geração e hash. A prova não promove JWT
+sintético a GoTrue e ainda não cobre o estado `emitido` no canvas.
 
 Fontes primárias verificadas:
 [release Playwright 1.56.1](https://github.com/microsoft/playwright/releases/tag/v1.56.1),

@@ -368,6 +368,36 @@ async function installCanvasHarness(paths) {
       return {frame_barrier_observed: true, frozen_source_hash: before, blocked_edit_apis: calls.length,
         exact_release_and_terminal_replay: true, same_native_instance: native === initialNative};
     },
+    async freezeForApproval() {
+      const before = await snapshotHash(), generation = native.generation(), request = control('freeze');
+      await controller.control(request);
+      assert(controller.state === 'frozen' && native.interaction_lock_ready() === true
+        && await snapshotHash() === before && native.generation() === generation);
+      return {command_id: request.command_id, revision: request.revision,
+        content_hash: before, generation, instance_token: instanceToken};
+    },
+    async verifyApprovedFrozen(expected) {
+      assert(expected && controller.state === 'frozen' && native.interaction_lock_ready() === true
+        && controller.revision === expected.revision && controller.currentHash === expected.content_hash
+        && instanceToken === expected.instance_token && native.generation() === expected.generation);
+      const before = await snapshotHash(), source = model();
+      const index = source.document.body.findIndex(block => block.kind === 'para' && block.text.length >= 6);
+      assert(index >= 0);
+      const oldText = source.document.body[index].text;
+      const oldPrefix = oldText.slice(0, 6), newPrefix = oldPrefix === 'Ensaio' ? 'Corpus' : 'Ensaio';
+      const plan = {schema: 'gc-wordcraft-native-patch/v1', source_revision: controller.revision,
+        source_hash: controller.currentHash, operations: [{op: 'replace_text', story: 'body', path: [index],
+          start_byte: 0, end_byte: new TextEncoder().encode(oldPrefix).length,
+          old_text: oldPrefix, new_text: newPrefix}]};
+      const calls = [() => native.insert_text('Blocked C11'), () => native.bold(), () => native.undo(),
+        () => native.redo(), () => native.select_text('Corpus'),
+        () => native.apply_text_patch(controller.revision, JSON.stringify(plan))];
+      for (const call of calls) { let rejected = false; try { call(); } catch { rejected = true; } assert(rejected); }
+      assert(await snapshotHash() === before && before === expected.content_hash
+        && native.generation() === expected.generation && controller.state === 'frozen');
+      return {revision: controller.revision, content_hash: before, generation: native.generation(),
+        instance_token: instanceToken, blocked_edit_apis: calls.length, state: controller.state};
+    },
     async captureGovbotSelection() {
       await settle();
       const block = model().document.body.find(item => item.kind === 'para' && item.text.startsWith('Corpus plenamente sintético'));

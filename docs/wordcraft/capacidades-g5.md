@@ -242,10 +242,11 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
   comando no Chromium/WASM vivo, confirma os bytes no owner, persiste a revisão
   4, entrega o ACK ao canvas e mantém os outros itens pendentes. Evidência
   detalhada: `c09-aceite-owner.md`.
-- o cenário C11 em PostgreSQL real local aprova a revisão sintética original e
-  comprova que checkpoints contra heads `aprovado` e `emitido` são recusados
-  sem criar revisão, alterar bytes/hash ou deslocar o vínculo da aprovação.
-  Evidência detalhada: `c11-aceite-imutabilidade.md`.
+- o cenário C11 aprova por RPC canônica uma revisão congelada no
+  Chromium/WASM sob identidade de governança segregada e PostgREST/JWT/RLS. O
+  checkpoint posterior é recusado sem efeito, e seis APIs de edição permanecem
+  bloqueadas. A recusa de `emitido` continua comprovada no SQL local. Evidência
+  detalhada: `c11-aceite-imutabilidade.md`.
 - o cenário C12 executa duas fronteiras locais: RLS real separa revisões e
   bloqueia escrita cruzada entre tenants, enquanto troca de identidade revoga
   owner, documento, bridge, preparação, projeção e payload do componente da
@@ -253,9 +254,9 @@ A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
 
 ## Pendências para fechar G5
 
-1. completar as trilhas A–D do corpus; C09 possui PASS local integrado do
-   transporte PostgREST/JWT/RLS até o canvas, enquanto C11 possui PASS SQL local
-   e ainda exige o transporte/UI previsto em seu relatório;
+1. completar as trilhas A–D do corpus; C09 possui PASS local integrado e C11
+   possui PASS local integrado para `aprovado`; o estado `emitido` de C11 ainda
+   exige o mesmo transporte/UI, embora sua imutabilidade tenha PASS SQL local;
 2. completar C12 com GoTrue real e dois processos de navegador autenticados;
    RLS SQL, PostgREST com JWT sintético, canvas vivo, Storage não aplicável e
    revogação do namespace de sessão já possuem PASS local parcial.
