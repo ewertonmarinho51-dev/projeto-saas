@@ -91,6 +91,23 @@ uma nova passagem positiva do canvas atual. Uma repetição local completa exige
 bundle reconstruído do adapter atual; o fluxo CI já registra a passagem dos três
 casos com bundle coevo.
 
+Na continuação da mesma prova, o overlay atual foi reaplicado ao upstream
+`5336156` com conferência de Cargo, lock, UI e patch de IO, e compilado para WASM
+com Rust GNU 1.99.1 e Trunk 0.21.14 checksum-verificado. O bundle produtor
+`ba120b8`, manifesto
+`f5aabf8a7923dd7cc941f855072f9c8967bf380870e852730ccd502957e4143c`,
+gerou pelo importador WASM três checkpoints coevos, todos revalidados antes do
+browser. A execução Windows passou os três casos com status
+`PASS_HEADLESS_NATIVE_CANVAS_TRANSPORT_QA_NOT_MANUAL_ACCEPTANCE`: zero requisições
+externas, erros de página ou console; startup 282,4142 ms; canvas P50/P95
+182,8896/235,03 ms; abertura P50/P95 712,9428/1053,0555 ms; pico observado de
+heap JS do renderer 19.980.144 bytes e 25 nós DOM. O JSON de evidência tem
+SHA-256 `502ed68d538eff94e88a85c96c0c321a26fd8788d572f22a22b95f4754d454f6`.
+As três capturas foram inspecionadas e mostram canvas renderizado, mas continuam
+marcadas sem aprovação humana de fidelidade. IME, toolbar, Streamlit completo,
+persistência de banco, memória total do processo e memória linear WASM continuam
+fora do escopo dessa passagem.
+
 Fontes primárias verificadas:
 [release Playwright 1.56.1](https://github.com/microsoft/playwright/releases/tag/v1.56.1),
 [catálogo de browsers pinado](https://raw.githubusercontent.com/microsoft/playwright/v1.56.1/packages/playwright-core/browsers.json),
