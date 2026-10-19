@@ -35,8 +35,9 @@ export function failureRecord(stage) {
 
 export async function rendererMetrics(session) {
   await session.send('Performance.enable');
-  const [{metrics}, dom] = await Promise.all([
+  const [{metrics}, dom, wasm] = await Promise.all([
     session.send('Performance.getMetrics'), session.send('Memory.getDOMCounters'),
+    session.send('Runtime.evaluate', {expression: 'window.qa?.wasmLinearMemoryBytes?.()', returnByValue: true}),
   ]);
   const values = Object.fromEntries(metrics.map(item => [item.name, item.value]));
   const result = {
@@ -45,9 +46,13 @@ export async function rendererMetrics(session) {
     documents: dom.documents,
     nodes: dom.nodes,
     listeners: dom.jsEventListeners,
+    wasm_linear_memory_bytes: wasm?.result?.value,
   };
   check(Object.values(result).every(value => Number.isFinite(value) && value >= 0)
-    && result.js_heap_total_bytes >= result.js_heap_used_bytes, 'performance_metrics');
+    && result.js_heap_total_bytes >= result.js_heap_used_bytes
+    && Number.isSafeInteger(result.wasm_linear_memory_bytes)
+    && result.wasm_linear_memory_bytes > 0
+    && result.wasm_linear_memory_bytes % 65_536 === 0, 'performance_metrics');
   return result;
 }
 
@@ -63,11 +68,13 @@ export function summarizePerformance(cases) {
   const readings = cases.flatMap(item => [item.performance?.after_open,
     item.performance?.after_interactions]);
   check(readings.every(item => item && Number.isFinite(item.js_heap_used_bytes)
-    && Number.isFinite(item.nodes)), 'performance_metrics');
+    && Number.isFinite(item.nodes) && Number.isFinite(item.wasm_linear_memory_bytes)
+    && item.wasm_linear_memory_bytes > 0), 'performance_metrics');
   return {mixed_synthetic_documents: true,
     canvas_ready: distribution('canvas_ready_ms'), document_open: distribution('document_open_ms'),
     max_renderer_js_heap_used_bytes: Math.max(...readings.map(item => item.js_heap_used_bytes)),
-    max_renderer_dom_nodes: Math.max(...readings.map(item => item.nodes))};
+    max_renderer_dom_nodes: Math.max(...readings.map(item => item.nodes)),
+    max_wasm_linear_memory_bytes: Math.max(...readings.map(item => item.wasm_linear_memory_bytes))};
 }
 
 export function browserEnvironment(source = process.env) {
@@ -243,7 +250,9 @@ async function admitInputs(config) {
 async function installCanvasHarness(paths) {
   const {EditorController, EventOutbox, sha256, fromBase64} = await import('/qa/host.mjs');
   const engine = await import(paths.module);
-  await engine.default({module_or_path: paths.wasm});
+  const wasm = await engine.default({module_or_path: paths.wasm});
+  const wasmMemory = wasm?.memory;
+  if (!(wasmMemory instanceof WebAssembly.Memory)) throw new Error('WASM linear memory unavailable.');
   const assert = condition => { if (!condition) throw new Error('Closed canvas QA assertion.'); };
   const frames = async count => { for (let index = 0; index < count; index++) await new Promise(requestAnimationFrame); };
   const instanceToken = crypto.randomUUID();
@@ -286,6 +295,7 @@ async function installCanvasHarness(paths) {
         start_byte: 0, end_byte: 6, old_text: 'Corpus', new_text: 'Ensaio'}]};
   };
   window.qa = Object.freeze({
+    wasmLinearMemoryBytes() { return wasmMemory.buffer.byteLength; },
     async probe() { return {instance_token: instanceToken, source_hash: await snapshotHash(), generation: native.generation()}; },
     async open(base64, expectedHash) {
       assert(!native);
@@ -591,7 +601,7 @@ export async function run(config) {
     manual_browser_observation: false, gotrue_or_database_proof: false, production_access: false,
     ack_model: 'SIMULATED_TRANSPORT_ONLY_NOT_PERSISTENCE', cases: [],
     performance: {scope: 'HEADLESS_CHROMIUM_QA_SYNTHETIC_NOT_TARGET_INFRASTRUCTURE',
-      browser_process_total_memory_measured: false, wasm_linear_memory_measured: false,
+      browser_process_total_memory_measured: false, wasm_linear_memory_measured: true,
       renderer_js_heap_and_dom_measured: true, cold_warm_kind: 'NEW_PAGE_SAME_BROWSER_CONTEXT_CACHE'},
     limits: {cases: 3, checkpoint_bytes: MAX_INPUT, stage_timeout_ms: 45_000, global_timeout_ms: 300_000},
     pending: ['MANUAL_IME', 'TOOLBAR_UI', 'FULL_STREAMLIT', 'DATABASE_PERSISTENCE', 'HUMAN_VISUAL_FIDELITY_REVIEW']};

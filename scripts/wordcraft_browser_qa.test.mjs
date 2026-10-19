@@ -36,29 +36,38 @@ test('renderer metrics preserve their bounded CDP meaning', async () => {
       {name:'JSHeapUsedSize', value:12_000}, {name:'JSHeapTotalSize', value:20_000},
     ]};
     if (method === 'Memory.getDOMCounters') return {documents:2, nodes:300, jsEventListeners:14};
+    if (method === 'Runtime.evaluate') return {result:{type:'number', value:65_536}};
     throw new Error('unexpected method');
   }};
   assert.deepEqual(await rendererMetrics(session), {js_heap_used_bytes:12_000,
-    js_heap_total_bytes:20_000, documents:2, nodes:300, listeners:14});
-  assert.deepEqual(calls, ['Performance.enable', 'Performance.getMetrics', 'Memory.getDOMCounters']);
+    js_heap_total_bytes:20_000, documents:2, nodes:300, listeners:14, wasm_linear_memory_bytes:65_536});
+  assert.deepEqual(calls, ['Performance.enable', 'Performance.getMetrics', 'Memory.getDOMCounters', 'Runtime.evaluate']);
   session.send = async method => method === 'Performance.enable' ? {}
     : method === 'Performance.getMetrics' ? {metrics:[
       {name:'JSHeapUsedSize', value:30}, {name:'JSHeapTotalSize', value:20},
-    ]} : {documents:1, nodes:1, jsEventListeners:1};
+    ]} : method === 'Memory.getDOMCounters' ? {documents:1, nodes:1, jsEventListeners:1}
+    : {result:{type:'number', value:65_536}};
+  await assert.rejects(rendererMetrics(session), error =>
+    error instanceof BrowserQaFailure && error.stage === 'performance_metrics');
+  session.send = async method => method === 'Performance.enable' ? {}
+    : method === 'Performance.getMetrics' ? {metrics:[
+      {name:'JSHeapUsedSize', value:10}, {name:'JSHeapTotalSize', value:20},
+    ]} : method === 'Memory.getDOMCounters' ? {documents:1, nodes:1, jsEventListeners:1}
+    : {result:{type:'undefined'}};
   await assert.rejects(rendererMetrics(session), error =>
     error instanceof BrowserQaFailure && error.stage === 'performance_metrics');
 });
 
 test('performance summary uses nearest-rank percentiles and labels mixed fixtures', () => {
   const sample = (ready, open, heap, nodes) => ({performance: {canvas_ready_ms: ready,
-    document_open_ms: open, after_open: {js_heap_used_bytes:heap, nodes},
-    after_interactions: {js_heap_used_bytes:heap + 1, nodes:nodes + 1}}});
+    document_open_ms: open, after_open: {js_heap_used_bytes:heap, nodes, wasm_linear_memory_bytes:65_536},
+    after_interactions: {js_heap_used_bytes:heap + 1, nodes:nodes + 1, wasm_linear_memory_bytes:131_072}}});
   assert.deepEqual(summarizePerformance([
     sample(10, 4, 100, 5), sample(30, 2, 300, 7), sample(20, 3, 200, 6),
   ]), {mixed_synthetic_documents:true,
     canvas_ready:{samples:3, p50_ms:20, p95_ms:30},
     document_open:{samples:3, p50_ms:3, p95_ms:4},
-    max_renderer_js_heap_used_bytes:301, max_renderer_dom_nodes:8});
+    max_renderer_js_heap_used_bytes:301, max_renderer_dom_nodes:8, max_wasm_linear_memory_bytes:131_072});
   assert.throws(() => summarizePerformance([]), BrowserQaFailure);
 });
 
