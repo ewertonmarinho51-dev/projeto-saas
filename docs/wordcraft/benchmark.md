@@ -23,8 +23,9 @@ e caso; registrar todas, mediana e percentil 95 empírico por nearest-rank
 O JSON registra somente ambiente/runtime/commits, contagens, hashes, bytes,
 relações de tamanho e latências. Checkpoints e exportações permanecem em memória;
 nenhum texto documental, token, segredo ou conteúdo de erro nativo entra na saída.
-O resultado não é aceite de fidelidade visual, não mede o corpus de 20/100 páginas
-e não certifica desempenho de produção. A comparação semântica valida os elementos
+O modo inicial não é aceite de fidelidade visual, não mede o corpus de 20/100
+páginas e não certifica desempenho de produção. A ampliação v2 e a passagem no
+browser estão registradas abaixo. A comparação semântica valida os elementos
 que `text_blocks` inspeciona; não substitui inspeção de metadados ou dados reais.
 
 Execução pelo integrador com o runtime e bundle locais já aprovados:

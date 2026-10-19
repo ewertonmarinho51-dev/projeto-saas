@@ -1,7 +1,8 @@
 # QA automatizado do canvas em Chromium headless
 
 Contrato registrado antes do código em 16/10/2026. Este incremento é teste de
-software do repositório em Linux CI, com três fixtures sintéticas verificadas.
+software do repositório em Linux CI, com três fixtures sintéticas verificadas e
+um perfil determinístico adicional de 100 páginas.
 Não é observação manual pelo conector Browser, homologação G1, prova GoTrue,
 persistência de produção, aprovação institucional ou aceite visual de layout.
 
@@ -92,6 +93,21 @@ WASM, 20.328.264 bytes de heap JS usado e 25 nós DOM. O relatório externo
 `8c46bdad227c75d93d94c402debe3f84a2a879fcf387cfc1d7a260afbd7fed42`.
 São medidas locais do corpus sintético, sem afirmar capacidade da infraestrutura
 de homologação ou produção.
+
+O runner passou ainda a reutilizar o perfil determinístico de escala do benchmark:
+DOCX com 100 marcadores e 99 quebras explícitas, importado e validado pelo mesmo
+worker. Antes do browser, o PDF nativo é contado pelo `PdfReader` e precisa ter
+exatamente 100 páginas. O checkpoint é então aberto no canvas Chromium/WASM e a
+exportação PDF feita dentro da página precisa repetir byte count e SHA-256 do PDF
+admitido. A passagem Windows de 19/10/2026 abriu o checkpoint de 310.397 bytes em
+662,7232 ms e reproduziu o PDF de 129.678 bytes, SHA-256
+`59b9d1e2e2304664c69fc8e6f6b61b735f1ca7f7bb3b50f607f651a8203c444e`.
+No momento da amostra, a memória linear WASM era 41.091.072 bytes e a soma dos
+working sets de quatro processos CDP era 623.947.776 bytes. O relatório externo
+`wordcraft-browser-qa-current-win-21/browser-qa.json` tem SHA-256
+`8e3387c2528e06b3e886eaa66cf520ebf028bd8bfdba9fe3e5daafbfc330ce6e`.
+Essa prova fecha abertura e exportação automatizadas do perfil sintético de 100
+páginas; não constitui inspeção visual humana nem orçamento da infraestrutura-alvo.
 
 Em 18/10/2026, a execução local Windows confirmou o Chromium pinado
 `141.0.7390.37`, SHA-256 do executável

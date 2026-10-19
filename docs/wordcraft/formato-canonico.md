@@ -19,8 +19,11 @@ recusados; continuam no caminho legado, sem conversão silenciosa.
   geometria fracionária e bytes preservados são cobertos nos testes do adaptador.
 - No navegador local, texto e descrição de célula foram editados, validados no
   servidor, commitados no PostgreSQL e reabertos após reload com o mesmo SHA-256.
-- Isso ainda não certifica toda fidelidade visual, imagens institucionais,
-  comentários/revisões ou performance de 100 páginas. As revisões editadas dos três casos sintéticos foram exportadas em DOCX/PDF; detalhes em g1-evidencias.md.
+- Isso ainda não certifica toda fidelidade visual, imagens institucionais ou
+  comentários/revisões. O perfil sintético de 100 páginas foi posteriormente
+  aberto e exportado no Chromium/WASM; as revisões editadas dos três casos
+  sintéticos foram exportadas em DOCX/PDF; detalhes em g1-evidencias.md e
+  browser-qa.md.
 
 O DOCX como fonte única exigiria repetir importação/exportação a cada checkpoint
 e vincular patches a posições reconstruídas. O contêiner evita esse ciclo para a
@@ -48,9 +51,9 @@ afetado recursos da máquina; estes números não são orçamento de produção 
 uma comparação controlada de motores. Evidência bruta externa ao repositório:
 `outputs/WORDCRAFT_BENCHMARK_LOCAL_240.json`. A escolha do contêiner permanece
 provisória para homologação G2: os resultados sustentam a implementação funcional,
-mas a amostra posterior de startup/memória do navegador continua local e
-sintética; faltam 20/100 páginas, comparação completa e orçamento na
-infraestrutura-alvo.
+mas as amostras posteriores de startup, memória e abertura/exportação do perfil
+de 100 páginas continuam locais e sintéticas; faltam comparação visual completa
+e orçamento na infraestrutura-alvo.
 
 ## IDs, patches e migração
 
