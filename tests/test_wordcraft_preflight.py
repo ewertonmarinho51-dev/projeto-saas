@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import hashlib
+import json
 import zipfile
 
 import pytest
@@ -10,6 +11,15 @@ SPEC = importlib.util.spec_from_file_location(
     "wordcraft_preflight", Path(__file__).resolve().parents[1] / "scripts/wordcraft_preflight.py")
 preflight = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(preflight)
+
+
+def test_lock_descreve_estado_integrado_sem_promover_producao():
+    lock = json.loads((preflight.ROOT / "docs/wordcraft/upstream.lock.json").read_text(
+        encoding="utf-8"))
+    assert lock["build_status"].startswith("INTEGRATED_ADAPTER_VERIFIED_")
+    assert lock["bridge_status"] == "CONNECTED_TO_DOCUMENT_SERVICE_IN_LOCAL_QA_AUTH_REAL_PENDING"
+    assert lock["canonical_format"] == "GC_WORDCRAFT_SNAPSHOT_V1_SELECTED_HOMOLOGATION_PENDING"
+    assert lock["production_rollout"] is False
 
 
 def test_ambiente_vazio_nao_certifica_build(tmp_path, monkeypatch):
