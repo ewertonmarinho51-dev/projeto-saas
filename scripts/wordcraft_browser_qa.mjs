@@ -19,7 +19,7 @@ const MAX_SCREENSHOT = 8 * 1024 * 1024;
 const STAGES = new Set(['configuration', 'bundle_admission', 'synthetic_admission', 'playwright_pin', 'http_confinement',
   'chromium_start', 'canvas_open', 'api_edit', 'queued_input', 'keyboard_input', 'freeze_release',
   'native_patch_undo', 'native_export', 'govbot_capture', 'govbot_backend', 'govbot_apply', 'multi_canvas',
-  'screenshot', 'performance_metrics', 'runtime_errors', 'cleanup', 'global_timeout']);
+  'mobile_emulation', 'screenshot', 'performance_metrics', 'runtime_errors', 'cleanup', 'global_timeout']);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const check = (condition, stage) => { if (condition !== true) throw new BrowserQaFailure(stage); };
 const elapsedMs = started => Number(process.hrtime.bigint() - started) / 1_000_000;
@@ -662,12 +662,12 @@ export async function buildAssets(config) {
   const host = await boundedFile(resolve(ROOT, 'assets/wordcraft_editor/host.mjs'), 256 * 1024, 'bundle_admission');
   assets.set('/qa/host.mjs', {bytes: host, mime: 'text/javascript; charset=utf-8'});
   assets.set('/qa/page.mjs', {bytes: pageModule(moduleUrl, wasmUrl), mime: 'text/javascript; charset=utf-8'});
-  assets.set('/', {bytes: Buffer.from('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><link rel="icon" href="data:,"><title>GovConnect synthetic canvas QA</title><style>body{margin:0}canvas{width:1366px;height:900px;display:block}</style><canvas id="canvas"></canvas><script type="module" src="/qa/page.mjs"></script></html>'), mime: 'text/html; charset=utf-8'});
+  assets.set('/', {bytes: Buffer.from('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>GovConnect synthetic canvas QA</title><style>html,body{margin:0;width:100%;height:100%;overflow:hidden}canvas{width:100vw;height:100vh;display:block}</style><canvas id="canvas"></canvas><script type="module" src="/qa/page.mjs"></script></html>'), mime: 'text/html; charset=utf-8'});
   return {assets, manifest, host_sha256: hash(host)};
 }
 
 export async function run(config) {
-  let phase = 'configuration', outputReady = false, server, browser, context, page;
+  let phase = 'configuration', outputReady = false, server, browser, context, mobileContext, page;
   const extraPages = [];
   let deniedRequests = 0, pageErrors = 0, consoleErrors = 0;
   const diagnostics = [];
@@ -678,7 +678,8 @@ export async function run(config) {
       browser_process_total_memory_measured: true, wasm_linear_memory_measured: true,
       renderer_js_heap_and_dom_measured: true, cold_warm_kind: 'NEW_PAGE_SAME_BROWSER_CONTEXT_CACHE'},
     limits: {cases: 3, checkpoint_bytes: MAX_INPUT, stage_timeout_ms: 45_000, global_timeout_ms: 300_000},
-    pending: ['MANUAL_IME', 'TOOLBAR_UI', 'FULL_STREAMLIT', 'DATABASE_PERSISTENCE', 'HUMAN_VISUAL_FIDELITY_REVIEW']};
+    pending: ['MANUAL_IME', 'TOOLBAR_UI', 'FULL_STREAMLIT', 'DATABASE_PERSISTENCE', 'HUMAN_VISUAL_FIDELITY_REVIEW',
+      'PHYSICAL_MOBILE_DEVICE', 'HUMAN_MOBILE_USABILITY_REVIEW']};
   const stage = async (name, operation) => { phase = name; return operation(); };
   let watchdog;
   try {
@@ -709,14 +710,15 @@ export async function run(config) {
       && evidence.performance.browser_startup_ms >= 0, 'performance_metrics');
     check(browser.version() === QA_PIN.chromiumVersion, 'chromium_start');
     evidence.runtime.browser_version_observed = browser.version();
-    context = await browser.newContext({viewport: {width: 1366, height: 900}, locale: 'pt-BR', timezoneId: 'UTC',
-      acceptDownloads: false, serviceWorkers: 'block'});
-    context.setDefaultTimeout(45_000);
-    await context.route('**/*', route => {
+    const routeConfined = route => {
       const url = new URL(route.request().url());
       if (url.origin === server.origin && built.assets.has(url.pathname) && !url.search) return route.continue();
       deniedRequests++; return route.abort();
-    });
+    };
+    context = await browser.newContext({viewport: {width: 1366, height: 900}, locale: 'pt-BR', timezoneId: 'UTC',
+      acceptDownloads: false, serviceWorkers: 'block'});
+    context.setDefaultTimeout(45_000);
+    await context.route('**/*', routeConfined);
     watchdog = setTimeout(() => { phase = 'global_timeout'; void browser?.close(); }, 300_000);
     for (const [caseIndex, item] of cases.entries()) {
       page = await context.newPage();
@@ -848,6 +850,47 @@ export async function run(config) {
         renderer: scaleMetrics, browser_process_memory: scaleProcessMemory, exports: scaleExports});
       await page.evaluate(() => window.qa.close()); await scaleCdp.detach(); await page.close(); page = undefined;
     }
+    const mobileScale = scales[0];
+    mobileContext = await browser.newContext({viewport: {width: 390, height: 844}, screen: {width: 390, height: 844},
+      deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'pt-BR', timezoneId: 'UTC',
+      acceptDownloads: false, serviceWorkers: 'block'});
+    mobileContext.setDefaultTimeout(45_000);
+    await mobileContext.route('**/*', routeConfined);
+    page = await mobileContext.newPage();
+    page.on('pageerror', error => { pageErrors++; diagnostics.push({kind: 'pageerror', message: String(error).slice(0, 1000)}); });
+    page.on('console', message => { if (message.type() === 'error') {
+      consoleErrors++; diagnostics.push({kind: 'console', message: message.text().slice(0, 1000)});
+    }});
+    const mobileCdp = await mobileContext.newCDPSession(page);
+    const mobileStarted = process.hrtime.bigint();
+    await stage('mobile_emulation', async () => {
+      await page.goto(server.origin + '/', {waitUntil: 'load'});
+      await page.waitForFunction(() => Boolean(window.qa));
+    });
+    const mobileCanvasReadyMs = elapsedMs(mobileStarted);
+    const mobileOpenStarted = process.hrtime.bigint();
+    const mobileOpen = await stage('mobile_emulation', () => page.evaluate(({content, sha}) => window.qa.open(content, sha),
+      {content: mobileScale.bytes.toString('base64'), sha: mobileScale.checkpoint_sha256}));
+    const mobileDocumentOpenMs = elapsedMs(mobileOpenStarted);
+    const mobileProbe = await page.evaluate(() => window.qa.probe());
+    check(mobileProbe.source_hash === mobileScale.checkpoint_sha256, 'mobile_emulation');
+    const mobileExports = await stage('mobile_emulation', () => page.evaluate(() => window.qa.exports()));
+    check(mobileExports?.formats?.pdf?.sha256 === mobileScale.pdf_sha256
+      && mobileExports?.formats?.pdf?.bytes === mobileScale.pdf_bytes, 'mobile_emulation');
+    const mobileMetrics = await stage('performance_metrics', () => rendererMetrics(mobileCdp));
+    const mobileScreenshot = await stage('screenshot', () => page.screenshot({animations: 'disabled', fullPage: false}));
+    check(mobileScreenshot.length > 1024 && mobileScreenshot.length <= MAX_SCREENSHOT, 'screenshot');
+    await writeFile(resolve(config.out, 'mobile-390x844.png'), mobileScreenshot, {flag: 'wx'});
+    evidence.mobile_profile = {emulation_only_not_physical_device: true, mobile_usability_approved: false,
+      viewport_css: {width: 390, height: 844},
+      screen_css: {width: 390, height: 844}, device_scale_factor: 2, is_mobile: true, has_touch: true,
+      profile: mobileScale.profile, declared_pages: mobileScale.pages, canvas_ready_ms: mobileCanvasReadyMs,
+      document_open_ms: mobileDocumentOpenMs, open_generation: mobileOpen.generation, renderer: mobileMetrics,
+      pdf_sha256: mobileExports.formats.pdf.sha256, pdf_bytes: mobileExports.formats.pdf.bytes,
+      screenshot: {path: 'mobile-390x844.png', bytes: mobileScreenshot.length, sha256: hash(mobileScreenshot),
+        human_visual_approval: false}};
+    await page.evaluate(() => window.qa.close()); await mobileCdp.detach(); await page.close(); page = undefined;
+    await mobileContext.close(); mobileContext = undefined;
     check(deniedRequests === 0 && pageErrors === 0 && consoleErrors === 0, 'runtime_errors');
     evidence.network = {external_requests_blocked: deniedRequests, page_errors: pageErrors, console_errors: consoleErrors,
       static_document_routes: 0, loopback_only: true};
@@ -862,7 +905,7 @@ export async function run(config) {
     clearTimeout(watchdog);
     let cleanup = true;
     for (const action of [...extraPages.map(item => () => item.isClosed() ? undefined : item.close()),
-      () => page?.close(), () => context?.close(), () => browser?.close(), () => server?.close()]) {
+      () => page?.close(), () => mobileContext?.close(), () => context?.close(), () => browser?.close(), () => server?.close()]) {
       try { await action(); } catch { cleanup = false; }
     }
     evidence.cleanup = cleanup;

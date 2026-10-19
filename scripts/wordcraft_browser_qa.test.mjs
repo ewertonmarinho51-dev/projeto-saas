@@ -217,3 +217,15 @@ test('browser scale admission measures exact 20 and 100 page profiles', async ()
   assert.match(source, /for \(const scale of scales\)/);
   assert.doesNotMatch(source, /evidence\.scale_profile =/);
 });
+
+test('mobile emulation is explicit, responsive and cannot claim a physical device', async () => {
+  const source = await readFile(new URL('./wordcraft_browser_qa.mjs', import.meta.url), 'utf8');
+  assert.match(source, /name="viewport" content="width=device-width,initial-scale=1"/);
+  assert.match(source, /canvas\{width:100vw;height:100vh;display:block\}/);
+  assert.match(source, /viewport: \{width: 390, height: 844\}/);
+  assert.match(source, /deviceScaleFactor: 2, isMobile: true, hasTouch: true/);
+  assert.match(source, /emulation_only_not_physical_device: true/);
+  assert.match(source, /mobile_usability_approved: false/);
+  assert.match(source, /'PHYSICAL_MOBILE_DEVICE', 'HUMAN_MOBILE_USABILITY_REVIEW'/);
+  assert.match(source, /human_visual_approval: false/);
+});

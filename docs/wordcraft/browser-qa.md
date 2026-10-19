@@ -121,6 +121,25 @@ Essa prova fecha abertura e exportação automatizadas dos perfis sintéticos de
 e 100 páginas; não constitui inspeção visual humana nem orçamento da
 infraestrutura-alvo.
 
+## Emulação móvel
+
+O host de QA passou a declarar viewport e dimensionar o canvas por `100vw` e
+`100vh`. Uma passagem Chromium com emulação explícita de 390×844 CSS pixels,
+device scale factor 2, touch e `isMobile` abriu o perfil de 20 páginas em
+906,4664 ms, inicializou o canvas em 229,9367 ms, reproduziu o PDF admitido de
+36.406 bytes e registrou 72.155.136 bytes de memória linear WASM. Não houve
+requisição externa recusada, erro de página ou console. O relatório
+`wordcraft-browser-qa-current-win-24/browser-qa.json` tem SHA-256
+`54dbefe7c5d2b925452c03033df1e933747b7cbc5caa488737e943e2460e14e7`.
+
+A captura `mobile-390x844.png`, SHA-256
+`7fdbc8d6e3770147d48748ad4203b027ea0c84825be27d762ff06e473f40ab2f`,
+confirma que o canvas renderizou, mas mostra a faixa de opções e o conteúdo
+horizontalmente recortados na largura móvel. Por isso o recibo registra
+`emulation_only_not_physical_device=true` e `mobile_usability_approved=false`.
+Esta prova verifica execução, memória, contenção e exportação sob emulação; a
+usabilidade móvel e um aparelho físico continuam pendentes, sem falso PASS.
+
 Em 18/10/2026, a execução local Windows confirmou o Chromium pinado
 `141.0.7390.37`, SHA-256 do executável
 `ed19d88b4486c39c0265b0c07cbf1d6835d06069e600bede1adb09db0df46c8e`,
