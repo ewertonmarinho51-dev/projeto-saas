@@ -178,3 +178,19 @@ do legado, merge ou produção.
 Não existe pendência local conhecida que possa fechar G0, G2, G3, G6 ou G7
 sem revisão humana, execução externa ou autorização específica. O push da
 branch também permanece fora desta auditoria local e não foi executado.
+
+## J. Snapshot de entrega externa em 20/10/2026
+
+| Estado | Observado separadamente |
+|---|---|
+| HEAD local observado | `faa324d` antes do commit deste registro; HEAD funcional `0b8afc7` |
+| Feature branch remota | `798cf76ea1fd38383e4478d7917da643b00a86bc`; 80 commits atrás do HEAD local observado |
+| Pull request | inexistente para `feature/wordcraft-wasm-govconnect` |
+| CI do HEAD local | inexistente, pois o HEAD local não foi publicado |
+| Runs ligados ao HEAD remoto | nenhum run de pull request retornado pela API GitHub |
+| Merge | não executado nem autorizado |
+| Deploy/host/versão servida | não executado; nenhuma versão deste HEAD foi comprovada em host |
+| Migrations/flags/produção | não aplicadas; flag WordCraft continua OFF |
+
+O snapshot foi lido pela integração oficial do GitHub. Ele não autoriza push,
+criação de PR, execução manual de workflow, merge ou deploy.
