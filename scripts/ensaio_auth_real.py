@@ -487,6 +487,11 @@ def executar(*, dsn: str, archive: Path, postgrest: Path, node: Path, bundle: Pa
                 connection.execute(sql.SQL("create role {} login noinherit password {}").format(sql.Identifier(name), sql.Literal(password)))
                 logins.append(name)
             connection.execute(sql.SQL("alter schema auth owner to {}").format(sql.Identifier(auth_login)))
+            # GoTrue 2.197 records its own migration ledger in `public` before
+            # creating the Auth tables. PostgreSQL 15+ no longer grants CREATE
+            # on that schema to PUBLIC, so the disposable migration owner must
+            # receive it explicitly for the migration window only.
+            connection.execute(sql.SQL("grant usage, create on schema public to {}").format(sql.Identifier(auth_login)))
             connection.execute(sql.SQL("grant authenticator to {}").format(sql.Identifier(rest_login)))
         auth_port, rest_port, gateway_port = _available_port(), _available_port(), _available_port()
         _check(len({auth_port, rest_port, gateway_port}) == 3, "unique_loopback_ports")
@@ -496,6 +501,8 @@ def executar(*, dsn: str, archive: Path, postgrest: Path, node: Path, bundle: Pa
         migrated = subprocess.run([str(binary), "migrate"], env=auth_env, cwd=work, stdout=subprocess.DEVNULL,
                                   stderr=subprocess.DEVNULL, timeout=90, check=False)
         _check(migrated.returncode == 0, stage)
+        with psycopg.connect(new_dsn, autocommit=True) as connection:
+            connection.execute(sql.SQL("revoke create on schema public from {}").format(sql.Identifier(auth_login)))
         stage = "canonical_app_migrations"
         with psycopg.connect(new_dsn, autocommit=True) as connection:
             schema = sql_harness.preparar(connection, auth_real=True)

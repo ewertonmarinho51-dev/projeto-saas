@@ -148,7 +148,9 @@ def test_native_and_lo_steps_use_explicit_real_adapters_and_preserve_partial_mar
     upload = next(step for step in workflow()["jobs"]["fidelity"]["steps"] if step.get("uses", "").startswith("actions/upload-artifact@"))
     assert upload["if"] == "always()" and upload["with"]["include-hidden-files"] == "true"
     assert "RUNNER_TEMP" not in upload["with"]["path"]
-    assert "wordcraft-fidelity-lo-original-" in upload["with"]["path"] and "wordcraft-fidelity-lo-reexported-" in upload["with"]["path"]
+    assert "${{ env.FIDELITY_LO_ORIGINAL }}" in upload["with"]["path"]
+    assert "${{ env.FIDELITY_LO_REEXPORTED }}" in upload["with"]["path"]
+    assert "../" not in upload["with"]["path"]
 
 
 @pytest.mark.parametrize("text_issues", [0, 1])

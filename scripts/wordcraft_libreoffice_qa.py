@@ -285,7 +285,9 @@ def convert_institutional_pdf(soffice: Path, source: Path, output: Path, *, item
             with pdf.open("xb") as stream:
                 stream.write(converted)
             return result, attempts
-    raise ValueError("Existing institutional LibreOffice adapter failed in two recorded attempts; no fallback allowed")
+    diagnostic = json.dumps(attempts, ensure_ascii=True, separators=(",", ":"))
+    raise ValueError("Existing institutional LibreOffice adapter failed in two recorded attempts; "
+                     f"no fallback allowed; diagnostics={diagnostic}")
 
 
 class _OwnedWindowsJob:

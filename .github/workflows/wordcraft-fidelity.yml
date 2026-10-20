@@ -191,11 +191,11 @@ jobs:
           name: wordcraft-synthetic-fidelity-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             build-evidence/wordcraft-fidelity/
-            ../wordcraft-fidelity-corpus-${{ github.run_id }}-${{ github.run_attempt }}/
-            ../wordcraft-fidelity-native-${{ github.run_id }}-${{ github.run_attempt }}/
-            ../wordcraft-fidelity-lo-original-${{ github.run_id }}-${{ github.run_attempt }}/
-            ../wordcraft-fidelity-lo-reexported-${{ github.run_id }}-${{ github.run_attempt }}/
-            ../wordcraft-fidelity-three-way-${{ github.run_id }}-${{ github.run_attempt }}/
+            ${{ env.FIDELITY_CORPUS }}/
+            ${{ env.FIDELITY_NATIVE }}/
+            ${{ env.FIDELITY_LO_ORIGINAL }}/
+            ${{ env.FIDELITY_LO_REEXPORTED }}/
+            ${{ env.FIDELITY_COMPARISON }}/
           if-no-files-found: warn
           include-hidden-files: true
           retention-days: 14
