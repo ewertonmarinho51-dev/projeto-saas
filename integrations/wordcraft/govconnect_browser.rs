@@ -21,6 +21,7 @@ struct EditorApp {
     interaction_lock: Rc<Cell<InteractionLock>>,
     input_ready: Rc<Cell<bool>>,
     ui_passes: u8,
+    responsive_initialized: bool,
 }
 
 impl eframe::App for EditorApp {
@@ -28,6 +29,22 @@ impl eframe::App for EditorApp {
         self.app.logic(ctx);
     }
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if !self.responsive_initialized {
+            let compact = ui.available_width() < 600.0;
+            if compact {
+                // The desktop ribbon and a 100%-zoom A4 page are wider than a
+                // phone viewport. Start the embedded editor in WordCraft's own
+                // collapsed-ribbon and Page Width modes; both remain available
+                // for the user to change afterwards.
+                self.app.ui.ribbon_collapsed = true;
+                self.app.ui.interface_size =
+                    wordcraft_ui_egui::theme::InterfaceSize::from_percent(75.0).expect("the compact interface scale is in range");
+                self.app.session.view.fit = "pageWidth".into();
+                self.app.session.view.single_column = true;
+            }
+            self.responsive_initialized = true;
+            ui.ctx().request_repaint();
+        }
         self.app.ui(ui);
         // WordApp returns early during its first two font-initialization UI passes.
         self.ui_passes = self.ui_passes.saturating_add(1).min(3);
@@ -193,7 +210,7 @@ impl GovConnectEditor {
                     app.autosave = false;
                     app.ui.show_discord = false;
                     app.ui.language = "pt-br".into();
-                    Ok(Box::new(EditorApp { app, interaction_lock, input_ready, ui_passes: 0 }))
+                    Ok(Box::new(EditorApp { app, interaction_lock, input_ready, ui_passes: 0, responsive_initialized: false }))
                 }),
             )
             .await?;
@@ -224,6 +241,22 @@ impl GovConnectEditor {
 
     pub fn serialize(&self) -> Result<Vec<u8>, JsValue> {
         self.with_session(|session| adapter::serialize(&session.doc))
+    }
+
+    /// Read-only UI diagnostics for browser QA; no document data or authority is exposed.
+    pub fn responsive_profile(&self) -> Result<String, JsValue> {
+        if !self.started {
+            return Err(error("editor is not ready"));
+        }
+        let app = self.runner.app_mut::<EditorApp>().ok_or_else(|| error("editor unavailable"))?;
+        Ok(serde_json::json!({
+            "initialized": app.responsive_initialized,
+            "ribbon_collapsed": app.app.ui.ribbon_collapsed,
+            "interface_percent": app.app.ui.interface_size.percent(),
+            "fit": app.app.session.view.fit.as_str(),
+            "single_column": app.app.session.view.single_column,
+        })
+        .to_string())
     }
 
     /// Retry returns exactly the bytes of the same request, even when typing continued.

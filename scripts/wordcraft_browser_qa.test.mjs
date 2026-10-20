@@ -241,6 +241,10 @@ test('mobile emulation is explicit, responsive and cannot claim a physical devic
   assert.match(source, /canvas\{width:100vw;height:100vh;display:block\}/);
   assert.match(source, /viewport: \{width: 390, height: 844\}/);
   assert.match(source, /deviceScaleFactor: 2, isMobile: true, hasTouch: true/);
+  assert.match(source, /responsive_profile\?\.ribbon_collapsed === true/);
+  assert.match(source, /responsive_profile\?\.interface_percent === 75/);
+  assert.match(source, /responsive_profile\?\.fit === 'pageWidth'/);
+  assert.match(source, /responsive_profile\?\.single_column === true/);
   assert.match(source, /emulation_only_not_physical_device: true/);
   assert.match(source, /mobile_usability_approved: false/);
   assert.match(source, /'PHYSICAL_MOBILE_DEVICE', 'HUMAN_MOBILE_USABILITY_REVIEW'/);

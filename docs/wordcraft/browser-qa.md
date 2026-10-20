@@ -140,6 +140,24 @@ horizontalmente recortados na largura móvel. Por isso o recibo registra
 Esta prova verifica execução, memória, contenção e exportação sob emulação; a
 usabilidade móvel e um aparelho físico continuam pendentes, sem falso PASS.
 
+Em 20/10/2026, o adaptador passou a inicializar viewports abaixo de 600 CSS px
+com os modos nativos de faixa recolhida, interface a 75%, largura da página e
+coluna única. O runner passou a consultar um diagnóstico somente leitura do
+WASM e falha se qualquer um desses quatro estados não estiver aplicado. A nova
+passagem 390×844 abriu o mesmo perfil de 20 páginas em 678,8574 ms, preservou o
+PDF admitido (`4f0d2345...`, 36.406 bytes), registrou 31.129.600 bytes de memória
+linear WASM e terminou `PASS_HEADLESS_NATIVE_CANVAS_TRANSPORT_QA_NOT_MANUAL_ACCEPTANCE`.
+
+A inspeção da nova captura mostra a página e as réguas dentro da largura, a
+faixa expandida fora do caminho do documento e o status contido no canvas. O
+recibo `mobile-fix-qa-03/browser-qa.json` tem SHA-256
+`b26f967d1c59b412c5a21338336cb434b392a2f8051917d2da2f3c4e2a9fee19`; a
+captura tem SHA-256
+`dba967086f583a843eff8f5efd3b80a87616142a8e340b0f508ec0e877451762`.
+`mobile_usability_approved` e `human_visual_approval` permanecem `false`: a
+correção fecha o defeito reproduzível sob emulação, sem transformar revisão do
+artefato em teste num aparelho físico ou homologação humana.
+
 ## Tamanho dos assets admitidos
 
 O runner mede os bytes exatos dos arquivos do manifesto do motor, excluindo o

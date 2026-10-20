@@ -77,7 +77,7 @@ não foi comprovada. A decisão detalhada está em `g6-paridade-retirada.md`.
 | C11 | aprovação/emissão imutável | PASS LOCAL | `c11-aceite-imutabilidade.md` | Auth real |
 | C12 | dois tenants e dois canvas | PASS LOCAL PARCIAL | `c12-aceite-isolamento.md` | sessões GoTrue reais |
 | PERF-20/100 | abrir/exportar perfis exatos | PASS LOCAL | browser SHA `5fb03fd6...` | orçamento alvo |
-| PERF-MOBILE | 390×844 touch emulado | PASS técnico / FAIL usabilidade | browser SHA `54dbefe7...` | recorte horizontal; aparelho físico |
+| PERF-MOBILE | 390×844 touch emulado | PASS técnico e layout emulado corrigido | browser SHA `b26f967d...`; screenshot `dba96708...` | aparelho físico e homologação humana |
 | PERF-ASSETS | bruto/gzip/Brotli | PASS LOCAL | browser SHA `cefd4dc...` | `Content-Encoding` no host alvo |
 | PERF-IA | seleção versus documento inteiro | PASS LOCAL | 608 vs 12.634 tokens; SHA `fa790e10...` | custo USD requer modelo/preço explícito |
 | REG-PY | todos `test_wordcraft*.py` | PASS 502 / SKIP 1 | 42,37 s | `bash -n` somente em Linux |
@@ -104,8 +104,10 @@ curto eliminou todas essas causas e concluiu sem falhas. O JUnit final possui
   por revisão e não recalculados na reabertura.
 - Performance: perfis exatos de 20/100 páginas; bundle 41.860.573 bytes bruto,
   15.492.381 gzip e 9.804.706 Brotli; memória de browser/WASM registrada.
-- Mobile: execução e exportação passam em 390×844, mas há recorte horizontal;
-  `mobile_usability_approved=false`.
+- Mobile: execução e exportação passam em 390×844; o WASM confirma faixa
+  recolhida, interface 75%, largura da página e coluna única, e a captura não
+  repete o recorte material anterior. `mobile_usability_approved=false`
+  permanece correto porque aparelho físico e homologação humana não ocorreram.
 - IA: uma chamada hipotética em ambos os cenários; recorte por seleção evita
   12.026 tokens de entrada (95,1876%); zero chamadas pagas no ensaio.
 

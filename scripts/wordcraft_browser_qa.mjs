@@ -393,7 +393,8 @@ async function installCanvasHarness(paths) {
   };
   window.qa = Object.freeze({
     wasmLinearMemoryBytes() { return wasmMemory.buffer.byteLength; },
-    async probe() { return {instance_token: instanceToken, source_hash: await snapshotHash(), generation: native.generation()}; },
+    async probe() { return {instance_token: instanceToken, source_hash: await snapshotHash(), generation: native.generation(),
+      responsive_profile: JSON.parse(native.responsive_profile())}; },
     async open(base64, expectedHash) {
       assert(!native);
       const bytes = fromBase64(base64);
@@ -900,6 +901,11 @@ export async function run(config) {
     const mobileDocumentOpenMs = elapsedMs(mobileOpenStarted);
     const mobileProbe = await page.evaluate(() => window.qa.probe());
     check(mobileProbe.source_hash === mobileScale.checkpoint_sha256, 'mobile_emulation');
+    check(mobileProbe.responsive_profile?.initialized === true
+      && mobileProbe.responsive_profile?.ribbon_collapsed === true
+      && mobileProbe.responsive_profile?.interface_percent === 75
+      && mobileProbe.responsive_profile?.fit === 'pageWidth'
+      && mobileProbe.responsive_profile?.single_column === true, 'mobile_emulation');
     const mobileExports = await stage('mobile_emulation', () => page.evaluate(() => window.qa.exports()));
     check(mobileExports?.formats?.pdf?.sha256 === mobileScale.pdf_sha256
       && mobileExports?.formats?.pdf?.bytes === mobileScale.pdf_bytes, 'mobile_emulation');
@@ -912,6 +918,7 @@ export async function run(config) {
       screen_css: {width: 390, height: 844}, device_scale_factor: 2, is_mobile: true, has_touch: true,
       profile: mobileScale.profile, declared_pages: mobileScale.pages, canvas_ready_ms: mobileCanvasReadyMs,
       document_open_ms: mobileDocumentOpenMs, open_generation: mobileOpen.generation, renderer: mobileMetrics,
+      responsive_profile: mobileProbe.responsive_profile,
       pdf_sha256: mobileExports.formats.pdf.sha256, pdf_bytes: mobileExports.formats.pdf.bytes,
       screenshot: {path: 'mobile-390x844.png', bytes: mobileScreenshot.length, sha256: hash(mobileScreenshot),
         human_visual_approval: false}};
