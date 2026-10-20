@@ -164,10 +164,15 @@ def test_relatorio_mostra_todas_as_usadas_com_link_da_contratacao_ac17_ac34():
     assert "Preços usados (5)" in texto
     for valor in ("R$ 19,03", "R$ 22,00", "R$ 25,46", "R$ 28,20", "R$ 45,20"):
         assert valor in texto, "todas as usadas aparecem, não 5 de 15"
-    assert texto.count("92984205000022026") == 5
+    import re
+    # o número da contratação, como palavra inteira (o `idCompraItem`
+    # impresso abaixo começa com ele)
+    assert len(re.findall(r"\b92984205000022026\b", texto)) == 5
     assert "acompanhamento-compra?compra=92984205000022026" in rels
-    assert "dadosabertos.compras.gov.br" not in rels, \
-        "o relatório principal não aponta o JSON da API (D08)"
+    # auditoria de 20/10/2026 (A1/N-07): o registro na API vai TAMBÉM,
+    # rotulado como tal — a contratação continua apontando a página (D08)
+    assert texto.count("Registro na API (dados abertos):") == 5
+    assert "tamanhoPagina=500" in rels
     assert "Fornecedor: PAPELARIA SINTETICA LTDA (12.345.678/0001-99)" in texto
     assert "vencedor" not in texto.lower(), "AC-23: sem rótulo de vencedor"
     assert "Pregão" in texto and "item 7" in texto
@@ -212,8 +217,15 @@ def test_links_da_vista_principal_x_analitico():
     p, itens, refs = _cotacao()
     v = rv.projetar(p, itens, refs, emitido_em=MOMENTO)
     principal = dc.links_da_vista(v)
-    assert principal == {"92984205000022026":
-                         links.acompanhamento_compra("92984205000022026")}
+    # a contratação → a página pública (D08), nunca o JSON
+    assert principal["92984205000022026"] == \
+        links.acompanhamento_compra("92984205000022026")
+    # o item da compra → o registro na API (auditoria de 20/10/2026, A1)
+    tecnicos = {k: u for k, u in principal.items() if links.eh_tecnico(u)}
+    # um por linha impressa em "Preços usados (5)" — e só elas
+    assert len(tecnicos) == 5 == len(principal) - 1
+    assert all(k.startswith("92984205000022026") and len(k) == 22
+               for k in tecnicos)
     analitico = dc.links_da_vista(v, analitico=True)
     assert all(not links.eh_tecnico(u) or k.startswith(("uni", "ext", "ret"))
                for k, u in analitico.items())

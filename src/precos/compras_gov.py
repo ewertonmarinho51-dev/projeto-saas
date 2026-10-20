@@ -377,6 +377,10 @@ def url_de_verificacao(bruto: dict) -> str | None:
     com preço, órgão e fornecedor — verificado em 15/10/2026 (1 registro,
     mesmo `idItemCompra`). Serve de evidência reprodutível no relatório;
     `None` quando o registro não traz os dois identificadores.
+
+    Página de `PAGINA_MAXIMA` (500) registros: a auditoria de 20/10/2026
+    achou compra com 43 itens do mesmo CATMAT (mocho, `45323005901552026`),
+    e o registro da referência ficava fora das 10 linhas que o link pedia.
     """
     compra, codigo = bruto.get("idCompra"), bruto.get("codigoItemCatalogo")
     if not compra or not codigo:
@@ -384,7 +388,8 @@ def url_de_verificacao(bruto: dict) -> str | None:
     caminho = ("3_consultarServico" if bruto.get("codigoServico")
                else "1_consultarMaterial")
     return (f"{BASE}/modulo-pesquisa-preco/{caminho}?pagina=1"
-            f"&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo={codigo}"
+            f"&tamanhoPagina={PAGINA_MAXIMA}&tipo=codigoItemCatalogo"
+            f"&codigo={codigo}"
             f"&idCompra={compra}")
 
 
