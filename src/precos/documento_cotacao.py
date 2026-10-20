@@ -707,18 +707,37 @@ def _celula_contratacao(ref: ReferenciaView) -> list[T]:
     Auditoria de 18/10/2026 (C-2): sem link, o número da contratação é
     impresso MESMO ASSIM — é o que permite localizá-la à mão. E a frase
     não culpa a fonte quando quem não montou o endereço foi o sistema.
+
+    Auditoria de 20/10/2026 (A1, o N-07 da segunda auditoria): ~8% das
+    páginas do portal abrem "Compra não encontrada" para compra que existe
+    — e o preço está na API oficial. Por isso, abaixo da contratação, vai
+    também o REGISTRO na API de Dados Abertos, rotulado como tal, sobre o
+    número do item da compra (`idCompraItem`, único por referência — é ele
+    que o carimbo do PDF usa para pôr o link certo em cada linha).
     """
     if ref.contratacao_url and ref.identificacao:
-        return [T(ref.identificacao, link=ref.contratacao_url, pt=7,
-                  cor=AZUL),
-                T(ref.contratacao_rotulo, quebra_antes=True,
-                  cor=SECUNDARIO, pt=6.5)]
-    if ref.identificacao:
-        return [T(ref.identificacao, pt=7),
-                T("Página pública não localizada pelo sistema",
-                  quebra_antes=True, cor=SECUNDARIO, pt=6.5)]
-    return [T("Identificador não informado pela fonte", cor=SECUNDARIO,
-              pt=7)]
+        partes = [T(ref.identificacao, link=ref.contratacao_url, pt=7,
+                    cor=AZUL),
+                  T(ref.contratacao_rotulo, quebra_antes=True,
+                    cor=SECUNDARIO, pt=6.5)]
+    elif ref.identificacao:
+        partes = [T(ref.identificacao, pt=7),
+                  T("Página pública não localizada pelo sistema",
+                    quebra_antes=True, cor=SECUNDARIO, pt=6.5)]
+    else:
+        partes = [T("Identificador não informado pela fonte", cor=SECUNDARIO,
+                    pt=7)]
+    return partes + _registro_na_api(ref)
+
+
+def _registro_na_api(ref) -> list[T]:
+    """O registro na API oficial, quando a fonte dá a URL e o número do item."""
+    dados, item = getattr(ref, "dados_url", None), getattr(ref, "id_externo", "")
+    if not dados or not item or item == NAO_INFORMADO:
+        return []
+    return [T("Registro na API (dados abertos):", quebra_antes=True,
+              cor=SECUNDARIO, pt=6.5),
+            T(item, link=dados, quebra_antes=True, cor=AZUL, pt=6.5)]
 
 
 def _memoria_para_imprimir(item: ItemView) -> list[str]:
@@ -1177,14 +1196,22 @@ def links_da_vista(view: CotacaoReportView, *,
                    analitico: bool = False) -> dict[str, str]:
     """
     Texto impresso → URL real. Relatório de cotação: o número oficial da
-    contratação → a PÁGINA pública dela (Revisão 02, D08). Analítico: o
-    identificador da referência → a página da contratação, ou, sem ela, o
-    endpoint de dados da fonte (é o anexo técnico).
+    contratação → a PÁGINA pública dela (Revisão 02, D08), e o número do
+    item da compra → o REGISTRO na API (auditoria de 20/10/2026, A1).
+    Analítico: o identificador da referência → a página da contratação,
+    ou, sem ela, o endpoint de dados da fonte (é o anexo técnico).
     """
     if not analitico:
-        return {r.identificacao: r.contratacao_url
-                for i in view.itens for r in i.referencias
-                if r.contratacao_url and r.identificacao}
+        saida = {r.identificacao: r.contratacao_url
+                 for i in view.itens for r in i.referencias
+                 if r.contratacao_url and r.identificacao}
+        # só as linhas IMPRESSAS na tabela "Preços usados": id de
+        # referência fora dela nunca vira link sobre outra palavra do PDF
+        saida.update({r.id_externo: r.dados_url
+                      for i in view.itens for r in i.exibidas
+                      if r.dados_url and r.id_externo
+                      and r.id_externo != NAO_INFORMADO})
+        return saida
     return {r.id_externo: (r.contratacao_url or r.dados_url or r.link)
             for i in view.itens for r in i.referencias
             if (r.contratacao_url or r.dados_url or r.link)
