@@ -311,9 +311,15 @@ async function admitInputs(config) {
   const environment = Object.fromEntries(['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP', 'SystemRoot', 'WINDIR']
     .filter(key => process.env[key]).map(key => [key, process.env[key]]));
   environment.PYTHONUTF8 = '1';
-  const result = await runFile(config.python, ['-c', INPUT_ADMISSION, ROOT, config.bundle, config.inputs,
-    config.checkpoints, config['manifest-sha256'], process.execPath],
-  {cwd: ROOT, env: environment, timeout: 180_000, maxBuffer: 12 * 1024 * 1024, windowsHide: true});
+  let result;
+  try {
+    result = await runFile(config.python, ['-c', INPUT_ADMISSION, ROOT, config.bundle, config.inputs,
+      config.checkpoints, config['manifest-sha256'], process.execPath],
+    {cwd: ROOT, env: environment, timeout: 180_000, maxBuffer: 12 * 1024 * 1024, windowsHide: true});
+  } catch (error) {
+    const stderr = String(error?.stderr ?? '').slice(-1500).replace(/[\r\n]+/g, ' ');
+    throw new Error(`Synthetic input admission child failed: ${stderr || error?.code || 'unknown'}`);
+  }
   const admission = JSON.parse(result.stdout);
   check(admission.schema === 'gc-wordcraft-browser-inputs/v1' && admission.synthetic_only === true
     && Array.isArray(admission.cases) && admission.cases.length === 3
@@ -712,11 +718,14 @@ export async function run(config) {
     check(QA_PIN.supportedPlatforms.includes(process.platform), phase);
     for (const key of ['bundle', 'checkpoints', 'inputs', 'playwright', 'python']) config[key] = await realpath(config[key]);
     check(!(await stat(config.out).catch(() => null)), phase);
+    // Create the fresh evidence directory before admissions so failures in a
+    // child process retain their bounded diagnostic instead of collapsing to
+    // a stage name only.
+    await mkdir(config.out, {mode: 0o700}); outputReady = true;
     const built = await stage('bundle_admission', () => buildAssets(config));
     const admitted = await stage('synthetic_admission', () => admitInputs(config));
     const {cases, scales} = admitted;
     const pkg = await stage('playwright_pin', () => verifyPlaywright(config.playwright));
-    await mkdir(config.out, {mode: 0o700}); outputReady = true;
     evidence.runtime = {...QA_PIN, platform_observed: process.platform,
       engine_manifest_sha256: config['manifest-sha256'],
       producer_commit: built.manifest.govconnect_commit, upstream_commit: built.manifest.upstream_commit,
