@@ -85,7 +85,7 @@ clique de retirar da tela de Cotações, mas roda a cada rerun da tela de Pesqui
 2. **Leiaute TCE-RS**: o significado de `TP_RESULTADO_ITEM` (A, D, F, R, N, vazio),
    `CD_TIPO_FASE_ATUAL` e `CD_TIPO_MODALIDADE` está no manual do eValidador. O PDF 1.4 citado no
    dataset dá 404, e a página do LICITACON responde 403 a acesso automatizado (não contornado).
-3. **Dicionário BPS**: `Metadados_BPS_07_04_2026.pdf` localizado (442 KB) e não baixado (não
-   estava entre os downloads autorizados).
+3. **BPS sem URL por registro**: o dicionário (`Metadados_BPS_07_04_2026.pdf`, baixado com
+   autorização) resolve a etapa do preço (preço pago = praticado), mas não há página por compra.
 4. **Portal de Compras Públicas**: sem PublicKey nem documentação dos recursos de itens.
 5. **Tabela de evidências**: proposta em `0030_proposta_fontes_externas.sql`, não aplicada.

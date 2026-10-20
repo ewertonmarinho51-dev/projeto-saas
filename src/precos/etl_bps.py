@@ -9,11 +9,17 @@ vl_preco_total` em todas as linhas; até 4 casas decimais. O JSON do
 mesmo ano traz os preços como NÚMERO JSON (float) — por isso a fonte
 lida é o CSV, que traz o texto.
 
+Etapa do preço — conferida no dicionário oficial
+`Metadados_BPS_07_04_2026.pdf` (442.345 bytes, sha256 80628073…, baixado
+em 20/10/2026), verbete "Preço Unitário": "Preço pago por unidade do
+item adquirido. Este valor é informado com base no valor efetivamente
+negociado". É preço PRATICADO, informado pela instituição compradora.
+(O mesmo dicionário diz "Cobertura Temporal: 2º semestre de 2025",
+enquanto o arquivo de 2026 vai de 02/01 a 28/09/2026 — a capa está
+desatualizada; as colunas são as "das planilhas de 2020-2026".)
+
 O que o arquivo NÃO prova sozinho:
 
-* a etapa do preço (homologado? contratado? empenhado?) — nenhuma coluna
-  diz, e o dicionário `Metadados_BPS_07_04_2026.pdf` ainda não foi
-  conferido. Toda linha sai `TipoPreco.DESCONHECIDO`;
 * URL oficial POR REGISTRO — não há. O rastro é o arquivo do recurso
   oficial + `co_seq_bps`;
 * equivalência entre medicamentos: só o mesmo CATMAT na mesma unidade de
@@ -36,7 +42,9 @@ from . import evidencia as ev
 from .arquivos import abrir_csv, conferir_zip
 
 FONTE_ID = "bps"
-VERSAO_PARSER = "bps-2026-10-20.1"
+VERSAO_PARSER = "bps-2026-10-20.2"
+# "Preço pago por unidade do item adquirido" (dicionário de 07/04/2026)
+TIPO_PRECO = ev.TipoPreco.PRATICADO
 SEPARADOR = ";"
 FORMATO_NUMERO = "ponto"
 
@@ -85,7 +93,7 @@ def evidencia_da_linha(r: dict, *, sha256: str = "",
         quantidade=numero("qt_medicamento"),
         valor_unitario=numero("vl_preco_unitario"),
         valor_total=numero("vl_preco_total"),
-        tipo_preco=ev.TipoPreco.DESCONHECIDO,
+        tipo_preco=TIPO_PRECO,
         orgao=(r.get("no_instituicao") or "").strip() or None,
         orgao_cnpj=ev.cnpj_ou_nada("J", r.get("cnpj_instituicao")),
         uf=(r.get("sg_uf") or "").strip() or None,

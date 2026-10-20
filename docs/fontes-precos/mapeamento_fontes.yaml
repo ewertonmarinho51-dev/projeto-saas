@@ -15,8 +15,11 @@ sources:
     encoding: utf-8-sig
     number_format: ponto            # 9.14, 117.97, 70.00
     date_format: ISO                # 2026-02-04
+    diagram: {url: https://tcers.tc.br/repo/cex/licitacon/diagrama_licitacao.pdf, bytes: 62202,
+              sha256: c8981e5aa532350c31819f5237fa2c9d25406f6c4375b6692092663db499fc1d,
+              note: "2022; confirma PKs/FKs e que o documento do ITEM é o do VENCEDOR; sem domínio de códigos"}
     key_relationships:
-      licitacao: [CD_ORGAO, NR_LICITACAO, ANO_LICITACAO, CD_TIPO_MODALIDADE]   # 128.806 linhas, 0 repetidas
+      licitacao: [CD_ORGAO, NR_LICITACAO, ANO_LICITACAO, CD_TIPO_MODALIDADE]   # 128.806 linhas, 0 repetidas; LICITACAO_PK no diagrama
       item: "licitacao + NR_LOTE + NR_ITEM"
       item_prop: "licitacao + NR_LOTE + NR_ITEM + TP_DOCUMENTO/NR_DOCUMENTO do proponente"
     field_map:
@@ -26,12 +29,12 @@ sources:
       valor_unitario: item.VL_UNITARIO_HOMOLOGADO      # coluna própria; × QT_ITENS = VL_TOTAL_HOMOLOGADO em 100% das 452.295 linhas
       valor_total: item.VL_TOTAL_HOMOLOGADO
       valor_estimado: item.VL_UNITARIO_ESTIMADO        # guardado só como atributo, nunca como preço
-      fornecedor: "item.TP_DOCUMENTO/NR_DOCUMENTO (1ª ocorrência; cabeçalho repete o nome) — só CNPJ (J)"
+      fornecedor: "item.TP_DOCUMENTO/NR_DOCUMENTO (1ª ocorrência; cabeçalho repete o nome) — o VENCEDOR (ITEM_PESSOAS_FK no diagrama); só CNPJ (J)"
       orgao: licitacao.NM_ORGAO
       processo: licitacao.NR_PROCESSO
       data_resultado: licitacao.DT_HOMOLOGACAO         # 51.325 de 128.806 licitações preenchidas
       url_evidencia: licitacao.LINK_LICITACON_CIDADAO   # 100% preenchido; nível LICITAÇÃO, não item
-    result_classification_map: {}   # PENDENTE: leiaute do eValidador (PDF 1.4 → 404)
+    result_classification_map: {}   # PENDENTE: leiaute do eValidador (PDF 1.4 → 404; o diagrama não traz domínios)
     observed_codes:                 # contados no arquivo; SIGNIFICADO NÃO CONFIRMADO
       item.TP_RESULTADO_ITEM: {"": 670332, A: 336597, D: 32972, F: 21361, R: 3931, N: 1966}
       item.TP_RESULTADO_ITEM_com_homologado: {"": 116627, A: 335176, R: 265, N: 227}
@@ -48,7 +51,9 @@ sources:
     json_snapshot: {url: https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/BPS/json/2026_json.zip,
                     bytes: 1196477, sha256: e4c30f9e6ca262c7247a04a2cee9895a1583aa63cbdeb0ff4195da9d59363a0a,
                     note: "preços como número JSON (float) — não usado para dinheiro"}
-    dictionary: https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/BPS/Metadados_BPS_07_04_2026.pdf   # PENDENTE de leitura
+    dictionary: {url: https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/BPS/Metadados_BPS_07_04_2026.pdf,
+                 bytes: 442345, sha256: 80628073bd88de2a73763b8761a96b9fadaf6003cd186cd19d66b54697468a2c,
+                 note: "colunas 'das planilhas de 2020-2026'; capa diz cobertura 2º semestre de 2025 (desatualizada)"}
     license: "não informada (license_id vazio, 20/10/2026)"
     archive_kind: zip_csv
     files: ["2026.csv"]             # 6.551.514 bytes, 10.609 linhas, 36 colunas
@@ -70,7 +75,9 @@ sources:
       data: dt_compra               # 02/01/2026 a 28/09/2026
       processo: nu_processo_compra
     presentation_and_unit_map: "comparável só o mesmo co_catmat na mesma un_fornecimento"
-    result_classification_map: {}   # PENDENTE: o arquivo não diz a etapa do preço
+    result_classification_map:
+      vl_preco_unitario: PRATICADO  # dicionário, verbete "Preço Unitário": "Preço pago por unidade do item adquirido ... valor efetivamente negociado"
+      tp_compra: "Tipo de Compra: 'emergencial, regular, entre outras' (dicionário); JUDICIAL vai para a quarentena por política"
     observed_codes:
       tp_compra: {ADMINISTRATIVA: 10002, JUDICIAL: 607}
       modalidade: {Pregão: 7556, Registro de Preços: 2856, Dispensa de Licitação: 185, Leilão: 11, Diálogo Competitivo: 1}

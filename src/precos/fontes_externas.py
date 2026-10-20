@@ -82,8 +82,10 @@ REGISTRO: dict[str, RegistroFonte] = {r.id: r for r in (
                    "BPS/csv/2026_csv.zip",
                    "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/"
                    "BPS/json/2026_json.zip"),
-        pendencia="licença; dicionário Metadados_BPS_07_04_2026.pdf para a "
-                  "etapa do preço; o arquivo não traz URL por registro"),
+        pendencia="licença; decidir se arquivo oficial + co_seq_bps basta "
+                  "como evidência (o arquivo não traz URL por registro). A "
+                  "etapa do preço está no dicionário: preço pago "
+                  "(Metadados_BPS_07_04_2026.pdf)"),
     RegistroFonte(
         "pcp", "Portal de Compras Públicas — API de parceiros",
         Acesso.API_COM_CHAVE,

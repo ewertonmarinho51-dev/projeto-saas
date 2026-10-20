@@ -26,6 +26,12 @@ O que o arquivo PROVA e o que não prova:
 * não há número de controle do PNCP: a mesma compra vista também no
   PNCP não tem chave forte comum (ver `dedup_fontes`).
 
+O diagrama oficial (`diagrama_licitacao.pdf`, 2022, sha256 c8981e5a…)
+confirma as chaves — ITEM_PK = licitação + NR_LOTE + NR_ITEM — e que o
+documento do ITEM é o do VENCEDOR (ITEM_PESSOAS_FK por
+TP_DOCUMENTO_VENCEDOR/NR_DOCUMENTO_VENCEDOR). Não traz o domínio dos
+códigos de resultado.
+
 O cabeçalho de `item.csv` repete `TP_DOCUMENTO`/`NR_DOCUMENTO`; a
 leitura é por POSIÇÃO. O documento do vencedor só segue quando é CNPJ.
 `pessoas.csv`, `memcomissao.csv` e afins não são lidos.

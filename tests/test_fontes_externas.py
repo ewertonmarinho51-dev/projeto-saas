@@ -130,6 +130,7 @@ def _evidencia(**kw):
 
 def test_so_resultado_comprovado_e_validado():
     assert _evidencia().validada
+    assert _evidencia(tipo_preco=ev.TipoPreco.PRATICADO).validada
     assert _evidencia(tipo_preco=ev.TipoPreco.ESTIMADO).motivos == [ev.SO_ESTIMADO]
     assert _evidencia(tipo_preco=ev.TipoPreco.PROPOSTA).motivos == \
         [ev.TIPO_NAO_COMPROVADO]
@@ -199,7 +200,9 @@ def test_tce_rs_recusa_leiaute_mudado(tmp_path):
 # ---------------------------------------------------------------------------
 # BPS — linhas reais
 # ---------------------------------------------------------------------------
-def test_bps_le_o_texto_com_quatro_casas_e_nada_e_validado(zip_bps):
+def test_bps_e_preco_pago_mas_sem_url_por_registro_nada_valida(zip_bps):
+    """Dicionário de 07/04/2026: "Preço pago por unidade do item
+    adquirido" — PRATICADO. O que segura é a falta de URL por registro."""
     leitura = etl_bps.Leitura()
     linhas = {e.registro_id: e for e in etl_bps.ler(zip_bps, leitura=leitura)}
     assert leitura.linhas == 5
@@ -209,10 +212,12 @@ def test_bps_le_o_texto_com_quatro_casas_e_nada_e_validado(zip_bps):
     assert pali.codigo_catalogo == "446467" and pali.data_resultado == "2026-01-09"
     assert pali.atributos["apresentacao"] == "FRASCO 1,00 ML"
     assert str(linhas["27507743"].valor_unitario) == "1.0393"
+    assert pali.motivos == [ev.SEM_EVIDENCIA]
     for e in linhas.values():
-        assert e.tipo_preco == ev.TipoPreco.DESCONHECIDO
-        assert {ev.TIPO_NAO_COMPROVADO, ev.SEM_EVIDENCIA} <= set(e.motivos)
-        assert not e.validada
+        assert e.tipo_preco == ev.TipoPreco.PRATICADO
+        assert ev.NATUREZA_DO_TIPO[e.tipo_preco].value == "praticado"
+        assert ev.TIPO_NAO_COMPROVADO not in e.motivos
+        assert ev.SEM_EVIDENCIA in e.motivos and not e.validada
 
 
 def test_bps_judicial_e_leilao_tem_motivo_proprio(zip_bps):

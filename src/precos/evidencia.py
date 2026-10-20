@@ -34,8 +34,12 @@ from .modelo import NaturezaValor
 
 
 class TipoPreco(str, Enum):
-    """A etapa do preço — o `price_kind` do pacote."""
+    """
+    A etapa do preço — o `price_kind` do pacote, mais PRATICADO: o preço
+    PAGO, que o pacote não listava e o BPS declara no dicionário.
+    """
 
+    PRATICADO = "PRATICADO"
     HOMOLOGADO = "HOMOLOGADO"
     ADJUDICADO = "ADJUDICADO"
     CONTRATADO = "CONTRATADO"
@@ -46,6 +50,7 @@ class TipoPreco(str, Enum):
 
 # a ponte com o módulo: o que a cesta já distingue
 NATUREZA_DO_TIPO = {
+    TipoPreco.PRATICADO: NaturezaValor.PRATICADO,
     TipoPreco.HOMOLOGADO: NaturezaValor.HOMOLOGADO,
     TipoPreco.ADJUDICADO: NaturezaValor.ADJUDICADO,
     TipoPreco.CONTRATADO: NaturezaValor.CONTRATADO,
@@ -53,8 +58,10 @@ NATUREZA_DO_TIPO = {
     TipoPreco.PROPOSTA: NaturezaValor.PROPOSTA,
     TipoPreco.DESCONHECIDO: NaturezaValor.OUTRO,
 }
-TIPOS_DE_RESULTADO = frozenset({TipoPreco.HOMOLOGADO, TipoPreco.ADJUDICADO,
-                                TipoPreco.CONTRATADO})
+# as etapas que podem sustentar a cesta — as mesmas de
+# `modelo.NATUREZAS_COMPARAVEIS`
+TIPOS_DE_RESULTADO = frozenset({TipoPreco.PRATICADO, TipoPreco.HOMOLOGADO,
+                                TipoPreco.ADJUDICADO, TipoPreco.CONTRATADO})
 
 # Motivos de quarentena: estáveis (vão para o relatório técnico e testes).
 SEM_DESCRICAO = "SEM_DESCRICAO"
