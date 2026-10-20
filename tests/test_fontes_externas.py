@@ -257,6 +257,9 @@ def test_reprocessar_nao_duplica_e_parecido_nao_funde(zip_tce):
 # ---------------------------------------------------------------------------
 # Arquivo: download e ZIP sem confiança
 # ---------------------------------------------------------------------------
+HOST_TCE = "dados.tce.rs.gov.br"
+
+
 def test_url_so_das_fontes_registradas():
     for boa in fontes_externas.REGISTRO["tce_rs"].downloads + \
             fontes_externas.REGISTRO["bps"].downloads:
@@ -264,7 +267,8 @@ def test_url_so_das_fontes_registradas():
     for ruim in ("http://dados.tce.rs.gov.br/x.zip",
                  "https://evil.example/x.zip",
                  "https://s3.sa-east-1.amazonaws.com/outro-bucket/x.zip",
-                 "https://user:senha@dados.tce.rs.gov.br/x.zip"):
+                 # credencial embutida, no host CERTO: recusada mesmo assim
+                 f"https://user:senha@{HOST_TCE}/x.zip"):
         assert not arquivos.url_permitida(ruim)
 
 
