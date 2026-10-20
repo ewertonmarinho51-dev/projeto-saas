@@ -4,9 +4,9 @@
 **Data:** 19/10/2026  
 **Git GovConnect:** branch `feature/wordcraft-wasm-govconnect`; base
 `770f969882f9c6c2fb55d23b68385bf601e87012`; HEAD funcional auditado
-`d834d89a5e916d0450bb863adc66be7dbf8b07f5`  
+`0b8afc76ddbf53d06356dc702a4a4fdeffa4fe62`
 **WordCraft upstream SHA:** `533615620ef91ae57fa7aa4cd77fd98b2179e693`
-(0.7.0); integração GovConnect em 130 commits incrementais até o HEAD auditado  
+(0.7.0); integração GovConnect em 134 commits incrementais até o HEAD auditado
 **Ambiente:** Windows local isolado; PostgreSQL/PostgREST descartável; Chromium
 141.0.7390.37; Rust GNU/WASM; sem WSL, Docker ou Podman  
 **Flag WordCraft:** OFF; somente laboratório/QA local  
@@ -47,7 +47,7 @@ legado permanece como rollback.
 | browser/benchmark | sem orçamento observado | 1/20/100 páginas, 210 itens, memória, gzip/Brotli e mobile emulado | medir antes de definir limites | evidências de `benchmark.md` e `browser-qa.md` |
 | workflows separados | sem gates completos | build WASM, Auth real e fidelidade Linux independentes | falhar fechado e preservar artifacts | contratos YAML; execução externa pendente |
 
-Diff acumulado contra a base auditada: 161 arquivos, 30.421 inserções e 70
+Diff acumulado contra a base auditada: 162 arquivos, 30.650 inserções e 70
 remoções antes deste relatório. As remoções não apagam migrations, histórico ou
 caminhos legados necessários ao rollback.
 
@@ -80,7 +80,7 @@ não foi comprovada. A decisão detalhada está em `g6-paridade-retirada.md`.
 | PERF-MOBILE | 390×844 touch emulado | PASS técnico e layout emulado corrigido | browser SHA `b26f967d...`; screenshot `dba96708...` | aparelho físico e homologação humana |
 | PERF-ASSETS | bruto/gzip/Brotli | PASS LOCAL | browser SHA `cefd4dc...` | `Content-Encoding` no host alvo |
 | PERF-IA | seleção versus documento inteiro | PASS LOCAL | 608 vs 12.634 tokens; SHA `fa790e10...` | custo USD requer modelo/preço explícito |
-| REG-PY | todos `test_wordcraft*.py` | PASS 502 / SKIP 1 | 42,37 s | `bash -n` somente em Linux |
+| REG-PY | todos `test_wordcraft*.py` | PASS 502 / SKIP 1 | repetição final em 61,09 s | `bash -n` somente em Linux |
 | REG-NODE | host, validador e browser | PASS 66/66 | execução local conjunta | CI do HEAD atual |
 | REG-PRODUTO | suíte Python integral, 3.853 casos coletados | PASS 3.382 / SKIP 471 | JUnit `tests-full-branch-review-utf8.xml`, SHA `048dbfc6...`; 293,22 s | skips de integrações externas permanecem separados |
 
@@ -159,3 +159,22 @@ migration destrutiva nem converter revisões nativas de volta para Markdown.
 **Veredito: NÃO APTO.** A branch está apta para revisão técnica e para executar
 os workflows externos de homologação, mas não está apta para rollout, retirada
 do legado, merge ou produção.
+
+## I. Auditoria de fechamento contra 01–07
+
+| Requisito normativo | Evidência autoritativa atual | Conclusão |
+|---|---|---|
+| Branch isolada, código funcional, testes e build reproduzível | branch `feature/wordcraft-wasm-govconnect`; lock/overlay pinados; G1–G5 e regressões acima | ATENDIDO LOCALMENTE |
+| GovConnect dono de identidade, processo, regras, aprovação e emissão | `inventario.md`, `formato-canonico.md`, `ato-unico-aprovacao.md`, testes SQL/owner | ATENDIDO LOCALMENTE |
+| Um editor, um aplicador e seis capacidades sobre owners existentes | `g6-paridade-retirada.md`, `aplicador-canonico.md`, `capacidades-g5.md` | ATENDIDO LOCALMENTE |
+| Persistência versionada, CAS, restauração, imutabilidade e isolamento | `persistencia-g2.md`, C11, C12 e PostgREST local | PARCIAL: falta Auth/GoTrue real |
+| Fidelidade DOCX/PDF e corpus obrigatório | C01–C12, 16/16, 135 etapas, 87 páginas e testes Rust | PARCIAL: falta LibreOffice/raster Linux atual |
+| Segurança, licenças, assets e bridge fechado | closure G0, pin, notices, CSP/COOP/COEP e contratos host | PARCIAL: falta parecer jurídico da closure |
+| Performance 1/20/100, assets, IA e mobile | `benchmark.md`, `browser-qa.md`; perfil responsivo real no WASM em 390×844 | PARCIAL: falta host-alvo e aparelho/homologação humana |
+| Flag OFF, canário, rollback e retirada comprovada antes de eliminar legado | `g6-paridade-retirada.md`; legado preservado e rollback de UI provado | PARCIAL: canário e gates externos impedem retirada |
+| Relatório, evidências e estados sem promover simulação a PASS | este relatório e documentos C05–C12 | ATENDIDO |
+| Sem merge, deploy ou produção sem autorização | nenhum desses atos executado; flags OFF | ATENDIDO |
+
+Não existe pendência local conhecida que possa fechar G0, G2, G3, G6 ou G7
+sem revisão humana, execução externa ou autorização específica. O push da
+branch também permanece fora desta auditoria local e não foi executado.

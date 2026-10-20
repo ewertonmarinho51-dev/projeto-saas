@@ -55,8 +55,11 @@ artefatos imutáveis por revisão e snapshots oficiais; não exigem fundir
 instrumentos distintos em um único DOCX/PDF. Portanto os pacotes oficiais
 source-aware satisfazem esse limite sem reativar o consolidador Markdown
 legado. A prova via PostgREST/Auth real permanece pendente. O controle
-freeze/release do canvas está em implementação e testes; não se declara frescor
-da revisão visível apenas porque o backend conhecia o estado ready/saved.
+freeze/release do canvas usa um barrier nativo correlacionado e testado: espera
+frames, recusa entrada DOM, composição/gesto, revisão/hash divergentes e digest
+instável, e só produz o checkpoint depois de confirmar a mesma instância limpa.
+O runner Chromium exercita freeze/release e freeze de aprovação; o backend não
+infere frescor apenas do estado ready/saved.
 
 Patches passam pelo mesmo corretor/aplicador/FIXED/escopo/diff. A preparação é
 backend e selada pela instância do owner. O wrapper de lote reutiliza checkpoint,
