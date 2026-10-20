@@ -434,6 +434,22 @@ def test_source_decimal_is_localized_independently_for_row_comparison():
     assert result["status"] == "TEXT_ORACLE_PASS_VISUAL_PENDING"
 
 
+def test_oracle_accepts_geometrically_interleaved_global_total_cells():
+    oracle = {"codes": ["CODE-A"], "global_total_display": "R$ 92.900,30"}
+    result = qa.compare_oracle(
+        "CODE-A item\nVALOR\nR$\nGLOBAL\n92.900,30", oracle, [])
+    assert result["global_total_present"] is True
+    assert result["status"] == "TEXT_ORACLE_PASS_VISUAL_PENDING"
+
+
+def test_oracle_rejects_interleaved_total_outside_final_row():
+    oracle = {"codes": ["CODE-A"], "global_total_display": "R$ 92.900,30"}
+    result = qa.compare_oracle(
+        "VALOR R$ GLOBAL 92.900,30\nCODE-A item", oracle, [])
+    assert result["global_total_present"] is False
+    assert result["status"] == "ISSUES_RECORDED"
+
+
 def test_real_pdf_metrics_render_pages_and_keep_diff_pending(tmp_path):
     pymupdf = pytest.importorskip("pymupdf")
     pdf = tmp_path / "real.pdf"

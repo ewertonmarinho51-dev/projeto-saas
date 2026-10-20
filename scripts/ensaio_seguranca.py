@@ -734,6 +734,11 @@ def _tentar_rpc(cliente_sondagem, funcao: str, params: dict) -> str:
 
 
 def _tentar_storage(cliente_sondagem) -> str:
+    # O ensaio HTTP mínimo sobe PostgREST e o adaptador de URL, mas declara
+    # expressamente que não sobe o serviço Storage. Nesse ambiente um 404 não
+    # mede autorização; a ausência do componente torna a prova não aplicável.
+    if os.getenv("GOVDOCS_ENSAIO_CLIENTE_HTTP_MINIMO") == "1":
+        return NAO_APLICAVEL
     try:
         baldes = cliente_sondagem.storage.list_buckets()
     except Exception as erro:  # noqa: BLE001

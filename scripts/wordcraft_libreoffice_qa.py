@@ -519,8 +519,20 @@ def compare_oracle(text: str, oracle: dict, pdf_links: list[str]) -> dict:
     for key in ("markers", "codes", "clause_titles", "signature_names", "required_text", "expected_money"):
         checks["missing_" + key] = [value for value in oracle.get(key, []) if compact(value) not in normalized]
     checks["forbidden_text_present"] = [value for value in oracle.get("forbidden_text", []) if compact(value) in normalized]
-    checks["global_total_present"] = (compact(oracle["global_total_display"]) in normalized
-                                      if "global_total_display" in oracle else None)
+    checks["global_total_present"] = None
+    if "global_total_display" in oracle:
+        displayed_total = compact(oracle["global_total_display"])
+        checks["global_total_present"] = displayed_total in normalized
+        # PyMuPDF's geometric sort can interleave the last row's two cells as
+        # "VALOR R$ GLOBAL 92.900,30". Preserve a strict row-local check while
+        # accepting that extraction order: label, currency and exact amount
+        # must all occur after the final item code.
+        if not checks["global_total_present"] and displayed_total.startswith("R$"):
+            last_code = compact(oracle.get("codes", [""])[-1]) if oracle.get("codes") else ""
+            tail_start = normalized.rfind(last_code) if last_code else 0
+            tail = normalized[tail_start:] if tail_start >= 0 else ""
+            checks["global_total_present"] = all(
+                marker in tail for marker in ("VALOR", "GLOBAL", "R$", displayed_total[2:]))
     codes = oracle.get("codes", [])
     positions = [normalized.find(compact(code)) for code in codes]
     checks["codes_in_order"] = (all(position >= 0 for position in positions)

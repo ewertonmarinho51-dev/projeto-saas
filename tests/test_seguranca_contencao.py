@@ -2246,10 +2246,13 @@ def canario_descartavel(cliente_servidor):
 @pytest.fixture()
 def catalogo(cliente_servidor):
     """Auditoria de catálogo — a prova de CONFIGURAÇÃO das 28 tabelas."""
-    from ensaio_seguranca import auditar_catalogo
+    from ensaio_seguranca import FASE_DEFINITIVA, auditar_catalogo
 
     try:
-        return auditar_catalogo(cliente_servidor)
+        # O ensaio HTTP monta a sequência canônica inteira, inclusive a 0020.
+        # Nessa fase `authenticated` deve ter grants e policies; a auditoria A
+        # transformaria a autorização definitiva esperada em falso positivo.
+        return auditar_catalogo(cliente_servidor, FASE_DEFINITIVA)
     except Exception as erro:  # noqa: BLE001
         pytest.fail(f"preparação falhou: {erro}")
 
@@ -2390,8 +2393,9 @@ def test_servidor_continua_operando(cliente_servidor):
     Com a credencial de servidor, as operações legítimas seguem — é o
     que separa "contido" de "quebrado".
     """
-    for tabela in ("usuarios", "config_app", "processos"):
-        resposta = cliente_servidor.table(tabela).select("id").limit(1) \
+    for tabela, coluna in (("usuarios", "id"), ("config_app", "chave"),
+                           ("processos", "id")):
+        resposta = cliente_servidor.table(tabela).select(coluna).limit(1) \
             .execute()
         assert hasattr(resposta, "data")   # consultou sem erro de permissão
 
