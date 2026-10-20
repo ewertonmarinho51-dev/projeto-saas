@@ -64,7 +64,8 @@ def test_browser_build_installs_the_dependency_used_by_synthetic_admission():
     steps = value["jobs"]["upstream"]["steps"]
     install = next(step for step in steps
                    if step.get("name") == "Install pinned synthetic admission dependency")
-    assert install["run"] == "python3 -m pip install --disable-pip-version-check 'python-docx==1.2.0'"
+    assert "'python-docx==1.2.0'" in install["run"]
+    assert "'pypdf==6.21.1'" in install["run"]
     admission = next(step for step in steps
                      if step.get("name") == "Exercise the real native canvas, input barrier and undo in Chromium")
     assert "scripts/wordcraft_browser_qa.mjs" in admission["run"]
