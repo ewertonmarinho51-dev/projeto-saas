@@ -91,3 +91,22 @@ P50/P95 503,0097/635,4754 ms, validação 310,348/350,49 ms e PDF
 490,1563/492,2653 ms, 323,9769/331,5153 ms e 1.145,978/1.149,4995 ms. O relatório
 `WORDCRAFT_BENCHMARK_FULL_16_PLUS_20P_100P_20261019.json` tem 49.837 bytes e
 SHA-256 `b04aa3f4215b093eecf8cb5b4e2db3f1030c6cb9856a49442ee695aedc1a9c00`.
+
+## Escopo de IA por seleção
+
+`scripts/wordcraft_ai_scope_benchmark.py` reutiliza `GovBotContext`,
+`govbot.montar_prompt`, o extrator semântico do corpus e o tokenizador canônico
+`o200k_base` já usado pela medição de custos. Ele compara o prompt fechado da
+edição de um bloco com a regeneração hipotética do documento inteiro, sem chamar
+modelo, sem persistir texto e sem criar telemetria paralela.
+
+No ETP sintético C02 de 29 páginas, 117 blocos e 61.059 caracteres, o maior bloco
+individual tinha 705 caracteres. O prompt da edição por seleção mediu 608 tokens;
+o prompt equivalente com o documento inteiro, 12.634 tokens. O recorte evitou
+12.026 tokens de entrada, ou 95,1876%, mantendo uma chamada hipotética em ambos
+os cenários. Chamadas reais ao provedor: zero. O custo em USD permanece nulo no
+relatório porque nenhum modelo/preço foi escolhido; a ferramenta só calcula esse
+valor quando recebe explicitamente `--input-usd-per-million`.
+
+Evidência externa: `WORDCRAFT_AI_SCOPE_BENCHMARK_20261019.json`, 762 bytes,
+SHA-256 `fa790e1006264383307bb76df793d878a33fc25f70c43a02c3c1ac68584aff79`.

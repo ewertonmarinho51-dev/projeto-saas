@@ -50,9 +50,9 @@ isolado do workspace, sem alterar o Python do sistema. O contrato específico de
 `.github/workflows/wordcraft-fidelity.yml` passou com **9 passed e 1 skipped em
 0,66 s**; o skip é a verificação `bash -n`, indisponível neste Windows. Em
 seguida, a execução agregada de todos os arquivos `test_wordcraft*.py`, agora
-incluindo o analisador YAML do workflow, encerrou com **499 passed e 1 skipped
-em 48,53 s**. Os contratos Node do browser passaram 18/18 na mesma sequência
-de trabalho.
+incluindo o analisador YAML do workflow e o benchmark de escopo de IA, encerrou
+em sua rodada mais recente com **502 passed e 1 skipped em 42,37 s**. Os
+contratos Node do browser passaram 21/21 na sequência mais recente.
 
 ## Decisão de retirada
 
