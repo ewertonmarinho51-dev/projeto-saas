@@ -43,11 +43,10 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
-from . import estatistica, matching, unidades
+from . import estatistica, matching
 from .estados import EstadoItem, EstadoPesquisa, estado_derivado
-from . import fontes as fontes_mod
-from .fontes import Consulta, Desfecho, FontePesquisaPreco
-from .modelo import Referencia, conferir_procedencia, deduplicar
+from .fontes import PAGINA_MAXIMA, Consulta, Desfecho, FontePesquisaPreco
+from .modelo import Referencia
 from .perfil import PADRAO, PerfilNormativo
 
 # Quantos itens por script run.
@@ -59,10 +58,40 @@ from .perfil import PADRAO, PerfilNormativo
 # reruns e fica mais lento no total.
 LOTE_PADRAO = 5
 
-# Janela temporal padrão da consulta. Preço de dois anos atrás não
-# descreve o mercado de hoje; abrir demais enche a amostra de referência
-# velha que o fator de temporalidade vai penalizar de qualquer modo.
-JANELA_PADRAO_DIAS = 365
+# Janela temporal da consulta: 180 dias, que é a validade das cotações
+# adotada pelo órgão (orientação do operador, 14/10/2026). É também o
+# TETO: uma pesquisa gravada antes com 365 dias passa a consultar 180,
+# porque referência além disso não sustenta o preço estimado. O
+# relatório mostra a janela efetiva, não a pedida.
+JANELA_PADRAO_DIAS = 180
+JANELA_MAXIMA_DIAS = 180
+
+
+def janela_efetiva(filtros: dict | None) -> int:
+    """Dias consultados de fato: o pedido, limitado à validade."""
+    pedida = int((filtros or {}).get("janela_dias") or JANELA_PADRAO_DIAS)
+    return max(1, min(pedida, JANELA_MAXIMA_DIAS))
+
+
+TIPOS_DE_CATALOGO = ("CATMAT", "CATSER")
+
+
+def codigo_de_catalogo(item: dict) -> str | None:
+    """
+    O código do item SÓ quando ele é código de catálogo.
+
+    A planilha do processo tem uma coluna "código" que muitas vezes é o
+    número sequencial do item (1, 2, 3…). Mandar "1" à API como CATMAT
+    devolvia zero registros depois de 51 s — e a pesquisa travava. Vale
+    como catálogo o código com tipo declarado, ou o que tem a forma de um
+    (só dígitos, 5 ou mais).
+    """
+    codigo = str(item.get("codigo") or "").strip()
+    if not codigo:
+        return None
+    if str(item.get("tipo_catalogo") or "").upper() in TIPOS_DE_CATALOGO:
+        return codigo
+    return codigo if codigo.isdigit() and len(codigo) >= 5 else None
 
 # Quantas referências pedir por item a cada fonte.
 LIMITE_POR_FONTE = 100
@@ -138,17 +167,37 @@ A_PROCESSAR = frozenset({
 })
 
 
-def proximo_lote(itens: list[dict], tamanho: int = LOTE_PADRAO) -> list[dict]:
-    """
-    Os próximos itens a processar, na ordem da planilha.
+# Prioridade na fila: o que o processo largou no meio, depois o que nunca
+# rodou, e a falha técnica POR ÚLTIMO. Antes o `error` entrava pela ordem
+# da planilha, à frente dos pendentes: com os itens 1–5 sempre falhando,
+# todo lote era [1..5] de novo e uma pesquisa de 210 itens não andava.
+_PRIORIDADE = {
+    EstadoItem.BUSCANDO.value: 0, EstadoItem.CLASSIFICANDO.value: 0,
+    EstadoItem.PENDENTE.value: 1, EstadoItem.ERRO.value: 2,
+}
 
-    Ordem estável de propósito: o servidor acompanha a barra vendo o
-    item 1, 2, 3… Uma fila embaralhada faria o progresso parecer
-    aleatório e tornaria impossível dizer onde parou.
+
+def proximo_lote(itens: list[dict], tamanho: int = LOTE_PADRAO, *,
+                 ja_tentados: frozenset[str] | set[str] = frozenset()
+                 ) -> list[dict]:
+    """
+    Os próximos itens a processar: interrompidos, pendentes, falhas.
+
+    Dentro de cada grupo, a ordem da planilha — estável de propósito: o
+    servidor acompanha a barra vendo o item 1, 2, 3…
+
+    `ja_tentados` são os itens que FALHARAM nesta execução — inclusive o
+    que ficou em `searching` porque nem o registro do erro foi gravado. A
+    falha técnica tem uma nova tentativa por execução (por clique em
+    "Pesquisar"), não uma por lote. Sem isso, uma fonte fora do ar para
+    um item faria a tela repetir a mesma chamada até o fim dos tempos.
     """
     fila = [i for i in itens
-            if str(i.get("estado") or EstadoItem.PENDENTE.value) in A_PROCESSAR]
-    fila.sort(key=lambda i: int(i.get("numero") or 0))
+            if str(i.get("estado") or EstadoItem.PENDENTE.value) in A_PROCESSAR
+            and str(i.get("id")) not in ja_tentados]
+    fila.sort(key=lambda i: (
+        _PRIORIDADE[str(i.get("estado") or EstadoItem.PENDENTE.value)],
+        int(i.get("numero") or 0)))
     return fila[:max(1, tamanho)]
 
 
@@ -175,12 +224,12 @@ def consulta_do_item(item: dict, filtros: dict | None = None,
     hoje = filtros.get("data_base") or date.today()
     if isinstance(hoje, str):
         hoje = date.fromisoformat(hoje[:10])
-    dias = int(filtros.get("janela_dias") or JANELA_PADRAO_DIAS)
+    dias = janela_efetiva(filtros)
     return Consulta(
         descricao=str(item.get("descricao") or ""),
         unidade=item.get("unidade") or None,
         quantidade=float(quantidade) if quantidade is not None else None,
-        codigo_catalogo=item.get("codigo") or None,
+        codigo_catalogo=codigo_de_catalogo(item),
         tipo_catalogo=item.get("tipo_catalogo") or None,
         material_ou_servico=("S" if item.get("tipo_catalogo") == "CATSER"
                              else "M"),
@@ -188,6 +237,7 @@ def consulta_do_item(item: dict, filtros: dict | None = None,
         data_inicial=hoje - timedelta(days=dias),
         data_final=hoje,
         limite=int(filtros.get("limite") or LIMITE_POR_FONTE),
+        limite_grupo=int(filtros.get("limite_grupo") or PAGINA_MAXIMA),
         termos_alternativos=tuple(termos_alternativos),
     )
 
@@ -242,7 +292,9 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
                    perfil: PerfilNormativo = PADRAO,
                    filtros: dict | None = None,
                    piso: Decimal | None = None,
-                   motor_semantico=None, termos_locais: bool = False) -> ResultadoItem:
+                   motor_semantico=None, termos_locais: bool = False,
+                   regras: str = estatistica.REGRAS_MEDIA_PADRAO,
+                   politica=None, saneamento=None) -> ResultadoItem:
     """
     O pipeline de um item, do zero à estimativa.
 
@@ -287,27 +339,17 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
             "busca ampliada com termos equivalentes sugeridos pela camada "
             f"semântica: {', '.join(termos)}")
 
-    consulta = consulta_do_item(item, filtros, termos)
+    # A COLETA é o serviço único de busca (`busca.coletar`), o mesmo do
+    # Banco de Preços manual: fontes, procedência, deduplicação, unidade
+    # e comparabilidade não têm segunda implementação.
+    from . import busca
 
-    coletadas: list[Referencia] = []
-    de_preco: set[str] = set()
-    for fonte in fontes:
-        fid = getattr(getattr(fonte, "fonte", None), "id", "") or repr(fonte)
-        nome = getattr(getattr(fonte, "fonte", None), "nome", "fonte")
-        if fontes_mod.fornece_preco(fonte):
-            de_preco.add(fid)
-        try:
-            busca = fonte.pesquisar(consulta)
-        except Exception as exc:  # noqa: BLE001 — adapter nenhum derruba a pesquisa
-            resultado.desfechos[fid] = Desfecho.FALHA.value
-            resultado.ocorrencias.append(
-                f"{nome}: indisponível no momento ({type(exc).__name__})")
-            continue
-        resultado.desfechos[fid] = busca.desfecho.value
-        coletadas.extend(busca.referencias)
-        resultado.ocorrencias.extend(busca.ocorrencias)
-
-    resultado._de_preco = frozenset(de_preco)
+    # `politica` = a MESMA da cotação unificada (`cotacoes.politica_automatica`)
+    coleta = busca.coletar(item, fontes, filtros=filtros, termos=termos,
+                           politica=politica)
+    resultado.desfechos.update(coleta.desfechos)
+    resultado.ocorrencias.extend(coleta.ocorrencias)
+    resultado._de_preco = coleta.de_preco
 
     # ------------------------------------------------------------------
     # Falha técnica NÃO é amostra insuficiente
@@ -329,56 +371,32 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
     # todas elas falharam, é falha técnica: o item volta para a fila e se
     # repete. Se responderam e não trouxeram nada, aí sim é o mercado
     # falando, e repetir amanhã dá o mesmo.
-    falharam = [fid for fid in de_preco
-                if resultado.desfechos.get(fid) == Desfecho.FALHA.value]
-    if de_preco and len(falharam) == len(de_preco):
-        resultado.erro = (
-            "as fontes de preço não responderam "
-            f"({', '.join(sorted(falharam))}) — isto é falha técnica, não "
-            "ausência de preço no mercado; o item volta para a fila")
+    if coleta.erro:
+        resultado.erro = coleta.erro
         resultado.duracao_s = time.monotonic() - inicio
         return resultado
 
-    if not de_preco:
-        # Nenhuma fonte de preço configurada. Também é falha técnica, e
-        # de configuração: sem ela a pesquisa não pode dar certo nunca, e
-        # deixar sair `incomplete` culparia o mercado por um erro nosso.
-        resultado.erro = (
-            "nenhuma fonte capaz de fornecer preço foi configurada para "
-            "esta pesquisa")
-        resultado.duracao_s = time.monotonic() - inicio
-        return resultado
-
-    # A procedência é conferida ANTES de qualquer outra coisa: é aqui
-    # que o dado externo deixa de ser "o que a fonte disse ser" e passa
-    # a ser o que o módulo aceita. Uma fonte não registrada que se
-    # declarasse sistema oficial entraria na cesta à frente de uma
-    # contratação similar verdadeira (§55).
-    unicas = conferir_procedencia(deduplicar(coletadas))
-    resultado.encontradas = len(unicas)
-
-    unidade = str(item.get("unidade") or "")
-    normalizadas = [unidades.normalizar(r, unidade) for r in unicas]
-
-    data_base = filtros.get("data_base")
-    if isinstance(data_base, str):
-        data_base = date.fromisoformat(data_base[:10])
-    ranqueadas = matching.ordenar_por_comparabilidade(
-        normalizadas,
-        descricao=str(item.get("descricao") or ""),
-        codigo_catalogo=item.get("codigo") or None,
-        quantidade=_decimal(item.get("quantidade")),
-        uf=filtros.get("uf") or None,
-        data_base=data_base,
-    )
+    resultado.encontradas = coleta.unicas
+    ranqueadas = coleta.referencias
     resultado.referencias = ranqueadas
 
     cesta = estatistica.selecionar_cesta(
         ranqueadas, perfil,
-        piso if piso is not None else estatistica.PISO_COMPARABILIDADE)
+        piso if piso is not None else estatistica.PISO_COMPARABILIDADE,
+        teto=politica.teto if politica is not None else None,
+        saneamento=saneamento, texto_item=str(item.get("descricao") or ""))
+    if politica is not None:
+        # grava a cesta, a reserva do revisor e as retidas pela triagem
+        # (com o motivo técnico); o resto fica contado
+        manter = ({id(r) for r in cesta.selecionadas}
+                  | {id(r) for r in cesta.excedentes[:politica.reserva]}
+                  | {id(r) for r in cesta.retidas})
+        resultado.referencias = [par for par in ranqueadas
+                                 if id(par[0]) in manter]
     resultado.estimativa = estatistica.estimar(
         cesta, perfil=perfil,
-        metodo=str(filtros.get("metodo") or estatistica.METODO_AUTOMATICO))
+        metodo=str(filtros.get("metodo") or estatistica.METODO_AUTOMATICO),
+        regras=regras)
     resultado.duracao_s = time.monotonic() - inicio
     return resultado
 
@@ -390,7 +408,10 @@ def executar_lote(pesquisa: dict, itens: list[dict],
                   fontes: list[FontePesquisaPreco], repositorio, *,
                   perfil: PerfilNormativo = PADRAO,
                   tamanho: int = LOTE_PADRAO,
-                  motor_semantico=None, triagem=None) -> tuple[Progresso, list[str]]:
+                  motor_semantico=None, triagem=None,
+                  tentados: set[str] | None = None,
+                  politica=None, saneamento=None
+                  ) -> tuple[Progresso, list[str]]:
     """
     Processa um lote e PERSISTE. Devolve (progresso, linhas do relato).
 
@@ -410,7 +431,10 @@ def executar_lote(pesquisa: dict, itens: list[dict],
        preço para revisar.
     """
     filtros = dict(pesquisa.get("filtros") or {})
-    lote = proximo_lote(itens, tamanho)
+    # `tentados` vive na execução (a tela o guarda na sessão): o item que
+    # falhar aqui não volta à fila até o próximo clique em "Pesquisar".
+    tentados = tentados if tentados is not None else set()
+    lote = proximo_lote(itens, tamanho, ja_tentados=tentados)
     relato: list[str] = []
     por_id = {str(i.get("id")): i for i in itens}
 
@@ -421,10 +445,14 @@ def executar_lote(pesquisa: dict, itens: list[dict],
             repositorio.mover_item(item_id, EstadoItem.BUSCANDO, estado_atual)
             por_id[item_id]["estado"] = EstadoItem.BUSCANDO.value
 
-            resultado = pesquisar_item(item, fontes, perfil=perfil,
-                                       filtros=filtros,
-                                       motor_semantico=motor_semantico,
-                                       termos_locais=triagem is not None)
+            resultado = pesquisar_item(
+                item, fontes, perfil=perfil, filtros=filtros,
+                motor_semantico=motor_semantico,
+                termos_locais=triagem is not None,
+                # a regra com que a PESQUISA foi criada, não a de hoje
+                regras=str(pesquisa.get("versao_regras") or
+                           estatistica.REGRAS_LEGADAS),
+                politica=politica, saneamento=saneamento)
 
             if resultado.falhou:
                 # `desfechos` e `erro` são gravados junto do estado: sem
@@ -437,6 +465,7 @@ def executar_lote(pesquisa: dict, itens: list[dict],
                                        desfechos=resultado.desfechos,
                                        erro=resultado.erro)
                 por_id[item_id]["estado"] = EstadoItem.ERRO.value
+                tentados.add(item_id)
                 relato.append(
                     f"Item {resultado.numero:02d}  !  {resultado.erro}")
                 continue
@@ -470,6 +499,7 @@ def executar_lote(pesquisa: dict, itens: list[dict],
                 por_id[item_id]["estado"] = EstadoItem.ERRO.value
             except Exception:  # noqa: BLE001 — já estamos no caminho de erro
                 pass
+            tentados.add(item_id)
             relato.append(
                 f"Item {int(item.get('numero') or 0):02d}  !  "
                 f"falha ao processar ({type(exc).__name__})")

@@ -1,0 +1,58 @@
+{
+  "arquivo": "relatorio-word.pdf",
+  "total_links": 8,
+  "por_categoria": {
+    "POTENCIAL_CONTRATACAO": 2,
+    "VERIFICAR_MANUALMENTE": 6
+  },
+  "links": [
+    {
+      "pagina": 3,
+      "host": "cnetmobile.estaleiro.serpro.gov.br",
+      "categoria_aparente": "VERIFICAR_MANUALMENTE",
+      "url": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=10210305900092025"
+    },
+    {
+      "pagina": 3,
+      "host": "cnetmobile.estaleiro.serpro.gov.br",
+      "categoria_aparente": "VERIFICAR_MANUALMENTE",
+      "url": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=16004505900122024"
+    },
+    {
+      "pagina": 3,
+      "host": "cnetmobile.estaleiro.serpro.gov.br",
+      "categoria_aparente": "VERIFICAR_MANUALMENTE",
+      "url": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=25705205900242024"
+    },
+    {
+      "pagina": 3,
+      "host": "cnetmobile.estaleiro.serpro.gov.br",
+      "categoria_aparente": "VERIFICAR_MANUALMENTE",
+      "url": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=78481005900292024"
+    },
+    {
+      "pagina": 3,
+      "host": "cnetmobile.estaleiro.serpro.gov.br",
+      "categoria_aparente": "VERIFICAR_MANUALMENTE",
+      "url": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=10210305900022025"
+    },
+    {
+      "pagina": 3,
+      "host": "cnetmobile.estaleiro.serpro.gov.br",
+      "categoria_aparente": "VERIFICAR_MANUALMENTE",
+      "url": "https://cnetmobile.estaleiro.serpro.gov.br/comprasnet-web/public/compras/acompanhamento-compra?compra=78481005900292024"
+    },
+    {
+      "pagina": 4,
+      "host": "pncp.gov.br",
+      "categoria_aparente": "POTENCIAL_CONTRATACAO",
+      "url": "https://pncp.gov.br/app/editais/10806496000149/2025/70"
+    },
+    {
+      "pagina": 4,
+      "host": "pncp.gov.br",
+      "categoria_aparente": "POTENCIAL_CONTRATACAO",
+      "url": "https://pncp.gov.br/app/editais/10806496000149/2025/70"
+    }
+  ]
+}

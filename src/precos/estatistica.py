@@ -46,6 +46,29 @@ def _ordenar(valores: list[Decimal]) -> list[Decimal]:
     return sorted(valores)
 
 
+def brl(valor: Decimal | None) -> str:
+    """R$ 1.234,56 a partir de Decimal, sem passar por float."""
+    if valor is None:
+        return "(não informado)"
+    q = Decimal(valor).quantize(CENTAVO, rounding=ROUND_HALF_UP)
+    inteiro, _, centavos = f"{abs(q):f}".partition(".")
+    grupos = []
+    while inteiro:
+        grupos.insert(0, inteiro[-3:])
+        inteiro = inteiro[:-3]
+    sinal = "-" if q < 0 else ""
+    return f"{sinal}R$ {'.'.join(grupos) or '0'},{(centavos + '00')[:2]}"
+
+
+def pct(fracao: Decimal | None, casas: int = 2) -> str:
+    """Fração (0,4823) → '48,23%' — o formato que o servidor confere."""
+    if fracao is None:
+        return "—"
+    valor = (Decimal(fracao) * 100).quantize(
+        Decimal(1).scaleb(-casas), rounding=ROUND_HALF_UP)
+    return f"{valor:f}".replace(".", ",") + "%"
+
+
 def _percentil(ordenados: list[Decimal], fracao: Decimal) -> Decimal:
     """
     Percentil por interpolação linear — o mesmo método do `statistics`
@@ -83,6 +106,8 @@ class Estatisticas:
     q3: Decimal
     iqr: Decimal
     mad: Decimal
+    # a soma entra na memória de cálculo da média ("soma ÷ n")
+    soma: Decimal = ZERO
 
     def para_relatorio(self) -> dict:
         return {k: (v if isinstance(v, int) else format(v, "f"))
@@ -124,7 +149,7 @@ def calcular(valores: list[Decimal]) -> Estatisticas | None:
         amplitude=ordenados[-1] - ordenados[0],
         desvio_padrao=desvio,
         coeficiente_variacao=(desvio / media) if media else ZERO,
-        q1=q1, q3=q3, iqr=q3 - q1, mad=mad,
+        q1=q1, q3=q3, iqr=q3 - q1, mad=mad, soma=soma,
     )
 
 
@@ -142,6 +167,17 @@ class Anomalia:
     criterio: str            # 'IQR' | 'MAD'
     distancia_da_mediana_pct: Decimal
     motivo: str
+
+    def para_relatorio(self) -> dict:
+        # O percentual vai GRAVADO: o GovBot e o relatório leem do banco,
+        # e sem ele a frase "está N% distante" saía sempre vazia
+        # (dossiê BP, tema 2a).
+        return {"valor": format(self.valor, "f"), "criterio": self.criterio,
+                "motivo": self.motivo,
+                "distancia_da_mediana_pct": format(
+                    self.distancia_da_mediana_pct.quantize(CENTAVO), "f"),
+                "fonte_id": self.referencia.fonte.id,
+                "id_externo": self.referencia.id_externo}
 
 
 def detectar_anomalias(referencias: list[Referencia],
@@ -183,17 +219,111 @@ def detectar_anomalias(referencias: list[Referencia],
         else:
             distancia = ZERO
         sentido = "acima" if distancia >= 0 else "abaixo"
+        # A frase dá a BASE e o LIMITE, não só a distância: "mediana de
+        # R$ X entre N preços; faixa IQR de R$ A a R$ B" é o que permite
+        # ao revisor refazer a conta (dossiê BP, tema 2b).
+        # Preço não é negativo: com série larga, Q1 − 1,5·IQR fica abaixo
+        # de zero e a frase dizia "faixa de -R$ 52,08" (Revisão 02, D11).
+        piso_exibido = max(limite_inferior, ZERO)
         anomalias.append(Anomalia(
             referencia=ref, valor=valor, criterio="+".join(criterios),
             distancia_da_mediana_pct=distancia,
-            motivo=(f"o valor está {abs(distancia):.0f}% {sentido} da "
-                    f"mediana da amostra (critério {'+'.join(criterios)}). "
-                    "O sistema sugere revisão."),
+            motivo=(f"o valor está {pct(abs(distancia) / 100, 0)} {sentido} "
+                    f"da mediana de {brl(estatisticas.mediana)} entre "
+                    f"{estatisticas.quantidade} preços (critério "
+                    f"{'+'.join(criterios)}; faixa usual de "
+                    f"{brl(piso_exibido)} a {brl(limite_superior)}). "
+                    "Confira a contratação de origem."),
         ))
         ref.status = StatusReferencia.ALERTA
         ref.com_motivo(f"candidato discrepante pelo critério "
                        f"{'+'.join(criterios)}")
     return anomalias
+
+
+# ---------------------------------------------------------------------------
+# Critério percentual — SEPARADO do detector IQR/MAD, opcional e versionado
+#
+# O IQR/MAD não analisa série com menos de 4 preços, que é o caso típico
+# (3 preços). O dossiê do BP observou outra regra, com limites por cotação
+# (30% acima / 70% abaixo): um preço é "elevado" se passa da média dos
+# OUTROS em mais de 30%; é "inexequível" se fica abaixo de 70% da média
+# dos outros já SEM os elevados (9,66 / 22,70 = 42,56%, J10).
+#
+# Aqui ela é um critério de SINALIZAÇÃO, nunca de exclusão nem de juízo
+# jurídico: os limites são parâmetro da cotação (não da Lei), vão para a
+# memória com a base usada, e quem exclui é o revisor, com motivo. Sem
+# limites configurados, nada é analisado — não há percentual universal.
+# ---------------------------------------------------------------------------
+VERSAO_CRITERIO_PERCENTUAL = "2026-10-16.media-dos-outros"
+
+
+@dataclass
+class MarcaPercentual:
+    valor: Decimal
+    marca: str          # 'elevado_sinalizado' | 'inexequivel_sinalizado' | 'valido'
+    percentual: Decimal  # valor ÷ base × 100, duas casas
+    base: Decimal | None  # média dos outros usada na comparação
+
+    def para_relatorio(self) -> dict:
+        return {"valor": format(self.valor, "f"), "marca": self.marca,
+                "percentual": format(self.percentual, "f"),
+                "base": None if self.base is None else format(self.base, "f")}
+
+
+def analise_percentual(valores: list[Decimal], *, elevado_pct: Decimal,
+                       inexequivel_pct: Decimal) -> list[MarcaPercentual]:
+    """Marca cada preço contra a média dos outros (ver bloco acima)."""
+    serie = [Decimal(v) for v in valores if v is not None]
+    if len(serie) < 2:
+        return []
+    teto = Decimal(1) + Decimal(elevado_pct) / 100
+    piso = Decimal(inexequivel_pct) / 100
+
+    def media(lista):
+        return sum(lista, ZERO) / Decimal(len(lista)) if lista else None
+
+    elevados: set[int] = set()
+    percentuais: dict[int, tuple[Decimal, Decimal]] = {}
+    for i, valor in enumerate(serie):
+        outros = media([v for j, v in enumerate(serie) if j != i])
+        if outros and valor > outros * teto:
+            elevados.add(i)
+            percentuais[i] = (valor / outros * 100, outros)
+
+    marcas = []
+    for i, valor in enumerate(serie):
+        if i in elevados:
+            proporcao, base = percentuais[i]
+            marcas.append(MarcaPercentual(
+                valor, "elevado_sinalizado",
+                proporcao.quantize(CENTAVO, ROUND_HALF_UP), base))
+            continue
+        base = media([v for j, v in enumerate(serie)
+                      if j != i and j not in elevados])
+        if base and valor < base * piso:
+            marcas.append(MarcaPercentual(
+                valor, "inexequivel_sinalizado",
+                (valor / base * 100).quantize(CENTAVO, ROUND_HALF_UP), base))
+        else:
+            proporcao = (valor / base * 100) if base else Decimal(100)
+            marcas.append(MarcaPercentual(
+                valor, "valido", proporcao.quantize(CENTAVO, ROUND_HALF_UP),
+                base))
+    return marcas
+
+
+def criterio_percentual_da(filtros: dict | None) -> tuple[Decimal, Decimal] | None:
+    """(elevado %, inexequível %) configurados na cotação, ou None."""
+    bruto = (filtros or {}).get("criterio_percentual") or {}
+    try:
+        elevado = Decimal(str(bruto["elevado"]))
+        inexequivel = Decimal(str(bruto["inexequivel"]))
+    except (KeyError, ArithmeticError, ValueError, TypeError):
+        return None
+    if not (0 < elevado <= 1000 and 0 < inexequivel < 100):
+        return None
+    return elevado, inexequivel
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +336,21 @@ class Cesta:
     selecionadas: list[Referencia] = field(default_factory=list)
     descartadas: list[Referencia] = field(default_factory=list)
     motivos: list[str] = field(default_factory=list)
+    # Elegíveis que ficaram FORA só pelo teto da cotação automática —
+    # boas referências, disponíveis para o revisor incluir à mão. Vazia
+    # quando não há teto (o comportamento histórico).
+    excedentes: list[Referencia] = field(default_factory=list)
+    # Retidas pela triagem pré-cesta (`saneamento`): desconsideradas ou em
+    # revisão, com o motivo técnico. Ficam GRAVADAS para revisão e
+    # reinclusão — nunca somem. `triagem` é o resultado completo, com as
+    # métricas, para a trilha. Sem a política de saneamento, só as de
+    # fator de conversão extremo sem respaldo (N-06), que valem sempre.
+    retidas: list[Referencia] = field(default_factory=list)
+    triagem: object | None = None
+    # Revisão 02: suspeitas que ficam NA cesta, sinalizadas (chave →
+    # avaliação), e o que a reavaliação da cesta formada decidiu.
+    sinalizar: dict = field(default_factory=dict)
+    recomposicao: object | None = None
 
     @property
     def valores(self) -> list[Decimal]:
@@ -218,11 +363,59 @@ class Cesta:
 # sozinha: cesta montada com item pouco comparável é indefensável.
 PISO_COMPARABILIDADE = Decimal("0.5")
 
+# Coeficiente de variação acima do qual a série é "dispersa". É o mesmo
+# corte que a regra antiga usava para trocar média por mediana; na regra
+# da média ele não troca nada — marca a estimativa como provisória.
+CV_DISPERSAO = Decimal("0.25")
+
+
+@dataclass(frozen=True)
+class PoliticaAmostraAutomatica:
+    """
+    Quanto a COTAÇÃO AUTOMÁTICA coleta, grava e considera por item.
+
+    Medido em 17/10/2026: sem teto, um item com 301 candidatas por fonte
+    gravava 602 referências e considerava 452 — o "301/3 considerado" da
+    tela, um relatório inchado e minutos de processamento que não
+    melhoram o preço. A política é uma só, para a cotação unificada e a
+    rota legada, e vai VERSIONADA para a trilha de cada busca.
+
+    * `teto` — máximo absoluto de referências que a automação põe na
+      cesta de um item, contando as que já estavam lá. É teto, não meta;
+    * `suficiente` — a busca para de ampliar (não consulta a próxima
+      fonte) quando já há tantas candidatas elegíveis. 3 a 6 bons preços
+      sustentam o método; chegar a 15 à força não melhora nada;
+    * `limite_por_fonte` — quantos registros pedir a cada fonte;
+    * `reserva` — elegíveis além do teto guardadas como candidatas, para o
+      revisor ter alternativa sem nova consulta. O resto não é gravado: a
+      trilha guarda as CONTAGENS (brutas, únicas, elegíveis), não as linhas.
+
+    O modo MANUAL não usa esta política: o servidor pode trazer e
+    escolher quantas referências a análise pedir.
+    """
+
+    # .2 (17/10/2026, medido em produção): grupo do catálogo limitado e
+    # seleções ANTERIORES da automática reavaliadas sob o teto.
+    versao: str = "2026-10-17.teto-15.2"
+    teto: int = 15
+    suficiente: int = 6
+    limite_por_fonte: int = 50
+    # registros por grupo do catálogo (PDM) no caminho por descrição do
+    # Compras.gov; o manual continua pedindo 500
+    limite_por_grupo: int = 100
+    reserva: int = 10
+
+
+POLITICA_AUTOMATICA = PoliticaAmostraAutomatica()
+
 
 def selecionar_cesta(
     ranqueadas: list[tuple[Referencia, Comparabilidade]],
     perfil: PerfilNormativo = PADRAO,
     piso: Decimal = PISO_COMPARABILIDADE,
+    teto: int | None = None,
+    saneamento=None,
+    texto_item: str = "",
 ) -> Cesta:
     """
     Monta a cesta por COMPARABILIDADE e prioridade de fonte — nunca por
@@ -231,10 +424,34 @@ def selecionar_cesta(
     A ordem é: fonte de maior prioridade normativa primeiro, e dentro
     dela a maior comparabilidade. "Pegue os três menores" produziria uma
     cesta falsa, barata e incomparável (§12).
+
+    `teto` (cotação automática): só as `teto` primeiras dessa ordem entram;
+    as demais elegíveis ficam CANDIDATAS em `excedentes`, com o motivo.
+    `None` = sem teto, exatamente como antes.
+
+    `saneamento` (`saneamento.PoliticaSaneamento`, flag
+    `precos_saneamento_pre_cesta`): as referências que alcançam o piso de
+    comparabilidade passam ANTES pela triagem do item — invalidação
+    objetiva e suspeita estatística corroborada. Só as elegíveis concorrem
+    à cesta; as demais ficam em `retidas`, com status e motivo técnico.
+    `None` = sem triagem, exatamente como antes.
     """
     cesta = Cesta()
     prioridade = {tipo: i for i, tipo
                   in enumerate(perfil.prioridade_de_fontes)}
+
+    # Segunda auditoria de 18/10/2026 (N-06): fator de conversão extremo
+    # sem respaldo dos pares sai ANTES de tudo, com ou sem triagem — um
+    # preço multiplicado por 500 também desloca a mediana com que a
+    # triagem julga os outros.
+    ranqueadas = _barreira_de_conversao(ranqueadas, cesta)
+    if saneamento is not None:
+        # Auditoria de 18/10/2026 (C-1): o atributo que define o produto
+        # (formato, numeração, tipo, finalidade) é confrontado com o item
+        # ANTES da triagem — produto diferente não entra na estatística.
+        ranqueadas = _barreira_de_atributos(ranqueadas, cesta, texto_item)
+        ranqueadas = _triagem_pre_cesta(ranqueadas, cesta, piso, saneamento,
+                                        texto_item)
 
     elegiveis = []
     for referencia, comparabilidade in ranqueadas:
@@ -268,14 +485,162 @@ def selecionar_cesta(
     elegiveis.sort(key=lambda par: (
         prioridade.get(par[0].fonte.tipo, 99), -par[1].score))
 
-    for referencia, _ in elegiveis:
+    limite = len(elegiveis) if teto is None else max(0, int(teto))
+    escolhidas = [r for r, _ in elegiveis[:limite]]
+    reservas = [r for r, _ in elegiveis[limite:]]
+    if saneamento is not None and teto is not None and escolhidas:
+        # Revisão 02: a cesta formada pelo teto é reavaliada e reposta com
+        # as próximas elegíveis — o que destoa NA cesta não fica nela por
+        # falha de fluxo, e o que sai não some (status e motivo).
+        escolhidas, reservas = _recompor(escolhidas, reservas, cesta,
+                                         saneamento, texto_item)
+    for referencia in escolhidas:
         referencia.status = StatusReferencia.SELECIONADA
         cesta.selecionadas.append(referencia)
+        avaliacao = cesta.sinalizar.get(referencia.chave_dedupe)
+        if avaliacao is not None:
+            from . import saneamento as saneamento_mod
 
-    if not cesta.selecionadas:
+            referencia.status = StatusReferencia.ALERTA
+            referencia.com_motivo(saneamento_mod.motivo_da_sinalizacao(
+                avaliacao, saneamento.versao))
+    por_chave = {r.chave_dedupe: (r, c) for r, c in elegiveis}
+    for referencia, _ in (por_chave[r.chave_dedupe] for r in reservas):
+        referencia.status = StatusReferencia.CANDIDATA
+        # sem o número: numa reconsulta o teto que sobra é menor que o da
+        # política, e "teto de 2" leria como regra diferente
+        referencia.com_motivo(
+            "elegível, fora da cesta automática pelo teto de referências "
+            "da cotação automática — disponível para inclusão manual")
+        cesta.excedentes.append(referencia)
+
+    if not cesta.selecionadas and not cesta.excedentes:
         cesta.motivos.append(
             "nenhuma referência atingiu a comparabilidade mínima")
     return cesta
+
+
+def _barreira_de_conversao(ranqueadas, cesta: Cesta):
+    """
+    Fator de conversão ≥ 10× ou ≤ 0,1× só concorre à cesta automática
+    com o respaldo de ao menos 3 referências SEM conversão do mesmo item
+    (preço praticado), e com o valor convertido entre 1/3 e 3× da mediana
+    delas (`unidades.conversao_extrema`). Sem esse respaldo vai para
+    revisão manual, GRAVADA em `retidas` com o fator, os dois preços e a
+    regra no motivo. Quem confere a capacidade na fonte pode reincluir.
+    """
+    from . import unidades
+
+    pares = [v for v in (
+        unidades.sem_conversao(r.valor_unitario_original,
+                               r.valor_unitario_normalizado)
+        for r, _ in ranqueadas if r.natureza_valor in NATUREZAS_COMPARAVEIS)
+        if v is not None]
+    seguem = []
+    for referencia, comparabilidade in ranqueadas:
+        extrema = unidades.conversao_extrema(
+            referencia.valor_unitario_original,
+            referencia.valor_unitario_normalizado, pares)
+        if extrema is None:
+            seguem.append((referencia, comparabilidade))
+            continue
+        referencia.status = StatusReferencia.REVISAO_MANUAL
+        referencia.com_motivo(extrema.motivo())
+        cesta.retidas.append(referencia)
+    return seguem
+
+
+def _barreira_de_atributos(ranqueadas, cesta: Cesta, texto_item: str):
+    """
+    Tira da disputa o que a própria descrição da fonte mostra ser outro
+    produto (rejeitada) ou não permite conferir (revisão). As duas ficam
+    em `retidas` — GRAVADAS com o motivo, para o servidor reincluir se
+    discordar. Nunca some referência.
+    """
+    from . import atributos
+
+    if not texto_item:
+        return ranqueadas
+    seguem = []
+    for referencia, comparabilidade in ranqueadas:
+        achado = atributos.conflito(texto_item, referencia.descricao_original)
+        if achado is None:
+            seguem.append((referencia, comparabilidade))
+            continue
+        referencia.status = (StatusReferencia.REJEITADA
+                             if achado.tipo == atributos.CONTRADIZ
+                             else StatusReferencia.REVISAO_MANUAL)
+        referencia.com_motivo(atributos.motivo(achado))
+        cesta.retidas.append(referencia)
+    return seguem
+
+
+def _triagem_pre_cesta(ranqueadas, cesta: Cesta, piso: Decimal, politica,
+                      texto_item: str):
+    """
+    Roda o motor de saneamento sobre as COMPARÁVEIS (score ≥ piso) e
+    devolve só o que segue para a seleção: as elegíveis e as abaixo do
+    piso (que a seleção trata como sempre tratou).
+    """
+    from . import saneamento
+
+    def entra(referencia, comparabilidade) -> bool:
+        # invalidação objetiva vale para qualquer referência; a estatística,
+        # só para as comparáveis (o motor não mistura objetos diferentes)
+        return (comparabilidade.score >= piso
+                or referencia.valor_unitario_normalizado is None
+                or not referencia.tem_preco)
+
+    analisadas = [(r, c) for r, c in ranqueadas if entra(r, c)]
+    triagem = saneamento.avaliar(
+        [saneamento.observacao_da_referencia(r) for r, _ in analisadas],
+        politica, texto_item=texto_item)
+    cesta.triagem = triagem
+    por_chave = triagem.por_id()
+    seguem = []
+    for referencia, comparabilidade in ranqueadas:
+        avaliacao = (por_chave.get(referencia.chave_dedupe)
+                     if entra(referencia, comparabilidade) else None)
+        if avaliacao is None or avaliacao.desfecho == saneamento.ELEGIVEL:
+            seguem.append((referencia, comparabilidade))
+            continue
+        if saneamento.fica_sinalizada_na_cesta(avaliacao, politica):
+            # amostra pequena: segue para a cesta e é marcada lá
+            cesta.sinalizar[referencia.chave_dedupe] = avaliacao
+            seguem.append((referencia, comparabilidade))
+            continue
+        referencia.status = StatusReferencia(
+            saneamento.status_do_desfecho(avaliacao.desfecho))
+        referencia.com_motivo(saneamento.motivo_da_avaliacao(
+            avaliacao, triagem.versao))
+        cesta.descartadas.append(referencia)
+        if saneamento.retem(avaliacao):
+            cesta.retidas.append(referencia)
+    return seguem
+
+
+def _recompor(escolhidas: list, reservas: list, cesta: Cesta, politica,
+              texto_item: str) -> tuple[list, list]:
+    """
+    Reavalia a cesta formada pelo teto (`saneamento.recompor_cesta`) e
+    aplica o desfecho: quem sai leva status e motivo e fica GRAVADO
+    (`retidas`); quem fica sem alternativa é sinalizado na cesta.
+    """
+    from . import saneamento
+
+    feito = saneamento.recompor_cesta(escolhidas, reservas, politica,
+                                      texto_item=texto_item)
+    cesta.recomposicao = feito
+    for referencia, avaliacao in feito.saidas:
+        cesta.sinalizar.pop(referencia.chave_dedupe, None)
+        referencia.status = StatusReferencia(
+            saneamento.status_do_desfecho(avaliacao.desfecho))
+        referencia.com_motivo(saneamento.motivo_da_avaliacao(
+            avaliacao, politica.versao))
+        cesta.descartadas.append(referencia)
+        cesta.retidas.append(referencia)
+    cesta.sinalizar.update(feito.sinalizadas)
+    return feito.selecionadas, feito.reservas
 
 
 # ---------------------------------------------------------------------------
@@ -299,10 +664,27 @@ class Estimativa:
     anomalias: list[Anomalia] = field(default_factory=list)
     memoria: list[str] = field(default_factory=list)
     perfil_id: str = PADRAO.id
+    # O que o REVISOR precisa decidir antes de concluir o item: a média é
+    # de referências "elegíveis e aprovadas", e discrepante ou série
+    # dispersa ainda não aprovados tornam o número provisório.
+    pendencias: list[str] = field(default_factory=list)
+    # Marcas do critério percentual da cotação, quando configurado.
+    marcas_percentuais: list[MarcaPercentual] = field(default_factory=list)
+    criterio_percentual: tuple[Decimal, Decimal] | None = None
+    # Exceção formal à regra dos três aplicada nesta estimativa.
+    excecao_aplicada: bool = False
+    # (valor pelo método, valor adotado) quando o teto da mediana do
+    # perfil mudou o preço — o relatório mostra os dois (Revisão 02, D15).
+    ajuste_teto: tuple[Decimal, Decimal] | None = None
 
     @property
     def concluida(self) -> bool:
         return self.status == "CONCLUIDO"
+
+    @property
+    def provisoria(self) -> bool:
+        """Tem valor, mas depende de análise crítica humana (ver `pendencias`)."""
+        return bool(self.pendencias)
 
     def valor_total(self, quantidade: Decimal | None) -> Decimal | None:
         if self.valor_unitario is None or quantidade is None:
@@ -319,18 +701,47 @@ class Estimativa:
             "perfil": self.perfil_id,
             "estatisticas": self.estatisticas.para_relatorio()
             if self.estatisticas else None,
+            # "selecionadas" é o nome histórico do campo e continua aqui
+            # para ler pesquisas antigas; o número é o de CONSIDERADAS no
+            # cálculo (a cesta já exclui quem não tem preço normalizado).
             "selecionadas": len(self.cesta.selecionadas),
+            "consideradas": len(self.cesta.selecionadas),
             "descartadas": len(self.cesta.descartadas),
-            "anomalias": [{
-                "valor": format(a.valor, "f"),
-                "criterio": a.criterio,
-                "motivo": a.motivo,
-            } for a in self.anomalias],
+            "pendencias": list(self.pendencias),
+            "anomalias": [a.para_relatorio() for a in self.anomalias],
+            "marcas_percentuais": [m.para_relatorio()
+                                   for m in self.marcas_percentuais],
+            "criterio_percentual": None if self.criterio_percentual is None
+            else {"elevado": format(self.criterio_percentual[0], "f"),
+                  "inexequivel": format(self.criterio_percentual[1], "f"),
+                  "versao": VERSAO_CRITERIO_PERCENTUAL},
+            "excecao_aplicada": self.excecao_aplicada,
+            "ajuste_teto": None if self.ajuste_teto is None else {
+                "pelo_metodo": format(self.ajuste_teto[0], "f"),
+                "adotado": format(self.ajuste_teto[1], "f")},
             "memoria": list(self.memoria),
         }
 
 
 METODO_AUTOMATICO = "automatico"
+
+# Versões das REGRAS de escolha do método, gravadas em
+# `pesquisas_preco.versao_regras` na criação da pesquisa.
+#
+# * REGRAS_LEGADAS ("") — o automático escolhia média ou mediana pelo
+#   coeficiente de variação. Pesquisas criadas assim continuam assim: o
+#   método padrão mudar NÃO reprocessa pesquisa já feita (Banco de Preços,
+#   15/10/2026).
+# * REGRAS_MEDIA_PADRAO — o automático é a MÉDIA ARITMÉTICA SIMPLES dos
+#   preços unitários selecionados. Mediana, CV e dispersão viram só
+#   diagnóstico; discrepante gera alerta, nunca troca de método nem
+#   exclusão automática.
+REGRAS_LEGADAS = ""
+REGRAS_MEDIA_PADRAO = "2026-10-15.media-aritmetica"
+
+
+ROTULO_METODO = {"media": "média aritmética", "mediana": "mediana",
+                 "menor": "menor preço"}
 
 
 def _aplicar_metodo(metodo: str, e: Estatisticas) -> Decimal:
@@ -341,17 +752,50 @@ def _aplicar_metodo(metodo: str, e: Estatisticas) -> Decimal:
     return e.mediana
 
 
+def _data_local(iso) -> str:
+    """ISO em UTC → "17/10/2026 20:16" no horário de Brasília (UTC−3)."""
+    from datetime import datetime, timedelta, timezone
+
+    try:
+        momento = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+    except ValueError:
+        return str(iso)
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return momento.astimezone(timezone(timedelta(hours=-3))).strftime(
+        "%d/%m/%Y %H:%M")
+
+
+def chave_da_referencia(referencia) -> str:
+    """Identidade estável de uma referência no item: fonte + id externo."""
+    if isinstance(referencia, dict):
+        return f"{referencia.get('fonte_id') or ''}:" \
+               f"{referencia.get('id_externo') or ''}"
+    return f"{referencia.fonte.id}:{referencia.id_externo}"
+
+
 def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
             metodo: str = METODO_AUTOMATICO,
-            justificativa: str | None = None) -> Estimativa:
+            justificativa: str | None = None,
+            regras: str = REGRAS_LEGADAS,
+            criterio_percentual: tuple[Decimal, Decimal] | None = None,
+            mantidas: dict | None = None
+            ) -> Estimativa:
     """
     Forma o preço estimado a partir da cesta.
 
-    O método automático escolhe **mediana** quando a série é dispersa e
-    **média** quando é homogênea. A razão é estatística, não jurídica: a
-    mediana resiste a valores extremos, e é justamente com dispersão alta
-    que os extremos distorcem a média. Com série homogênea a média usa
-    toda a informação disponível.
+    `regras` diz qual política o AUTOMÁTICO segue (ver
+    `REGRAS_MEDIA_PADRAO`): média aritmética simples nas pesquisas novas;
+    média/mediana pelo coeficiente de variação nas criadas antes.
+
+    Método pedido que o perfil não admite NÃO cai em outro em silêncio:
+    a estimativa sai sem valor, INCOMPLETA, com o impedimento e os
+    métodos admitidos na memória.
+
+    `justificativa` é a EXCEÇÃO formal à regra dos três (perfil que
+    admite, texto, fundamento e aprovação já conferidos por
+    `cesta.registrar_excecao`). `criterio_percentual` é o par
+    (elevado %, inexequível %) da cotação, quando configurado.
     """
     estatisticas = calcular(cesta.valores)
     memoria: list[str] = []
@@ -360,69 +804,165 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
         return Estimativa(
             valor_unitario=None, metodo=metodo, status="INCOMPLETO",
             estatisticas=None, cesta=cesta, perfil_id=perfil.id,
-            memoria=["nenhuma referência comparável foi selecionada"])
+            criterio_percentual=criterio_percentual,
+            memoria=["nenhuma referência comparável foi considerada — item "
+                     "sem preço (não é preço zero)"])
 
     anomalias = detectar_anomalias(cesta.selecionadas, estatisticas)
 
     escolhido = metodo
-    if metodo == METODO_AUTOMATICO:
-        disperso = estatisticas.coeficiente_variacao > Decimal("0.25")
+    if metodo == METODO_AUTOMATICO and regras == REGRAS_MEDIA_PADRAO:
+        escolhido = "media"
+        memoria.append(
+            "método padrão: média aritmética simples dos preços unitários "
+            f"considerados (soma {brl(estatisticas.soma)} "
+            f"÷ {estatisticas.quantidade}); mediana "
+            f"{brl(estatisticas.mediana)}, desvio-padrão amostral "
+            f"{brl(estatisticas.desvio_padrao)} e coeficiente de variação "
+            f"{pct(estatisticas.coeficiente_variacao)} apenas como "
+            "diagnóstico")
+    elif metodo == METODO_AUTOMATICO:
+        disperso = estatisticas.coeficiente_variacao > CV_DISPERSAO
         escolhido = "mediana" if disperso else "media"
         memoria.append(
-            f"método escolhido automaticamente: {escolhido} — coeficiente "
-            f"de variação {estatisticas.coeficiente_variacao:.2f} "
+            f"método escolhido automaticamente (regra anterior a "
+            f"15/10/2026): {escolhido} — coeficiente de variação "
+            f"{pct(estatisticas.coeficiente_variacao)} "
             f"({'série dispersa' if disperso else 'série homogênea'})")
-    elif metodo not in perfil.metodos_permitidos:
+    if escolhido not in perfil.metodos_permitidos:
         memoria.append(
-            f"método '{metodo}' não é permitido pelo perfil {perfil.nome}; "
-            "aplicada a mediana")
-        escolhido = "mediana"
+            f"método '{escolhido}' não é admitido pelo perfil {perfil.nome}"
+            f" — admitidos: {', '.join(perfil.metodos_permitidos)}. "
+            "Nenhum outro método foi aplicado em seu lugar; escolha um "
+            "método admitido e registre a decisão")
+        return Estimativa(
+            valor_unitario=None, metodo=escolhido, status="INCOMPLETO",
+            estatisticas=estatisticas, cesta=cesta, anomalias=anomalias,
+            memoria=memoria, perfil_id=perfil.id,
+            criterio_percentual=criterio_percentual)
 
     valor = _aplicar_metodo(escolhido, estatisticas)
     memoria.append(
-        f"{escolhido} de {estatisticas.quantidade} referência(s) "
-        f"selecionada(s) = {valor.quantize(CENTAVO, ROUND_HALF_UP)}")
+        f"{ROTULO_METODO.get(escolhido, escolhido)} de "
+        f"{estatisticas.quantidade} referência(s) considerada(s) = "
+        f"{brl(valor)} (valor exato {format(valor, 'f')}, arredondado ao "
+        "centavo, metade para cima)")
 
     # Teto da mediana quando a estimativa se apoia SÓ em sistema oficial
+    ajuste_teto = None
     if perfil.teto_da_mediana_em_sistema_oficial:
         tipos = {r.fonte.tipo for r in cesta.selecionadas}
         if tipos == {"sistema_oficial"} and valor > estatisticas.mediana:
             memoria.append(
                 f"{perfil.nome}: estimativa apoiada exclusivamente em "
                 "sistema oficial de preços não supera a mediana da "
-                f"amostra — valor ajustado de "
-                f"{valor.quantize(CENTAVO, ROUND_HALF_UP)} para "
-                f"{estatisticas.mediana.quantize(CENTAVO, ROUND_HALF_UP)}")
+                f"amostra — valor ajustado de {brl(valor)} para "
+                f"{brl(estatisticas.mediana)}")
+            ajuste_teto = (valor.quantize(CENTAVO, rounding=ROUND_HALF_UP),
+                           estatisticas.mediana.quantize(
+                               CENTAVO, rounding=ROUND_HALF_UP))
             valor = estatisticas.mediana
 
     valor = valor.quantize(CENTAVO, rounding=ROUND_HALF_UP)
 
     # Regra dos três — nunca fabricar a referência que falta
     suficiente = perfil.conclui_com(estatisticas.quantidade)
+    excecao = False
     if suficiente:
         status = "CONCLUIDO"
     elif justificativa and perfil.admite_menos_com_justificativa:
         status = "CONCLUIDO"
+        excecao = True
         memoria.append(
-            f"concluída com {estatisticas.quantidade} referência(s), abaixo "
-            f"do mínimo de {perfil.minimo_referencias} do perfil "
-            f"{perfil.nome}, mediante justificativa registrada: "
-            f"{justificativa}")
+            f"EXCEÇÃO à regra dos {perfil.minimo_referencias}: concluída "
+            f"com {estatisticas.quantidade} referência(s) considerada(s), "
+            f"abaixo do mínimo do perfil {perfil.nome}, mediante "
+            f"justificativa registrada: {justificativa}")
     else:
         status = "INCOMPLETO"
+        if justificativa:
+            memoria.append(
+                f"o perfil {perfil.nome} não admite concluir com menos de "
+                f"{perfil.minimo_referencias} referências; a justificativa "
+                "foi registrada, mas não fecha o item")
         memoria.append(
-            f"apenas {estatisticas.quantidade} referência(s) defensável(is); "
-            f"o perfil {perfil.nome} exige {perfil.minimo_referencias}. "
-            "Amplie a consulta, tente outra fonte, informe o "
-            "CATMAT/CATSER ou anexe cotação — nenhum preço é fabricado "
-            "para completar a cesta")
+            f"apenas {estatisticas.quantidade} referência(s) "
+            f"considerada(s); o perfil {perfil.nome} exige "
+            f"{perfil.minimo_referencias}. Amplie a consulta, tente outra "
+            "fonte, informe o CATMAT/CATSER, registre cotação direta ou "
+            "a exceção prevista no perfil — nenhum preço é fabricado para "
+            "completar a cesta")
 
-    if anomalias:
+    # Revisão 02: "Manter preço" é a decisão sem texto sobre um atípico —
+    # registrada (quem, quando) e reaplicada a cada recálculo. Mantido não
+    # é pendência; continua sinalizado no relatório, com a decisão.
+    mantidas = mantidas or {}
+    mantidas_agora = [a for a in anomalias
+                      if chave_da_referencia(a.referencia) in mantidas]
+    pendentes = [a for a in anomalias if a not in mantidas_agora]
+    if pendentes:
         memoria.append(
-            f"{len(anomalias)} candidato(s) discrepante(s) sinalizado(s) "
-            "para revisão; nenhum foi excluído automaticamente")
+            f"{len(pendentes)} preço(s) atípico(s) sinalizado(s) para "
+            "conferência; nenhum foi retirado do cálculo automaticamente")
+    for anomalia in mantidas_agora:
+        decisao = mantidas[chave_da_referencia(anomalia.referencia)] or {}
+        # sem o identificador interno de quem decidiu (fica na trilha) e no
+        # horário de Brasília (Revisão 02, D12)
+        memoria.append(
+            f"preço atípico de {brl(anomalia.valor)} mantido na cesta por "
+            "decisão do servidor depois do alerta"
+            + (f", em {_data_local(decisao.get('registrado_em'))}"
+               if decisao.get("registrado_em") else ""))
+
+    # Análise crítica pendente — só nas regras da média. Na regra antiga a
+    # dispersão já levava à mediana; na nova, a média de uma cesta com
+    # discrepante NÃO DECIDIDO é provisória: medido em 15/10/2026 na
+    # planilha real de 210 itens, um único registro errado da fonte levou
+    # a média de uma divisória de fichário a R$ 30.002,33 (planilha:
+    # R$ 14,90). Nada é excluído aqui; o revisor exclui com motivo ou
+    # mantém com justificativa (IN 65/2021, art. 6º, § 3º, onde aplicável).
+    pendencias: list[str] = []
+    if regras == REGRAS_MEDIA_PADRAO and escolhido == "media":
+        if pendentes:
+            pendencias.append(
+                f"{len(pendentes)} preço(s) atípico(s) aguardam decisão: "
+                "remover da cesta ou manter o preço")
+        if estatisticas.coeficiente_variacao > CV_DISPERSAO:
+            pendencias.append(
+                f"dispersão elevada (coeficiente de variação "
+                f"{pct(estatisticas.coeficiente_variacao)} > "
+                f"{pct(CV_DISPERSAO, 0)}): a média pode não representar o "
+                "mercado; examine a cesta antes de concluir")
+
+    marcas: list[MarcaPercentual] = []
+    if criterio_percentual is not None:
+        elevado, inexequivel = criterio_percentual
+        marcas = analise_percentual(cesta.valores, elevado_pct=elevado,
+                                    inexequivel_pct=inexequivel)
+        sinalizadas = [m for m in marcas if m.marca != "valido"]
+        for marca in sinalizadas:
+            rotulo = ("acima do limite de elevado"
+                      if marca.marca == "elevado_sinalizado"
+                      else "abaixo do limite de inexequível")
+            percentual = format(marca.percentual, "f").replace(".", ",")
+            memoria.append(
+                f"critério percentual da cotação: {brl(marca.valor)} "
+                f"representa {percentual}% da média dos outros preços "
+                f"({brl(marca.base)}) — {rotulo} (+{elevado}% / "
+                f"{inexequivel}%); sinalizado, não excluído")
+        if sinalizadas:
+            pendencias.append(
+                f"{len(sinalizadas)} preço(s) sinalizado(s) pelo critério "
+                "percentual da cotação aguardam decisão: retirar da cesta "
+                "ou manter com justificativa")
+
+    if pendencias:
+        memoria.append("valor PROVISÓRIO até a análise crítica: "
+                       + "; ".join(pendencias))
 
     return Estimativa(
         valor_unitario=valor, metodo=escolhido, status=status,
         estatisticas=estatisticas, cesta=cesta, anomalias=anomalias,
-        memoria=memoria, perfil_id=perfil.id)
+        memoria=memoria, perfil_id=perfil.id, pendencias=pendencias,
+        marcas_percentuais=marcas, criterio_percentual=criterio_percentual,
+        excecao_aplicada=excecao, ajuste_teto=ajuste_teto)

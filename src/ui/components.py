@@ -190,6 +190,59 @@ def render_document_skeleton(alvo, sigla: str) -> None:
     )
 
 
+def render_skeleton(alvo, rotulo: str, *, linhas: int = 3,
+                    variante: str = "lista") -> None:
+    """
+    Skeleton de CONTEÚDO que está de fato chegando (lista de itens,
+    resultados, cesta). Mesma base do de documento — um conjunto só de
+    primitivas —, com a forma aproximada do bloco final para a página não
+    pular quando ele chega. `alvo` é um `st.empty()` que o chamador
+    substitui pelo conteúdo; nunca fica na tela sem tarefa por trás.
+    """
+    partes = "".join(
+        '<span class="gc-skeleton-line'
+        + (" gc-skeleton-short" if k == linhas - 1 and linhas > 1 else "")
+        + '"></span>' for k in range(linhas))
+    alvo.markdown(
+        f'<section class="gc-document-skeleton gc-skeleton-{html.escape(variante)}"'
+        f' role="status" aria-live="polite" aria-busy="true"'
+        f' aria-label="{html.escape(rotulo)}">'
+        f'<span class="gc-visually-hidden">{html.escape(rotulo)}…</span>'
+        f"{partes}</section>",
+        unsafe_allow_html=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Estados de item — UM vocabulário: palavra + ícone + tom (nunca só cor)
+#
+# Ícones Material Symbols, que o Streamlit já embute (sem dependência
+# nova); o nome do estado vai sempre ESCRITO ao lado. Os tons mapeiam
+# para as cores de badge do Streamlit, que têm contraste AA no tema claro.
+# ---------------------------------------------------------------------------
+ESTADO_ITEM = {
+    "pending": ("Pendente", ":material/radio_button_unchecked:", "gray"),
+    "searching": ("Buscando preços", ":material/search:", "blue"),
+    "matching": ("Analisando", ":material/manage_search:", "blue"),
+    "review": ("Revisar", ":material/fact_check:", "blue"),
+    "incomplete": ("Faltam referências", ":material/error:", "orange"),
+    "complete": ("Concluído", ":material/check_circle:", "green"),
+    "error": ("Erro na pesquisa", ":material/cancel:", "red"),
+}
+
+
+def selo_de_estado(estado: str) -> str:
+    """Markdown de badge do Streamlit: ícone + palavra, com tom."""
+    texto, icone, tom = ESTADO_ITEM.get(str(estado), ESTADO_ITEM["pending"])
+    return f":{tom}-badge[{icone} {texto}]"
+
+
+def render_legenda_estados() -> None:
+    st.caption(" ".join(selo_de_estado(e) for e in
+                        ("pending", "review", "incomplete", "complete",
+                         "error")))
+
+
 def render_stepper(etapa_atual: int) -> None:
     """Navegação entre etapas disponíveis, preservando keys e callbacks."""
     disponiveis = state.etapas_navegaveis()
@@ -300,6 +353,70 @@ def ir_para_pagina(nome: str) -> None:
     st.session_state[CHAVE_PAGINA_PENDENTE] = nome
 
 
+# ---------------------------------------------------------------------------
+# Troca de tela sem "fantasma"
+#
+# O Streamlit redesenha por POSIÇÃO: na troca de tela, o que a tela nova
+# ainda não alcançou continua mostrando a antiga, desbotada, até o fim
+# da execução — formulário velho embaixo de cabeçalho novo, a tela
+# "desconfigurada" que o operador relatou em 16/10/2026.
+#
+# O corpo ALTERNA entre duas posições a cada troca de tela, e a posição
+# que sobra recebe um `st.empty()`. Elemento por cima de bloco descarta
+# o bloco inteiro na hora; bloco novo por cima de elemento nasce vazio.
+# O óbvio — `st.empty()` e `.container()` na MESMA posição — não
+# funciona: a fila do servidor funde os dois deltas, e bloco do mesmo
+# tipo por cima de bloco herda os filhos antigos (Streamlit 1.64,
+# `forward_msg_queue._maybe_compose_delta_msgs` e `AppRoot.addBlock`).
+#
+# As duas posições nascem ANTES do conteúdo, para o vazio chegar ao
+# navegador logo, e não depois da tela nova inteira.
+#
+# Só na TROCA: no clique dentro da mesma tela, limpar faria a página
+# piscar e perder a rolagem.
+# ---------------------------------------------------------------------------
+CHAVE_TELA_DESENHADA = "_tela_desenhada"
+CHAVE_POSICAO_DO_CORPO = "_posicao_do_corpo"
+
+# As telas internas que contam como troca de página. As chaves são as
+# de `cotacoes_ui` (TELA, COTACAO) e `precos_ui` (TELA, PESQUISA) —
+# literais para não importar os módulos aqui; a prova confere que batem.
+CHAVES_DE_TELA_INTERNA = ("cot_tela", "cot_id", "precos_tela",
+                          "precos_pesquisa_id")
+
+
+def tela_atual() -> str:
+    """Identidade da tela que esta execução vai desenhar."""
+    pagina = st.session_state.get("pagina") or "Novo processo"
+    partes = [str(pagina)]
+    if pagina == "Novo processo":
+        partes.append(str(st.session_state.get("etapa") or 0))
+    partes += [str(st.session_state.get(c) or "")
+               for c in CHAVES_DE_TELA_INTERNA]
+    return "|".join(partes)
+
+
+def corpo_da_pagina():
+    """
+    Container do conteúdo principal. Chame UMA vez por execução, sempre
+    na mesma posição, depois do cabeçalho.
+    """
+    tela = tela_atual()
+    anterior = st.session_state.get(CHAVE_TELA_DESENHADA)
+    st.session_state[CHAVE_TELA_DESENHADA] = tela
+    posicao = int(st.session_state.get(CHAVE_POSICAO_DO_CORPO) or 0)
+    if anterior is not None and anterior != tela:
+        posicao = 1 - posicao
+        st.session_state[CHAVE_POSICAO_DO_CORPO] = posicao
+    if posicao == 0:
+        corpo = st.container()
+        st.empty()
+    else:
+        st.empty()
+        corpo = st.container()
+    return corpo
+
+
 def render_sidebar() -> None:
     """Shell interno compacto; não cria rotas ou ações sem implementação."""
     # Antes de qualquer widget: é a única janela em que `pagina` ainda
@@ -323,6 +440,12 @@ def render_sidebar() -> None:
         from . import demanda_ui, parecer_ui, precos_ui
 
         tem_precos = precos_ui.disponivel()
+        # Com Cotações ligada, a MESMA entidade aparece com o nome novo e
+        # uma entrada só — duas portas para a mesma pesquisa confundiriam.
+        from . import cotacoes_ui
+
+        rotulo_precos = ("Cotações" if tem_precos and cotacoes_ui.disponivel()
+                         else "Pesquisa de Preços")
         # "Consolidar Demandas" entra ANTES de "Novo processo", que é a
         # ordem do fluxo real (§4): o servidor recebe os pedidos das
         # secretarias e só então preenche o formulário. Como a Pesquisa
@@ -340,7 +463,7 @@ def render_sidebar() -> None:
             if governanca_ui.disponivel():
                 opcoes.append("Governança")
             if tem_precos:
-                opcoes.append("Pesquisa de Preços")
+                opcoes.append(rotulo_precos)
             if tem_parecer:
                 opcoes.append("Parecer Jurídico")
             if tem_demanda:
@@ -360,7 +483,7 @@ def render_sidebar() -> None:
             # ao menos duas páginas, então sempre há navegação de fato.
             opcoes = ["Novo processo", "Processos"]
             if tem_precos:
-                opcoes.append("Pesquisa de Preços")
+                opcoes.append(rotulo_precos)
             if tem_parecer:
                 opcoes.append("Parecer Jurídico")
             if tem_demanda:
@@ -396,13 +519,11 @@ def render_sidebar() -> None:
                 st.rerun()
 
         with st.expander("Ambiente"):
+            from ..llm import ROTULOS_MOTOR
+
             motor = motor_ativo()
-            if motor == "openai":
-                st.caption("Motor de IA: OpenAI (principal)")
-            elif motor == "gemini":
-                st.caption("Motor de IA: Gemini (fallback)")
-            else:
-                st.caption("Motor de IA: não configurado")
+            st.caption("Motor de IA: "
+                       + ROTULOS_MOTOR.get(motor, "não configurado"))
             if auth.eh_admin():
                 st.toggle(
                     "Modo Demonstração (sem IA)",

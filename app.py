@@ -31,7 +31,7 @@ st.set_page_config(
     page_title="GovConnect | GovDocs",
     page_icon=components.page_icon(),
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",  # desktop aberta; celular recolhida
 )
 
 # Estado persistente entre os passos (dados, documentos, aprovações)
@@ -60,9 +60,14 @@ if auth.precisa_configurar():
     login.render_configuracao_necessaria()
     st.stop()
 
+# Sessão do Supabase Auth perto do vencimento: renova no servidor; se não
+# der, encerra a sessão inteira e volta ao login com aviso (C08).
+if auth.usuario_logado() and not auth.garantir_sessao_valida():
+    st.rerun()
+
 if not auth.modo_aberto() and not auth.usuario_logado():
     try:
-        existe_admin = auth.tem_admin()
+        existe_admin = auth.tem_admin_em_cache()
     except auth.ErroAuth as erro:
         st.error(str(erro))
         st.info(
@@ -95,124 +100,138 @@ components.render_cabecalho()
 # `src/ambiente.py` para por que isto existe.
 ambiente.render_aviso()
 
-# Entrou pelo login antigo TENDO conta de e-mail. Uma vez só, na
-# primeira tela depois do login: é aviso sobre um ato que acabou de
-# acontecer, não sobre um estado permanente. O `pop` é o que impede de
-# virar moldura — e moldura ninguém lê.
-if st.session_state.pop(auth.AVISO_LOGIN_LEGADO, False):
-    st.warning(
-        "Você entrou pelo **login antigo**. Funciona, mas a Pesquisa de "
-        "Preços não abre por esse caminho: ela depende da verificação de "
-        "identidade do banco. Da próxima vez, entre com o seu **e-mail** — "
-        "com a senha que você definiu ao receber o convite, que é "
-        "independente da do login antigo."
-    )
-
-# ---------------------------------------------------------------------------
-# Navegação por papel: admin vê Base de Conhecimento e Administração
-# ---------------------------------------------------------------------------
-pagina = st.session_state.get("pagina", "")
-if auth.eh_admin() and pagina == "Base de Conhecimento":
-    biblioteca.render_biblioteca()
-    st.stop()
-if auth.eh_admin() and pagina == "Administração":
-    admin.render_admin()
-    st.stop()
-if pagina == "Governança" and governanca_ui.disponivel():
-    # Centro de Governança (V6): flag + papel de governança obrigatórios
-    governanca_ui.render_governanca()
-    st.stop()
-if pagina == "Parecer Jurídico":
-    # Fim do fluxo: o processo já tem documentos e recebe depois um
-    # parecer jurídico que os corrige.
-    from src.ui import parecer_ui
-
-    if parecer_ui.disponivel():
-        parecer_ui.render_parecer()
-        st.stop()
-    components.ir_para_pagina("Novo processo")
-
-if pagina == "Consolidar Demandas":
-    # Etapa opcional, antes do formulário: junta os Documentos de
-    # Formalização de Demanda das secretarias numa planilha só.
-    from src.ui import demanda_ui
-
-    if demanda_ui.disponivel():
-        demanda_ui.render_demanda()
-        st.stop()
-    components.ir_para_pagina("Novo processo")
-
-if pagina == "Processos":
-    # Painel de controle de processos. SEM flag, ao contrário da Pesquisa
-    # de Preços: esta aba substitui o expander "Processos salvos" da barra
-    # lateral, e escondê-la atrás de uma flag deixaria o servidor sem
-    # nenhuma forma de retomar um processo.
-    from src.ui import processos_ui
-
-    processos_ui.render_processos()
-    st.stop()
-if pagina == "Pesquisa de Preços":
-    # Módulo de pesquisa de preços (flag `price_research`, default OFF).
-    # Importado aqui, e não no topo, para que o app carregue exatamente
-    # como antes quando o módulo está desligado.
-    from src.ui import precos_ui
-
-    if precos_ui.disponivel():
-        precos_ui.render_precos()
-        st.stop()
-    # Flag desligada com a página ainda apontada para cá (por exemplo,
-    # alguém desligou a flag durante a sessão): volta ao wizard em vez
-    # de mostrar tela em branco.
-    components.ir_para_pagina("Novo processo")
-
-# O adaptador do componente é importado somente com a flag ativa. Além de
-# manter a regressão exatamente sem painel, isso evita registrar Components v2
-# ou criar buckets de conversa em ambientes onde o GovBot está desligado.
-govbot_panel = None
-if db.flag_ativa("govbot"):
-    from src.ui import govbot_panel as _govbot_panel
-
-    govbot_panel = _govbot_panel
-    govbot_panel.preparar_sessao()
-
-# ---------------------------------------------------------------------------
-# Roteamento do wizard
-# ---------------------------------------------------------------------------
-from src import wordcraft_runtime
-wordcraft_ativo = wordcraft_runtime.ativo()
-if wordcraft_ativo:
-    from src.ui import wordcraft_operacional
-    wordcraft_operacional.sincronizar()
-
-etapa = st.session_state.etapa
-
-if etapa == 0:
-    steps.render_formulario()
-elif 1 <= etapa <= len(state.sequencia()):
-    # Proteção de sequência: não permite pular etapas sem aprovar as anteriores
-    doc_key = state.doc_da_etapa(etapa)
-    anterior = state.doc_da_etapa(etapa - 1) if etapa > 1 else None
-    if not st.session_state.dados:
-        st.warning("Preencha o Formulário Matriz antes de gerar documentos.")
-        state.ir_para(0)
-    elif anterior and anterior not in state.aprovacoes_efetivas():
+# Corpo da página: trocar de tela limpa a anterior na hora, em vez de
+# deixá-la desbotada por baixo da nova até o fim da execução — ver
+# `components.corpo_da_pagina`. Tudo que é da tela fica aqui dentro.
+with components.corpo_da_pagina():
+    # Entrou pelo login antigo TENDO conta de e-mail. Uma vez só, na
+    # primeira tela depois do login: é aviso sobre um ato que acabou de
+    # acontecer, não sobre um estado permanente. O `pop` é o que impede de
+    # virar moldura — e moldura ninguém lê.
+    if st.session_state.pop(auth.AVISO_LOGIN_LEGADO, False):
         st.warning(
-            f"Aprove o {state.doc_da_etapa(etapa - 1).upper()} antes de avançar."
+            "Você entrou pelo **login antigo**. Funciona, mas a Pesquisa de "
+            "Preços não abre por esse caminho: ela depende da verificação de "
+            "identidade do banco. Da próxima vez, entre com o seu **e-mail** — "
+            "com a senha que você definiu ao receber o convite, que é "
+            "independente da do login antigo."
         )
-        state.ir_para(etapa - 1)
-    else:
-        steps.render_etapa_documento(doc_key)
-else:
-    # Só chega à tela de conclusão com os 4 documentos aprovados
-    if not set(state.sequencia()).issubset(state.aprovacoes_efetivas()):
-        faltante = next(i for i, d in enumerate(state.sequencia(), 1)
-                        if d not in state.aprovacoes_efetivas())
-        state.ir_para(0 if not st.session_state.dados else faltante)
-    else:
-        if wordcraft_ativo:
-            wordcraft_operacional.render_sucesso()
+
+    # ---------------------------------------------------------------------------
+    # Navegação por papel: admin vê Base de Conhecimento e Administração
+    # ---------------------------------------------------------------------------
+    pagina = st.session_state.get("pagina", "")
+    if auth.eh_admin() and pagina == "Base de Conhecimento":
+        biblioteca.render_biblioteca()
+        st.stop()
+    if auth.eh_admin() and pagina == "Administração":
+        admin.render_admin()
+        st.stop()
+    if pagina == "Governança" and governanca_ui.disponivel():
+        # Centro de Governança (V6): flag + papel de governança obrigatórios
+        governanca_ui.render_governanca()
+        st.stop()
+    if pagina == "Parecer Jurídico":
+        # Fim do fluxo: o processo já tem documentos e recebe depois um
+        # parecer jurídico que os corrige.
+        from src.ui import parecer_ui
+
+        if parecer_ui.disponivel():
+            parecer_ui.render_parecer()
+            st.stop()
+        components.ir_para_pagina("Novo processo")
+
+    if pagina == "Consolidar Demandas":
+        # Etapa opcional, antes do formulário: junta os Documentos de
+        # Formalização de Demanda das secretarias numa planilha só.
+        from src.ui import demanda_ui
+
+        if demanda_ui.disponivel():
+            demanda_ui.render_demanda()
+            st.stop()
+        components.ir_para_pagina("Novo processo")
+
+    if pagina == "Processos":
+        # Painel de controle de processos. SEM flag, ao contrário da Pesquisa
+        # de Preços: esta aba substitui o expander "Processos salvos" da barra
+        # lateral, e escondê-la atrás de uma flag deixaria o servidor sem
+        # nenhuma forma de retomar um processo.
+        from src.ui import processos_ui
+
+        processos_ui.render_processos()
+        st.stop()
+    if pagina == "Cotações":
+        # Cotações unificadas (flag `unified_quotations`, default OFF): a
+        # MESMA entidade da Pesquisa de Preços, numa tela única. Desligada, a
+        # navegação volta a oferecer "Pesquisa de Preços".
+        from src.ui import cotacoes_ui
+
+        if cotacoes_ui.disponivel():
+            cotacoes_ui.render_cotacoes()
+            st.stop()
+        components.ir_para_pagina("Novo processo")
+    if pagina == "Pesquisa de Preços":
+        # Módulo de pesquisa de preços (flag `price_research`, default OFF).
+        # Importado aqui, e não no topo, para que o app carregue exatamente
+        # como antes quando o módulo está desligado.
+        from src.ui import precos_ui
+
+        if precos_ui.disponivel():
+            precos_ui.render_precos()
+            st.stop()
+        # Flag desligada com a página ainda apontada para cá (por exemplo,
+        # alguém desligou a flag durante a sessão): volta ao wizard em vez
+        # de mostrar tela em branco.
+        components.ir_para_pagina("Novo processo")
+
+    # O adaptador do componente é importado somente com a flag ativa. Além de
+    # manter a regressão exatamente sem painel, isso evita registrar Components v2
+    # ou criar buckets de conversa em ambientes onde o GovBot está desligado.
+    govbot_panel = None
+    if db.flag_ativa("govbot"):
+        from src.ui import govbot_panel as _govbot_panel
+
+        govbot_panel = _govbot_panel
+        govbot_panel.preparar_sessao()
+
+    # ---------------------------------------------------------------------------
+    # Roteamento do wizard
+    # ---------------------------------------------------------------------------
+    from src import wordcraft_runtime
+    wordcraft_ativo = wordcraft_runtime.ativo()
+    if wordcraft_ativo:
+        from src.ui import wordcraft_operacional
+        wordcraft_operacional.sincronizar()
+
+    etapa = st.session_state.etapa
+
+    if etapa == 0:
+        steps.render_formulario()
+    elif 1 <= etapa <= len(state.sequencia()):
+        # Proteção de sequência: não permite pular etapas sem aprovar as anteriores
+        doc_key = state.doc_da_etapa(etapa)
+        anterior = state.doc_da_etapa(etapa - 1) if etapa > 1 else None
+        if not st.session_state.dados:
+            st.warning("Preencha o Formulário Matriz antes de gerar documentos.")
+            state.ir_para(0)
+        elif anterior and anterior not in state.aprovacoes_efetivas():
+            st.warning(
+                f"Aprove o {state.doc_da_etapa(etapa - 1).upper()} antes de avançar."
+            )
+            state.ir_para(etapa - 1)
         else:
-            steps.render_sucesso()
+            steps.render_etapa_documento(doc_key)
+    else:
+        # Só chega à tela de conclusão com os 4 documentos aprovados
+        if not set(state.sequencia()).issubset(state.aprovacoes_efetivas()):
+            faltante = next(i for i, d in enumerate(state.sequencia(), 1)
+                            if d not in state.aprovacoes_efetivas())
+            state.ir_para(0 if not st.session_state.dados else faltante)
+        else:
+            if wordcraft_ativo:
+                wordcraft_operacional.render_sucesso()
+            else:
+                steps.render_sucesso()
 
 if govbot_panel is not None:
     govbot_panel.render()

@@ -325,6 +325,67 @@ def obter_chave_de_embeddings() -> str:
     return _ler_chave("OPENAI_EMBEDDINGS_KEY", "") or obter_openai_key()
 
 
+# Embeddings pelo OpenRouter (C09). Variável de AMBIENTE, como as do
+# roteamento: ela só é ligada depois que a prova de equivalência mostrar
+# que os vetores servidos pelo OpenRouter caem no mesmo espaço do índice
+# gravado. Um painel editável por usuário não pode decidir isso.
+VAR_EMBEDDINGS_OPENROUTER = "GOVDOCS_EMBEDDINGS_OPENROUTER"
+
+
+def embeddings_pelo_openrouter() -> bool:
+    valor = (os.environ.get(VAR_EMBEDDINGS_OPENROUTER) or "").strip().lower()
+    return valor in ("1", "true", "sim", "on", "yes")
+
+
+def modo_exclusivo_openrouter() -> bool:
+    """OpenRouter declarado como provedor: NENHUM tráfego direto legado."""
+    return provedor_declarado() == "openrouter"
+
+
+def impedimento_ao_modo_exclusivo() -> str:
+    """
+    Por que o OpenRouter NÃO pode ser o provedor exclusivo agora — ou "".
+
+    Com o roteamento ligado, tarefas críticas só aceitam motor homologado
+    no grupo delas. Sem o OpenRouter nesses grupos, o modo exclusivo
+    deixaria documento oficial, parecer e pesquisa de preços sem motor.
+    """
+    from . import roteamento
+
+    if not ai_gateway.roteamento_ligado():
+        return ""
+    grupos = sorted({roteamento.GRUPO_DO_TIPO[t] for t in roteamento.CRITICAS
+                     if "openrouter" not in roteamento.MOTORES_DO_GRUPO[
+                         roteamento.GRUPO_DO_TIPO[t]]})
+    if not grupos:
+        return ""
+    return ("O OpenRouter ainda não é motor homologado para "
+            f"{', '.join(grupos)}, e a política de roteamento está ligada "
+            "no servidor. Ativá-lo como exclusivo pararia a geração de "
+            "documentos oficiais. Homologue-o antes "
+            "(scripts/homologacao_modelo.py).")
+
+
+def rota_de_embeddings() -> tuple[str, str] | None:
+    """
+    (rota, chave) para gerar embeddings do índice v2, ou None.
+
+    * `GOVDOCS_EMBEDDINGS_OPENROUTER` ligada → OpenRouter, com a mesma
+      chave da geração;
+    * modo exclusivo OpenRouter sem a variável → None: a busca fica em
+      modo textual DEGRADADO e visível, em vez de abrir tráfego direto
+      para a OpenAI com uma chave legada esquecida no banco;
+    * fora do modo exclusivo → a chave dedicada da OpenAI, como antes.
+    """
+    if embeddings_pelo_openrouter():
+        chave = obter_openrouter_key()
+        return ("openrouter", chave) if chave else None
+    if modo_exclusivo_openrouter():
+        return None
+    chave = obter_chave_de_embeddings()
+    return ("openai", chave) if chave else None
+
+
 def provedor_declarado() -> str:
     """
     O provedor ESCOLHIDO para a geração, ou '' para a cascata de sempre.
@@ -483,6 +544,13 @@ def _traduzir_erro(exc: Exception, motor: str = "") -> str:
             f"{rotulo}: limite de uso/cota atingido ou sem crédito de "
             f"faturamento. Verifique {painel}."
         )
+    if "truncad" in texto:
+        return (
+            f"{rotulo}: a resposta foi cortada no limite de tokens e NÃO foi "
+            "aceita — um documento incompleto não é salvo nem aprovado. "
+            "Tente novamente; se persistir, reduza a planilha/prompt ou "
+            f"use um modelo com maior capacidade de saída em {var_modelo}."
+        )
     if "vazi" in texto or "finish_reason=length" in texto:
         return (
             f"{rotulo}: o modelo devolveu resposta vazia (provável limite de "
@@ -513,6 +581,17 @@ def _traduzir_erro(exc: Exception, motor: str = "") -> str:
 class _RespostaVazia(Exception):
     """O modelo respondeu sem conteúdo (ex.: raciocínio consumiu os tokens).
     Sinaliza que vale a pena tentar o próximo modelo da lista."""
+
+
+class _RespostaTruncada(_RespostaVazia):
+    """
+    O modelo parou no teto de saída (`finish_reason=length`/`MAX_TOKENS`).
+
+    O texto existe, mas está INCOMPLETO — e documento cortado no meio da
+    cláusula não pode ser tratado como sucesso, salvo, cacheado ou
+    aprovado (C11). Herda de `_RespostaVazia` porque a reação é a mesma:
+    nada é aceito e vale tentar o próximo modelo da lista.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -701,9 +780,13 @@ def _openai_uma_chamada(cliente, modelo: str, system_prompt: str,
             )
             escolha = resposta.choices[0]
             texto = (escolha.message.content or "").strip()
+            motivo = getattr(escolha, "finish_reason", None)
             if not texto:
-                motivo = getattr(escolha, "finish_reason", "?")
-                raise _RespostaVazia(f"conteúdo vazio (finish_reason={motivo})")
+                raise _RespostaVazia(
+                    f"conteúdo vazio (finish_reason={motivo or '?'})")
+            if motivo == "length":
+                raise _RespostaTruncada(
+                    "resposta truncada no teto de saída (finish_reason=length)")
             uso = getattr(resposta, "usage", None)
             _ultimo_uso.update(
                 modelo=modelo,
@@ -804,7 +887,13 @@ def _chamar_openrouter(system_prompt: str, user_prompt: str, api_key: str,
             "X-Title": "GovDocs Wizard",
         },
     )
-    modelos = _modelos_openrouter()
+    from . import politica_ia
+
+    # C10: a mesma política do executor OpenAI. Sem esta linha, com o
+    # OpenRouter como provedor, a política de modelo simplesmente não
+    # se aplicava — e ninguém era avisado.
+    modelos = politica_ia.modelos_para(tarefa, _modelos_openrouter(),
+                                       "openrouter")
     ultima_excecao: Exception | None = None
     tentados: list[str] = []
     for i, modelo in enumerate(modelos):
@@ -866,6 +955,9 @@ def _gemini_uma_chamada(cliente, types, modelo: str, system_prompt: str,
             texto = (resposta.text or "").strip()
             if not texto:
                 raise _RespostaVazia("conteúdo vazio")
+            if _parou_no_teto_gemini(resposta):
+                raise _RespostaTruncada(
+                    "resposta truncada no teto de saída (MAX_TOKENS)")
             uso = getattr(resposta, "usage_metadata", None)
             _ultimo_uso.update(
                 modelo=modelo,
@@ -881,6 +973,16 @@ def _gemini_uma_chamada(cliente, types, modelo: str, system_prompt: str,
             if tentativa < tentativas:
                 time.sleep(API_BACKOFF_BASE**tentativa)  # 2s, 4s...
     raise ultima_excecao  # type: ignore[misc]
+
+
+def _parou_no_teto_gemini(resposta) -> bool:
+    """O Gemini sinaliza o corte por `finish_reason == MAX_TOKENS`."""
+    for candidato in getattr(resposta, "candidates", None) or []:
+        motivo = getattr(candidato, "finish_reason", None)
+        nome = getattr(motivo, "name", None) or str(motivo or "")
+        if nome.upper().endswith("MAX_TOKENS"):
+            return True
+    return False
 
 
 def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str,
@@ -901,7 +1003,9 @@ def _chamar_gemini(system_prompt: str, user_prompt: str, api_key: str,
         http_options=types.HttpOptions(
             timeout=int((timeout or API_TIMEOUT_SEGUNDOS) * 1000)),  # ms
     )
-    modelos = _modelos_gemini()
+    from . import politica_ia
+
+    modelos = politica_ia.modelos_para(tarefa, _modelos_gemini(), "gemini")
     ultima_excecao: Exception | None = None
     tentados: list[str] = []
     for i, modelo in enumerate(modelos):
@@ -1048,7 +1152,7 @@ def gerar_documento(doc_key: str, dados: dict,
     # mentir para quem está olhando a tela.
     from . import cache_geracao
 
-    chave_cache = _chave_de_cache(system_prompt, user_prompt)
+    chave_cache = _chave_de_cache(system_prompt, user_prompt, doc_key)
     processo_id = st.session_state.get("processo_id")
     guardado = cache_geracao.buscar(chave_cache, processo_id)
     if guardado:
@@ -1137,7 +1241,7 @@ def regenerar_clausulas(doc_key: str, dados: dict,
 
     from . import cache_geracao
 
-    chave_cache = _chave_de_cache(system_prompt, user_prompt)
+    chave_cache = _chave_de_cache(system_prompt, user_prompt, doc_key)
     processo_id = st.session_state.get("processo_id")
     guardado = cache_geracao.buscar(chave_cache, processo_id)
     if guardado:
@@ -1170,7 +1274,8 @@ def regenerar_clausulas(doc_key: str, dados: dict,
     return final
 
 
-def _chave_de_cache(system_prompt: str, user_prompt: str) -> str:
+def _chave_de_cache(system_prompt: str, user_prompt: str,
+                    tarefa: str = "") -> str:
     """
     Chave do cache para o pedido montado.
 
@@ -1179,12 +1284,25 @@ def _chave_de_cache(system_prompt: str, user_prompt: str) -> str:
     diferentes, e servir um pelo outro seria trocar o autor do documento
     sem dizer a ninguém.
     """
-    from . import cache_geracao
+    from . import cache_geracao, politica_ia
 
     motor = motor_ativo()
     candidatos = {"openai": _modelos_openai, "gemini": _modelos_gemini,
                   "openrouter": _modelos_openrouter}.get(motor)
-    modelos = ",".join(candidatos()) if candidatos else ""
+    # C10: a lista EFETIVA (depois da política) e o teto entram na chave.
+    # Trocar o modelo econômico ou o teto de uma tarefa muda a resposta;
+    # sem isto o cache serviria o texto produzido sob a política antiga.
+    lista = (politica_ia.modelos_para(tarefa, candidatos(), motor)
+             if candidatos else [])
+    tetos = ",".join(str(politica_ia.teto_de_saida(tarefa, m)) for m in lista)
+    modelos = ",".join(lista) + (f"|teto={tetos}" if tetos else "")
+    # A política de ROTEAMENTO também: o acerto de cache volta antes de
+    # `_percorrer_motores` filtrar os motores. Sem isto, um documento
+    # crítico gerado com a política desligada continuaria sendo servido
+    # depois de o operador ligá-la — por um motor que ela agora recusa.
+    permitidos = [m for m, _ in ai_gateway.motores_para(tarefa, [(motor, "")])]
+    modelos += f"|rota={'on' if ai_gateway.roteamento_ligado() else 'off'}:" \
+               f"{','.join(permitidos) or '-'}"
     return cache_geracao.chave(motor, modelos, system_prompt, user_prompt)
 
 
@@ -1227,6 +1345,16 @@ def _percorrer_motores(rotulo_registro: str, system_prompt: str,
     # tivesse homologado aquele modelo para documento que vira ato
     # administrativo.
     disponiveis = ai_gateway.motores_para(rotulo_registro, disponiveis)
+    if not disponiveis:
+        from . import roteamento
+
+        grupo = roteamento.grupo_da_tarefa(rotulo_registro)
+        raise ErroGeracaoIA(
+            f"Nenhum motor homologado para esta tarefa ({rotulo_registro}). "
+            f"A política {grupo} admite apenas "
+            f"{', '.join(roteamento.MOTORES_DO_GRUPO[grupo])}, e nenhum "
+            "deles está configurado. A geração foi recusada em vez de "
+            "usar um modelo não homologado para ato administrativo.")
 
     extras = {"rag_trace": rag_trace} if rag_trace is not None else {}
     for indice, (motor, chave) in enumerate(disponiveis):

@@ -280,6 +280,8 @@ class TabelaPrecosFalsa:
         self._dados = None
         self._filtros: list[tuple] = []
         self._conflito = ""
+        self._colunas = "*"
+        self._faixa: tuple[int, int] | None = None
 
     def insert(self, dados):
         self._acao, self._dados = "insert", dados
@@ -294,9 +296,32 @@ class TabelaPrecosFalsa:
         self._acao, self._dados = "update", dados
         return self
 
-    def select(self, *_):
+    def select(self, *colunas):
         self._acao = "select"
+        self._colunas = colunas[0] if colunas else "*"
         return self
+
+    def range(self, inicio, fim):
+        self._faixa = (int(inicio), int(fim))
+        return self
+
+    def _projetar(self, registro):
+        """`alias:payload->a->>b` do PostgREST; sem `->`, a linha inteira."""
+        import re
+
+        saida = {}
+        for parte in str(self._colunas).split(","):
+            alias, _, caminho = parte.strip().rpartition(":")
+            caminho = caminho or alias
+            alias = alias or caminho
+            nomes = re.split(r"->>?", caminho)
+            valor = registro.get(nomes[0])
+            for nome in nomes[1:]:
+                valor = valor.get(nome) if isinstance(valor, dict) else None
+            if "->>" in caminho and valor is not None:
+                valor = str(valor)
+            saida[alias] = valor
+        return saida
 
     def eq(self, campo, valor):
         self._filtros.append((campo, valor))
@@ -325,10 +350,23 @@ class TabelaPrecosFalsa:
                     return existente
         return None
 
+    # DEFAULTs de coluna que o banco preenche e o código lê de volta —
+    # só os que a migração declara (0029: `revisao` do item).
+    PADROES = {"pesquisa_preco_itens": {"revisao": 1, "estado": "pending"}}
+
     def _gravar(self, registro):
-        linha = {"id": str(uuid.uuid4()), **registro}
+        linha = {"id": str(uuid.uuid4()),
+                 **self.PADROES.get(self.nome, {}), **registro}
         self.banco.append(linha)
         return linha
+
+    def in_(self, campo, valores):
+        self._filtros.append((campo, tuple(str(v) for v in valores)))
+        return self
+
+    def like(self, campo, padrao):
+        self._filtros.append((campo, ("__like__", padrao)))
+        return self
 
     def execute(self):
         if self._acao == "insert":
@@ -355,11 +393,24 @@ class TabelaPrecosFalsa:
                     gravados.append(self._gravar(registro))
             return types.SimpleNamespace(data=gravados)
 
+        def casa(registro, campo, valor):
+            if isinstance(valor, tuple) and valor[:1] == ("__like__",):
+                import fnmatch
+                return fnmatch.fnmatchcase(str(registro.get(campo)),
+                                           valor[1].replace("%", "*"))
+            if isinstance(valor, tuple):
+                return str(registro.get(campo)) in valor
+            return str(registro.get(campo)) == str(valor)
+
         filtrados = [r for r in self.banco
-                     if all(str(r.get(c)) == str(v) for c, v in self._filtros)]
+                     if all(casa(r, c, v) for c, v in self._filtros)]
         if self._acao == "update":
             for r in filtrados:
                 r.update(self._dados)
+        if self._faixa is not None:
+            filtrados = filtrados[self._faixa[0]:self._faixa[1] + 1]
+        if self._acao == "select" and "->" in str(self._colunas):
+            filtrados = [self._projetar(r) for r in filtrados]
         return types.SimpleNamespace(data=filtrados)
 
 
@@ -384,3 +435,18 @@ class ClientePrecosFalso:
         self.rpcs.append((nome, parametros))
         return types.SimpleNamespace(
             execute=lambda: types.SimpleNamespace(data=str(uuid.uuid4())))
+
+
+@pytest.fixture(autouse=True)
+def _caches_do_banco_vazios():
+    """
+    `config_app` e os módulos por prefeitura/secretaria ficam 60s em
+    `st.cache_data` — que vive no PROCESSO, não no teste. Sem limpar, a
+    prova seguinte leria o banco falso da anterior.
+    """
+    from src import db
+
+    for funcao in (db._config_app_inteira, db._modulos_do_tenant_em,
+                   db._modulos_da_secretaria_em):
+        funcao.clear()
+    yield

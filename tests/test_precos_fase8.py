@@ -300,7 +300,8 @@ def test_a_consulta_externa_nao_leva_credencial():
                               (pncp, pncp.PNCPAdapter)):
         try:
             adaptador(abrir_url=espiar).pesquisar(
-                execucao.consulta_do_item(_item(1)))
+                execucao.consulta_do_item(_item(
+                    1, codigo="275111", tipo_catalogo="CATMAT")))
         except Exception:  # noqa: BLE001 — o que importa é a URL montada
             pass
 

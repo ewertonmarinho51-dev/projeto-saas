@@ -312,12 +312,45 @@ def _fator_condicoes(referencia: Referencia) -> Fator:
                  True)
 
 
+def medidas(texto: str) -> set[str]:
+    """
+    Termos com dígito: tamanho, gramatura, formato (2/0, 26/6, A4, 75).
+
+    São o que separa variações do MESMO grupo do catálogo — clipe 2/0 de
+    clipe 8/0, papel A4 de A3 — e por isso decidem se o grupo conta como
+    evidência de identidade.
+    """
+    limpo = _sem_acento(texto)
+    for simbolo in ",;:()[]":
+        limpo = limpo.replace(simbolo, " ")
+    return {p.strip(".") for p in limpo.split()
+            if any(ch.isdigit() for ch in p) and p.strip(".")}
+
+
+def _mesmo_grupo(referencia: Referencia, descricao: str,
+                 pdms_item: frozenset[str]) -> bool:
+    """
+    A referência é do grupo do catálogo que a descrição do item nomeia,
+    e não contradiz as medidas da especificação?
+
+    Contradizer = a referência traz medidas e nenhuma coincide com as do
+    item. Referência sem medida não contradiz: o catálogo nem sempre as
+    registra.
+    """
+    if not pdms_item or str(referencia.codigo_pdm or "") not in pdms_item:
+        return False
+    do_item = medidas(descricao)
+    da_referencia = medidas(referencia.descricao_original)
+    return not (do_item and da_referencia and not (do_item & da_referencia))
+
+
 def comparar(referencia: Referencia, *, descricao: str,
              codigo_catalogo: str | None = None,
              codigo_classe: str | None = None,
              quantidade: Decimal | None = None,
              uf: str | None = None,
-             data_base: date | None = None) -> Comparabilidade:
+             data_base: date | None = None,
+             pdms_item: frozenset[str] = frozenset()) -> Comparabilidade:
     """
     Score de comparabilidade e sua decomposição.
 
@@ -346,6 +379,17 @@ def comparar(referencia: Referencia, *, descricao: str,
         identidade = UM
     elif catalogo_fator.score == ZERO and not catalogo_fator.conforme:
         identidade = ZERO
+    elif not codigo_catalogo and _mesmo_grupo(referencia, descricao,
+                                              pdms_item):
+        # Busca pela DESCRIÇÃO: a referência é do grupo do catálogo que a
+        # descrição nomeia e não contradiz suas medidas. O grupo confirma
+        # o tipo de produto; a redação mede a especificação. Meio a meio,
+        # e a explicação diz isso na tela.
+        identidade = (descricao_fator.score + UM) / 2
+        identidade_fatores[1] = Fator(
+            "catalogo", ZERO, Decimal("0.75"),
+            f"mesmo grupo do catálogo (PDM {referencia.codigo_pdm}) "
+            "identificado pela descrição, medidas compatíveis", True)
     else:
         identidade = descricao_fator.score
 

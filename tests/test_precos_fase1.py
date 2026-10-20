@@ -157,16 +157,31 @@ def test_consulta_sem_codigo_e_valida():
     assert not consulta.tem_codigo
 
 
-def test_pesquisa_funciona_sem_codigo_de_catalogo(itens_contratados):
-    """Caminho do usuário real: planilha com código interno do município."""
-    adapter = ComprasGovAdapter(
-        abrir_url=_leitor({"resultado": itens_contratados,
-                           "totalRegistros": len(itens_contratados)}))
-    alvo = itens_contratados[0]
-    descricao = alvo.get("descricaodetalhada") or alvo["descricaoResumida"]
-    resultado = adapter.pesquisar(Consulta(descricao=descricao))
-    assert resultado.referencias, "sem código a busca precisa achar algo"
-    assert not resultado.houve_falha
+def test_sem_codigo_nunca_usa_o_endpoint_lento_de_contratacoes():
+    """
+    14/10/2026: o caminho antigo por descrição pedia a janela inteira de
+    contratações — 180 dias passavam de 100 s. A busca por descrição usa
+    o catálogo (PDM) e a pesquisa de preços, nunca aquele endpoint.
+    """
+    urls: list[str] = []
+
+    def espia(url):
+        urls.append(url)
+        return json.dumps({"resultado": [], "totalPaginas": 0})
+
+    ComprasGovAdapter(abrir_url=espia).pesquisar(
+        Consulta(descricao="CANETA ESFEROGRÁFICA AZUL"))
+    assert not any("2_consultarItensContratacoes" in u for u in urls)
+
+
+def test_codigo_sem_preco_segue_pela_descricao_e_nao_e_falha():
+    """Número da planilha ou código interno: zero registros não trava."""
+    resultado = ComprasGovAdapter(
+        abrir_url=_leitor({"resultado": [], "totalRegistros": 0,
+                           "totalPaginas": 0})).pesquisar(
+        Consulta(descricao="CANETA", codigo_catalogo="011246"))
+    assert any("011246" in o and "descrição" in o
+               for o in resultado.ocorrencias)
 
 
 def test_com_codigo_usa_o_caminho_preciso(precos_praticados):
@@ -252,10 +267,13 @@ def test_timeout_vira_ocorrencia_e_nao_excecao():
         raise TimeoutError("estourou")
 
     resultado = ComprasGovAdapter(abrir_url=cai).pesquisar(
-        Consulta(descricao="CANETA ESFEROGRÁFICA AZUL"))
+        Consulta(descricao="CANETA ESFEROGRÁFICA AZUL",
+                 codigo_catalogo="275111"))
     assert resultado.referencias == []
     assert resultado.houve_falha
-    assert resultado.chamadas >= 3, "deveria ter retentado antes de desistir"
+    # tempo esgotado é a API lenta para ESTA consulta, não soluço de
+    # rede: repetir multiplicava a espera do item (3 × 45 s)
+    assert resultado.chamadas == 1
 
 
 def test_resposta_nao_json_vira_ocorrencia():
@@ -263,7 +281,8 @@ def test_resposta_nao_json_vira_ocorrencia():
     resultado = ComprasGovAdapter(
         abrir_url=lambda _u: "Informe um número de paginação no intervalo "
                              "de 10 a 500").pesquisar(
-        Consulta(descricao="CANETA ESFEROGRÁFICA AZUL"))
+        Consulta(descricao="CANETA ESFEROGRÁFICA AZUL",
+                 codigo_catalogo="275111"))
     assert resultado.referencias == []
     assert any("não-JSON" in o for o in resultado.ocorrencias)
 

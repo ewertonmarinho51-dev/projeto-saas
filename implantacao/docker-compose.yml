@@ -11,6 +11,11 @@ services:
     build:
       context: ..
       dockerfile: implantacao/Dockerfile
+      # Preenchidos por `promover.sh` a partir da TAG em checkout. Sem
+      # eles a imagem diz "desconhecido" — e diz, em vez de mentir.
+      args:
+        GOVDOCS_RELEASE: ${GOVDOCS_RELEASE:-desconhecida}
+        GOVDOCS_COMMIT: ${GOVDOCS_COMMIT:-desconhecido}
     image: govdocs:local
     restart: unless-stopped
 

@@ -205,18 +205,18 @@ def render_formulario() -> None:
 
     respostas: dict = {}
 
-    def _render_exemplo(chave: str, destino=st) -> None:
+    def _ajuda_com_exemplo(meta: dict) -> str:
         """
-        Exemplo pronto, ABAIXO do campo.
+        Ajuda curta + exemplo, SOB DEMANDA (ícone de ajuda do campo).
 
-        O placeholder já trazia exemplos, mas ele desaparece assim que a
-        pessoa digita a primeira letra — some justamente quando ela está
-        no meio da frase e quer conferir se está no caminho certo. Abaixo
-        do campo, o exemplo fica.
+        O exemplo ficava como legenda permanente abaixo de cada campo, ao
+        lado de rótulo, placeholder e tooltip — quatro textos por campo e
+        uma tela poluída (C05). Ele continua disponível para quem precisa,
+        sem ocupar a tela de quem não precisa.
         """
-        exemplo = (CAMPOS_FORMULARIO[chave].get("exemplo") or "").strip()
-        if exemplo:
-            destino.caption(f"**Exemplo:** {exemplo}")
+        ajuda = meta.get("ajuda_simples") or meta["help"]
+        exemplo = (meta.get("exemplo") or "").strip()
+        return f"{ajuda}\n\n**Exemplo:** {exemplo}" if exemplo else ajuda
 
     def _campo(chave: str, destino=st) -> None:
         meta = CAMPOS_FORMULARIO[chave]
@@ -228,7 +228,7 @@ def render_formulario() -> None:
         rotulo += " *" if meta["obrigatorio"] else ""
         # Idem para a ajuda: a simples é para o servidor; a original fica
         # no lugar dela quando não houver versão simplificada.
-        ajuda = meta.get("ajuda_simples") or meta["help"]
+        ajuda = _ajuda_com_exemplo(meta)
         # Com a flag desligada, mantém exatamente o contrato histórico.
         # Com o GovBot ativo, a key cria um marcador DOM estável e permite
         # reidratar rascunhos capturados antes de um rerun completo.
@@ -255,15 +255,19 @@ def render_formulario() -> None:
         elif meta["tipo"] == "planilha":
             respostas["itens"] = _render_planilha(dados, meta)
         elif meta["tipo"] == "selecao":
+            # Decisão administrativa EXPRESSA (C05): processo novo começa
+            # sem opção marcada. Antes, o vazio virava a primeira opção —
+            # SRP —, e o registro de preços entrava no processo sem que
+            # ninguém o tivesse escolhido. Escolha salva é preservada.
             opcoes = meta["opcoes"]
-            atual = dados.get(chave, opcoes[0])
+            atual = dados.get(chave)
             respostas[chave] = destino.selectbox(
                 rotulo, opcoes,
-                index=opcoes.index(atual) if atual in opcoes else 0,
+                index=opcoes.index(atual) if atual in opcoes else None,
+                placeholder="Selecione uma opção",
                 help=ajuda,
                 **kwargs_key,
             )
-        _render_exemplo(chave, destino)
 
     _render_progresso_do_formulario(dados)
 
@@ -280,16 +284,12 @@ def render_formulario() -> None:
             _campo("modelo_execucao", linha_2b)
 
         with st.container(border=True):
-            principal, orientacao = st.columns([4, 1], gap="medium")
-            with principal:
-                components.render_section_heading("Objeto e justificativa")
-                _campo("objeto", principal)
-                _campo("justificativa", principal)
-            with orientacao:
-                components.render_guidance(
-                    "Descreva a necessidade administrativa de forma objetiva, "
-                    "sem antecipar uma solução que ainda será avaliada no ETP."
-                )
+            # Largura inteira para os dois campos de texto mais longos; a
+            # orientação lateral permanente saiu (C05) — a ajuda do campo
+            # cobre o mesmo conteúdo quando pedida.
+            components.render_section_heading("Objeto e justificativa")
+            _campo("objeto")
+            _campo("justificativa")
 
         with st.container(border=True):
             components.render_section_heading(
@@ -529,6 +529,10 @@ def render_etapa_documento(doc_key: str) -> None:
         return
     if db.flag_ativa("editor_rico"):
         from .rich_editor import render_editor
+        # C03: a seleção de signatários existia só no ramo legado — com o
+        # editor rico, o documento era aprovado sem escolha de quem assina.
+        # Vem ANTES do editor porque a aprovação mora na barra dele.
+        signatarios.render(doc_key)
         acao, texto_editado = render_editor(doc_key, st.session_state.documentos[doc_key],
                                              disabled=ocupada(st.session_state))
     else:

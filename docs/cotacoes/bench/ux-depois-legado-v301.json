@@ -1,0 +1,69 @@
+{
+  "modo": "legado",
+  "executado_em": "2026-10-17T03:52:31.046054+00:00",
+  "python": "3.11.9",
+  "maquina": "Windows-10-10.0.26200-SP0",
+  "latencia_simulada_ms": 0,
+  "teto_automatico": true,
+  "limites": "fontes e banco são dublês determinísticos; rede real NÃO medida. Tempos medem o processamento do GovConnect (coleta→procedência→unidade→matching→cesta→gravação).",
+  "rodadas": [
+    {
+      "itens": 1,
+      "rodadas": 1,
+      "tempo_total_s": 0.0525,
+      "p50_item_s": 0.04309,
+      "p95_item_s": 0.04309,
+      "chamadas_fonte_por_item": 1,
+      "req_banco_por_item": 4,
+      "itens_com_3_considerados": 1,
+      "volume_por_fonte": 301,
+      "fontes": 2,
+      "referencias_gravadas_por_item": 25.0,
+      "consideradas_por_item_media": 15,
+      "consideradas_por_item_max": 15,
+      "estados": {
+        "review": 1
+      },
+      "chamadas_ia": 0
+    },
+    {
+      "itens": 5,
+      "rodadas": 5,
+      "tempo_total_s": 0.1806,
+      "p50_item_s": 0.03481,
+      "p95_item_s": 0.04155,
+      "chamadas_fonte_por_item": 1,
+      "req_banco_por_item": 4,
+      "itens_com_3_considerados": 5,
+      "volume_por_fonte": 301,
+      "fontes": 2,
+      "referencias_gravadas_por_item": 25.0,
+      "consideradas_por_item_media": 15,
+      "consideradas_por_item_max": 15,
+      "estados": {
+        "review": 5
+      },
+      "chamadas_ia": 0
+    },
+    {
+      "itens": 20,
+      "rodadas": 20,
+      "tempo_total_s": 0.6795,
+      "p50_item_s": 0.03705,
+      "p95_item_s": 0.04439,
+      "chamadas_fonte_por_item": 1.15,
+      "req_banco_por_item": 3.9,
+      "itens_com_3_considerados": 18,
+      "volume_por_fonte": 301,
+      "fontes": 2,
+      "referencias_gravadas_por_item": 21.45,
+      "consideradas_por_item_media": 12.95,
+      "consideradas_por_item_max": 15,
+      "estados": {
+        "review": 18,
+        "incomplete": 2
+      },
+      "chamadas_ia": 0
+    }
+  ]
+}

@@ -339,6 +339,41 @@ FLAG_PUBLICACAO_GATE = "governance_publication_gate"
 FLAG_PESQUISA_PRECOS = "price_research"
 FLAG_JEV_PRECOS = "jev_price_research"  # opt-in independente; ausente = OFF
 
+# Cotações unificadas (Minhas Cotações → Elaborar Cotação, manual e
+# automático no MESMO documento). Nasce DESLIGADA e depende da migração
+# 0029 aplicada; desligada, o menu continua na tela da Pesquisa de Preços.
+# Exige também `price_research` ligada: é a mesma entidade, outra tela.
+FLAG_COTACOES_UNIFICADAS = "unified_quotations"
+
+# Relatório de Cotação no padrão visual novo (pacote de 16/10/2026):
+# compacto + Relatório Analítico Integral, da projeção única
+# `relatorio_view`. Nasce DESLIGADA (sem linha em config_app = OFF);
+# desligada, os botões continuam gerando o relatório Markdown anterior.
+# Desligar não altera cesta, preço, emissão registrada nem PDF já emitido.
+FLAG_RELATORIO_VISUAL = "precos_relatorio_visual"
+
+# Teto da cotação automática (pacote de 17/10/2026): no máximo 15
+# referências na cesta automática de cada item, busca que para quando a
+# amostra já basta, e só o necessário gravado. Política única em
+# `estatistica.POLITICA_AUTOMATICA`, para a rota unificada e a legada.
+# Nasce DESLIGADA; desligar volta ao comportamento anterior sem tocar em
+# referência gravada ou decisão humana.
+FLAG_TETO_AUTOMATICO = "cotacao_automatica_teto"
+
+# Saneamento pré-cesta (pacote Jev de 17/10/2026): antes da cesta
+# automática, cada item passa pela triagem de `precos.saneamento` —
+# invalidação objetiva e suspeita estatística corroborada; o Jev entra
+# com evidência, o motor decide. Retidas ficam gravadas, com motivo, e
+# voltam à cesta por ato humano. Nasce DESLIGADA; desligar volta à
+# seleção anterior sem tocar em referência gravada nem em cesta antiga.
+FLAG_SANEAMENTO_PRE_CESTA = "precos_saneamento_pre_cesta"
+
+# Ciência de alertas na emissão (mesmo pacote): preço atípico na cesta
+# não trava o relatório — pede ciência num aviso, vinculada ao resultado
+# e aos alertas, registrada na trilha e impressa no documento. Nasce
+# DESLIGADA; desligada, vale o aviso de pendências anterior.
+FLAG_CIENCIA_EMISSAO = "precos_ciencia_emissao"
+
 # Consolidação dos Documentos de Formalização de Demanda. Nasce
 # DESLIGADA: a etapa muda a ORIGEM da planilha orçamentária do processo,
 # e ligar sem auditoria colocaria uma quantidade consolidada dentro de um

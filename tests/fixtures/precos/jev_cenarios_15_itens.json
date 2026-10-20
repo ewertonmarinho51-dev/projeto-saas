@@ -1,0 +1,810 @@
+{
+  "meta": {
+    "title": "Cenários sintéticos para triagem Jev e emissão de relatório",
+    "data_is_real": false,
+    "purpose": "Teste de 15 itens; NÃO importar para pesquisa real",
+    "items_are_independent_distributions": true,
+    "expected_lists_are_guidance_not_absolute_statistical_truth": true,
+    "note": "A decisão do backend depende de comprovação das evidências simuladas e da política versionada."
+  },
+  "research_id": "PESQUISA_SINTETICA_15_ITENS",
+  "items": [
+    {
+      "item_id": "ITEM_01",
+      "description": "PAPEL A4 500 FOLHAS",
+      "target_unit": "PCT",
+      "quotes": [
+        {
+          "quote_id": "Q01_01",
+          "source_ref": "FONTE_SIMULADA_01_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_01_01",
+          "unit_price_brl": "25",
+          "source_unit": "PCT",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q01_02",
+          "source_ref": "FONTE_SIMULADA_01_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_01_02",
+          "unit_price_brl": "24.80",
+          "source_unit": "PCT",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q01_03",
+          "source_ref": "FONTE_SIMULADA_01_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_01_03",
+          "unit_price_brl": "26",
+          "source_unit": "PCT",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q01_04",
+          "source_ref": "FONTE_SIMULADA_01_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_01_04",
+          "unit_price_brl": "25.30",
+          "source_unit": "PCT",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q01_05",
+          "source_ref": "FONTE_SIMULADA_01_05",
+          "evidence_ref": "EVIDENCIA_SINTETICA_01_05",
+          "unit_price_brl": "190",
+          "source_unit": "PCT",
+          "commercial_facts": []
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [
+          "Q01_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Q01_05 é anomalia extrema; autoexcluir apenas quando independência e escopo idêntico estiverem verificados."
+      }
+    },
+    {
+      "item_id": "ITEM_02",
+      "description": "CANETA ESFEROGRAFICA AZUL",
+      "target_unit": "UN",
+      "quotes": [
+        {
+          "quote_id": "Q02_01",
+          "source_ref": "FONTE_SIMULADA_02_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_02_01",
+          "unit_price_brl": "2",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q02_02",
+          "source_ref": "FONTE_SIMULADA_02_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_02_02",
+          "unit_price_brl": "2.10",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q02_03",
+          "source_ref": "FONTE_SIMULADA_02_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_02_03",
+          "unit_price_brl": "1.90",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q02_04",
+          "source_ref": "FONTE_SIMULADA_02_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_02_04",
+          "unit_price_brl": "2.05",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q02_05",
+          "source_ref": "FONTE_SIMULADA_02_05",
+          "evidence_ref": "EVIDENCIA_SINTETICA_02_05",
+          "unit_price_brl": "23",
+          "source_unit": "UN",
+          "commercial_facts": []
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [
+          "Q02_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Q02_05 extremo, com quatro outras fontes comparáveis; validar contexto e corroboração antes da autoexclusão."
+      }
+    },
+    {
+      "item_id": "ITEM_03",
+      "description": "PASTA PLASTICA A4",
+      "target_unit": "UN",
+      "quotes": [
+        {
+          "quote_id": "Q03_01",
+          "source_ref": "FONTE_SIMULADA_03_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_03_01",
+          "unit_price_brl": "6",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q03_02",
+          "source_ref": "FONTE_SIMULADA_03_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_03_02",
+          "unit_price_brl": "6.10",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q03_03",
+          "source_ref": "FONTE_SIMULADA_03_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_03_03",
+          "unit_price_brl": "5.90",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q03_04",
+          "source_ref": "FONTE_SIMULADA_03_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_03_04",
+          "unit_price_brl": "6.20",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q03_05",
+          "source_ref": "FONTE_SIMULADA_03_05",
+          "evidence_ref": "EVIDENCIA_SINTETICA_03_05",
+          "unit_price_brl": "60",
+          "source_unit": "CX",
+          "commercial_facts": [
+            "CAIXA COM 10 UNIDADES"
+          ],
+          "units_per_package": 10
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [
+          "Q03_05"
+        ],
+        "reasoning": "Q03_05 deve converter de caixa com 10 a unidade; preço normalizado R$ 6,00."
+      }
+    },
+    {
+      "item_id": "ITEM_04",
+      "description": "MANUTENCAO PREVENTIVA DE EQUIPAMENTO POR MES",
+      "target_unit": "MES",
+      "quotes": [
+        {
+          "quote_id": "Q04_01",
+          "source_ref": "FONTE_SIMULADA_04_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_04_01",
+          "unit_price_brl": "1500",
+          "source_unit": "MES",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q04_02",
+          "source_ref": "FONTE_SIMULADA_04_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_04_02",
+          "unit_price_brl": "1550",
+          "source_unit": "MES",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q04_03",
+          "source_ref": "FONTE_SIMULADA_04_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_04_03",
+          "unit_price_brl": "1490",
+          "source_unit": "MES",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q04_04",
+          "source_ref": "FONTE_SIMULADA_04_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_04_04",
+          "unit_price_brl": "1520",
+          "source_unit": "MES",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q04_05",
+          "source_ref": "FONTE_SIMULADA_04_05",
+          "evidence_ref": "EVIDENCIA_SINTETICA_04_05",
+          "unit_price_brl": "400",
+          "source_unit": "HORA",
+          "commercial_facts": [
+            "SERVICO EXCLUSIVAMENTE POR HORA; ESCOPO NAO EQUIVALENTE"
+          ]
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [
+          "Q04_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Q04_05 possui unidade e escopo materialmente incompatíveis sem conversão confiável."
+      }
+    },
+    {
+      "item_id": "ITEM_05",
+      "description": "IMPRESSAO MONOCROMATICA A4",
+      "target_unit": "FOLHA",
+      "quotes": [
+        {
+          "quote_id": "Q05_01",
+          "source_ref": "FONTE_SIMULADA_05_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_05_01",
+          "unit_price_brl": "1.00",
+          "source_unit": "FOLHA",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q05_02",
+          "source_ref": "FONTE_SIMULADA_05_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_05_02",
+          "unit_price_brl": "1.05",
+          "source_unit": "FOLHA",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q05_03",
+          "source_ref": "FONTE_SIMULADA_05_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_05_03",
+          "unit_price_brl": "0.98",
+          "source_unit": "FOLHA",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q05_04",
+          "source_ref": "FONTE_SIMULADA_05_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_05_04",
+          "unit_price_brl": "1.02",
+          "source_unit": "FOLHA",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q05_05",
+          "source_ref": "FONTE_SIMULADA_05_05",
+          "evidence_ref": "EVIDENCIA_SINTETICA_05_05",
+          "unit_price_brl": "500",
+          "source_unit": "PCT",
+          "commercial_facts": [
+            "PACOTE DE 500 IMPRESSOES IGUAIS"
+          ],
+          "units_per_package": 500
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [
+          "Q05_05"
+        ],
+        "reasoning": "Normalizar Q05_05 dividindo por 500; não o classificar como R$ 500 por folha."
+      }
+    },
+    {
+      "item_id": "ITEM_06",
+      "description": "NOTEBOOK 8GB RAM 256GB SSD",
+      "target_unit": "UN",
+      "quotes": [
+        {
+          "quote_id": "Q06_01",
+          "source_ref": "FONTE_SIMULADA_06_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_06_01",
+          "unit_price_brl": "3450",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q06_02",
+          "source_ref": "FONTE_SIMULADA_06_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_06_02",
+          "unit_price_brl": "3520",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q06_03",
+          "source_ref": "FONTE_SIMULADA_06_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_06_03",
+          "unit_price_brl": "3490",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q06_04",
+          "source_ref": "FONTE_SIMULADA_06_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_06_04",
+          "unit_price_brl": "3510",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q06_05",
+          "source_ref": "FONTE_SIMULADA_06_05",
+          "evidence_ref": "EVIDENCIA_SINTETICA_06_05",
+          "unit_price_brl": "9000",
+          "source_unit": "UN",
+          "commercial_facts": [
+            "NOTEBOOK WORKSTATION 32GB RAM; OUTRO PROCESSADOR"
+          ]
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [
+          "Q06_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Q06_05 é objeto comprovadamente distinto."
+      }
+    },
+    {
+      "item_id": "ITEM_07",
+      "description": "TECLADO USB PADRAO",
+      "target_unit": "UN",
+      "quotes": [
+        {
+          "quote_id": "Q07_01",
+          "source_ref": "FONTE_SIMULADA_07_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_07_01",
+          "unit_price_brl": "58",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q07_02",
+          "source_ref": "FONTE_SIMULADA_07_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_07_02",
+          "unit_price_brl": "60",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q07_03",
+          "source_ref": "FONTE_SIMULADA_07_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_07_03",
+          "unit_price_brl": "59",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q07_04",
+          "source_ref": "FONTE_SIMULADA_07_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_07_04",
+          "unit_price_brl": "61",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q07_05",
+          "source_ref": "FONTE_SIMULADA_07_05",
+          "evidence_ref": "EVIDENCIA_SINTETICA_07_05",
+          "unit_price_brl": "57",
+          "source_unit": "UN",
+          "commercial_facts": []
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Todas as cinco referências são comparáveis; nenhuma exclusão por discrepância."
+      }
+    },
+    {
+      "item_id": "ITEM_08",
+      "description": "SERVICO DE INTERNET MENSAL",
+      "target_unit": "MES",
+      "quotes": [
+        {
+          "quote_id": "Q08_01",
+          "source_ref": "FONTE_SIMULADA_08_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_08_01",
+          "unit_price_brl": "130",
+          "source_unit": "MES",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q08_02",
+          "source_ref": "FONTE_SIMULADA_08_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_08_02",
+          "unit_price_brl": "520",
+          "source_unit": "MES",
+          "commercial_facts": []
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [
+          "Q08_01",
+          "Q08_02"
+        ],
+        "normalization_or_keep": [],
+        "reasoning": "Com n=2, diferença grande não autoriza descarte estatístico automático; avaliar velocidade/escopo."
+      }
+    },
+    {
+      "item_id": "ITEM_09",
+      "description": "TONER PARA IMPRESSORA MODELO ESPECIFICADO",
+      "target_unit": "UN",
+      "quotes": [
+        {
+          "quote_id": "Q09_01",
+          "source_ref": "FONTE_SIMULADA_09_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_09_01",
+          "unit_price_brl": "180",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q09_02",
+          "source_ref": "FONTE_SIMULADA_09_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_09_02",
+          "unit_price_brl": "180",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q09_03",
+          "source_ref": "FONTE_SIMULADA_09_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_09_03",
+          "unit_price_brl": "180",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q09_04",
+          "source_ref": "FONTE_SIMULADA_09_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_09_04",
+          "unit_price_brl": "180",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q09_05",
+          "source_ref": "FONTE_SIMULADA_09_05",
+          "evidence_ref": "EVIDENCIA_SINTETICA_09_05",
+          "unit_price_brl": "1800",
+          "source_unit": "UN",
+          "commercial_facts": []
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [
+          "Q09_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "MAD=0; tratar sem divisão por zero e usar anomalia extrema + corroboração verificável."
+      }
+    },
+    {
+      "item_id": "ITEM_10",
+      "description": "PAPEL TOALHA PACOTE",
+      "target_unit": "PCT",
+      "quotes": [
+        {
+          "quote_id": "Q10_01",
+          "source_ref": "FONTE_SIMULADA_10_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_10_01",
+          "unit_price_brl": "18",
+          "source_unit": "PCT",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q10_02",
+          "source_ref": "FONTE_SIMULADA_10_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_10_02",
+          "unit_price_brl": "19",
+          "source_unit": "PCT",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q10_03",
+          "source_ref": "FONTE_SIMULADA_10_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_10_03",
+          "unit_price_brl": "18.50",
+          "source_unit": "PCT",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q10_04",
+          "source_ref": "FONTE_SIMULADA_10_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_10_04",
+          "unit_price_brl": "20",
+          "source_unit": "PCT",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q10_05",
+          "source_ref": "FONTE_SIMULADA_10_05",
+          "evidence_ref": "EVIDENCIA_SINTETICA_10_05",
+          "unit_price_brl": "0",
+          "source_unit": "PCT",
+          "commercial_facts": []
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [
+          "Q10_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Preço unitário zero é inválido para a formação da cesta."
+      }
+    },
+    {
+      "item_id": "ITEM_11",
+      "description": "CAIXA ARQUIVO MORTO",
+      "target_unit": "UN",
+      "quotes": [
+        {
+          "quote_id": "Q11_01",
+          "source_ref": "FONTE_SIMULADA_11_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_11_01",
+          "unit_price_brl": "7",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q11_02",
+          "source_ref": "FONTE_SIMULADA_11_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_11_02",
+          "unit_price_brl": "7.20",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q11_03",
+          "source_ref": "FONTE_SIMULADA_11_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_11_03",
+          "unit_price_brl": "6.80",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q11_04",
+          "source_ref": "FONTE_SIMULADA_11_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_11_04",
+          "unit_price_brl": "7.10",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q11_05",
+          "source_ref": "FONTE_SIMULADA_11_05",
+          "evidence_ref": "EVIDENCIA_SINTETICA_11_05",
+          "unit_price_brl": "-4",
+          "source_unit": "UN",
+          "commercial_facts": []
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [
+          "Q11_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Preço negativo não é preço de aquisição válido."
+      }
+    },
+    {
+      "item_id": "ITEM_12",
+      "description": "SERVICO DE ENTREGA LOCAL",
+      "target_unit": "VIAGEM",
+      "quotes": [
+        {
+          "quote_id": "Q12_01",
+          "source_ref": "FONTE_SIMULADA_12_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_12_01",
+          "unit_price_brl": "1000",
+          "source_unit": "VIAGEM",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q12_02",
+          "source_ref": "FONTE_SIMULADA_12_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_12_02",
+          "unit_price_brl": "1020",
+          "source_unit": "VIAGEM",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q12_03",
+          "source_ref": "FONTE_SIMULADA_12_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_12_03",
+          "unit_price_brl": "980",
+          "source_unit": "VIAGEM",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q12_04",
+          "source_ref": "FONTE_SIMULADA_12_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_12_04",
+          "unit_price_brl": "1010",
+          "source_unit": "VIAGEM",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q12_05",
+          "source_ref": "FONTE_SIMULADA_12_05",
+          "evidence_ref": "EVIDENCIA_SINTETICA_12_05",
+          "unit_price_brl": "1600",
+          "source_unit": "VIAGEM",
+          "commercial_facts": [
+            "ORIGEM/DESTINO DIFERENTE; 500KM ADICIONAIS"
+          ]
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [
+          "Q12_05"
+        ],
+        "normalization_or_keep": [],
+        "reasoning": "R$ 1600 pode refletir deslocamento diferente; verificar escopo e classificar para revisão."
+      }
+    },
+    {
+      "item_id": "ITEM_13",
+      "description": "MOUSE USB OPTICO",
+      "target_unit": "UN",
+      "quotes": [
+        {
+          "quote_id": "Q13_01",
+          "source_ref": "FONTE_SIMULADA_13_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_13_01",
+          "unit_price_brl": "45",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q13_02",
+          "source_ref": "DOCUMENTO_DUPLICADO_13_LINHA1",
+          "evidence_ref": "EVIDENCIA_SINTETICA_13_02",
+          "unit_price_brl": "46",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q13_03",
+          "source_ref": "FONTE_SIMULADA_13_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_13_03",
+          "unit_price_brl": "47",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q13_04",
+          "source_ref": "FONTE_SIMULADA_13_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_13_04",
+          "unit_price_brl": "44",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q13_05",
+          "source_ref": "DOCUMENTO_DUPLICADO_13_LINHA1",
+          "evidence_ref": "EVIDENCIA_SINTETICA_13_05",
+          "unit_price_brl": "46",
+          "source_unit": "UN",
+          "commercial_facts": []
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [
+          "Q13_05"
+        ],
+        "needs_review_or_alert": [],
+        "normalization_or_keep": [],
+        "reasoning": "Q13_02 e Q13_05 duplicam a mesma linha/documento: uma observação só para estatística. Preservar ambas referências brutas."
+      }
+    },
+    {
+      "item_id": "ITEM_14",
+      "description": "SWITCH 24 PORTAS",
+      "target_unit": "UN",
+      "quotes": [
+        {
+          "quote_id": "Q14_01",
+          "source_ref": "FONTE_SIMULADA_14_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_14_01",
+          "unit_price_brl": "1400",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q14_02",
+          "source_ref": "FONTE_SIMULADA_14_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_14_02",
+          "unit_price_brl": "1420",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q14_03",
+          "source_ref": "FONTE_SIMULADA_14_03",
+          "evidence_ref": "EVIDENCIA_SINTETICA_14_03",
+          "unit_price_brl": "1390",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q14_04",
+          "source_ref": "FONTE_SIMULADA_14_04",
+          "evidence_ref": "EVIDENCIA_SINTETICA_14_04",
+          "unit_price_brl": "1410",
+          "source_unit": "UN",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q14_05",
+          "source_ref": "FONTE_SIMULADA_14_05",
+          "evidence_ref": "EVIDENCIA_SINTETICA_14_05",
+          "unit_price_brl": "2800",
+          "source_unit": "UN",
+          "commercial_facts": [
+            "GARANTIA ESTENDIDA E SERVICO DE INSTALACAO INCLUSOS"
+          ]
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [
+          "Q14_05"
+        ],
+        "normalization_or_keep": [],
+        "reasoning": "Preço alto é comercialmente diferente; verificar se condições devem integrar item, sem eliminar apenas por desvio."
+      }
+    },
+    {
+      "item_id": "ITEM_15",
+      "description": "LIMPEZA DE PISO POR METRO QUADRADO",
+      "target_unit": "M2",
+      "quotes": [
+        {
+          "quote_id": "Q15_01",
+          "source_ref": "FONTE_SIMULADA_15_01",
+          "evidence_ref": "EVIDENCIA_SINTETICA_15_01",
+          "unit_price_brl": "5",
+          "source_unit": "M2",
+          "commercial_facts": []
+        },
+        {
+          "quote_id": "Q15_02",
+          "source_ref": "FONTE_SIMULADA_15_02",
+          "evidence_ref": "EVIDENCIA_SINTETICA_15_02",
+          "unit_price_brl": "25",
+          "source_unit": "M2",
+          "commercial_facts": []
+        }
+      ],
+      "expected": {
+        "prebasket_exclude_if_verified": [],
+        "needs_review_or_alert": [
+          "Q15_01",
+          "Q15_02"
+        ],
+        "normalization_or_keep": [],
+        "reasoning": "Amostra n=2 com possível diferença de escopo: revisão; não descarte automático estatístico."
+      }
+    }
+  ],
+  "report_ui_test": {
+    "preconditions": "Inserir manualmente uma cotação sinalizada na cesta após triagem, em ambiente de teste, para exercitar aviso.",
+    "expected_first_attempt": "mostrar aviso e permitir voltar sem gerar documento",
+    "expected_after_confirmation": "gerar relatório com valor mantido e registrar ciência vinculada à revisão",
+    "expected_after_basket_change": "revalidar e pedir nova ciência se ainda houver alerta"
+  }
+}

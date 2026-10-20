@@ -1,0 +1,188 @@
+{
+  "resumo": {
+    "quando": "2026-10-15T13:43:07+00:00",
+    "itens": 10,
+    "total_s": 22.8,
+    "p50_s": 2.21,
+    "p95_s": 3.45,
+    "itens_por_minuto": 26.37,
+    "cobertura_bruta_media": 217.7,
+    "itens_com_referencia": 9,
+    "itens_3_mais_na_cesta": 0,
+    "itens_concluidos": 0,
+    "itens_com_erro_de_fonte": 0,
+    "metodos": {
+      "automatico": 10
+    },
+    "chamadas_total": {
+      "compras_gov_itens": 28,
+      "pncp": 0
+    },
+    "chamadas_por_item": {
+      "compras_gov_itens": 2.8,
+      "pncp": 0.0
+    }
+  },
+  "itens": [
+    {
+      "numero": 1,
+      "descricao": "ALFINETE PARA MURAL ESPECIFICAÇÃO: corpo em aço com tratamen",
+      "segundos": 2.45,
+      "encontradas": 51,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 18.21,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 2,
+      "descricao": "ALMOFADA PARA CARIMBO 12 x 9cm ESPECIFICAÇÃO: almofada para ",
+      "segundos": 3.18,
+      "encontradas": 283,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 15.75,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 3,
+      "descricao": "APAGADOR PARA QUADRO BRANCO ESPECIFICAÇÃO: Corpo resistente,",
+      "segundos": 3.45,
+      "encontradas": 311,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 20.2,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 4,
+      "descricao": "APONTADOR COM DEPÓSITO ESPECIFICAÇÃO: Corpo plástico resiste",
+      "segundos": 2.92,
+      "encontradas": 430,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 4.4,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 5,
+      "descricao": "BALÕES PCT. C/ 50 UNID ESPECIFICAÇÃO: TAMANHO Nº 7 - LISO",
+      "segundos": 0.55,
+      "encontradas": 0,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 13.9,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 1,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 6,
+      "descricao": "BARBANTE CRU - 8 FIOS. ESPECIFICAÇÃO: Barbante cru, confecci",
+      "segundos": 3.17,
+      "encontradas": 435,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 26.99,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 7,
+      "descricao": "BARBANTE CRU 250G ESPECIFICAÇÃO: Em algodão ou material equi",
+      "segundos": 1.56,
+      "encontradas": 435,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 12.7,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 8,
+      "descricao": "BASTÃO DE COLA QUENTE FINA ESPECIFICAÇÃO:",
+      "segundos": 1.8,
+      "encontradas": 53,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 0.87,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 9,
+      "descricao": "BASTÃO DE COLA QUENTE GROSSA ESPECIFICAÇÃO:",
+      "segundos": 1.46,
+      "encontradas": 53,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 1.81,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    },
+    {
+      "numero": 10,
+      "descricao": "BATERIA ALCALINA 9V ESPECIFICAÇÃO: tensão nominal padrão, em",
+      "segundos": 2.21,
+      "encontradas": 126,
+      "na_cesta": 0,
+      "status": "INCOMPLETO",
+      "metodo": "automatico",
+      "valor": null,
+      "valor_planilha": 29.95,
+      "erro_de_fonte": false,
+      "chamadas": {
+        "compras_gov_itens": 3,
+        "pncp": 0
+      }
+    }
+  ]
+}

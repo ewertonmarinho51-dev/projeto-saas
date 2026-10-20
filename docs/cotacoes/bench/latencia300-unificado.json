@@ -1,0 +1,24 @@
+{
+  "modo": "unificado",
+  "executado_em": "2026-10-16T17:21:56.149222+00:00",
+  "python": "3.11.9",
+  "maquina": "Windows-10-10.0.26200-SP0",
+  "latencia_simulada_ms": 300,
+  "limites": "fontes e banco são dublês determinísticos; rede real NÃO medida. Tempos medem o processamento do GovConnect (coleta→procedência→unidade→matching→cesta→gravação).",
+  "rodadas": [
+    {
+      "itens": 10,
+      "rodadas": 10,
+      "tempo_total_s": 3.1793,
+      "p50_item_s": 0.30267,
+      "p95_item_s": 0.30324,
+      "chamadas_fonte_por_item": 1.0,
+      "req_banco_por_item": 8.9,
+      "itens_com_3_considerados": 10,
+      "estados": {
+        "review": 10
+      },
+      "chamadas_ia": 0
+    }
+  ]
+}

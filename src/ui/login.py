@@ -117,6 +117,26 @@ def render_bootstrap_admin() -> None:
     _layout_porta_entrada(_conteudo)
 
 
+# O login só guarda o USUÁRIO entre tentativas, e fora de widget: é o
+# valor inicial do campo depois de uma recusa. A senha não tem chave de
+# estado nenhuma — vive o tempo de uma submissão e o `clear_on_submit`
+# a apaga do campo. Antes, `_login_senha` ficava em `session_state` até
+# o fim da sessão, e cada letra digitada fora de formulário provocava um
+# rerun inteiro do app (com consulta ao banco) antes do clique em Entrar.
+CHAVE_ULTIMO_USUARIO = "_login_ultimo_usuario"
+
+
+def validar_entrada(usuario: str, senha: str) -> str | None:
+    """Mensagem de erro para campo vazio, ANTES de qualquer rede."""
+    if not (usuario or "").strip() and not senha:
+        return "Informe usuário e senha."
+    if not (usuario or "").strip():
+        return "Informe o usuário."
+    if not senha:
+        return "Informe a senha."
+    return None
+
+
 def render_login() -> None:
     """Autenticação institucional sem cadastro ou recuperação fictícios."""
 
@@ -124,55 +144,44 @@ def render_login() -> None:
         st.markdown('<p class="gc-login-module">GovDocs</p>',
                     unsafe_allow_html=True)
         st.subheader("Acesso ao sistema")
-        st.markdown(
-            '<p class="gc-login-intro">Entre com suas credenciais institucionais.</p>',
-            unsafe_allow_html=True,
-        )
-        usuario = st.text_input(
-            "Usuário",
-            key="_login_usuario",
-            placeholder="Digite seu usuário",
-            autocomplete="username",
-        )
-        senha = st.text_input(
-            "Senha",
-            key="_login_senha",
-            type="password",
-            placeholder="Digite sua senha",
-            autocomplete="current-password",
-        )
-        pronto = bool(usuario.strip() and senha)
-        enviado = st.button(
-            "Entrar",
-            type="primary",
-            use_container_width=True,
-            disabled=not pronto or st.session_state.get("_login_pendente", False),
-            key="_login_enviar",
-        )
+        aviso = st.session_state.pop(auth.CHAVE_AVISO_SESSAO, "")
+        if aviso:
+            st.info(aviso)
+        # Formulário: um envio por clique ou Enter, nenhum rerun por tecla.
+        with st.form("form_login", clear_on_submit=True, border=False):
+            usuario = st.text_input(
+                "Usuário",
+                value=st.session_state.get(CHAVE_ULTIMO_USUARIO, ""),
+                placeholder="Digite seu usuário",
+                autocomplete="username",
+            )
+            senha = st.text_input(
+                "Senha",
+                type="password",
+                placeholder="Digite sua senha",
+                autocomplete="current-password",
+            )
+            enviado = st.form_submit_button(
+                "Entrar", type="primary", use_container_width=True)
+
+        if enviado:
+            st.session_state[CHAVE_ULTIMO_USUARIO] = (usuario or "").strip()
+            erro_local = validar_entrada(usuario, senha)
+            if erro_local:
+                st.error(erro_local, icon=None)
+            else:
+                try:
+                    with st.spinner("Validando credenciais…"):
+                        autenticado = auth.autenticar(usuario, senha)
+                    auth.entrar(autenticado)
+                    st.session_state.pop(CHAVE_ULTIMO_USUARIO, None)
+                    st.rerun()
+                except auth.ErroAuth as erro:
+                    st.error(str(erro), icon=None)
+
         st.markdown(
             '<p class="gc-login-note">As contas de acesso são criadas pelo '
             'administrador.</p>',
-            unsafe_allow_html=True,
-        )
-
-        if enviado:
-            st.session_state["_login_pendente"] = True
-            st.markdown(
-                '<div class="gc-login-progress" role="status" aria-live="polite">'
-                'Validando credenciais…</div>',
-                unsafe_allow_html=True,
-            )
-            try:
-                auth.entrar(auth.autenticar(usuario, senha))
-                st.session_state.pop("_login_pendente", None)
-                st.success("Acesso autorizado. Abrindo o sistema…")
-                st.rerun()
-            except auth.ErroAuth as erro:
-                st.session_state["_login_pendente"] = False
-                st.error(str(erro), icon=None)
-
-        st.markdown(
-            '<p class="gc-login-security">Acesso restrito e protegido</p>',
             unsafe_allow_html=True,
         )
 

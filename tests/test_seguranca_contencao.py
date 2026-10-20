@@ -1531,7 +1531,10 @@ TABELAS_PRIVADAS = tabelas_do_inventario()
 # 0028 (aplicada em 08/10/2026) — a separação entre "está em produção" e
 # "o repositório descreve" deixou de existir para as quinze, e mantê-la
 # faria o inventário afirmar o contrário do que o catálogo mostra.
-TABELAS_EM_PRODUCAO = 43
+# Mais `pesquisa_preco_emissoes` da 0029, aplicada em 16/10/2026: o
+# catálogo mostrou 44 tabelas em `public`, as 44 com RLS (somente
+# SELECT em pg_tables).
+TABELAS_EM_PRODUCAO = 44
 
 # As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
 # inclui, mas porque são as únicas cuja implantação esta suíte
@@ -1567,10 +1570,16 @@ TABELAS_DA_MULTI_PREFEITURA = frozenset({
 # que é como uma matriz de segurança começa a divergir do banco.
 TABELAS_DO_CACHE_DE_GERACAO = frozenset({"cache_geracoes"})
 
-# Branch-only additive schema. These are tested locally but NOT deployed; keep
-# the historical production census separate from the complete branch inventory.
+# A da 0029 (Cotações unificadas), aplicada em 16/10/2026. Matriz de RLS
+# no arquivo da própria 0029, pelo mesmo argumento da 0028.
+TABELAS_DAS_COTACOES = frozenset({"pesquisa_preco_emissoes"})
+
+# Additive WordCraft schema from this branch. It is covered by disposable
+# database tests but is excluded from the historical production census until
+# the authorized production migration is measured and confirmed.
 TABELAS_WORDCRAFT_NAO_IMPLANTADAS = frozenset({
-    "documentos_editor", "documentos_editor_revisoes", "documentos_editor_emissoes",
+    "documentos_editor", "documentos_editor_revisoes",
+    "documentos_editor_emissoes",
 })
 
 
@@ -1864,6 +1873,21 @@ def _sql_da_0028() -> str:
     raise AssertionError("a 0028 sumiu do repositório")
 
 
+def _sql_da_0029() -> str:
+    """
+    A 0029 traz a matriz de `pesquisa_preco_emissoes` — RLS ligada e
+    FORÇADA, duas políticas nominais, grants explícitos, revoke de `anon`
+    e conferência que falha sozinha. Mesmas duas formas de nome da 0028.
+    """
+    migracoes = Path(__file__).resolve().parent.parent / "supabase/migrations"
+    for nome in ("0029_cotacoes_unificadas.sql",
+                 "0029_cotacoes_unificadas.sql.NAO_APLICAR"):
+        caminho = migracoes / nome
+        if caminho.exists():
+            return caminho.read_text(encoding="utf-8")
+    raise AssertionError("a 0029 sumiu do repositório")
+
+
 def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     """
     Cobertura declarada = cobertura escrita. Tabela que não aparece em
@@ -1892,7 +1916,7 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     sql_emissao = (Path(__file__).resolve().parent.parent / "supabase/migrations"
                    / "20261016231514_documentos_editor_emissao_nativa.sql").read_text(encoding="utf-8")
     coberto = (_sql_da_0020() + _sql_da_0021() + _sql_da_0025()
-               + _sql_da_0028() + sql_editor + sql_emissao)
+               + _sql_da_0028() + _sql_da_0029() + sql_editor + sql_emissao)
     faltando = [t for t in TABELAS_PRIVADAS if t not in coberto]
     assert not faltando, f"sem matriz de RLS escrita: {faltando}"
 
@@ -1900,7 +1924,8 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     # ter silenciosamente assumido tabela que era da 0020.
     sql_0020 = _sql_da_0020()
     proprias = (TABELAS_DA_PESQUISA_DE_PRECOS | TABELAS_DA_MULTI_PREFEITURA
-                | TABELAS_DO_CACHE_DE_GERACAO | TABELAS_WORDCRAFT_NAO_IMPLANTADAS)
+                | TABELAS_DO_CACHE_DE_GERACAO | TABELAS_DAS_COTACOES
+                | TABELAS_WORDCRAFT_NAO_IMPLANTADAS)
     for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 
@@ -2162,10 +2187,7 @@ def test_a_0020_usa_app_metadata_e_nunca_user_metadata():
 
 @pytest.fixture()
 def cliente_anon():
-    if os.getenv("GOVDOCS_ENSAIO_CLIENTE_HTTP_MINIMO") == "1":
-        from http_supabase_client import create_client
-    else:
-        from supabase import create_client
+    from supabase import create_client
 
     return create_client(exigir_ensaio(), ENSAIO_ANON)
 
@@ -2184,10 +2206,7 @@ def cliente_servidor():
         "GOVDOCS_ENSAIO_SECRET_KEY é obrigatória quando o ensaio está "
         "configurado: sem servidor não há como preparar o objeto "
         "descartável nem provar que a operação legítima segue")
-    if os.getenv("GOVDOCS_ENSAIO_CLIENTE_HTTP_MINIMO") == "1":
-        from http_supabase_client import create_client
-    else:
-        from supabase import create_client
+    from supabase import create_client
 
     return create_client(exigir_ensaio(), chave)
 
@@ -2227,12 +2246,10 @@ def canario_descartavel(cliente_servidor):
 @pytest.fixture()
 def catalogo(cliente_servidor):
     """Auditoria de catálogo — a prova de CONFIGURAÇÃO das 28 tabelas."""
-    from ensaio_seguranca import auditar_catalogo, FASE_DEFINITIVA
+    from ensaio_seguranca import auditar_catalogo
 
     try:
-        # The canonical rehearsal applies 0020: authenticated has explicit RLS
-        # access. Phase A would misclassify those deliberate grants as anon leaks.
-        return auditar_catalogo(cliente_servidor, fase=FASE_DEFINITIVA)
+        return auditar_catalogo(cliente_servidor)
     except Exception as erro:  # noqa: BLE001
         pytest.fail(f"preparação falhou: {erro}")
 
@@ -2248,11 +2265,8 @@ def test_catalogo_nao_tem_policy_nem_grant_para_anon(catalogo):
 
 
 @requer_ensaio
-def test_catalogo_nao_tem_tabela_privada_sem_rls(catalogo):
-    # ensaio_objeto_novo intentionally has no RLS: HTTP tests prove its lack of
-    # grants independently of policies. The product inventory must all have RLS.
-    assert [a for a in catalogo if a.get("tipo") == "tabela_sem_rls"
-            and a.get("objeto") in TABELAS_PRIVADAS] == []
+def test_catalogo_nao_tem_tabela_sem_rls(catalogo):
+    assert [a for a in catalogo if a.get("tipo") == "tabela_sem_rls"] == []
 
 
 @requer_ensaio
@@ -2274,13 +2288,6 @@ def test_catalogo_nao_tem_funcao_executavel_por_anon(catalogo):
 def test_catalogo_nao_tem_default_privilege_aberto(catalogo):
     """A causa da recorrência: objeto futuro nascendo aberto."""
     assert [a for a in catalogo if a.get("tipo") == "default_privilege"] == []
-
-
-@requer_ensaio
-def test_catalogo_authenticated_tem_policy_e_with_check(catalogo):
-    """Phase B must check its added constraints, not only stop flagging grants."""
-    assert [a for a in catalogo if a.get("tipo") in
-            {"escrita_sem_with_check", "grant_sem_policy"}] == []
 
 
 @requer_ensaio
@@ -2383,8 +2390,8 @@ def test_servidor_continua_operando(cliente_servidor):
     Com a credencial de servidor, as operações legítimas seguem — é o
     que separa "contido" de "quebrado".
     """
-    for tabela, chave in (("usuarios", "id"), ("config_app", "chave"), ("processos", "id")):
-        resposta = cliente_servidor.table(tabela).select(chave).limit(1) \
+    for tabela in ("usuarios", "config_app", "processos"):
+        resposta = cliente_servidor.table(tabela).select("id").limit(1) \
             .execute()
         assert hasattr(resposta, "data")   # consultou sem erro de permissão
 

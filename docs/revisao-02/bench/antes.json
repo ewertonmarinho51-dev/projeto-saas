@@ -1,0 +1,64 @@
+{
+  "rotulo": "antes (main ce4cf2a)",
+  "raiz": "C:\\Users\\ewert\\AppData\\Local\\Temp\\r02main",
+  "quando": "2026-10-17T23:22:16+00:00",
+  "ambiente": {
+    "python": "3.11.9",
+    "sistema": "Windows-10-10.0.26200-SP0",
+    "processador": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD"
+  },
+  "latencia_simulada_por_requisicao_ms": 60,
+  "observacoes": [
+    "banco: dublê em memória com latência simulada por requisição",
+    "tela: AppTest roda o script inteiro do Streamlit; não inclui o paint do navegador nem a rede até ele",
+    "relatório: só a montagem do DOCX; a conversão em PDF usa o LibreOffice da produção, ausente nesta máquina"
+  ],
+  "remover_servico_cesta_15": {
+    "n": 20,
+    "p50_ms": 604.0,
+    "p95_ms": 604.6,
+    "media_ms": 604.0,
+    "req_banco_p50": 10.0,
+    "req_banco_max": 10,
+    "cesta_inicial": 15,
+    "consideradas_ao_fim_item1": 8
+  },
+  "remover_servico_cesta_317": {
+    "n": 20,
+    "p50_ms": 609.3,
+    "p95_ms": 609.9,
+    "media_ms": 609.3,
+    "req_banco_p50": 10.0,
+    "req_banco_max": 10,
+    "cesta_inicial": 317,
+    "consideradas_ao_fim_item1": 310
+  },
+  "remover_tela": {
+    "n": 15,
+    "p50_ms": 1369.7,
+    "p95_ms": 1425.8,
+    "media_ms": 1382.8,
+    "req_banco_p50": 21.0,
+    "req_banco_max": 22
+  },
+  "trocar_item": {
+    "n": 20,
+    "p50_ms": 563.0,
+    "p95_ms": 621.7,
+    "media_ms": 570.4,
+    "req_banco_p50": 8.0,
+    "req_banco_max": 9
+  },
+  "relatorio_docx_5_itens": {
+    "n": 5,
+    "p50_ms": 43.0,
+    "p95_ms": 172.9,
+    "media_ms": 76.6
+  },
+  "relatorio_docx_15_itens": {
+    "n": 5,
+    "p50_ms": 77.9,
+    "p95_ms": 85.6,
+    "media_ms": 77.7
+  }
+}

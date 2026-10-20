@@ -85,6 +85,15 @@ class SemSessao(db.ErroBanco):
     """
 
 
+class ConflitoDeVersao(db.ErroBanco):
+    """
+    Outra aba (ou outra pessoa) mudou o item depois que esta tela o leu.
+
+    Nada foi sobrescrito: quem recebe o erro recarrega o item do banco e
+    reaplica a própria mudança sobre a versão atual (pacote, U07).
+    """
+
+
 def modulo_ativo() -> bool:
     """Feature flag do módulo. Default OFF, como manda o §40."""
     return db.flag_ativa(FLAG)
@@ -283,7 +292,8 @@ def listar_pesquisas(limite: int = 20,
         consulta = (
             _cliente().table(TABELA_PESQUISAS)
             .select("id, nome, objeto, estado, versao, raiz_id, "
-                    "valor_global, processo_id, atualizado_em"))
+                    "valor_global, processo_id, atualizado_em, criado_em, "
+                    "responsavel, perfil_normativo, auth_user_id"))
         if processo_id:
             consulta = consulta.eq("processo_id", processo_id)
         resposta = (consulta.order("atualizado_em", desc=True)
@@ -439,8 +449,11 @@ def salvar_itens(pesquisa_id: str, itens: list[dict]) -> list[dict]:
         return []
     tenant = db.tenant_atual()
     registros = []
+    # PostgREST exige as MESMAS chaves em todos os objetos de um lote.
+    extras = [c for c in ("lote", "uf") if any(i.get(c) for i in itens)]
+    com_estado = any(i.get("estado") for i in itens)
     for posicao, item in enumerate(itens, start=1):
-        registros.append({
+        registro = {
             "pesquisa_id": pesquisa_id,
             "tenant_id": tenant,
             "numero": int(item.get("numero") or posicao),
@@ -449,9 +462,19 @@ def salvar_itens(pesquisa_id: str, itens: list[dict]) -> list[dict]:
             "descricao": item.get("descricao") or "",
             "unidade": item.get("unidade") or "",
             "quantidade": _numero(item.get("quantidade")),
-            "estado": EstadoItem(
-                item.get("estado") or EstadoItem.PENDENTE).value,
-        })
+        }
+        # O estado só vai quando quem chama o declara. Mandá-lo sempre
+        # ("pending" por padrão) fazia a reimportação de uma planilha
+        # devolver a PENDENTE itens já pesquisados, por fora da máquina de
+        # estados. Item novo nasce `pending` pelo DEFAULT da coluna.
+        if com_estado:
+            registro["estado"] = EstadoItem(
+                item.get("estado") or EstadoItem.PENDENTE).value
+        # Colunas da migração 0029 — só quando o lote as traz, para que
+        # um banco ainda sem a 0029 continue aceitando a gravação.
+        for coluna in extras:
+            registro[coluna] = str(item[coluna]) if item.get(coluna) else None
+        registros.append(registro)
     try:
         resposta = (_cliente().table(TABELA_ITENS)
                     .upsert(registros, on_conflict="pesquisa_id,numero")
@@ -472,6 +495,88 @@ def listar_itens(pesquisa_id: str) -> list[dict]:
         raise
     except Exception as exc:  # noqa: BLE001
         raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+
+
+CAMPOS_DO_ITEM = frozenset({"codigo", "tipo_catalogo", "descricao", "unidade",
+                            "quantidade", "lote", "uf", "removido_em",
+                            "numero"})
+
+
+def atualizar_item(item_id: str, campos: dict,
+                   revisao_esperada: int | None = None) -> dict:
+    """
+    Campos DESCRITIVOS do item (lista de permitidos). Estado vai por
+    `mover_item`; preço, por `atualizar_estimativa`. `lote`, `uf` e
+    `removido_em` são da 0029.
+    """
+    fora = sorted(set(campos) - CAMPOS_DO_ITEM)
+    if fora:
+        raise ValueError(f"{', '.join(fora)}: não é campo descritivo do item")
+    campos = dict(campos)
+    if "quantidade" in campos:
+        campos["quantidade"] = _numero(campos["quantidade"])
+    try:
+        return _update_item(item_id, campos, revisao_esperada)
+    except db.ErroBanco:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+
+
+def itens_de_varias(pesquisa_ids: list[str]) -> list[dict]:
+    """
+    Itens de várias pesquisas numa consulta só — o resumo de "Minhas
+    Cotações" (itens, 3+ considerados, pendências) não pode custar uma
+    consulta por linha da lista.
+    """
+    if not pesquisa_ids:
+        return []
+    try:
+        resposta = (_cliente().table(TABELA_ITENS)
+                    .select("id, pesquisa_id, numero, estado, estatisticas, "
+                            "preco_total, removido_em")
+                    .in_("pesquisa_id", list(pesquisa_ids)).execute())
+        return resposta.data or []
+    except SemSessao:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        texto = str(exc).lower()
+        if "removido_em" in texto:
+            # banco ainda sem a 0029: a lista funciona sem a coluna
+            resposta = (_cliente().table(TABELA_ITENS)
+                        .select("id, pesquisa_id, numero, estado, "
+                                "estatisticas, preco_total")
+                        .in_("pesquisa_id", list(pesquisa_ids)).execute())
+            return resposta.data or []
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+
+
+def definir_catalogo(item: dict, codigo: str, tipo: str = "CATMAT") -> dict:
+    """
+    Grava o CATMAT/CATSER ESCOLHIDO PELO SERVIDOR e devolve o item à fila.
+
+    A escolha é humana (ver `precos.catalogo`): o sistema sugere, nunca
+    grava sozinho. Item já pesquisado volta a BUSCANDO — a mesma porta do
+    "Buscar mais" — para a próxima rodada consultar o código novo.
+    """
+    codigo = str(codigo or "").strip()
+    tipo = str(tipo or "").upper()
+    if not codigo.isdigit() or tipo not in ("CATMAT", "CATSER"):
+        raise db.ErroBanco("Informe um código CATMAT/CATSER numérico.")
+    atual = EstadoItem(item.get("estado") or EstadoItem.PENDENTE)
+    campos = {"codigo": codigo, "tipo_catalogo": tipo, "erro": None}
+    if atual in (EstadoItem.PENDENTE, EstadoItem.BUSCANDO):
+        try:
+            resposta = (_cliente().table(TABELA_ITENS)
+                        .update(campos).eq("id", str(item["id"])).execute())
+            if not resposta.data:
+                raise db.ErroBanco("Não foi possível alterar este item.")
+            return resposta.data[0]
+        except db.ErroBanco:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+    return mover_item(str(item["id"]), EstadoItem.BUSCANDO, atual, **campos)
 
 
 def mover_item(item_id: str, destino: EstadoItem,
@@ -501,9 +606,23 @@ def mover_item(item_id: str, destino: EstadoItem,
         raise db._traduzir_erro(exc) from exc  # noqa: SLF001
 
 
+def estatisticas_com_decisoes(estimativa, decisoes: dict | None) -> dict:
+    """
+    A memória estatística da estimativa + as DECISÕES humanas do item
+    (método escolhido, exceção à regra dos três). As decisões não são
+    produto do cálculo — são entrada dele — e sobrevivem a cada recálculo
+    em vez de sumir na próxima regravação de `estatisticas`.
+    """
+    gravado = estimativa.para_relatorio()
+    if decisoes:
+        gravado["decisoes"] = decisoes
+    return gravado
+
+
 def registrar_estimativa(item_id: str, estimativa, *,
                          atual: EstadoItem | str,
-                         quantidade: Decimal | None = None) -> dict:
+                         quantidade: Decimal | None = None,
+                         decisoes: dict | None = None) -> dict:
     """
     Grava o resultado de `estatistica.estimar` e manda o item para
     REVISÃO — não para concluído.
@@ -526,23 +645,119 @@ def registrar_estimativa(item_id: str, estimativa, *,
         metodo=estimativa.metodo,
         preco_estimado=estimativa.valor_unitario,
         preco_total=estimativa.valor_total(quantidade),
-        estatisticas=estimativa.para_relatorio(),
+        estatisticas=estatisticas_com_decisoes(estimativa, decisoes),
         justificativa="\n".join(estimativa.memoria))
 
 
+def _update_item(item_id: str, campos: dict,
+                 revisao_esperada: int | None = None) -> dict:
+    """
+    UPDATE do item, com controle otimista quando `revisao_esperada` vem.
+
+    A coluna `revisao` é da migração 0029. Com ela, a escrita só acontece
+    se ninguém mexeu no item desde a leitura (`... where revisao = n`),
+    e a revisão sobe. Sem linha de volta, ou o RLS recusou ou a versão
+    mudou — a releitura diz qual dos dois.
+    """
+    consulta = _cliente().table(TABELA_ITENS)
+    if revisao_esperada is not None:
+        campos = {**campos, "revisao": int(revisao_esperada) + 1}
+    pedido = consulta.update(campos).eq("id", item_id)
+    if revisao_esperada is not None:
+        pedido = pedido.eq("revisao", int(revisao_esperada))
+    resposta = pedido.execute()
+    if resposta.data:
+        return resposta.data[0]
+    if revisao_esperada is not None:
+        atual = (_cliente().table(TABELA_ITENS).select("revisao")
+                 .eq("id", item_id).limit(1).execute()).data
+        if atual and int(atual[0].get("revisao") or 1) != int(revisao_esperada):
+            raise ConflitoDeVersao(
+                "Este item foi alterado em outra aba ou por outra pessoa "
+                "depois que você o abriu. Nada foi gravado: recarregue o "
+                "item e refaça a alteração sobre a versão atual.")
+    raise db.ErroBanco("Não foi possível alterar este item.")
+
+
+def atualizar_estimativa(item: dict, estimativa, *,
+                         quantidade: Decimal | None = None,
+                         decisoes: dict | None = None,
+                         revisao_esperada: int | None = None) -> dict:
+    """
+    Regrava a estimativa depois de a seleção da cesta mudar na revisão.
+
+    Mesma regra de `registrar_estimativa` — cesta que fecha o perfil vai
+    para REVISÃO, que não fecha vai para INCOMPLETO —, mas partindo de um
+    item que JÁ foi revisado: se o estado não muda, grava sem transição.
+    Item COMPLETO cuja cesta mudou volta para REVISÃO (ou INCOMPLETO): a
+    conclusão humana valia para a cesta anterior.
+    """
+    atual = EstadoItem(item.get("estado") or EstadoItem.EM_REVISAO)
+    destino = (EstadoItem.EM_REVISAO if estimativa.concluida
+               else EstadoItem.INCOMPLETO)
+    campos = {
+        "metodo": estimativa.metodo if estimativa.valor_unitario is not None
+        else None,
+        "preco_estimado": estimativa.valor_unitario,
+        "preco_total": estimativa.valor_total(quantidade),
+        "estatisticas": estatisticas_com_decisoes(estimativa, decisoes),
+        "justificativa": "\n".join(estimativa.memoria),
+    }
+    if destino is not atual:
+        if atual is EstadoItem.COMPLETO and destino is EstadoItem.INCOMPLETO:
+            # COMPLETO não vai direto a INCOMPLETO (estados.py): passa
+            # pela revisão, que é o que de fato aconteceu.
+            item = mover_item(str(item["id"]), EstadoItem.EM_REVISAO, atual)
+            atual = EstadoItem.EM_REVISAO
+        estados.transitar_item(atual, destino)
+        campos["estado"] = destino.value
+    for chave in ("preco_estimado", "preco_total"):
+        campos[chave] = _numero(campos[chave])
+    try:
+        return _update_item(str(item["id"]), campos, revisao_esperada)
+    except db.ErroBanco:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+
+
+def obter_item(item_id: str) -> dict | None:
+    try:
+        resposta = (_cliente().table(TABELA_ITENS).select("*")
+                    .eq("id", item_id).limit(1).execute())
+        return resposta.data[0] if resposta.data else None
+    except SemSessao:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+
+
 def confirmar_item(item_id: str, *, atual: EstadoItem | str = EstadoItem.EM_REVISAO,
-                   justificativa: str = "") -> dict:
+                   justificativa: str = "",
+                   revisao_esperada: int | None = None) -> dict:
     """
     O ato humano que fecha o item: REVISÃO → COMPLETO.
 
     Só sai daqui item que passou pela revisão. `justificativa`, quando
-    vem, é acrescentada à memória de cálculo — é onde o revisor registra
-    por que aceitou uma cesta com discrepantes sinalizados, por exemplo.
+    vem, é ACRESCENTADA à memória de cálculo — nunca a substitui. Antes
+    ela sobrescrevia a memória, e o relatório imprimia só o texto do
+    revisor como "memória de cálculo" (dossiê BP, tema 6b).
     """
-    campos: dict[str, Any] = {}
-    if justificativa.strip():
-        campos["justificativa"] = justificativa
-    return mover_item(item_id, EstadoItem.COMPLETO, atual, **campos)
+    estados.transitar_item(EstadoItem(atual), EstadoItem.COMPLETO)
+    campos: dict[str, Any] = {"estado": EstadoItem.COMPLETO.value}
+    texto = justificativa.strip()
+    if texto:
+        linha = obter_item(item_id) or {}
+        memoria = str(linha.get("justificativa") or "").rstrip()
+        campos["justificativa"] = (
+            (memoria + "\n" if memoria else "")
+            + f"conclusão do revisor: {texto}")
+    try:
+        return _update_item(item_id, campos, revisao_esperada)
+    except db.ErroBanco:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
 
 
 # ---------------------------------------------------------------------------
@@ -604,24 +819,33 @@ def listar_referencias(item_id: str,
 
 
 def reclassificar_referencia(referencia_id: str, status: str,
-                             motivo: str) -> dict:
+                             motivo: str | None = None, *,
+                             motivos_atuais: list | None = None) -> dict:
     """
     Inclui ou exclui uma referência da cesta.
 
-    Exclusão é MUDANÇA DE STATUS, com motivo obrigatório — não é
-    apagar. A 0021 não concede DELETE a ninguém justamente para que este
-    seja o único caminho: preço coletado que some sem rastro é o oposto
-    de pesquisa auditável.
+    Exclusão é MUDANÇA DE STATUS — não é apagar. A 0021 não concede
+    DELETE a ninguém justamente para que este seja o único caminho:
+    preço coletado que some sem rastro é o oposto de pesquisa auditável.
+
+    Incluir exige motivo (vai para a memória de cálculo). Retirar não
+    exige (pacote Jev, RF-02): sem texto, nada é acrescentado a `motivos`
+    e a trilha do serviço registra o ato com `user_reason` nulo.
     """
-    if not motivo.strip():
-        raise ValueError(
-            "excluir ou incluir referência exige motivo registrado")
+    texto = str(motivo or "").strip()
+    if not texto and status in ("selected", "warning"):
+        raise ValueError("incluir referência na cesta exige motivo registrado")
     try:
-        atual = (_cliente().table(TABELA_REFERENCIAS).select("motivos")
-                 .eq("id", referencia_id).limit(1).execute())
-        motivos = list(atual.data[0]["motivos"]) if atual.data else []
-        if motivo not in motivos:
-            motivos.append(motivo)
+        if motivos_atuais is not None:
+            # quem chama acabou de ler a linha (Revisão 02: uma ida ao
+            # banco a menos por clique de remover)
+            motivos = list(motivos_atuais)
+        else:
+            atual = (_cliente().table(TABELA_REFERENCIAS).select("motivos")
+                     .eq("id", referencia_id).limit(1).execute())
+            motivos = list(atual.data[0]["motivos"]) if atual.data else []
+        if texto and texto not in motivos:
+            motivos.append(texto)
         resposta = (_cliente().table(TABELA_REFERENCIAS)
                     .update({"status": status, "motivos": motivos})
                     .eq("id", referencia_id).execute())
@@ -680,6 +904,92 @@ def registrar_evento(pesquisa_id: str, tipo: str, *,
         return None
 
 
+TABELA_EMISSOES = "pesquisa_preco_emissoes"
+
+
+def registrar_emissao(pesquisa_id: str, emissao: dict) -> dict | None:
+    """
+    Registra a emissão de um relatório (migração 0029): quem, quando,
+    hash do conteúdo decisório, hash do ARQUIVO e as pendências impressas.
+
+    Append-only no banco. Sem a 0029 aplicada a tabela não existe: a
+    falha vira incidente registrado e a função devolve None — o
+    documento continua entregue, e a tela diz que o registro faltou.
+    """
+    registro = {"pesquisa_id": pesquisa_id, "tenant_id": db.tenant_atual(),
+                **emissao}
+    try:
+        resposta = _cliente().table(TABELA_EMISSOES).insert(registro).execute()
+        return resposta.data[0] if resposta.data else None
+    except SemSessao:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        texto = str(exc).lower()
+        if emissao.get("idempotency_key") and (
+                "duplicate" in texto or "unique" in texto):
+            return None
+        db.registrar_incidente(exc, contexto="registro de emissão de preços")
+        return None
+
+
+def listar_emissoes(pesquisa_id: str, limite: int = 50) -> list[dict]:
+    try:
+        resposta = (_cliente().table(TABELA_EMISSOES).select("*")
+                    .eq("pesquisa_id", pesquisa_id)
+                    .order("criado_em", desc=True).limit(limite).execute())
+        return resposta.data or []
+    except SemSessao:
+        raise
+    except Exception:  # noqa: BLE001 — sem a 0029, lista vazia
+        return []
+
+
+def referencias_decididas_por_humano(pesquisa_id: str,
+                                     item_id: str) -> set[str]:
+    """
+    Ids (e identificadores externos) das referências em que uma PESSOA
+    decidiu — incluiu ou excluiu, com motivo. É o que separa a escolha do
+    revisor da seleção que a cotação automática fez sozinha: as duas
+    gravam `selected`, e só a trilha diz quem decidiu.
+    """
+    try:
+        linhas = (_cliente().table(TABELA_EVENTOS).select("payload")
+                  .eq("pesquisa_id", pesquisa_id).eq("item_id", item_id)
+                  .in_("tipo", ["referencia_incluida", "referencia_excluida"])
+                  .execute()).data or []
+    except SemSessao:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+    ids: set[str] = set()
+    for linha in linhas:
+        payload = linha.get("payload") or {}
+        if payload.get("referencia"):
+            ids.add(str(payload["referencia"]))
+        ids.update(str(r) for r in payload.get("referencias") or [] if r)
+    return ids
+
+
+def rebaixar_referencias(referencia_ids: list[str]) -> int:
+    """
+    Tira da cesta, em LOTE, seleções que a cotação automática tinha feito
+    sozinha e que passam do teto: voltam a `candidate`, disponíveis para
+    inclusão manual. Não apaga nada; o motivo vai na trilha da busca.
+    """
+    feitas = 0
+    for inicio in range(0, len(referencia_ids), 200):
+        lote = referencia_ids[inicio:inicio + 200]
+        try:
+            (_cliente().table(TABELA_REFERENCIAS)
+             .update({"status": "candidate"}).in_("id", lote).execute())
+        except SemSessao:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+        feitas += len(lote)
+    return feitas
+
+
 def listar_eventos(pesquisa_id: str, limite: int = 200) -> list[dict]:
     try:
         resposta = (_cliente().table(TABELA_EVENTOS).select("*")
@@ -723,3 +1033,32 @@ def analises_do_item(item_id: str) -> list[dict]:
                 .eq("tipo", "busca_concluida").like("idempotency_key", "jev:result:%")
                 .order("criado_em", desc=True).limit(1000).execute())
     return [r["payload"] for r in resposta.data or []]
+
+
+def pareceres_jev(pesquisa_id: str, pagina: int = 1000) -> list[dict]:
+    """
+    Os pareceres do Jev gravados na trilha da pesquisa (`decisoes`), do
+    mais novo ao mais velho: só o id da referência e a escolha fechada,
+    sem o payload inteiro. Paginado: uma pesquisa real tem mais de mil.
+    """
+    saida: list[dict] = []
+    try:
+        while True:
+            resposta = (
+                _cliente().table(TABELA_EVENTOS)
+                .select("criado_em,referencia_id:payload->>referencia_id,"
+                        "escolha:payload->response->answers->"
+                        "price_reference_mismatch->>choice")
+                .eq("tenant_id", db.tenant_atual())
+                .eq("pesquisa_id", pesquisa_id).eq("tipo", "busca_concluida")
+                .like("idempotency_key", "jev:result:%")
+                .order("criado_em", desc=True).order("id", desc=True)
+                .range(len(saida), len(saida) + pagina - 1).execute())
+            linhas = resposta.data or []
+            saida.extend(linhas)
+            if len(linhas) < pagina:
+                return saida
+    except SemSessao:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001

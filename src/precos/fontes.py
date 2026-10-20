@@ -56,6 +56,12 @@ class Consulta:
     data_final: date | None = None
 
     limite: int = 100
+    # Registros por GRUPO do catálogo (PDM), no caminho por descrição do
+    # Compras.gov. O manual pede o máximo da API (500 por grupo, até 2
+    # grupos); a cotação automática pede menos (`PoliticaAmostraAutomatica`)
+    # — medido em produção em 17/10/2026: 500 a 611 registros brutos e
+    # ~30 s por item para uma cesta de no máximo 15.
+    limite_grupo: int = 500
 
     # Sinônimos propostos pela camada semântica (§8), já validados pelo
     # servidor. Eles só AMPLIAM o conjunto de candidatos — quem ranqueia
@@ -108,6 +114,18 @@ class Desfecho(str, Enum):
     FALHA = "failure"
 
 
+# Rótulos legíveis, num lugar só: tela, relatório e XLSX dizem a mesma
+# coisa sobre o mesmo desfecho.
+ROTULO_DESFECHO = {Desfecho.COM_PRECOS.value: "respondeu com preços",
+                   Desfecho.SEM_RESULTADO.value: "respondeu sem preço",
+                   Desfecho.SO_EVIDENCIA.value: "só evidência, sem preço",
+                   Desfecho.FALHA.value: "INDISPONÍVEL"}
+NOME_DA_FONTE = {"compras_gov_precos": "Compras.gov (preços praticados)",
+                 "compras_gov_itens": "Compras.gov (itens de contratações)",
+                 "pncp": "PNCP",
+                 "cotacao_direta": "Cotação direta"}
+
+
 @dataclass
 class ResultadoBusca:
     """
@@ -132,6 +150,14 @@ class ResultadoBusca:
     falha: str | None = None
     chamadas: int = 0
     total_disponivel: int | None = None
+    # Grupos do catálogo (PDM) que a fonte inferiu da DESCRIÇÃO do item.
+    # O matching usa como evidência de que a referência é o mesmo tipo
+    # de produto (ver `matching.comparar`).
+    pdms_inferidos: list[str] = field(default_factory=list)
+    # A consulta pelo código do item trouxe preço: o código É de catálogo.
+    # Sem isso, um código interno do município passaria por CATMAT na
+    # comparabilidade e zeraria a identidade de toda referência.
+    codigo_confirmado: bool = False
 
     @property
     def houve_falha(self) -> bool:

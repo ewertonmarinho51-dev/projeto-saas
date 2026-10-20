@@ -1,0 +1,30 @@
+{
+ "sem_teto": {
+  "referencias": 3010,
+  "consideradas": 2260,
+  "compacto": {
+   "paginas": 5,
+   "kb": 217,
+   "s": 11.7
+  },
+  "analitico_integral": {
+   "paginas": 191,
+   "kb": 11095,
+   "s": 33.2
+  }
+ },
+ "com_teto": {
+  "referencias": 125,
+  "consideradas": 75,
+  "compacto": {
+   "paginas": 5,
+   "kb": 215,
+   "s": 7.7
+  },
+  "analitico_integral": {
+   "paginas": 12,
+   "kb": 561,
+   "s": 7.6
+  }
+ }
+}

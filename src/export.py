@@ -813,8 +813,14 @@ def motor_pdf() -> str:
     return _motor_pdf_efetivo
 
 
-def _docx_em_pdf(docx_bytes: bytes) -> bytes | None:
-    """Converte DOCX em PDF com o LibreOffice; None se indisponível/falhar."""
+def _docx_em_pdf(docx_bytes: bytes, tempo_limite: int = 120) -> bytes | None:
+    """
+    Converte DOCX em PDF com o LibreOffice; None se indisponível/falhar.
+
+    `tempo_limite` existe para o Relatório Analítico Integral da pesquisa
+    de preços, que pode ter milhares de linhas; os demais documentos usam
+    o padrão de sempre.
+    """
     import os
     import subprocess
     import tempfile
@@ -830,7 +836,7 @@ def _docx_em_pdf(docx_bytes: bytes) -> bytes | None:
             subprocess.run(
                 [soffice, "--headless", "--convert-to", "pdf",
                  "--outdir", tmp, entrada],
-                check=True, capture_output=True, timeout=120,
+                check=True, capture_output=True, timeout=tempo_limite,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return None

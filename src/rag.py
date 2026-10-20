@@ -347,21 +347,31 @@ def _gerar_embeddings(textos: list[str], para_consulta: bool) -> list[list[float
     quem consulta cai para a busca textual.
     """
     from .config import (EMBEDDING_V2_DIMENSOES, EMBEDDING_V2_MODELO,
-                         EMBEDDING_V2_PROVEDOR)
-    from .llm import obter_chave_de_embeddings
+                         EMBEDDING_V2_MODELO_OPENROUTER, EMBEDDING_V2_PROVEDOR,
+                         OPENROUTER_BASE_URL)
+    from . import llm
 
     if EMBEDDING_V2_PROVEDOR != "openai":  # pragma: no cover - guarda
         raise ErroRAG(
             f"Provedor de embedding não suportado: {EMBEDDING_V2_PROVEDOR!r}. "
             "Trocar de provedor exige reindexar toda a base.")
 
-    chave = obter_chave_de_embeddings()
+    rota = llm.rota_de_embeddings()
+    if rota is None and llm.modo_exclusivo_openrouter():
+        # Modo exclusivo sem a rota comprovada: degradado, e dito.
+        st.warning(
+            "Busca da Base de Conhecimento em modo TEXTUAL (degradado): o "
+            "OpenRouter é o provedor exclusivo e a rota de embeddings dele "
+            "ainda não foi habilitada no servidor. Novas indexações ficam "
+            "pendentes de vetor.")
+        return None
+    chave = rota[1] if rota else ""
     if not chave:
         # Sem a chave do provedor do índice não se improvisa outro
         # motor. Vale para o Gemini, que serve à GERAÇÃO DE TEXTO e
-        # jamais ao índice, e vale igualmente para o OpenRouter — que
-        # não serve embedding nenhum: dos 467 modelos do catálogo em
-        # 08/10/2026, nenhum devolve vetor.
+        # jamais ao índice. O OpenRouter passou a servir o MESMO modelo
+        # (catálogo de 13/10/2026), mas só entra pela rota comprovada de
+        # `llm.rota_de_embeddings`, nunca como queda automática.
         #
         # A mensagem nomeia a chave DEDICADA porque é ela que resolve o
         # caso de quem migrou a geração para outro provedor: a chave da
@@ -379,9 +389,15 @@ def _gerar_embeddings(textos: list[str], para_consulta: bool) -> list[list[float
     try:
         from openai import OpenAI
 
-        cliente = OpenAI(api_key=chave, timeout=60, max_retries=1)
+        if rota[0] == "openrouter":
+            cliente = OpenAI(api_key=chave, base_url=OPENROUTER_BASE_URL,
+                             timeout=60, max_retries=1)
+            modelo = EMBEDDING_V2_MODELO_OPENROUTER
+        else:
+            cliente = OpenAI(api_key=chave, timeout=60, max_retries=1)
+            modelo = EMBEDDING_V2_MODELO
         resposta = cliente.embeddings.create(
-            model=EMBEDDING_V2_MODELO,
+            model=modelo,
             input=textos,
             dimensions=EMBEDDING_V2_DIMENSOES,
         )

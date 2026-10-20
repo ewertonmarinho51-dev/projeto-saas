@@ -58,7 +58,13 @@ FONTE_ITENS = Fonte(
 # atravessar um 429 ou um 5xx momentâneo sem derrubar a pesquisa inteira.
 TENTATIVAS = 3
 RECUO_INICIAL_S = 1.0
-TIMEOUT_S = 45
+TIMEOUT_S = 30
+
+# Busca pela DESCRIÇÃO: quantos grupos do catálogo (PDM) consultar. Uma
+# página de 500 compras por PDM sai em ~1,6 s (medido em 14/10/2026: 180
+# dias de "papel para impressão formatado" = 1.173 compras; de "clipe",
+# 1.498).
+PDMS_POR_ITEM = 2
 
 
 def _sem_acento(texto: str) -> str:
@@ -100,10 +106,18 @@ class ComprasGovAdapter(FontePesquisaPreco):
 
     fonte = FONTE_ITENS
 
-    def __init__(self, abrir_url=None) -> None:
+    def __init__(self, abrir_url=None, catalogo=None) -> None:
         # injetável para que os testes rodem sobre fixtures reais sem
         # depender da internet (§48)
         self._abrir = abrir_url or self._abrir_url
+        # Catálogo da busca por descrição. Com transporte injetado e sem
+        # catálogo, o catálogo usa o MESMO transporte e nenhum disco: um
+        # teste nunca sai para a internet por um caminho que esqueceu.
+        if catalogo is None and abrir_url is not None:
+            from .catalogo import Catalogo
+
+            catalogo = Catalogo(abrir_url=abrir_url, arquivo_indice=None)
+        self._catalogo = catalogo
 
     # ------------------------------------------------------------------
     # transporte
@@ -139,7 +153,15 @@ class ComprasGovAdapter(FontePesquisaPreco):
                     f"{self.fonte.nome} respondeu HTTP {erro.code} em "
                     f"{caminho}")
                 return None
-            except (urllib.error.URLError, TimeoutError, OSError):
+            except TimeoutError:
+                # Esgotar o tempo de leitura não é soluço de rede: é a API
+                # lenta para ESTA consulta, e repetir multiplicava a espera
+                # (3 × 45 s por item). Falha uma vez e segue.
+                resultado.falhar(
+                    f"{self.fonte.nome} não respondeu em {TIMEOUT_S} s em "
+                    f"{caminho}")
+                return None
+            except (urllib.error.URLError, OSError):
                 if tentativa < TENTATIVAS:
                     time.sleep(recuo)
                     recuo *= 2
@@ -165,20 +187,95 @@ class ComprasGovAdapter(FontePesquisaPreco):
     # ------------------------------------------------------------------
     def pesquisar(self, consulta: Consulta) -> ResultadoBusca:
         """
-        Usa o código quando ele existe; funciona sem ele quando não.
+        Pelo código quando há; pela DESCRIÇÃO e especificação quando não.
 
-        Os dois caminhos somam: tendo código, o caminho por contratações
-        ainda acrescenta contratações recentes que o de preços praticados
-        pode não trazer.
+        O caminho antigo por descrição pedia TODAS as contratações da
+        janela e filtrava o texto aqui — medido em 14/10/2026 a partir do
+        VPS, 180 dias passavam de 100 s. O caminho atual usa o catálogo
+        oficial como índice: infere da descrição os CATMAT mais aderentes
+        e consulta os preços praticados de cada um (~1 s por código). O
+        ranqueamento de comparabilidade, depois, confronta cada
+        referência com a descrição e a especificação do item.
+
+        Código informado que não traz preço (número da planilha, código
+        interno do município) cai também para a descrição.
         """
         resultado = ResultadoBusca(fonte=self.fonte)
         if consulta.tem_codigo:
-            self._por_codigo(consulta, resultado)
-        self._por_descricao(consulta, resultado)
+            self._por_codigo(consulta, resultado, avisar_vazio=False)
+            resultado.codigo_confirmado = bool(resultado.referencias)
+            if resultado.referencias or resultado.houve_falha:
+                return resultado
+            resultado.registrar(
+                f"o código {consulta.codigo_catalogo} não trouxe preço "
+                "praticado na janela; a busca seguiu pela descrição")
+        self._por_descricao_via_catalogo(consulta, resultado)
         return resultado
 
-    def _por_codigo(self, consulta: Consulta,
-                    resultado: ResultadoBusca) -> None:
+    def _por_descricao_via_catalogo(self, consulta: Consulta,
+                                    resultado: ResultadoBusca) -> None:
+        """
+        Descrição → grupo do catálogo (PDM) → compras do grupo inteiro.
+
+        Pedir o GRUPO, e não um CATMAT adivinhado, é o que torna a busca
+        pela descrição confiável: vêm todas as compras daquele tipo de
+        material na janela, e o ranqueamento de comparabilidade escolhe
+        as que batem com a descrição e a especificação (A4, 75 g, 2/0…).
+        Adivinhar o CATMAT exato errava em silêncio quando o item certo
+        não tinha compra no período.
+        """
+        from .catalogo import ErroCatalogo, padrao
+
+        catalogo = self._catalogo or padrao()
+        try:
+            pdms = catalogo.pdms_para(consulta.descricao, PDMS_POR_ITEM)
+        except ErroCatalogo as erro:
+            resultado.falhar(f"{self.fonte.nome}: {erro}")
+            return
+        if not pdms:
+            resultado.registrar(
+                "a descrição não correspondeu a nenhum grupo do catálogo "
+                "oficial (o primeiro termo deve nomear o material, ex.: "
+                "\"CANETA esferográfica…\"); ajuste a descrição ou informe "
+                "o CATMAT/CATSER do item")
+            return
+        resultado.registrar(
+            "busca pela descrição: grupo(s) do catálogo oficial — "
+            + "; ".join(f"{p['nome']} (PDM {p['codigo']})" for p in pdms))
+        resultado.pdms_inferidos.extend(str(p["codigo"]) for p in pdms)
+        for pdm in pdms:
+            self._por_pdm(consulta, pdm["codigo"], resultado)
+        if not resultado.referencias and not resultado.houve_falha:
+            resultado.registrar(
+                "nenhuma compra registrada para esse tipo de material na "
+                "janela consultada")
+
+    def _por_pdm(self, consulta: Consulta, codigo_pdm: str,
+                 resultado: ResultadoBusca) -> None:
+        """Preços praticados de TODOS os itens de um PDM na janela."""
+        caminho = ("/modulo-pesquisa-preco/3_consultarServico"
+                   if consulta.material_ou_servico == "S"
+                   else "/modulo-pesquisa-preco/1_consultarMaterial")
+        dados = self._obter(caminho, {
+            "pagina": 1,
+            "tamanhoPagina": self._tamanho_de_pagina(consulta.limite_grupo),
+            "tipo": "codigoPdm",
+            "codigo": codigo_pdm,
+            "estado": consulta.uf,
+            "codigoMunicipio": consulta.codigo_municipio,
+            "dataCompraInicio": _iso(consulta.data_inicial),
+            "dataCompraFim": _iso(consulta.data_final),
+        }, resultado)
+        if not dados:
+            return
+        resultado.total_disponivel = ((resultado.total_disponivel or 0)
+                                      + int(dados.get("totalRegistros") or 0))
+        for bruto in dados.get("resultado") or []:
+            resultado.referencias.append(
+                _referencia_de_preco_praticado(bruto))
+
+    def _por_codigo(self, consulta: Consulta, resultado: ResultadoBusca,
+                    avisar_vazio: bool = True) -> None:
         """Preços praticados do item exato — o caminho mais preciso."""
         caminho = ("/modulo-pesquisa-preco/3_consultarServico"
                    if consulta.material_ou_servico == "S"
@@ -195,10 +292,19 @@ class ComprasGovAdapter(FontePesquisaPreco):
         }, resultado)
         if not dados:
             return
-        resultado.total_disponivel = dados.get("totalRegistros")
+        resultado.total_disponivel = ((resultado.total_disponivel or 0)
+                                      + int(dados.get("totalRegistros") or 0))
         for bruto in dados.get("resultado") or []:
             resultado.referencias.append(
                 _referencia_de_preco_praticado(bruto))
+        if avisar_vazio and not resultado.referencias:
+            # Zero NÃO é falha da fonte: ou o código não é CATMAT (número
+            # da planilha, código interno do município), ou não houve
+            # compra no período. Os dois pedem a mesma ação do servidor.
+            resultado.registrar(
+                f"nenhum preço praticado para o código {consulta.codigo_catalogo} "
+                "na janela consultada: confira se ele é o CATMAT/CATSER do "
+                "item (ou escolha um dos sugeridos)")
 
     def _por_descricao(self, consulta: Consulta,
                        resultado: ResultadoBusca) -> None:
@@ -260,6 +366,26 @@ class ComprasGovAdapter(FontePesquisaPreco):
                             {"pagina": 1, "tamanhoPagina": PAGINA_MINIMA},
                             resultado)
         return bool(dados)
+
+
+def url_de_verificacao(bruto: dict) -> str | None:
+    """
+    Link OFICIAL que devolve exatamente este registro de preço praticado.
+
+    A própria API de Dados Abertos aceita filtrar por compra
+    (`idCompra`) e código do item: o resultado é o registro da referência,
+    com preço, órgão e fornecedor — verificado em 15/10/2026 (1 registro,
+    mesmo `idItemCompra`). Serve de evidência reprodutível no relatório;
+    `None` quando o registro não traz os dois identificadores.
+    """
+    compra, codigo = bruto.get("idCompra"), bruto.get("codigoItemCatalogo")
+    if not compra or not codigo:
+        return None
+    caminho = ("3_consultarServico" if bruto.get("codigoServico")
+               else "1_consultarMaterial")
+    return (f"{BASE}/modulo-pesquisa-preco/{caminho}?pagina=1"
+            f"&tamanhoPagina=10&tipo=codigoItemCatalogo&codigo={codigo}"
+            f"&idCompra={compra}")
 
 
 def _iso(valor: date | None) -> str | None:
