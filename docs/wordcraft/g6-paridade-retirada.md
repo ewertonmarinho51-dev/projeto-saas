@@ -55,6 +55,11 @@ em sua rodada mais recente com **502 passed e 1 skipped em 42,37 s**. Os 21
 contratos Node específicos do browser e a execução conjunta de host, validador e
 browser com **66/66 testes** passaram na sequência mais recente.
 
+A revisão final ampliou o escopo à suíte Python completa do produto. Com UTF-8
+explícito e raiz temporária curta para eliminar limitações demonstradas do Windows,
+ela concluiu com **3.382 passed e 471 skipped em 293,22 s**, zero falhas/erros.
+Os skips continuam integrações externas declaradas e não foram promovidos a PASS.
+
 ## Decisão de retirada
 
 Nenhum arquivo ou consumidor legado é retirado neste estado. A retirada exige,

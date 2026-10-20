@@ -82,14 +82,17 @@ não foi comprovada. A decisão detalhada está em `g6-paridade-retirada.md`.
 | PERF-IA | seleção versus documento inteiro | PASS LOCAL | 608 vs 12.634 tokens; SHA `fa790e10...` | custo USD requer modelo/preço explícito |
 | REG-PY | todos `test_wordcraft*.py` | PASS 502 / SKIP 1 | 42,37 s | `bash -n` somente em Linux |
 | REG-NODE | host, validador e browser | PASS 66/66 | execução local conjunta | CI do HEAD atual |
-| REG-PRODUTO | suíte Python integral, 3.853 casos coletados | INCONCLUSIVO LOCAL | processo encerra em `tests/test_app.py::test_formulario_valida_campos_obrigatorios`; reprodução isolada após aviso `missing ScriptRunContext` | executar no runner CI suportado |
+| REG-PRODUTO | suíte Python integral, 3.853 casos coletados | PASS 3.382 / SKIP 471 | JUnit `tests-full-branch-review-utf8.xml`, SHA `048dbfc6...`; 293,22 s | skips de integrações externas permanecem separados |
 
 SKIP e simulação não são promovidos a PASS real. JWT sintético não é Auth real;
 emulação móvel não é aparelho físico; raster histórico não aprova o corpus atual.
-A tentativa da suíte integral não é reportada como falha funcional: o processo
-Python desapareceu durante o primeiro `AppTest` Streamlit e deixou apenas o shell
-com descritor aberto; a reprodução isolada teve o mesmo estado, sem traceback ou
-código terminal utilizável. A suíte WordCraft independente concluiu normalmente.
+A primeira tentativa da suíte integral sob sandbox encerrou no primeiro `AppTest`.
+O caso isolado passou fora do sandbox em 8,87 s. Uma rodada integral inicial fora
+do sandbox expôs 54 leituras CP1252 de arquivos UTF-8, quatro paths Git temporários
+longos e um assert derivado do mojibake. A repetição com `PYTHONUTF8=1` e basetemp
+curto eliminou todas essas causas e concluiu sem falhas. O JUnit final possui
+786.331 bytes e SHA-256
+`048dbfc6e062ee2ce335118fc835ef67036a66fbd2e529e7b9f6845bbe5306fd`.
 
 ## E. Fidelity e operação
 
