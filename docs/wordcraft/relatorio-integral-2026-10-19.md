@@ -194,3 +194,19 @@ branch também permanece fora desta auditoria local e não foi executado.
 
 O snapshot foi lido pela integração oficial do GitHub. Ele não autoriza push,
 criação de PR, execução manual de workflow, merge ou deploy.
+
+### Atualização após autorização em 20/10/2026
+
+O usuário autorizou explicitamente push, workflows, PR, merge, deploy,
+migrations, flags, canário e produção. O HEAD `96b17bc` foi publicado por
+fast-forward. Antes do PR, a `main` remota `b1abc69` foi integrada no merge
+`998f727`; os conflitos em `app.py`, `src/auth.py` e
+`tests/test_seguranca_contencao.py` preservam, em conjunto, Cotações, refresh
+de Auth, revogação de sessão WordCraft, aprovação/emissão nativas e os
+inventários de RLS da migration 0029 e do schema WordCraft.
+
+Validação do merge: 366 PASS/133 SKIP nos testes diretamente afetados, 502
+PASS/1 SKIP na regressão WordCraft e 66/66 nos contratos Node. Os skips são os
+ensaios externos já identificados e não foram promovidos a PASS. Este registro
+é posterior ao merge auditado; CI, PR, merge na `main`, deploy e produção
+continuam sendo estados separados até confirmação própria.
