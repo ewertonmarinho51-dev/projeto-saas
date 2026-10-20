@@ -12,6 +12,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/wordcraft-fidelity.yml"
+BUILD_WORKFLOW = ROOT / ".github/workflows/wordcraft-build.yml"
 ZIP_SHA = "a57bdc0b05660afb3ea37e0625e50fc2d33e78fa9e995822210e51580c79221d"
 PRODUCER = "39fec20fc5e94590a95cfd9af8d0ce34d07c3e54"
 MANIFEST_SHA = "bd306cdb4709a43314366375da91ca1d00b2dd6db3c7683fff44eb15eb087548"
@@ -56,6 +57,17 @@ def test_workflow_embedded_python_is_syntactically_valid():
     assert len(blocks) == 4
     for block in blocks:
         ast.parse(block)
+
+
+def test_browser_build_installs_the_dependency_used_by_synthetic_admission():
+    value = yaml.load(BUILD_WORKFLOW.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    steps = value["jobs"]["upstream"]["steps"]
+    install = next(step for step in steps
+                   if step.get("name") == "Install pinned synthetic admission dependency")
+    assert install["run"] == "python3 -m pip install --disable-pip-version-check 'python-docx==1.2.0'"
+    admission = next(step for step in steps
+                     if step.get("name") == "Exercise the real native canvas, input barrier and undo in Chromium")
+    assert "scripts/wordcraft_browser_qa.mjs" in admission["run"]
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Bash parsing is required on Ubuntu CI; Windows sandbox refuses MSYS named objects (0xC0000022)")
