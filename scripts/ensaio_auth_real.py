@@ -503,6 +503,12 @@ def executar(*, dsn: str, archive: Path, postgrest: Path, node: Path, bundle: Pa
         _check(migrated.returncode == 0, stage)
         with psycopg.connect(new_dsn, autocommit=True) as connection:
             connection.execute(sql.SQL("revoke create on schema public from {}").format(sql.Identifier(auth_login)))
+            # The v2.197 runtime issues unqualified table queries even though
+            # DB_NAMESPACE directs migrations to `auth`. Pin the disposable
+            # login's runtime search path after migration, leaving the official
+            # public migration ledger where upstream created it.
+            connection.execute(sql.SQL("alter role {} in database {} set search_path = auth, public")
+                               .format(sql.Identifier(auth_login), sql.Identifier(database)))
         stage = "canonical_app_migrations"
         with psycopg.connect(new_dsn, autocommit=True) as connection:
             schema = sql_harness.preparar(connection, auth_real=True)
