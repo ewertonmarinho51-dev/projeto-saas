@@ -51,8 +51,9 @@ isolado do workspace, sem alterar o Python do sistema. O contrato específico de
 0,66 s**; o skip é a verificação `bash -n`, indisponível neste Windows. Em
 seguida, a execução agregada de todos os arquivos `test_wordcraft*.py`, agora
 incluindo o analisador YAML do workflow e o benchmark de escopo de IA, encerrou
-em sua rodada mais recente com **502 passed e 1 skipped em 42,37 s**. Os
-contratos Node do browser passaram 21/21 na sequência mais recente.
+em sua rodada mais recente com **502 passed e 1 skipped em 42,37 s**. Os 21
+contratos Node específicos do browser e a execução conjunta de host, validador e
+browser com **66/66 testes** passaram na sequência mais recente.
 
 ## Decisão de retirada
 

@@ -81,10 +81,15 @@ não foi comprovada. A decisão detalhada está em `g6-paridade-retirada.md`.
 | PERF-ASSETS | bruto/gzip/Brotli | PASS LOCAL | browser SHA `cefd4dc...` | `Content-Encoding` no host alvo |
 | PERF-IA | seleção versus documento inteiro | PASS LOCAL | 608 vs 12.634 tokens; SHA `fa790e10...` | custo USD requer modelo/preço explícito |
 | REG-PY | todos `test_wordcraft*.py` | PASS 502 / SKIP 1 | 42,37 s | `bash -n` somente em Linux |
-| REG-NODE | host/browser | PASS 21/21 | execução local | CI do HEAD atual |
+| REG-NODE | host, validador e browser | PASS 66/66 | execução local conjunta | CI do HEAD atual |
+| REG-PRODUTO | suíte Python integral, 3.853 casos coletados | INCONCLUSIVO LOCAL | processo encerra em `tests/test_app.py::test_formulario_valida_campos_obrigatorios`; reprodução isolada após aviso `missing ScriptRunContext` | executar no runner CI suportado |
 
 SKIP e simulação não são promovidos a PASS real. JWT sintético não é Auth real;
 emulação móvel não é aparelho físico; raster histórico não aprova o corpus atual.
+A tentativa da suíte integral não é reportada como falha funcional: o processo
+Python desapareceu durante o primeiro `AppTest` Streamlit e deixou apenas o shell
+com descritor aberto; a reprodução isolada teve o mesmo estado, sem traceback ou
+código terminal utilizável. A suíte WordCraft independente concluiu normalmente.
 
 ## E. Fidelity e operação
 
