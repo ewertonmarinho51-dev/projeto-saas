@@ -27,6 +27,7 @@ contas-auth*.json
 # credencial falsa que a suíte monta em runtime
 .pytest_cache/
 node_modules/
+supabase/.temp/
 
 # Cartographer — mapa semântico do código para o agente de desenvolvimento
 #

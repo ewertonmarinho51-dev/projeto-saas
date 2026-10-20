@@ -1,0 +1,276 @@
+{
+  "schema": "gc-wordcraft-ui-patches/v1",
+  "upstream_commit": "533615620ef91ae57fa7aa4cd77fd98b2179e693",
+  "patches": [
+    {
+      "path": "crates/ui-egui/src/dialogs.rs",
+      "before_sha256_lf": "1670cf523d8882672d16ef55fe1584f08e38b9bf6f3874be414d2fa0ba6eec8e",
+      "after_sha256_lf": "258b0b485a262f2db311ecc4444a9903c8243ec3d22d9fe95fb928098b88ab1f",
+      "replacements": [
+        {
+          "before": "Dialog::About { .. } => \"About WordCraft\",",
+          "after": "Dialog::About { .. } => \"About the GovConnect editor\","
+        },
+        {
+          "before": "ui.label(egui::RichText::new(tl!(\"WordCraft\")).font(semibold(22.0)));",
+          "after": "ui.label(egui::RichText::new(tl!(\"GovConnect — based on WordCraft\")).font(semibold(22.0)));"
+        },
+        {
+          "before": "ui.label(tl!(\n                        \"A free, open-source word processor written from scratch in Rust.\\nPart of the Crafting Apps from the ArtCraft team.\"\n                    ));",
+          "after": "ui.label(tl!(\"GovConnect is an independent integration based on WordCraft by the ArtCraft team.\"));"
+        },
+        {
+          "before": "ui.hyperlink_to(tl!(\"getartcraft.com/apps/wordcraft\"), \"https://getartcraft.com/apps/wordcraft\");",
+          "after": "// Upstream commercial promotion is omitted in the independent GovConnect integration."
+        },
+        {
+          "before": "ui.hyperlink_to(tl!(\"Join us on Discord: discord.gg/artcraft\"), \"https://discord.gg/artcraft\");",
+          "after": "// Upstream community promotion is omitted; source and copyright attribution remain below."
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/lib.rs",
+      "before_sha256_lf": "49f79d0536447fc89d266f0f71607a20d1053e93cd2f6f6a70ec4ad8d1fa1dd6",
+      "after_sha256_lf": "e455c89997e880d70b403616a559567e0f4611951cb287e0f87b1bcc1ebad26d",
+      "replacements": [
+        {
+          "before": "self.canvas.open_url = Some(\"https://discord.gg/artcraft\".into());",
+          "after": "self.canvas.open_url = None;"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/pt-br.tsv",
+      "before_sha256_lf": "8e6257b18c1c2d863c4886046fa8b00fbf7a849c9c3abe0521d024c657f0f49d",
+      "after_sha256_lf": "577fae2e3f394d29c9ebb13587e527a94e39159028db6f17f31045a8c2f2548c",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tPreferências de idioma…\n",
+          "after": "\tLanguage Preferences…\tPreferências de idioma…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tSobre o editor GovConnect\n\tGovConnect — based on WordCraft\tGovConnect — baseado em WordCraft\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect é uma integração independente baseada no WordCraft da equipe ArtCraft.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/ru.tsv",
+      "before_sha256_lf": "a2804db65d7bf3b10d96bdb0d9c32dfc8904287c08576aa85d61a949fae8116a",
+      "after_sha256_lf": "a3e4a3053304bbb381fc784e5d3882c693f6bb5a33639b6fceb099fa4b2eebde",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tЯзыковые параметры…\n",
+          "after": "\tLanguage Preferences…\tЯзыковые параметры…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tО редакторе GovConnect\n\tGovConnect — based on WordCraft\tGovConnect — на основе WordCraft\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect — независимая интеграция на основе WordCraft команды ArtCraft.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/hu.tsv",
+      "before_sha256_lf": "7a28a9bfcb248b6fa04c6c159b5ee8f1e72a5a0c683cd0dd7821d331265a403e",
+      "after_sha256_lf": "cc4e4a1dcfea78100466387866028feaf3fd099fbbc93f727fb561c6d2c7ba61",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tNyelvi beállítások…\n",
+          "after": "\tLanguage Preferences…\tNyelvi beállítások…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tA GovConnect szerkesztő névjegye\n\tGovConnect — based on WordCraft\tGovConnect — WordCraft alapokon\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tA GovConnect az ArtCraft csapat WordCraft programjára épülő független integráció.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/tr.tsv",
+      "before_sha256_lf": "c523142f3d07da7cedf570333e520b8f682b0826b0d8b5c4acd4c1ace1f2256f",
+      "after_sha256_lf": "16e6dfa3bdf68b08282c473f7ecd110dd6d91f97479eacbd1761751e4540e643",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tDil tercihleri…\n",
+          "after": "\tLanguage Preferences…\tDil tercihleri…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tGovConnect düzenleyicisi hakkında\n\tGovConnect — based on WordCraft\tGovConnect — WordCraft tabanlı\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect, ArtCraft ekibinin WordCraft yazılımını temel alan bağımsız bir entegrasyondur.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/bg.tsv",
+      "before_sha256_lf": "0caea626514d1fc3120e5bf65c556e9fdfe0d9676e48cf67a8383ca316294159",
+      "after_sha256_lf": "843950f24d9ff65ee7d6c591c9dac2f5d850e6eac01d298e9c16fed2ff2a5652",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tЕзикови предпочитания…\n",
+          "after": "\tLanguage Preferences…\tЕзикови предпочитания…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tЗа редактора GovConnect\n\tGovConnect — based on WordCraft\tGovConnect — базиран на WordCraft\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect е независима интеграция, базирана на WordCraft от екипа на ArtCraft.\n"
+        }
+      ]
+    },
+    {
+      "path": "apps/wordcraft-web/index.html",
+      "before_sha256_lf": "7d8a341aa8e480065bbb68c8e81bc0c7a6cd872fb9cb4b1127eec33f28ae22a6",
+      "after_sha256_lf": "9ecad94cd3fedcb34b83bb45a2643d10ade210b0c8deedf6677f88824584d9fe",
+      "replacements": [
+        {
+          "before": "<html lang=\"en\">",
+          "after": "<html lang=\"pt-BR\">"
+        },
+        {
+          "before": "<title>WordCraft</title>",
+          "after": "<title>Editor GovConnect</title>"
+        },
+        {
+          "before": "  <link data-trunk rel=\"icon\" href=\"../../assets/app-icon/wordcraft.ico\" />\n",
+          "after": "  <!-- No upstream brand icon is copied into the independent integration. -->\n"
+        },
+        {
+          "before": "Loading WordCraft&hellip;",
+          "after": "Carregando editor GovConnect&hellip;"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/cs.tsv",
+      "before_sha256_lf": "94a5a18bcf477314912ff1beed0e557df9db014bfa6e45fe784ac897276367f2",
+      "after_sha256_lf": "df8159b49de16335056679288d0ce3b4696eb38483f9fbc185907bd6900543a4",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tPředvolby jazyka…\n",
+          "after": "\tLanguage Preferences…\tPředvolby jazyka…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tO editoru GovConnect\n\tGovConnect — based on WordCraft\tGovConnect — založený na WordCraftu\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect je nezávislá integrace založená na WordCraftu týmu ArtCraft.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/de.tsv",
+      "before_sha256_lf": "fe718e0e9cb4fc3299b201d50239ed988aa76b450e7176d74bb326936a251677",
+      "after_sha256_lf": "626ac838da770de8d47cf1d5829298c92833e2f2b6025d2fea69c1dea96b9f47",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tSpracheinstellungen…\n",
+          "after": "\tLanguage Preferences…\tSpracheinstellungen…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tÜber den GovConnect-Editor\n\tGovConnect — based on WordCraft\tGovConnect — auf Basis von WordCraft\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect ist eine unabhängige Integration auf Basis von WordCraft des ArtCraft-Teams.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/es.tsv",
+      "before_sha256_lf": "4e55f2f47095e6d0a883e3025e4844bb1892ed7dde23e45613fb7f109f3549a7",
+      "after_sha256_lf": "e53cb0061d06ebb3d9e55d5788c2deaf6584e53f7a4eb3429b62e0512b754e71",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tPreferencias de idioma…\n",
+          "after": "\tLanguage Preferences…\tPreferencias de idioma…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tAcerca del editor GovConnect\n\tGovConnect — based on WordCraft\tGovConnect — basado en WordCraft\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect es una integración independiente basada en WordCraft del equipo ArtCraft.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/et.tsv",
+      "before_sha256_lf": "167b59b369b042a509a91a1218cf57082ccbd691a25128370ff99c441465898f",
+      "after_sha256_lf": "c22d624f0bf5e7690d06df01ee6a201dde8d5756ffb6d56798f59f1c475f98bd",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tKeele-eelistused…\n",
+          "after": "\tLanguage Preferences…\tKeele-eelistused…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tTeave GovConnecti redaktori kohta\n\tGovConnect — based on WordCraft\tGovConnect — WordCrafti põhjal\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect on sõltumatu integratsioon, mis põhineb ArtCrafti meeskonna WordCraftil.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/fr.tsv",
+      "before_sha256_lf": "6a4c61233b23d2d673cf3c4bae2711dcddf4f3e1b90c7bb82612e3b078ab0554",
+      "after_sha256_lf": "e9c6341c6d2c9f23d8759a9d1816888fd1c3dd5aa31ec56862284f5a704f0913",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tPréférences linguistiques…\n",
+          "after": "\tLanguage Preferences…\tPréférences linguistiques…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tÀ propos de l’éditeur GovConnect\n\tGovConnect — based on WordCraft\tGovConnect — fondé sur WordCraft\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect est une intégration indépendante fondée sur WordCraft de l’équipe ArtCraft.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/it.tsv",
+      "before_sha256_lf": "44c03889fa31ad6b4491ca597df072dba59aaa1c1b40bd37e83f8a57366f29a2",
+      "after_sha256_lf": "1ea1e033c50e014fa4d4b3e09f7f2bc65d64a4a713ab9b7adb1e7a2f75dc3160",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tPreferenze lingua…\n",
+          "after": "\tLanguage Preferences…\tPreferenze lingua…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tInformazioni sull’editor GovConnect\n\tGovConnect — based on WordCraft\tGovConnect — basato su WordCraft\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect è un’integrazione indipendente basata su WordCraft del team ArtCraft.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/ja.tsv",
+      "before_sha256_lf": "42e10cf82a639e070540a1582e84789cee6515908b1bf93824a56762489c6497",
+      "after_sha256_lf": "a843392f16ab6d0deb07903f5cce92ee2e443fe30ded7678aceb52fb9a4167b2",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\t言語の設定…\n",
+          "after": "\tLanguage Preferences…\t言語の設定…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tGovConnect エディターについて\n\tGovConnect — based on WordCraft\tGovConnect — WordCraft ベース\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect は ArtCraft チームの WordCraft を基にした独立した統合です。\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/pl.tsv",
+      "before_sha256_lf": "09c48083062db908f1912dd005af996bb676a0f73064ca7df4169902bae09e35",
+      "after_sha256_lf": "0d83ea059284765f3317d06f775b82e773bd8a14187a2d4b7d472971ef613307",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tPreferencje językowe…\n",
+          "after": "\tLanguage Preferences…\tPreferencje językowe…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tO edytorze GovConnect\n\tGovConnect — based on WordCraft\tGovConnect — na podstawie WordCraft\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect to niezależna integracja oparta na WordCraft zespołu ArtCraft.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/sr.tsv",
+      "before_sha256_lf": "837d8f66c5c0b8dc2312e8c4657c61fc933bfe183cdcd3e13595b2bb16ae57c4",
+      "after_sha256_lf": "e8c7550b5a2acbed60c5ad8d1e3febc303cca42083aef096d4feb8b7ac5365e5",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tЈезичке поставке…\n",
+          "after": "\tLanguage Preferences…\tЈезичке поставке…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tО уређивачу GovConnect\n\tGovConnect — based on WordCraft\tGovConnect — заснован на WordCraft-у\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect је независна интеграција заснована на WordCraft-у тима ArtCraft.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/sr-latn.tsv",
+      "before_sha256_lf": "b28564cb507308e46cfa77beeda109032a5b57d795ee9e32fbbc26bc31baa65a",
+      "after_sha256_lf": "0e0f4e82070938b5a4d3ec202499ca24245580651d258e5d15fd77db15917d8d",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tJezičke postavke…\n",
+          "after": "\tLanguage Preferences…\tJezičke postavke…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tO uređivaču GovConnect\n\tGovConnect — based on WordCraft\tGovConnect — zasnovan na WordCraft-u\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect je nezavisna integracija zasnovana na WordCraft-u tima ArtCraft.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/uk.tsv",
+      "before_sha256_lf": "a9c2f74c0c7de179d263b2cdd2f96c53d6dabac8342fe3fc7ef997f8ce6d9a93",
+      "after_sha256_lf": "2f4eee12fd38466f3f11bb10efec88e83548cbda0523f3e5d9466376d7257452",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\tМовні параметри…\n",
+          "after": "\tLanguage Preferences…\tМовні параметри…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\tПро редактор GovConnect\n\tGovConnect — based on WordCraft\tGovConnect — на основі WordCraft\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect — незалежна інтеграція на основі WordCraft команди ArtCraft.\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/zh-hans.tsv",
+      "before_sha256_lf": "a1f24993ea787438df7c925900885faa01b9fc4203ae911f9e95f68c7c9b7a42",
+      "after_sha256_lf": "6660d5cdcd71d02daecdc3538dbbb090f8e85a7f7c1009f3f74a870553ba6191",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\t语言首选项…\n",
+          "after": "\tLanguage Preferences…\t语言首选项…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\t关于 GovConnect 编辑器\n\tGovConnect — based on WordCraft\tGovConnect — 基于 WordCraft\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect 是基于 ArtCraft 团队 WordCraft 的独立集成。\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/i18n/zh-hant.tsv",
+      "before_sha256_lf": "6ec7ccbb6723d1b7bbfb946e099db05f7bd7a15ac67e460cec134822cf72940e",
+      "after_sha256_lf": "215908d11e4c825ccdfc9ff156d16933b5aa132e3c8cd2a7f6b156539fc9cda6",
+      "replacements": [
+        {
+          "before": "\tLanguage Preferences…\t語言喜好設定…\n",
+          "after": "\tLanguage Preferences…\t語言喜好設定…\n\n# Independent GovConnect integration\n\tAbout the GovConnect editor\t關於 GovConnect 編輯器\n\tGovConnect — based on WordCraft\tGovConnect — 以 WordCraft 為基礎\n\tGovConnect is an independent integration based on WordCraft by the ArtCraft team.\tGovConnect 是以 ArtCraft 團隊的 WordCraft 為基礎的獨立整合。\n"
+        }
+      ]
+    },
+    {
+      "path": "crates/ui-egui/src/chrome.rs",
+      "before_sha256_lf": "8a4ec75728fdbe0ff0f129e63b63197b7770f0d621c1660fa39478ad16056c99",
+      "after_sha256_lf": "1609be700038ada2cc77d31f633367b5b427e9fa44ccfdfa292fec558db71652",
+      "replacements": [
+        {
+          "before": "                \"WordCraft\".to_string()\n            } else {\n                format!(\n                    \"{} — {}\",",
+          "after": "                \"WordCraft\".to_string()\n            } else if app.session.registry.get(\"file.save\").is_none() {\n                // Embedded persistence is acknowledged by the host, not a local file path.\n                format!(\"{} — GovConnect\", app.title_stem())\n            } else {\n                format!(\n                    \"{} — {}\","
+        }
+      ]
+    }
+  ]
+}

@@ -108,11 +108,16 @@ def _b64(dados: bytes) -> str:
     return base64.urlsafe_b64encode(dados).rstrip(b"=").decode()
 
 
-def cunhar_jwt(papel: str, segredo: str, validade_s: int = 6 * 3600) -> str:
+def cunhar_jwt(papel: str, segredo: str, validade_s: int = 6 * 3600, *,
+               sub: str | None = None, app_metadata: dict | None = None) -> str:
     agora = int(time.time())
     cabecalho = {"alg": "HS256", "typ": "JWT"}
     corpo = {"role": papel, "iss": "homologacao-local",
              "iat": agora, "exp": agora + validade_s}
+    if sub is not None:
+        corpo["sub"] = sub
+    if app_metadata is not None:
+        corpo["app_metadata"] = app_metadata
     parte = f"{_b64(json.dumps(cabecalho).encode())}." \
             f"{_b64(json.dumps(corpo).encode())}"
     assinatura = hmac.new(segredo.encode(), parte.encode(),
@@ -191,7 +196,12 @@ def subir_postgrest(dsn: str, segredo: str) -> subprocess.Popen:
     processo = subprocess.Popen(
         [BINARIO_PGRST], env=ambiente,
         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    _esperar_porta(PORTA_PGRST, processo=processo)
+    try:
+        _esperar_porta(PORTA_PGRST, processo=processo)
+    except BaseException:
+        # Until this helper returns, its caller cannot own/clean up the child.
+        _encerrar(processo)
+        raise
     return processo
 
 
@@ -203,7 +213,11 @@ def subir_adaptador() -> subprocess.Popen:
          "--porta", str(PORTA_ADAPTADOR),
          "--destino", f"http://127.0.0.1:{PORTA_PGRST}"],
         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    _esperar_porta(PORTA_ADAPTADOR, processo=processo)
+    try:
+        _esperar_porta(PORTA_ADAPTADOR, processo=processo)
+    except BaseException:
+        _encerrar(processo)
+        raise
     return processo
 
 

@@ -1,0 +1,201 @@
+name: WordCraft synthetic G3 fidelity on Linux
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/wordcraft-wasm-govconnect]
+    paths:
+      - .github/workflows/wordcraft-fidelity.yml
+      - scripts/wordcraft_corpus.py
+      - scripts/wordcraft_full_roundtrip.py
+      - scripts/wordcraft_libreoffice_qa.py
+      - scripts/wordcraft_libreoffice_extract.py
+      - scripts/wordcraft_local_assets.py
+      - tests/test_wordcraft_libreoffice_qa.py
+      - tests/test_wordcraft_fidelity_workflow.py
+      - docs/wordcraft/upstream.lock.json
+      - src/export.py
+      - src/wordcraft_native.py
+      - assets/wordcraft_editor/validate.mjs
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: wordcraft-fidelity-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  fidelity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Prepare fresh synthetic evidence namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          suffix = os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT']
+          evidence = root / 'build-evidence/wordcraft-fidelity'
+          evidence.mkdir(parents=True, exist_ok=False)
+          paths = {'FIDELITY_EVIDENCE': evidence}
+          for key, part in [('FIDELITY_CORPUS', 'corpus'), ('FIDELITY_NATIVE', 'native'),
+                            ('FIDELITY_LO_ORIGINAL', 'lo-original'), ('FIDELITY_LO_REEXPORTED', 'lo-reexported'),
+                            ('FIDELITY_COMPARISON', 'three-way'), ('FIDELITY_BUNDLE_LAB', 'bundle')]:
+              path = root.parent / ('wordcraft-fidelity-' + part + '-' + suffix)
+              if path.exists() or path.parent != root.parent or path == root:
+                  raise ValueError('Fresh sibling synthetic namespace required')
+              paths[key] = path
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as output:
+              for key, path in paths.items():
+                  output.write(key + '=' + str(path) + '\n')
+          (evidence / 'execution.json').write_text(json.dumps({
+              'schema': 'gc-wordcraft-fidelity-ci/v1', 'synthetic_only': True,
+              'status': 'PREPARED_NOT_FIDELITY_APPROVED', 'consumer_commit': os.environ['GITHUB_SHA'],
+              'run_id': os.environ['GITHUB_RUN_ID'], 'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'artifact_id': 11995992777,
+              'artifact_sha256': 'a57bdc0b05660afb3ea37e0625e50fc2d33e78fa9e995822210e51580c79221d',
+              'producer_commit': '39fec20fc5e94590a95cfd9af8d0ce34d07c3e54',
+              'manifest_sha256': 'bd306cdb4709a43314366375da91ca1d00b2dd6db3c7683fff44eb15eb087548',
+              'visual_review': 'PENDING'}, indent=2) + '\n', encoding='utf-8')
+          PY
+      - name: Install distribution LibreOffice and existing product QA dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update > "$FIDELITY_EVIDENCE/apt-update.log" 2>&1
+          sudo apt-get install -y --no-install-recommends libreoffice-writer fonts-liberation2 \
+            > "$FIDELITY_EVIDENCE/apt-install.log" 2>&1
+          python -m pip install -r requirements.txt pytest pyyaml
+          python -m pip freeze > "$FIDELITY_EVIDENCE/python-packages.txt"
+          dpkg-query -W libreoffice-writer libreoffice-core libreoffice-common coreutils fonts-liberation2 \
+            > "$FIDELITY_EVIDENCE/distribution-packages.txt"
+          apt-cache policy libreoffice-writer libreoffice-core libreoffice-common coreutils fonts-liberation2 \
+            > "$FIDELITY_EVIDENCE/apt-policy.txt"
+          node --version > "$FIDELITY_EVIDENCE/node-version.txt"
+          python --version > "$FIDELITY_EVIDENCE/python-version.txt"
+      - name: Verify runner lifecycle, admission and workflow contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pytest tests/test_wordcraft_libreoffice_qa.py tests/test_wordcraft_fidelity_workflow.py -q \
+            --basetemp "$RUNNER_TEMP/wordcraft-fidelity-tests" \
+            --junitxml "$FIDELITY_EVIDENCE/tests.xml" 2>&1 | tee "$FIDELITY_EVIDENCE/tests.txt"
+      - name: Download and admit pinned QA 39 artifact without rebuilding WordCraft
+        env:
+          ARTIFACT_READ_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/wordcraft-fidelity-download"
+          curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 --max-time 180 \
+            -H "Authorization: Bearer $ARTIFACT_READ_TOKEN" -H 'Accept: application/vnd.github+json' \
+            https://api.github.com/repos/ewertonmarinho51-dev/projeto-saas/actions/artifacts/11995992777/zip \
+            -o "$RUNNER_TEMP/wordcraft-fidelity-download/native-qa.zip"
+          echo "a57bdc0b05660afb3ea37e0625e50fc2d33e78fa9e995822210e51580c79221d  $RUNNER_TEMP/wordcraft-fidelity-download/native-qa.zip" | sha256sum --check
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from scripts.wordcraft_local_assets import install, MARKER
+          lab = Path(os.environ['FIDELITY_BUNDLE_LAB'])
+          lab.mkdir(exist_ok=False)
+          (lab / '.wordcraft-local-qa').write_text(MARKER, encoding='utf-8')
+          result = install(Path(os.environ['RUNNER_TEMP']) / 'wordcraft-fidelity-download/native-qa.zip', lab,
+              artifact_sha256='a57bdc0b05660afb3ea37e0625e50fc2d33e78fa9e995822210e51580c79221d',
+              producer_commit='39fec20fc5e94590a95cfd9af8d0ce34d07c3e54')
+          if result['manifest_sha256'] != 'bd306cdb4709a43314366375da91ca1d00b2dd6db3c7683fff44eb15eb087548':
+              raise ValueError('Native QA manifest differs from approved producer')
+          (Path(os.environ['FIDELITY_EVIDENCE']) / 'native-artifact-admission.json').write_text(
+              json.dumps({'artifact_id': 11995992777, **result}, indent=2) + '\n', encoding='utf-8')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as output:
+              output.write('FIDELITY_NATIVE_BUNDLE=' + str(lab / 'static/wordcraft') + '\n')
+          PY
+      - name: Generate new complete synthetic G3 corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/wordcraft_corpus.py --full-corpus --out "$FIDELITY_CORPUS" \
+            > "$FIDELITY_EVIDENCE/corpus-generation.json"
+      - name: Execute actual native import export and reimport for all 16 DOCX
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/wordcraft_full_roundtrip.py --inputs "$FIDELITY_CORPUS" --out "$FIDELITY_NATIVE" \
+            --node "$(command -v node)" --bundle "$FIDELITY_NATIVE_BUNDLE" \
+            --manifest-sha256 bd306cdb4709a43314366375da91ca1d00b2dd6db3c7683fff44eb15eb087548 \
+            2>&1 | tee "$FIDELITY_EVIDENCE/native-roundtrip.txt"
+          python - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          comparison = Path(os.environ['FIDELITY_NATIVE']) / 'comparison.json'
+          pin = hashlib.sha256(comparison.read_bytes()).hexdigest()
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as output:
+              output.write('FIDELITY_NATIVE_COMPARISON_SHA256=' + pin + '\n')
+          (Path(os.environ['FIDELITY_EVIDENCE']) / 'native-comparison.sha256').write_text(pin + '\n', encoding='ascii')
+          PY
+      - name: Convert original synthetic DOCX through existing institutional LibreOffice adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/wordcraft_libreoffice_qa.py --inputs "$FIDELITY_CORPUS" --out "$FIDELITY_LO_ORIGINAL" \
+            --institutional-adapter --system-soffice /usr/bin/libreoffice \
+            2>&1 | tee "$FIDELITY_EVIDENCE/libreoffice-original.txt"
+      - name: Convert actual native reexported DOCX through the same LibreOffice adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/wordcraft_libreoffice_qa.py --inputs "$FIDELITY_CORPUS" --out "$FIDELITY_LO_REEXPORTED" \
+            --institutional-adapter --system-soffice /usr/bin/libreoffice \
+            --roundtrip-docx-root "$FIDELITY_NATIVE" --roundtrip-comparison-sha256 "$FIDELITY_NATIVE_COMPARISON_SHA256" \
+            2>&1 | tee "$FIDELITY_EVIDENCE/libreoffice-reexported.txt"
+      - name: Compare three actual PDF paths without granting visual approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/wordcraft_libreoffice_qa.py --inputs "$FIDELITY_CORPUS" --out "$FIDELITY_COMPARISON" \
+            --compare-three-way --baseline-root "$FIDELITY_LO_ORIGINAL" --reexported-pdf-root "$FIDELITY_LO_REEXPORTED" \
+            2>&1 | tee "$FIDELITY_EVIDENCE/three-way.txt"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = json.loads((Path(os.environ['FIDELITY_COMPARISON']) / 'comparison.json').read_text())
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as output:
+              output.write('Synthetic G3: ' + str(len(report['cases'])) + ' sources compared through three real PDF paths.\n\n')
+              output.write('Cases with raster differences: ' + str(report['cases_with_raster_differences']) + '.\n\n')
+              output.write('Cases with text oracle issues: ' + str(report['cases_with_text_oracle_issues']) + '.\n\n')
+              output.write('Execution evidence only. Text, pagination and image differences remain recorded; visual fidelity is not approved.\n')
+          if report['cases_with_text_oracle_issues']:
+              raise SystemExit('Text oracle differences recorded; inspect the preserved synthetic evidence')
+          PY
+      - name: Preserve synthetic fidelity evidence and partial diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordcraft-synthetic-fidelity-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build-evidence/wordcraft-fidelity/
+            ${{ env.FIDELITY_CORPUS }}/
+            ${{ env.FIDELITY_NATIVE }}/
+            ${{ env.FIDELITY_LO_ORIGINAL }}/
+            ${{ env.FIDELITY_LO_REEXPORTED }}/
+            ${{ env.FIDELITY_COMPARISON }}/
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 14

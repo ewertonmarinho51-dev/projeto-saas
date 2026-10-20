@@ -1,0 +1,509 @@
+name: WordCraft pinned upstream build
+
+on:
+  push:
+    branches: [feature/wordcraft-wasm-govconnect]
+    paths:
+      - .github/workflows/wordcraft-build.yml
+      - docs/wordcraft/upstream.lock.json
+      - integrations/wordcraft/**
+      - scripts/wordcraft_overlay.py
+      - scripts/wordcraft_notices.py
+      - scripts/wordcraft_distribution_notices.py
+      - scripts/wordcraft_corpus.py
+      - scripts/wordcraft_browser_qa.mjs
+      - scripts/wordcraft_browser_qa.test.mjs
+      - assets/wordcraft_editor/host.mjs
+      - tests/fixtures/wordcraft/**
+      - assets/wordcraft_editor/validate.mjs
+      - src/wordcraft_native.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: wordcraft-build-${{ github.ref }}
+  # A new source revision supersedes the old one; never restart an unchanged
+  # revision merely because observing its logs took too long.
+  cancel-in-progress: true
+
+jobs:
+  upstream:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_TERM_COLOR: never
+      WORDCRAFT_NO_PREFS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Read pinned upstream revision
+        id: pin
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          lock = json.load(open('docs/wordcraft/upstream.lock.json'))
+          assert lock['repository'] == 'https://github.com/storytold/wordcraft'
+          assert re.fullmatch('[0-9a-f]{40}', lock['commit'])
+          assert type(lock['baseline_run']) is int and lock['baseline_run'] > 0
+          assert type(lock['baseline_artifact_id']) is int and lock['baseline_artifact_id'] > 0
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f"sha={lock['commit']}\n")
+              out.write(f"baseline_run={lock['baseline_run']}\n")
+              out.write(f"baseline_artifact={lock['baseline_artifact_id']}\n")
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: storytold/wordcraft
+          ref: ${{ steps.pin.outputs.sha }}
+          path: work-upstream
+          persist-credentials: false
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            work-upstream/target
+          key: wordcraft-linux-rust199-${{ steps.pin.outputs.sha }}
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev libgl1-mesa-dev libudev-dev libasound2-dev libfontconfig1-dev libwayland-dev libxkbcommon-dev pkg-config
+      - name: Install pinned Rust and wasm target
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal --component clippy,rustfmt --target wasm32-unknown-unknown
+          rustup default 1.99.0
+          rustc --version
+          cargo --version
+      - name: Install checksum-verified Trunk 0.21.14
+        run: |
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 -o "$RUNNER_TEMP/trunk.tar.gz" https://github.com/trunk-rs/trunk/releases/download/v0.21.14/trunk-x86_64-unknown-linux-gnu.tar.gz
+          echo "f2b4680cd239693a646a2795e4633c625328d7b2a044fbe749fa3a2fe9e7036b  $RUNNER_TEMP/trunk.tar.gz" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/trunk.tar.gz" -C "$HOME/.cargo/bin" trunk
+          trunk --version
+      - name: Fetch locked dependencies and record provenance
+        working-directory: work-upstream
+        env:
+          EXPECTED_SHA: ${{ steps.pin.outputs.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          mkdir -p ../build-evidence
+          git rev-parse HEAD > ../build-evidence/upstream-sha.txt
+          sha256sum Cargo.lock > ../build-evidence/Cargo.lock.sha256
+          cargo fetch --locked
+          cargo metadata --locked --format-version 1 > ../build-evidence/cargo-metadata.json
+          rustc --version > ../build-evidence/tools.txt
+          cargo --version >> ../build-evidence/tools.txt
+          trunk --version >> ../build-evidence/tools.txt
+          node --version >> ../build-evidence/tools.txt
+      - name: Verify upstream and embedded font notices
+        run: |
+          python3 scripts/wordcraft_notices.py --metadata build-evidence/cargo-metadata.json --upstream work-upstream --out build-evidence/notices > build-evidence/notices-check.json
+      - name: Verify the approved immutable upstream baseline
+        id: baseline
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/${{ github.repository }}/actions/runs/${{ steps.pin.outputs.baseline_run }} > build-evidence/baseline-run.json
+          gh api repos/${{ github.repository }}/actions/artifacts/${{ steps.pin.outputs.baseline_artifact }}/zip > build-evidence/baseline-evidence.zip
+          python3 scripts/wordcraft_preflight.py --source work-upstream --baseline-zip build-evidence/baseline-evidence.zip --run-metadata build-evidence/baseline-run.json > build-evidence/baseline-reuse.json
+          echo "verified=true" >> "$GITHUB_OUTPUT"
+      - name: Run upstream quality gates
+        if: steps.baseline.outputs.verified != 'true'
+        working-directory: work-upstream
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo xtask ci 2>&1 | tee ../build-evidence/upstream-ci.log
+      - name: Build upstream browser shell
+        if: steps.baseline.outputs.verified != 'true'
+        working-directory: work-upstream/apps/wordcraft-web
+        shell: bash
+        run: |
+          set -o pipefail
+          trunk build --release 2>&1 | tee ../../../build-evidence/trunk-build.log
+      - name: Verify unchanged lock and measure assets
+        if: steps.baseline.outputs.verified != 'true'
+        working-directory: work-upstream
+        run: |
+          sha256sum --check ../build-evidence/Cargo.lock.sha256
+          find dist/web -type f -printf '%s %p\n' | sort -nr > ../build-evidence/assets-size.txt
+          find dist/web -type f -exec sha256sum {} + > ../build-evidence/assets-sha256.txt
+          test -n "$(find dist/web -name '*.wasm' -print -quit)"
+      - name: Cache the verified baseline before testing the integration
+        if: steps.baseline.outputs.verified != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            work-upstream/target
+          key: wordcraft-linux-rust199-${{ steps.pin.outputs.sha }}
+      - name: Apply the isolated GovConnect adapter
+        run: |
+          python3 scripts/wordcraft_overlay.py --source work-upstream --browser > build-evidence/overlay.json
+          rustfmt --edition 2024 --config-path integrations/wordcraft/rustfmt.toml work-upstream/apps/wordcraft-web/src/govconnect.rs work-upstream/apps/wordcraft-web/src/govconnect_browser.rs work-upstream/apps/wordcraft-web/src/main.rs
+          cp work-upstream/apps/wordcraft-web/src/govconnect.rs build-evidence/govconnect-formatted.rs
+      - name: Verify the explicit integration-only lock delta
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, pathlib, subprocess
+          from scripts.wordcraft_overlay import LOCK_BEFORE_SHA, LOCK_AFTER_SHA, validate_lock_delta
+          root = pathlib.Path('work-upstream')
+          before = subprocess.check_output(['git', 'show', 'HEAD:Cargo.lock'], cwd=root).replace(b'\r\n', b'\n')
+          after = (root / 'Cargo.lock').read_bytes().replace(b'\r\n', b'\n')
+          assert hashlib.sha256(before).hexdigest() == LOCK_BEFORE_SHA
+          assert hashlib.sha256(after).hexdigest() == LOCK_AFTER_SHA
+          validate_lock_delta(before, after)
+          overlay = json.loads(pathlib.Path('build-evidence/overlay.json').read_text())
+          assert overlay['cargo_lock_upstream_sha256_lf'] == LOCK_BEFORE_SHA
+          assert overlay['cargo_lock_integration_sha256_lf'] == LOCK_AFTER_SHA
+          pathlib.Path('build-evidence/Cargo.lock.integration.sha256').write_text(LOCK_AFTER_SHA + '  Cargo.lock\n')
+          PY
+      - name: Record filtered integration distribution metadata
+        working-directory: work-upstream
+        run: cargo metadata --locked --filter-platform wasm32-unknown-unknown --format-version 1 > ../build-evidence/cargo-metadata-wasm-integration.json
+      - name: Collect conservative integration distribution notices without legal approval
+        run: |
+          distribution_cargo_root="${CARGO_HOME:-$HOME/.cargo}"
+          python3 scripts/wordcraft_distribution_notices.py --metadata build-evidence/cargo-metadata-wasm-integration.json --upstream work-upstream --registry-src "$distribution_cargo_root/registry/src" --git-checkouts "$distribution_cargo_root/git/checkouts" --out build-evidence/distribution-notices
+      - name: Check integration source formatting
+        working-directory: work-upstream
+        run: cargo fmt --all -- --check
+      - name: Test the native checkpoint codec
+        working-directory: work-upstream
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --locked -p wordcraft-web --lib 2>&1 | tee ../build-evidence/adapter-tests.log
+      - name: Regress native DOCX fidelity and table layout
+        working-directory: work-upstream
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --locked -p wordcraft-docx -p wordcraft-layout 2>&1 | tee ../build-evidence/io-fidelity-tests.log
+      - name: Regress the modified editor UI and language catalogs
+        working-directory: work-upstream
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --locked -p wordcraft-ui-egui 2>&1 | tee ../build-evidence/adapter-ui-regression.log
+      - name: Lint every native adapter target
+        working-directory: work-upstream
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo clippy --locked -p wordcraft-web --all-targets -- -D warnings 2>&1 | tee ../build-evidence/adapter-clippy.log
+      - name: Check the explicit WASM API types
+        working-directory: work-upstream
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo check --locked -p wordcraft-web --target wasm32-unknown-unknown 2>&1 | tee ../build-evidence/adapter-wasm.log
+          sha256sum --check ../build-evidence/Cargo.lock.integration.sha256
+      - name: Roundtrip the verified synthetic DOCX corpus through the real adapter
+        working-directory: work-upstream
+        run: |
+          python3 - <<'PY'
+          import importlib.util, pathlib, subprocess, sys
+          root = pathlib.Path('..').resolve()
+          sys.path.insert(0, str(root))
+          spec = importlib.util.spec_from_file_location('wordcraft_corpus', root / 'scripts/wordcraft_corpus.py')
+          corpus = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(corpus)
+          inputs = root / 'tests/fixtures/wordcraft'
+          manifest = corpus.verify_inputs(inputs)
+          output = root / 'build-evidence/corpus-roundtrip'
+          for item in manifest['files']:
+              source = inputs / item['path']
+              subprocess.run(['cargo', 'run', '--locked', '-p', 'wordcraft-web', '--example',
+                              'govconnect_fixture', '--', str(source), str(output / source.stem)], check=True)
+          corpus.compare_roundtrip(inputs, output)
+          PY
+      - name: Build the explicit GovConnect WASM API
+        working-directory: work-upstream/apps/wordcraft-web
+        shell: bash
+        run: |
+          set -o pipefail
+          trunk build --release 2>&1 | tee ../../../build-evidence/govconnect-trunk.log
+          grep -R -l 'GovConnectEditor' ../../dist/web/*.js > ../../../build-evidence/govconnect-api-exports.txt
+          grep -R -l 'validate_checkpoint' ../../dist/web/*.js >> ../../../build-evidence/govconnect-api-exports.txt
+          grep -R -l 'export_checkpoint' ../../dist/web/*.js >> ../../../build-evidence/govconnect-api-exports.txt
+          grep -R -l 'import_docx' ../../dist/web/*.js >> ../../../build-evidence/govconnect-api-exports.txt
+          grep -R -l 'apply_patch' ../../dist/web/*.js >> ../../../build-evidence/govconnect-api-exports.txt
+          test -z "$(find ../../dist/web -name '*.ico' -print -quit)"
+          if grep -E 'wordcraft\.ico|<title>WordCraft</title>|Loading WordCraft' ../../dist/web/index.html; then
+            echo "Unmodified upstream brand shell remains in the integration build"
+            exit 1
+          fi
+      - name: Assemble local integration test assets
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, shutil
+          root = pathlib.Path('work-upstream/dist/web')
+          out = pathlib.Path('wordcraft-local-qa')
+          out.mkdir()
+          files = []
+          for source in sorted(root.rglob('*')):
+              if not source.is_file() or source.suffix not in {'.js', '.wasm'}:
+                  continue
+              relative = source.relative_to(root)
+              target = out / relative
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, target)
+              files.append({'path': str(relative), 'bytes': source.stat().st_size,
+                            'sha256': hashlib.sha256(source.read_bytes()).hexdigest()})
+          assert any(f['path'].endswith('.wasm') for f in files)
+          assert any(f['path'].endswith('.js') for f in files)
+          shutil.copytree('build-evidence/notices', out / 'notices')
+          shutil.copyfile('build-evidence/cargo-metadata.json', out / 'cargo-metadata.json')
+          pin = json.loads(pathlib.Path('docs/wordcraft/upstream.lock.json').read_text())
+          (out / 'qa-manifest.json').write_text(json.dumps({
+              'status': 'INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED',
+              'upstream_commit': pin['commit'],
+              'govconnect_commit': os.environ['GITHUB_SHA'],
+              'distribution_review': 'Complete dependency obligations and runtime fidelity review remain pending',
+              'files': files}, indent=2) + '\n')
+          PY
+      - name: Validate real native checkpoints through the server IPC
+        run: |
+          python3 - <<'PY'
+          import hashlib, pathlib, shutil
+          from src.wordcraft_native import validar, ModeloRecusado
+          bundle = pathlib.Path('wordcraft-local-qa').resolve()
+          kwargs = {'node': pathlib.Path(shutil.which('node')), 'bundle': bundle,
+                    'manifest_sha256': hashlib.sha256((bundle / 'qa-manifest.json').read_bytes()).hexdigest()}
+          checkpoints = sorted(pathlib.Path('build-evidence/corpus-roundtrip').glob('*/checkpoint.json'))
+          assert len(checkpoints) == 3
+          for path in checkpoints:
+              validar(path.read_bytes(), **kwargs)
+          try:
+              validar(b'{"invalid_native_document":true}', **kwargs)
+          except ModeloRecusado:
+              pass
+          else:
+              raise AssertionError('Server engine accepted an invalid model')
+          pathlib.Path('build-evidence/native-server-validation.txt').write_text(
+              '3 real native checkpoints accepted; invalid model rejected; no document payload logged\n')
+          PY
+      - name: Export exact native checkpoints through the pure WASM API
+        run: |
+          node --input-type=module <<'JS'
+          import {readFile, writeFile, readdir} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          import {resolve} from 'node:path';
+          import {pathToFileURL} from 'node:url';
+          import {verifyBundle} from './assets/wordcraft_editor/validate.mjs';
+          const root = resolve('wordcraft-local-qa');
+          const pin = createHash('sha256').update(await readFile(root + '/qa-manifest.json')).digest('hex');
+          const bundle = await verifyBundle(root, pin);
+          const engine = await import(pathToFileURL(bundle.modulePath).href);
+          await engine.default({module_or_path: bundle.wasmBytes});
+          const base = 'build-evidence/corpus-roundtrip';
+          const cases = ['01-texto-listas-links', '02-tabela-210-itens', '03-timbrado-assinaturas'];
+          const directories = (await readdir(base, {withFileTypes:true})).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
+          if (JSON.stringify(directories) !== JSON.stringify(cases)) throw new Error('Synthetic corpus directory inventory differs');
+          for (const name of cases) {
+            const bytes = await readFile(`${base}/${name}/checkpoint.json`);
+            for (const format of ['docx', 'pdf']) {
+              const result = engine.export_checkpoint(bytes, format);
+              const output = Buffer.from(result);
+              if (!output.length || output.length > 64 * 1024 * 1024
+                  || (format === 'pdf' ? output.subarray(0, 5).toString() !== '%PDF-'
+                    : !output.subarray(0, 4).equals(Buffer.from([80, 75, 3, 4])))) {
+                throw new Error('Unexpected pure native export');
+              }
+              await writeFile(`${base}/${name}/wasm-roundtrip.${format}`, output);
+            }
+          }
+          let rejected = false;
+          try { engine.export_checkpoint(await readFile(`${base}/01-texto-listas-links/checkpoint.json`), 'html'); }
+          catch { rejected = true; }
+          if (!rejected) throw new Error('Unapproved export format was accepted');
+          await writeFile('build-evidence/native-server-export.txt',
+            '3 snapshots exported as DOCX/PDF by pure WASM; unapproved format rejected; fidelity approval pending\n');
+          JS
+      - name: Import verified DOCX through server admission and the pure WASM API
+        run: |
+          python3 - <<'PY'
+          import hashlib, importlib.util, json, pathlib, shutil
+          from src.wordcraft_native import importar_docx, validar, exportar, ModeloRecusado
+          spec = importlib.util.spec_from_file_location('wordcraft_corpus', 'scripts/wordcraft_corpus.py')
+          corpus = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(corpus)
+          inputs = pathlib.Path('tests/fixtures/wordcraft')
+          manifest = corpus.verify_inputs(inputs)
+          bundle = pathlib.Path('wordcraft-local-qa').resolve()
+          kwargs = {'node': pathlib.Path(shutil.which('node')), 'bundle': bundle,
+                    'manifest_sha256': hashlib.sha256((bundle / 'qa-manifest.json').read_bytes()).hexdigest()}
+          base = pathlib.Path('build-evidence/server-import-roundtrip')
+          base.mkdir()
+          cases = []
+          for item in manifest['files']:
+              source = inputs / item['path']
+              original = source.read_bytes()
+              checkpoint = importar_docx(original, **kwargs)
+              validar(checkpoint, **kwargs)
+              out = base / source.stem
+              out.mkdir()
+              (out / 'checkpoint.json').write_bytes(checkpoint)
+              artifacts = {}
+              for format in ('docx', 'pdf'):
+                  artifact = exportar(checkpoint, formato=format, **kwargs)
+                  (out / ('roundtrip.' + format)).write_bytes(artifact)
+                  artifacts[format] = hashlib.sha256(artifact).hexdigest()
+              before = corpus.text_blocks(original)
+              first_docx = (out / 'roundtrip.docx').read_bytes()
+              if corpus.text_blocks(first_docx) != before:
+                  raise AssertionError('Server DOCX import/export changed text or links')
+              second_checkpoint = importar_docx(first_docx, **kwargs)
+              validar(second_checkpoint, **kwargs)
+              second_docx = exportar(second_checkpoint, formato='docx', **kwargs)
+              if corpus.text_blocks(second_docx) != before:
+                  raise AssertionError('Reimported DOCX changed text or links')
+              if source.stem.startswith('02'):
+                  text = json.dumps(json.loads(checkpoint), ensure_ascii=False)
+                  if any(code not in text for code in manifest['oracle']['codes']):
+                      raise AssertionError('Imported native checkpoint dropped an item code')
+              cases.append({'case': source.stem, 'source_sha256': hashlib.sha256(original).hexdigest(),
+                            'checkpoint_sha256': hashlib.sha256(checkpoint).hexdigest(),
+                            'artifacts_sha256': artifacts, 'reimport_semantic_text_and_links': 'PASS'})
+          try:
+              importar_docx(b'PK\x03\x04invalid synthetic DOCX', **kwargs)
+          except ModeloRecusado:
+              pass
+          else:
+              raise AssertionError('Invalid DOCX was accepted')
+          (base / 'comparison.json').write_text(json.dumps({
+              'status': 'NATIVE_IMPORT_ROUNDTRIP_CHECKED_VISUAL_REVIEW_PENDING',
+              'cases': cases}, indent=2) + '\n')
+          PY
+      - name: Apply a typed native patch through the pure WASM API
+        run: |
+          node --input-type=module <<'JS'
+          import {readFile, writeFile} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          import {resolve} from 'node:path';
+          import {pathToFileURL} from 'node:url';
+          import {verifyBundle} from './assets/wordcraft_editor/validate.mjs';
+          const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+          const root = resolve('wordcraft-local-qa');
+          const pin = hash(await readFile(root + '/qa-manifest.json'));
+          const bundle = await verifyBundle(root, pin);
+          const engine = await import(pathToFileURL(bundle.modulePath).href);
+          await engine.default({module_or_path:bundle.wasmBytes});
+          if (typeof engine.apply_patch !== 'function') throw new Error('Native patch API missing');
+          const cases = ['01-texto-listas-links', '02-tabela-210-itens', '03-timbrado-assinaturas'];
+          for (const name of cases) {
+            const base = `build-evidence/corpus-roundtrip/${name}`;
+            const bytes = await readFile(`${base}/checkpoint.json`);
+            const originalHash = hash(bytes);
+            const original = JSON.parse(bytes);
+            const index = original.document.body.findIndex(block => block.kind === 'para'
+              && block.text.startsWith('Corpus inteiramente sintético'));
+            if (index < 0) throw new Error('Reviewed synthetic paragraph missing');
+            const plan = {schema:'gc-wordcraft-native-patch/v1', source_hash:originalHash,
+              source_revision:1, operations:[{op:'replace_text', story:'body', path:[index],
+                start_byte:0, end_byte:6, old_text:'Corpus', new_text:'Ensaio'}]};
+            const result = Buffer.from(engine.apply_patch(bytes, 1, JSON.stringify(plan)));
+            if (engine.validate_checkpoint(result) !== undefined || hash(bytes) !== originalHash
+                || !JSON.parse(result).document.body[index].text.startsWith('Ensaio inteiramente sintético')) {
+              throw new Error('Native patch result or original buffer differs');
+            }
+            await writeFile(`${base}/wasm-patched-checkpoint.json`, result);
+            for (const format of ['docx', 'pdf']) {
+              const artifact = Buffer.from(engine.export_checkpoint(result, format));
+              if (!artifact.length || (format === 'pdf' ? artifact.subarray(0,5).toString() !== '%PDF-'
+                  : !artifact.subarray(0,4).equals(Buffer.from([80,75,3,4])))) {
+                throw new Error('Patched native export format differs');
+              }
+              await writeFile(`${base}/wasm-patched.${format}`, artifact);
+            }
+            const invalid = [
+              {...plan, source_hash:'0'.repeat(64)},
+              {...plan, source_revision:2},
+              {...plan, operations:[plan.operations[0], plan.operations[0]]},
+              {...plan, operations:[{...plan.operations[0], op:'file.open'}]},
+            ];
+            for (const rejectedPlan of invalid) {
+              let rejected = false;
+              try { engine.apply_patch(bytes, 1, JSON.stringify(rejectedPlan)); }
+              catch { rejected = true; }
+              if (!rejected) throw new Error('Invalid/stale native patch was accepted');
+            }
+          }
+          await writeFile('build-evidence/native-pure-patches.txt',
+            '3 reviewed synthetic checkpoints patched and exported as DOCX/PDF; stale/hash/overlap/unknown operation rejected; live browser undo not tested\n');
+          JS
+      - name: Test the confined headless-browser QA contract
+        run: node --test scripts/wordcraft_browser_qa.test.mjs
+      - name: Install pinned synthetic admission dependency
+        run: >-
+          python3 -m pip install --disable-pip-version-check
+          'python-docx==1.2.0' 'pypdf==6.21.1'
+      - name: Install checksum-verified Playwright and pinned Chromium for QA only
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_root="$RUNNER_TEMP/wordcraft-browser-qa"
+          browsers_root="$RUNNER_TEMP/wordcraft-browsers"
+          mkdir -p "$qa_root" "$browsers_root"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            -o "$qa_root/playwright-core.tgz" \
+            https://registry.npmjs.org/playwright-core/-/playwright-core-1.56.1.tgz
+          QA_TARBALL="$qa_root/playwright-core.tgz" node --input-type=module <<'JS'
+          import {readFile} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          const expected = 'hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ==';
+          const actual = createHash('sha512').update(await readFile(process.env.QA_TARBALL)).digest('base64');
+          if (actual !== expected) throw new Error('Playwright package integrity differs');
+          JS
+          npm install --prefix "$qa_root" --ignore-scripts --no-audit --no-fund "$qa_root/playwright-core.tgz"
+          PLAYWRIGHT_BROWSERS_PATH="$browsers_root" \
+            node "$qa_root/node_modules/playwright-core/cli.js" install --with-deps chromium
+          echo "PLAYWRIGHT_BROWSERS_PATH=$browsers_root" >> "$GITHUB_ENV"
+          echo "WORDCRAFT_PLAYWRIGHT_ROOT=$qa_root/node_modules/playwright-core" >> "$GITHUB_ENV"
+      - name: Exercise the real native canvas, input barrier and undo in Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="$GITHUB_WORKSPACE/wordcraft-local-qa"
+          manifest_sha="$(sha256sum "$bundle/qa-manifest.json" | cut -d' ' -f1)"
+          node scripts/wordcraft_browser_qa.mjs \
+            --bundle "$bundle" \
+            --manifest-sha256 "$manifest_sha" \
+            --checkpoints "$GITHUB_WORKSPACE/build-evidence/corpus-roundtrip" \
+            --inputs "$GITHUB_WORKSPACE/tests/fixtures/wordcraft" \
+            --playwright "$WORDCRAFT_PLAYWRIGHT_ROOT" \
+            --python "$(command -v python3)" \
+            --out "$GITHUB_WORKSPACE/build-evidence/browser-qa" \
+            --producer-commit "$GITHUB_SHA"
+      - name: Verify unchanged integration lock after all adapter operations
+        working-directory: work-upstream
+        run: sha256sum --check ../build-evidence/Cargo.lock.integration.sha256
+      - name: Preserve assets for the local browser integration test
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordcraft-govconnect-local-qa
+          path: wordcraft-local-qa/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve build evidence (no deploy)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordcraft-upstream-build-evidence
+          path: build-evidence/
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,148 @@
+# Contratos e gates observados
+
+Snapshot de integração: 16/10/2026. O relatório formal mais recente fica em
+`outputs/RELATORIO_WORDCRAFT_CONTINUACAO_10.md` na pasta da tarefa. Resultados
+históricos não substituem CI do commit atual ou a versão efetivamente implantada.
+
+## Autoridade, formato e transporte
+
+GovConnect continua dono de identidade, processo, fatos, aprovação, trilha e
+emissão. `DocumentoService` reutiliza os clientes canônicos de usuário e servidor;
+seu contexto é reconciliado com o JWT e os atos sensíveis rechecados nas RPCs.
+`Ponte` valida o transporte, sem conceder ACL ou produzir persistência.
+
+O formato experimental `gc-wordcraft-snapshot/v1` preserva modelo, media e
+passthrough. JSON isolado de Document não serve: no upstream pinado, media e
+passthrough têm serde(skip). O codec nativo, a validação e a exportação usam o
+mesmo motor. Nenhum novo documento nativo é salvo como Markdown. Projeções de
+análise são somente leitura, sem autoridade de persistência ou endereço de edição.
+
+O build integrado `38823785860`, commit `f23a6c5`, passou em codec, patches,
+histórico da Session, UI, Clippy, WASM e import/export. Isso não comprova que os
+incrementos posteriores de controle do canvas já estejam compilados ou observados.
+
+O envelope fechado exige protocol/request/instance/session/document/revision/
+event/sequence/nonce/payload. O componente v2 conserva a instância entre reruns.
+O outbox transmite até 256 eventos não consumidos, sem descartar rascunho; o ACK
+de transporte apenas remove o prefixo aceito. Limite individual: 8 MiB de bytes,
+SHA-256 e inteiros seguros para JavaScript. Tenant, papel, plano de IA e ACK não
+são concedidos por eventos do cliente. `source_ok` é só contrato interno do host.
+
+A gravação usa CAS e operação idempotente no banco. O ACK de persistência exige
+revisão/hash/operação confirmados pelo owner. Digitação durante envio mantém o
+rascunho dirty depois do ACK anterior. Retry conserva os bytes e a operação;
+conflito impede sobrescrita e requer reconciliação. Picker/download upstream não
+participa desse fluxo. Recursos externos e comandos genéricos de Session não são
+expostos à LLM; o adaptador aceita operações textuais fechadas e delimitadas.
+
+## Persistência, aprovação e patches
+
+Originais de importação, índice de blocos, snapshot institucional e restauração
+ficam na revisão imutável existente. Restaurar cria nova revisão CAS; histórias
+sem prova continuam desconhecidas. IDs só são preservados quando unicidade ou
+linhagem de uma operação verificada justificam a identidade. Posição parecida
+não prova identidade. A importação é admitida antes de chegar ao WASM.
+
+A aprovação individual reutiliza governanca_aprovacoes, qualidade e evento
+canônico na mesma transação. Vincula revisão/hash/build/fontes/snapshot exatos.
+O ramo nativo não rotula Markdown antigo como aprovado nem avança o wizard.
+A navegação e o pacote ZIP auditável já consomem somente revisões nativas
+aprovadas. A emissão oficial é uma ação separada: persiste os pacotes DOCX/PDF,
+vincula fontes, artefatos, aprovação, snapshot e build, registra a publicação
+na governança existente e cruza `aprovado` → `emitido` atomicamente. Reabrir a
+emissão usa os bytes imutáveis persistidos. Os requisitos 01–07 definem
+artefatos imutáveis por revisão e snapshots oficiais; não exigem fundir
+instrumentos distintos em um único DOCX/PDF. Portanto os pacotes oficiais
+source-aware satisfazem esse limite sem reativar o consolidador Markdown
+legado. A prova via PostgREST/Auth real permanece pendente. O controle
+freeze/release do canvas usa um barrier nativo correlacionado e testado: espera
+frames, recusa entrada DOM, composição/gesto, revisão/hash divergentes e digest
+instável, e só produz o checkpoint depois de confirmar a mesma instância limpa.
+O runner Chromium exercita freeze/release e freeze de aprovação; o backend não
+infere frescor apenas do estado ready/saved.
+
+Patches passam pelo mesmo corretor/aplicador/FIXED/escopo/diff. A preparação é
+backend e selada pela instância do owner. O wrapper de lote reutiliza checkpoint,
+com CAS de todas as fontes, grava revisões e auditoria do ciclo na mesma transação.
+Falha no segundo alvo ou evento reverte tudo. Checkpoints do host precisam
+corresponder exatamente aos bytes preparados. Para alvo único, o host agora
+aplica o comando na Session viva, valida o hash de destino e correlaciona o
+checkpoint ao mesmo `operation_id`; o ACK só sai depois do recibo transacional.
+Divergência ou recusa nativa verifica a restauração exata e mantém o canvas
+utilizável, sem inventar checkpoint ou ACK. O hash usado pela Session viva é o
+dos bytes persistidos que abriram o editor; ele só muda após ACK do backend ou
+recarga limpa. Isso evita recusar um contêiner JSON válido apenas porque sua
+serialização não canônica difere da serialização interna do documento. A prova
+positiva com finding real havia parado num bundle anterior. O adapter atual foi
+recompilado localmente e o runner provou patch, stale rejection, Undo/Redo e dois
+canvas simultâneos independentes; essa prova ainda usa ACK de transporte
+simulado. O mesmo runner capturou a seleção nativa, passou uma resposta mockada
+pelo gateway e compilador GovBot reais, aplicou o resultado no canvas, confirmou
+o hash alterado por ACK simulado e só então desfez para o hash exato, confirmado
+por outro ACK simulado. O teste conjunto que substitui esses ACKs pelo commit e
+recibo reais do backend também passou: a mesma instância aplicou o comando
+preparado, confirmou a revisão 2, executou Undo depois do ACK e confirmou a
+restauração persistida como revisão 3. A recusa stale permanece comprovada nas
+duas fronteiras, mas ainda não foi repetida como tentativa única coeva.
+
+A captura de seleção agora é um comando servidor, ligado à revisão/hash limpos.
+O texto retornado serve apenas para resolver um bloco integral único entre paths
+já autorizados por finding do owner; posição do navegador nunca vira endereço
+de patch. Edição invalida a seleção. Propostas manuais e do gateway GovBot
+existente passam pelo mesmo compilador e diff. A passagem browser/bundle real
+usa IA mockada, conforme o plano de testes, e não afirma chamada de provedor.
+
+## Gates da missão integral
+
+| Gate | Estado | Evidência e lacuna material |
+|---|---|---|
+| G0 Auditoria | PARCIAL | coleta do lock integrado reproduzida byte a byte: closure WASM com 251 pacotes/186 textos e manifesto SHA-256 `3a69505c...`; 17 pacotes exigem revisão, 12 não trazem texto algum e 14 não trazem texto da licença de código; distribuição não aprovada |
+| G1 Percurso mínimo | PASS LOCAL LIMITADO | navegador abriu/editou/salvou/recarregou/exportou texto, timbrado e tabela de 210 itens; g1-evidencias.md; sem promoção a G3/G7 |
+| G2 Persistência | PARCIAL | importação, originais, índices, restauração, aprovação, consumidor source-aware, ZIP auditável e emissão oficial transacional atravessaram PostgREST/JWT sintético/RLS local; quatro heads emitidos e pacotes reabertos byte a byte; Auth/GoTrue real ainda pendente |
+| G3 Fidelidade | PARCIAL | novo corpus corrigido passa 16/16 roundtrips,135 etapas e87 páginas nativas; patch tipado de IO passou 243 testes DOCX e250 de layout no Windows GNU; LO histórico baseline16/70 páginas e derivado6/16 casos tinha44/50 PNGs iguais; runtime Windows fresco falhou fechado nas duas tentativas; raster corrigido e prova Linux pendentes |
+| G4 Patches | PASS LOCAL | motor único preservou 79 IDs/27 blocos protegidos e recusou 8 negativos; 188 SQL passaram; a prova coeva manteve o canvas Chromium/WASM vivo através de comando preparado, checkpoint exato, commit/RLS, ACK real, Undo posterior, revisão restaurada, retry, stale e auditoria; GoTrue e homologação-alvo pertencem a G7 |
+| G5 Seis capacidades | PARCIAL | trilhas A–D passam localmente pelos owners existentes; template/montagem atravessam PostgREST/JWT sintético/RLS e remount Chromium/WASM; C11 aprova/emite quatro heads; C12 mantém dois browsers/owners de tenants distintos e recusa leituras cruzadas; faltam artefato operacional homologado e sessões emitidas pelo Auth real |
+| G6 Paridade e retirada | PENDENTE | revisão em `g6-paridade-retirada.md`: superfície única e preservação de rascunho/rollback comprovadas; a rodada ampla, incluindo contratos YAML e escopo de IA, passou com 502 testes e 1 skip Windows de `bash -n`; nenhuma funcionalidade legada retirada, pois Auth real, fidelidade Linux, homologação, infraestrutura-alvo e canário ainda condicionam a substituição integral |
+| G7 Homologação | PARCIAL | CAS/RLS/imutabilidade SQL e HTTP sintéticos; runner Chromium passou em CI e Windows coevo, medindo startup, abertura, heap JS/DOM, memória linear WASM, working set e 41.860.573 bytes de assets brutos/15.492.381 gzip/9.804.706 Brotli; perfis de 20 e 100 páginas abriram e reproduziram os PDFs admitidos; emulação móvel 390×844 agora prova faixa recolhida, interface 75%, largura da página e coluna única no WASM, sem o recorte material observado antes, mas aparelho físico e homologação humana continuam sem aprovação; GoTrue Linux implementado, primeiro run falhou preflight; Auth real e orçamento na infraestrutura-alvo pendentes |
+
+CI: f23a6c5 teve build WASM e produto aprovados. O commit publicado 428acb6
+acrescentou aprovação/Auth e falhou no scanner por URLs sintéticas de loopback e
+no preflight da forma do archive oficial Auth. As correções precisam de novo CI;
+nenhuma dessas falhas foi convertida em sucesso por hipótese ou teste parcial.
+
+## Reprodução, ativação e rollback
+
+Usar upstream.lock.json e overlay da mesma revisão, toolchains pinados e hashes
+de ZIP/manifesto/assets. Reutilizar somente o baseline upstream aprovado e exato;
+os checks da integração sempre executam. Instalar assets apenas no laboratório
+marcado, nunca servir checkpoints em static. O IPC Node tem stdin/stdout limitados
+e ambiente sem credenciais; config de bundle/manifesto vem do servidor.
+
+Os bancos de ensaio são locais descartáveis em loopback. Sessões/JWTs sintéticos
+não são GoTrue. O título corrigido foi observado como Documento1 — GovConnect;
+a única confirmação de persistência continua sendo o ACK do backend. Provas
+históricas e limitações estão em g1-evidencias.md, persistencia-g2.md,
+ato-unico-aprovacao.md, patches-persistencia.md e libreoffice-local.md.
+
+Estado documental mantido pelo Streamlit é ligado à identidade autenticada.
+Logout e mudança de usuário, tenant ou secretaria revogam owner, bridges,
+checkpoints, preparações, widgets, pacotes e eventos do componente antes de uma
+nova montagem. Renovação de token para a mesma identidade conserva o estado.
+Essa defesa local não substitui a prova RLS com JWT real de G7.
+
+Ao ligar a superfície WordCraft durante uma sessão, um rascunho divergente no
+bucket ou widget do editor legado bloqueia a nova montagem antes de carregar o
+runtime, criar owner ou importar documento. O texto permanece na sessão e o
+operador deve salvar ou descartar no fluxo legado. Isso evita ocultação e
+importação prematura; ainda não comprova paridade nem autoriza retirar o legado.
+
+Todos os recursos da matriz03 permanecem LEGADO MANTIDO PARA COMPATIBILIDADE.
+TipTap, exportador e consumidores antigos não foram retirados. Não há flag
+operacional WordCraft ativa, merge, migration remota ou deploy autorizado.
+O primeiro push histórico disparou Vercel e falhou; o auto-deploy da branch foi
+depois desabilitado em vercel.json. Não há implantação bem-sucedida comprovada.
+
+Rollback operacional exige preservar originais, revisões, snapshots e artefatos,
+além de consumidor source-aware. Reverter flag/UI não converte dados nativos.
+Somente dados sintéticos foram usados; nenhum rollback de dados em produção foi
+executado ou certificado. Missão permanece ativa e não apta para produção.

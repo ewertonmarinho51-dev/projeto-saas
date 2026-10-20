@@ -260,6 +260,48 @@ OPERACOES = ["select", "insert", "update", "delete"]
 RPCS = {
     "buscar_chunks_textual": {"consulta": "ensaio", "qtd": 1},
     "buscar_chunks_vetorial": {"query_embedding": [0.0] * 768, "qtd": 1},
+    "documento_editor_contexto": {},
+    "documento_editor_fontes_patch": {"p_process": "00000000-0000-0000-0000-000000000001", "p_claims": {}},
+    "documento_editor_patch_lote": {"p_process": "00000000-0000-0000-0000-000000000001",
+        "p_operation": "00000000-0000-0000-0000-000000000001", "p_batch": "\\x7b7d",
+        "p_batch_sha256": hashlib.sha256(b"{}").hexdigest(), "p_claims": {}},
+    "documento_editor_sessao_valida": {},
+    "documento_editor_fontes_aprovacao": {"p_document": "00000000-0000-0000-0000-000000000001", "p_claims": {}},
+    "documento_editor_aprovar": {
+        "p_document": "00000000-0000-0000-0000-000000000001", "p_revision": 1,
+        "p_content_hash": "a" * 64, "p_operation": "00000000-0000-0000-0000-000000000001",
+        "p_claims": {}, "p_sources": None, "p_snapshot": None, "p_snapshot_sha256": None, "p_evidence": None,
+    },
+    "documento_editor_checkpoint": {
+        "p_document": "00000000-0000-0000-0000-000000000001",
+        "p_process": "00000000-0000-0000-0000-000000000001", "p_tipo": "dfd",
+        "p_expected_revision": 0, "p_operation": "00000000-0000-0000-0000-000000000001",
+        "p_payload": "\\x7b7d", "p_content_hash": hashlib.sha256(b"{}").hexdigest(), "p_claims": {},
+        "p_engine_build_sha256": "a" * 64,
+        "p_block_index": "\\x7b7d", "p_block_index_sha256": hashlib.sha256(b"{}").hexdigest(),
+        "p_index_mode": "initial", "p_original_format": None, "p_original_payload": None,
+        "p_conversion_report": None, "p_restored_from_revision": None,
+        "p_institutional_snapshot": "\\x7b7d", "p_institutional_snapshot_sha256": hashlib.sha256(b"{}").hexdigest(),
+    },
+    "documento_editor_emitir": {
+        "p_process": "00000000-0000-0000-0000-000000000001",
+        "p_operation": "00000000-0000-0000-0000-000000000001",
+        "p_engine_manifest_sha256": "a" * 64, "p_documents": [], "p_manifest": {},
+        "p_docx": "\\x7b7d", "p_docx_sha256": hashlib.sha256(b"{}").hexdigest(),
+        "p_pdf": "\\x7b7d", "p_pdf_sha256": hashlib.sha256(b"{}").hexdigest(), "p_claims": {},
+    },
+    "documento_editor_aplicar_template": {
+        "p_document": "00000000-0000-0000-0000-000000000001",
+        "p_process": "00000000-0000-0000-0000-000000000001", "p_tipo": "dfd",
+        "p_expected_revision": 1, "p_operation": "00000000-0000-0000-0000-000000000001",
+        "p_payload": "\\x7b7d", "p_content_hash": hashlib.sha256(b"{}").hexdigest(),
+        "p_engine_build_sha256": "a" * 64, "p_block_index": "\\x7b7d",
+        "p_block_index_sha256": hashlib.sha256(b"{}").hexdigest(),
+        "p_institutional_snapshot": "\\x7b7d",
+        "p_institutional_snapshot_sha256": hashlib.sha256(b"{}").hexdigest(),
+        "p_template_version": "00000000-0000-0000-0000-000000000001",
+        "p_template_hash": "a" * 64, "p_provenance": {}, "p_claims": {},
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -324,7 +366,7 @@ def tabelas_do_inventario() -> list[str]:
     nomes: set[str] = set()
     for arquivo in sorted(MIGRACOES.glob("*.sql")):
         sql = "\n".join(
-            linha for linha in arquivo.read_text().splitlines()
+            linha for linha in arquivo.read_text(encoding="utf-8").splitlines()
             if not linha.lstrip().startswith("--")
         )
         nomes.update(m.group(1).lower()
@@ -692,6 +734,11 @@ def _tentar_rpc(cliente_sondagem, funcao: str, params: dict) -> str:
 
 
 def _tentar_storage(cliente_sondagem) -> str:
+    # O ensaio HTTP mínimo sobe PostgREST e o adaptador de URL, mas declara
+    # expressamente que não sobe o serviço Storage. Nesse ambiente um 404 não
+    # mede autorização; a ausência do componente torna a prova não aplicável.
+    if os.getenv("GOVDOCS_ENSAIO_CLIENTE_HTTP_MINIMO") == "1":
+        return NAO_APLICAVEL
     try:
         baldes = cliente_sondagem.storage.list_buckets()
     except Exception as erro:  # noqa: BLE001

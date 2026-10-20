@@ -520,6 +520,13 @@ def render_etapa_documento(doc_key: str) -> None:
         st.warning("A nova elaboração não foi concluída. A versão anterior foi preservada.")
         if st.button("Tentar novamente", key=f"retry_{doc_key}"):
             _pedir_geracao(doc_key)
+    from .. import wordcraft_runtime
+    if wordcraft_runtime.ativo():
+        # A flag única troca a superfície inteira. Falha de admissão fica
+        # visível e não monta TipTap/text_area como fallback concorrente.
+        from .wordcraft_operacional import render as render_wordcraft
+        render_wordcraft(doc_key, meta)
+        return
     if db.flag_ativa("editor_rico"):
         from .rich_editor import render_editor
         # C03: a seleção de signatários existia só no ramo legado — com o

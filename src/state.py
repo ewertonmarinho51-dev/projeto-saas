@@ -49,8 +49,12 @@ def cadeia_aprovada(doc_key: str) -> dict[str, str]:
     """
     ordem = sequencia()
     anteriores = ordem[:ordem.index(doc_key)] if doc_key in ordem else ordem[:-1]
-    docs = st.session_state.get("documentos") or {}
-    aprovados = st.session_state.get("aprovados") or set()
+    if db.flag_ativa("wordcraft_editor"):
+        docs = st.session_state.get("_documentos_editor_contexto") or {}
+        aprovados = st.session_state.get("_documentos_editor_aprovados") or set()
+    else:
+        docs = st.session_state.get("documentos") or {}
+        aprovados = st.session_state.get("aprovados") or set()
     return {d: docs[d] for d in anteriores
             if d in docs and d in aprovados and (docs[d] or "").strip()}
 
@@ -201,8 +205,15 @@ def etapas_navegaveis() -> set[int]:
     return calcular_etapas_navegaveis(
         dict(st.session_state.dados, **{CHAVE_FLUXO_MAPA: "mapa_riscos" in sequencia()}),
         st.session_state.documentos,
-        st.session_state.aprovados,
+        aprovacoes_efetivas(),
     )
+
+
+def aprovacoes_efetivas() -> set[str]:
+    """Uma única fonte de aprovação conforme a superfície ativa."""
+    if db.flag_ativa("wordcraft_editor"):
+        return set(st.session_state.get("_documentos_editor_aprovados") or set())
+    return set(st.session_state.get("aprovados") or set())
 
 
 def guardar_edicao_pendente(doc_key: str, texto: str) -> None:
@@ -236,7 +247,7 @@ def navegar_pelo_stepper(etapa: int) -> None:
     st.session_state.etapa = etapa
 
 
-def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
+def aprovar_e_avancar(doc_key: str, texto_editado: str, *, vinculo_nativo=None, documento_service=None, ponte_nativa=None):
     """Salva a versão editada pelo usuário, marca como aprovado e avança."""
     from . import db
     from .operacao_documento import ocupada
@@ -248,6 +259,35 @@ def aprovar_e_avancar(doc_key: str, texto_editado: str) -> None:
         # persistido. Em manutenção nada avança.
         st.error(db.motivo_de_manutencao())
         return
+
+    # The single approval action may receive the authoritative native binding
+    # from its server-side renderer. Until the wizard consumes a native source
+    # set, approval is individual and cannot advance or label old Markdown.
+    if vinculo_nativo is not None or doc_key in st.session_state.get("_documentos_editor_vinculos", {}):
+        from .documentos_editor import DocumentoService, ErroDocumento, VinculoAprovacao
+        from .wordcraft_protocol import Ponte
+        if not isinstance(vinculo_nativo, VinculoAprovacao) or not isinstance(documento_service, DocumentoService):
+            st.error("A aprovação exige o vínculo nativo confirmado pelo owner documental.")
+            return
+        proof = ponte_nativa.canvas_bloqueado() if isinstance(ponte_nativa, Ponte) else None
+        if (not isinstance(ponte_nativa, Ponte) or proof is None
+                or proof["command_id"] != vinculo_nativo.operation_id
+                or ponte_nativa._pending is not None
+                or (ponte_nativa.document_id, ponte_nativa.revision, ponte_nativa.content_hash)
+                != (vinculo_nativo.document_id, vinculo_nativo.revision, vinculo_nativo.content_hash)):
+            st.error("A revisão exige confirmação de canvas bloqueado para esta operação antes da aprovação.")
+            return
+        try:
+            document = documento_service.abrir(vinculo_nativo.document_id)
+            if (document.tipo != doc_key or document.processo_id != st.session_state.get("processo_id")):
+                raise ErroDocumento("Vínculo nativo de outro documento ou processo.")
+            receipt = documento_service.aprovar(vinculo_nativo)
+        except ErroDocumento as error:
+            st.error(str(error))
+            return
+        st.session_state.setdefault("_aprovacoes_documentais", {})[doc_key] = receipt
+        st.info("Revisão nativa aprovada. O avanço e a emissão do pacote aguardam o consumidor de fontes nativas.")
+        return receipt
 
     # V5 Fase 7 (flag_institutional_learning_capture): a edição humana
     # sobre o rascunho é um SINAL de aprendizado — capturada anonimizada,

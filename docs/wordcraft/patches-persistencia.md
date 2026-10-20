@@ -1,0 +1,55 @@
+# G4 — preparação e persistência atômica de patches nativos
+
+Contrato registrado antes do código. A preparação pertence exclusivamente ao backend: o owner resolve doc_key → document_id por SELECT do processo autorizado, abre payload/índice/build/revisão/hash confirmados e constrói o relatório a partir da projeção nativa. Um callback de proposição fornecido pelo servidor recebe somente esse relatório/snapshot/contexto; o navegador não fornece plano, fontes, permissões, offsets ou resultados. O plano passa pelo aplicador canônico `patches.aplicar_plano_nativo`, sem editor JSON nem regras novas. A pequena extensão do aplicador devolve os comandos já compilados por ele, evitando recompilação no owner.
+
+API proposta: `DocumentoService.preparar_patches(processo_id, *, operation_id, propor_plano)` devolve `PreparacaoPatches` frozen, privada, selada pela instância do owner. Contém operação/ator/processo, hash do plano e bundles, fontes exatas, resultados/índices, comandos text_only e relatório/diff antes/depois. Bytes privados ficam somente no servidor; métodos de view devolvem cópias dos comandos. O owner correspondente e a preparação devem permanecer juntos no session_state. A preparação não é serializável para transporte, não é recibo de gravação e expira com a instância; não contém credencial.
+
+`confirmar_patches(preparacao, *, checkpoints=None)` aceita somente a preparação registrada/selada pela própria instância e revalida o selo e os bytes/índices. Quando o host fornece checkpoints tipados, exige exatamente os documentos afetados, a mesma operação, expected_revision, hash e bytes preparados. Divergência recusa antes do SQL. Sem esses checkpoints, a API pode persistir uma aplicação feita exclusivamente no backend, mas não afirma aplicação no canvas ou Undo. Nenhum ACK é emitido antes do commit.
+
+As fontes do relatório incluem todos os documentos nativos do processo e o contexto backend de processo/fatos. O commit verifica CAS de todas as fontes, inclusive as intocadas, além de ACL/perfil atuais e dos guards de aprovado/legado para cada alvo. Nenhum Node, LLM ou rede ocorre sob locks. O wrapper de lote SECURITY INVOKER chama a RPC checkpoint existente dentro da mesma transação; a prova operacional fica na revisão imutável e distingue índices preservados por comando comprovado de reconciliação conservadora comum. Falha no segundo documento, na fonte intocada, na auditoria ou no evento reverte tudo.
+
+Ordem dos locks: perfil atual FOR SHARE; processo FOR UPDATE; heads em ordem de UUID; fatos canônicos em SHARE. O lock do processo também cerca criações e alterações pela checkpoint existente, que adquire FOR SHARE antes de gravar, fechando a janela de novas fontes sem travar globalmente documentos de outros processos. Fatos não têm versão agregada e permitem inserções/alterações de status: somente `fatos_canonicos` usa SHARE global para impedir phantoms e alteração entre comprovação e commit. Esse lock bloqueia temporariamente escrita de fatos de outros processos/tenants, impacto explícito a medir em G7 antes de uso operacional; não há Node/LLM sob ele. RPC configurada com lock_timeout de 2 s e statement_timeout de 5 s. O teste SQL direto prova o lock_timeout; o limite de statement por função precisa também ser verificado no caminho PostgREST real, ao qual a [documentação do Supabase](https://supabase.com/docs/guides/database/postgres/timeouts#function-level) vincula esse mecanismo. Há limites de 32 fontes, 200 comandos por alvo e 64 MiB por lote.
+
+Escolha de trilha após inventário: `ciclo.py` já registra CORRECTING → CORRECTION_APPLIED → REVALIDATING e persiste snapshots, relatórios, planos, diffs e eventos na tabela canônica `revisoes` (0008). GovBot delega a aplicação ao mesmo aplicador; não possui um evento SQL de publicação/aprovação apropriado para correção de rascunho. Portanto o lote reutiliza um registro imutável de `revisoes`, com a operação nativa e ator correlacionados, usando esses eventos existentes; não cria tabela de jobs/patches, artefato fictício de governança ou novo vocabulário de aprovação/publicação. As revisões documentais referenciam esse registro. Linhas antigas continuam sem metadados nativos; novos inserts nativos diretos pelo usuário são recusados.
+
+Retry da mesma preparação/ator/plano/conteúdo retorna o mesmo lote, sem duplicar revisões ou evento. Reuso da operação com outra fonte/conteúdo/ator recusa. Uma auditoria determinística posterior reutiliza validação/achados/consistência sobre a nova projeção; relata lacunas e bloqueios, nunca promove automaticamente status do documento ou qualidade/emissão a APPROVED. Markdown de análise não serve de fonte nem de endereço de edição; âncoras do relatório são nativas comprovadas. Adapter financeiro, revisão visual, gates de emissão e handshake do canvas mantêm seus limites explícitos.
+
+O owner limita a quatro preparações pendentes. Recibo válido libera a vaga; a preparação concluída continua apta a retry enquanto a sessão conservar a mesma instância e o mesmo objeto. O registro fraco permite coletar payloads concluídos quando a sessão os abandona. `descartar_patches(preparacao)` revoga somente a capacidade em memória e libera pendência sem SQL nem ACK; não apaga um lote já persistido. A leitura das linhas nativas de `revisoes` também exige perfil atual reconciliado, além do escopo legado de processo: JWT antigo de perfil revogado ou movido não lê texto/relatório/plano nativos. Linhas históricas sem operação nativa conservam a política existente.
+
+Provas obrigatórias: owner com IPC/HTTP isolados e regras reais; SQL real em banco novo descartável para lote de dois documentos, rollback do segundo/evento, fonte intocada stale, retry/colisão, índice/linhagem/snapshot institucional intactos, revogação e isolamento processo/tenant, alvo aprovado e legado. Nova migration somente pela CLI, sequência explícita com 0027 por último. Sem tocar host/protocolo/state, migrations commitadas, banco G2 preservado, produção, remoto, merge, deploy, commit ou push.
+
+Evidência offline final: 229 PASS, zero falhas/skips, em 7,93 s, em owner novo + aplicador nativo + owner documental existente + aprovação/snapshot institucional + achados/corretor/ciclo/patches/âncoras. XML `outputs/tests-wordcraft-patches-owner.xml`. HTTP e motor nativo são stubs explícitos; projeção, validação, regras, compilação, diff, linhagem e auditoria Python são reais. Foram provados comandos idênticos aos usados pelo aplicador, dois alvos e fonte intocada no mesmo envelope, reauditoria com achado ainda pendente e emissão falsa, checks exatos dos checkpoints, selo por instância e recusa de alterações de resultado/índice/hash/comando/ator, capacidade após sete lotes, descarte e coleta dos bytes concluídos. Isso não prova SQL nem canvas real.
+
+Migration nova gerada pela CLI: `20261016041756_documentos_editor_patch_lote.sql`, SHA-256 `d8da4db709dd7a9a9a8fee3dd67fb1280097cbe9e4513a9ccad8a31a3b5ba8d7`. O integrador executou os 32 casos novos e os 156 de integração SQL existentes: **188 PASS**, zero falhas/skips, em 30,63 s; XML na pasta da tarefa `outputs/tests-wordcraft-patches-lote-sql.xml`. O hash final foi reconferido após a execução. A revisão independente final conferiu os guards de leitura com perfil atual, a liberação de capacidade/retry, a competência antes dos locks e a rechecagem depois deles, sem novo achado nos deltas.
+
+Advisors oficiais executados em outro banco novo descartável, `ensaio_6d36b746dabb`, com 32 migrations: exit 0, zero ERROR e 16 WARN do schema-base; nenhum achado em objeto documental novo. Evidência da tarefa: `work/patches-lote-advisors-final.json`. Estado da CLI isolado no workspace, telemetria desabilitada e ambiente reduzido; o banco foi eliminado por finally. A DSN usada foi exclusivamente loopback. Esse ensaio de advisors, isoladamente, não declara Undo/ACK real, emissão oficial ou ativação operacional; a prova coeva posterior está registrada abaixo.
+
+Em 18/10/2026, a prova do owner foi repetida com o bundle atual de manifesto
+`f5aabf8a7923dd7cc941f855072f9c8967bf380870e852730ccd502957e4143c`
+e um C01 reimportado pelo mesmo WASM. PostgreSQL 16 e PostgREST 12 descartáveis
+em loopback receberam as 35 migrations atuais; o cliente Supabase 2.33.0 usou
+JWT sintético com RLS. O owner criou revisão 1, preparou sem escrever, confirmou
+revisão 2, reabriu os bytes exatos, preservou 27 regiões protegidas e todos os
+IDs/posições/tipos, persistiu auditoria/plano/diff e aceitou retry idempotente.
+Preparação stale e de outro owner foram recusadas sem escrita parcial. Os dois
+históricos e três eventos canônicos foram observados; banco, login e processos
+foram eliminados. Evidência
+`outputs/WORDCRAFT_G4_OWNER_REAL_PERSISTENCE.json`, SHA-256
+`993c4416f473c8b51cb4b8860eb15aa2c6fe8cdc6e11a575561eb4f5dce8011e`.
+A passagem coeva usa o canvas Chromium/WASM real: o comando preparado gerou o
+checkpoint exato, o lote persistiu a revisão 2 com `canvas_confirmado=true`, o
+recibo real precedeu o Undo e o checkpoint restaurado persistiu como revisão 3.
+O head reaberto, o hash nativo e o controller salvo convergiram para os bytes da
+revisão 1. A mesma execução manteve retry idempotente, stale/outro owner sem
+escrita parcial, auditoria/plano/diff e 27 regiões protegidas. Todos os serviços,
+banco e login foram eliminados. A prova não usa GoTrue nem infraestrutura-alvo.
+
+### Conflitos esperados na fronteira PostgREST
+
+Decisão registrada em 16/10/2026 antes da correção: divergência de revisão,
+operação, fontes ou fatos é um conflito de negócio determinístico e deve sair
+da RPC como `PT409`. O PostgREST trata `40001` como falha serializável
+transitória e repete a transação; usar esse código em `raise exception` para
+CAS stale mantém a requisição em retry sem progresso. O owner traduz `PT409`
+para `ConflitoDocumento`. `40001` permanece reservado a falhas reais de
+serialização produzidas pelo PostgreSQL e continua traduzido pelo owner.

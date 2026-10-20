@@ -1,0 +1,277 @@
+# G5 — capacidades contextuais no owner nativo
+
+Estado: **parcial**. As trilhas A–D possuem passagem local integrada pelos
+owners existentes; Auth real, artefato operacional homologado e a entrega de
+sessão GoTrue aos dois processos C12 continuam pendentes.
+
+## Fronteira implementada
+
+`src/wordcraft_capacidades.py` é uma camada pura. Ela não consulta banco, RAG
+ou LLM, não aplica patch e não persiste revisão. GovBot, auditoria e parecer
+produzem `CorrecaoContextual`; o compilador deriva `documentId`, caminho e
+`expectedOldHash` do relatório e do snapshot entregues pelo owner. A saída tem
+o contrato de propositor de `DocumentoService.preparar_patches`. Portanto a
+autenticação, o índice nativo, a política canônica, a reaplicação da auditoria,
+o diff e a persistência transacional continuam em seus mecanismos existentes.
+
+Uma sugestão é recusada quando o finding não existe, não é autocorrigível, o
+caminho é ambíguo/bloqueado, o bloco não pertence ao snapshot ou a fonte
+material exigida não foi vinculada. Apontamentos de parecer ambíguos,
+conflitantes ou dependentes de decisão humana permanecem pendências.
+
+Templates, evidências e montagem são projeções somente leitura:
+
+- o snapshot de template congela a versão publicada, a identidade
+  institucional e a montagem por JSON canônico e SHA-256;
+- a evidência diferencia `VERIFICADA`, `INDISPONIVEL`, `NAO_VERIFICADA` e
+  `PENDENTE`; resultado vazio de busca não prova ausência, e citação não
+  cadastrada nunca recebe estado verificado;
+- a montagem numera itens e totaliza com `Decimal`, sem arredondamento binário
+  nem preenchimento de valores ausentes.
+
+`src/ui/wordcraft_painel.py` apresenta tudo em um painel com as abas GovBot,
+Auditoria, Parecer, Evidências e Histórico. Template e montagem aparecem na
+auditoria porque são insumos estruturais da revisão. O painel recebe dados e
+não possui callbacks de salvar, confirmar ou aprovar. Ele está montado apenas
+no laboratório sintético e no novo host feature-flagged do wizard.
+
+`src/ui/wordcraft_operacional.py` troca a superfície inteira quando
+`flag_wordcraft_editor` está ligada; não monta TipTap ou `text_area` junto e
+não faz fallback silencioso. A primeira abertura usa a importação Markdown
+idempotente do próprio `DocumentoService`, o save confirma ACK somente depois
+do commit e a aprovação exige o canvas congelado na revisão/hash exatos. O
+consumidor source-aware reidrata os atos persistidos, projeta texto nativo
+aprovado para o contexto da peça seguinte e libera a sequência sem consultar
+`processos.aprovados`. Ao completar a sequência, a tela final exporta somente
+heads nativos aprovados, com CAS de revisão/hash; os downloads legados não são
+montados. O pacote ZIP auditável também é composto pelo owner a partir dessas
+mesmas exportações, com manifesto de revisão, hashes, aprovação, snapshot e
+build. Uma ação separada, com confirmação explícita, registra os dois pacotes
+como snapshot oficial: reutiliza `governanca_publicacoes` e
+`publicacao_registrada`, persiste os bytes, revalida todas as aprovações sob
+lock e muda os heads para `emitido` na mesma transação. A reabertura lê os
+bytes persistidos. Os requisitos 01–07 pedem artefatos DOCX/PDF por revisão e
+snapshots oficiais, não um arquivo que funda instrumentos distintos. Os pacotes
+source-aware cumprem esse contrato e evitam restaurar o consolidador Markdown
+legado como segundo caminho documental.
+
+A preparação G4 de alvo único agora pode ser aceita ou rejeitada na superfície
+operacional. Ao aceitar, a ponte entrega ao canvas somente o plano nativo já
+compilado e selado pelo owner, vinculado à revisão/hash de origem e ao hash de
+destino. O host aplica o comando na Session viva, confere os bytes resultantes,
+emite um checkpoint com o mesmo `operation_id` e aguarda o commit atômico do
+owner antes de ACK. Resultado divergente executa o Undo do próprio grupo e
+confere a restauração da origem; nunca vira checkpoint. O recibo confirmado
+entra no Histórico como recibo transitório da sessão e a pilha nativa permanece
+disponível para Undo posterior. A mesma aba pode recarregar, pela RLS do usuário,
+até cinquenta metadados imutáveis de `documentos_editor_revisoes`; a projeção
+marca a revisão corrente e não expõe o payload do documento. Recibos e revisões
+possuem tipos explícitos para não converter confirmação local em histórico
+persistido. Uma revisão histórica pode ser restaurada apenas por formulário
+confirmado, com o canvas limpo. O owner cria uma nova revisão por CAS e operação
+idempotente; a UI relê a head persistida, confere o recibo e remonta a instância,
+sem alterar ou apagar a revisão antiga.
+Lotes com mais de um canvas continuam bloqueados nesta UI até haver coordenação
+atômica de todos os componentes.
+
+A Session viva também pode responder a uma solicitação explícita de seleção.
+O evento fica ligado ao documento, revisão e hash limpos e é invalidado por
+qualquer edição ou ACK de nova revisão. Posições e texto do navegador não
+autorizam paths: a camada contextual exige que o texto seja o conteúdo integral
+de exatamente um bloco da projeção backend e que exatamente um finding
+autocorrigível, sem fonte material pendente, permita esse path. Seleção parcial,
+duplicada, bloqueada ou stale é recusada. O usuário pode fornecer o texto
+substituto ou pedir uma sugestão ao gateway GovBot existente. A resposta do
+modelo continua declarativa, restrita ao único path permitido, e é recompilada
+pelo mesmo owner G4; explicação, fonte ou alvo divergente não viram proposta.
+
+A trilha de auditoria contextual agora também pode ser executada sem preparar
+ou gravar um patch. O owner lê as heads autorizadas, reconstrói as projeções e
+devolve relatório e snapshot ligados às revisões e hashes correntes. Achados de
+consistência continuam pertencendo a `consistencia.py`: seu endereço textual
+legado só é traduzido para uma âncora nativa quando o bloco completo possui
+paridade exata com um único parágrafo editável da mesma cláusula e o achado
+declara fonte material. Duplicidade, bloqueio, texto divergente, fonte ausente
+ou endereço sem correspondência deixam o achado manual e sem path autorizado.
+Na superfície operacional, o usuário escolhe esse achado e prepara a correção
+pelo mesmo `CorrecaoContextual`, propositor e `DocumentoService.preparar_patches`
+de G4. A preparação relê fontes e heads, reaudita o resultado e permanece sem
+persistência até a confirmação explícita já existente.
+
+Pareceres já ingeridos e normalizados pelo owner legado também podem ser
+carregados, sob a RLS do cliente autenticado, no painel do mesmo documento.
+`parecer_correcao.situar` continua responsável por classificar recomendação
+objetiva, decisão administrativa, dado faltante, ambiguidade e conflito. Uma
+recomendação classificada como objetiva só recebe âncora nativa quando uma
+citação literal do próprio achado identifica exatamente um bloco permitido;
+sem essa prova, ela permanece manual mesmo que tenha nomeado a cláusula. A
+origem preserva os IDs do parecer e do achado e o painel é invalidado quando a
+head muda. Para um finding objetivo e ancorado, o usuário fornece o parágrafo
+proposto enquanto vê a recomendação jurídica; o owner relê parecer e achado,
+compila a proposta pelo mesmo aplicador G4 e reexecuta a projeção jurídica sobre
+o resultado simulado. A recomendação não é usada diretamente como texto
+substituto. Persistência continua condicionada à confirmação comum do canvas.
+Após o commit, o relatório de atendimento é derivado da trilha imutável já
+gravada em `revisoes`: operação e revalidação encerrada produzem
+`APLICADO_PENDENTE_REVISAO`; operação sem fechamento permanece
+`NAO_COMPROVADO`; achado fora do plano permanece `PENDENTE`. Não há tabela ou
+estado jurídico paralelo.
+
+A aba Evidências agora pode carregar os fatos canônicos correntes pelo mesmo
+RPC privado usado pelo owner de patches. Cada item preserva ID, path, origem,
+versão, hash e um trecho limitado do valor. `confirmado` só aparece como
+`VERIFICADO` quando a origem existe e o hash canônico confere; `extraido`,
+`disputado`, hash divergente, estado desconhecido e versão substituída mantêm
+respectivamente os estados `NAO_VERIFICADO`, `REVISAO_HUMANA`, `PENDENTE` ou
+`INDISPONIVEL`. A projeção não consulta a internet, não chama embeddings/LLM,
+não interpreta busca vazia como inexistência e é invalidada quando a head muda.
+Ela também lista, pelo cliente autenticado e pelas RLS existentes, as fontes de
+conhecimento e documentos RAG já catalogados, com versão, vigência, hash
+registrado, identidade do documento e primeiro trecho limitado. Como o schema
+atual não define os campos cobertos pelo hash de `fontes_conhecimento`, uma
+fonte vigente permanece `PENDENTE` em vez de receber verificação falsa;
+revogada fica `INDISPONIVEL` e vínculo RAG invisível fica `NAO_ENCONTRADO`.
+O usuário pode conferir uma citação literal de 16 a 4.000 caracteres contra
+todos os chunks autorizados de uma fonte selecionada. Correspondência literal
+produz `VERIFICADO` para a presença da citação, mantendo separadamente
+`sourceIntegrity=PENDENTE`; ausência permanece `PENDENTE`, e revogação ou
+invisibilidade não são convertidas em inexistência jurídica. A ação exige acesso
+ao processo corrente e não chama rede, embedding ou LLM.
+
+A estrutura institucional da revisão também está disponível no painel. Ela é
+lida do `institutional_snapshot` já capturado pelo owner, portanto identidade,
+portaria, signatários e bloco de assinaturas permanecem vinculados ao documento
+e à revisão, sem consultar ou duplicar cadastros. Os itens do processo são
+montados pelo `montar_itens` determinístico com `Decimal`, numeração, subtotais,
+total e hash canônico. Mudança da head invalida ambos. Esta leitura não publica
+template. A resolução da biblioteca usa somente a declaração
+`documentos_suportados` incluída no payload protegido pelo hash da versão;
+nenhuma semelhança de nome vira vínculo.
+Os templates `PUBLISHED` visíveis pela RLS do usuário são listados com artefato,
+versão, hash, vigência, escopo e quantidade de blocos. Entre versões que
+declaram suporte ao tipo documental, o escopo da secretaria prevalece sobre o
+municipal; empate no mesmo escopo mantém `templateEfetivo` vazio e exibe o
+bloqueio. Um único candidato efetivo é apresentado como padrão da seleção
+explícita de prévia, sem aplicar ou publicar o modelo.
+
+O usuário pode selecionar explicitamente uma dessas versões para gerar uma
+prévia determinística, somente leitura, ligada às revisões e hashes nativos
+correntes. O owner relê a versão `PUBLISHED` e o artefato pela RLS, recalcula o
+hash canônico da chave, versão e payload, e reutiliza `templates_gov.montar`.
+A prévia não altera o canvas nem cria revisão; ela só declara `applicable=true`
+quando todos os parâmetros e cláusulas foram resolvidos. Blocos de catálogo resolvem
+cláusulas `PUBLISHED` visíveis pela RLS no escopo exato do processo, com
+precedência explícita da secretaria sobre o município. Payload e hash canônico
+de cada cláusula são revalidados antes da montagem. Template e cláusulas também
+precisam estar dentro da vigência UTC declarada, com início inclusivo e fim
+exclusivo; data inválida, futura ou expirada falha fechada. Chave ausente permanece
+pendente; duplicidade de escopo, múltiplas publicadas ou divergência recusam a
+prévia inteira, sem preenchimento por aproximação.
+
+O owner prepara o alvo nativo exato do template efetivo antes da confirmação.
+A preparação exige ausência de pendências, injeta a tabela
+canônica do processo, recusa marcadores estruturais restantes, reutiliza o
+renderer institucional, passa o DOCX pelo importador/validador WordCraft e
+reconstrói o índice para a próxima revisão. O envelope preserva revisão/hash de
+origem, template, cláusulas, texto renderizado, alvo e build, e recebe selo da
+instância viva do owner. A confirmação chama a RPC privada
+`documento_editor_aplicar_template`, que revalida ator, processo, head, versão
+publicada, vigência, escopo e unicidade do template e grava revisão, índice e
+proveniência juntos. A UI operacional somente remonta o canvas depois de reler
+e conferir a nova head. Evidência e limites: `c05-aceite-template.md`.
+
+`src/wordcraft_runtime.py` admite somente configuração de servidor, executável
+absoluto e o namespace exato `static/wordcraft`. Confere pin upstream, hash do
+manifesto, inventário fechado, hashes/tamanhos dos assets, cabeçalho WASM,
+origem sem credenciais e os treze avisos/licenças. O status interno
+`INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED` é recusado; somente um artefato
+com status explícito `GOVCONNECT_WORDCRAFT_DEPLOY_APPROVED` pode montar o host.
+A migration apenas registra `flag_wordcraft_editor=false`; nada foi ativado.
+
+## Evidência automatizada deste incremento
+
+- as três origens mutáveis compilam para o mesmo contrato G4;
+- preparação integrada executa o motor nativo e a reauditoria sem chamar o RPC
+  de gravação;
+- finding, caminho e fonte falsos são recusados;
+- a auditoria corrente é somente leitura e fica ligada às heads nativas;
+- achado de consistência com paridade exata e fonte é traduzido para UUID
+  nativo, corrigido pelo owner e encerrado na reauditoria sem RPC de gravação;
+- paridade duplicada, bloqueada, divergente ou sem fonte falha de modo fechado;
+- parecer normalizado é relido pela RLS, classificado pelo owner existente e
+  ligado a uma âncora somente com citação literal única; leitura não grava;
+- atendimento objetivo do parecer é preparado pelo owner G4, preserva IDs de
+  origem, produz diff e reaudita o resultado sem gravar antes da confirmação;
+- relatório de atendimento é relido da auditoria transacional imutável e não
+  promove aplicação a correção jurídica comprovada sem revisão humana;
+- fatos canônicos exibem proveniência e status sem promover extraído, disputado
+  ou hash divergente a evidência verificada;
+- catálogo de conhecimento/RAG preserva documento e trecho pela RLS, sem
+  promover hash não recalculável a fonte verificada;
+- citação literal é conferida nos chunks autorizados, separando presença
+  verificada da integridade ainda pendente da fonte;
+- snapshot institucional e montagem de itens usam as fontes da revisão e do
+  processo, preservando portaria/signatários e cálculo `Decimal` sem LLM;
+- biblioteca de templates publicados é lida pela RLS com versão/hash/escopo;
+  vínculo explícito do payload resolve candidato único e empate falha fechado;
+- versão publicada escolhida explicitamente produz prévia determinística ligada
+  à revisão, rejeita hash canônico divergente e não executa RPC de gravação;
+- cláusula publicada usada pela prévia respeita o tenant e a secretaria do
+  processo, prevalece sobre a municipal e tem contrato/hash revalidados;
+- catálogo, template escolhido e cláusulas excluem versões fora da vigência
+  temporal sem promover apenas o status `PUBLISHED` a efetividade;
+- preparação do template efetivo produz bytes e índice nativos selados, sem
+  persistir antes da confirmação, bloqueia parâmetros ou marcadores estruturais
+  não resolvidos e a confirmação SQL preserva CAS e proveniência;
+- parecer ambíguo permanece pendente;
+- alteração posterior de logo ou signatário não muda o snapshot capturado;
+- 210 itens preservam numeração e total decimal;
+- o modelo de painel reúne as seis capacidades sem expor ação de persistência.
+- o host recusa patch stale, excessivo ou com hash de destino divergente,
+  correlaciona exatamente operação/checkpoint/recibo e não ACKa antes do commit.
+- a prova coeva mantém a mesma instância Chromium/WASM viva durante uma
+  confirmação stale recusada pelo owner; probes somente leitura antes/depois
+  conservam `instance_token`, hash e geração, enquanto revisões e auditorias no
+  banco permanecem idênticas.
+- com o mesmo canvas vivo, o owner lê pelo PostgREST/RLS o snapshot
+  institucional da revisão, monta dois itens e total `Decimal` de `30.02`,
+  carrega a fonte RAG vigente e comprova uma citação literal. Os painéis são
+  somente leitura: canvas, head, revisões e auditoria permanecem idênticos.
+- a trilha B agora seleciona um template `PUBLISHED` da secretaria pelo owner,
+  prepara o alvo nativo mantendo canvas e persistência intactos, aplica a RPC
+  transacional sob PostgREST/JWT sintético/RLS e remonta um novo Chromium/WASM
+  com exatamente a revisão e o hash persistidos. A origem permanece relível e
+  a revisão nova conserva versão, hash e prova do template.
+- o cenário C09 do owner classifica em conjunto uma recomendação objetiva, uma
+  ambígua e uma incompatível com o texto editável; somente a objetiva entra no
+  plano G4. A prova integrada relê o parecer pelo PostgREST/JWT/RLS, aplica o
+  comando no Chromium/WASM vivo, confirma os bytes no owner, persiste a revisão
+  4, entrega o ACK ao canvas e mantém os outros itens pendentes. Evidência
+  detalhada: `c09-aceite-owner.md`.
+- o cenário C11 aprova por RPC canônica uma revisão congelada no
+  Chromium/WASM sob identidade de governança segregada e PostgREST/JWT/RLS. O
+  checkpoint posterior é recusado sem efeito, e seis APIs de edição permanecem
+  bloqueadas. DFD, ETP, TR e Edital são então aprovados e emitidos na mesma
+  prova; os pacotes persistidos são reabertos byte a byte e o canvas continua
+  congelado. Evidência detalhada: `c11-aceite-imutabilidade.md`.
+- o cenário C12 executa duas fronteiras locais: RLS real separa revisões e
+  bloqueia escrita cruzada entre tenants, enquanto troca de identidade revoga
+  owner, documento, bridge, preparação, projeção e payload do componente da
+  sessão anterior. Evidência detalhada: `c12-aceite-isolamento.md`.
+- a expansão C12 abre simultaneamente dois processos Chromium/WASM, um por
+  tenant, com heads, hashes e tokens de instância distintos. Cada owner/JWT
+  sintético relê sua própria head, ambas as leituras cruzadas são recusadas e o
+  commit de A não altera o canvas B.
+
+## Pendências para fechar G5
+
+1. completar C12 com login/refresh/revogação pelo GoTrue real e entregar essas
+   sessões aos dois processos de navegador; RLS SQL, PostgREST com dois JWTs
+   sintéticos, dois canvas vivos, Storage não aplicável e revogação do namespace
+   de sessão já possuem PASS local parcial.
+
+Também falta produzir e homologar o artefato com status operacional. O bundle
+atual de QA não satisfaz esse requisito e não foi promovido por renomeação.
+
+Nenhuma funcionalidade legada foi removida. G6 permanece pendente até haver
+prova de substituição e autorização específica para a retirada.

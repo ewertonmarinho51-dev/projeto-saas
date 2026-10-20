@@ -1574,6 +1574,14 @@ TABELAS_DO_CACHE_DE_GERACAO = frozenset({"cache_geracoes"})
 # no arquivo da própria 0029, pelo mesmo argumento da 0028.
 TABELAS_DAS_COTACOES = frozenset({"pesquisa_preco_emissoes"})
 
+# Additive WordCraft schema from this branch. It is covered by disposable
+# database tests but is excluded from the historical production census until
+# the authorized production migration is measured and confirmed.
+TABELAS_WORDCRAFT_NAO_IMPLANTADAS = frozenset({
+    "documentos_editor", "documentos_editor_revisoes",
+    "documentos_editor_emissoes",
+})
+
 
 def test_o_inventario_cobre_todas_as_tabelas():
     """
@@ -1586,7 +1594,8 @@ def test_o_inventario_cobre_todas_as_tabelas():
     implantada fora da conta que a cobre; para mais, dando por
     implantado o que ainda não foi.
     """
-    assert len(set(TABELAS_PRIVADAS)) == TABELAS_EM_PRODUCAO, \
+    assert TABELAS_WORDCRAFT_NAO_IMPLANTADAS <= set(TABELAS_PRIVADAS)
+    assert len(set(TABELAS_PRIVADAS) - TABELAS_WORDCRAFT_NAO_IMPLANTADAS) == TABELAS_EM_PRODUCAO, \
         sorted(TABELAS_PRIVADAS)
 
     # As dez da 0025 entraram na contagem em 18/09/2026, quando foram
@@ -1902,8 +1911,12 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     ESTA prova de segurança falhar — e quem visse a falha entenderia
     "tabela sem RLS" quando o caso é "matriz escrita noutro arquivo".
     """
+    sql_editor = (Path(__file__).resolve().parent.parent / "supabase/migrations"
+                  / "20261015035015_documentos_editor.sql").read_text(encoding="utf-8")
+    sql_emissao = (Path(__file__).resolve().parent.parent / "supabase/migrations"
+                   / "20261016231514_documentos_editor_emissao_nativa.sql").read_text(encoding="utf-8")
     coberto = (_sql_da_0020() + _sql_da_0021() + _sql_da_0025()
-               + _sql_da_0028() + _sql_da_0029())
+               + _sql_da_0028() + _sql_da_0029() + sql_editor + sql_emissao)
     faltando = [t for t in TABELAS_PRIVADAS if t not in coberto]
     assert not faltando, f"sem matriz de RLS escrita: {faltando}"
 
@@ -1911,7 +1924,8 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     # ter silenciosamente assumido tabela que era da 0020.
     sql_0020 = _sql_da_0020()
     proprias = (TABELAS_DA_PESQUISA_DE_PRECOS | TABELAS_DA_MULTI_PREFEITURA
-                | TABELAS_DO_CACHE_DE_GERACAO | TABELAS_DAS_COTACOES)
+                | TABELAS_DO_CACHE_DE_GERACAO | TABELAS_DAS_COTACOES
+                | TABELAS_WORDCRAFT_NAO_IMPLANTADAS)
     for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 
@@ -2232,10 +2246,13 @@ def canario_descartavel(cliente_servidor):
 @pytest.fixture()
 def catalogo(cliente_servidor):
     """Auditoria de catálogo — a prova de CONFIGURAÇÃO das 28 tabelas."""
-    from ensaio_seguranca import auditar_catalogo
+    from ensaio_seguranca import FASE_DEFINITIVA, auditar_catalogo
 
     try:
-        return auditar_catalogo(cliente_servidor)
+        # O ensaio HTTP monta a sequência canônica inteira, inclusive a 0020.
+        # Nessa fase `authenticated` deve ter grants e policies; a auditoria A
+        # transformaria a autorização definitiva esperada em falso positivo.
+        return auditar_catalogo(cliente_servidor, FASE_DEFINITIVA)
     except Exception as erro:  # noqa: BLE001
         pytest.fail(f"preparação falhou: {erro}")
 
@@ -2252,7 +2269,16 @@ def test_catalogo_nao_tem_policy_nem_grant_para_anon(catalogo):
 
 @requer_ensaio
 def test_catalogo_nao_tem_tabela_sem_rls(catalogo):
-    assert [a for a in catalogo if a.get("tipo") == "tabela_sem_rls"] == []
+    # O canário descartável nasce deliberadamente sem RLS: ele prova que os
+    # default privileges, sozinhos, impedem acesso a uma tabela futura. A
+    # invariável desta prova cobre as tabelas de domínio; não deve transformar
+    # o próprio mecanismo de ensaio em vulnerabilidade.
+    inesperadas = [
+        a for a in catalogo
+        if a.get("tipo") == "tabela_sem_rls"
+        and a.get("objeto") != TABELA_OBJETO_NOVO
+    ]
+    assert inesperadas == [], inesperadas
 
 
 @requer_ensaio
@@ -2376,8 +2402,9 @@ def test_servidor_continua_operando(cliente_servidor):
     Com a credencial de servidor, as operações legítimas seguem — é o
     que separa "contido" de "quebrado".
     """
-    for tabela in ("usuarios", "config_app", "processos"):
-        resposta = cliente_servidor.table(tabela).select("id").limit(1) \
+    for tabela, coluna in (("usuarios", "id"), ("config_app", "chave"),
+                           ("processos", "id")):
+        resposta = cliente_servidor.table(tabela).select(coluna).limit(1) \
             .execute()
         assert hasattr(resposta, "data")   # consultou sem erro de permissão
 

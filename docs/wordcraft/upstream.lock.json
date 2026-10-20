@@ -1,0 +1,16 @@
+{
+  "repository": "https://github.com/storytold/wordcraft",
+  "commit": "533615620ef91ae57fa7aa4cd77fd98b2179e693",
+  "govconnect_base": "770f969882f9c6c2fb55d23b68385bf601e87012",
+  "upstream_version": "0.7.0",
+  "minimum_rust": "1.90",
+  "license": "MIT OR Apache-2.0",
+  "build_status": "INTEGRATED_ADAPTER_VERIFIED_CI_AT_F23A6C5_LATER_DELTAS_LOCAL_ONLY",
+  "baseline_run": 38609146859,
+  "baseline_artifact_id": 11919580294,
+  "baseline_govconnect_commit": "750299ec186579f74a40803f161bed8199771df7",
+  "baseline_artifact_sha256": "27104a0fbe6dc1286b18249d831a8ac8251cf58bded63ea4029f1471551c16ac",
+  "bridge_status": "CONNECTED_TO_DOCUMENT_SERVICE_IN_LOCAL_QA_AUTH_REAL_PENDING",
+  "canonical_format": "GC_WORDCRAFT_SNAPSHOT_V1_SELECTED_HOMOLOGATION_PENDING",
+  "production_rollout": false
+}
