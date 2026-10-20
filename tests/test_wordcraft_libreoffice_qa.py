@@ -11,6 +11,18 @@ from scripts import wordcraft_libreoffice_extract as extractor
 from scripts import wordcraft_libreoffice_qa as qa
 
 
+def test_controlled_c10_roundtrip_expectation_is_exact_and_isolated():
+    original = {"body": [
+        "C10-EXTERNAL Modelo original de QA com tabela aninhada, célula mesclada e campo de página.",
+        "unchanged"], "headers": ["header"], "footers": [], "links": ["https://example.invalid"]}
+    expected = qa.expected_roundtrip_blocks("C10/modelo.docx", original)
+    assert expected["body"][0].startswith("C10-EXTERNAL-EDITED Modelo")
+    assert expected["body"][1:] == ["unchanged"]
+    assert expected["headers"] == original["headers"] and expected["links"] == original["links"]
+    assert original["body"][0].startswith("C10-EXTERNAL Modelo")
+    assert qa.expected_roundtrip_blocks("C09/parecer.docx", original) == original
+
+
 def rewrite_part(data, name, transform):
     result = io.BytesIO()
     with zipfile.ZipFile(io.BytesIO(data)) as original, zipfile.ZipFile(result, "w", zipfile.ZIP_DEFLATED) as changed:

@@ -437,6 +437,19 @@ def compact(value: str) -> str:
     return "".join(unicodedata.normalize("NFC", value).split())
 
 
+def expected_roundtrip_blocks(name: str, original: dict) -> dict:
+    """Apply only the controlled edit declared by the synthetic C10 case."""
+    expected = {story: list(values) for story, values in original.items()}
+    if name != "C10/modelo.docx":
+        return expected
+    before = "C10-EXTERNAL Modelo original de QA com tabela aninhada, célula mesclada e campo de página."
+    after = "C10-EXTERNAL-EDITED Modelo original de QA com tabela aninhada, célula mesclada e campo de página."
+    if expected.get("body", []).count(before) != 1:
+        raise ValueError("Synthetic C10 controlled-edit source marker is not unique")
+    expected["body"][expected["body"].index(before)] = after
+    return expected
+
+
 def roundtrip_sources(inputs: Path, manifest: dict, root: Path, comparison_sha256: str) -> tuple[dict, dict]:
     """Admit only exports from a separately pinned completed native QA run.
 
@@ -467,6 +480,11 @@ def roundtrip_sources(inputs: Path, manifest: dict, root: Path, comparison_sha25
     sources = {}
     for name, (case_id, variant) in expected.items():
         entry = entries[name]
+        controlled = (name == "C10/modelo.docx"
+                      and {"controlled_edit", "declared_feature_fidelity"} <= set(entry.get("steps", {})))
+        if name == "C10/modelo.docx" and (("controlled_edit" in entry.get("steps", {})) !=
+                                          ("declared_feature_fidelity" in entry.get("steps", {}))):
+            raise ValueError("Native comparison contains a partial controlled-edit claim")
         if (entry.get("case") != case_id or entry.get("source_sha256") != variant["sha256_docx"]
                 or not required_steps <= set(entry.get("steps", {}))
                 or any(value != "PASS" for value in entry["steps"].values())):
@@ -484,7 +502,9 @@ def roundtrip_sources(inputs: Path, manifest: dict, root: Path, comparison_sha25
         if len(data) != entry.get("docx_bytes"):
             raise ValueError("Native DOCX length changed")
         admit_synthetic_docx(data)
-        if text_blocks(data) != text_blocks((inputs / name).read_bytes()):
+        original_blocks = text_blocks((inputs / name).read_bytes())
+        expected_blocks = expected_roundtrip_blocks(name, original_blocks) if controlled else original_blocks
+        if text_blocks(data) != expected_blocks:
             raise ValueError("Native export changed ordered text stories or hyperlink metadata")
         oracle = json.loads((inputs / variant["oracle"]).read_text(encoding="utf-8"))
         _verificar_entrada_docx(data, oracle)
