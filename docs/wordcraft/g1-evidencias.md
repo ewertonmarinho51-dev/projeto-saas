@@ -18,4 +18,12 @@ Automação: 142 testes Python de contratos/owner/IPC/overlay/instalação e 13 
 
 ## Limites e promoção
 
-Esta prova atende ao percurso mínimo local de G1, não à missão integral. DOCX ainda exige renderização comparada por LibreOffice. PDF da tabela tem 16 páginas versus referência de 9: diferença registrada, sem aceite automático de fidelidade. O corpus institucional é sintético e não inclui identidade municipal real. O título nativo baseado em arquivo local ainda aparece no bundle 240; a correção neutra está no commit 8f31f09, aguardando build/conferência. Undo/redo, acessibilidade, falhas de rede e concorrência na UI precisam ampliar as provas além dos contratos e do SQL. Nenhuma retirada de legado, migração de acervo ou ativação operacional foi realizada.
+Esta prova atende ao percurso mínimo local de G1, não à missão integral. DOCX ainda exige renderização comparada por LibreOffice Linux. PDF da tabela tinha 16 páginas versus referência de 9 neste bundle histórico: diferença registrada, sem aceite automático de fidelidade. O corpus institucional é sintético e não inclui identidade municipal real. Nenhuma retirada de legado, migração de acervo ou ativação operacional foi realizada.
+
+Atualização de 20/10/2026: as pendências específicas do bundle 240 foram
+superadas no HEAD funcional `0b8afc7`. O título neutro foi recompilado e
+observado; o runner Chromium atual prova Undo/Redo, confinamento de rede,
+fechamento independente e dois canvas simultâneos. Os perfis exatos de 20 e 100
+páginas e o corpus G3 substituem esse bundle para fidelidade nativa atual. Isso
+não promove a comparação LibreOffice Linux, acessibilidade ampla, concorrência
+entre usuários reais ou homologação G7 a PASS.
