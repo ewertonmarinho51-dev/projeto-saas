@@ -85,8 +85,8 @@ try:
     if "document" not in st.session_state:
         open_document(requested, source)
     elif open_clicked:
-        # Backend dirty state can lag the canvas polling loop. Every remount
-        # needs explicit consent until a native clean/flush handshake exists.
+        # This QA case switch intentionally does not request the operational
+        # freeze barrier. Require explicit discard before every remount.
         if discard:
             open_document(selected, source)
         else:
