@@ -16,7 +16,7 @@ def test_client_is_loopback_only_and_builds_closed_table_and_rpc_queries(monkeyp
 
 
 @pytest.mark.parametrize("url", ["https://127.0.0.1", "http://example.invalid",
-    "http://user:pass@127.0.0.1", "http://127.0.0.1/rest/v1", "http://127.0.0.1?x=1"])
+    "http://user:password@localhost", "http://127.0.0.1/rest/v1", "http://127.0.0.1?x=1"])
 def test_client_refuses_non_loopback_or_ambiguous_roots(url):
     with pytest.raises(ValueError):
         Client(url, "synthetic")
