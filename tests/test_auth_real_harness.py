@@ -127,6 +127,16 @@ def test_real_auth_mode_refuses_fixture_or_missing_version_before_application_sq
     assert not any("create" in query.lower() for query, _ in cursor.calls)
 
 
+def test_real_auth_checks_the_pinned_upstream_ledger_in_public(monkeypatch):
+    monkeypatch.setattr(ensaio_local, "migracoes_do_schema", lambda: [])
+    monkeypatch.setattr(ensaio_local, "sequencia_em_ensaio", lambda: [])
+    cursor = Cursor()
+    connection = Connection(cursor)
+    ensaio_local.preparar(connection, auth_real=True)
+    assert any("public.schema_migrations" in query for query, _ in cursor.calls)
+    assert not any("auth.schema_migrations" in query for query, _ in cursor.calls)
+
+
 @pytest.mark.parametrize("real", [False, True])
 def test_preparation_selects_shared_sql_without_duplicating_application_migrations(monkeypatch, real):
     monkeypatch.setattr(ensaio_local, "migracoes_do_schema", lambda: [])

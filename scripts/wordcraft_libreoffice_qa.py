@@ -239,7 +239,9 @@ def system_adapter_environment(soffice: Path, scratch: Path, items: list) -> tup
     env = {"PATH": str(scratch / "bin") + ":/usr/bin:/bin", "HOME": str(scratch / "home"),
            "XDG_CONFIG_HOME": str(scratch / "config"), "XDG_CACHE_HOME": str(scratch / "cache"),
            "TMPDIR": str(scratch / "tmp"), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
-           "SAL_USE_VCLPLUGIN": "gen", "PYTHONDONTWRITEBYTECODE": "1", "CrashDumpEnable": "false",
+           # The generic X11 plugin still requires DISPLAY even with
+           # --headless. The distro's svp plugin is the real headless backend.
+           "SAL_USE_VCLPLUGIN": "svp", "PYTHONDONTWRITEBYTECODE": "1", "CrashDumpEnable": "false",
            "http_proxy": "http://127.0.0.1:9", "https_proxy": "http://127.0.0.1:9",
            "ALL_PROXY": "http://127.0.0.1:9", "NO_PROXY": ""}
     return env, wrapper

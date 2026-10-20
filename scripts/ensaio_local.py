@@ -294,7 +294,7 @@ def exigir_auth_real(cursor) -> None:
     """A reduced fixture or an uninitialized/mismatched GoTrue is not Auth."""
     cursor.execute("select table_name,column_name from information_schema.columns "
                    "where table_schema='auth' and table_name in "
-                   "('users','identities','sessions','refresh_tokens','schema_migrations')")
+                   "('users','identities','sessions','refresh_tokens')")
     tables = {}
     for table, column in cursor.fetchall():
         tables.setdefault(table, set()).add(column)
@@ -302,11 +302,12 @@ def exigir_auth_real(cursor) -> None:
                           "aud", "role", "confirmed_at", "last_sign_in_at", "created_at"},
                 "identities": {"user_id", "provider", "identity_data"},
                 "sessions": {"id", "user_id"},
-                "refresh_tokens": {"token", "user_id", "revoked"},
-                "schema_migrations": {"version"}}
+                "refresh_tokens": {"token", "user_id", "revoked"}}
     if any(not columns.issubset(tables.get(table, set())) for table, columns in required.items()):
         raise EnsaioLocal("Auth real não migrado; fixture reduzida recusada.")
-    cursor.execute("select version from auth.schema_migrations where version::text=%s",
+    # GoTrue v2.197 keeps the goose ledger in `public`; Auth data remains in
+    # `auth`. Check the pinned official version at its actual upstream path.
+    cursor.execute("select version from public.schema_migrations where version::text=%s",
                    (AUTH_MIGRACAO_EXIGIDA,))
     if cursor.fetchone() is None:
         raise EnsaioLocal("Histórico de migrações incompatível com Auth pinado.")
