@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, readFile, writeFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
-import {CASES, QA_PIN, BrowserQaFailure, admitGovbotProposal, browserEnvironment, browserExecutablePath, failureRecord, pageModule, parseArgs,
+import {CASES, QA_PIN, BrowserQaFailure, admitGovbotProposal, browserEnvironment, browserExecutablePath, compressionInventory, failureRecord, pageModule, parseArgs,
   chromiumProcessMemory, rendererMetrics, serveAssets, staticResponse, summarizePerformance,
   verifyPlaywright} from './wordcraft_browser_qa.mjs';
 
@@ -69,6 +69,23 @@ test('performance summary uses nearest-rank percentiles and labels mixed fixture
     document_open:{samples:3, p50_ms:3, p95_ms:4},
     max_renderer_js_heap_used_bytes:301, max_renderer_dom_nodes:8, max_wasm_linear_memory_bytes:131_072});
   assert.throws(() => summarizePerformance([]), BrowserQaFailure);
+});
+
+test('engine asset inventory measures exact raw gzip and Brotli bytes', () => {
+  const items = [{path:'engine.js', bytes:Buffer.from('const repeated = 1;\n'.repeat(100))},
+    {path:'engine.wasm', bytes:Buffer.alloc(4096, 7)}];
+  const result = compressionInventory(items);
+  assert.equal(result.scope, 'ENGINE_MANIFEST_FILES_ONLY_EXCLUDES_QA_HOST');
+  assert.equal(result.totals.file_count, 2);
+  assert.equal(result.totals.raw_bytes, items.reduce((total, item) => total + item.bytes.length, 0));
+  assert.equal(result.totals.gzip_level_9_bytes,
+    result.files.reduce((total, item) => total + item.gzip_level_9_bytes, 0));
+  assert.equal(result.totals.brotli_quality_11_bytes,
+    result.files.reduce((total, item) => total + item.brotli_quality_11_bytes, 0));
+  assert.ok(result.totals.gzip_level_9_bytes < result.totals.raw_bytes);
+  assert.ok(result.totals.brotli_quality_11_bytes < result.totals.raw_bytes);
+  assert.throws(() => compressionInventory([{path:'same',bytes:Buffer.from('a')},
+    {path:'same',bytes:Buffer.from('b')}]), BrowserQaFailure);
 });
 
 test('Chromium process memory sums the complete CDP process set on Windows', async () => {

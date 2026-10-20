@@ -140,6 +140,21 @@ horizontalmente recortados na largura móvel. Por isso o recibo registra
 Esta prova verifica execução, memória, contenção e exportação sob emulação; a
 usabilidade móvel e um aparelho físico continuam pendentes, sem falso PASS.
 
+## Tamanho dos assets admitidos
+
+O runner mede os bytes exatos dos arquivos do manifesto do motor, excluindo o
+host de QA, e calcula gzip nível 9 e Brotli qualidade 11 sobre esses mesmos
+bytes. Na passagem Windows seguinte, os dois arquivos admitidos totalizaram
+41.860.573 bytes brutos, 15.492.381 bytes em gzip (37,01% do bruto) e 9.804.706
+bytes em Brotli (23,42% do bruto). O JavaScript corresponde a 162.289 / 24.458 /
+20.463 bytes; o WASM, a 41.698.284 / 15.467.923 / 9.784.243 bytes, na ordem
+bruto/gzip/Brotli. A execução funcional completa permaneceu PASS, com zero
+requisições recusadas ou erros. Evidência:
+`wordcraft-browser-qa-current-win-25/browser-qa.json`, 21.921 bytes, SHA-256
+`cefd4dc4692fa9bf51d55ca7ff0e1db110ae3687818cade695f15f8bbdb6e9d3`.
+Esses números medem compressibilidade; não afirmam que o host de homologação já
+negocie ou sirva `Content-Encoding`.
+
 Em 18/10/2026, a execução local Windows confirmou o Chromium pinado
 `141.0.7390.37`, SHA-256 do executável
 `ed19d88b4486c39c0265b0c07cbf1d6835d06069e600bede1adb09db0df46c8e`,

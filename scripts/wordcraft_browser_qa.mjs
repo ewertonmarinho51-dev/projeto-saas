@@ -4,6 +4,7 @@ import {createHash} from 'node:crypto';
 import {createServer} from 'node:http';
 import {execFile, spawn} from 'node:child_process';
 import {promisify} from 'node:util';
+import {brotliCompressSync, gzipSync, constants as zlibConstants} from 'node:zlib';
 import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {verifyBundle} from '../assets/wordcraft_editor/validate.mjs';
@@ -23,6 +24,28 @@ const STAGES = new Set(['configuration', 'bundle_admission', 'synthetic_admissio
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const check = (condition, stage) => { if (condition !== true) throw new BrowserQaFailure(stage); };
 const elapsedMs = started => Number(process.hrtime.bigint() - started) / 1_000_000;
+
+export function compressionInventory(items) {
+  check(Array.isArray(items) && items.length > 0, 'bundle_admission');
+  const seen = new Set(), files = [];
+  for (const item of items) {
+    check(item && typeof item.path === 'string' && item.path.length > 0 && !seen.has(item.path)
+      && Buffer.isBuffer(item.bytes) && item.bytes.length > 0, 'bundle_admission');
+    seen.add(item.path);
+    const gzip = gzipSync(item.bytes, {level: 9});
+    const brotli = brotliCompressSync(item.bytes, {params: {
+      [zlibConstants.BROTLI_PARAM_QUALITY]: 11,
+      [zlibConstants.BROTLI_PARAM_MODE]: item.path.endsWith('.wasm')
+        ? zlibConstants.BROTLI_MODE_GENERIC : zlibConstants.BROTLI_MODE_TEXT,
+    }});
+    files.push({path: item.path, raw_bytes: item.bytes.length, gzip_level_9_bytes: gzip.length,
+      brotli_quality_11_bytes: brotli.length});
+  }
+  const sum = key => files.reduce((total, item) => total + item[key], 0);
+  return {scope: 'ENGINE_MANIFEST_FILES_ONLY_EXCLUDES_QA_HOST', files,
+    totals: {file_count: files.length, raw_bytes: sum('raw_bytes'), gzip_level_9_bytes: sum('gzip_level_9_bytes'),
+      brotli_quality_11_bytes: sum('brotli_quality_11_bytes')}};
+}
 
 export class BrowserQaFailure extends Error {
   constructor(stage) { super('Browser QA refused.'); this.stage = STAGES.has(stage) ? stage : 'configuration'; }
@@ -652,10 +675,12 @@ export async function buildAssets(config) {
   check(hash(manifestRaw) === config['manifest-sha256'] && manifest.govconnect_commit === config['producer-commit']
     && manifest.upstream_commit === upstream, 'bundle_admission');
   const assets = new Map();
+  const engineAssetBytes = [];
   for (const item of manifest.files) {
     const bytes = await boundedFile(resolve(config.bundle, item.path), 80 * 1024 * 1024, 'bundle_admission');
     check(hash(bytes) === item.sha256 && bytes.length === item.bytes, 'bundle_admission');
     assets.set('/app/static/wordcraft/' + item.path, {bytes, mime: item.path.endsWith('.wasm') ? 'application/wasm' : 'text/javascript; charset=utf-8'});
+    engineAssetBytes.push({path: item.path, bytes});
   }
   const moduleUrl = '/app/static/wordcraft/' + relative(config.bundle, bundle.modulePath).split(sep).join('/');
   const wasmUrl = [...assets.keys()].find(name => !name.slice('/app/static/wordcraft/'.length).includes('/') && name.endsWith('.wasm'));
@@ -663,7 +688,7 @@ export async function buildAssets(config) {
   assets.set('/qa/host.mjs', {bytes: host, mime: 'text/javascript; charset=utf-8'});
   assets.set('/qa/page.mjs', {bytes: pageModule(moduleUrl, wasmUrl), mime: 'text/javascript; charset=utf-8'});
   assets.set('/', {bytes: Buffer.from('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>GovConnect synthetic canvas QA</title><style>html,body{margin:0;width:100%;height:100%;overflow:hidden}canvas{width:100vw;height:100vh;display:block}</style><canvas id="canvas"></canvas><script type="module" src="/qa/page.mjs"></script></html>'), mime: 'text/html; charset=utf-8'});
-  return {assets, manifest, host_sha256: hash(host)};
+  return {assets, manifest, host_sha256: hash(host), compression: compressionInventory(engineAssetBytes)};
 }
 
 export async function run(config) {
@@ -694,7 +719,8 @@ export async function run(config) {
     evidence.runtime = {...QA_PIN, platform_observed: process.platform,
       engine_manifest_sha256: config['manifest-sha256'],
       producer_commit: built.manifest.govconnect_commit, upstream_commit: built.manifest.upstream_commit,
-      host_sha256: built.host_sha256, playwright_catalog_sha256: pkg.catalog_sha256};
+      host_sha256: built.host_sha256, playwright_catalog_sha256: pkg.catalog_sha256,
+      engine_asset_sizes: built.compression};
     server = await stage('http_confinement', () => serveAssets(built.assets));
     const {chromium} = await stage('playwright_pin', () => import(pathToFileURL(pkg.entry).href));
     const environment = browserEnvironment();
