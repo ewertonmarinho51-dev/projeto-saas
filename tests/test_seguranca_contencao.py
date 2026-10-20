@@ -2269,7 +2269,16 @@ def test_catalogo_nao_tem_policy_nem_grant_para_anon(catalogo):
 
 @requer_ensaio
 def test_catalogo_nao_tem_tabela_sem_rls(catalogo):
-    assert [a for a in catalogo if a.get("tipo") == "tabela_sem_rls"] == []
+    # O canário descartável nasce deliberadamente sem RLS: ele prova que os
+    # default privileges, sozinhos, impedem acesso a uma tabela futura. A
+    # invariável desta prova cobre as tabelas de domínio; não deve transformar
+    # o próprio mecanismo de ensaio em vulnerabilidade.
+    inesperadas = [
+        a for a in catalogo
+        if a.get("tipo") == "tabela_sem_rls"
+        and a.get("objeto") != TABELA_OBJETO_NOVO
+    ]
+    assert inesperadas == [], inesperadas
 
 
 @requer_ensaio
