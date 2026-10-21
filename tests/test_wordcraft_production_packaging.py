@@ -10,6 +10,7 @@ def test_imagem_instala_node_e_monta_bundle_somente_leitura():
     compose = (ROOT / "implantacao" / "docker-compose.yml").read_text(encoding="utf-8")
 
     assert "nodejs" in dockerfile
+    assert "docs/wordcraft/upstream.lock.json ./docs/wordcraft/upstream.lock.json" in dockerfile
     assert "/opt/govdocs-wordcraft/wordcraft:/app/static/wordcraft:ro" in compose
 
 

@@ -72,6 +72,7 @@ RUN set -eu; \
 
 COPY --chown=govdocs:govdocs app.py ./
 COPY --chown=govdocs:govdocs src/ ./src/
+COPY --chown=govdocs:govdocs docs/wordcraft/upstream.lock.json ./docs/wordcraft/upstream.lock.json
 COPY --chown=govdocs:govdocs assets/ ./assets/
 COPY --chown=govdocs:govdocs .streamlit/config.toml ./.streamlit/config.toml
 
