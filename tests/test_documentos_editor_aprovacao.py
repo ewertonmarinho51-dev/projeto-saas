@@ -178,14 +178,15 @@ def test_current_backend_knowledge_blocks_even_when_projection_is_valid(approval
     assert state["approval_calls"] == []
 
 
-def test_state_native_act_preserves_markdown_stage_and_legacy_approvals(approval, monkeypatch):
+def test_state_native_act_advances_from_authoritative_source_without_mutating_legacy(approval, monkeypatch):
     from src import operacao_documento, state as workflow
     from src.wordcraft_protocol import Ponte
     service, state, document, binding = approval
     session = {"documentos": {"dfd": "OLD MARKDOWN"}, "aprovados": {"etp"}, "etapa": 2,
         "processo_id": document.processo_id, "_documentos_editor_vinculos": {"dfd": binding}}
-    messages = []
-    monkeypatch.setattr(workflow, "st", SimpleNamespace(session_state=session, error=messages.append, info=messages.append))
+    messages, reruns = [], []
+    monkeypatch.setattr(workflow, "st", SimpleNamespace(session_state=session, error=messages.append,
+        info=messages.append, rerun=lambda: reruns.append(True)))
     monkeypatch.setattr(workflow.db, "em_manutencao", lambda: False)
     monkeypatch.setattr(operacao_documento, "ocupada", lambda s: False)
     monkeypatch.setattr(workflow, "autosalvar", lambda: pytest.fail("native act must not autosave legacy fields"))
@@ -199,8 +200,11 @@ def test_state_native_act_preserves_markdown_stage_and_legacy_approvals(approval
     receipt = workflow.aprovar_e_avancar("dfd", "BROWSER MARKDOWN", vinculo_nativo=binding,
         documento_service=service, ponte_nativa=bridge)
     assert receipt.status == "aprovado" and session["_aprovacoes_documentais"]["dfd"] is receipt
-    assert session["documentos"] == {"dfd": "OLD MARKDOWN"} and session["aprovados"] == {"etp"} and session["etapa"] == 2
-    assert "emissão" in messages[0]
+    assert session["documentos"] == {"dfd": "OLD MARKDOWN"} and session["aprovados"] == {"etp"}
+    assert session["etapa"] == 2 and session["_documentos_editor_aprovados"] == {"dfd"}
+    assert "necessidade administrativa" in session["_documentos_editor_contexto"]["dfd"]
+    assert session["_documentos_editor_aprovacoes"]["dfd"] is receipt
+    assert reruns == [True] and "autoritativa" in messages[0]
 
 
 @pytest.mark.parametrize("bridge_state", ["opening", "ready", "saved", "dirty", "saving", "error", "conflict", "frozen"])
