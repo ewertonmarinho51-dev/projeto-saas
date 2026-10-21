@@ -1,6 +1,12 @@
 name: WordCraft production release artifact
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/wordcraft-release.yml
+      - docs/wordcraft/runtime-source.lock.json
+      - scripts/wordcraft_promote_artifact.py
   workflow_dispatch:
     inputs:
       build_run_id:
@@ -25,18 +31,32 @@ jobs:
       - name: Fetch immutable run and artifact evidence
         env:
           GH_TOKEN: ${{ github.token }}
-          BUILD_RUN: ${{ inputs.build_run_id }}
-          FIDELITY_RUN: ${{ inputs.fidelity_run_id }}
+          INPUT_BUILD_RUN: ${{ inputs.build_run_id }}
+          INPUT_FIDELITY_RUN: ${{ inputs.fidelity_run_id }}
         run: |
           set -euo pipefail
           mkdir evidence input
+          BUILD_RUN="${INPUT_BUILD_RUN:-$(jq -r .build_run_id docs/wordcraft/runtime-source.lock.json)}"
+          FIDELITY_RUN="${INPUT_FIDELITY_RUN:-$(jq -r .fidelity_run_id docs/wordcraft/runtime-source.lock.json)}"
+          [[ "$BUILD_RUN" =~ ^[0-9]+$ && "$FIDELITY_RUN" =~ ^[0-9]+$ ]]
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${BUILD_RUN}" > evidence/build-run.json
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${BUILD_RUN}/artifacts" > evidence/build-artifacts.json
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${FIDELITY_RUN}" > evidence/fidelity-run.json
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${FIDELITY_RUN}/artifacts" > evidence/fidelity-artifacts.json
+          build_artifact_id="$(jq -r .build_artifact_id docs/wordcraft/runtime-source.lock.json)"
+          build_digest="sha256:$(jq -r .build_artifact_sha256 docs/wordcraft/runtime-source.lock.json)"
+          fidelity_artifact_id="$(jq -r .fidelity_artifact_id docs/wordcraft/runtime-source.lock.json)"
+          fidelity_digest="sha256:$(jq -r .fidelity_artifact_sha256 docs/wordcraft/runtime-source.lock.json)"
+          jq -e --argjson id "$build_artifact_id" --arg digest "$build_digest" \
+            '.artifacts | any(.id == $id and .digest == $digest and (.expired | not))' \
+            evidence/build-artifacts.json >/dev/null
+          jq -e --argjson id "$fidelity_artifact_id" --arg digest "$fidelity_digest" \
+            '.artifacts | any(.id == $id and .digest == $digest and (.expired | not))' \
+            evidence/fidelity-artifacts.json >/dev/null
           gh run download "$BUILD_RUN" -n wordcraft-govconnect-local-qa -D input
           test -f input/qa-manifest.json
           producer="$(jq -r .head_sha evidence/build-run.json)"
+          test "$producer" = "$(jq -r .producer_commit docs/wordcraft/runtime-source.lock.json)"
           git merge-base --is-ancestor "$producer" "$GITHUB_SHA"
       - name: Promote only reconciled evidence
         run: |
