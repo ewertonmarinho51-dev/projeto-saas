@@ -37,6 +37,13 @@ services:
     env_file:
       - /etc/govdocs/env
 
+    # O runtime aprovado do WordCraft é um artefato de release separado do
+    # código Python. O host o instala de forma atômica e o contentor recebe
+    # somente leitura; nenhuma edição do navegador pode alterar JS/WASM ou os
+    # avisos de licença admitidos pelo manifesto.
+    volumes:
+      - /opt/govdocs-wordcraft/wordcraft:/app/static/wordcraft:ro
+
     networks:
       - interna
 
