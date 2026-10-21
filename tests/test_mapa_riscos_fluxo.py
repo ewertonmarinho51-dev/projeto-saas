@@ -1,6 +1,6 @@
 import pytest
 import streamlit as st
-from src import state, db, mapa_riscos, achados, validacao
+from src import state, db, mapa_riscos, achados, validacao, wordcraft_runtime
 from src.config import sequencia_do_processo, exportaveis_do_processo
 
 
@@ -40,7 +40,7 @@ def test_contexto_so_inclui_cadeia_aprovada_e_invalidacao_em_cascata(sessao):
 
 
 def test_contexto_wordcraft_usa_projecao_nativa_e_nao_markdown(monkeypatch, sessao):
-    monkeypatch.setattr(db, "flag_ativa", lambda key: key == "wordcraft_editor")
+    monkeypatch.setattr(wordcraft_runtime, "ativo", lambda: True)
     sessao.dados = {"objeto": "Papel"}
     sessao.documentos = {"dfd": "MARKDOWN LEGADO", "etp": "ETP legado"}
     sessao.aprovados = {"dfd"}

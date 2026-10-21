@@ -148,3 +148,15 @@ def modulo_disponivel_aqui(modulo: str) -> bool:
         return db.modulo_disponivel(modulo, secretaria_id)
     except Exception:  # noqa: BLE001
         return db.flag_ativa(modulo)
+
+
+def modulo_em_rollout_aqui(modulo: str) -> bool:
+    """Resolve canário pelo tenant/secretaria autenticados, sempre fail-closed."""
+    try:
+        institucional = contexto_institucional()
+        if not institucional.get("usuario_id"):
+            return False
+        secretaria_id = institucional.get("secretaria_id")
+        return db.modulo_em_rollout(modulo, secretaria_id)
+    except Exception:  # noqa: BLE001 — canário nunca se amplia por falha
+        return False

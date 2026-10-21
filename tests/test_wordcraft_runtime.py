@@ -47,9 +47,18 @@ def release(tmp_path, monkeypatch):
 
 
 def test_flag_unica_reusa_config_app_e_default_ausente_e_off(monkeypatch):
-    monkeypatch.setattr(runtime.db, "flag_ativa", lambda name: False)
+    vistos = []
+    monkeypatch.setattr(runtime.contexto, "modulo_em_rollout_aqui",
+                        lambda name: vistos.append(name) or False)
     assert runtime.ativo() is False
     assert runtime.FLAG == "wordcraft_editor"
+    assert vistos == ["wordcraft_editor"]
+
+
+def test_runtime_admite_somente_tenant_resolvido_pela_sessao(monkeypatch):
+    monkeypatch.setattr(runtime.contexto, "modulo_em_rollout_aqui",
+                        lambda name: name == runtime.FLAG)
+    assert runtime.ativo() is True
 
 
 def test_release_operacional_valida_hashes_pins_e_urls(release):
