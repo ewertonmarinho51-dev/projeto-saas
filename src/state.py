@@ -8,7 +8,7 @@ aprovações) vive em st.session_state, inicializado aqui.
 
 import streamlit as st
 
-from . import cache_geracao, contexto, db
+from . import cache_geracao, contexto, db, wordcraft_runtime
 from .config import (INSTRUMENTOS_DERIVADOS, SEQUENCIA_DOCUMENTOS, adota_srp,
                      exportaveis_do_processo, sequencia_do_processo,
                      CHAVE_FLUXO_MAPA, DOCUMENTOS)
@@ -49,7 +49,7 @@ def cadeia_aprovada(doc_key: str) -> dict[str, str]:
     """
     ordem = sequencia()
     anteriores = ordem[:ordem.index(doc_key)] if doc_key in ordem else ordem[:-1]
-    if db.flag_ativa("wordcraft_editor"):
+    if wordcraft_runtime.ativo():
         docs = st.session_state.get("_documentos_editor_contexto") or {}
         aprovados = st.session_state.get("_documentos_editor_aprovados") or set()
     else:
@@ -211,7 +211,7 @@ def etapas_navegaveis() -> set[int]:
 
 def aprovacoes_efetivas() -> set[str]:
     """Uma única fonte de aprovação conforme a superfície ativa."""
-    if db.flag_ativa("wordcraft_editor"):
+    if wordcraft_runtime.ativo():
         return set(st.session_state.get("_documentos_editor_aprovados") or set())
     return set(st.session_state.get("aprovados") or set())
 

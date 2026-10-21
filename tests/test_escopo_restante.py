@@ -101,6 +101,61 @@ def test_banco_indisponivel_devolve_a_flag_global(_banco, monkeypatch):
     assert db.modulo_disponivel("price_research") is True
 
 
+def test_rollout_off_admite_apenas_tenant_explicitamente_canario(_banco):
+    _banco["flags"]["wordcraft_editor"] = False
+    assert db.modulo_em_rollout("wordcraft_editor") is False
+    _banco["tenant"] = {"wordcraft_editor": True}
+    assert db.modulo_em_rollout("wordcraft_editor") is True
+
+
+def test_rollout_canario_respeita_recusa_da_secretaria(_banco):
+    _banco["tenant"] = {"wordcraft_editor": True}
+    _banco["secretaria"] = {"wordcraft_editor": modulos.DESABILITADO}
+    assert db.modulo_em_rollout("wordcraft_editor", "sec-1") is False
+
+
+def test_rollout_canario_falha_fechado_sem_ampliar_tenant(_banco, monkeypatch):
+    def cair():
+        raise db.ErroBanco("sem banco")
+
+    monkeypatch.setattr(db, "modulos_do_tenant", cair)
+    assert db.modulo_em_rollout("wordcraft_editor") is False
+
+
+def test_rollout_global_ligado_preserva_resolucao_existente(_banco):
+    _banco["flags"]["wordcraft_editor"] = True
+    assert db.modulo_em_rollout("wordcraft_editor") is True
+    _banco["tenant"] = {"wordcraft_editor": False}
+    assert db.modulo_em_rollout("wordcraft_editor") is False
+
+
+def test_rollout_aqui_deriva_secretaria_da_sessao(monkeypatch):
+    vistos = []
+    monkeypatch.setattr(contexto, "contexto_institucional",
+                        lambda: {"usuario_id": "user-canario",
+                                 "secretaria_id": "sec-canario"})
+    monkeypatch.setattr(db, "modulo_em_rollout",
+                        lambda modulo, secretaria=None:
+                        vistos.append((modulo, secretaria)) or True)
+    assert contexto.modulo_em_rollout_aqui("wordcraft_editor") is True
+    assert vistos == [("wordcraft_editor", "sec-canario")]
+
+
+def test_rollout_aqui_recusa_sessao_anonima(monkeypatch):
+    monkeypatch.setattr(contexto, "contexto_institucional",
+                        lambda: {"usuario_id": None, "secretaria_id": None})
+    monkeypatch.setattr(db, "modulo_em_rollout",
+                        lambda *_args: (_ for _ in ()).throw(
+                            AssertionError("banco não deve ser consultado")))
+    assert contexto.modulo_em_rollout_aqui("wordcraft_editor") is False
+
+
+def test_rollout_aqui_falha_fechado(monkeypatch):
+    monkeypatch.setattr(contexto, "contexto_institucional",
+                        lambda: (_ for _ in ()).throw(RuntimeError("falha")))
+    assert contexto.modulo_em_rollout_aqui("wordcraft_editor") is False
+
+
 # ---------------------------------------------------------------------------
 # §39 — A NAVEGAÇÃO PASSOU A CONSULTAR DE FATO
 # ---------------------------------------------------------------------------

@@ -1649,6 +1649,35 @@ def modulo_disponivel(modulo: str, secretaria_id: str | None = None) -> bool:
                              na_secretaria=_modulos.estado_valido(estado))
 
 
+def modulo_em_rollout(modulo: str, secretaria_id: str | None = None) -> bool:
+    """Resolve um rollout gradual sem transformar a flag global em canário.
+
+    Com a flag global desligada, somente uma linha explícita
+    ``tenant_modulos.habilitado = true`` admite o tenant atual. Ausência de
+    linha, falha de leitura ou recusa da secretaria permanecem fechadas. Com a
+    flag global ligada, a resolução volta a ser exatamente a de
+    :func:`modulo_disponivel`, inclusive as recusas explícitas já existentes.
+
+    Assim, a mesma flag continua sendo o corte global e as tabelas canônicas de
+    módulos fornecem a allowlist temporária do canário. Nenhum tenant pode ser
+    escolhido pela tela: ``modulos_do_tenant`` deriva sempre da sessão.
+    """
+    from . import modulos as _modulos
+
+    global_ = flag_ativa(modulo)
+    if global_:
+        return modulo_disponivel(modulo, secretaria_id)
+    try:
+        no_tenant = modulos_do_tenant().get(modulo)
+        if no_tenant is not True:
+            return False
+        estado = (modulos_da_secretaria(secretaria_id).get(
+            modulo, _modulos.HERDAR) if secretaria_id else _modulos.HERDAR)
+        return _modulos.estado_valido(estado) != _modulos.DESABILITADO
+    except ErroBanco:
+        return False
+
+
 def listar_servidores(incluir_inativos: bool = False) -> list[dict]:
     try:
         consulta = (_cliente().table("servidores").select("*")

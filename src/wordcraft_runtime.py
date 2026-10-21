@@ -13,7 +13,7 @@ from pathlib import Path
 import re
 from urllib.parse import urlsplit
 
-from . import db
+from . import contexto
 
 FLAG = "wordcraft_editor"
 STATUS_OPERACIONAL = "GOVCONNECT_WORDCRAFT_DEPLOY_APPROVED"
@@ -40,7 +40,7 @@ class Runtime:
 
 
 def ativo() -> bool:
-    return db.flag_ativa(FLAG)
+    return contexto.modulo_em_rollout_aqui(FLAG)
 
 
 def _env(nome: str) -> str:
