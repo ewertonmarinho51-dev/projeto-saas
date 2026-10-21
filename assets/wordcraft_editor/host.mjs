@@ -417,18 +417,24 @@ export default function render(component) {
     if (instance.controller) instance.controller.disposed = true;
     root.__instance = null;
   };
+  let openingStage = 'checkpoint';
   (async () => {
     const bytes = fromBase64(data.checkpoint_base64);
     if (await sha256(bytes) !== data.content_hash) throw new Error('Hash de abertura divergente.');
+    openingStage = 'module';
     const module = await import(assetURL(data.module_url, window.location.href));
+    openingStage = 'wasm';
     await module.default({module_or_path: assetURL(data.wasm_url, window.location.href)});
     if (instance.disposed) return;
+    openingStage = 'instance';
     const native = new module.GovConnectEditor();
     instance.native = native;
     instance.starting = true;
+    openingStage = 'canvas';
     try { await native.start(canvas, bytes, Boolean(data.webgl)); }
     finally { instance.starting = false; }
     if (instance.disposed) { native.dispose(); return; }
+    openingStage = 'controller';
     const controller = new EditorController(native, data, (...args) => instance.outbox.push(...args));
     instance.controller = controller;
     await controller.loaded(bytes);
@@ -443,6 +449,6 @@ export default function render(component) {
         update();
       } catch { status.textContent = 'Editor indisponível. Preserve o rascunho antes de recarregar.'; }
     }, 250);
-  })().catch(() => { instance.native?.dispose(); status.textContent = 'Não foi possível abrir o editor. Nenhuma gravação foi confirmada.'; });
+  })().catch(() => { instance.native?.dispose(); status.textContent = `Não foi possível abrir o editor (${openingStage}). Nenhuma gravação foi confirmada.`; });
   return instance.cleanup;
 }
