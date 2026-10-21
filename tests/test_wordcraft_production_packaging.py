@@ -8,10 +8,12 @@ INSTALLER = ROOT / "implantacao" / "instalar_wordcraft_runtime.sh"
 def test_imagem_instala_node_e_monta_bundle_somente_leitura():
     dockerfile = (ROOT / "implantacao" / "Dockerfile").read_text(encoding="utf-8")
     compose = (ROOT / "implantacao" / "docker-compose.yml").read_text(encoding="utf-8")
+    streamlit = (ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8")
 
     assert "nodejs" in dockerfile
     assert "docs/wordcraft/upstream.lock.json ./docs/wordcraft/upstream.lock.json" in dockerfile
     assert "/opt/govdocs-wordcraft/wordcraft:/app/static/wordcraft:ro" in compose
+    assert "enableStaticServing = true" in streamlit
 
 
 def test_instalador_recusa_promover_manifesto_de_qa():
