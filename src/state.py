@@ -264,9 +264,9 @@ def aprovar_e_avancar(doc_key: str, texto_editado: str, *, vinculo_nativo=None, 
         st.error(db.motivo_de_manutencao())
         return
 
-    # The single approval action receives the authoritative native binding
-    # from its server-side renderer.  The wizard consumes that native source
-    # directly: legacy Markdown stays untouched and is never labelled approved.
+    # The single approval action may receive the authoritative native binding
+    # from its server-side renderer. Until the wizard consumes a native source
+    # set, approval is individual and cannot advance or label old Markdown.
     if vinculo_nativo is not None or doc_key in st.session_state.get("_documentos_editor_vinculos", {}):
         from .documentos_editor import DocumentoService, ErroDocumento, VinculoAprovacao
         from .wordcraft_protocol import Ponte
@@ -290,27 +290,7 @@ def aprovar_e_avancar(doc_key: str, texto_editado: str, *, vinculo_nativo=None, 
             st.error(str(error))
             return
         st.session_state.setdefault("_aprovacoes_documentais", {})[doc_key] = receipt
-        try:
-            approved_key, approved_text = documento_service.texto_aprovado(document.id)
-            if approved_key != doc_key:
-                raise ErroDocumento("Fonte aprovada diverge da etapa documental.")
-        except ErroDocumento as error:
-            # The approval is already an immutable server-side act.  Do not
-            # pretend it failed or fall back to the legacy projection; keep the
-            # user on the current stage until the native source can be read.
-            st.error(f"Revisão nativa aprovada, mas a projeção não pôde ser reaberta: {error}")
-            return receipt
-
-        st.session_state.setdefault("_documentos_editor_aprovados", set()).add(doc_key)
-        st.session_state.setdefault("_documentos_editor_contexto", {})[doc_key] = approved_text
-        st.session_state.setdefault("_documentos_editor_aprovacoes", {})[doc_key] = receipt
-
-        ordem = sequencia()
-        etapa_aprovada = ordem.index(doc_key) + 1
-        if int(st.session_state.get("etapa") or 0) <= etapa_aprovada:
-            st.session_state.etapa = etapa_aprovada + 1
-        st.info("Revisão nativa aprovada; o fluxo avançou usando a fonte documental autoritativa.")
-        st.rerun()
+        st.info("Revisão nativa aprovada. O avanço e a emissão do pacote aguardam o consumidor de fontes nativas.")
         return receipt
 
     # V5 Fase 7 (flag_institutional_learning_capture): a edição humana
