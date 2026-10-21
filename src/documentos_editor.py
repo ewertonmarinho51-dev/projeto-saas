@@ -1717,7 +1717,7 @@ class DocumentoService:
             raise ErroDocumento("Prova de aprovação nativa divergente.") from None
 
     def _commit(self, *, document_id, process_id, tipo, checkpoint, context, user,
-                original=None, restored_from=None, institutional=None):
+                original=None, restored_from=None, restored_index=None, institutional=None):
         _uuid(document_id)
         _uuid(process_id)
         _uuid(checkpoint.request_id)
@@ -1730,7 +1730,26 @@ class DocumentoService:
         if checkpoint.expected_revision:
             base = self._revision(user, self._head(user, document_id), checkpoint.expected_revision)
         try:
-            if base and base.index and base.engine_build == self._native["manifest_sha256"]:
+            if restored_from is not None:
+                # A restore reuses the source revision's already validated anchors. Reconciling
+                # against the current head would carry its invalidations into historical bytes.
+                if (restored_index is not None
+                        and restored_index.document_id == document_id
+                        and restored_index.content_hash == checkpoint.content_hash
+                        and restored_index.engine_manifest_sha256 == self._native["manifest_sha256"]):
+                    index = replace(restored_index, revision=checkpoint.expected_revision + 1)
+                    blocos.validar_indice(index, checkpoint.content, **self._native)
+                else:
+                    index = blocos.construir_indice(checkpoint.content, document_id=document_id,
+                        revision=checkpoint.expected_revision + 1, content_hash=checkpoint.content_hash, **self._native)
+                index_mode = "reconciled"
+                if base and not base.index:
+                    index_mode = "rebuilt_missing_index"
+                elif base and base.engine_build != self._native["manifest_sha256"]:
+                    index_mode = "rebuilt_build"
+                    index = replace(index, invalidacoes=tuple(
+                        blocos.Invalidacao(b.block_id, "build_alterado") for b in base.index.blocos))
+            elif base and base.index and base.engine_build == self._native["manifest_sha256"]:
                 index = blocos.reconciliar_indice(base.index, base.payload, checkpoint.content,
                     revision=checkpoint.expected_revision + 1, content_hash=checkpoint.content_hash, **self._native)
                 index_mode = "reconciled"
@@ -1835,6 +1854,7 @@ class DocumentoService:
         checkpoint = Checkpoint(operation_id, expected_revision, source.content_hash, source.payload)
         return self._commit(document_id=document_id, process_id=head["processo_id"], tipo=head["tipo"],
             checkpoint=checkpoint, context=context, user=user, restored_from=source_revision,
+            restored_index=source.index,
             institutional=_snapshot_bytes(source.institutional_snapshot) if source.institutional_snapshot else None)
 
     def importar_legado(self, *, processo_id: str, tipo: str, operation_id: str,

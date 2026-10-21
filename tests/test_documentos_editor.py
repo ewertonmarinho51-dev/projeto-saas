@@ -508,6 +508,32 @@ def test_restore_uses_authorized_historical_bytes_and_returns_new_cas_revision(s
     assert state["server_calls"][0]["p_original_payload"] is None
 
 
+def test_restore_reuses_validated_source_index_without_current_head_invalidations(setup, monkeypatch):
+    service, state, checkpoint = setup
+    source_index = owner.blocos.construir_indice(checkpoint.content,
+        document_id=state["head"]["id"], revision=1, content_hash=checkpoint.content_hash,
+        node=Path("C:/server/node.exe"), bundle=Path("C:/server/bundle"), manifest_sha256="a" * 64)
+    damaged_index = replace(source_index, revision=2,
+        invalidacoes=(owner.blocos.Invalidacao(source_index.blocos[0].block_id, "ambigua"),))
+    source = owner.Documento(state["head"]["id"], state["head"]["processo_id"], "dfd", 1,
+        checkpoint.content_hash, "historico", checkpoint.content, "a" * 64,
+        "server_manifest_sha256", source_index, "initial")
+    current = replace(source, revision=2, status="rascunho", index=damaged_index, index_mode="reconciled")
+    revisions = iter((source, current))
+    monkeypatch.setattr(service, "_revision", lambda *args: next(revisions))
+    state["head"]["revision"] = 2
+
+    receipt = service.restaurar(state["head"]["id"], source_revision=1,
+        expected_revision=2, operation_id=str(uuid4()))
+
+    assert receipt.revision == 3 and receipt.index_mode == "reconciled"
+    assert receipt.index == replace(source_index, revision=3)
+    assert receipt.index.invalidacoes == ()
+    persisted = owner.blocos.desserializar_indice(
+        bytes.fromhex(state["server_calls"][0]["p_block_index"][2:]))
+    assert persisted == receipt.index
+
+
 def test_index_hash_corruption_is_rejected_before_any_mutation(setup):
     service, state, checkpoint = setup
     state["row"].update(block_index="\\x7b7d", block_index_sha256="b" * 64, index_mode="initial")
