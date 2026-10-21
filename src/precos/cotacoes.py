@@ -532,11 +532,10 @@ class ResultadoPesquisa:
     estimativa: estatistica.Estimativa | None = None
     sugestao: dict | None = None
     # política da cotação automática (vazio = sem teto, o comportamento
-    # anterior): o que deixou de ser gravado e de ser consultado
+    # anterior): o que deixou de ser gravado
     politica: str = ""
     nao_gravadas: int = 0
     rebaixadas: int = 0
-    fontes_nao_consultadas: list[str] = field(default_factory=list)
     # triagem pré-cesta (flag de saneamento): contagem, série e as retidas
     # com fundamento; vazio = sem saneamento, o comportamento anterior
     saneamento: dict = field(default_factory=dict)
@@ -672,8 +671,7 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
         unicas=coleta.unicas,
         elegiveis=coleta.elegiveis(estatistica.PISO_COMPARABILIDADE),
         desfechos=dict(coleta.desfechos), ocorrencias=list(coleta.ocorrencias),
-        termos=list(termos), politica=politica.versao if politica else "",
-        fontes_nao_consultadas=list(coleta.fontes_nao_consultadas))
+        termos=list(termos), politica=politica.versao if politica else "")
 
     if coleta.erro:
         repo.mover_item(item_id, EstadoItem.ERRO, EstadoItem.BUSCANDO,
@@ -894,7 +892,6 @@ def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
                  "politica": resultado.politica,
                  "nao_gravadas": resultado.nao_gravadas,
                  "rebaixadas": resultado.rebaixadas,
-                 "fontes_nao_consultadas": resultado.fontes_nao_consultadas,
                  **({"saneamento": resultado.saneamento}
                     if resultado.saneamento else {}),
                  "diagnostico": resultado.diagnostico,

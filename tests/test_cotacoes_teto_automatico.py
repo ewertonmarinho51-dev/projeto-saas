@@ -9,8 +9,9 @@ CONSIDERADAS por item. O que estas provas guardam:
 * 15 é teto, não meta: com 3 boas, ficam 3;
 * a seleção é por prioridade de fonte e comparabilidade, nunca "as
   primeiras" nem "as mais baratas";
-* a busca para de consultar fontes quando a amostra já basta — reduz
-  chamada, não só corta a lista depois;
+* TODA fonte é consultada, mesmo com amostra farta na primeira, e as
+  vagas da cesta são repartidas entre as fontes (21/10/2026 — a .2
+  parava no primeiro portal e a cesta saía de um portal só);
 * só se grava a cesta, o já decidido e uma reserva para o revisor;
 * decisão humana não é desfeita; desconsiderada não volta;
 * modo manual e flag desligada: exatamente como antes.
@@ -22,6 +23,7 @@ banco falso das provas. Nada de rede nem IA.
 from __future__ import annotations
 
 import sys
+from collections import Counter
 from decimal import Decimal
 from pathlib import Path
 
@@ -43,19 +45,21 @@ ITEM = {"descricao": "PAPEL SULFITE A4 75G RESMA 500 FOLHAS",
         "unidade": "RESMA", "quantidade": "10"}
 
 
-def _ranqueadas(n: int, *, tipo="sistema_oficial"):
+def _ranqueadas(n: int, *, tipo="sistema_oficial",
+                fonte_id="compras_gov_precos", prefixo="r",
+                score_base=Decimal("0.99")):
     """n elegíveis com comparabilidade decrescente e preço CRESCENTE."""
-    fonte = Fonte("compras_gov_precos", "Compras.gov", tipo)
+    fonte = Fonte(fonte_id, fonte_id, tipo)
     saida = []
     for i in range(n):
         ref = Referencia(
-            fonte=fonte, id_externo=f"r{i}", bruto={"i": i},
+            fonte=fonte, id_externo=f"{prefixo}{i}", bruto={"i": i},
             descricao_original="papel", unidade_original="RESMA",
             valor_unitario_original=Decimal(20 + i),
             natureza_valor=NaturezaValor.HOMOLOGADO)
         ref.unidade_normalizada = "RESMA"
         ref.valor_unitario_normalizado = Decimal(20 + i)
-        score = Decimal("0.99") - Decimal(i) / Decimal(1000)
+        score = score_base - Decimal(i) / Decimal(1000)
         saida.append((ref, Comparabilidade(score=score, fatores={})))
     return saida
 
@@ -83,6 +87,47 @@ def test_ficam_as_mais_comparaveis_nao_as_mais_baratas():
     cesta_ = estatistica.selecionar_cesta(pares, teto=15)
     ids = {r.id_externo for r in cesta_.selecionadas}
     assert ids == {f"r{i}" for i in range(15)}   # maiores scores
+
+
+def test_teto_reparte_as_vagas_entre_as_fontes():
+    pares = (_ranqueadas(40, fonte_id="compras_gov_precos", prefixo="a")
+             + _ranqueadas(40, fonte_id="pncp", prefixo="b",
+                           tipo="contratacao_similar")
+             + _ranqueadas(1, fonte_id="tce_rs", prefixo="c", tipo="outro",
+                           score_base=Decimal("0.80")))
+    cesta_ = estatistica.selecionar_cesta(pares, teto=15)
+    por_fonte = Counter(r.fonte.id for r in cesta_.selecionadas)
+    # rodízio: 5 rodadas de 3 fontes; a fonte de UMA referência entra
+    assert por_fonte == {"compras_gov_precos": 7, "pncp": 7, "tce_rs": 1}
+    # dentro de cada fonte, continuam as mais comparáveis
+    assert {r.id_externo for r in cesta_.selecionadas
+            if r.fonte.id == "pncp"} == {f"b{i}" for i in range(7)}
+    # a de maior prioridade normativa abre cada rodada
+    assert cesta_.selecionadas[0].fonte.id == "compras_gov_precos"
+    assert len(cesta_.excedentes) == 81 - 15
+
+
+def test_teto_com_fonte_de_baixa_prioridade_mais_comparavel():
+    # prioridade normativa decide quem abre a rodada, não o score
+    pares = (_ranqueadas(10, fonte_id="sites", prefixo="s", tipo="outro")
+             + _ranqueadas(10, fonte_id="compras_gov_precos", prefixo="g",
+                           score_base=Decimal("0.70")))
+    cesta_ = estatistica.selecionar_cesta(pares, teto=3)
+    assert [r.fonte.id for r in cesta_.selecionadas] == [
+        "compras_gov_precos", "sites", "compras_gov_precos"]
+
+
+def test_rodizio_so_com_teto_sem_teto_e_a_ordem_historica():
+    def pares():
+        return (_ranqueadas(3, fonte_id="compras_gov_precos", prefixo="a")
+                + _ranqueadas(3, fonte_id="pncp", prefixo="b",
+                              score_base=Decimal("0.90")))
+    sem = estatistica.selecionar_cesta(pares())
+    com = estatistica.selecionar_cesta(pares(), teto=6)
+    assert [r.id_externo for r in sem.selecionadas] == [
+        "a0", "a1", "a2", "b0", "b1", "b2"]
+    assert [r.id_externo for r in com.selecionadas] == [
+        "a0", "b0", "a1", "b1", "a2", "b2"]
 
 
 def test_mesma_aritmetica_decimal_sobre_a_cesta_escolhida():
@@ -117,31 +162,35 @@ def _nova(monkeypatch, *, teto=True):
     return str(c["id"]), str(item["id"])
 
 
-def test_301_por_fonte_vira_no_maximo_15_e_para_na_primeira_fonte(monkeypatch):
+def test_301_por_fonte_vira_no_maximo_15_de_todas_as_fontes(monkeypatch):
     cid, iid = _nova(monkeypatch)
     fontes = _fontes(301)
     r = cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                                 fontes=fontes)
     linhas = repo.listar_referencias(iid)
-    assert r.consideradas == len(cesta.consideradas(linhas)) == 15
+    dentro = cesta.consideradas(linhas)
+    assert r.consideradas == len(dentro) == 15
     assert len(linhas) <= POL.teto + POL.reserva
-    assert r.nao_gravadas > 200 and r.brutas == 301
-    assert fontes[0].chamadas == 1 and fontes[1].chamadas == 0
-    assert r.fontes_nao_consultadas and r.politica == POL.versao
+    assert r.nao_gravadas > 200 and r.brutas == 602
+    # amostra farta na primeira NÃO dispensa a segunda
+    assert fontes[0].chamadas == 1 and fontes[1].chamadas == 1
+    por_fonte = Counter(l["fonte_id"] for l in dentro)
+    assert sorted(por_fonte.values()) == [7, 8], por_fonte
+    assert r.politica == POL.versao
     [evento] = [e for e in repo.listar_eventos(cid)
                 if e["tipo"] == "busca_concluida"]
     assert evento["payload"]["politica"] == POL.versao
     assert evento["payload"]["nao_gravadas"] == r.nao_gravadas
-    assert evento["payload"]["brutas"] == 301       # a trilha não finge
+    assert evento["payload"]["brutas"] == 602       # a trilha não finge
 
 
 def test_com_poucas_boas_nao_infla_e_consulta_a_proxima_fonte(monkeypatch):
     cid, iid = _nova(monkeypatch)
-    fontes = _fontes(3)       # 3 por fonte, 1 vizinha: abaixo do suficiente
+    fontes = _fontes(3)       # 3 por fonte, 1 vizinha: poucas boas
     r = cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                                 fontes=fontes)
-    assert fontes[1].chamadas == 1                  # ampliou: não bastava
-    assert r.consideradas <= 6 and not r.fontes_nao_consultadas
+    assert fontes[1].chamadas == 1
+    assert r.consideradas <= 6
 
 
 def test_fonte_principal_fora_consulta_a_seguinte(monkeypatch):
@@ -217,7 +266,9 @@ def test_rota_legada_respeita_o_mesmo_teto():
     assert len(sem.estimativa.cesta.selecionadas) == 452
     assert len(com.estimativa.cesta.selecionadas) == 15
     assert len(com.referencias) <= POL.teto + POL.reserva
-    assert fontes[1].chamadas == 0
+    assert fontes[1].chamadas == 1
+    assert {r.fonte.id for r in com.estimativa.cesta.selecionadas} == {
+        "compras_gov_precos", "pncp"}
 
 
 # ---------------------------------------------------------------------------

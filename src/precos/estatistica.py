@@ -381,11 +381,12 @@ class PoliticaAmostraAutomatica:
     rota legada, e vai VERSIONADA para a trilha de cada busca.
 
     * `teto` — máximo absoluto de referências que a automação põe na
-      cesta de um item, contando as que já estavam lá. É teto, não meta;
-    * `suficiente` — a busca para de ampliar (não consulta a próxima
-      fonte) quando já há tantas candidatas elegíveis. 3 a 6 bons preços
-      sustentam o método; chegar a 15 à força não melhora nada;
-    * `limite_por_fonte` — quantos registros pedir a cada fonte;
+      cesta de um item, contando as que já estavam lá. É teto, não meta.
+      As vagas são repartidas entre as fontes (ver `selecionar_cesta`);
+    * `limite_por_fonte` — quantos registros pedir a cada fonte. Limita
+      QUANTO se pede, nunca QUAIS fontes: toda fonte configurada é
+      consultada (até a .2 havia um `suficiente` que parava a busca no
+      primeiro portal com 6 elegíveis — retirado em 21/10/2026);
     * `reserva` — elegíveis além do teto guardadas como candidatas, para o
       revisor ter alternativa sem nova consulta. O resto não é gravado: a
       trilha guarda as CONTAGENS (brutas, únicas, elegíveis), não as linhas.
@@ -396,9 +397,10 @@ class PoliticaAmostraAutomatica:
 
     # .2 (17/10/2026, medido em produção): grupo do catálogo limitado e
     # seleções ANTERIORES da automática reavaliadas sob o teto.
-    versao: str = "2026-10-17.teto-15.2"
+    # .3 (21/10/2026): todas as fontes consultadas e cesta repartida entre
+    # elas — a .2 parava no primeiro portal com amostra "suficiente".
+    versao: str = "2026-10-21.teto-15.3"
     teto: int = 15
-    suficiente: int = 6
     limite_por_fonte: int = 50
     # registros por grupo do catálogo (PDM) no caminho por descrição do
     # Compras.gov; o manual continua pedindo 500
@@ -425,9 +427,13 @@ def selecionar_cesta(
     dela a maior comparabilidade. "Pegue os três menores" produziria uma
     cesta falsa, barata e incomparável (§12).
 
-    `teto` (cotação automática): só as `teto` primeiras dessa ordem entram;
-    as demais elegíveis ficam CANDIDATAS em `excedentes`, com o motivo.
-    `None` = sem teto, exatamente como antes.
+    `teto` (cotação automática): as vagas são repartidas entre as FONTES,
+    em rodízio (`_rodizio_por_fonte`) — uma de cada fonte por rodada, a
+    fonte de maior prioridade normativa abrindo cada rodada. Um portal com
+    centenas de preços não ocupa a cesta inteira e cala os demais; fonte
+    com uma única referência elegível também entra. As que sobram ficam
+    CANDIDATAS em `excedentes`, com o motivo. `None` = sem teto,
+    exatamente como antes.
 
     `saneamento` (`saneamento.PoliticaSaneamento`, flag
     `precos_saneamento_pre_cesta`): as referências que alcançam o piso de
@@ -485,6 +491,9 @@ def selecionar_cesta(
     elegiveis.sort(key=lambda par: (
         prioridade.get(par[0].fonte.tipo, 99), -par[1].score))
 
+    if teto is not None:
+        elegiveis = _rodizio_por_fonte(elegiveis)
+
     limite = len(elegiveis) if teto is None else max(0, int(teto))
     escolhidas = [r for r, _ in elegiveis[:limite]]
     reservas = [r for r, _ in elegiveis[limite:]]
@@ -518,6 +527,29 @@ def selecionar_cesta(
         cesta.motivos.append(
             "nenhuma referência atingiu a comparabilidade mínima")
     return cesta
+
+
+def _rodizio_por_fonte(elegiveis):
+    """
+    Reordena as elegíveis em rodízio por fonte, sem perder nenhuma.
+
+    Entra a lista já na ordem de prioridade normativa e comparabilidade.
+    As fontes ficam na ordem em que aparecem nela (a de maior prioridade e
+    melhor referência primeiro); cada rodada toma a melhor referência
+    ainda não usada de cada fonte. Dentro de uma fonte a ordem não muda.
+
+    Com teto de 15 e dois portais fartos, a cesta sai 8 + 7, não 15 + 0.
+    """
+    grupos: dict[str, list] = {}
+    for par in elegiveis:
+        fonte = par[0].fonte
+        chave = getattr(fonte, "id", "") or getattr(fonte, "nome", "")
+        grupos.setdefault(chave, []).append(par)
+    filas = list(grupos.values())
+    saida = []
+    for rodada in range(max((len(f) for f in filas), default=0)):
+        saida.extend(f[rodada] for f in filas if rodada < len(f))
+    return saida
 
 
 def _barreira_de_conversao(ranqueadas, cesta: Cesta):

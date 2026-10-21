@@ -44,9 +44,6 @@ class Coleta:
     erro: str = ""
     duracao_s: float = 0.0
     codigo_confirmado: bool = False
-    # fontes que a política automática deixou de consultar (amostra já
-    # suficiente) — vão para a trilha, nunca somem
-    fontes_nao_consultadas: list[str] = field(default_factory=list)
     _ocorrencias_da_fusao: list[str] = field(default_factory=list, repr=False)
 
     @property
@@ -178,13 +175,15 @@ def coletar(item: dict, fontes: list[FontePesquisaPreco], *,
     seu `try`. Se TODAS as fontes de preço falharem, `erro` diz que é
     falha técnica — não "o mercado não tem o item".
 
+    **Toda fonte configurada é consultada**, sempre. Amostra farta num
+    portal não autoriza deixar de olhar os outros: a pesquisa que para no
+    primeiro que "basta" vira pesquisa de um portal só, e a cesta perde a
+    diversidade de fontes que a Administração precisa demonstrar.
+
     `politica` (`estatistica.PoliticaAmostraAutomatica`, só na cotação
-    automática): pede menos registros a cada fonte e PARA de consultar as
-    fontes seguintes quando as elegíveis já bastam (`suficiente`). As
-    fontes vêm em ordem de prioridade normativa, então a que fica de fora
-    é a de menor prioridade — e a trilha diz qual foi e por quê.
+    automática) reduz QUANTO se pede a cada fonte (`limite_por_fonte`,
+    `limite_por_grupo`) — nunca QUAIS fontes são consultadas.
     """
-    from .estatistica import PISO_COMPARABILIDADE
     from .execucao import consulta_do_item
 
     filtros = dict(filtros or {})
@@ -198,25 +197,9 @@ def coletar(item: dict, fontes: list[FontePesquisaPreco], *,
     coletadas: list[Referencia] = []
     pdms_inferidos: set[str] = set()
     de_preco: set[str] = set()
-    ranqueadas = None
-    for posicao, fonte in enumerate(fontes):
+    for fonte in fontes:
         fid = getattr(getattr(fonte, "fonte", None), "id", "") or repr(fonte)
         nome = getattr(getattr(fonte, "fonte", None), "nome", "fonte")
-        if politica is not None and ranqueadas is not None:
-            elegiveis = sum(
-                1 for ref, comp in ranqueadas
-                if ref.valor_unitario_normalizado is not None
-                and ref.natureza_valor in NATUREZAS_COMPARAVEIS
-                and comp.score >= PISO_COMPARABILIDADE)
-            if elegiveis >= politica.suficiente:
-                puladas = [getattr(getattr(f, "fonte", None), "nome", "fonte")
-                           for f in fontes[posicao:]]
-                coleta.fontes_nao_consultadas = puladas
-                coleta.ocorrencias.append(
-                    f"busca encerrada com {elegiveis} preço(s) comparável(is) "
-                    f"— suficiente pela política {politica.versao}; não "
-                    f"consultada(s): {', '.join(puladas)}")
-                break
         if fontes_mod.fornece_preco(fonte):
             de_preco.add(fid)
         try:
@@ -232,11 +215,6 @@ def coletar(item: dict, fontes: list[FontePesquisaPreco], *,
         coleta.codigo_confirmado |= bool(
             getattr(busca, "codigo_confirmado", False))
         coleta.ocorrencias.extend(busca.ocorrencias)
-        if politica is not None and posicao < len(fontes) - 1:
-            # só a automática paga o ranqueamento parcial: é ele que
-            # decide se vale chamar a próxima fonte
-            ranqueadas = _ranquear(coletadas, item, filtros, coleta,
-                                   pdms_inferidos)
     coleta.de_preco = frozenset(de_preco)
 
     falharam = [fid for fid in de_preco

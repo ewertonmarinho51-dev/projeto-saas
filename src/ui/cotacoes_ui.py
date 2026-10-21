@@ -745,6 +745,8 @@ def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
                 f"{precos_ui.ROTULO_DESFECHO.get(d, d)}"
                 for f, d in sorted((p.get("desfechos") or {}).items()))
             st.caption(f"Fontes: {desfechos or 'sem desfecho registrado'}")
+            # só pesquisas gravadas sob a política .2 (até 21/10/2026),
+            # que parava no primeiro portal com amostra "suficiente"
             if p.get("fontes_nao_consultadas"):
                 st.caption("Não consultada(s) por já haver amostra "
                            "suficiente: " + ", ".join(p["fontes_nao_consultadas"]))
