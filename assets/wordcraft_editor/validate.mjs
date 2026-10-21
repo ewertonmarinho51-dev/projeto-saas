@@ -97,7 +97,7 @@ export async function verifyBundle(bundle, manifestHash) {
   const raw = await readFile(manifestPath);
   if (digest(raw) !== manifestHash) throw new Error('Manifest hash differs.');
   const manifest = JSON.parse(raw);
-  if (manifest.status !== 'INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED'
+  if (!['INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED', 'GOVCONNECT_WORDCRAFT_DEPLOY_APPROVED'].includes(manifest.status)
       || !/^[0-9a-f]{40}$/.test(manifest.upstream_commit)
       || !/^[0-9a-f]{40}$/.test(manifest.govconnect_commit)
       || !Array.isArray(manifest.files) || manifest.files.length < 2 || manifest.files.length > 100) {
