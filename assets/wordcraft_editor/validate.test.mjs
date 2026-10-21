@@ -195,7 +195,7 @@ test('pinned worker bundle rejects changed assets before module execution', asyn
         {path: 'engine.wasm', bytes: wasm.length, sha256: hash(wasm)}]});
     await writeFile(join(root, 'qa-manifest.json'), raw);
     const result = await verifyBundle(root, hash(raw));
-    assert.equal(result.modulePath, join(root, 'engine.js'));
+    assert.deepEqual(result.moduleBytes, js);
     assert.deepEqual(result.wasmBytes, wasm);
     await assert.rejects(verifyBundle(root, '0'.repeat(64)), /Manifest hash differs/);
     await writeFile(join(root, 'engine.js'), 'changed untrusted code');
