@@ -52,6 +52,7 @@ def _fixture(tmp_path: Path):
 
 def test_promove_somente_execucoes_reconciliadas(tmp_path):
     bundle, p = _fixture(tmp_path)
+    (bundle / "cargo-metadata.json").write_text("evidência de QA", encoding="utf-8")
     output = tmp_path / "release"
     result = promover(bundle, p["build_run"], p["build_artifacts"],
                       p["fidelity_run"], p["fidelity_artifacts"], APPROVAL, output)
@@ -59,6 +60,7 @@ def test_promove_somente_execucoes_reconciliadas(tmp_path):
     assert result["status"] == manifest["status"] == RELEASE_STATUS
     assert manifest["release_evidence"]["build_run_id"] == 10
     assert manifest["release_evidence"]["fidelity_run_id"] == 20
+    assert not (output / "cargo-metadata.json").exists()
 
 
 def test_recusa_fidelidade_de_outro_commit(tmp_path):
