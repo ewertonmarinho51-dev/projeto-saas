@@ -404,15 +404,17 @@ def render(doc_key: str, meta: dict) -> None:
                     key=_chave(doc_key, "template_apply_confirm"))
                 template_submitted = st.form_submit_button(
                     "Aplicar template efetivo como nova revisão",
-                    disabled=not can_apply or not template_confirmed
-                    or bridge.state not in {"ready", "saved"})
+                    disabled=not can_apply or bridge.state not in {"ready", "saved"})
             if template_submitted:
-                try:
-                    _aplicar_template_operacional(doc_key, service, runtime,
-                                                  processo_id, template_version)
-                    st.rerun()
-                except ErroDocumento as error:
-                    st.error(str(error))
+                if not template_confirmed:
+                    st.error("Confirme a substituição pelo template antes de aplicar.")
+                else:
+                    try:
+                        _aplicar_template_operacional(doc_key, service, runtime,
+                                                      processo_id, template_version)
+                        st.rerun()
+                    except ErroDocumento as error:
+                        st.error(str(error))
         if st.button("Carregar histórico persistido",
                      key=_chave(doc_key, "history_button")):
             try:
@@ -431,13 +433,16 @@ def render(doc_key: str, meta: dict) -> None:
                     "Confirmo a criação de uma nova revisão com esse conteúdo.",
                     key=_chave(doc_key, "restore_confirm"))
                 restore_submitted = st.form_submit_button("Restaurar como nova revisão",
-                    disabled=not restore_confirmed or bridge.state not in {"ready", "saved"})
+                    disabled=bridge.state not in {"ready", "saved"})
             if restore_submitted:
-                try:
-                    _restaurar_operacional(doc_key, service, runtime, source_revision)
-                    st.rerun()
-                except ErroDocumento as error:
-                    st.error(str(error))
+                if not restore_confirmed:
+                    st.error("Confirme a criação da revisão restaurada antes de continuar.")
+                else:
+                    try:
+                        _restaurar_operacional(doc_key, service, runtime, source_revision)
+                        st.rerun()
+                    except ErroDocumento as error:
+                        st.error(str(error))
         current_audit = st.session_state.get(audit_key)
         findings = ([item for item in current_audit["report"]["findings"]
                      if item.get("documentId") == doc_key] if current_audit else [])

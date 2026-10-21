@@ -258,6 +258,20 @@ def test_restore_operacional_usa_historico_persistido_cas_e_remonta_canvas(monke
     assert session[ui._chave("tr", "document")] is restored
     assert ui._chave("tr", "history") not in session
     assert ui._chave("tr", "audit") not in session
+
+
+def test_confirmacoes_em_form_nao_criam_botoes_impossiveis_de_habilitar():
+    source = (Path(__file__).parents[1] / "src/ui/wordcraft_operacional.py").read_text(
+        encoding="utf-8")
+    template = source[source.index('with st.form(_chave(doc_key, "template_apply_form"))'):
+                      source.index('if st.button("Carregar histórico persistido"')]
+    restore = source[source.index('with st.form(_chave(doc_key, "restore_form"))'):
+                     source.index('current_audit = st.session_state.get(audit_key)')]
+
+    assert "disabled=not can_apply or not template_confirmed" not in template
+    assert "if not template_confirmed:" in template
+    assert "disabled=not restore_confirmed" not in restore
+    assert "if not restore_confirmed:" in restore
     assert "nova revisão 4" in session[ui._chave("tr", "message")]
 
 
