@@ -73,10 +73,16 @@ O aceite operacional ainda deve provar, com dados sintéticos:
 5. aplicação de patch, Undo e Redo;
 6. aprovação e emissão imutáveis;
 7. exportação e download de DOCX/PDF;
-8. hashes, contagens e ausência de erro no navegador;
-9. rollback por `tenant_modulos.habilitado=false`, sem apagar histórico;
-10. isolamento de uma sessão ou tenant sem admissão, quando houver uma segunda
+8. recuperação e download do original armazenado, exercitando
+   `original_payload` separadamente dos artefatos gerados;
+9. hashes, contagens, uso de memória, latência e ausência de erro no navegador;
+10. rollback por `tenant_modulos.habilitado=false`, sem apagar histórico;
+11. isolamento de uma sessão ou tenant sem admissão, quando houver uma segunda
     unidade real disponível.
+
+O aceite deve ser executado em conjunto com a lista canônica de
+`docs/wordcraft/rollout-canario.md`; este registro não reduz nem substitui os
+critérios daquele runbook.
 
 Até esse aceite, a flag global deve permanecer desligada e o legado não pode
 ser removido. A ausência de um segundo tenant em produção impede tratar o
