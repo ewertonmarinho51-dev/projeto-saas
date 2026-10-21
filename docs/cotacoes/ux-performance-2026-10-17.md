@@ -87,6 +87,16 @@ teto. Desconsiderada não volta; decisão humana preservada. Mesma regra
 na rota legada (`execucao.pesquisar_item/executar_lote`, parâmetro
 `politica`).
 
+**Revisão .3 (21/10/2026, `"2026-10-21.teto-15.3"`).** A parada em 6
+elegíveis (`suficiente`) foi retirada: com amostra farta no primeiro
+portal, os demais não eram consultados e a cesta saía de uma fonte só.
+Agora toda fonte configurada é consultada (o `limite_por_fonte`
+continua: limita quanto se pede, não quais fontes) e as 15 vagas são
+repartidas em rodízio entre as fontes, a de maior prioridade normativa
+abrindo cada rodada (`estatistica._rodizio_por_fonte`). Dois portais
+fartos → 8 + 7. `fontes_nao_consultadas` só aparece em pesquisas
+gravadas sob a .2.
+
 ## G2 — concluir e avançar
 
 `cotacoes.proximo_item_para_revisao` (pura) + `_avancar_depois_de_concluir`

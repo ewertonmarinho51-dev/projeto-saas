@@ -353,9 +353,10 @@ FLAG_COTACOES_UNIFICADAS = "unified_quotations"
 FLAG_RELATORIO_VISUAL = "precos_relatorio_visual"
 
 # Teto da cotação automática (pacote de 17/10/2026): no máximo 15
-# referências na cesta automática de cada item, busca que para quando a
-# amostra já basta, e só o necessário gravado. Política única em
-# `estatistica.POLITICA_AUTOMATICA`, para a rota unificada e a legada.
+# referências na cesta automática de cada item, repartidas entre as
+# fontes (todas consultadas desde 21/10/2026), e só o necessário gravado.
+# Política única em `estatistica.POLITICA_AUTOMATICA`, para a rota
+# unificada e a legada.
 # Nasce DESLIGADA; desligar volta ao comportamento anterior sem tocar em
 # referência gravada ou decisão humana.
 FLAG_TETO_AUTOMATICO = "cotacao_automatica_teto"
