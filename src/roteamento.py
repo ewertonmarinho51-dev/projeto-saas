@@ -74,12 +74,11 @@ TYPED_DECISION = "TYPED_DECISION"
 
 MOTORES_DO_GRUPO: dict[str, tuple[str, ...]] = {
     TYPED_DECISION: ("openrouter",),
-    # Só a OpenAI é homologada para documento oficial hoje, e isso é uma
-    # AFIRMAÇÃO DE HOMOLOGAÇÃO, não uma preferência técnica: é o motor
-    # com que a suíte de documentos foi construída e conferida. Gemini e
-    # OpenRouter entram aqui quando passarem no conjunto de avaliação —
-    # e a entrada deles é uma decisão do operador, registrada em commit.
-    PROCUREMENT_HIGH_ACCURACY: ("openai",),
+    # OpenAI e OpenRouter são homologados para documento oficial. Isso é
+    # uma AFIRMAÇÃO DE HOMOLOGAÇÃO, não uma preferência técnica: ambos
+    # passaram pela cadeia DFD -> ETP -> TR -> Edital sem perda literal.
+    # Gemini entra aqui quando passar no mesmo conjunto de avaliação.
+    PROCUREMENT_HIGH_ACCURACY: ("openai", "openrouter"),
     HIGH_ACCURACY: ("openai",),
     FAST: ("openai", "gemini"),
     CHEAP: ("openai", "gemini", "openrouter"),
