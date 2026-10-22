@@ -2,7 +2,8 @@ import pytest
 
 from govconect_api.config import ConfiguracaoInvalida, carregar
 
-PROD = {"APP_ENV": "production", "SUPABASE_URL": "https://prod.exemplo.co"}
+PROD = {"APP_ENV": "production", "SUPABASE_URL": "https://prod.exemplo.co",
+        "SUPABASE_KEY": "chave-publicavel-de-teste"}
 
 
 def test_padrao_e_desenvolvimento_sem_supabase():
@@ -59,3 +60,37 @@ def test_mensagem_de_erro_nao_carrega_segredo():
         carregar({"APP_ENV": "production",
                   "SUPABASE_URL": "http://valor-que-nao-deve-aparecer.co"})
     assert "valor-que-nao-deve-aparecer" not in str(erro.value)
+
+
+def test_segredo_hs256_recusado_em_producao():
+    # Produção verifica pelo JWKS (ES256). O segredo compartilhado lá só
+    # abriria uma segunda porta, mais fraca, ao lado da certa.
+    with pytest.raises(ConfiguracaoInvalida, match="SUPABASE_JWT_SECRET"):
+        carregar({**PROD, "SUPABASE_JWT_SECRET": "segredo-qualquer-de-teste"})
+    assert carregar({**PROD, "APP_ENV": "staging",
+                     "SUPABASE_JWT_SECRET": "segredo-qualquer-de-teste"}).jwt_segredo_hs256
+
+
+def _jwt_legado(papel: str) -> str:
+    # Montado na hora, e não escrito no arquivo: um literal com cara de
+    # JWT faria a varredura de segredos do CI tropeçar nele.
+    import base64
+    import json
+
+    parte = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).decode().rstrip("=")  # noqa: E731
+    return f"{parte({'alg': 'HS256'})}.{parte({'role': papel})}.assinatura"
+
+
+@pytest.mark.parametrize("chave", [
+    "sb_secret_" + "x" * 20,
+    _jwt_legado("service_role"),
+])
+def test_chave_de_servidor_no_lugar_da_publicavel_e_recusada(chave):
+    with pytest.raises(ConfiguracaoInvalida, match="chave de servidor"):
+        carregar({**PROD, "SUPABASE_KEY": chave})
+
+
+@pytest.mark.parametrize("ambiente", ["staging", "production"])
+def test_ambiente_protegido_exige_chave_publicavel(ambiente):
+    with pytest.raises(ConfiguracaoInvalida, match="SUPABASE_KEY"):
+        carregar({"APP_ENV": ambiente, "SUPABASE_URL": "https://prod.exemplo.co"})

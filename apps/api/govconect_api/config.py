@@ -14,7 +14,7 @@ ninguém lê às três da manhã.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 AMBIENTES = ("development", "test", "staging", "production")
@@ -32,6 +32,26 @@ class Configuracao:
     ambiente: str
     supabase_url: str
     origens_cors: tuple[str, ...]
+    # Chave PUBLICÁVEL: vai no cabeçalho `apikey` das chamadas ao
+    # PostgREST, ao lado do JWT do usuário. Nunca a chave de servidor —
+    # esta API não a lê, e por isso não pode atravessar o RLS.
+    supabase_chave_publica: str = field(default="", repr=False)
+    # Só para a pilha descartável local, que assina com segredo HS256.
+    # Produção assina com ES256 e publica o JWKS; lá o segredo é recusado.
+    jwt_segredo_hs256: str = field(default="", repr=False)
+    limite_por_minuto: int = 120
+
+    @property
+    def jwt_emissor(self) -> str:
+        return f"{self.supabase_url}/auth/v1" if self.supabase_url else ""
+
+    @property
+    def jwks_url(self) -> str:
+        return f"{self.jwt_emissor}/.well-known/jwks.json" if self.jwt_emissor else ""
+
+    @property
+    def autenticacao_configurada(self) -> bool:
+        return bool(self.supabase_url and self.supabase_chave_publica)
 
     @property
     def protegido(self) -> bool:
@@ -47,6 +67,25 @@ class Configuracao:
 
 def _ler(ambiente: dict[str, str], nome: str) -> str:
     return (ambiente.get(nome) or "").strip()
+
+
+def _papel_de_chave_jwt(valor: str) -> str:
+    """Papel DECLARADO numa chave legada em formato JWT; "" se não for JWT.
+
+    Sem verificar assinatura: aqui só interessa recusar a `service_role`
+    colada no lugar da `anon`, e o papel declarado basta para isso.
+    """
+    import base64
+    import json
+
+    partes = valor.split(".")
+    if len(partes) != 3:
+        return ""
+    try:
+        carga = partes[1] + "=" * (-len(partes[1]) % 4)
+        return str(json.loads(base64.urlsafe_b64decode(carga)).get("role", ""))
+    except Exception:  # noqa: BLE001 — chave opaca não é JWT
+        return ""
 
 
 def _origem_valida(origem: str, protegido: bool) -> bool:
@@ -102,5 +141,31 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
             f"Origem CORS inválida: {invalidas[0]} (só esquema://host[:porta]; "
             "https em staging e produção).")
 
+    chave_publica = _ler(env, "SUPABASE_KEY")
+    if protegido and not chave_publica:
+        raise ConfiguracaoInvalida("SUPABASE_KEY (chave publicável) ausente.")
+    # A chave de servidor no lugar da publicável é o erro que faria a API
+    # atravessar o RLS sem ninguém notar. Recusa pelo formato conhecido.
+    if (chave_publica.startswith("sb_secret_")
+            or _papel_de_chave_jwt(chave_publica) == "service_role"):
+        raise ConfiguracaoInvalida(
+            "SUPABASE_KEY recebeu a chave de servidor; use a publicável.")
+
+    segredo = _ler(env, "SUPABASE_JWT_SECRET")
+    if segredo and nome_ambiente == "production":
+        raise ConfiguracaoInvalida(
+            "SUPABASE_JWT_SECRET não é aceito em produção: a verificação é "
+            "pelo JWKS (ES256). Remova a variável.")
+
+    try:
+        limite = int(_ler(env, "GOVCONECT_LIMITE_POR_MINUTO") or 120)
+    except ValueError:
+        raise ConfiguracaoInvalida(
+            "GOVCONECT_LIMITE_POR_MINUTO precisa ser inteiro.") from None
+    if not 1 <= limite <= 10_000:
+        raise ConfiguracaoInvalida("GOVCONECT_LIMITE_POR_MINUTO fora de 1–10000.")
+
     return Configuracao(ambiente=nome_ambiente, supabase_url=supabase_url,
-                        origens_cors=origens)
+                        origens_cors=origens,
+                        supabase_chave_publica=chave_publica,
+                        jwt_segredo_hs256=segredo, limite_por_minuto=limite)

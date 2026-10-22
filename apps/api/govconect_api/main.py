@@ -6,9 +6,9 @@ e os testes montam a aplicação com o ambiente que quiserem. Assim um
 `import govconect_api.main` nunca derruba a coleta de testes por causa
 de uma variável da máquina.
 
-Esta API convive com o Streamlit (estratégia strangler, ADR-006): não
-importa `src/` ainda, e quando importar será só módulo puro — a prova
-mecânica está em `tests/test_sem_streamlit.py`.
+Esta API convive com o Streamlit (estratégia strangler, ADR-006). De
+`src/` importa só módulo puro (hoje `src.processos`) — a prova mecânica
+está em `tests/test_sem_streamlit.py`.
 """
 
 from __future__ import annotations
@@ -18,12 +18,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from . import erros
+from . import erros, processos
 from .camadas import CamadaDeRequisicao
 from .config import Configuracao, carregar
+from .limites import Limitador, aplicar_limite
 from .seguranca import Identidade, VerificadorDeToken, exigir_identidade
+from .supabase_rest import ClienteRest
+from .verificador import VerificadorSupabase
 
-VERSAO_API = "0.1.0"
+VERSAO_API = "0.2.0"
 
 
 class Vivo(BaseModel):
@@ -75,8 +78,11 @@ def _rotas_de_saude(config: Configuracao) -> APIRouter:
 def _rotas_v1() -> APIRouter:
     # A dependência está no ROTEADOR, não em cada rota: rota nova nasce
     # protegida, e esquecer a guarda passa a exigir esforço.
+    # Ordem importa: o limite conta por USUÁRIO verificado, então vem
+    # depois da identidade.
     rotas = APIRouter(prefix="/api/v1", tags=["v1"],
-                      dependencies=[Depends(exigir_identidade)])
+                      dependencies=[Depends(exigir_identidade),
+                                    Depends(aplicar_limite)])
 
     @rotas.get("/me", response_model=Me,
                responses={401: {"description": "Sessão ausente ou inválida"},
@@ -86,12 +92,30 @@ def _rotas_v1() -> APIRouter:
                   tenant_id=identidade.tenant_id, papel=identidade.papel,
                   secretaria_id=identidade.secretaria_id)
 
+    rotas.include_router(processos.rotas())
     return rotas
 
 
+def _montar_autenticacao(config: Configuracao, rest: ClienteRest | None):
+    """(verificador, rest) a partir da configuração; (None, None) sem ela."""
+    if not config.autenticacao_configurada:
+        return None, rest
+    rest = rest or ClienteRest(config.supabase_url, config.supabase_chave_publica)
+    if config.jwt_segredo_hs256:
+        verificador = VerificadorSupabase(emissor=config.jwt_emissor, rest=rest,
+                                          segredo_hs256=config.jwt_segredo_hs256)
+    else:
+        verificador = VerificadorSupabase(emissor=config.jwt_emissor, rest=rest,
+                                          jwks_url=config.jwks_url)
+    return verificador, rest
+
+
 def criar_app(config: Configuracao | None = None,
-              verificador: VerificadorDeToken | None = None) -> FastAPI:
+              verificador: VerificadorDeToken | None = None,
+              rest: ClienteRest | None = None) -> FastAPI:
     config = config or carregar()
+    if verificador is None:
+        verificador, rest = _montar_autenticacao(config, rest)
     app = FastAPI(
         title="Gov Conect API",
         version=VERSAO_API,
@@ -101,6 +125,8 @@ def criar_app(config: Configuracao | None = None,
     )
     app.state.config = config
     app.state.verificador_de_token = verificador
+    app.state.rest = rest
+    app.state.limitador = Limitador(config.limite_por_minuto)
 
     erros.instalar(app)
 
@@ -115,7 +141,8 @@ def criar_app(config: Configuracao | None = None,
             allow_methods=["GET", "POST", "PATCH", "DELETE"],
             allow_headers=["Authorization", "Content-Type", "Idempotency-Key",
                            "If-Match", "X-Request-ID"],
-            expose_headers=["X-Request-ID", "ETag"],
+            expose_headers=["X-Request-ID", "ETag", "Location", "Retry-After",
+                            "Idempotent-Replayed"],
             max_age=600,
         )
     # Por último = mais externa: até a resposta do CORS leva request_id.

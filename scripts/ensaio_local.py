@@ -152,6 +152,10 @@ SEQUENCIA_EM_ENSAIO = (
     "20261016231514_documentos_editor_emissao_nativa.sql",
     "20261017204526_documento_editor_aplicacao_template_nativa.sql",
     "20261018120000_documento_editor_emissao_arp_condicional.sql",
+    # A 0030 confere os grants de `processos` (nenhum ao `anon`), que só
+    # valem depois da 0019/0020. Pelo glob ela rodaria ANTES delas e
+    # reprovaria um mundo que ainda não existe.
+    "0030_api_idempotencia_processos.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

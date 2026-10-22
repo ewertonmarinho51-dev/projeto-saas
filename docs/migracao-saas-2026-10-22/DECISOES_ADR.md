@@ -57,10 +57,20 @@ o verificador.
 5. A API não tem modo aberto. `GOVDOCS_MODO_ABERTO` em staging/produção
    impede a subida.
 
-**Pendência do operador.** Confirmar se o projeto usa **chaves de
-assinatura assimétricas** (o JWKS só publica chave nesse modo). Se for o
-segredo HS256 legado, a recomendação é migrar a assinatura antes do
-staging, e não colocar o segredo compartilhado na API.
+**Resolvido (P02, 22/10/2026).** Produção publica no JWKS uma chave EC
+P-256 (ES256). A API verifica só ES256/RS256 pelo JWKS, com cache de
+10 min (o da borda do Supabase), e recusa `SUPABASE_JWT_SECRET` em
+produção — o segredo HS256 fica restrito à pilha local, se alguém
+precisar. O algoritmo aceito é fixado pelo modo, nunca lido do token
+(prova de `alg: none` e de confusão HS256-com-chave-pública em
+`test_verificador.py`).
+
+**Implementado no P02:** verificador (`verificador.py`), vínculo em
+`usuarios` lido com o JWT do usuário a cada requisição (revogação
+imediata), cliente PostgREST sem caminho para a chave de servidor
+(`supabase_rest.py`), `/processos` com cursor, `Idempotency-Key`
+(0030) e `If-Match`, limite por usuário em memória. Prova de
+autorização real: job `api-rls`.
 
 ---
 

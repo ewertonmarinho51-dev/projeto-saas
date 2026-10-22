@@ -27,6 +27,7 @@ _CODIGO_POR_STATUS = {
     404: ("NOT_FOUND", "Recurso não encontrado"),
     405: ("METHOD_NOT_ALLOWED", "Método não permitido"),
     409: ("CONFLICT", "Conflito de versão"),
+    428: ("PRECONDITION_REQUIRED", "Pré-condição obrigatória"),
     422: ("VALIDATION_ERROR", "Dados inválidos"),
     429: ("RATE_LIMITED", "Limite de requisições excedido"),
     503: ("UNAVAILABLE", "Serviço indisponível"),

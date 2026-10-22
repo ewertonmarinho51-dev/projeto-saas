@@ -7,17 +7,20 @@ instalado e outro teste poderia tê-lo importado antes; `sys.modules`
 do processo do pytest não diria nada.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 RAIZ_API = Path(__file__).resolve().parent.parent
+RAIZ_REPO = RAIZ_API.parent.parent
 
 _SONDA = (
     "import sys; "
     "from govconect_api.main import criar_app; "
     "from govconect_api.config import carregar; "
-    "criar_app(carregar({'APP_ENV': 'test'})); "
+    "criar_app(carregar({'APP_ENV': 'test', 'SUPABASE_URL': 'https://x.exemplo.co', "
+    "'SUPABASE_KEY': 'chave-publicavel-de-teste'})); "
     "proibidos = [m for m in sys.modules "
     "             if m == 'streamlit' or m.startswith('streamlit.')]; "
     "print(','.join(proibidos) or 'limpo')"
@@ -25,7 +28,12 @@ _SONDA = (
 
 
 def test_montar_a_api_nao_importa_streamlit():
-    r = subprocess.run([sys.executable, "-c", _SONDA], cwd=RAIZ_API,
+    # A raiz do repositório entra no caminho, como no pytest.ini: é de
+    # lá que vem `src.processos`, e é justamente esse import que poderia
+    # arrastar o Streamlit junto.
+    ambiente = {**os.environ, "PYTHONPATH": os.pathsep.join(
+        [str(RAIZ_API), str(RAIZ_REPO), os.environ.get("PYTHONPATH", "")])}
+    r = subprocess.run([sys.executable, "-c", _SONDA], cwd=RAIZ_API, env=ambiente,
                        capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip() == "limpo"
