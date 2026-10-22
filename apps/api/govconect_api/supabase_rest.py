@@ -14,8 +14,10 @@ acesso a nada sozinha; `Authorization` leva o token do usuário.
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
+from decimal import Decimal
 
 import httpx
 
@@ -49,7 +51,8 @@ class ClienteRest:
 
     def requisitar(self, token: str, metodo: str, tabela: str, *,
                    params: dict | list | None = None, corpo=None,
-                   prefer: str | None = None) -> RespostaRest:
+                   prefer: str | None = None,
+                   decimal: bool = False) -> RespostaRest:
         if not token:
             # Defesa em profundidade: a guarda já barrou sem token, mas este
             # cliente não pode virar anônimo por um chamador descuidado.
@@ -69,7 +72,17 @@ class ClienteRest:
             raise ErroApi(503, "DATABASE_UNAVAILABLE",
                           "Banco de dados indisponível") from None
         try:
-            dados = r.json() if r.content else None
+            # `decimal=True` (dinheiro, quantidade): o PostgREST manda
+            # `numeric` como número JSON, e o `json` padrão o leria como
+            # float — 0,1 virando 0,1000000000000000055 antes de qualquer
+            # conta. Lido como Decimal, chega exatamente como está no banco.
+            #
+            # Opcional, e não padrão, por causa de quem DEVOLVE o que leu:
+            # o PATCH de processos regrava `dados` (jsonb), e Decimal não é
+            # serializável pelo httpx. Lá o número faz ida e volta em float,
+            # cuja representação curta reproduz o mesmo texto.
+            dados = (json.loads(r.content, parse_float=Decimal if decimal else float)
+                     if r.content else None)
         except ValueError:
             dados = None
         resposta = RespostaRest(r.status_code, dados, r.headers)

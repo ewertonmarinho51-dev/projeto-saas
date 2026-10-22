@@ -68,3 +68,13 @@ export class LimiteDeTentativas {
 export function emailValido(valor: string): boolean {
   return valor.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor);
 }
+
+/**
+ * Flag de ambiente ligada? Os MESMOS valores da API
+ * (`apps/api/govconect_api/config.py::_VERDADEIRO`), com espaços e caixa
+ * ignorados: um valor só não pode deixar a API servindo o módulo e o web
+ * escondendo (ou o contrário).
+ */
+export function flagLigada(valor: string | undefined): boolean {
+  return ["1", "true", "on", "sim", "yes"].includes((valor ?? "").trim().toLowerCase());
+}

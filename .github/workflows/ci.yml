@@ -394,6 +394,7 @@ jobs:
         run: |
           set -euo pipefail
           APP_ENV=test SUPABASE_URL="$PILHA_URL" SUPABASE_KEY="$PILHA_ANON" PYTHONPATH=.:../.. \
+            PRICE_RESEARCH_ENABLED=1 \
             nohup python -m uvicorn govconect_api.asgi:app --host 127.0.0.1 --port 8000 \
             > "$RUNNER_TEMP/api.log" 2>&1 < /dev/null &
           for i in $(seq 1 30); do curl -fs http://127.0.0.1:8000/health/ready && break; sleep 1; done
@@ -406,6 +407,7 @@ jobs:
           npm ci --no-audit --no-fund
           NEXT_PUBLIC_SUPABASE_URL="$PILHA_URL" NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PILHA_ANON" npm run build
           GOVCONECT_API_URL=http://127.0.0.1:8000 GOVCONECT_SITE_URL=http://localhost:3000 \
+            PRICE_RESEARCH_ENABLED=1 \
             nohup npx next start -p 3000 > "$RUNNER_TEMP/web.log" 2>&1 < /dev/null &
           for i in $(seq 1 60); do curl -fs -o /dev/null http://localhost:3000/ && break; sleep 1; done
           curl -fs -o /dev/null http://localhost:3000/

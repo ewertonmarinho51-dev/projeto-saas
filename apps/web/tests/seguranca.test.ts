@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { destinoSeguro, emailValido, LimiteDeTentativas } from "../lib/seguranca";
+import { destinoSeguro, emailValido, flagLigada, LimiteDeTentativas } from "../lib/seguranca";
 
 describe("destinoSeguro (redirecionamento aberto)", () => {
   it.each([
@@ -48,5 +48,14 @@ describe("emailValido", () => {
     expect(emailValido("servidora@prefeitura.test")).toBe(true);
     expect(emailValido("sem-arroba")).toBe(false);
     expect(emailValido("a b@c.d")).toBe(false);
+  });
+});
+
+describe("flagLigada (mesmos valores da API)", () => {
+  it.each(["1", "true", "on", "sim", "yes", " YES ", "True"])("liga com %j", (v) => {
+    expect(flagLigada(v)).toBe(true);
+  });
+  it.each([undefined, "", "0", "false", "off", "nao", "y"])("desliga com %j", (v) => {
+    expect(flagLigada(v)).toBe(false);
   });
 });

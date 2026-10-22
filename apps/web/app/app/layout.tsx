@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import { FolderOpen, House, Key, SignOut } from "@phosphor-icons/react/dist/ssr";
+import { CurrencyCircleDollar, FolderOpen, House, Key, SignOut } from "@phosphor-icons/react/dist/ssr";
 
 import { MarcaComNome } from "@/components/marca";
 import { LinkDoMenu } from "@/components/menu";
 import { sair } from "@/app/entrar/acoes";
-import { chamarApi, ErroDaApi, type Identidade } from "@/lib/api";
+import { chamarApi, ErroDaApi, precosHabilitado, type Identidade } from "@/lib/api";
 import { claimsVerificadas } from "@/lib/supabase/server";
 
 /**
@@ -44,6 +44,11 @@ export default async function LayoutDoApp({ children }: { children: React.ReactN
           <LinkDoMenu href="/app/processos" icone={<FolderOpen size={18} weight="bold" aria-hidden />}>
             Processos
           </LinkDoMenu>
+          {precosHabilitado() && (
+            <LinkDoMenu href="/app/precos" icone={<CurrencyCircleDollar size={18} weight="bold" aria-hidden />}>
+              Preços
+            </LinkDoMenu>
+          )}
           <LinkDoMenu href="/app/conta/senha" icone={<Key size={18} weight="bold" aria-hidden />}>
             Senha
           </LinkDoMenu>

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { flagLigada } from "@/lib/seguranca";
 import { criarClienteServidor } from "@/lib/supabase/server";
 
 /**
@@ -97,4 +98,78 @@ export async function chamarApi<T>(
     throw new ErroDaApi(resposta.status, codigo, requestId);
   }
   return { dados: (await resposta.json()) as T, cabecalhos: resposta.headers };
+}
+
+// ---------------------------------------------------------------------------
+// Pesquisa de preços (P04a, leitura). Dinheiro chega como STRING já
+// formatada pelo domínio (`exibicao`); o navegador nunca soma nem
+// arredonda — não existe `Number()` sobre valor monetário neste app.
+// ---------------------------------------------------------------------------
+export type Valor = { valor: string; exibicao: string };
+
+export type ResumoPesquisa = {
+  id: string;
+  nome: string;
+  objeto: string;
+  estado: string;
+  valor_global: Valor | null;
+  atualizado_em: string;
+};
+
+export type ItemDePesquisa = {
+  id: string;
+  numero: number;
+  codigo: string | null;
+  tipo_catalogo: string | null;
+  descricao: string;
+  unidade: string;
+  quantidade: Valor | null;
+  estado: string;
+  metodo: string | null;
+  preco_estimado: Valor | null;
+  preco_total: Valor | null;
+  justificativa: string;
+  lote: string | null;
+  uf: string | null;
+  revisao: number;
+};
+
+export type PesquisaDePrecos = ResumoPesquisa & {
+  data_base: string | null;
+  responsavel: string;
+  local_referencia: string;
+  processo_id: string | null;
+  versao: number;
+  criado_em: string;
+  itens: ItemDePesquisa[];
+};
+
+export type ReferenciaDePreco = {
+  id: string;
+  fonte: string;
+  fonte_tipo: string;
+  natureza_valor: string;
+  status: string;
+  descricao_original: string;
+  unidade_original: string | null;
+  valor_unitario_original: Valor | null;
+  unidade_normalizada: string | null;
+  valor_unitario_normalizado: Valor | null;
+  orgao: string | null;
+  uf: string | null;
+  municipio: string | null;
+  fornecedor: string | null;
+  data_compra: string | null;
+  data_resultado: string | null;
+  coletado_em: string;
+  motivos: string[];
+  link_contratacao: string | null;
+  rotulo_contratacao: string;
+  link_fonte: string | null;
+  identificacao: string;
+};
+
+/** O módulo aparece no menu? A API decide de verdade (404 com a flag desligada). */
+export function precosHabilitado(): boolean {
+  return flagLigada(process.env.PRICE_RESEARCH_ENABLED);
 }
