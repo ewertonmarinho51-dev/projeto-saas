@@ -44,6 +44,12 @@ class Configuracao:
     # ambiente: 05_SEGURANCA manda não ligar `price_research` antes de
     # auth + RLS + limites + auditoria aprovados. Ligar é ato explícito.
     precos_habilitado: bool = False
+    # Fila das tarefas longas (P04c). Vazia = sem fila: a coleta responde
+    # 503 em vez de rodar dentro da requisição.
+    redis_url: str = field(default="", repr=False)
+    # `nenhuma` só existe para a pilha de teste: a coleta roda o fluxo
+    # inteiro sem sair para PNCP/Compras.gov. Recusada em produção.
+    fontes_coleta: str = "padrao"
 
     @property
     def jwt_emissor(self) -> str:
@@ -169,9 +175,20 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
     if not 1 <= limite <= 10_000:
         raise ConfiguracaoInvalida("GOVCONECT_LIMITE_POR_MINUTO fora de 1–10000.")
 
+    redis_url = _ler(env, "REDIS_URL")
+    if redis_url and urlsplit(redis_url).scheme not in ("redis", "rediss"):
+        raise ConfiguracaoInvalida("REDIS_URL precisa ser redis:// ou rediss://.")
+    fontes = _ler(env, "GOVCONECT_FONTES_COLETA") or "padrao"
+    if fontes not in ("padrao", "nenhuma"):
+        raise ConfiguracaoInvalida("GOVCONECT_FONTES_COLETA: use padrao ou nenhuma.")
+    if fontes == "nenhuma" and nome_ambiente == "production":
+        raise ConfiguracaoInvalida(
+            "GOVCONECT_FONTES_COLETA=nenhuma é só para teste; recusado em produção.")
+
     return Configuracao(ambiente=nome_ambiente, supabase_url=supabase_url,
                         origens_cors=origens,
                         supabase_chave_publica=chave_publica,
                         jwt_segredo_hs256=segredo, limite_por_minuto=limite,
                         precos_habilitado=_ler(env, "PRICE_RESEARCH_ENABLED").lower()
-                        in _VERDADEIRO)
+                        in _VERDADEIRO,
+                        redis_url=redis_url, fontes_coleta=fontes)

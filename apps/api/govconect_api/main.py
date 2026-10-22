@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from . import cesta, erros, precos, processos
+from . import cesta, coleta, erros, precos, processos
 from .camadas import CamadaDeRequisicao
 from .config import Configuracao, carregar
 from .limites import Limitador, aplicar_limite
@@ -96,6 +96,7 @@ def _rotas_v1() -> APIRouter:
     rotas.include_router(processos.rotas())
     rotas.include_router(precos.rotas())
     rotas.include_router(cesta.rotas())
+    rotas.include_router(coleta.rotas())
     return rotas
 
 
@@ -115,7 +116,8 @@ def _montar_autenticacao(config: Configuracao, rest: ClienteRest | None):
 
 def criar_app(config: Configuracao | None = None,
               verificador: VerificadorDeToken | None = None,
-              rest: ClienteRest | None = None) -> FastAPI:
+              rest: ClienteRest | None = None,
+              fila: "coleta.Fila | None" = None) -> FastAPI:
     config = config or carregar()
     if config.autenticacao_configurada:
         # O domínio (`db.cliente_do_usuario`) usa a MESMA URL e chave
@@ -133,6 +135,13 @@ def criar_app(config: Configuracao | None = None,
     app.state.config = config
     app.state.verificador_de_token = verificador
     app.state.rest = rest
+    if fila is None and config.redis_url:
+        # Só com Redis configurado: o Celery é pesado. O app de envio usa a
+        # URL desta configuração — não a do ambiente lido no import.
+        from .fila import FilaCelery, _criar_celery
+
+        fila = FilaCelery(_criar_celery(config.redis_url))
+    app.state.fila = fila
     app.state.limitador = Limitador(config.limite_por_minuto)
 
     erros.instalar(app)

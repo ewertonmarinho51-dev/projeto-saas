@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 
+import { BotaoDeColeta, ProgressoDaColeta } from "@/components/coleta";
 import { dataCurta, rotuloEstadoItem, rotuloEstadoPesquisa, rotuloMetodo } from "@/components/precos";
 import { cartao } from "@/components/ui";
 import { chamarApi, ErroDaApi, precosHabilitado, type PesquisaDePrecos } from "@/lib/api";
@@ -11,9 +12,19 @@ export const metadata: Metadata = { title: "Pesquisa de preços" };
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
-export default async function Pesquisa({ params }: { params: Promise<{ id: string }> }) {
+const IMUTAVEIS = new Set(["applied", "archived"]);
+
+export default async function Pesquisa({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   if (!precosHabilitado()) notFound();
   const { id } = await params;
+  const { job } = await searchParams;
+  const jobId = typeof job === "string" && UUID.test(job) ? job : null;
   if (!UUID.test(id)) notFound();
 
   let p: PesquisaDePrecos;
@@ -59,6 +70,15 @@ export default async function Pesquisa({ params }: { params: Promise<{ id: strin
             <dd className="font-medium">{p.responsavel || "Não informado"}</dd>
           </div>
         </dl>
+        <div className="mt-6 grid gap-3">
+          {jobId && <ProgressoDaColeta jobId={jobId} />}
+          {!IMUTAVEIS.has(p.estado) && (
+            // Chave nova a cada renderização: um clique (ou o reenvio do
+            // formulário) não põe duas coletas na fila — a API devolve o
+            // mesmo job para a mesma chave.
+            <BotaoDeColeta pesquisa={p.id} chave={`web-coleta-${crypto.randomUUID()}`} />
+          )}
+        </div>
       </div>
 
       <section aria-labelledby="titulo-itens" className="grid gap-3">

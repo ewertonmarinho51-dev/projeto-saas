@@ -50,3 +50,30 @@ export async function alterarCesta(_: EstadoDaCesta, form: FormData): Promise<Es
   revalidatePath(caminho);
   redirect(`${caminho}?cesta=${incluir ? "incluida" : "retirada"}`);
 }
+
+export type EstadoDaColeta = { erro: string | null };
+
+const ERROS_DA_COLETA: Record<string, string> = {
+  QUEUE_UNAVAILABLE: "A coleta está indisponível no momento. Tente de novo em instantes.",
+  FORBIDDEN: "Só quem criou a pesquisa (ou o administrador) pode iniciar a coleta.",
+};
+
+/** Põe a coleta na fila e volta à pesquisa acompanhando o job. */
+export async function iniciarColeta(_: EstadoDaColeta, form: FormData): Promise<EstadoDaColeta> {
+  const pesquisa = String(form.get("pesquisa") ?? "");
+  const chave = String(form.get("chave") ?? "");
+  if (!UUID.test(pesquisa) || !/^[A-Za-z0-9._:-]{8,128}$/.test(chave)) return { erro: "Requisição inválida." };
+  let jobId: string;
+  try {
+    const { dados } = await chamarApi<{ id: string }>(`/precos/pesquisas/${pesquisa}/coleta`, {
+      metodo: "POST",
+      corpo: { modo: "manual" },
+      cabecalhos: { "Idempotency-Key": chave },
+    });
+    jobId = dados.id;
+  } catch (e) {
+    if (e instanceof ErroDaApi) return { erro: ERROS_DA_COLETA[e.codigo] ?? MENSAGENS[e.status] ?? "Não foi possível iniciar a coleta." };
+    return { erro: "Não foi possível iniciar a coleta." };
+  }
+  redirect(`/app/precos/${pesquisa}?job=${jobId}`);
+}
