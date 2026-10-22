@@ -73,6 +73,132 @@ services:
     networks:
       - interna
 
+  # #########################################################
+  #  Gov Conect 2.0 (P06) — atrás do profile `govconect`.
+  #
+  #  `docker compose up -d` continua subindo SÓ o Streamlit e o Caddy,
+  #  exatamente como antes. Os serviços novos só sobem com
+  #  `docker compose --profile govconect up -d`, e o Caddy só os expõe
+  #  com o `Caddyfile.govconect` (ver RUNBOOK_P06.md). Nenhum publica
+  #  porta: a internet fala com o Caddy, o Caddy com o `web`, e o
+  #  `web` (BFF) com a `api`. A `api` não é alcançável de fora.
+  #
+  #  Segredos por serviço, nunca o `/etc/govdocs/env` do Streamlit:
+  #  ele tem a chave de SERVIDOR do Supabase, que a API não tem por
+  #  desenho (ADR-002). `api.env` leva só a chave PUBLICÁVEL e a URL do
+  #  Redis interno; `web.env`, a URL interna da API.
+  # #########################################################
+  web:
+    profiles: ["govconect"]
+    build:
+      context: ..
+      dockerfile: implantacao/Dockerfile.web
+      args:
+        # `:-` e não `:?`: o compose interpola TODOS os serviços, inclusive
+        # os de profile desligado, e `:?` derrubaria o `up` do Streamlit.
+        # Vazio, quem recusa é o `test -n` do Dockerfile.web.
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}
+        GOVCONECT_RELEASE: ${GOVDOCS_RELEASE:-desconhecida}
+    image: govconect-web:local
+    restart: unless-stopped
+    expose:
+      - "3000"
+    env_file:
+      - /etc/govdocs/web.env
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    mem_limit: 512m
+    stop_grace_period: 20s
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - interna
+
+  api:
+    profiles: ["govconect"]
+    build:
+      context: ..
+      dockerfile: implantacao/Dockerfile.api
+      target: api
+      args:
+        GOVCONECT_RELEASE: ${GOVDOCS_RELEASE:-desconhecida}
+        GOVCONECT_COMMIT: ${GOVDOCS_COMMIT:-desconhecido}
+    image: govconect-api:local
+    restart: unless-stopped
+    expose:
+      - "8000"
+    env_file:
+      - /etc/govdocs/api.env
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    mem_limit: 384m
+    stop_grace_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - interna
+
+  worker:
+    profiles: ["govconect"]
+    build:
+      context: ..
+      dockerfile: implantacao/Dockerfile.api
+      target: worker
+      args:
+        GOVCONECT_RELEASE: ${GOVDOCS_RELEASE:-desconhecida}
+        GOVCONECT_COMMIT: ${GOVDOCS_COMMIT:-desconhecido}
+    image: govconect-worker:local
+    restart: unless-stopped
+    # Sem porta nenhuma: só consome a fila.
+    env_file:
+      - /etc/govdocs/api.env
+    read_only: true
+    # LibreOffice converte em /tmp e grava o perfil no HOME (/tmp).
+    tmpfs:
+      - /tmp:size=512m
+    mem_limit: 1g
+    # Job em curso: o Celery termina o item atual (acks_late devolve o
+    # aviso se não der); 60 s cobre um item de coleta ou um PDF comum.
+    stop_grace_period: 60s
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - interna
+
+  redis:
+    profiles: ["govconect"]
+    # A mesma linha do CI (jobs api-rls e web-e2e).
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    # Broker e arquivo efêmero (relatório por 30 min), NUNCA fonte de
+    # verdade: o job mora no Postgres (0031). `noeviction`: cheio, recusa
+    # a escrita (o job falha com código) em vez de jogar fora um aviso de
+    # fila em silêncio. Sem persistência em disco: reiniciar perde avisos
+    # e arquivos, não jobs — o usuário pede de novo e o domínio retoma.
+    # `protected-mode no`: sem senha, o modo protegido recusaria a API e o
+    # worker (outros contentores). A proteção é a rede: porta não
+    # publicada, só a `interna` alcança. Senha/ACL entra quando houver
+    # gestão de segredo para ela (RUNBOOK_P06.md, pendências).
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction",
+              "--save", "", "--appendonly", "no", "--protected-mode", "no"]
+    expose:
+      - "6379"
+    read_only: true
+    mem_limit: 320m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - interna
+
 networks:
   interna:
     driver: bridge

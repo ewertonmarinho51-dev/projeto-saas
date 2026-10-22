@@ -1,0 +1,46 @@
+# ###########################################################
+#  Gov Conect — web (Next.js, saída standalone), P06
+#
+#    docker build -f implantacao/Dockerfile.web -t govconect-web \
+#      --build-arg NEXT_PUBLIC_SUPABASE_URL=... \
+#      --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=... .
+#
+#  As duas `NEXT_PUBLIC_*` entram no bundle do navegador NO BUILD: só
+#  URL do projeto e chave PUBLICÁVEL. Segredo nenhum vai para cá — a
+#  URL da API e qualquer outra coisa de servidor ficam no ambiente de
+#  execução (`/etc/govdocs/web.env`).
+# ###########################################################
+
+FROM node:24.22.1-bookworm-slim AS deps
+WORKDIR /app
+COPY apps/web/package.json apps/web/package-lock.json ./
+# Lockfile obrigatório: `npm ci` recusa divergência com o package.json.
+RUN npm ci --no-audit --no-fund
+
+FROM deps AS build
+COPY apps/web/ ./
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN test -n "$NEXT_PUBLIC_SUPABASE_URL" && test -n "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+    && case "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" in sb_secret_*) echo "chave de servidor no build do web" >&2; exit 1;; esac \
+    && npm run build
+
+FROM node:24.22.1-bookworm-slim AS run
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+WORKDIR /app
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/public ./public
+ARG GOVCONECT_RELEASE=desconhecida
+ENV GOVCONECT_RELEASE=${GOVCONECT_RELEASE}
+USER node
+EXPOSE 3000
+# A tela de entrada não depende da sessão: responde enquanto o servidor
+# Next estiver de pé.
+HEALTHCHECK --interval=15s --timeout=4s --start-period=20s --retries=3 \
+    CMD ["node", "-e", "fetch('http://127.0.0.1:3000/entrar').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+CMD ["node", "server.js"]

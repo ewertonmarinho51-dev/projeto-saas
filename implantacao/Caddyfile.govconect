@@ -1,0 +1,68 @@
+# ###########################################################
+#  Caddy — Gov Conect 2.0 (P06). NÃO É O ARQUIVO MONTADO HOJE.
+#
+#  O compose monta `./Caddyfile` (Streamlit). Este passa a valer só no
+#  corte, com aceite humano (RUNBOOK_P06.md): o operador troca o volume
+#  do Caddy para este arquivo e sobe com `--profile govconect`.
+#
+#  Desenho:
+#    * tudo vai para o `web` (Next). A API NÃO é publicada: o navegador
+#      nunca fala com ela (BFF, ADR-001), então `/api/v1/*` não tem rota
+#      pública aqui — menos superfície, CORS desligado;
+#    * o Streamlit continua alcançável em `{$GOVDOCS_DOMINIO_LEGADO}`
+#      enquanto for o rollback (10_DEPLOY, passo 7), e some quando a
+#      migração terminar;
+#    * CSP fica no Next (nonce por requisição, P03); aqui só os
+#      cabeçalhos que não dependem da página.
+# ###########################################################
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$GOVCONECT_DOMINIO} {
+	reverse_proxy web:3000 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		# O limite de login do web conta por IP: sem isto, todo mundo
+		# seria o IP do Caddy.
+		header_up X-Forwarded-For {remote_host}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Saúde do web não é página de usuário: não sai do host.
+	@saude path /health /health/*
+	respond @saude 404
+
+	log {
+		output file /data/acesso-govconect.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+	}
+
+	encode gzip zstd
+}
+
+{$GOVDOCS_DOMINIO_LEGADO} {
+	reverse_proxy app:8501 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		header_up Host {host}
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	encode gzip zstd
+}
