@@ -286,7 +286,12 @@ def origem_chave(nome_secret: str, chave_sidebar: str) -> str:
 
 def obter_openai_key() -> str:
     """Chave do motor principal (OpenAI)."""
-    return _ler_chave("OPENAI_API_KEY", "openai_key_manual")
+    chave = _ler_chave("OPENAI_API_KEY", "openai_key_manual")
+    # Uma instalação antiga pode ter gravado a credencial OpenRouter no
+    # campo legado da OpenAI. O prefixo identifica que ela não é aceita pelo
+    # endpoint da OpenAI; ignorá-la permite que a cascata alcance o motor
+    # OpenRouter corretamente configurado, sem exigir mutação global no banco.
+    return "" if chave.strip().lower().startswith("sk-or-") else chave
 
 
 def obter_api_key() -> str:
