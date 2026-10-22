@@ -271,7 +271,7 @@ def semear_precos(pilha: Pilha) -> dict:
             "insert into public.pesquisa_preco_itens (pesquisa_id, tenant_id, numero, codigo, "
             "tipo_catalogo, descricao, unidade, quantidade, estado, metodo, preco_estimado, "
             "preco_total) values (%s,%s,1,'451234','CATMAT','Luva nitrílica','CX',1500,"
-            "'complete','mediana',2.3450,3517.5000) returning id",
+            "'review','mediana',2.3450,3517.5000) returning id",
             (pesquisa_a, a1.tenant_id)).fetchone()[0])
         # Item retirado da cotação: continua no banco, sai da leitura.
         c.execute(
