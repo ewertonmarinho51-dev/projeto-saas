@@ -27,7 +27,9 @@ test("dono vê a pesquisa com dinheiro exato e evidência verificável", async (
   await entrar(page, "a1");
   await page.getByRole("link", { name: "Preços" }).click();
   await expect(page).toHaveURL(/\/app\/precos$/);
-  await expect(page.getByText("Valor global R$ 12.345.678.901.234,57")).toBeVisible();
+  // A pilha semeia DUAS pesquisas com o mesmo valor; a conferência é na linha da certa.
+  const linhaDaPesquisa = page.getByRole("listitem").filter({ hasText: "Luvas E2E" });
+  await expect(linhaDaPesquisa).toContainText("Valor global R$ 12.345.678.901.234,57");
 
   await page.getByRole("link", { name: /Luvas E2E/ }).click();
   await expect(page.getByTestId("valor-global")).toHaveText("R$ 12.345.678.901.234,57");
