@@ -112,3 +112,25 @@ def test_quem_nao_pode_escrever_nao_muda_o_banco(api_precos, pilha, pesquisa, ro
     assert r.status_code in (403, 404, 409, 422), (rotulo, r.status_code, r.text)
     assert _referencia(pilha, pesquisa["item"])[1] == "selected"
     assert _revisao(pilha, pesquisa["item"]) == revisao
+
+
+def test_colega_da_secretaria_le_mas_recebe_403_ao_escrever(api_precos, pilha, pesquisa):
+    ref, _ = _referencia(pilha, pesquisa["item"])
+    revisao = _revisao(pilha, pesquisa["item"])
+    r = api_precos.patch(_url(pesquisa, ref), headers=_h(pilha.contas["a1_colega"], revisao),
+                         json={"incluir": False})
+    assert r.status_code == 403
+
+
+def test_item_concluido_nao_muda_pela_cesta(api_precos, pilha, pesquisa):
+    import psycopg
+
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        c.execute("update public.pesquisa_preco_itens set estado = 'complete' where id = %s",
+                  (pesquisa["item"],))
+    ref, _ = _referencia(pilha, pesquisa["item"])
+    revisao = _revisao(pilha, pesquisa["item"])
+    r = api_precos.patch(_url(pesquisa, ref), headers=_h(pilha.contas["a1"], revisao),
+                         json={"incluir": False})
+    assert r.status_code == 409 and r.json()["code"] == "ITEM_COMPLETE"
+    assert _referencia(pilha, pesquisa["item"])[1] == "selected"

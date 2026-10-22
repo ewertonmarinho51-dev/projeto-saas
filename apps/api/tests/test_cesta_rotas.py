@@ -39,7 +39,8 @@ def emissor():
 @pytest.fixture
 def banco():
     b = PostgrestFalso()
-    b.responder("GET", "pesquisa_preco_itens", 200, [{"id": I}])
+    b.responder("GET", "pesquisa_preco_itens", 200,
+                [{"id": I, "estado": "review", "pesquisa": {"auth_user_id": USUARIO_A}}])
     return b
 
 
@@ -161,3 +162,35 @@ def test_chave_de_servidor_nunca_vai_para_o_dominio():
 
     with pytest.raises(ValueError):
         configurar_supabase("https://x.exemplo.co", "sb_secret_" + "x" * 20)
+
+
+def test_quem_nao_e_dono_nem_admin_e_403_sem_tocar_o_dominio(api, emissor, banco, dominio):
+    banco.respostas[("GET", "pesquisa_preco_itens")] = []
+    banco.responder("GET", "pesquisa_preco_itens", 200, [
+        {"id": I, "estado": "review",
+         "pesquisa": {"auth_user_id": "dddddddd-0000-4000-8000-000000000009"}}])
+    r = api.patch(URL, headers=_h(emissor), json={"incluir": False})
+    assert r.status_code == 403
+    assert dominio.chamadas == []
+
+
+def test_admin_do_municipio_pode_mexer_na_cesta_alheia(api, emissor, banco, dominio):
+    banco.respostas[("GET", "pesquisa_preco_itens")] = []
+    banco.responder("GET", "pesquisa_preco_itens", 200, [
+        {"id": I, "estado": "review",
+         "pesquisa": {"auth_user_id": "dddddddd-0000-4000-8000-000000000009"}}])
+    r = api.patch(URL, headers={**_h(emissor), "Authorization": f"Bearer {emissor.token(papel='admin')}"},
+                  json={"incluir": False})
+    assert r.status_code == 200, r.text
+
+
+def test_item_concluido_exige_reabrir_antes(api, emissor, banco, dominio):
+    # Apontado na revisão: a tela do Streamlit esconde a cesta de item
+    # concluído e reabrir exige motivo + evento. A API não pode furar isso.
+    banco.respostas[("GET", "pesquisa_preco_itens")] = []
+    banco.responder("GET", "pesquisa_preco_itens", 200,
+                    [{"id": I, "estado": "complete", "pesquisa": {"auth_user_id": USUARIO_A}}])
+    r = api.patch(URL, headers=_h(emissor), json={"incluir": False})
+    assert r.status_code == 409
+    assert r.json()["code"] == "ITEM_COMPLETE"
+    assert dominio.chamadas == []

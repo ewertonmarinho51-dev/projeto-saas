@@ -85,10 +85,26 @@ def rotas() -> APIRouter:
         # para este token. Sem isto, "não encontrado" viraria 422 com a
         # mensagem do domínio, e o código HTTP mentiria sobre o motivo.
         resposta = rest.requisitar(eu.token, "GET", TABELA_ITENS, params={
-            "select": "id", "id": f"eq.{item_id}", "pesquisa_id": f"eq.{pesquisa_id}",
+            "select": "id,estado,pesquisa:pesquisas_preco(auth_user_id)",
+            "id": f"eq.{item_id}", "pesquisa_id": f"eq.{pesquisa_id}",
             "tenant_id": f"eq.{eu.tenant_id}", "removido_em": "is.null", "limit": "1"})
         if resposta.status != 200 or not resposta.dados:
             raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
+        linha = resposta.dados[0]
+        dono = (linha.get("pesquisa") or {}).get("auth_user_id")
+        # Espelha `pode_escrever_pesquisa_preco` (0021): mesmo tenant e
+        # (admin OU dono). Ler a pesquisa do colega da pasta não dá direito
+        # de mexer na cesta dele. O RLS continua sendo quem garante; isto
+        # só devolve 403 em vez do "0 linhas" que o domínio não distingue
+        # de uma falha de banco.
+        if eu.papel != "admin" and str(dono or "") != eu.auth_user_id:
+            raise ErroApi(403, "FORBIDDEN", "Acesso negado")
+        # Item concluído não muda pela cesta: reabrir é um ato à parte, com
+        # motivo e evento `item_editado` (`cotacoes.reabrir_item`), como na
+        # tela do Streamlit, que esconde a cesta de item concluído.
+        if linha.get("estado") == "complete":
+            raise ErroApi(409, "ITEM_COMPLETE",
+                          "Item concluído: reabra o item, com o motivo, antes de mudar a cesta.")
 
         ctx = cotacoes.Contexto(auth_user_id=eu.auth_user_id, secretaria_id=eu.secretaria_id)
         with sessao_da_requisicao(eu.token, eu.tenant_id):

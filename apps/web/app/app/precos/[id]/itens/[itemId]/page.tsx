@@ -129,6 +129,9 @@ export default async function Referencias({
                 </p>
                 <p className="text-xs text-secundario">por {r.unidade_normalizada ?? r.unidade_original ?? "unidade"}</p>
                 <div className="mt-3 flex justify-end">
+                  {item.estado === "complete" ? (
+                    <p className="text-xs text-secundario">Item concluído: reabra para alterar a cesta.</p>
+                  ) : (
                   <AcaoNaCesta
                     pesquisa={id}
                     item={itemId}
@@ -136,6 +139,7 @@ export default async function Referencias({
                     revisao={item.revisao}
                     naCesta={r.status === "selected" || r.status === "warning"}
                   />
+                  )}
                 </div>
               </div>
             </li>
