@@ -40,6 +40,10 @@ class Configuracao:
     # Produção assina com ES256 e publica o JWKS; lá o segredo é recusado.
     jwt_segredo_hs256: str = field(default="", repr=False)
     limite_por_minuto: int = 120
+    # Pesquisa de preços na API (P04). DESLIGADA por padrão em todo
+    # ambiente: 05_SEGURANCA manda não ligar `price_research` antes de
+    # auth + RLS + limites + auditoria aprovados. Ligar é ato explícito.
+    precos_habilitado: bool = False
 
     @property
     def jwt_emissor(self) -> str:
@@ -168,4 +172,6 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
     return Configuracao(ambiente=nome_ambiente, supabase_url=supabase_url,
                         origens_cors=origens,
                         supabase_chave_publica=chave_publica,
-                        jwt_segredo_hs256=segredo, limite_por_minuto=limite)
+                        jwt_segredo_hs256=segredo, limite_por_minuto=limite,
+                        precos_habilitado=_ler(env, "PRICE_RESEARCH_ENABLED").lower()
+                        in _VERDADEIRO)

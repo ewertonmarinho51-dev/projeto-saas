@@ -249,6 +249,45 @@ def _semear(pilha: Pilha, dsn: str, servidor: str) -> None:
                                          email=email, senha=senha)
 
 
+def semear_precos(pilha: Pilha) -> dict:
+    """Pesquisa de preços da conta `a1`, gravada direto no banco (como o
+    Streamlit grava hoje). Valor global que NÃO cabe em float, um item
+    ativo, um retirado da cotação (0029) e uma referência do PNCP."""
+    import psycopg
+    from psycopg.types.json import Jsonb
+
+    a1 = pilha.contas["a1"]
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        def pesquisa(nome):
+            return str(c.execute(
+                "insert into public.pesquisas_preco (tenant_id, secretaria_id, auth_user_id, "
+                "nome, estado, valor_global, idempotency_key) values (%s,%s,%s,%s,'review',"
+                "12345678901234.5678,%s) returning id",
+                (a1.tenant_id, a1.secretaria_id, a1.auth_user_id, nome,
+                 uuid.uuid4().hex)).fetchone()[0])
+        pesquisa_a = pesquisa("Luvas E2E")
+        pesquisa_vazia = pesquisa("Sem itens")
+        item = str(c.execute(
+            "insert into public.pesquisa_preco_itens (pesquisa_id, tenant_id, numero, codigo, "
+            "tipo_catalogo, descricao, unidade, quantidade, estado, metodo, preco_estimado, "
+            "preco_total) values (%s,%s,1,'451234','CATMAT','Luva nitrílica','CX',1500,"
+            "'complete','mediana',2.3450,3517.5000) returning id",
+            (pesquisa_a, a1.tenant_id)).fetchone()[0])
+        # Item retirado da cotação: continua no banco, sai da leitura.
+        c.execute(
+            "insert into public.pesquisa_preco_itens (pesquisa_id, tenant_id, numero, "
+            "descricao, quantidade, preco_estimado, removido_em) values "
+            "(%s,%s,2,'Item retirado',1,999.9900,now())", (pesquisa_a, a1.tenant_id))
+        c.execute(
+            "insert into public.pesquisa_preco_referencias (item_id, tenant_id, fonte_id, "
+            "fonte_nome, fonte_tipo, id_externo, raw_hash, descricao_original, "
+            "valor_unitario_original, valor_unitario_normalizado, natureza_valor, status, bruto) "
+            "values (%s,%s,'pncp','PNCP','sistema_oficial','ext-1','h1','Luva',2.3456,2.3456,"
+            "'homologado','selected',%s)",
+            (item, a1.tenant_id, Jsonb({"numeroControlePNCP": "12345678000190-1-000123/2025"})))
+    return {"pesquisa": pesquisa_a, "vazia": pesquisa_vazia, "item": item}
+
+
 def principal() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--estado", required=True, type=Path,
@@ -261,6 +300,7 @@ def principal() -> int:
     signal.signal(signal.SIGTERM, lambda *_: parar.set())
     with subir() as pilha:
         estado = {"url": pilha.url, "anon": pilha.anon,
+                  "precos": semear_precos(pilha),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
         temporario = args.estado.with_suffix(".tmp")

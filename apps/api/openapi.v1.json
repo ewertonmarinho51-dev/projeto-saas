@@ -59,6 +59,142 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "Item": {
+        "properties": {
+          "codigo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Codigo"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "estado": {
+            "title": "Estado",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "justificativa": {
+            "title": "Justificativa",
+            "type": "string"
+          },
+          "lote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lote"
+          },
+          "metodo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metodo"
+          },
+          "numero": {
+            "title": "Numero",
+            "type": "integer"
+          },
+          "preco_estimado": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preco_total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quantidade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisao": {
+            "title": "Revisao",
+            "type": "integer"
+          },
+          "tipo_catalogo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo Catalogo"
+          },
+          "uf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uf"
+          },
+          "unidade": {
+            "title": "Unidade",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "numero",
+          "codigo",
+          "tipo_catalogo",
+          "descricao",
+          "unidade",
+          "quantidade",
+          "estado",
+          "metodo",
+          "preco_estimado",
+          "preco_total",
+          "justificativa",
+          "lote",
+          "uf",
+          "revisao"
+        ],
+        "title": "Item",
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "auth_user_id": {
@@ -122,6 +258,34 @@
         "title": "NovoProcesso",
         "type": "object"
       },
+      "PaginaDePesquisas": {
+        "properties": {
+          "itens": {
+            "items": {
+              "$ref": "#/components/schemas/ResumoPesquisa"
+            },
+            "title": "Itens",
+            "type": "array"
+          },
+          "proximo_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proximo Cursor"
+          }
+        },
+        "required": [
+          "itens",
+          "proximo_cursor"
+        ],
+        "title": "PaginaDePesquisas",
+        "type": "object"
+      },
       "PaginaDeProcessos": {
         "properties": {
           "itens": {
@@ -148,6 +312,102 @@
           "proximo_cursor"
         ],
         "title": "PaginaDeProcessos",
+        "type": "object"
+      },
+      "Pesquisa": {
+        "properties": {
+          "atualizado_em": {
+            "title": "Atualizado Em",
+            "type": "string"
+          },
+          "criado_em": {
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "data_base": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Base"
+          },
+          "estado": {
+            "title": "Estado",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "itens": {
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            },
+            "title": "Itens",
+            "type": "array"
+          },
+          "local_referencia": {
+            "title": "Local Referencia",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "objeto": {
+            "title": "Objeto",
+            "type": "string"
+          },
+          "processo_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processo Id"
+          },
+          "responsavel": {
+            "title": "Responsavel",
+            "type": "string"
+          },
+          "valor_global": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "versao": {
+            "title": "Versao",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "nome",
+          "objeto",
+          "estado",
+          "valor_global",
+          "atualizado_em",
+          "data_base",
+          "responsavel",
+          "local_referencia",
+          "processo_id",
+          "versao",
+          "criado_em",
+          "itens"
+        ],
+        "title": "Pesquisa",
         "type": "object"
       },
       "Processo": {
@@ -251,6 +511,253 @@
         "title": "Pronto",
         "type": "object"
       },
+      "Referencia": {
+        "properties": {
+          "coletado_em": {
+            "title": "Coletado Em",
+            "type": "string"
+          },
+          "data_compra": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Compra"
+          },
+          "data_resultado": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Resultado"
+          },
+          "descricao_original": {
+            "title": "Descricao Original",
+            "type": "string"
+          },
+          "fonte": {
+            "title": "Fonte",
+            "type": "string"
+          },
+          "fonte_tipo": {
+            "title": "Fonte Tipo",
+            "type": "string"
+          },
+          "fornecedor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fornecedor"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "identificacao": {
+            "title": "Identificacao",
+            "type": "string"
+          },
+          "link_contratacao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Contratacao"
+          },
+          "link_fonte": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Fonte"
+          },
+          "motivos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Motivos",
+            "type": "array"
+          },
+          "municipio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Municipio"
+          },
+          "natureza_valor": {
+            "title": "Natureza Valor",
+            "type": "string"
+          },
+          "orgao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orgao"
+          },
+          "rotulo_contratacao": {
+            "title": "Rotulo Contratacao",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "uf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uf"
+          },
+          "unidade_normalizada": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidade Normalizada"
+          },
+          "unidade_original": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidade Original"
+          },
+          "valor_unitario_normalizado": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valor_unitario_original": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "fonte",
+          "fonte_tipo",
+          "natureza_valor",
+          "status",
+          "descricao_original",
+          "unidade_original",
+          "valor_unitario_original",
+          "unidade_normalizada",
+          "valor_unitario_normalizado",
+          "orgao",
+          "uf",
+          "municipio",
+          "fornecedor",
+          "data_compra",
+          "data_resultado",
+          "coletado_em",
+          "motivos",
+          "link_contratacao",
+          "rotulo_contratacao",
+          "link_fonte",
+          "identificacao"
+        ],
+        "title": "Referencia",
+        "type": "object"
+      },
+      "ResumoPesquisa": {
+        "properties": {
+          "atualizado_em": {
+            "title": "Atualizado Em",
+            "type": "string"
+          },
+          "estado": {
+            "title": "Estado",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "objeto": {
+            "title": "Objeto",
+            "type": "string"
+          },
+          "valor_global": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "nome",
+          "objeto",
+          "estado",
+          "valor_global",
+          "atualizado_em"
+        ],
+        "title": "ResumoPesquisa",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -289,6 +796,25 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "Valor": {
+        "description": "Dinheiro ou quantidade exatos. `valor` é o canônico, para máquina;\n`exibicao` é o que se mostra, já arredondado pela regra do domínio.",
+        "properties": {
+          "exibicao": {
+            "title": "Exibicao",
+            "type": "string"
+          },
+          "valor": {
+            "title": "Valor",
+            "type": "string"
+          }
+        },
+        "required": [
+          "valor",
+          "exibicao"
+        ],
+        "title": "Valor",
         "type": "object"
       },
       "Vivo": {
@@ -336,6 +862,187 @@
         "summary": "Me",
         "tags": [
           "v1"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas": {
+      "get": {
+        "operationId": "listar_api_v1_precos_pesquisas_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "arquivadas",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Arquivadas",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaDePesquisas"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}": {
+      "get": {
+        "operationId": "consultar_api_v1_precos_pesquisas__pesquisa_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pesquisa"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consultar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/itens/{item_id}/referencias": {
+      "get": {
+        "operationId": "referencias_api_v1_precos_pesquisas__pesquisa_id__itens__item_id__referencias_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Referencia"
+                  },
+                  "title": "Response Referencias Api V1 Precos Pesquisas  Pesquisa Id  Itens  Item Id  Referencias Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Referencias",
+        "tags": [
+          "v1",
+          "precos"
         ]
       }
     },
