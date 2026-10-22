@@ -16,6 +16,16 @@ def test_imagem_instala_node_e_monta_bundle_somente_leitura():
     assert "enableStaticServing = true" in streamlit
 
 
+def test_contexto_docker_inclui_somente_o_lock_wordcraft_necessario():
+    rules = [line.strip() for line in (ROOT / ".dockerignore").read_text(
+        encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")]
+    expected = ["docs/*", "!docs/wordcraft/", "docs/wordcraft/*",
+                "!docs/wordcraft/upstream.lock.json"]
+    positions = [rules.index(rule) for rule in expected]
+    assert positions == sorted(positions)
+    assert "docs/" not in rules
+
+
 def test_instalador_recusa_promover_manifesto_de_qa():
     script = INSTALLER.read_text(encoding="utf-8")
 
