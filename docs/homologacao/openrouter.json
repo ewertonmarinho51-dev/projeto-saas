@@ -1,0 +1,48 @@
+{
+  "motor": "openrouter",
+  "aprovado": true,
+  "motivo": "nenhum literal perdido na cadeia completa",
+  "caso": "caso_210_itens.json",
+  "itens": 210,
+  "cadeia": [
+    "dfd",
+    "etp",
+    "tr",
+    "edital"
+  ],
+  "resultados": [
+    {
+      "documento": "dfd",
+      "status": "ok",
+      "caracteres": 41818,
+      "segundos": 26.4,
+      "literais_perdidos": 0,
+      "amostra": {}
+    },
+    {
+      "documento": "etp",
+      "status": "ok",
+      "caracteres": 60812,
+      "segundos": 61.8,
+      "literais_perdidos": 0,
+      "amostra": {}
+    },
+    {
+      "documento": "tr",
+      "status": "ok",
+      "caracteres": 66602,
+      "segundos": 73.7,
+      "literais_perdidos": 0,
+      "amostra": {}
+    },
+    {
+      "documento": "edital",
+      "status": "ok",
+      "caracteres": 36927,
+      "segundos": 0.6,
+      "literais_perdidos": 0,
+      "amostra": {}
+    }
+  ],
+  "gerado_em": "2026-10-22"
+}

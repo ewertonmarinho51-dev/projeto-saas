@@ -88,7 +88,10 @@ def test_edital_nao_cai_para_motor_nao_homologado(monkeypatch):
     pista é uma linha de registro técnico.
     """
     monkeypatch.setenv(ai_gateway.VAR_ROTEAMENTO, "true")
-    assert ai_gateway.motores_para("edital", DISPONIVEIS) == [("openai", "k1")]
+    assert ai_gateway.motores_para("edital", DISPONIVEIS) == [
+        ("openai", "k1"),
+        ("openrouter", "k3"),
+    ]
 
 
 def test_tarefa_de_segundo_plano_usa_todos(monkeypatch):
@@ -245,14 +248,13 @@ def _chaves(monkeypatch, openai: str, gemini: str, openrouter: str = ""):
     monkeypatch.setattr(llm, "obter_openrouter_key", lambda: openrouter)
 
 
-def test_documento_oficial_nao_cai_para_o_gemini_com_a_politica_ligada(
+def test_documento_oficial_cai_para_openrouter_mas_nao_para_gemini(
         monkeypatch, _sem_rag):
     """
     O comportamento que esta entrega existe para produzir, medido no
-    caminho real: um ETP cuja geração falha na OpenAI **não** é
-    concluído pelo Gemini. A requisição morre, e morrer é o certo —
-    documento oficial gerado por motor não homologado é assinado por
-    agente público.
+    caminho real: um ETP cuja geração falha na OpenAI pode ser concluído
+    pelo OpenRouter homologado, mas nunca pelo Gemini. A fronteira segue
+    sendo a homologação, não a posição do motor na cascata.
     """
     from src import llm
 
@@ -269,11 +271,10 @@ def test_documento_oficial_nao_cai_para_o_gemini_com_a_politica_ligada(
             "Gemini atendeu um documento oficial: a política não pegou"))
     monkeypatch.setattr(
         llm, "_chamar_openrouter",
-        lambda s, u, k, **kw: pytest.fail(
-            "OpenRouter atendeu um documento oficial: a política não pegou"))
+        lambda s, u, k, **kw: "ETP gerado pelo OpenRouter homologado")
 
-    with pytest.raises(llm.ErroGeracaoIA):
-        llm.gerar_documento("etp", DADOS, "dfd aprovado")
+    assert llm.gerar_documento("etp", DADOS, "dfd aprovado") == (
+        "ETP gerado pelo OpenRouter homologado")
 
 
 def test_tarefa_nao_critica_continua_caindo_para_o_gemini(
