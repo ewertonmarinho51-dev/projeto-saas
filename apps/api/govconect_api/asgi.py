@@ -7,5 +7,7 @@ para um servidor que não sabe se pode autorizar alguém.
 """
 
 from .main import criar_app
+from .observabilidade import configurar_logs
 
+configurar_logs()
 app = criar_app()

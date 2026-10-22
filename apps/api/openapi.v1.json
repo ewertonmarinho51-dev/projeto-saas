@@ -2188,6 +2188,27 @@
         ]
       }
     },
+    "/health/metrics": {
+      "get": {
+        "operationId": "metricas_health_metrics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Metricas",
+        "tags": [
+          "saude"
+        ]
+      }
+    },
     "/health/ready": {
       "get": {
         "operationId": "pronto_health_ready_get",

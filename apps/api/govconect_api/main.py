@@ -15,10 +15,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from . import artefatos, cesta, coleta, erros, precos, processos, relatorios
+from .observabilidade import METRICAS
 from .camadas import CamadaDeRequisicao
 from .config import Configuracao, carregar
 from .limites import Limitador, aplicar_limite
@@ -72,6 +73,13 @@ def _rotas_de_saude(config: Configuracao) -> APIRouter:
         ok = all(v == "ok" for v in checks.values())
         corpo = Pronto(status="ready" if ok else "not_ready", checks=checks)
         return JSONResponse(corpo.model_dump(), status_code=200 if ok else 503)
+
+    @rotas.get("/metrics", response_class=PlainTextResponse)
+    def metricas() -> PlainTextResponse:
+        # RED por rota, no formato do Prometheus. Só a rede interna alcança
+        # a API; o Caddy do corte não tem rota para ela. Rótulos são modelo
+        # de rota, método e classe de status: nada de usuário ou município.
+        return PlainTextResponse(METRICAS.texto(), media_type="text/plain; version=0.0.4")
 
     return rotas
 
