@@ -2546,12 +2546,18 @@ def _render_previa_e_conferencia(pesquisa: dict, itens: list[dict],
     # sem a 0029 (flag de Cotações desligada) a tabela não existe
     emissoes = (repo.listar_emissoes(str(pesquisa["id"]))
                 if _colunas_0029() else [])
+    superadas = relatorio.emissoes_superadas(emissoes)
+    if superadas:
+        st.warning(_aviso_de_emissoes_superadas(len(superadas)))
+    ids_superadas = {id(e) for e in superadas}
     with st.expander(f"Emissões registradas ({len(emissoes)})"):
         if not emissoes:
             st.caption("Nenhuma emissão registrada ainda (ou o registro de "
                        "emissões ainda não está ativo neste banco).")
         for e in emissoes:
-            st.caption(f"{str(e.get('criado_em') or '')[:16].replace('T', ' ')} "
+            st.caption(("ANTERIOR ÀS CORREÇÕES DE 18/10/2026 · "
+                        if id(e) in ids_superadas else "")
+                       + f"{str(e.get('criado_em') or '')[:16].replace('T', ' ')} "
                        f"UTC · {e.get('tipo')} {e.get('formato')} · "
                        f"decisório `{str(e.get('hash_decisorio'))[:16]}…` · "
                        f"arquivo `{str(e.get('hash_arquivo'))[:16]}…` · "
@@ -2562,6 +2568,23 @@ def _render_previa_e_conferencia(pesquisa: dict, itens: list[dict],
         if informado:
             st.write(relatorio.conferir_identificador(
                 pesquisa, itens, referencias, informado))
+
+
+def _aviso_de_emissoes_superadas(quantas: int) -> str:
+    """
+    O PDF já entregue não se corrige — só se avisa quem o tem (segunda
+    auditoria das fontes, N-05). O texto diz o que pode estar errado e o
+    que fazer, sem pedir que alguém saiba o que é "barreira por atributo".
+    """
+    plural = quantas > 1
+    return (
+        f"Há {quantas} "
+        f"{'relatórios emitidos' if plural else 'relatório emitido'} desta "
+        "pesquisa antes das correções de 18/10/2026 na pesquisa de preços. "
+        f"{'Eles podem' if plural else 'Ele pode'} trazer, na cesta, preço "
+        "de produto diferente do item e preço sem o número da compra. Não "
+        f"{'use esses arquivos' if plural else 'use esse arquivo'}: gere o "
+        "relatório de novo e substitua o documento no processo.")
 
 
 def _registrar_emissao(pesquisa: dict, itens: list[dict], referencias: dict,
@@ -2603,9 +2626,15 @@ def _registrar_emissao(pesquisa: dict, itens: list[dict], referencias: dict,
 def _conferir_cestas(pesquisa: dict, itens: list[dict],
                      referencias: dict) -> None:
     """
-    Cesta acima do teto não vai para documento (auditoria de 18/10, C-4).
-    Todo caminho de emissão passa por `_conteudo_do_relatorio`, que chama
+    Cesta acima do teto (auditoria de 18/10, C-4) ou com preço de outro
+    produto (segunda auditoria, N-01/N-04) não vai para documento. Todo
+    caminho de emissão passa por `_conteudo_do_relatorio`, que chama
     aqui; a mensagem diz quais itens e o que fazer.
+
+    A conferência de conteúdo acompanha a flag da barreira
+    (`precos_saneamento_pre_cesta`): é ela que faz a cotação automática,
+    refeita, deixar esses preços fora — sem a barreira, a saída indicada
+    na mensagem não resolveria.
     """
     from ..precos import cesta as cesta_mod
     from ..precos import cotacoes
@@ -2613,16 +2642,31 @@ def _conferir_cestas(pesquisa: dict, itens: list[dict],
 
     politica = cotacoes.politica_automatica()
     pesquisa_id = str(pesquisa.get("id") or "")
+
+    def decididas(item_id):
+        return repo.referencias_decididas_por_humano(pesquisa_id, item_id)
+
     acima = cesta_mod.itens_acima_do_teto(
         itens, referencias, politica.teto if politica is not None else None,
-        decididas_por_humano=lambda item_id: repo.referencias_decididas_por_humano(
-            pesquisa_id, item_id))
+        decididas_por_humano=decididas)
     if acima:
         raise ErroDeRenderizacao(
             "O relatório não pode ser gerado: a cesta destes itens foi "
             "formada antes do limite de preços e da triagem — "
             + "; ".join(acima)
             + ". Refaça a cotação automática desses itens e gere de novo.")
+    if cotacoes.politica_saneamento() is None:
+        return
+    outro_produto = cesta_mod.contradicoes_na_cesta(
+        itens, referencias, decididas_por_humano=decididas)
+    if outro_produto:
+        raise ErroDeRenderizacao(
+            "O relatório não pode ser gerado: a cesta destes itens tem "
+            "preço de produto diferente do pedido — "
+            + "; ".join(outro_produto)
+            + ". Refaça a cotação automática desses itens (a conferência "
+            "de atributos deixa esses preços fora) ou exclua-os da cesta, "
+            "e gere de novo.")
 
 
 def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
