@@ -126,6 +126,11 @@ else:
         st = _SUBSTITUTO
 
 
+def sem_streamlit() -> bool:
+    """True no processo da API/worker: não há credencial de servidor."""
+    return st is _SUBSTITUTO
+
+
 def configurar_supabase(url: str, chave_publica: str) -> None:
     """URL do projeto e chave PUBLICÁVEL para o cliente do usuário do
     domínio (`db.cliente_do_usuario`), vindas da MESMA configuração da API.
@@ -144,12 +149,20 @@ def configurar_supabase(url: str, chave_publica: str) -> None:
 
 
 @contextmanager
-def sessao_da_requisicao(token: str, tenant_id: str):
+def sessao_da_requisicao(token: str, tenant_id: str, usuario: dict | None = None):
     """O `session_state` de UMA requisição da API: o token já verificado e
-    o tenant que veio dele. Some ao sair, mesmo com exceção."""
+    o tenant que veio dele. Some ao sair, mesmo com exceção.
+
+    `usuario` é o `st.session_state["usuario"]` do Streamlit — o vínculo
+    (`auth_user_id`, `secretaria_id`, `nome`) que `contexto` e o timbrado
+    leem. Só com dados JÁ verificados pela API, nunca do corpo do pedido.
+    """
     from . import db  # import tardio: este módulo é importado por db
 
-    marca = _ESTADO.set({db.CHAVE_DA_SESSAO: token, "tenant_id": tenant_id})
+    estado = {db.CHAVE_DA_SESSAO: token, "tenant_id": tenant_id}
+    if usuario is not None:
+        estado["usuario"] = dict(usuario)
+    marca = _ESTADO.set(estado)
     try:
         yield
     finally:

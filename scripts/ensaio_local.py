@@ -159,6 +159,11 @@ SEQUENCIA_EM_ENSAIO = (
     # A 0031 também confere grants que só fazem sentido depois da 0019
     # (nada ao `anon`), e usa `tenant_do_jwt()` da 0020 nas políticas.
     "0031_api_jobs.sql",
+    # A 0032 só alarga a 0031 e confere o que ela garantiu.
+    "0032_api_jobs_relatorio.sql",
+    # A 0033 confere que `config_app` continua sem grant e sem política —
+    # o que só é verdade depois da 0018/0020.
+    "0033_flags_do_app.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

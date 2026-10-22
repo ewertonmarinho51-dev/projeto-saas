@@ -21,6 +21,10 @@ _SONDA = (
     "from govconect_api.config import carregar; "
     "criar_app(carregar({'APP_ENV': 'test', 'SUPABASE_URL': 'https://x.exemplo.co', "
     "'SUPABASE_KEY': 'chave-publicavel-de-teste'})); "
+    # O caminho do worker de relatório (P04d), importado de uma vez:
+    # `contexto` importava o Streamlit direto até o P04d.
+    "import govconect_api.fila, src.precos.emissao, src.export, src.contexto, "
+    "src.precos.documento_cotacao, src.precos.relatorio_view, src.precos.cesta; "
     "proibidos = [m for m in sys.modules "
     "             if m == 'streamlit' or m.startswith('streamlit.')]; "
     "print(','.join(proibidos) or 'limpo')"

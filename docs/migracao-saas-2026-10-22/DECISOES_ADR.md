@@ -74,13 +74,33 @@ autorização real: job `api-rls`.
 
 ---
 
-## ADR-003 — Storage privado e links assinados curtos
+## ADR-003 — Artefatos: efêmeros no Redis para relatório; Storage privado só quando houver o que guardar
 
-**Status:** Proposta (P04/P05).
+**Status:** Revisada no P04d (22/10/2026). Relatório de preços: Aceita.
+Documentos (P05): Proposta.
 
-Artefatos (DOCX/PDF/relatório) em bucket privado; download só por
-`GET /api/v1/artefatos/{id}/download`, que confere tenant e gera URL
-assinada de curta duração (≤ 5 min). URL assinada nunca vai a log.
+Proposta original: artefatos em bucket privado, download por URL assinada
+de até 5 min.
+
+**Revisão (P04d).** O relatório de preços é REPRODUTÍVEL (mesmo resultado,
+mesmo identificador decisório) e a prova permanente da emissão já mora no
+banco (`pesquisa_preco_emissoes`, 0029: hash do conteúdo decisório e hash
+do arquivo entregue). O Streamlit não guarda o arquivo: gera e entrega.
+Então:
+
+- o worker gera o arquivo e o guarda no Redis da rede interna por 30 min,
+  com nome, tipo e SHA-256 gravados PELO WORKER (`artefatos.py`);
+- `GET /api/v1/jobs/{id}/artefato` confere o job pelo RLS da 0031 (dono +
+  município) e devolve o arquivo; o web o repassa por rota própria. Não há
+  URL assinada para vazar em log, nem política nova em `storage.objects`;
+- tipo de arquivo de lista fechada (PDF, DOCX, XLSX, ZIP), `attachment`,
+  `nosniff`; teto de 50 MB;
+- `api_jobs.resultado` (0032) é só exibição — o dono pode reescrevê-lo, e
+  o download não o lê.
+
+Bucket privado com URL assinada continua sendo a direção para o que
+PRECISA ficar guardado (documentos do processo, P05). Decidir lá, com
+retenção.
 
 ---
 
@@ -115,6 +135,13 @@ assinada de curta duração (≤ 5 min). URL assinada nunca vai a log.
   política dedicada — mais superfície e mais uma credencial para girar,
   para um ganho que só aparece em coletas de mais de uma hora.
 - SSE só depois de o polling funcionar.
+- **P04d (22/10/2026)**: segundo tipo de job, `relatorio_precos` (0032),
+  tarefa `govconect.emitir_relatorio`. O worker roda a MESMA regra de
+  emissão do Streamlit (`src/precos/emissao.py`, extraída de
+  `precos_ui.py`): conferência do teto, ciência exigida na hora de gerar
+  (`ciencia.exigir`), renderização pelo motor institucional, registro da
+  emissão (0029). PDF depende do LibreOffice no host do worker (P06); sem
+  ele, o job falha com a mensagem do domínio e o DOCX continua saindo.
 
 ---
 
@@ -154,6 +181,17 @@ custo de IA por tenant reaproveitando `0028_controle_de_consumo_e_cache`.
   verificada. Com isso a API chama a MESMA regra da cesta
   (`cotacoes.alterar_status_referencia`) em vez de reescrevê-la — regra
   duplicada diverge na primeira correção feita só de um lado.
+- **P04d, 22/10/2026 — achado e correção.** As flags do painel
+  (`config_app`) eram lidas pela "credencial de servidor", que na API é
+  só a chave publicável (`anon`, fechado pela 0019): no processo da API
+  TODA flag lia desligada. A coleta do P04c rodava pela API sem teto
+  automático e sem triagem pré-cesta; a emissão pularia a ciência (RF-03).
+  Correção: `flags_do_app()` (0033, SECURITY DEFINER, só `flag_*` com
+  valor booleano, só `authenticated`) — a TABELA continua fechada; na API
+  o `db._cliente()` passa a ser o cliente do USUÁRIO (o RLS decide), e
+  falha de leitura de flag nunca vira "desligada" (vale a última leitura
+  boa; sem nenhuma, erro). `contexto.py` deixou de importar o Streamlit
+  direto.
 - Feature flags novas nascem desligadas: `PRICE_RESEARCH_ENABLED`,
   `DOCUMENTS_NEXT_UI_ENABLED`. `price_research` não liga sem auth + RLS
   + rate limit + orçamento de IA aprovados.

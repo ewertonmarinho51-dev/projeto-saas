@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from . import cesta, coleta, erros, precos, processos
+from . import artefatos, cesta, coleta, erros, precos, processos, relatorios
 from .camadas import CamadaDeRequisicao
 from .config import Configuracao, carregar
 from .limites import Limitador, aplicar_limite
@@ -27,7 +27,7 @@ from .supabase_rest import ClienteRest
 from .verificador import VerificadorSupabase
 from src.streamlit_opcional import configurar_supabase
 
-VERSAO_API = "0.2.0"
+VERSAO_API = "0.3.0"
 
 
 class Vivo(BaseModel):
@@ -97,6 +97,7 @@ def _rotas_v1() -> APIRouter:
     rotas.include_router(precos.rotas())
     rotas.include_router(cesta.rotas())
     rotas.include_router(coleta.rotas())
+    rotas.include_router(relatorios.rotas())
     return rotas
 
 
@@ -117,7 +118,8 @@ def _montar_autenticacao(config: Configuracao, rest: ClienteRest | None):
 def criar_app(config: Configuracao | None = None,
               verificador: VerificadorDeToken | None = None,
               rest: ClienteRest | None = None,
-              fila: "coleta.Fila | None" = None) -> FastAPI:
+              fila: "coleta.Fila | None" = None,
+              deposito: "artefatos.Deposito | None" = None) -> FastAPI:
     config = config or carregar()
     if config.autenticacao_configurada:
         # O domínio (`db.cliente_do_usuario`) usa a MESMA URL e chave
@@ -142,6 +144,10 @@ def criar_app(config: Configuracao | None = None,
 
         fila = FilaCelery(_criar_celery(config.redis_url))
     app.state.fila = fila
+    if deposito is None and config.redis_url:
+        # O arquivo gerado espera o download no mesmo Redis da fila.
+        deposito = artefatos.DepositoRedis(config.redis_url)
+    app.state.deposito = deposito
     app.state.limitador = Limitador(config.limite_por_minuto)
 
     erros.instalar(app)

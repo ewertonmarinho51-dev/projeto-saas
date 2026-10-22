@@ -17,7 +17,7 @@ Rollback = desligar a flag (colunas novas ficam inertes).
 
 import logging
 
-import streamlit as st
+from .streamlit_opcional import st
 
 from . import db
 

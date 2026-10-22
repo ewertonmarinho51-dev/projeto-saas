@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState } from "react";
 
 import { iniciarColeta, type EstadoDaColeta } from "@/app/app/precos/acoes";
+import { useJob } from "@/components/acompanhar-job";
 import { botaoPrimario } from "@/components/ui";
-import type { Job } from "@/lib/api";
 
 const FALHAS: Record<string, string> = {
   SESSION_EXPIRED: "A coleta parou porque sua sessão estava terminando. O que já foi coletado ficou; inicie de novo para continuar.",
@@ -33,46 +33,12 @@ export function BotaoDeColeta({ pesquisa, chave }: { pesquisa: string; chave: st
 }
 
 /**
- * Acompanha um job sem prender a tela: consulta a cada 2,5 s, para no
- * estado final e então recarrega os dados da página (itens e preços).
- * Sem WebSocket nem SSE — polling basta para progresso unidirecional
- * (02_ARQUITETURA), e sobrevive a refresh: o job vem da URL.
+ * Acompanha a coleta (`useJob`) e, no fim, recarrega os dados da página
+ * (itens e preços).
  */
 export function ProgressoDaColeta({ jobId }: { jobId: string }) {
   const router = useRouter();
-  const [job, setJob] = useState<Job | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-  const finalizado = useRef(false);
-
-  useEffect(() => {
-    let ativo = true;
-    let espera: ReturnType<typeof setTimeout> | undefined;
-    async function consultar() {
-      try {
-        const r = await fetch(`/app/precos/jobs/${jobId}`, { cache: "no-store" });
-        if (!r.ok) throw new Error(String(r.status));
-        const dados = (await r.json()) as Job;
-        if (!ativo) return;
-        setJob(dados);
-        setErro(null);
-        if (["succeeded", "failed", "cancelled"].includes(dados.estado)) {
-          if (!finalizado.current) {
-            finalizado.current = true;
-            router.refresh();
-          }
-          return;
-        }
-      } catch {
-        if (ativo) setErro("Sem resposta do servidor; tentando de novo.");
-      }
-      if (ativo) espera = setTimeout(consultar, 2500);
-    }
-    consultar();
-    return () => {
-      ativo = false;
-      if (espera) clearTimeout(espera);
-    };
-  }, [jobId, router]);
+  const { job, erro } = useJob(jobId, () => router.refresh());
 
   if (!job) {
     return (

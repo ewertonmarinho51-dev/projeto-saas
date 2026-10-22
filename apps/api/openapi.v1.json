@@ -1,6 +1,63 @@
 {
   "components": {
     "schemas": {
+      "AlertaDePreco": {
+        "properties": {
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "mensagem": {
+            "title": "Mensagem",
+            "type": "string"
+          },
+          "numero": {
+            "title": "Numero",
+            "type": "integer"
+          },
+          "origem": {
+            "title": "Origem",
+            "type": "string"
+          },
+          "valor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "numero",
+          "descricao",
+          "valor",
+          "origem",
+          "mensagem"
+        ],
+        "title": "AlertaDePreco",
+        "type": "object"
+      },
+      "CienciaRegistrada": {
+        "properties": {
+          "assinatura": {
+            "title": "Assinatura",
+            "type": "string"
+          },
+          "registrada_em": {
+            "title": "Registrada Em",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registrada_em",
+          "assinatura"
+        ],
+        "title": "CienciaRegistrada",
+        "type": "object"
+      },
       "EdicaoDeProcesso": {
         "additionalProperties": false,
         "properties": {
@@ -247,6 +304,12 @@
             "title": "Recurso Id",
             "type": "string"
           },
+          "resultado": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Resultado",
+            "type": "object"
+          },
           "tipo": {
             "title": "Tipo",
             "type": "string"
@@ -361,6 +424,29 @@
         "title": "NovoProcesso",
         "type": "object"
       },
+      "OpcaoDeRelatorio": {
+        "properties": {
+          "formato": {
+            "title": "Formato",
+            "type": "string"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tipo",
+          "formato",
+          "rotulo"
+        ],
+        "title": "OpcaoDeRelatorio",
+        "type": "object"
+      },
       "PaginaDePesquisas": {
         "properties": {
           "itens": {
@@ -417,6 +503,22 @@
         "title": "PaginaDeProcessos",
         "type": "object"
       },
+      "PedidoDeCiencia": {
+        "additionalProperties": false,
+        "properties": {
+          "assinatura": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Assinatura",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assinatura"
+        ],
+        "title": "PedidoDeCiencia",
+        "type": "object"
+      },
       "PedidoDeColeta": {
         "additionalProperties": false,
         "properties": {
@@ -427,6 +529,70 @@
           }
         },
         "title": "PedidoDeColeta",
+        "type": "object"
+      },
+      "PedidoDeRelatorio": {
+        "additionalProperties": false,
+        "properties": {
+          "com_integral": {
+            "default": false,
+            "title": "Com Integral",
+            "type": "boolean"
+          },
+          "formato": {
+            "enum": [
+              "pdf",
+              "docx",
+              "xlsx",
+              "zip"
+            ],
+            "title": "Formato",
+            "type": "string"
+          },
+          "tipo": {
+            "enum": [
+              "cotacao",
+              "analitico_integral",
+              "completo",
+              "resumido",
+              "analitico",
+              "pacote"
+            ],
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tipo",
+          "formato"
+        ],
+        "title": "PedidoDeRelatorio",
+        "type": "object"
+      },
+      "PendenciaDeItem": {
+        "properties": {
+          "deficiencias": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Deficiencias",
+            "type": "array"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "numero": {
+            "title": "Numero",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "numero",
+          "descricao",
+          "deficiencias"
+        ],
+        "title": "PendenciaDeItem",
         "type": "object"
       },
       "Pesquisa": {
@@ -523,6 +689,89 @@
           "itens"
         ],
         "title": "Pesquisa",
+        "type": "object"
+      },
+      "PreparoDaEmissao": {
+        "properties": {
+          "alertas": {
+            "items": {
+              "$ref": "#/components/schemas/AlertaDePreco"
+            },
+            "title": "Alertas",
+            "type": "array"
+          },
+          "assinatura": {
+            "title": "Assinatura",
+            "type": "string"
+          },
+          "bloqueio": {
+            "title": "Bloqueio",
+            "type": "string"
+          },
+          "ciencia": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CienciaRegistrada"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disponivel": {
+            "title": "Disponivel",
+            "type": "boolean"
+          },
+          "identificador": {
+            "title": "Identificador",
+            "type": "string"
+          },
+          "motivo": {
+            "title": "Motivo",
+            "type": "string"
+          },
+          "opcoes": {
+            "items": {
+              "$ref": "#/components/schemas/OpcaoDeRelatorio"
+            },
+            "title": "Opcoes",
+            "type": "array"
+          },
+          "pendencias": {
+            "items": {
+              "$ref": "#/components/schemas/PendenciaDeItem"
+            },
+            "title": "Pendencias",
+            "type": "array"
+          },
+          "pode_registrar_ciencia": {
+            "title": "Pode Registrar Ciencia",
+            "type": "boolean"
+          },
+          "requer_ciencia": {
+            "title": "Requer Ciencia",
+            "type": "boolean"
+          },
+          "total_referencias": {
+            "title": "Total Referencias",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "disponivel",
+          "motivo",
+          "identificador",
+          "bloqueio",
+          "requer_ciencia",
+          "assinatura",
+          "alertas",
+          "pendencias",
+          "ciencia",
+          "pode_registrar_ciencia",
+          "opcoes",
+          "total_referencias"
+        ],
+        "title": "PreparoDaEmissao",
         "type": "object"
       },
       "Processo": {
@@ -991,7 +1240,7 @@
   },
   "info": {
     "title": "Gov Conect API",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -1039,6 +1288,58 @@
         "tags": [
           "v1",
           "jobs"
+        ]
+      }
+    },
+    "/api/v1/jobs/{job_id}/artefato": {
+      "get": {
+        "operationId": "baixar_api_v1_jobs__job_id__artefato_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/pdf": {},
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {},
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {},
+              "application/zip": {}
+            },
+            "description": "O arquivo gerado"
+          },
+          "404": {
+            "description": "Inexistente, de outra pessoa ou sem arquivo"
+          },
+          "410": {
+            "description": "O arquivo expirou; gere de novo"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Baixar",
+        "tags": [
+          "v1",
+          "precos"
         ]
       }
     },
@@ -1189,6 +1490,69 @@
         ]
       }
     },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/ciencia": {
+      "post": {
+        "operationId": "registrar_ciencia_api_v1_precos_pesquisas__pesquisa_id__ciencia_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeCiencia"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CienciaRegistrada"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o dono da pesquisa ou o administrador"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "409": {
+            "description": "A cesta mudou desde o aviso (CIENCIA_DESATUALIZADA)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Registrar Ciencia",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
     "/api/v1/precos/pesquisas/{pesquisa_id}/coleta": {
       "post": {
         "operationId": "iniciar_api_v1_precos_pesquisas__pesquisa_id__coleta_post",
@@ -1264,6 +1628,56 @@
         "tags": [
           "v1",
           "jobs"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/emissao": {
+      "get": {
+        "operationId": "preparar_api_v1_precos_pesquisas__pesquisa_id__emissao_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparoDaEmissao"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Banco ou flags indisponíveis"
+          }
+        },
+        "summary": "Preparar",
+        "tags": [
+          "v1",
+          "precos"
         ]
       }
     },
@@ -1414,6 +1828,88 @@
           }
         },
         "summary": "Mudar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/relatorios": {
+      "post": {
+        "operationId": "pedir_relatorio_api_v1_precos_pesquisas__pesquisa_id__relatorios_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeRelatorio"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Repetição da mesma Idempotency-Key"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "409": {
+            "description": "Emissão indisponível nesta configuração"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Fila indisponível"
+          }
+        },
+        "summary": "Pedir Relatorio",
         "tags": [
           "v1",
           "precos"
