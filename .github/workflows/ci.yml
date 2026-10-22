@@ -290,3 +290,141 @@ jobs:
           GOVCONECT_POSTGREST_BIN: ${{ runner.temp }}/rls-bin/postgrest
           PYTHONUTF8: "1"
         run: python -m pytest -q tests_rls
+
+  # Web Next.js (apps/web): lint, tipos, provas de unidade, build e a
+  # varredura do que vai ao navegador atrás de segredo.
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - name: Build de produção
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          NEXT_PUBLIC_SUPABASE_URL: https://exemplo-ci.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: chave-publicavel-de-ci
+        run: npm run build
+      - name: Nenhum segredo no pacote do navegador
+        run: npm run verificar-bundle
+
+  # Login real e dados reais no navegador: a MESMA pilha descartável do
+  # api-rls (Postgres + GoTrue ES256 + PostgREST), a API FastAPI e o web em
+  # `next start`. Playwright entra com senha de verdade, cria, edita, vê o
+  # conflito de versão, confere o isolamento entre municípios e sai.
+  web-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    needs: [web]
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 127.0.0.1:5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      GOVCONECT_RLS_PG_DSN: "host=127.0.0.1 port=5432 dbname=postgres user=postgres password=postgres"
+      GOVCONECT_GOTRUE_TAR: ${{ github.workspace }}/../rls-bin/auth.tar.xz
+      GOVCONECT_POSTGREST_BIN: ${{ github.workspace }}/../rls-bin/postgrest
+      GOVCONECT_E2E_ESTADO: ${{ github.workspace }}/../pilha-e2e.json
+      PYTHONUTF8: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: apps/api/requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: pip install -r apps/api/requirements-dev.txt "psycopg[binary]==3.3.6"
+      - name: Baixar GoTrue e PostgREST pinados
+        shell: bash
+        run: |
+          set -euo pipefail
+          d="$GITHUB_WORKSPACE/../rls-bin"; mkdir -p "$d"
+          curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 --max-time 120 \
+            https://github.com/supabase/auth/releases/download/v2.197.0/auth-v2.197.0-amd64.tar.xz -o "$d/auth.tar.xz"
+          echo "b5c2991d1df760c9b099c1c2395a94bd1c2f83ed58901934921997179dc9f7ea  $d/auth.tar.xz" | sha256sum --check
+          curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 --max-time 120 \
+            https://github.com/PostgREST/postgrest/releases/download/v12.2.12/postgrest-v12.2.12-linux-static-x86-64.tar.xz -o "$d/postgrest.tar.xz"
+          echo "5de4092f1719da3353c40bf96c8dec6913f2254a7cd0b61cc05f233153b557d5  $d/postgrest.tar.xz" | sha256sum --check
+          tar -xJf "$d/postgrest.tar.xz" -C "$d" postgrest
+      - name: Subir a pilha descartável
+        working-directory: apps/api
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup python tests_rls/pilha.py --estado "$GOVCONECT_E2E_ESTADO" > "$RUNNER_TEMP/pilha.log" 2>&1 < /dev/null &
+          for i in $(seq 1 120); do [ -s "$GOVCONECT_E2E_ESTADO" ] && break; sleep 1; done
+          test -s "$GOVCONECT_E2E_ESTADO" || { tail -40 "$RUNNER_TEMP/pilha.log"; exit 1; }
+          python - <<'PY' >> "$GITHUB_ENV"
+          import json, os
+          e = json.load(open(os.environ["GOVCONECT_E2E_ESTADO"]))
+          print("PILHA_URL=" + e["url"])
+          print("PILHA_ANON=" + e["anon"])
+          PY
+      - name: Subir a API
+        working-directory: apps/api
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_ENV=test SUPABASE_URL="$PILHA_URL" SUPABASE_KEY="$PILHA_ANON" PYTHONPATH=.:../.. \
+            nohup python -m uvicorn govconect_api.asgi:app --host 127.0.0.1 --port 8000 \
+            > "$RUNNER_TEMP/api.log" 2>&1 < /dev/null &
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8000/health/ready && break; sleep 1; done
+          curl -fs http://127.0.0.1:8000/health/ready
+      - name: Build e subida do web
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          NEXT_PUBLIC_SUPABASE_URL="$PILHA_URL" NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PILHA_ANON" npm run build
+          GOVCONECT_API_URL=http://127.0.0.1:8000 GOVCONECT_SITE_URL=http://localhost:3000 \
+            nohup npx next start -p 3000 > "$RUNNER_TEMP/web.log" 2>&1 < /dev/null &
+          for i in $(seq 1 60); do curl -fs -o /dev/null http://localhost:3000/ && break; sleep 1; done
+          curl -fs -o /dev/null http://localhost:3000/
+      - name: Playwright
+        working-directory: apps/web
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - name: Logs dos serviços (falha)
+        if: failure()
+        shell: bash
+        run: tail -60 "$RUNNER_TEMP/pilha.log" "$RUNNER_TEMP/api.log" "$RUNNER_TEMP/web.log" || true
+      - name: Guardar capturas e relatório
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-e2e-telas
+          # Diretório SEM ponto: o upload-artifact v4 pula pasta oculta, e
+          # com `warn` a primeira versão perdeu as capturas em silêncio.
+          path: apps/web/e2e/resultados/
+          if-no-files-found: error
+          retention-days: 14

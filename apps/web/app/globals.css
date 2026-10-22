@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/*
+ * Tokens do Gov Conect.
+ *
+ * O acento vem do LOGO (assets/marca/logo-original.png, amostrado em
+ * 22/10/2026: azuis entre #0040B0 e #0068F8). #0050D8 é o tom do meio da
+ * marca e passa AA sobre branco (6,7:1); #0040B0 é o hover. O legado
+ * Streamlit usa #1B4F8A — mais acinzentado que o logo; aqui manda o logo.
+ *
+ * Um acento só, neutros frios (o azul pede cinza frio, não bege),
+ * raio único de 8px, borda de 1px. Contrastes conferidos por cálculo:
+ * texto 15,4:1, secundário 5,9:1, borda de campo 3,8:1 (WCAG 1.4.11).
+ */
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --color-canvas: #fafbfc;
+  --color-superficie: #ffffff;
+  --color-texto: #1b2230;
+  --color-secundario: #5a6372;
+  --color-linha: #e3e6eb;
+  --color-campo: #7a8494;
+  --color-acento: #0050d8;
+  --color-acento-forte: #0040b0;
+  --color-acento-claro: #e8f0fd;
+  --color-sobre-acento: #ffffff;
+  --color-erro: #b42318;
+  --color-erro-fundo: #fef3f2;
+  --color-ok: #146c43;
+  --color-ok-fundo: #ecf6ef;
+
+  --radius-ui: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-canvas: #0e1117;
+    --color-superficie: #151a22;
+    --color-texto: #e6e9ef;
+    --color-secundario: #9aa3b2;
+    --color-linha: #262d38;
+    --color-campo: #6b7586;
+    --color-acento: #6ea0ff;
+    --color-acento-forte: #8fb6ff;
+    --color-acento-claro: #16233a;
+    --color-sobre-acento: #0e1117;
+    --color-erro: #f97066;
+    --color-erro-fundo: #2b1715;
+    --color-ok: #6fcf97;
+    --color-ok-fundo: #12241a;
+  }
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-texto);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Foco de teclado sempre visível, no acento, com folga do contorno. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-acento);
+  outline-offset: 2px;
+  border-radius: var(--radius-ui);
+}
+
+/*
+ * Vidro contido: só no painel de marca do login. Fundo sólido quando o
+ * sistema pede menos transparência — o texto nunca depende do blur para
+ * ter contraste.
+ */
+.vidro {
+  background: color-mix(in srgb, var(--color-superficie) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-linha) 70%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .vidro {
+    background: var(--color-superficie);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
