@@ -156,6 +156,9 @@ SEQUENCIA_EM_ENSAIO = (
     # valem depois da 0019/0020. Pelo glob ela rodaria ANTES delas e
     # reprovaria um mundo que ainda não existe.
     "0030_api_idempotencia_processos.sql",
+    # A 0031 também confere grants que só fazem sentido depois da 0019
+    # (nada ao `anon`), e usa `tenant_do_jwt()` da 0020 nas políticas.
+    "0031_api_jobs.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
