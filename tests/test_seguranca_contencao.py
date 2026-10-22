@@ -1534,7 +1534,10 @@ TABELAS_PRIVADAS = tabelas_do_inventario()
 # Mais `pesquisa_preco_emissoes` da 0029, aplicada em 16/10/2026: o
 # catálogo mostrou 44 tabelas em `public`, as 44 com RLS (somente
 # SELECT em pg_tables).
-TABELAS_EM_PRODUCAO = 44
+# Mais `api_jobs` da 0031, aplicada em 22/10/2026 (registro
+# 20261022202731): o catálogo passou de 47 para 48 tabelas em `public`,
+# todas com RLS; este inventário sobe de 44 para 45.
+TABELAS_EM_PRODUCAO = 45
 
 # As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
 # inclui, mas porque são as únicas cuja implantação esta suíte
@@ -1574,11 +1577,10 @@ TABELAS_DO_CACHE_DE_GERACAO = frozenset({"cache_geracoes"})
 # no arquivo da própria 0029, pelo mesmo argumento da 0028.
 TABELAS_DAS_COTACOES = frozenset({"pesquisa_preco_emissoes"})
 
-# A da 0031 (jobs da API, P04c). Aplicada no projeto DESCARTÁVEL em
-# 22/10/2026; em produção, ainda não — por isso fica FORA da contagem,
-# como as do WordCraft abaixo, até a aplicação ser medida no catálogo.
-# Matriz de RLS no arquivo da própria 0031.
-TABELAS_DA_API_NAO_IMPLANTADAS = frozenset({"api_jobs"})
+# A da 0031 (jobs da API, P04c). Aplicada no descartável e, em
+# 22/10/2026, em produção — já conta em TABELAS_EM_PRODUCAO. Fica
+# nomeada porque a matriz de RLS dela mora no arquivo da própria 0031.
+TABELAS_DA_API = frozenset({"api_jobs"})
 
 # Additive WordCraft schema from this branch. It is covered by disposable
 # database tests but is excluded from the historical production census until
@@ -1600,8 +1602,9 @@ def test_o_inventario_cobre_todas_as_tabelas():
     implantada fora da conta que a cobre; para mais, dando por
     implantado o que ainda não foi.
     """
-    nao_implantadas = TABELAS_WORDCRAFT_NAO_IMPLANTADAS | TABELAS_DA_API_NAO_IMPLANTADAS
+    nao_implantadas = TABELAS_WORDCRAFT_NAO_IMPLANTADAS
     assert nao_implantadas <= set(TABELAS_PRIVADAS)
+    assert TABELAS_DA_API <= set(TABELAS_PRIVADAS)
     assert len(set(TABELAS_PRIVADAS) - nao_implantadas) == TABELAS_EM_PRODUCAO, \
         sorted(TABELAS_PRIVADAS)
 
@@ -1943,7 +1946,7 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     sql_0020 = _sql_da_0020()
     proprias = (TABELAS_DA_PESQUISA_DE_PRECOS | TABELAS_DA_MULTI_PREFEITURA
                 | TABELAS_DO_CACHE_DE_GERACAO | TABELAS_DAS_COTACOES
-                | TABELAS_WORDCRAFT_NAO_IMPLANTADAS | TABELAS_DA_API_NAO_IMPLANTADAS)
+                | TABELAS_WORDCRAFT_NAO_IMPLANTADAS | TABELAS_DA_API)
     for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 

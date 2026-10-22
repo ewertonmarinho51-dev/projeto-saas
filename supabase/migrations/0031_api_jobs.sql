@@ -1,8 +1,23 @@
 -- ## 0031 — Jobs da API (/api/v1, P04c): coleta de preços assíncrona
--- ## ESTADO: APLICADA no projeto descartável `govdocs-ensaio-descartavel`
--- ##   em 22/10/2026 como `m0031_api_jobs`. NÃO APLICADA EM PRODUÇÃO: a
--- ##   aplicação foi bloqueada pelo controle de permissão do agente e
--- ##   aguarda o operador (atualizar este cabeçalho ao aplicar).
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 22/10/2026 como `m0031_api_jobs`
+-- ##   (registro 20261022202731), depois do ensaio no projeto descartável
+-- ##   `govdocs-ensaio-descartavel` no mesmo dia.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (22/10/2026, catálogo, só SELECT):
+--   * ANTES: 47 tabelas em public, 0 sem RLS, 0 grants ao anon em public,
+--     sem `api_jobs`; última migração 20261022162106
+--     m0030_api_idempotencia_processos; processos 7 linhas, pesquisas_preco 4;
+--   * aplicação: conferência interna aprovada (nenhuma exceção);
+--   * DEPOIS: 48 tabelas, 0 sem RLS; `api_jobs` com RLS ligada e forçada,
+--     3 políticas, 0 linhas; grants: authenticated INSERT/SELECT/UPDATE,
+--     service_role INSERT/REFERENCES/SELECT/TRIGGER/UPDATE (sem DELETE e
+--     TRUNCATE), anon nenhum; 0 grants ao anon em public; processos 7 e
+--     pesquisas_preco 4 (inalteradas);
+--   * advisors de segurança: nenhum aviso sobre `api_jobs`; os que
+--     aparecem são anteriores (backups sem política, `vector` em public,
+--     três funções SECURITY DEFINER, proteção de senha vazada desligada);
+--   * comportamento NÃO exercido em produção — foi provado no ensaio,
+--     abaixo, e não se escreve dado de prova no banco real.
 --
 -- REGISTRO DO ENSAIO (22/10/2026):
 --   * nível 1: PostgreSQL do CI, tests/test_migracao_0031.py verde;
@@ -13,8 +28,6 @@
 --     usuários reais do projeto e claims injetadas: dono cria e atualiza;
 --     job não nasce concluído (42501); outro usuário do mesmo município
 --     não vê (0) nem altera (0 linhas);
---   * produção: medição ANTES feita (47 tabelas em public, todas com RLS,
---     nenhum grant ao anon, sem `api_jobs`).
 -- ##   Só a API nova e o worker usam a tabela; o Streamlit não a conhece.
 --
 -- O QUE FAZ
