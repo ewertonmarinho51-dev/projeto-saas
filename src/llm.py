@@ -323,8 +323,12 @@ def obter_chave_de_embeddings() -> str:
     daquela função já cobre a barra lateral, que a outra esqueceria.
     """
     dedicada = _ler_chave("OPENAI_EMBEDDINGS_KEY", "")
+    # O nome dedicado define também o endpoint: esta chave será enviada
+    # diretamente à OpenAI. Uma credencial OpenRouter nessa variável é uma
+    # configuração inválida e deve degradar para a busca textual, sem vazar
+    # a geração inteira por um 401 do RAG opcional.
     if dedicada:
-        return dedicada
+        return "" if dedicada.strip().lower().startswith("sk-or-") else dedicada
     legada = obter_openai_key()
     # Instalações antigas podem ter reutilizado OPENAI_API_KEY para guardar
     # a chave do provedor de geração. Uma chave OpenRouter enviada ao endpoint

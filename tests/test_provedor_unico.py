@@ -163,6 +163,19 @@ def test_chave_openrouter_legada_nao_e_enviada_a_openai(monkeypatch):
     assert llm.rota_de_embeddings() is None
 
 
+def test_chave_openrouter_dedicada_nao_e_enviada_a_openai(monkeypatch):
+    """Uma credencial OpenRouter não é válida no endpoint da OpenAI."""
+    valores = {"OPENAI_EMBEDDINGS_KEY": "sk-or-v1-configurada-errado",
+               "OPENAI_API_KEY": ""}
+    monkeypatch.setattr(llm, "_ler_chave",
+                        lambda nome, _manual: valores.get(nome, ""))
+    monkeypatch.setattr(llm, "modo_exclusivo_openrouter", lambda: False)
+    monkeypatch.setattr(llm, "embeddings_pelo_openrouter", lambda: False)
+
+    assert llm.obter_chave_de_embeddings() == ""
+    assert llm.rota_de_embeddings() is None
+
+
 def test_a_dedicada_tem_precedencia_sobre_a_antiga(monkeypatch):
     valores = {"OPENAI_EMBEDDINGS_KEY": "sk-nova",
                "OPENAI_API_KEY": "sk-antiga"}
