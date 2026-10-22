@@ -1,7 +1,25 @@
 -- ## 0030 — Idempotência na criação de processo pela API (/api/v1, P02)
--- ## ESTADO: aplicável. NÃO APLICADA em produção nem no projeto
--- ##   descartável (atualizar este cabeçalho ao aplicar: data e nome).
+-- ## ESTADO: APLICADA no projeto descartável `govdocs-ensaio-descartavel`
+-- ##   em 22/10/2026 como `m0030_api_idempotencia_processos`.
+-- ##   NÃO APLICADA EM PRODUÇÃO (atualizar este cabeçalho ao aplicar).
 -- ##   Só a API nova usa a coluna; o Streamlit não a lê nem a escreve.
+--
+-- REGISTRO DO ENSAIO (22/10/2026):
+--   * nível 1: PostgreSQL do CI, `tests/test_migracao_0030.py` verde no
+--     PR #78 (unicidade por município, NULL sem colisão, formato,
+--     privilégios iguais, conferência morde sem o índice);
+--   * nível 2, projeto descartável, ANTES e DEPOIS: grants de
+--     `processos` idênticos (authenticated INSERT/SELECT/UPDATE;
+--     service_role sem TRUNCATE; anon nenhum), três políticas
+--     idênticas, 1 linha antes e depois, 0 linhas com chave; índice
+--     novo presente. Conferência interna aprovada;
+--   * comportamento no descartável, num bloco desfeito por exceção
+--     (0 tenants de ensaio restantes): chave repetida no mesmo tenant
+--     recusada (unique_violation), aceita em outro tenant, NULLs sem
+--     colisão, 'tem espaco' recusada (check_violation);
+--   * produção: medição ANTES feita (7 linhas, mesmos grants e
+--     políticas); a aplicação foi bloqueada pelo controle de permissão
+--     do agente e aguarda o operador.
 --
 -- O QUE FAZ
 --   `processos.idempotency_key` + índice único PARCIAL em
