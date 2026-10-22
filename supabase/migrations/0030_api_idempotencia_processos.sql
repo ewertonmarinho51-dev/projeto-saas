@@ -1,8 +1,25 @@
 -- ## 0030 — Idempotência na criação de processo pela API (/api/v1, P02)
--- ## ESTADO: APLICADA no projeto descartável `govdocs-ensaio-descartavel`
--- ##   em 22/10/2026 como `m0030_api_idempotencia_processos`.
--- ##   NÃO APLICADA EM PRODUÇÃO (atualizar este cabeçalho ao aplicar).
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 22/10/2026, por autorização expressa
+-- ##   do operador, como `m0030_api_idempotencia_processos` (registro
+-- ##   20261022162106). Antes, no projeto descartável
+-- ##   `govdocs-ensaio-descartavel`, com o mesmo nome.
 -- ##   Só a API nova usa a coluna; o Streamlit não a lê nem a escreve.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (22/10/2026):
+--   * ANTES e DEPOIS idênticos: grants de `processos` (authenticated
+--     INSERT/SELECT/UPDATE; service_role sem TRUNCATE; anon nenhum), as
+--     três políticas, 7 linhas e o mesmo md5 de (id, atualizado_em) em
+--     todas elas — nenhuma linha tocada;
+--   * DEPOIS: coluna `text`, nullable, sem default; índice único parcial
+--     e CHECK com a definição exata deste arquivo; 0 linhas com chave;
+--     conferência interna aprovada;
+--   * comportamento NÃO ensaiado em produção, de propósito: o ritual
+--     proíbe exercitar sobre dado real o que a migração existe para
+--     impedir. O comportamento foi provado no descartável (abaixo);
+--   * advisor de segurança sem achado novo. Os que aparecem já existiam
+--     (`vector` em public, RPCs SECURITY DEFINER deliberadas da
+--     0020/0021, tabelas de backup sem política, proteção contra senha
+--     vazada desligada no Auth) e ficam fora do escopo desta migração.
 --
 -- REGISTRO DO ENSAIO (22/10/2026):
 --   * nível 1: PostgreSQL do CI, `tests/test_migracao_0030.py` verde no
