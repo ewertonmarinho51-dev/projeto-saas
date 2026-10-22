@@ -147,3 +147,17 @@ def test_flag_desligada_e_404(emissor, banco, dominio):
     r = TestClient(app).patch(URL, headers=_h(emissor), json={"incluir": False})
     assert r.status_code == 404
     assert dominio.chamadas == []
+
+
+def test_dominio_usa_a_mesma_configuracao_da_api(api):
+    # A fixture `api` montou o app com SUPABASE_URL/KEY só no dicionário de
+    # configuração, nada no ambiente. O domínio tem de enxergar os mesmos.
+    assert db._segredo("SUPABASE_URL") == "https://exemplo-staging.supabase.co"
+    assert db._segredo(db.NOME_CHAVE_PUBLICA) == "chave-publicavel-de-teste"
+
+
+def test_chave_de_servidor_nunca_vai_para_o_dominio():
+    from src.streamlit_opcional import configurar_supabase
+
+    with pytest.raises(ValueError):
+        configurar_supabase("https://x.exemplo.co", "sb_secret_" + "x" * 20)

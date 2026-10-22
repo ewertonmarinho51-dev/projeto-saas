@@ -106,6 +106,9 @@ def test_quem_nao_pode_escrever_nao_muda_o_banco(api_precos, pilha, pesquisa, ro
     revisao = _revisao(pilha, pesquisa["item"])
     r = api_precos.patch(_url(pesquisa, ref), headers=_h(pilha.contas[rotulo], revisao),
                          json={"incluir": False})
-    assert r.status_code != 200, f"{rotulo} conseguiu alterar a cesta de a1"
+    # Recusa de AUTORIZAÇÃO ou de regra — nunca 401: a sessão é válida, e
+    # um 401 aqui foi exatamente o que fez esta prova passar pelo motivo
+    # errado na primeira versão (o domínio sem configuração recusava tudo).
+    assert r.status_code in (403, 404, 409, 422), (rotulo, r.status_code, r.text)
     assert _referencia(pilha, pesquisa["item"])[1] == "selected"
     assert _revisao(pilha, pesquisa["item"]) == revisao

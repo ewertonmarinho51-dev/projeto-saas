@@ -126,6 +126,23 @@ else:
         st = _SUBSTITUTO
 
 
+def configurar_supabase(url: str, chave_publica: str) -> None:
+    """URL do projeto e chave PUBLICÁVEL para o cliente do usuário do
+    domínio (`db.cliente_do_usuario`), vindas da MESMA configuração da API.
+
+    Sem isto, o domínio as procuraria no ambiente: com a API configurada
+    por outro caminho, as duas metades divergiriam e o domínio recusaria
+    toda sessão (foi o que a prova real da cesta mostrou). Só vale no
+    substituto — no app, `st.secrets` é do Streamlit. Chave de servidor
+    NUNCA entra aqui: a API não a tem.
+    """
+    if st is not _SUBSTITUTO:
+        return
+    if chave_publica.startswith("sb_secret_"):
+        raise ValueError("chave de servidor no lugar da publicável")
+    _SUBSTITUTO.secrets.update({"SUPABASE_URL": url, "SUPABASE_KEY": chave_publica})
+
+
 @contextmanager
 def sessao_da_requisicao(token: str, tenant_id: str):
     """O `session_state` de UMA requisição da API: o token já verificado e

@@ -25,6 +25,7 @@ from .limites import Limitador, aplicar_limite
 from .seguranca import Identidade, VerificadorDeToken, exigir_identidade
 from .supabase_rest import ClienteRest
 from .verificador import VerificadorSupabase
+from src.streamlit_opcional import configurar_supabase
 
 VERSAO_API = "0.2.0"
 
@@ -116,6 +117,10 @@ def criar_app(config: Configuracao | None = None,
               verificador: VerificadorDeToken | None = None,
               rest: ClienteRest | None = None) -> FastAPI:
     config = config or carregar()
+    if config.autenticacao_configurada:
+        # O domínio (`db.cliente_do_usuario`) usa a MESMA URL e chave
+        # publicável da API — nunca uma segunda fonte de configuração.
+        configurar_supabase(config.supabase_url, config.supabase_chave_publica)
     if verificador is None:
         verificador, rest = _montar_autenticacao(config, rest)
     app = FastAPI(
