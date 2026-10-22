@@ -420,20 +420,20 @@ def test_c10_tarefa_critica_sem_motor_homologado_falha_com_mensagem(monkeypatch)
 
     monkeypatch.setenv(ai_gateway.VAR_ROTEAMENTO, "true")
     monkeypatch.setattr(llm, "motores_disponiveis",
-                        lambda: [("openrouter", "k")])
+                        lambda: [("gemini", "k")])
     monkeypatch.setattr(llm, "_chamar_motor", lambda *_a, **_k: pytest.fail(
         "não podia chamar motor não homologado"))
     with pytest.raises(llm.ErroGeracaoIA, match="homologado"):
         llm._percorrer_motores("edital", "s", "u")
 
 
-def test_c06_exclusivo_bloqueado_com_roteamento_e_sem_homologacao(monkeypatch):
+def test_c06_exclusivo_bloqueado_para_grupos_ainda_sem_homologacao(monkeypatch):
     """Produção roda com o roteamento LIGADO (/etc/govdocs/env, 14/10)."""
     from src import ai_gateway
 
     monkeypatch.setenv(ai_gateway.VAR_ROTEAMENTO, "true")
     motivo = llm.impedimento_ao_modo_exclusivo()
-    assert "PROCUREMENT_HIGH_ACCURACY" in motivo and "homolog" in motivo
+    assert "HIGH_ACCURACY" in motivo and "homolog" in motivo
     monkeypatch.setenv(ai_gateway.VAR_ROTEAMENTO, "false")
     assert llm.impedimento_ao_modo_exclusivo() == ""
 
