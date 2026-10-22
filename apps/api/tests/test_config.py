@@ -2,7 +2,8 @@ import pytest
 
 from govconect_api.config import ConfiguracaoInvalida, carregar
 
-PROD = {"APP_ENV": "production", "SUPABASE_URL": "https://prod.exemplo.co"}
+PROD = {"APP_ENV": "production", "SUPABASE_URL": "https://prod.exemplo.co",
+        "SUPABASE_KEY": "chave-publicavel-de-teste"}
 
 
 def test_padrao_e_desenvolvimento_sem_supabase():

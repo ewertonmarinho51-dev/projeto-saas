@@ -5,3 +5,8 @@ fastapi==0.159.1
 starlette==1.9.0
 pydantic==2.14.1
 uvicorn==0.54.0
+# Cliente do PostgREST (mesma versão do app Streamlit).
+httpx==0.28.1
+# Verificação do JWT do Supabase Auth: ES256 pelo JWKS exige `cryptography`.
+PyJWT==2.15.1
+cryptography==50.0.2

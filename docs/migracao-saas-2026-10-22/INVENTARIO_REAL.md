@@ -143,16 +143,16 @@ alheia a esta frente. COMPROVADO.
 
 ## 8. Riscos e bloqueios
 
-1. **Staging isolado não existe** (até prova em contrário). Teste de RLS
-   contra Supabase remoto: BLOQUEADO. Contorno sem risco: pilha
-   descartável local (Postgres + GoTrue + PostgREST), já usada pelo
-   `auth-real.yml`.
-2. **Modo de assinatura do JWT em produção** desconhecido. A doc atual
-   do Supabase: `/auth/v1/.well-known/jwks.json` só devolve chaves com
-   **assinatura assimétrica** ligada. Se produção estiver no segredo HS256
-   legado, a API precisaria do segredo compartilhado (pior) ou da
-   migração para chaves assimétricas (ato do operador). Decidir antes do
-   P02 chegar a staging.
+1. **Staging de aplicação não existe.** *Corrigido no P02:* existe o
+   projeto Supabase `govdocs-ensaio-descartavel`, usado para ensaiar
+   migrações (a 0029 passou por ele), com o mesmo `processos` de
+   produção. Não é staging do app — não há deploy apontando para ele —,
+   mas serve de nível 2 do ensaio de migração. A prova de RLS da API
+   roda na pilha descartável local (job `api-rls`).
+2. **Modo de assinatura do JWT em produção.** *Resolvido no P02:* o
+   JWKS público de produção publica **uma chave EC P-256, ES256**
+   (conferido em 22/10/2026, sem credencial). A API verifica pelo JWKS e
+   recusa HS256 em produção; o job `api-rls` reproduz o mesmo modo.
 3. **Revogação**: JWT vale até `exp`. A API precisa conferir
    `usuarios.ativo` por requisição (com o JWT do usuário, política
    `usuarios_le_a_si`) para "usuário revogado perde acesso em prazo
@@ -169,6 +169,5 @@ alheia a esta frente. COMPROVADO.
 **GO** para P01 (estrutura da API em pasta nova, sem retirar o Streamlit,
 sem tocar WordCraft, banco ou produção) — executado neste PR.
 
-**GO condicional** para P02: RLS real via pilha descartável local.
-Contra Supabase de staging: **BLOQUEADO** até o operador criar o projeto
-e decidir o item 2.
+**GO** para P02 (executado no PR seguinte): RLS real via pilha
+descartável local, no modo de assinatura de produção (ES256).

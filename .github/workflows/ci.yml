@@ -230,3 +230,63 @@ jobs:
 
       - name: Rodar testes da API
         run: python -m pytest -q
+
+  # Autorização da API contra a pilha REAL descartável: PostgreSQL com o
+  # schema do repositório, GoTrue oficial assinando ES256 (como produção)
+  # e PostgREST. É aqui que tenant A × tenant B, revogação, edição
+  # concorrente e idempotência são provados — os testes de `apps/api/tests`
+  # só provam o que a API manda ao banco, não o que o banco faz.
+  # Binários pinados pelos MESMOS SHA-256 do auth-real.yml.
+  api-rls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 127.0.0.1:5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: apps/api/requirements-dev.txt
+
+      - name: Instalar dependências da API e do ensaio
+        run: pip install -r apps/api/requirements-dev.txt "psycopg[binary]==3.3.6"
+
+      - name: Baixar GoTrue e PostgREST pinados
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rls-bin"
+          curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 --max-time 120 \
+            https://github.com/supabase/auth/releases/download/v2.197.0/auth-v2.197.0-amd64.tar.xz \
+            -o "$RUNNER_TEMP/rls-bin/auth.tar.xz"
+          echo "b5c2991d1df760c9b099c1c2395a94bd1c2f83ed58901934921997179dc9f7ea  $RUNNER_TEMP/rls-bin/auth.tar.xz" | sha256sum --check
+          curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 --max-time 120 \
+            https://github.com/PostgREST/postgrest/releases/download/v12.2.12/postgrest-v12.2.12-linux-static-x86-64.tar.xz \
+            -o "$RUNNER_TEMP/rls-bin/postgrest.tar.xz"
+          echo "5de4092f1719da3353c40bf96c8dec6913f2254a7cd0b61cc05f233153b557d5  $RUNNER_TEMP/rls-bin/postgrest.tar.xz" | sha256sum --check
+          tar -xJf "$RUNNER_TEMP/rls-bin/postgrest.tar.xz" -C "$RUNNER_TEMP/rls-bin" postgrest
+
+      - name: Provar autorização da API na pilha real
+        working-directory: apps/api
+        env:
+          GOVCONECT_EXIGIR_RLS: "1"
+          GOVCONECT_RLS_PG_DSN: "host=127.0.0.1 port=5432 dbname=postgres user=postgres password=postgres"
+          GOVCONECT_GOTRUE_TAR: ${{ runner.temp }}/rls-bin/auth.tar.xz
+          GOVCONECT_POSTGREST_BIN: ${{ runner.temp }}/rls-bin/postgrest
+          PYTHONUTF8: "1"
+        run: python -m pytest -q tests_rls

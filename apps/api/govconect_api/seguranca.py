@@ -7,21 +7,22 @@ não tem atalho: sem cabeçalho é 401; com cabeçalho e sem verificador
 configurado é 503. Não existe caminho em que "não consegui verificar"
 vire "deixo passar".
 
-O verificador real (JWT do Supabase Auth, assinatura e claims conferidas
-no servidor, vínculo institucional na tabela `usuarios`) entra no P02.
-Até lá a API não autoriza NINGUÉM — e é exatamente isso que ela deve
-fazer enquanto não sabe verificar.
+O verificador real mora em `verificador.py` (assinatura, claims e
+vínculo em `usuarios`). Sem ele configurado, a API não autoriza
+NINGUÉM — que é o que ela deve fazer enquanto não sabe verificar.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from fastapi import Request
 
-from .erros import ErroApi
+from .erros import ErroApi, request_id_de
 
+_log = logging.getLogger("govconect_api")
 _DESAFIO = {"WWW-Authenticate": "Bearer"}
 
 
@@ -38,10 +39,21 @@ class Identidade:
     tenant_id: str
     papel: str
     secretaria_id: str | None = None
+    # `usuarios.id` — o identificador da tabela própria do app, diferente
+    # de `auth_user_id`. O Streamlit lista processos do servidor por ele.
+    usuario_id: str = ""
+    # O token segue com a identidade para as chamadas ao PostgREST irem
+    # com ELE. Fora do repr e da comparação: não aparece em log nem em
+    # mensagem de asserção.
+    token: str = field(default="", repr=False, compare=False)
 
 
 class TokenRecusado(Exception):
     """Assinatura, emissor, audiência ou prazo não conferem."""
+
+
+class SemVinculo(Exception):
+    """Token autêntico, mas sem vínculo institucional válido e ativo."""
 
 
 class VerificadorDeToken(Protocol):
@@ -66,7 +78,17 @@ def exigir_identidade(request: Request) -> Identidade:
         raise ErroApi(503, "AUTH_UNAVAILABLE",
                       "Autenticação indisponível neste ambiente")
     try:
-        return verificador.verificar(token)
-    except TokenRecusado:
+        identidade = verificador.verificar(token)
+    except TokenRecusado as exc:
+        _log.info("token_recusado request_id=%s motivo=%s",
+                  request_id_de(request), exc)
         raise ErroApi(401, "UNAUTHENTICATED",
                       "Sessão ausente, expirada ou inválida", _DESAFIO) from None
+    except SemVinculo as exc:
+        # Motivo só no log: dizer ao cliente "sua conta existe mas está
+        # desativada" é informação que quem testa credenciais quer ter.
+        _log.info("acesso_negado request_id=%s motivo=%s",
+                  request_id_de(request), exc)
+        raise ErroApi(403, "FORBIDDEN", "Acesso negado") from None
+    request.state.identidade = identidade
+    return identidade

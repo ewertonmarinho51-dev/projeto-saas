@@ -86,7 +86,8 @@ def test_validacao_nao_ecoa_o_que_recebeu(config):
 
 def test_documentacao_interativa_so_em_desenvolvimento():
     prod = carregar({"APP_ENV": "production",
-                     "SUPABASE_URL": "https://prod.exemplo.co"})
+                     "SUPABASE_URL": "https://prod.exemplo.co",
+                     "SUPABASE_KEY": "chave-publicavel-de-teste"})
     cliente = TestClient(criar_app(prod))
     assert cliente.get("/docs").status_code == 404
     assert cliente.get("/openapi.json").status_code == 404
@@ -95,6 +96,7 @@ def test_documentacao_interativa_so_em_desenvolvimento():
 def test_cors_so_para_origem_listada():
     config = carregar({"APP_ENV": "staging",
                        "SUPABASE_URL": "https://staging.exemplo.co",
+                       "SUPABASE_KEY": "chave-publicavel-de-teste",
                        "GOVCONECT_CORS_ORIGINS": "https://app.staging.exemplo.co"})
     cliente = TestClient(criar_app(config))
     preflight = {"Access-Control-Request-Method": "GET",
