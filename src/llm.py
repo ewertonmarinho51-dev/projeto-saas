@@ -322,7 +322,18 @@ def obter_chave_de_embeddings() -> str:
     divergiriam na primeira vez que alguém mexesse em uma só — e a
     daquela função já cobre a barra lateral, que a outra esqueceria.
     """
-    return _ler_chave("OPENAI_EMBEDDINGS_KEY", "") or obter_openai_key()
+    dedicada = _ler_chave("OPENAI_EMBEDDINGS_KEY", "")
+    if dedicada:
+        return dedicada
+    legada = obter_openai_key()
+    # Instalações antigas podem ter reutilizado OPENAI_API_KEY para guardar
+    # a chave do provedor de geração. Uma chave OpenRouter enviada ao endpoint
+    # da OpenAI sempre falha com 401 e transforma a busca RAG opcional em
+    # falha da geração inteira. Sem uma chave dedicada e sem a rota OpenRouter
+    # explicitamente homologada, preserve o fallback textual.
+    if legada.strip().lower().startswith("sk-or-"):
+        return ""
+    return legada
 
 
 # Embeddings pelo OpenRouter (C09). Variável de AMBIENTE, como as do

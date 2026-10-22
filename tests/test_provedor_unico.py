@@ -152,6 +152,17 @@ def test_a_chave_antiga_continua_servindo_ao_indice(monkeypatch):
     assert llm.obter_chave_de_embeddings() == "sk-antiga"
 
 
+def test_chave_openrouter_legada_nao_e_enviada_a_openai(monkeypatch):
+    valores = {"OPENAI_EMBEDDINGS_KEY": "",
+               "OPENAI_API_KEY": "sk-or-v1-legada"}
+    monkeypatch.setattr(llm, "_ler_chave",
+                        lambda nome, _s: valores.get(nome, ""))
+    monkeypatch.delenv(llm.VAR_EMBEDDINGS_OPENROUTER, raising=False)
+
+    assert llm.obter_chave_de_embeddings() == ""
+    assert llm.rota_de_embeddings() is None
+
+
 def test_a_dedicada_tem_precedencia_sobre_a_antiga(monkeypatch):
     valores = {"OPENAI_EMBEDDINGS_KEY": "sk-nova",
                "OPENAI_API_KEY": "sk-antiga"}
