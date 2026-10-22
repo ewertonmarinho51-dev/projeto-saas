@@ -100,6 +100,20 @@ assinada de curta duração (≤ 5 min). URL assinada nunca vai a log.
   backoff com jitter e teto; falha final registrada (DLQ lógica) com
   reprocesso administrativo.
 - `--concurrency=1` como ponto de partida no VPS; medir antes de subir.
+- **Implementado no P04c (22/10/2026)**: `api_jobs` (0031) com RLS do
+  dono; `POST /precos/pesquisas/{id}/coleta` → 202; `GET /jobs/{id}`;
+  worker Celery (`govconect_api.fila`) que roda o passo REENTRANTE do
+  domínio (`cotacoes.pesquisar_em_lote`, um item por vez) — o ponto de
+  retomada é o estado dos itens, não o broker.
+- **Decisão consequente — o token do usuário viaja no aviso da fila.**
+  As tabelas de preços (0021) só aceitam escrita do `authenticated`, e o
+  worker não tem (nem deve ter) credencial de servidor. O token vai na
+  mensagem com `expires` igual à validade dele, fora do log (`argsrepr`),
+  num Redis só da rede interna. Quando ele está a 90 s de vencer, o job
+  para com `SESSION_EXPIRED` e o usuário recomeça sem perder o coletado.
+  Alternativa rejeitada: um papel de worker com credencial própria e
+  política dedicada — mais superfície e mais uma credencial para girar,
+  para um ganho que só aparece em coletas de mais de uma hora.
 - SSE só depois de o polling funcionar.
 
 ---

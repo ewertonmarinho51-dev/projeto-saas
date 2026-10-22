@@ -195,6 +195,83 @@
         "title": "Item",
         "type": "object"
       },
+      "Job": {
+        "properties": {
+          "concluido_em": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concluido Em"
+          },
+          "criado_em": {
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "erro_codigo": {
+            "title": "Erro Codigo",
+            "type": "string"
+          },
+          "estado": {
+            "title": "Estado",
+            "type": "string"
+          },
+          "feitos": {
+            "title": "Feitos",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "iniciado_em": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iniciado Em"
+          },
+          "progresso": {
+            "title": "Progresso",
+            "type": "integer"
+          },
+          "recurso_id": {
+            "title": "Recurso Id",
+            "type": "string"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "tipo",
+          "recurso_id",
+          "estado",
+          "feitos",
+          "total",
+          "progresso",
+          "erro_codigo",
+          "criado_em",
+          "iniciado_em",
+          "concluido_em"
+        ],
+        "title": "Job",
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "auth_user_id": {
@@ -338,6 +415,18 @@
           "proximo_cursor"
         ],
         "title": "PaginaDeProcessos",
+        "type": "object"
+      },
+      "PedidoDeColeta": {
+        "additionalProperties": false,
+        "properties": {
+          "modo": {
+            "default": "manual",
+            "title": "Modo",
+            "type": "string"
+          }
+        },
+        "title": "PedidoDeColeta",
         "type": "object"
       },
       "Pesquisa": {
@@ -906,6 +995,53 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/jobs/{job_id}": {
+      "get": {
+        "operationId": "consultar_api_v1_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou de outra pessoa"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consultar",
+        "tags": [
+          "v1",
+          "jobs"
+        ]
+      }
+    },
     "/api/v1/me": {
       "get": {
         "operationId": "me_api_v1_me_get",
@@ -1050,6 +1186,84 @@
         "tags": [
           "v1",
           "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/coleta": {
+      "post": {
+        "operationId": "iniciar_api_v1_precos_pesquisas__pesquisa_id__coleta_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeColeta"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Repetição da mesma Idempotency-Key"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Fila indisponível"
+          }
+        },
+        "summary": "Iniciar",
+        "tags": [
+          "v1",
+          "jobs"
         ]
       }
     },

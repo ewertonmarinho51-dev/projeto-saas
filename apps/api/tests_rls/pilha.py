@@ -288,6 +288,23 @@ def semear_precos(pilha: Pilha) -> dict:
     return {"pesquisa": pesquisa_a, "vazia": pesquisa_vazia, "item": item}
 
 
+def semear_coleta(pilha: Pilha) -> str:
+    """Pesquisa de `a1` com dois itens PENDENTES: o que a coleta processa."""
+    import psycopg
+
+    a1 = pilha.contas["a1"]
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        pid = str(c.execute(
+            "insert into public.pesquisas_preco (tenant_id, secretaria_id, auth_user_id, nome, "
+            "estado, idempotency_key) values (%s,%s,%s,'Coleta E2E','draft',%s) returning id",
+            (a1.tenant_id, a1.secretaria_id, a1.auth_user_id, uuid.uuid4().hex)).fetchone()[0])
+        for n in (1, 2):
+            c.execute("insert into public.pesquisa_preco_itens (pesquisa_id, tenant_id, numero, "
+                      "descricao, unidade, quantidade) values (%s,%s,%s,%s,'UN',10)",
+                      (pid, a1.tenant_id, n, f"Item {n} da coleta"))
+    return pid
+
+
 def principal() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--estado", required=True, type=Path,
@@ -301,6 +318,7 @@ def principal() -> int:
     with subir() as pilha:
         estado = {"url": pilha.url, "anon": pilha.anon,
                   "precos": semear_precos(pilha),
+                  "coleta": semear_coleta(pilha),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
         temporario = args.estado.with_suffix(".tmp")

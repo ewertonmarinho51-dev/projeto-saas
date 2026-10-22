@@ -179,3 +179,17 @@ export type ReferenciaDePreco = {
 export function precosHabilitado(): boolean {
   return flagLigada(process.env.PRICE_RESEARCH_ENABLED);
 }
+
+export type Job = {
+  id: string;
+  tipo: string;
+  recurso_id: string;
+  estado: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+  feitos: number;
+  total: number;
+  progresso: number;
+  erro_codigo: string;
+  criado_em: string;
+  iniciado_em: string | null;
+  concluido_em: string | null;
+};
