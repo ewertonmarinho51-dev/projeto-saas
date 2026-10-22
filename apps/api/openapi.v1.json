@@ -229,6 +229,32 @@
         "title": "Me",
         "type": "object"
       },
+      "MudancaNaCesta": {
+        "additionalProperties": false,
+        "properties": {
+          "incluir": {
+            "title": "Incluir",
+            "type": "boolean"
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo"
+          }
+        },
+        "required": [
+          "incluir"
+        ],
+        "title": "MudancaNaCesta",
+        "type": "object"
+      },
       "NovoProcesso": {
         "additionalProperties": false,
         "properties": {
@@ -714,6 +740,48 @@
         "title": "Referencia",
         "type": "object"
       },
+      "ResultadoDaCesta": {
+        "properties": {
+          "metodo": {
+            "title": "Metodo",
+            "type": "string"
+          },
+          "pendencias": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pendencias",
+            "type": "array"
+          },
+          "preco_estimado": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisao": {
+            "title": "Revisao",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "preco_estimado",
+          "metodo",
+          "status",
+          "pendencias",
+          "revisao"
+        ],
+        "title": "ResultadoDaCesta",
+        "type": "object"
+      },
       "ResumoPesquisa": {
         "properties": {
           "atualizado_em": {
@@ -1040,6 +1108,98 @@
           }
         },
         "summary": "Referencias",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/itens/{item_id}/referencias/{referencia_id}": {
+      "patch": {
+        "operationId": "mudar_api_v1_precos_pesquisas__pesquisa_id__itens__item_id__referencias__referencia_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "referencia_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Referencia Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MudancaNaCesta"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultadoDaCesta"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "409": {
+            "description": "Revisão desatualizada ou cotação imutável"
+          },
+          "422": {
+            "description": "Regra da cesta recusou (ex.: incluir sem motivo)"
+          },
+          "428": {
+            "description": "If-Match ausente"
+          }
+        },
+        "summary": "Mudar",
         "tags": [
           "v1",
           "precos"

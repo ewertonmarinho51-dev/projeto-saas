@@ -29,7 +29,8 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-import streamlit as st
+# `st` é o Streamlit no app e um substituto puro na API (ver o módulo).
+from .streamlit_opcional import st
 
 from . import trilha
 

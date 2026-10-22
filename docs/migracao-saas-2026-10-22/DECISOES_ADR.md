@@ -129,6 +129,17 @@ custo de IA por tenant reaproveitando `0028_controle_de_consumo_e_cache`.
   lado do antigo; o Streamlit migra para eles depois, com a suíte dele
   verde. Nenhum PR desta frente reescreve `db.py`/`auth.py`/`state.py`
   de uma vez.
+- **P04b, 22/10/2026:** o primeiro passo dessa extração foi o
+  `src/streamlit_opcional.py`. O `db.py` usava o Streamlit em só oito
+  pontos (`secrets`, `session_state`, `cache_resource`, `cache_data`);
+  agora importa `st` desse módulo, que é o Streamlit de verdade no app
+  (inclusive para os testes que trocam `db.st.session_state`) e um
+  substituto puro com `GOVDOCS_SEM_STREAMLIT=1` (a API liga no
+  `__init__`). Na API, o `session_state` é um `ContextVar` por requisição,
+  aberto por `sessao_da_requisicao(token, tenant)` com a identidade JÁ
+  verificada. Com isso a API chama a MESMA regra da cesta
+  (`cotacoes.alterar_status_referencia`) em vez de reescrevê-la — regra
+  duplicada diverge na primeira correção feita só de um lado.
 - Feature flags novas nascem desligadas: `PRICE_RESEARCH_ENABLED`,
   `DOCUMENTS_NEXT_UI_ENABLED`. `price_research` não liga sem auth + RLS
   + rate limit + orçamento de IA aprovados.

@@ -18,13 +18,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from . import erros, precos, processos
+from . import cesta, erros, precos, processos
 from .camadas import CamadaDeRequisicao
 from .config import Configuracao, carregar
 from .limites import Limitador, aplicar_limite
 from .seguranca import Identidade, VerificadorDeToken, exigir_identidade
 from .supabase_rest import ClienteRest
 from .verificador import VerificadorSupabase
+from src.streamlit_opcional import configurar_supabase
 
 VERSAO_API = "0.2.0"
 
@@ -94,6 +95,7 @@ def _rotas_v1() -> APIRouter:
 
     rotas.include_router(processos.rotas())
     rotas.include_router(precos.rotas())
+    rotas.include_router(cesta.rotas())
     return rotas
 
 
@@ -115,6 +117,10 @@ def criar_app(config: Configuracao | None = None,
               verificador: VerificadorDeToken | None = None,
               rest: ClienteRest | None = None) -> FastAPI:
     config = config or carregar()
+    if config.autenticacao_configurada:
+        # O domínio (`db.cliente_do_usuario`) usa a MESMA URL e chave
+        # publicável da API — nunca uma segunda fonte de configuração.
+        configurar_supabase(config.supabase_url, config.supabase_chave_publica)
     if verificador is None:
         verificador, rest = _montar_autenticacao(config, rest)
     app = FastAPI(
