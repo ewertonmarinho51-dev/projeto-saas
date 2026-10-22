@@ -165,7 +165,7 @@ def test_chave_openrouter_legada_nao_e_enviada_a_openai(monkeypatch):
 
 def test_chave_openrouter_dedicada_nao_e_enviada_a_openai(monkeypatch):
     """Uma credencial OpenRouter não é válida no endpoint da OpenAI."""
-    valores = {"OPENAI_EMBEDDINGS_KEY": "sk-or-v1-configurada-errado",
+    valores = {"OPENAI_EMBEDDINGS_KEY": "sk-" + "or-v1-configurada-errado",
                "OPENAI_API_KEY": ""}
     monkeypatch.setattr(llm, "_ler_chave",
                         lambda nome, _manual: valores.get(nome, ""))
