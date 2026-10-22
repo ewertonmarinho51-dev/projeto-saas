@@ -1,0 +1,4 @@
+# P01 — Gate F0: baseline real e extração mínima
+Execute o Gate F0 do pacote Gov Conect. Use Cartographer e `CLAUDE.md`; liste módulos e dependências Streamlit, portas/adapters, serviços reutilizáveis e tabela de rotas para fluxos processos/preços/documentos. Examine migrações 0018–0029 e 20261015+ para RLS, auth e editor; consulte PRs abertos para reduzir conflito.
+
+Crie worktree independente `claude/migracao-nextjs-api-*` (se já existir, novo nome), não altere WordCraft. Gere inventário com SHA, pontos de acoplamento, fluxos, plano mínimo de compatibilidade e 3 ADRs (API/BFF, Auth/RLS, worker). Rode testes baseline existentes em ambiente não produtivo, sem LLM faturada. Capture comandos e resultados reais. Se F0 passar, implemente somente a estrutura inicial da API em NOVA pasta sem retirar o Streamlit. Retorne arquivos alterados, riscos e primeiro PR isolado. Não merge nem deploy em produção.

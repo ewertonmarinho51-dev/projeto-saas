@@ -1,0 +1,6 @@
+# P03 — Gate F2: frontend real e login
+Crie `apps/web/` Next.js App Router + TypeScript e o design system Gov Conect. Preserve artefatos da identidade: `assets/logo-original.png`, não recrie logo por desenho artificial. Tokens CSS amostrados da marca, fonte legível, minimalismo institucional, tema claro, glassmorphism pontual, hover states + focus-visible acessível, reduced-motion.
+
+Implementar páginas `/`, `/entrar`, `/app` e proteção real de rotas usando Supabase Auth SSR/PKCE pela documentação atual (não codificar sessão insegura à mão). No hero: título orientado a benefício verificável, CTAs reais, diagrama HTML+SVG (diagram-design se aprovado), seção do produto. No login: formulário com validação, erros neutros, sessão, saída, recuperação e redirecionamento; animação de logo só opcional, leve, sem bloquear form. No app: shell sidebar/topbar/responsivo e dados verdadeiros de `/api/v1/me`, processos.
+
+Carregar skills próprias design-taste/design-minimalist primeiro; se instalados, usar Agent Skills `frontend-ui-engineering` e Playwright CLI para abrir e navegar no browser. Capturar 375x812, 768x1024, 1440x900. Testar teclado, foco, contraste, estados de erro e logout; console 0 erros relevantes. Não aceitar dashboard fictício em produção e não introduzir editor novo. Todos os requests privados `no-store` e sem leaks entre tenants.

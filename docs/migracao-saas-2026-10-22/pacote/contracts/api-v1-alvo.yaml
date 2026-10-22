@@ -1,0 +1,47 @@
+openapi: 3.1.0
+info:
+  title: Gov Conect API — Contrato-alvo para revisão
+  version: 0.1.0-draft
+  description: Especificação inicial NÃO IMPLEMENTADA. O Claude deve validar o modelo real antes de congelar.
+servers:
+  - url: /api/v1
+paths:
+  /me:
+    get:
+      summary: Identidade e escopo verificados no backend
+      responses:
+        '200':
+          description: Identidade autorizada
+        '401':
+          description: Sessão ausente, expirada ou inválida
+  /processos:
+    get:
+      summary: Lista processos visíveis ao tenant autenticado
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200': { description: Lista filtrada autorizada }
+        '401': { description: Acesso não autenticado }
+    post:
+      summary: Cria processo com deduplicação
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '201': { description: Processo criado }
+        '401': { description: Acesso não autenticado }
+  /jobs/{job_id}:
+    get:
+      summary: Consulta estado de tarefa autorizada
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Estado persistido no banco }
+        '404': { description: Tarefa inexistente ou não autorizada }
