@@ -1,0 +1,4 @@
+-r requirements.txt
+# TestClient do Starlette usa httpx; mesma versão do app Streamlit.
+httpx==0.28.1
+pytest==9.1.1

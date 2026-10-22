@@ -1,0 +1,160 @@
+{
+  "components": {
+    "schemas": {
+      "Me": {
+        "properties": {
+          "auth_user_id": {
+            "title": "Auth User Id",
+            "type": "string"
+          },
+          "papel": {
+            "title": "Papel",
+            "type": "string"
+          },
+          "secretaria_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secretaria Id"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "auth_user_id",
+          "tenant_id",
+          "papel"
+        ],
+        "title": "Me",
+        "type": "object"
+      },
+      "Pronto": {
+        "properties": {
+          "checks": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Checks",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "checks"
+        ],
+        "title": "Pronto",
+        "type": "object"
+      },
+      "Vivo": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "Vivo",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Gov Conect API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/me": {
+      "get": {
+        "operationId": "me_api_v1_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Sessão ausente ou inválida"
+          },
+          "503": {
+            "description": "Autenticação indisponível"
+          }
+        },
+        "summary": "Me",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/health/live": {
+      "get": {
+        "operationId": "vivo_health_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vivo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Vivo",
+        "tags": [
+          "saude"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "pronto_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pronto"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pronto"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Pronto",
+        "tags": [
+          "saude"
+        ]
+      }
+    }
+  }
+}

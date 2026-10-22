@@ -1,0 +1,7 @@
+# API do Gov Conect — dependências de execução, FIXADAS.
+# Subir versão é decisão: troque o número, rode `python -m pytest -q`
+# dentro de apps/api e diga no commit o que mudou.
+fastapi==0.159.1
+starlette==1.9.0
+pydantic==2.14.1
+uvicorn==0.54.0

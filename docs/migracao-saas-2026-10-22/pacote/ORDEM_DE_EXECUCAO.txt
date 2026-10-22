@@ -1,0 +1,6 @@
+1) Fornecer todo este diretório ao Claude Code e ler 00_LEIA_PRIMEIRO.md.
+2) Colar conteúdo de prompts/P00_MASTER.md.
+3) Rodar prompts/P01_DIAGNOSTICO_CONTRATOS.md.
+4) Seguir P02 → P03 → P04 → P05 → P06 → P07 conforme gates e dependências.
+5) P05 só quando o outro agente/editor tiver contrato estável.
+6) Sempre branch/PR/testes. Nunca merge, prod/DNS/migração destrutiva sem aprovação.
