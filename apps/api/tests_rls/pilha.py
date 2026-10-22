@@ -305,6 +305,54 @@ def semear_coleta(pilha: Pilha) -> str:
     return pid
 
 
+FLAGS_DA_EMISSAO = ("flag_precos_ciencia_emissao", "flag_precos_relatorio_visual")
+
+
+def ligar_flags_da_emissao(pilha: Pilha) -> None:
+    """As flags que a produção tem ligadas para a emissão (v1.9.6+). A API
+    as lê por `flags_do_app()` (0033), com o token do usuário."""
+    import psycopg
+
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        for chave in FLAGS_DA_EMISSAO:
+            c.execute("insert into public.config_app (chave, valor) values (%s, 'on') "
+                      "on conflict (chave) do update set valor = 'on'", (chave,))
+
+
+def semear_emissao(pilha: Pilha, dono: str = "a1") -> str:
+    """Pesquisa de `dono` com um item EM REVISÃO e uma referência na cesta:
+    a pendência "preço não confirmado pelo revisor" faz a emissão pedir
+    ciência — o caminho que importa provar.
+
+    O E2E usa outra conta (`admin_a`): o login do web limita 5 entradas
+    por IP + e-mail a cada 15 min, e a `a1` já entra em vários specs."""
+    import psycopg
+    from psycopg.types.json import Jsonb
+
+    ligar_flags_da_emissao(pilha)
+    a1 = pilha.contas[dono]
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        pid = str(c.execute(
+            "insert into public.pesquisas_preco (tenant_id, secretaria_id, auth_user_id, nome, "
+            "objeto, estado, valor_global, idempotency_key) values (%s,%s,%s,'Emissão E2E',"
+            "'Material de expediente','review',351.75,%s) returning id",
+            (a1.tenant_id, a1.secretaria_id, a1.auth_user_id, uuid.uuid4().hex)).fetchone()[0])
+        item = str(c.execute(
+            "insert into public.pesquisa_preco_itens (pesquisa_id, tenant_id, numero, codigo, "
+            "tipo_catalogo, descricao, unidade, quantidade, estado, metodo, preco_estimado, "
+            "preco_total) values (%s,%s,1,'451234','CATMAT','Caneta esferográfica azul','UN',150,"
+            "'review','mediana',2.3450,351.7500) returning id",
+            (pid, a1.tenant_id)).fetchone()[0])
+        c.execute(
+            "insert into public.pesquisa_preco_referencias (item_id, tenant_id, fonte_id, "
+            "fonte_nome, fonte_tipo, id_externo, raw_hash, descricao_original, "
+            "valor_unitario_original, valor_unitario_normalizado, natureza_valor, status, bruto) "
+            "values (%s,%s,'pncp','PNCP','sistema_oficial','ext-e1','he1','Caneta azul',2.3450,"
+            "2.3450,'homologado','selected',%s)",
+            (item, a1.tenant_id, Jsonb({"numeroControlePNCP": "12345678000190-1-000124/2025"})))
+    return pid
+
+
 def principal() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--estado", required=True, type=Path,
@@ -319,6 +367,7 @@ def principal() -> int:
         estado = {"url": pilha.url, "anon": pilha.anon,
                   "precos": semear_precos(pilha),
                   "coleta": semear_coleta(pilha),
+                  "emissao": semear_emissao(pilha, dono="admin_a"),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
         temporario = args.estado.with_suffix(".tmp")

@@ -77,3 +77,54 @@ export async function iniciarColeta(_: EstadoDaColeta, form: FormData): Promise<
   }
   redirect(`/app/precos/${pesquisa}?job=${jobId}`);
 }
+
+export type EstadoDaEmissao = { erro: string | null };
+
+const ERROS_DA_EMISSAO: Record<string, string> = {
+  CIENCIA_DESATUALIZADA: "A cesta mudou desde o aviso. Recarregue a página para conferir os alertas atualizados.",
+  EMISSION_UNAVAILABLE: "A emissão pela nova interface está desligada. Emita pelo aplicativo de sempre.",
+  QUEUE_UNAVAILABLE: "A emissão está indisponível no momento. Tente de novo em instantes.",
+  FORBIDDEN: "Só quem criou a pesquisa (ou o administrador) pode confirmar a ciência dos alertas.",
+};
+
+/**
+ * "Estou ciente" (quando a cesta pede) e o pedido do relatório, num envio
+ * só. A ciência vai com a ASSINATURA que a pessoa viu: se a cesta mudou
+ * desde o aviso, a API recusa (409) e nada é gerado. O worker confere a
+ * ciência de novo na hora de gerar.
+ */
+export async function emitirRelatorio(_: EstadoDaEmissao, form: FormData): Promise<EstadoDaEmissao> {
+  const pesquisa = String(form.get("pesquisa") ?? "");
+  // O botão clicado manda "tipo:formato".
+  const [tipo = "", formato = ""] = String(form.get("opcao") ?? "").split(":");
+  const assinatura = String(form.get("assinatura") ?? "");
+  // Uma chave por renderização e por relatório: o mesmo botão clicado duas
+  // vezes devolve o mesmo job; outro relatório da mesma tela é outro job.
+  const chave = `${String(form.get("chave") ?? "")}-${tipo}-${formato}`;
+  if (
+    !UUID.test(pesquisa) ||
+    !/^[a-z_]{3,30}$/.test(tipo) ||
+    !/^(pdf|docx|xlsx|zip)$/.test(formato) ||
+    !/^[A-Za-z0-9._:-]{8,128}$/.test(chave) ||
+    (assinatura !== "" && !/^[0-9a-f]{64}$/.test(assinatura))
+  ) {
+    return { erro: "Requisição inválida." };
+  }
+  let jobId: string;
+  try {
+    if (assinatura) {
+      await chamarApi(`/precos/pesquisas/${pesquisa}/ciencia`, { metodo: "POST", corpo: { assinatura } });
+    }
+    const { dados } = await chamarApi<{ id: string }>(`/precos/pesquisas/${pesquisa}/relatorios`, {
+      metodo: "POST",
+      corpo: { tipo, formato },
+      cabecalhos: { "Idempotency-Key": chave },
+    });
+    jobId = dados.id;
+  } catch (e) {
+    if (e instanceof ErroDaApi) return { erro: ERROS_DA_EMISSAO[e.codigo] ?? MENSAGENS[e.status] ?? "Não foi possível pedir o relatório." };
+    return { erro: "Não foi possível pedir o relatório." };
+  }
+  revalidatePath(`/app/precos/${pesquisa}`);
+  redirect(`/app/precos/${pesquisa}?relatorio=${jobId}`);
+}

@@ -31,6 +31,8 @@ from .supabase_rest import ClienteRest
 _log = logging.getLogger("govconect_api")
 
 NOME_TAREFA = "govconect.coletar_precos"
+NOME_TAREFA_RELATORIO = "govconect.emitir_relatorio"
+TAREFAS = {"coleta": NOME_TAREFA, "relatorio": NOME_TAREFA_RELATORIO}
 MAX_TENTATIVAS = 3
 
 
@@ -61,11 +63,15 @@ class FilaCelery:
         self._app = app
 
     def enfileirar(self, *, job_id: str, token: str, tenant_id: str,
-                   auth_user_id: str, secretaria_id: str | None) -> None:
+                   auth_user_id: str, secretaria_id: str | None,
+                   usuario_id: str = "", tarefa: str = "coleta") -> None:
         expira = expiracao_do_token(token)
         validade = max(1, int(expira - time.time())) if expira else 600
+        args = [job_id, token, tenant_id, auth_user_id, secretaria_id]
+        if tarefa == "relatorio":
+            args.append(usuario_id)
         self._app.send_task(
-            NOME_TAREFA, args=[job_id, token, tenant_id, auth_user_id, secretaria_id],
+            TAREFAS[tarefa], args=args,
             argsrepr=f"('{job_id}', '<token>', '{tenant_id}')", kwargsrepr="{}",
             expires=validade)
 
@@ -90,6 +96,39 @@ def coletar_precos(self, job_id: str, token: str, tenant_id: str, auth_user_id: 
     except (ErroTransitorio, ErroApi) as exc:
         if isinstance(exc, ErroApi) and exc.status == 401:
             # Token vencido no caminho: não há com que escrever no job.
+            _log.warning("job_token_vencido job=%s", job_id)
+            return "failed"
+        if self.request.retries >= MAX_TENTATIVAS:
+            try:
+                atualizar_job(rest, token, job_id, estado="failed",
+                              erro_codigo="DATABASE_UNAVAILABLE", concluido_em=_agora_iso())
+            except Exception:  # noqa: BLE001
+                _log.error("job_sem_registro_de_falha job=%s", job_id)
+            return "failed"
+        raise self.retry(exc=exc, countdown=_espera(self.request.retries)) from None
+    finally:
+        rest.fechar()
+
+
+@celery.task(name=NOME_TAREFA_RELATORIO, bind=True, max_retries=MAX_TENTATIVAS)
+def emitir_relatorio(self, job_id: str, token: str, tenant_id: str, auth_user_id: str,
+                     secretaria_id: str | None, usuario_id: str = "") -> str:
+    """Gera um relatório (P04d). O arquivo fica no MESMO Redis da fila,
+    30 min; a prova da emissão fica no banco (0029)."""
+    from .artefatos import DepositoRedis
+    from .relatorios import processar_relatorio
+    from src.streamlit_opcional import configurar_supabase
+
+    config = carregar()
+    configurar_supabase(config.supabase_url, config.supabase_chave_publica)
+    rest = ClienteRest(config.supabase_url, config.supabase_chave_publica)
+    try:
+        return processar_relatorio(job_id=job_id, token=token, tenant_id=tenant_id,
+                                   auth_user_id=auth_user_id, secretaria_id=secretaria_id,
+                                   usuario_id=usuario_id, rest=rest,
+                                   deposito=DepositoRedis(config.redis_url))
+    except (ErroTransitorio, ErroApi) as exc:
+        if isinstance(exc, ErroApi) and exc.status == 401:
             _log.warning("job_token_vencido job=%s", job_id)
             return "failed"
         if self.request.retries >= MAX_TENTATIVAS:

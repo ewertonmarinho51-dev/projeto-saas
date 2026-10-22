@@ -4,9 +4,16 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 
 import { BotaoDeColeta, ProgressoDaColeta } from "@/components/coleta";
+import { PainelDeEmissao, ProgressoDoRelatorio } from "@/components/emissao";
 import { dataCurta, rotuloEstadoItem, rotuloEstadoPesquisa, rotuloMetodo } from "@/components/precos";
 import { cartao } from "@/components/ui";
-import { chamarApi, ErroDaApi, precosHabilitado, type PesquisaDePrecos } from "@/lib/api";
+import {
+  chamarApi,
+  ErroDaApi,
+  precosHabilitado,
+  type PesquisaDePrecos,
+  type PreparoDaEmissao,
+} from "@/lib/api";
 
 export const metadata: Metadata = { title: "Pesquisa de preços" };
 
@@ -23,8 +30,9 @@ export default async function Pesquisa({
 }) {
   if (!precosHabilitado()) notFound();
   const { id } = await params;
-  const { job } = await searchParams;
+  const { job, relatorio } = await searchParams;
   const jobId = typeof job === "string" && UUID.test(job) ? job : null;
+  const relatorioId = typeof relatorio === "string" && UUID.test(relatorio) ? relatorio : null;
   if (!UUID.test(id)) notFound();
 
   let p: PesquisaDePrecos;
@@ -33,6 +41,15 @@ export default async function Pesquisa({
   } catch (e) {
     if (e instanceof ErroDaApi && e.status === 404) notFound();
     throw e;
+  }
+  // A emissão não derruba a página: sem preparo, a seção diz que não deu.
+  let preparo: PreparoDaEmissao | null = null;
+  if (p.itens.length > 0) {
+    try {
+      preparo = (await chamarApi<PreparoDaEmissao>(`/precos/pesquisas/${id}/emissao`)).dados;
+    } catch {
+      preparo = null;
+    }
   }
 
   return (
@@ -137,6 +154,28 @@ export default async function Pesquisa({
           </div>
         )}
       </section>
+
+      {p.itens.length > 0 && (
+        <section aria-labelledby="titulo-emissao" className="grid gap-3" data-testid="secao-emissao">
+          <div>
+            <h2 id="titulo-emissao" className="text-lg font-semibold">
+              Relatórios
+            </h2>
+            {preparo && (
+              <p className="mt-1 text-sm text-secundario">
+                Identificador desta versão do resultado: <span className="font-mono">{preparo.identificador.slice(0, 16)}</span>.
+                O mesmo resultado gera sempre o mesmo identificador.
+              </p>
+            )}
+          </div>
+          {relatorioId && <ProgressoDoRelatorio jobId={relatorioId} />}
+          {preparo ? (
+            <PainelDeEmissao pesquisa={p.id} preparo={preparo} chave={`web-rel-${crypto.randomUUID()}`} />
+          ) : (
+            <p className="text-sm text-secundario">Não foi possível preparar a emissão agora. Recarregue a página em instantes.</p>
+          )}
+        </section>
+      )}
     </div>
   );
 }

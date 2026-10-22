@@ -394,6 +394,12 @@ def disponivel() -> bool:
     """
     if em_manutencao():
         return False
+    from .streamlit_opcional import sem_streamlit
+
+    if sem_streamlit():
+        # Na API a credencial utilizável é o token do usuário + a chave
+        # publicável; a de servidor não existe ali, por desenho.
+        return bool(_segredo("SUPABASE_URL") and _segredo(NOME_CHAVE_PUBLICA))
     try:
         url, chave = _config()
     except ErroBanco:
@@ -401,7 +407,6 @@ def disponivel() -> bool:
     return bool(url and chave)
 
 
-@st.cache_resource(show_spinner=False)
 def _cliente():
     """
     Cliente de SERVIDOR. Carrega a credencial secreta e, portanto,
@@ -409,12 +414,32 @@ def _cliente():
 
     Não é o cliente das operações de usuário. Ver `cliente_do_usuario()`
     e `docs/etapa-e-credencial-de-servidor.md`.
+
+    Na API (sem Streamlit) NÃO existe credencial de servidor (ADR-002), e
+    a chave publicável sozinha é o papel `anon`, que a 0019 fechou: o que
+    o domínio pede ao "servidor" — timbrado, secretarias — vai com o
+    token do USUÁRIO, e o RLS decide. Sem sessão, recusa.
     """
+    from .streamlit_opcional import sem_streamlit
+
+    if sem_streamlit():
+        cliente = cliente_do_usuario()
+        if cliente is None:
+            raise ErroBanco("sem sessão do usuário")
+        return cliente
+    return _cliente_de_servidor()
+
+
+@st.cache_resource(show_spinner=False)
+def _cliente_de_servidor():
     from supabase import create_client  # import tardio: app abre sem a lib
 
     exigir_operacional()
     url, chave = _config()
     return create_client(url, chave)
+
+
+_cliente.clear = _cliente_de_servidor.clear
 
 
 # ---------------------------------------------------------------------------
@@ -1296,13 +1321,43 @@ def _config_app_inteira() -> dict[str, str]:
     pagava 11 idas ao banco em fila só para ler flags (medido, 16/10/2026).
     A tabela tem poucas linhas; ler tudo custa o mesmo que ler uma.
     Erro vira `{}` cacheado — o mesmo "segue sem config" de antes.
+
+    Na API a tabela é inalcançável (segredos; a 0018 a fechou para
+    `authenticated`): as FLAGS, e só elas, vêm de `flags_do_app()` (0033),
+    com o token do usuário. Lá, erro NÃO vira `{}` — vale a última leitura
+    boa, e sem nenhuma, levanta. Flag desligada por falha de leitura
+    pularia a ciência na emissão (RF-03) sem ninguém pedir.
     """
+    from .streamlit_opcional import sem_streamlit
+
+    if sem_streamlit():
+        return _flags_na_api()
     try:
         linhas = (_cliente().table("config_app").select("chave, valor")
                   .execute()).data or []
         return {l["chave"]: (l.get("valor") or "").strip() for l in linhas}
     except Exception:  # noqa: BLE001 — tabela ausente/erro: segue sem config
         return {}
+
+
+_ULTIMAS_FLAGS: dict[str, str] | None = None
+
+
+def _flags_na_api() -> dict[str, str]:
+    global _ULTIMAS_FLAGS
+    try:
+        cliente = cliente_do_usuario()
+        if cliente is None:
+            raise ErroBanco("sem sessão do usuário")
+        linhas = cliente.rpc("flags_do_app").execute().data or []
+        lidas = {str(l["chave"]): str(l.get("valor") or "").strip() for l in linhas
+                 if str(l.get("chave") or "").startswith("flag_")}
+    except Exception as exc:  # noqa: BLE001
+        if _ULTIMAS_FLAGS is not None:
+            return dict(_ULTIMAS_FLAGS)
+        raise ErroBanco("flags indisponíveis") from exc
+    _ULTIMAS_FLAGS = lidas
+    return dict(lidas)
 
 
 def obter_config(chave: str) -> str:

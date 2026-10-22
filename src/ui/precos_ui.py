@@ -33,14 +33,13 @@ documentos que serão descartados aparecem antes de qualquer escrita.
 from __future__ import annotations
 
 import html
-import io
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
 import streamlit as st
 
 from .. import auth, contexto, db, planilha
-from ..precos import (aplicacao, estatistica, execucao,
+from ..precos import (aplicacao, emissao, estatistica, execucao,
                       filtros as filtros_mod, orientacao, perfil, relatorio)
 from ..precos import semantica as precos_semantica
 from ..precos import repositorio as repo
@@ -2456,10 +2455,9 @@ def _relatorio_visual() -> bool:
     return db.flag_ativa(governanca.FLAG_RELATORIO_VISUAL)
 
 
-# Acima disto o Relatório Analítico Integral não é gerado: a conversão
-# passaria de vários minutos e de centenas de MB de memória no servidor.
-# A memória analítica (XLSX) traz o mesmo conteúdo, sem limite prático.
-LIMITE_DO_ANALITICO = 15000
+# Acima disto o Relatório Analítico Integral não é gerado (a regra mora
+# em `precos.emissao`; o nome fica aqui para quem já o importava).
+LIMITE_DO_ANALITICO = emissao.LIMITE_DO_ANALITICO
 
 
 def _branding_da_emissao() -> dict | None:
@@ -2474,14 +2472,7 @@ def _branding_da_emissao() -> dict | None:
     """
     if not db.disponivel():
         return st.session_state.get("branding") or None
-    try:
-        resolvido = contexto.identidade_para_exportacao()
-        if resolvido is not None:
-            return resolvido[0]
-        orgaos = db.listar_orgaos()
-    except db.ErroBanco:
-        return None
-    return orgaos[0] if orgaos else None
+    return emissao.marca_resolvida()
 
 
 def _render_relatorios_visuais(pesquisa: dict, itens: list[dict],
@@ -2568,61 +2559,32 @@ def _registrar_emissao(pesquisa: dict, itens: list[dict], referencias: dict,
                        *, tipo: str, formato: str, conteudo: bytes,
                        nome: str, ciencia_doc: dict | None = None) -> None:
     """
-    Toda geração entregue vira registro (quem, quando, hashes, pendências).
+    Toda geração entregue vira registro (quem, quando, hashes, pendências)
+    — `precos.emissao.registrar`, a mesma da API.
 
     Só com a versão de Cotações ativa: a tabela e o tipo de evento são da
     migração 0029, que vem antes da flag. Sem ela, gravar falharia a cada
     relatório e encheria o registro de incidentes — o documento sai igual,
     com o hash do arquivo mostrado na tela.
     """
-    dados = relatorio.dados_da_emissao(
-        pesquisa, itens, referencias, tipo=tipo, formato=formato,
-        conteudo=conteudo, nome_arquivo=nome)
     if not _colunas_0029():
+        dados = relatorio.dados_da_emissao(
+            pesquisa, itens, referencias, tipo=tipo, formato=formato,
+            conteudo=conteudo, nome_arquivo=nome)
         st.session_state[f"_emissao_{tipo}_{formato}_{pesquisa['id']}"] = (
             dados, False)
         return
-    registrado = repo.registrar_emissao(str(pesquisa["id"]), dados)
-    repo.registrar_evento(
-        str(pesquisa["id"]), "relatorio_emitido",
-        ator=_identidade()[0] or None,
-        descricao=f"{tipo} ({formato}) — {nome}",
-        payload={**{k: dados[k] for k in ("tipo", "formato", "hash_decisorio",
-                                          "hash_arquivo", "tamanho_bytes")},
-                 **({"ciencia": {"assinatura": ciencia_doc.get("assinatura"),
-                                 "alertas": len(ciencia_doc.get("alertas")
-                                                or []),
-                                 "registrada_em":
-                                 ciencia_doc.get("registrada_em")}}
-                    if ciencia_doc else {})},
-        idempotency_key=f"emissao:{dados['idempotency_key']}")
     st.session_state[f"_emissao_{tipo}_{formato}_{pesquisa['id']}"] = (
-        dados, registrado is not None)
+        emissao.registrar(pesquisa, itens, referencias, tipo=tipo,
+                          formato=formato, conteudo=conteudo, nome=nome,
+                          ator=_identidade()[0] or None,
+                          ciencia_doc=ciencia_doc))
 
 
 def _conferir_cestas(pesquisa: dict, itens: list[dict],
                      referencias: dict) -> None:
-    """
-    Cesta acima do teto não vai para documento (auditoria de 18/10, C-4).
-    Todo caminho de emissão passa por `_conteudo_do_relatorio`, que chama
-    aqui; a mensagem diz quais itens e o que fazer.
-    """
-    from ..precos import cesta as cesta_mod
-    from ..precos import cotacoes
-    from ..precos.documento_cotacao import ErroDeRenderizacao
-
-    politica = cotacoes.politica_automatica()
-    pesquisa_id = str(pesquisa.get("id") or "")
-    acima = cesta_mod.itens_acima_do_teto(
-        itens, referencias, politica.teto if politica is not None else None,
-        decididas_por_humano=lambda item_id: repo.referencias_decididas_por_humano(
-            pesquisa_id, item_id))
-    if acima:
-        raise ErroDeRenderizacao(
-            "O relatório não pode ser gerado: a cesta destes itens foi "
-            "formada antes do limite de preços e da triagem — "
-            + "; ".join(acima)
-            + ". Refaça a cotação automática desses itens e gere de novo.")
+    """Cesta acima do teto não vai para documento (`precos.emissao`)."""
+    emissao.conferir_cestas(pesquisa, itens, referencias)
 
 
 def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
@@ -2632,76 +2594,23 @@ def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
     """
     Gera um formato. Devolve (bytes, nome do arquivo, mimetype).
 
-    PDF e DOCX passam por `export.gerar_pdf`/`gerar_docx` — o motor
-    institucional que já existe, com os estilos, as larguras de tabela e
-    o gate de geometria provados. O §33 é explícito: nada de um segundo
-    pipeline de PDF.
+    A regra é `precos.emissao` (a mesma do worker da API); aqui fica o que
+    é da tela: o ator da ciência e o timbrado do gerador antigo.
     """
-    from .. import export
-
     _conferir_cestas(pesquisa, itens, referencias)
     if ciencia_doc is _VERIFICAR:
         # a conferência do SERVIDOR: botão, pacote ou outra aba, todos
         # passam aqui (pacote Jev, RF-03 — sem bypass da ciência)
         ciencia_doc = _verificar_ciencia(pesquisa, itens, referencias)
-
-    if formato == "xlsx":
-        return (relatorio.xlsx_analitico(pesquisa, itens, referencias),
-                relatorio.nome_do_arquivo(pesquisa, "memoria-analitica",
-                                          "xlsx"),
-                "application/vnd.openxmlformats-officedocument."
-                "spreadsheetml.sheet")
-
-    if tipo in ("cotacao", "analitico_integral"):
-        from ..precos import documento_cotacao as dc
-        from ..precos import relatorio_view
-
-        marca = _branding_da_emissao()
-        vista = relatorio_view.projetar(pesquisa, itens, referencias,
-                                        branding=marca, ciencia=ciencia_doc)
-        if tipo == "analitico_integral":
-            return (dc.relatorio_analitico_pdf(vista),
-                    relatorio.nome_do_arquivo(
-                        pesquisa, "relatorio-analitico-integral", "pdf"),
-                    "application/pdf")
-        docx = dc.relatorio_de_cotacao_docx(vista)
-        if formato == "docx":
-            return (docx,
-                    relatorio.nome_do_arquivo(pesquisa, "relatorio-cotacao",
-                                              "docx"),
-                    "application/vnd.openxmlformats-officedocument."
-                    "wordprocessingml.document")
-        return (dc.em_pdf(docx, marca, links=dc.links_da_vista(vista)),
-                relatorio.nome_do_arquivo(pesquisa, "relatorio-cotacao",
-                                          "pdf"),
-                "application/pdf")
-
-    if tipo == "resumido":
-        markdown = relatorio.resumido(pesquisa, itens, referencias,
-                                      ciencia=ciencia_doc)
-        titulo = "Pesquisa de Preços — Quadro Resumido"
-    else:
-        markdown = relatorio.completo(pesquisa, itens, referencias,
-                                      ciencia=ciencia_doc)
-        titulo = "Relatório de Pesquisa de Preços"
-
-    branding = st.session_state.get("branding") or None
-    if formato == "docx":
-        return (export.gerar_docx(titulo, markdown, branding),
-                relatorio.nome_do_arquivo(pesquisa, tipo, "docx"),
-                "application/vnd.openxmlformats-officedocument."
-                "wordprocessingml.document")
-    return (export.gerar_pdf(titulo, markdown, branding),
-            relatorio.nome_do_arquivo(pesquisa, tipo, "pdf"),
-            "application/pdf")
+    marca = (_branding_da_emissao()
+             if emissao.precisa_de_marca(formato=formato, tipo=tipo) else None)
+    return emissao.renderizar(
+        pesquisa, itens, referencias, formato=formato, tipo=tipo,
+        ciencia_doc=ciencia_doc, marca=marca,
+        branding_legado=st.session_state.get("branding") or None)
 
 
-# A tabela de emissões da 0029 aceita `completo|resumido|analitico|pacote`.
-# Sem migração nova: o Relatório de Cotação é o relatório PRINCIPAL e se
-# registra como `completo`; o analítico integral, como `analitico`. O nome
-# do arquivo e o hash do arquivo distinguem cada emissão.
-_TIPO_NO_REGISTRO = {"cotacao": "completo",
-                     "analitico_integral": "analitico"}
+_TIPO_NO_REGISTRO = emissao.TIPO_NO_REGISTRO
 
 
 def _botao_de_download(rotulo: str, pesquisa: dict, itens: list[dict],
@@ -2853,26 +2762,16 @@ def _montar_pacote(pesquisa: dict, itens: list[dict],
                    referencias: dict, *, visual: bool = False,
                    com_integral: bool = False,
                    ciencia_doc=_VERIFICAR) -> bytes:
-    import zipfile
-
     if ciencia_doc is _VERIFICAR:
         ciencia_doc = _verificar_ciencia(pesquisa, itens, referencias)
-
-    if visual:
-        partes = [("pdf", "cotacao"), ("xlsx", "analitico")]
-        if com_integral:
-            partes.append(("pdf", "analitico_integral"))
-    else:
-        partes = [("pdf", "completo"), ("pdf", "resumido"),
-                  ("xlsx", "analitico")]
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for formato, tipo in partes:
-            conteudo, nome, _ = _conteudo_do_relatorio(
-                pesquisa, itens, referencias, formato=formato, tipo=tipo,
-                ciencia_doc=ciencia_doc)
-            zf.writestr(nome, conteudo)
-    return buffer.getvalue()
+    arquivos = []
+    for formato, tipo in emissao.partes_do_pacote(visual=visual,
+                                                  com_integral=com_integral):
+        conteudo, nome, _ = _conteudo_do_relatorio(
+            pesquisa, itens, referencias, formato=formato, tipo=tipo,
+            ciencia_doc=ciencia_doc)
+        arquivos.append((nome, conteudo))
+    return emissao.zipar(arquivos)
 
 
 # ---------------------------------------------------------------------------

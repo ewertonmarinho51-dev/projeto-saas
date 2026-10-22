@@ -67,6 +67,10 @@ class Job(BaseModel):
     criado_em: str
     iniciado_em: str | None
     concluido_em: str | None
+    # O que o job produziu, para a tela (0032): no relatório, nome,
+    # tamanho, SHA-256 e validade do arquivo; na falha, a mensagem do
+    # domínio. Só exibição — o download não lê daqui.
+    resultado: dict = {}
 
 
 class PedidoDeColeta(BaseModel):
@@ -84,7 +88,26 @@ def job_do_banco(linha: dict) -> Job:
                feitos=feitos, total=total, progresso=progresso,
                erro_codigo=str(linha.get("erro_codigo") or ""),
                criado_em=str(linha.get("criado_em") or ""),
-               iniciado_em=linha.get("iniciado_em"), concluido_em=linha.get("concluido_em"))
+               iniciado_em=linha.get("iniciado_em"), concluido_em=linha.get("concluido_em"),
+               resultado=_resultado_exibivel(linha.get("resultado")))
+
+
+_CAMPOS_DO_RESULTADO = {"nome": str, "mimetype": str, "tamanho": int, "sha256": str,
+                        "hash_decisorio": str, "registrado": bool, "expira_em": str,
+                        "mensagem": str}
+
+
+def _resultado_exibivel(bruto) -> dict:
+    """Só os campos conhecidos, com o tipo esperado: o dono pode reescrever
+    `resultado` pelo PostgREST, e a API não repassa o que não entende."""
+    if not isinstance(bruto, dict):
+        return {}
+    saida = {}
+    for chave, tipo in _CAMPOS_DO_RESULTADO.items():
+        valor = bruto.get(chave)
+        if isinstance(valor, tipo) and not (tipo is int and isinstance(valor, bool)):
+            saida[chave] = valor[:500] if isinstance(valor, str) else valor
+    return saida
 
 
 def expiracao_do_token(token: str) -> float | None:
@@ -99,7 +122,8 @@ def expiracao_do_token(token: str) -> float | None:
 
 class Fila(Protocol):
     def enfileirar(self, *, job_id: str, token: str, tenant_id: str,
-                   auth_user_id: str, secretaria_id: str | None) -> None: ...
+                   auth_user_id: str, secretaria_id: str | None,
+                   usuario_id: str = "", tarefa: str = "coleta") -> None: ...
 
 
 # ---------------------------------------------------------------------------

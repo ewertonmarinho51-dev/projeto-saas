@@ -192,4 +192,51 @@ export type Job = {
   criado_em: string;
   iniciado_em: string | null;
   concluido_em: string | null;
+  // Só exibição (0032): nome/tamanho/hash do arquivo, ou a mensagem da falha.
+  resultado: {
+    nome?: string;
+    tamanho?: number;
+    sha256?: string;
+    expira_em?: string;
+    registrado?: boolean;
+    mensagem?: string;
+  };
 };
+
+// ---------------------------------------------------------------------------
+// Emissão (P04d). A API decide tudo: ciência, formatos, bloqueio.
+// ---------------------------------------------------------------------------
+export type OpcaoDeRelatorio = { tipo: string; formato: string; rotulo: string };
+
+export type PreparoDaEmissao = {
+  disponivel: boolean;
+  motivo: string;
+  identificador: string;
+  bloqueio: string;
+  requer_ciencia: boolean;
+  assinatura: string;
+  alertas: { numero: number; descricao: string; valor: Valor | null; origem: string; mensagem: string }[];
+  pendencias: { numero: number; descricao: string; deficiencias: string[] }[];
+  ciencia: { registrada_em: string; assinatura: string } | null;
+  pode_registrar_ciencia: boolean;
+  opcoes: OpcaoDeRelatorio[];
+  total_referencias: number;
+};
+
+/**
+ * Arquivo gerado, como veio da API (o corpo não é JSON). Quem chama repassa
+ * o corpo ao navegador; os cabeçalhos de tipo e nome são os da API, que os
+ * tira de uma lista fechada.
+ */
+export async function baixarDaApi(caminho: string): Promise<Response> {
+  const token = await tokenDaSessao();
+  try {
+    return await fetch(`${baseDaApi()}/api/v1${caminho}`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(30000),
+    });
+  } catch {
+    throw new ErroDaApi(503, "API_INDISPONIVEL", "");
+  }
+}
