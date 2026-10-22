@@ -1,6 +1,20 @@
 -- ## 0031 — Jobs da API (/api/v1, P04c): coleta de preços assíncrona
--- ## ESTADO: aplicável. NÃO APLICADA em produção nem no descartável
--- ##   (atualizar este cabeçalho ao aplicar: data e nome).
+-- ## ESTADO: APLICADA no projeto descartável `govdocs-ensaio-descartavel`
+-- ##   em 22/10/2026 como `m0031_api_jobs`. NÃO APLICADA EM PRODUÇÃO: a
+-- ##   aplicação foi bloqueada pelo controle de permissão do agente e
+-- ##   aguarda o operador (atualizar este cabeçalho ao aplicar).
+--
+-- REGISTRO DO ENSAIO (22/10/2026):
+--   * nível 1: PostgreSQL do CI, tests/test_migracao_0031.py verde;
+--   * nível 2, descartável: 47 -> 48 tabelas; grants de `api_jobs`:
+--     authenticated INSERT/SELECT/UPDATE, service_role sem DELETE/TRUNCATE,
+--     anon nenhum; conferência interna aprovada;
+--   * comportamento, num bloco desfeito (0 linhas restantes), com dois
+--     usuários reais do projeto e claims injetadas: dono cria e atualiza;
+--     job não nasce concluído (42501); outro usuário do mesmo município
+--     não vê (0) nem altera (0 linhas);
+--   * produção: medição ANTES feita (47 tabelas em public, todas com RLS,
+--     nenhum grant ao anon, sem `api_jobs`).
 -- ##   Só a API nova e o worker usam a tabela; o Streamlit não a conhece.
 --
 -- O QUE FAZ
