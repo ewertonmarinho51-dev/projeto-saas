@@ -138,7 +138,7 @@ def test_cesta_que_muda_invalida_a_ciencia(pilha, pesquisa):
     assinatura = api.get(f"/api/v1/precos/pesquisas/{pesquisa}/emissao",
                          headers=_h(a1)).json()["assinatura"]
     with psycopg.connect(pilha.dsn, autocommit=True) as c:
-        c.execute("update public.pesquisa_preco_referencias set status='excluded' "
+        c.execute("update public.pesquisa_preco_referencias set status='rejected' "
                   "where item_id in (select id from public.pesquisa_preco_itens "
                   "where pesquisa_id=%s)", (pesquisa,))
     r = api.post(f"/api/v1/precos/pesquisas/{pesquisa}/ciencia", headers=_h(a1),

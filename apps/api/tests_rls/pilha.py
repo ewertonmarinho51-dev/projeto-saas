@@ -319,15 +319,18 @@ def ligar_flags_da_emissao(pilha: Pilha) -> None:
                       "on conflict (chave) do update set valor = 'on'", (chave,))
 
 
-def semear_emissao(pilha: Pilha) -> str:
-    """Pesquisa de `a1` com um item EM REVISÃO e uma referência na cesta:
+def semear_emissao(pilha: Pilha, dono: str = "a1") -> str:
+    """Pesquisa de `dono` com um item EM REVISÃO e uma referência na cesta:
     a pendência "preço não confirmado pelo revisor" faz a emissão pedir
-    ciência — o caminho que importa provar."""
+    ciência — o caminho que importa provar.
+
+    O E2E usa outra conta (`admin_a`): o login do web limita 5 entradas
+    por IP + e-mail a cada 15 min, e a `a1` já entra em vários specs."""
     import psycopg
     from psycopg.types.json import Jsonb
 
     ligar_flags_da_emissao(pilha)
-    a1 = pilha.contas["a1"]
+    a1 = pilha.contas[dono]
     with psycopg.connect(pilha.dsn, autocommit=True) as c:
         pid = str(c.execute(
             "insert into public.pesquisas_preco (tenant_id, secretaria_id, auth_user_id, nome, "
@@ -364,7 +367,7 @@ def principal() -> int:
         estado = {"url": pilha.url, "anon": pilha.anon,
                   "precos": semear_precos(pilha),
                   "coleta": semear_coleta(pilha),
-                  "emissao": semear_emissao(pilha),
+                  "emissao": semear_emissao(pilha, dono="admin_a"),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
         temporario = args.estado.with_suffix(".tmp")

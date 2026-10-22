@@ -16,8 +16,8 @@ const estado = JSON.parse(readFileSync(process.env.GOVCONECT_E2E_ESTADO ?? "", "
 
 test("emitir pede ciência, gera no worker e baixa o arquivo", async ({ page }) => {
   await page.goto("/entrar");
-  await page.getByLabel("E-mail institucional").fill(estado.contas.a1.email);
-  await page.getByLabel("Senha", { exact: true }).fill(estado.contas.a1.senha);
+  await page.getByLabel("E-mail institucional").fill(estado.contas.admin_a.email);
+  await page.getByLabel("Senha", { exact: true }).fill(estado.contas.admin_a.senha);
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await page.waitForURL(/\/app$/);
 
