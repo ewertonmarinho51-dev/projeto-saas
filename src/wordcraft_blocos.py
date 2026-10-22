@@ -444,6 +444,18 @@ def _titulo_estrutural(text: str, objects: object, *, heading: bool,
     return visible
 
 
+def _imagem_institucional_sem_texto(text: str, objects: object, *, body: bool) -> bool:
+    """Recognize a strictly non-textual image in a header/footer paragraph.
+
+    The native marker is not analysis text. A body image, non-empty alternative
+    text, mixed marker/text paragraph or any other object remains uncovered so
+    that the policy cannot silently discard document meaning.
+    """
+    return (not body and text == "\ufffc" and isinstance(objects, list)
+            and len(objects) == 1 and isinstance(objects[0], dict)
+            and objects[0].get("type") == "image" and objects[0].get("alt") == "")
+
+
 @dataclass(frozen=True)
 class DocumentoNativo:
     checkpoint: bytes
@@ -568,11 +580,15 @@ def projetar_documento(doc_key: str, content: bytes, *, indice: IndiceNativo,
         body = anchor.story_kind == "body"
         top_level = body and len(anchor.caminho.indices) == 1
         heading = style in CLAUSE_STYLES
-        structural_text = _titulo_estrutural(text, block.get("objects", []),
+        objects = block.get("objects", [])
+        structural_text = _titulo_estrutural(text, objects,
                                              heading=heading, top_level=top_level)
-        if structural_text is None:
+        institutional_image = _imagem_institucional_sem_texto(
+            text, objects, body=body)
+        if structural_text is None and not institutional_image:
             gaps.append(f"objeto:{anchor.block_id}")
-        visible_text = structural_text if structural_text is not None else text
+        visible_text = (structural_text if structural_text is not None else
+                        "" if institutional_image else text)
         match = validacao._RE_CLAUSULA.fullmatch("## " + visible_text) if heading else None
         if top_level and match:
             clause = int(match.group(1))
