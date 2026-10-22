@@ -423,6 +423,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: web-e2e-telas
-          path: apps/web/e2e/.resultados/
-          if-no-files-found: warn
+          # Diretório SEM ponto: o upload-artifact v4 pula pasta oculta, e
+          # com `warn` a primeira versão perdeu as capturas em silêncio.
+          path: apps/web/e2e/resultados/
+          if-no-files-found: error
           retention-days: 14

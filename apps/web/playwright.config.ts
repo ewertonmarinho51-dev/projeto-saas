@@ -7,11 +7,11 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
-  outputDir: "./e2e/.resultados/artefatos",
+  outputDir: "./e2e/resultados/artefatos",
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  reporter: [["list"], ["html", { outputFolder: "./e2e/.resultados/relatorio", open: "never" }]],
+  reporter: [["list"], ["html", { outputFolder: "./e2e/resultados/relatorio", open: "never" }]],
   use: {
     baseURL: process.env.GOVCONECT_E2E_URL ?? "http://localhost:3000",
     trace: "retain-on-failure",

@@ -22,7 +22,7 @@ const TELAS = [
 async function capturar(page: Page, nome: string) {
   for (const t of TELAS) {
     await page.setViewportSize({ width: t.width, height: t.height });
-    await page.screenshot({ path: `e2e/.resultados/telas/${nome}-${t.nome}.png`, fullPage: true });
+    await page.screenshot({ path: `e2e/resultados/telas/${nome}-${t.nome}.png`, fullPage: true });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
 }
