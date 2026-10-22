@@ -1,7 +1,23 @@
 -- ## 0033 — As FLAGS do painel para a API (/api/v1), e só elas
--- ## ESTADO: APLICADA no projeto descartável `govdocs-ensaio-descartavel`
--- ##   em 22/10/2026 como `m0033_flags_do_app`. NÃO APLICADA EM PRODUÇÃO
--- ##   (atualizar este cabeçalho ao aplicar, com a medição antes/depois).
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 22/10/2026 como `m0033_flags_do_app`
+-- ##   (registro 20261022222239), depois do ensaio no projeto descartável
+-- ##   `govdocs-ensaio-descartavel` no mesmo dia.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (22/10/2026):
+--   * ANTES: `config_app` com 57 linhas, 0 grants a anon/authenticated, 0
+--     políticas; sem a função;
+--   * aplicação: conferência interna aprovada;
+--   * DEPOIS: a função existe, SECURITY DEFINER; `anon` sem EXECUTE,
+--     `authenticated` com; `config_app` igual (57 linhas, 0 grants, 0
+--     políticas); 0 grants ao anon em public;
+--   * comportamento, num bloco desfeito (nada gravado), com um usuário
+--     real e claims injetadas: lê 50 flags e 0 não-flags pela função;
+--     `flag_precos_ciencia_emissao` = on (a ciência VALE pela API); a
+--     tabela continua negada (insufficient_privilege);
+--   * advisors de segurança: o aviso NOVO é o esperado —
+--     `authenticated_security_definer_function_executable` para
+--     `flags_do_app`. É a intenção (ver "O QUE NÃO RESOLVE"); os demais
+--     avisos são anteriores.
 --
 -- REGISTRO DO ENSAIO (22/10/2026):
 --   * nível 1: PostgreSQL do CI, tests/test_migracao_0033.py;

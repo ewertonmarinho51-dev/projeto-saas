@@ -1,9 +1,22 @@
 -- ## 0032 — Jobs da API (/api/v1, P04d): emissão de relatório de preços
--- ## ESTADO: APLICADA no projeto descartável `govdocs-ensaio-descartavel`
--- ##   em 22/10/2026 como `m0032_api_jobs_relatorio` (registro
--- ##   20261022204129). NÃO APLICADA EM PRODUÇÃO (atualizar este cabeçalho
--- ##   ao aplicar, com a medição antes/depois).
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 22/10/2026 como
+-- ##   `m0032_api_jobs_relatorio` (registro 20261022222237), depois do
+-- ##   ensaio no projeto descartável `govdocs-ensaio-descartavel` no mesmo
+-- ##   dia (registro 20261022204129).
 -- ##   Só a API nova e o worker usam a tabela; o Streamlit não a conhece.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (22/10/2026, catálogo, só SELECT):
+--   * ANTES: 48 tabelas em public, 0 sem RLS; CHECK de `tipo` só com
+--     `coleta_precos`; sem coluna `resultado`; `api_jobs` com 0 linhas; 0
+--     grants ao anon em public; última migração 20261022202731
+--     m0031_api_jobs;
+--   * aplicação: conferência interna aprovada;
+--   * DEPOIS: 48 tabelas, 0 sem RLS; CHECK com os dois tipos; `resultado`
+--     presente; 3 políticas; grants iguais (authenticated
+--     INSERT/SELECT/UPDATE, service_role sem DELETE/TRUNCATE, anon
+--     nenhum); 0 linhas; 0 grants ao anon em public;
+--   * advisors de segurança: nada sobre `api_jobs`;
+--   * comportamento NÃO exercido em produção (provado no ensaio, abaixo).
 --
 -- REGISTRO DO ENSAIO (22/10/2026):
 --   * nível 1: PostgreSQL do CI, tests/test_migracao_0032.py;
