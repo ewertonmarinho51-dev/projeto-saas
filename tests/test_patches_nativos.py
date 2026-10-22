@@ -215,6 +215,42 @@ def test_unknown_object_text_and_unaddressable_regions_prevent_claim_of_complete
     assert any(area.startswith("objeto:") for area in projection.areas_nao_cobertas)
 
 
+def test_empty_alt_image_only_header_and_footer_do_not_create_text_coverage_gap(engine):
+    image = para("\ufffc", "Header")
+    image["objects"] = [{"type": "image", "alt": ""}]
+    footer = deepcopy(image)
+    footer["props"] = {"style": "Footer"}
+    projection = view(source(checkpoint(
+        [heading("1. OBJETO"), para("Corpo elegível.")],
+        parts={"1": {"kind": "header", "blocks": [image]},
+               "2": {"kind": "footer", "blocks": [footer]}})))
+    assert projection.apto_analise and projection.apto_autocorrecao
+    institutional = [block for block in projection.blocos
+                     if block.ancora.story_kind in {"header", "footer"}]
+    assert len(institutional) == 2
+    assert all(block.conteudo == "" and block.bloqueio == "institucional"
+               for block in institutional)
+
+
+@pytest.mark.parametrize("story,text,objects", [
+    ("header", "\ufffc", [{"type": "image", "alt": "Texto alternativo"}]),
+    ("header", "Marca \ufffc", [{"type": "image", "alt": ""}]),
+    ("header", "\ufffc", [{"type": "drawing", "alt": ""}]),
+    ("body", "\ufffc", [{"type": "image", "alt": ""}]),
+])
+def test_image_exception_remains_strict_and_fail_closed(engine, story, text, objects):
+    block = para(text, "Header" if story == "header" else None)
+    block["objects"] = objects
+    if story == "body":
+        content = checkpoint([heading("1. OBJETO"), block])
+    else:
+        content = checkpoint([heading("1. OBJETO"), para("Corpo elegível.")],
+                             parts={"1": {"kind": story, "blocks": [block]}})
+    projection = view(source(content))
+    assert not projection.apto_analise and not projection.apto_autocorrecao
+    assert any(area.startswith("objeto:") for area in projection.areas_nao_cobertas)
+
+
 def test_adapter_applies_through_native_worker_preserves_id_and_original(engine, monkeypatch):
     docs = {"memo": source()}
     original = docs["memo"]

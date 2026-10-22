@@ -2,7 +2,7 @@
 import {readFile, realpath, stat} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {isAbsolute, relative, resolve, sep} from 'node:path';
-import {fileURLToPath, pathToFileURL} from 'node:url';
+import {fileURLToPath} from 'node:url';
 import {maxBytes} from './host.mjs';
 
 export class ModelRejected extends Error {}
@@ -97,7 +97,7 @@ export async function verifyBundle(bundle, manifestHash) {
   const raw = await readFile(manifestPath);
   if (digest(raw) !== manifestHash) throw new Error('Manifest hash differs.');
   const manifest = JSON.parse(raw);
-  if (manifest.status !== 'INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED'
+  if (!['INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED', 'GOVCONNECT_WORDCRAFT_DEPLOY_APPROVED'].includes(manifest.status)
       || !/^[0-9a-f]{40}$/.test(manifest.upstream_commit)
       || !/^[0-9a-f]{40}$/.test(manifest.govconnect_commit)
       || !Array.isArray(manifest.files) || manifest.files.length < 2 || manifest.files.length > 100) {
@@ -127,15 +127,19 @@ export async function verifyBundle(bundle, manifestHash) {
   const modules = [...files.keys()].filter(name => !name.includes('/') && name.endsWith('.js'));
   const wasm = [...files.keys()].filter(name => !name.includes('/') && name.endsWith('.wasm'));
   if (modules.length !== 1 || wasm.length !== 1) throw new Error('Ambiguous engine entry points.');
-  return {modulePath: files.get(modules[0]).path, wasmBytes: files.get(wasm[0]).bytes};
+  return {moduleBytes: files.get(modules[0]).bytes, wasmBytes: files.get(wasm[0]).bytes};
 }
 
 async function loadEngine(content, bundle, manifestHash) {
   if (!(content instanceof Uint8Array) || !content.length || content.length > maxBytes) {
     throw new ModelRejected('Invalid checkpoint byte bound.');
   }
-  const {modulePath, wasmBytes} = await verifyBundle(bundle, manifestHash);
-  const engine = await import(pathToFileURL(modulePath).href);
+  const {moduleBytes, wasmBytes} = await verifyBundle(bundle, manifestHash);
+  // Production uses Debian's Node 18, which treats .js as CommonJS without a
+  // package.json even though the browser bundle is an audited ES module. Load
+  // the already hash-verified bytes through a data URL so both runtimes apply
+  // the same ESM semantics without copying or mutating the pinned bundle.
+  const engine = await import('data:text/javascript;base64,' + Buffer.from(moduleBytes).toString('base64'));
   if (typeof engine.default !== 'function' || typeof engine.validate_checkpoint !== 'function') {
     throw new Error('Required native validation API missing.');
   }

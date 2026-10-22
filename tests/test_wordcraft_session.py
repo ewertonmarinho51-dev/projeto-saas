@@ -1,4 +1,4 @@
-from src import auth, db, wordcraft_session
+from src import auth, db, state, wordcraft_session
 
 
 class Session(dict):
@@ -134,3 +134,26 @@ def test_platform_login_without_tenant_cannot_inherit_previous_tenant(monkeypatc
 
     assert session["tenant_id"] is None
     assert "_wordcraft_owner" not in session
+
+
+def test_reopening_saved_process_remounts_from_native_head(monkeypatch):
+    session = Session(_session())
+    session.update({
+        "_wordcraft_owner": object(),
+        "_wordcraft_dfd_document": object(),
+        "_wordcraft_dfd_bridge": object(),
+        "wordcraft_stale_instance": {"edit": "late stale checkpoint"},
+        "unrelated_preference": "keep",
+    })
+    monkeypatch.setattr(state, "st", type("St", (), {"session_state": session})())
+    monkeypatch.setattr(state, "ir_para", lambda etapa: session.update(etapa=etapa))
+
+    state.carregar_processo_salvo({
+        "id": "process-b", "dados": {"objeto": "saved"},
+        "documentos": {"dfd": "legacy source"}, "aprovados": [], "etapa": 1,
+    })
+
+    assert not any(key.startswith(wordcraft_session._PREFIXES) for key in session)
+    assert session["processo_id"] == "process-b"
+    assert session["etapa"] == 1
+    assert session["unrelated_preference"] == "keep"

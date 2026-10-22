@@ -261,6 +261,21 @@ def test_restore_operacional_usa_historico_persistido_cas_e_remonta_canvas(monke
     assert "nova revisão 4" in session[ui._chave("tr", "message")]
 
 
+def test_confirmacoes_em_form_nao_criam_botoes_impossiveis_de_habilitar():
+    source = (Path(__file__).parents[1] / "src/ui/wordcraft_operacional.py").read_text(
+        encoding="utf-8")
+    template = source[source.index('with st.form(_chave(doc_key, "template_apply_form"))'):
+                      source.index('if st.button("Carregar histórico persistido"')]
+    restore_start = source.index('with st.form(_chave(doc_key, "restore_form"))')
+    restore = source[restore_start:
+                     source.index('current_audit = st.session_state.get(audit_key)', restore_start)]
+
+    assert "disabled=not can_apply or not template_confirmed" not in template
+    assert "if not template_confirmed:" in template
+    assert "disabled=not restore_confirmed" not in restore
+    assert "if not restore_confirmed:" in restore
+
+
 def test_template_operacional_prepara_confirma_reabre_e_remonta_head(monkeypatch):
     process = "11111111-1111-1111-1111-111111111111"
     version = "55555555-5555-5555-5555-555555555555"

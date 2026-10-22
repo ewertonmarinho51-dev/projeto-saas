@@ -94,7 +94,12 @@ def promover(bundle: Path, build_run_path: Path, build_artifacts_path: Path,
 
     if output.exists():
         shutil.rmtree(output)
-    shutil.copytree(bundle, output)
+    output.mkdir(parents=True)
+    for name in seen:
+        target = output / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(bundle / name, target)
+    shutil.copytree(bundle / "notices", output / "notices")
     manifest["status"] = RELEASE_STATUS
     manifest["distribution_review"] = "CI build, browser, native export, notices and synthetic fidelity gates reconciled."
     manifest["release_evidence"] = {

@@ -8,7 +8,7 @@ aprovações) vive em st.session_state, inicializado aqui.
 
 import streamlit as st
 
-from . import cache_geracao, contexto, db, wordcraft_runtime
+from . import cache_geracao, contexto, db, wordcraft_runtime, wordcraft_session
 from .config import (INSTRUMENTOS_DERIVADOS, SEQUENCIA_DOCUMENTOS, adota_srp,
                      exportaveis_do_processo, sequencia_do_processo,
                      CHAVE_FLUXO_MAPA, DOCUMENTOS)
@@ -141,6 +141,10 @@ def carregar_processo_salvo(proc: dict) -> None:
     from .operacao_documento import ocupada
     if ocupada(st.session_state):
         return
+    # A component can finish an autosave while the user is navigating back to
+    # the process list.  Never reuse that bridge/result when reopening a
+    # persisted process: remount from the authoritative native head instead.
+    wordcraft_session.clear(st.session_state)
     _limpar_widgets_formulario()
     for chave in _CHAVES_DO_PROCESSO:
         st.session_state.pop(chave, None)

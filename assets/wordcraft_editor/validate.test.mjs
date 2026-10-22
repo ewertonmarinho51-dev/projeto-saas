@@ -15,14 +15,14 @@ const patchPlan = () => ({schema:'gc-wordcraft-native-patch/v1', source_hash:has
 const patchEnvelope = () => ({schema:'gc-wordcraft-native-patch-ipc/v1', revision:1,
   checkpoint_base64:patchSource.toString('base64'), plan:patchPlan()});
 
-async function withSyntheticEngine(code, callback) {
+async function withSyntheticEngine(code, callback, status = 'INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED') {
   const root = await mkdtemp(join(tmpdir(), 'govconnect-import-contract-'));
   try {
     const js = Buffer.from('export default async function() {}\n' + code);
     const wasm = Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]);
     await writeFile(join(root, 'engine.js'), js);
     await writeFile(join(root, 'engine.wasm'), wasm);
-    const raw = JSON.stringify({status: 'INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED',
+    const raw = JSON.stringify({status,
       upstream_commit: 'a'.repeat(40), govconnect_commit: 'b'.repeat(40), files: [
         {path: 'engine.js', bytes: js.length, sha256: hash(js)},
         {path: 'engine.wasm', bytes: wasm.length, sha256: hash(wasm)}]});
@@ -33,6 +33,15 @@ async function withSyntheticEngine(code, callback) {
     await rmdir(root);
   }
 }
+
+test('the pinned worker admits the production manifest status', async () => {
+  const code = `
+    export function import_docx() { return new Uint8Array([123, 125]); }
+    export function validate_checkpoint() {}`;
+  await withSyntheticEngine(code, async (root, pin) => {
+    assert.deepEqual(await importDocx(new Uint8Array([80, 75, 3, 4]), root, pin), Buffer.from('{}'));
+  }, 'GOVCONNECT_WORDCRAFT_DEPLOY_APPROVED');
+});
 
 test('import requires DOCX bytes before an engine can be loaded', async () => {
   for (const input of [new Uint8Array(), Buffer.from('text'), Buffer.from('%PDF-'), 'filename.docx']) {
@@ -186,7 +195,7 @@ test('pinned worker bundle rejects changed assets before module execution', asyn
         {path: 'engine.wasm', bytes: wasm.length, sha256: hash(wasm)}]});
     await writeFile(join(root, 'qa-manifest.json'), raw);
     const result = await verifyBundle(root, hash(raw));
-    assert.equal(result.modulePath, join(root, 'engine.js'));
+    assert.deepEqual(result.moduleBytes, js);
     assert.deepEqual(result.wasmBytes, wasm);
     await assert.rejects(verifyBundle(root, '0'.repeat(64)), /Manifest hash differs/);
     await writeFile(join(root, 'engine.js'), 'changed untrusted code');
