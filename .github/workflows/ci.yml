@@ -201,3 +201,32 @@ jobs:
           name: wordcraft-synthetic-fidelity-inputs
           path: wordcraft-corpus/
           retention-days: 14
+
+  # API do Gov Conect (apps/api). Job PRÓPRIO, com as dependências
+  # PRÓPRIAS: é o ambiente que prova que a API sobe sem o Streamlit
+  # instalado. Rodá-la dentro do job acima, onde o Streamlit está, deixaria
+  # a prova `test_sem_streamlit` sem o cenário que mais importa.
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: apps/api/requirements-dev.txt
+
+      - name: Instalar dependências da API
+        run: pip install -r requirements-dev.txt
+
+      - name: Provar que o Streamlit não está neste ambiente
+        run: python -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('streamlit') is not None)"
+
+      - name: Rodar testes da API
+        run: python -m pytest -q
