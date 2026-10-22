@@ -43,6 +43,9 @@ export class ErroDaApi extends Error {
     readonly status: number,
     readonly codigo: string,
     readonly requestId: string,
+    // `message` do envelope da API. Só é mostrada ao usuário quando a API
+    // a escreveu para ele (422 de regra do domínio); o resto vira texto fixo.
+    readonly mensagem: string = "",
   ) {
     super(codigo);
   }
@@ -90,12 +93,15 @@ export async function chamarApi<T>(
   const requestId = resposta.headers.get("x-request-id") ?? "";
   if (!resposta.ok) {
     let codigo = "ERRO";
+    let mensagem = "";
     try {
-      codigo = ((await resposta.json()) as { code?: string }).code ?? codigo;
+      const corpo = (await resposta.json()) as { code?: string; message?: string };
+      codigo = corpo.code ?? codigo;
+      mensagem = typeof corpo.message === "string" ? corpo.message.slice(0, 300) : "";
     } catch {
       /* corpo não-JSON: fica o código genérico */
     }
-    throw new ErroDaApi(resposta.status, codigo, requestId);
+    throw new ErroDaApi(resposta.status, codigo, requestId, mensagem);
   }
   return { dados: (await resposta.json()) as T, cabecalhos: resposta.headers };
 }

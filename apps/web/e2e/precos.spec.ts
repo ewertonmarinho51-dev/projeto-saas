@@ -55,6 +55,27 @@ test("dono vê a pesquisa com dinheiro exato e evidência verificável", async (
   await expect(link).toHaveAttribute("rel", /noopener/);
 });
 
+test("tirar e pôr de volta na cesta recalcula pela regra do domínio", async ({ page }) => {
+  await entrar(page, "a1");
+  await page.goto(`/app/precos/${estado.precos.pesquisa}/itens/${estado.precos.item}`);
+  const referencia = page.getByTestId("referencia");
+  await expect(referencia).toContainText("Na cesta");
+
+  // Tirar: um clique, sem justificativa.
+  await referencia.getByRole("button", { name: "Tirar da cesta" }).click();
+  await expect(page.getByText("Preço retirado da cesta. Estimativa recalculada.")).toBeVisible();
+  await expect(referencia).toContainText("Excluída");
+  await expect(page.getByTestId("preco-do-item")).not.toHaveText("R$ 2,35");
+
+  // Pôr de volta: pede o motivo, que vai para a memória de cálculo.
+  await referencia.getByText("Pôr na cesta").click();
+  await referencia.getByLabel("Motivo da inclusão").fill("Referência oficial do PNCP conferida (E2E).");
+  await referencia.getByRole("button", { name: "Confirmar inclusão" }).click();
+  await expect(page.getByText("Preço incluído na cesta. Estimativa recalculada.")).toBeVisible();
+  await expect(referencia).toContainText(/Na cesta|Atenção/);
+  await page.screenshot({ path: "e2e/resultados/telas/cesta-1440.png", fullPage: true });
+});
+
 test("outro município não abre a pesquisa nem as referências", async ({ page }) => {
   await entrar(page, "b1");
   await page.goto(`/app/precos/${estado.precos.pesquisa}`);

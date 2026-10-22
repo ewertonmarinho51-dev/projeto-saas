@@ -10,3 +10,6 @@ httpx==0.28.1
 # Verificação do JWT do Supabase Auth: ES256 pelo JWKS exige `cryptography`.
 PyJWT==2.15.1
 cryptography==50.0.2
+# Cliente do domínio (src/db.py::cliente_do_usuario), com o JWT do usuário.
+# Mesma versão do ambiente do Streamlit.
+supabase==2.32.0
