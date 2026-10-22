@@ -1,5 +1,6 @@
 import "server-only";
 
+import { flagLigada } from "@/lib/seguranca";
 import { criarClienteServidor } from "@/lib/supabase/server";
 
 /**
@@ -170,5 +171,5 @@ export type ReferenciaDePreco = {
 
 /** O módulo aparece no menu? A API decide de verdade (404 com a flag desligada). */
 export function precosHabilitado(): boolean {
-  return ["1", "true", "on", "sim"].includes((process.env.PRICE_RESEARCH_ENABLED ?? "").toLowerCase());
+  return flagLigada(process.env.PRICE_RESEARCH_ENABLED);
 }
