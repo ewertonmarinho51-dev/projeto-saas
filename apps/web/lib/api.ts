@@ -1,0 +1,100 @@
+import "server-only";
+
+import { criarClienteServidor } from "@/lib/supabase/server";
+
+/**
+ * BFF: o servidor do web chama a API do Gov Conect com o token da sessão.
+ *
+ * O navegador nunca fala com a API direto — a URL da API é variável de
+ * servidor (`GOVCONECT_API_URL`, sem `NEXT_PUBLIC_`), e o token sai do
+ * cookie da sessão no servidor. A API verifica o token sozinha (assinatura,
+ * vínculo, tenant); este arquivo não decide autorização nenhuma.
+ *
+ * `cache: "no-store"` em tudo: resposta de um município nunca vira cache
+ * compartilhado.
+ */
+
+export type Identidade = {
+  auth_user_id: string;
+  tenant_id: string;
+  papel: "admin" | "usuario";
+  secretaria_id: string | null;
+};
+
+export type Processo = {
+  id: string;
+  nome: string;
+  nome_exibido: string;
+  orgao: string;
+  objeto: string;
+  status: string;
+  etapa: string;
+  progresso: { feitos: number; total: number };
+  criado_em: string;
+  atualizado_em: string;
+  versao: string;
+};
+
+export type Pagina<T> = { itens: T[]; proximo_cursor: string | null };
+
+export class ErroDaApi extends Error {
+  constructor(
+    readonly status: number,
+    readonly codigo: string,
+    readonly requestId: string,
+  ) {
+    super(codigo);
+  }
+}
+
+function baseDaApi(): string {
+  const base = process.env.GOVCONECT_API_URL;
+  if (!base) throw new ErroDaApi(503, "API_NAO_CONFIGURADA", "");
+  return base.replace(/\/$/, "");
+}
+
+async function tokenDaSessao(): Promise<string> {
+  const supabase = await criarClienteServidor();
+  // getClaims() primeiro: só repassa token cuja assinatura conferiu aqui.
+  const { data: verificado } = await supabase.auth.getClaims();
+  if (!verificado?.claims) throw new ErroDaApi(401, "UNAUTHENTICATED", "");
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new ErroDaApi(401, "UNAUTHENTICATED", "");
+  return token;
+}
+
+export async function chamarApi<T>(
+  caminho: string,
+  init: { metodo?: string; corpo?: unknown; cabecalhos?: Record<string, string> } = {},
+): Promise<{ dados: T; cabecalhos: Headers }> {
+  const token = await tokenDaSessao();
+  let resposta: Response;
+  try {
+    resposta = await fetch(`${baseDaApi()}/api/v1${caminho}`, {
+      method: init.metodo ?? "GET",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        ...(init.corpo !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...init.cabecalhos,
+      },
+      body: init.corpo !== undefined ? JSON.stringify(init.corpo) : undefined,
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch {
+    throw new ErroDaApi(503, "API_INDISPONIVEL", "");
+  }
+  const requestId = resposta.headers.get("x-request-id") ?? "";
+  if (!resposta.ok) {
+    let codigo = "ERRO";
+    try {
+      codigo = ((await resposta.json()) as { code?: string }).code ?? codigo;
+    } catch {
+      /* corpo não-JSON: fica o código genérico */
+    }
+    throw new ErroDaApi(resposta.status, codigo, requestId);
+  }
+  return { dados: (await resposta.json()) as T, cabecalhos: resposta.headers };
+}
