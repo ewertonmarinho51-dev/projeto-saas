@@ -63,15 +63,47 @@ Build do web (shell do operador, não arquivo): `NEXT_PUBLIC_SUPABASE_URL`,
 
 ## 3. Pendências que dependem do operador
 
-1. **Medir o host** (CPU, RAM, disco):
-   ```
-   nproc; free -m; df -h /; docker stats --no-stream
-   ```
-   Soma dos limites novos: web 512 MB + api 384 MB + worker 1 GB +
-   redis 320 MB = **~2,2 GB**, além do Streamlit e do Caddy de hoje. Em
-   1 vCPU / 4 GB não cabe com folga enquanto o Streamlit for o rollback.
-   O LibreOffice do worker é o pico (PDF do analítico integral). Se a
-   medição confirmar, VPS maior antes do corte, não serviço cortado.
+1. ~~**Medir o host**~~ feito em 23/10/2026 pelo operador (Ubuntu 26.04.1,
+   kernel 7.0):
+
+   | Recurso | Medido |
+   |---|---|
+   | CPU | **1 vCPU** |
+   | RAM | 3.910 MB total; 831 MB em uso; 3.078 MB disponíveis |
+   | Swap | **nenhum** |
+   | Disco | 48 GB, 7 GB usados (15%) |
+   | Streamlit (`implantacao-app-1`) | 145 MiB, 4,6% de CPU |
+   | Caddy | 18 MiB |
+
+   Leitura:
+   * **Memória cabe, sem folga para pico.** Os limites novos somam
+     ~2,2 GB (web 512 MB, api 384 MB, worker 1 GB, redis 320 MB) contra
+     3,0 GB disponíveis. O consumo REAL esperado em repouso é bem menor
+     (Next e API na casa de 150–250 MB cada), mas o pico é o LibreOffice
+     do worker (PDF do analítico integral). **Sem swap**, um pico acima do
+     disponível vira OOM kill, não lentidão.
+   * **CPU é o gargalo.** Um vCPU para Streamlit, Next (SSR), API, worker
+     e Redis: um PDF grande no worker disputa CPU com cada página do web.
+     A latência do usuário durante uma emissão pesada é o que mais vai
+     sofrer.
+   * **Build no host não cabe.** `npm ci` + `next build` em 1 vCPU sem
+     swap é lento e arrisca OOM com o Streamlit de pé. As imagens devem
+     ser construídas no CI (o job `imagens` já constrói) e publicadas num
+     registro, e o host só faz `pull`.
+
+   Recomendação (decisão do operador):
+   1. ~~**Swap de 2 GB**~~ **feito em 23/10/2026** pelo operador:
+      `/swapfile` de 2 GB, ativo (`swapon --show`: 2G, 0B usados), no
+      `/etc/fstab` (cópia anterior em `/etc/fstab.bak-20261023`),
+      `vm.swappiness=10` em `/etc/sysctl.d/99-govconect-swap.conf`.
+      Depois: 3.102 MB de RAM disponíveis + 2.047 MB de swap. Desfazer:
+      `swapoff /swapfile && rm /swapfile && cp /etc/fstab.bak-20261023
+      /etc/fstab && rm /etc/sysctl.d/99-govconect-swap.conf && sysctl -w
+      vm.swappiness=60`. O swap protege contra OOM; não resolve o vCPU.
+   2. **Antes do corte**: VPS com **2 vCPU / 8 GB** (P06: "proponha
+      upgrade, não esconda limitação"). Com o Streamlit como rollback
+      durante a transição, são seis serviços num host.
+   3. Publicar as imagens do CI num registro (GHCR) e promover por SHA.
 2. **Staging isolado**: projeto Supabase separado (o descartável
    `govdocs-ensaio-descartavel` serve para ensaio, não para staging com
    identidades de teste estáveis) e domínio próprio (ex.:

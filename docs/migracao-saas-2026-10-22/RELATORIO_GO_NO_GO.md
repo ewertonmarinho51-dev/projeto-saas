@@ -15,7 +15,7 @@ corte foi feito.
 | Staging isolado | inexistente | projeto Supabase e domínio próprios (operador) |
 | Backup e restauração testados | não feitos | staging |
 | Rollback de imagem testado | não feito | staging |
-| Medição de memória e latência no host | não feita | `nproc; free -m; docker stats` no VPS (operador) |
+| Capacidade do host | medida em 23/10 (RUNBOOK_P06 §3): 1 vCPU, 3,9 GB; swap de 2 GB criado no mesmo dia. Memória com rede de segurança; CPU é o gargalo | VPS 2 vCPU / 8 GB antes do corte (plano mantido pelo operador); latência medida em staging |
 | Pentest/exploração | não feito (só em staging autorizado) | staging |
 | `insecure-defaults` (Trail of Bits) | não rodado: Codex CLI não disponível nesta sessão | operador com o CLI autorizado |
 
@@ -90,6 +90,8 @@ Leitura do código desta frente; não substitui pentest.
 1. P05 desbloqueado e integrado (editor funcional, aprovação e exportação).
 2. Staging isolado com as migrações, smoke completo e prova de
    restauração de backup e de rollback de imagem.
-3. Medição de memória e latência no host com os cinco serviços.
+3. Host com folga para os serviços novos e o Streamlit de rollback
+   (swap de 2 GB feito em 23/10; falta 2 vCPU / 8 GB antes do corte),
+   com a latência medida em staging.
 4. Achado 2 corrigido (o 1 já está, no #89) e o 4 decidido.
 5. Plano de implantação final aprovado explicitamente pelo operador.
