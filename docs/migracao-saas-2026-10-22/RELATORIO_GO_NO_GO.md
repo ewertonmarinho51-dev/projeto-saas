@@ -18,6 +18,12 @@ Streamlit em `/`, desligável por uma linha). O **corte** (o Next como
 porta principal) continua NO-GO pelos outros bloqueios: editor e prova de
 backup/rollback no host.
 
+**Convivência LIGADA em 23/10/2026** (v1.10.12 + `sha-2ba32f995632`,
+RUNBOOK_P06 §4a): Next em `/entrar`, `/app/*`, `/privacidade`; Streamlit
+em `/`; API e `/health/*` não expostos (conferido de fora). Pesquisa de
+preços DESLIGADA na interface nova (`PRICE_RESEARCH_ENABLED=0`) até a
+decisão do operador.
+
 | Bloqueio | Estado | O que destrava |
 |---|---|---|
 | Editor (P05) | **BLOCKED**: runtime WordCraft `INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED`, canário de 21/10 reprovado | entrega da frente WordCraft com artefato aprovado |
