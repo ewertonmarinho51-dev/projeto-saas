@@ -47,10 +47,11 @@ Leitura do código desta frente; não substitui pentest.
 
 **MÉDIO**
 
-1. **Redis sem autenticação.** A proteção é a rede (`interna`, porta não
-   publicada). Quem alcançar o Redis lê os avisos da fila, que levam o
-   token do usuário (ADR-004), válido por até 1 h. *Fix*: ACL com senha
-   em `api.env` antes do corte; TLS se o Redis sair do host.
+1. ~~**Redis sem autenticação.**~~ **CORRIGIDO no P06c (#89, 0a1cdf6).**
+   Os avisos da fila levam o token do usuário (ADR-004), e a proteção era
+   só a rede. Agora o Redis do compose exige `requirepass`, a API recusa
+   subir em staging/produção com `REDIS_URL` sem senha, e o job `imagens`
+   prova PING sem senha = NOAUTH. Resta: TLS se o Redis sair do host.
 2. **Proteção contra senha vazada desligada no Supabase Auth** (advisor
    `auth_leaked_password_protection`). *Fix*: ligar no painel (decisão do
    operador; muda o comportamento do cadastro de senha).
@@ -90,5 +91,5 @@ Leitura do código desta frente; não substitui pentest.
 2. Staging isolado com as migrações, smoke completo e prova de
    restauração de backup e de rollback de imagem.
 3. Medição de memória e latência no host com os cinco serviços.
-4. Achados 1 e 2 corrigidos (o 4, decidido).
+4. Achado 2 corrigido (o 1 já está, no #89) e o 4 decidido.
 5. Plano de implantação final aprovado explicitamente pelo operador.
