@@ -91,6 +91,48 @@
         "title": "AlertaDePreco",
         "type": "object"
       },
+      "AplicacaoFeita": {
+        "properties": {
+          "documentos_descartados": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentoDescartado"
+            },
+            "title": "Documentos Descartados",
+            "type": "array"
+          },
+          "itens_atualizados": {
+            "title": "Itens Atualizados",
+            "type": "integer"
+          },
+          "pesquisa_marcada": {
+            "title": "Pesquisa Marcada",
+            "type": "boolean"
+          },
+          "processo_id": {
+            "title": "Processo Id",
+            "type": "string"
+          },
+          "valor_global": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "processo_id",
+          "valor_global",
+          "itens_atualizados",
+          "documentos_descartados",
+          "pesquisa_marcada"
+        ],
+        "title": "AplicacaoFeita",
+        "type": "object"
+      },
       "CienciaRegistrada": {
         "properties": {
           "assinatura": {
@@ -107,6 +149,36 @@
           "assinatura"
         ],
         "title": "CienciaRegistrada",
+        "type": "object"
+      },
+      "ConfirmacaoDaAplicacao": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmo_descarte": {
+            "default": false,
+            "title": "Confirmo Descarte",
+            "type": "boolean"
+          }
+        },
+        "title": "ConfirmacaoDaAplicacao",
+        "type": "object"
+      },
+      "DocumentoDescartado": {
+        "properties": {
+          "chave": {
+            "title": "Chave",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chave",
+          "nome"
+        ],
+        "title": "DocumentoDescartado",
         "type": "object"
       },
       "EdicaoDeProcesso": {
@@ -498,6 +570,66 @@
           "motivo"
         ],
         "title": "Motivo",
+        "type": "object"
+      },
+      "MudancaDoProcesso": {
+        "properties": {
+          "avisos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Avisos",
+            "type": "array"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "posicao": {
+            "title": "Posicao",
+            "type": "integer"
+          },
+          "quantidade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantidade"
+          },
+          "unitario_atual": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unitario_novo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "posicao",
+          "descricao",
+          "unitario_atual",
+          "unitario_novo",
+          "quantidade",
+          "avisos"
+        ],
+        "title": "MudancaDoProcesso",
         "type": "object"
       },
       "MudancaNaCesta": {
@@ -1054,6 +1186,82 @@
           "total_referencias"
         ],
         "title": "PreparoDaEmissao",
+        "type": "object"
+      },
+      "PreviaDaAplicacao": {
+        "properties": {
+          "documentos_a_descartar": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentoDescartado"
+            },
+            "title": "Documentos A Descartar",
+            "type": "array"
+          },
+          "impedimento": {
+            "title": "Impedimento",
+            "type": "string"
+          },
+          "mudancas": {
+            "items": {
+              "$ref": "#/components/schemas/MudancaDoProcesso"
+            },
+            "title": "Mudancas",
+            "type": "array"
+          },
+          "processo_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processo Id"
+          },
+          "recusas": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recusas",
+            "type": "array"
+          },
+          "valor_atual": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valor_novo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "versao_processo": {
+            "title": "Versao Processo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "impedimento",
+          "processo_id",
+          "versao_processo",
+          "valor_atual",
+          "valor_novo",
+          "mudancas",
+          "recusas",
+          "documentos_a_descartar"
+        ],
+        "title": "PreviaDaAplicacao",
         "type": "object"
       },
       "Processo": {
@@ -1823,6 +2031,125 @@
           }
         },
         "summary": "Consultar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/aplicacao": {
+      "get": {
+        "operationId": "previa_api_v1_precos_pesquisas__pesquisa_id__aplicacao_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviaDaAplicacao"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Previa",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      },
+      "post": {
+        "operationId": "aplicar_api_v1_precos_pesquisas__pesquisa_id__aplicacao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmacaoDaAplicacao"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AplicacaoFeita"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Precisa ser dono (ou admin) da pesquisa e do processo"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "409": {
+            "description": "Impedida, nada a aplicar, ou o processo mudou (VERSION_CONFLICT)"
+          },
+          "422": {
+            "description": "Falta confirmar o descarte dos documentos"
+          },
+          "428": {
+            "description": "If-Match ausente"
+          }
+        },
+        "summary": "Aplicar",
         "tags": [
           "v1",
           "precos"

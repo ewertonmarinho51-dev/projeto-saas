@@ -466,3 +466,92 @@ def divergencia_do_valor(dados: dict) -> str | None:
         f"pesquisa de preços foi aplicada "
         f"({planilha.formatar_moeda(float(no_momento))}) — a proveniência "
         "registrada já não descreve o valor atual")
+
+
+# ---------------------------------------------------------------------------
+# Aplicação ao PROCESSO, sem estado de tela (P04f)
+#
+# O Streamlit faz isto com `st.session_state` (a planilha do processo
+# aberto, `state.autosalvar`, `state.invalidar_a_partir_de`). A API não
+# tem sessão: recebe a linha do processo e devolve a linha nova. As regras
+# são as mesmas e a prova de equivalência com `state` mora em
+# tests/test_aplicacao_ao_processo.py.
+# ---------------------------------------------------------------------------
+def impedimento(pesquisa: dict, processo_id: str | None, dados: dict | None) -> str:
+    """
+    Por que ainda não dá para aplicar — em texto, e não em botão cinza.
+    `processo_id` é o processo em que se quer aplicar (o aberto na tela,
+    ou o da rota na API); `dados`, a planilha dele.
+    """
+    from .estados import EstadoPesquisa
+
+    estado = str(pesquisa.get("estado") or "")
+    if estado == EstadoPesquisa.APLICADA.value:
+        return ("Esta pesquisa já foi aplicada. Para mudar os preços do "
+                "processo, crie uma revisão e aplique a revisão.")
+    if estado == EstadoPesquisa.ARQUIVADA.value:
+        return "Pesquisa arquivada não se aplica a processo."
+    if estado != EstadoPesquisa.CONCLUIDA.value:
+        return ("Conclua a pesquisa antes de aplicá-la. Enquanto houver "
+                "item por revisar, o preço ainda não passou por decisão "
+                "humana.")
+    processo_da_pesquisa = pesquisa.get("processo_id")
+    if not processo_da_pesquisa:
+        return ("Esta pesquisa é autônoma. Vincule-a a um processo (na "
+                "lista, em “Mais ações”) antes de aplicar.")
+    if not processo_id:
+        return ("Abra o processo vinculado a esta pesquisa para aplicar os "
+                "preços — a aplicação escreve na planilha dele.")
+    if str(processo_da_pesquisa) != str(processo_id):
+        # A guarda que impede o pior erro possível: escrever o preço na
+        # planilha de OUTRA contratação.
+        return ("A pesquisa está vinculada a outro processo. Abra o "
+                "processo correto antes de aplicar.")
+    if not (dados or {}).get("itens"):
+        return "O processo aberto ainda não tem planilha de itens."
+    return ""
+
+
+def descartar_por_planilha(dados: dict, documentos: dict,
+                           aprovados) -> tuple[dict, list[str], list[str]]:
+    """
+    A planilha vive no Formulário Matriz: mudá-la desatualiza toda a cadeia
+    documental. Mesma cascata de `state.invalidar_a_partir_de("formulario")`
+    + `state.descartar_documento`: cada documento da sequência sai, perde
+    a aprovação e leva os instrumentos derivados (a Ata sai com o edital).
+
+    Devolve (documentos que ficam, aprovados que ficam, descartados).
+    """
+    from ..config import INSTRUMENTOS_DERIVADOS, sequencia_do_processo
+
+    ficam = dict(documentos or {})
+    aprovacoes = set(aprovados or ())
+    descartados: list[str] = []
+    for chave in sequencia_do_processo(dados, documentos):
+        for alvo in (chave, *INSTRUMENTOS_DERIVADOS.get(chave, ())):
+            if alvo in ficam or alvo in aprovacoes:
+                descartados.append(alvo)
+            ficam.pop(alvo, None)
+            aprovacoes.discard(alvo)
+    return ficam, sorted(aprovacoes), list(dict.fromkeys(descartados))
+
+
+@dataclass
+class AplicacaoAoProcesso:
+    dados: dict
+    documentos: dict
+    aprovados: list[str]
+    mudancas: list[Mudanca]
+    recusas: list[str]
+    descartados: list[str]
+
+
+def aplicar_ao_processo(processo: dict, pesquisa: dict,
+                        itens_pesquisa: list[dict]) -> AplicacaoAoProcesso:
+    """A linha nova do processo (dados, documentos, aprovados), sem gravar."""
+    dados = dict(processo.get("dados") or {})
+    novos_dados, mudancas, recusas = aplicar(dados, pesquisa, itens_pesquisa)
+    documentos, aprovados, descartados = descartar_por_planilha(
+        dados, processo.get("documentos") or {}, processo.get("aprovados") or [])
+    return AplicacaoAoProcesso(novos_dados, documentos, aprovados, mudancas,
+                               recusas, descartados)

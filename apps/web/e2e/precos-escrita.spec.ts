@@ -11,6 +11,7 @@ const estado = JSON.parse(readFileSync(process.env.GOVCONECT_E2E_ESTADO ?? "", "
   contas: Record<string, { email: string; senha: string }>;
   escrita: string;
   planilha: string;
+  aplicacao: { processo: string; pesquisa: string };
 };
 
 test.describe.configure({ mode: "serial" });
@@ -62,4 +63,18 @@ test("criar pesquisa, importar planilha e concluir/reabrir item", async ({ page 
   await ato.getByRole("button", { name: "Reabrir item" }).click();
   await expect(page.getByText("Item reaberto para revisão.")).toBeVisible();
   await page.screenshot({ path: "e2e/resultados/telas/item-reaberto-1440.png", fullPage: true });
+
+  // Aplicar ao processo: prévia, confirmação do descarte, aplicação.
+  await page.goto(`/app/precos/${estado.aplicacao.pesquisa}`);
+  const aplicar = page.getByTestId("aplicacao");
+  await expect(aplicar.getByTestId("valor-depois")).toHaveText("R$ 351,75");
+  await expect(aplicar).toContainText("DFD");
+  const botao = aplicar.getByRole("button", { name: "Aplicar preços ao processo" });
+  await expect(botao).toBeDisabled(); // sem confirmar o descarte, não aplica
+  await aplicar.getByLabel(/Entendi que esses documentos serão descartados/).check();
+  await page.screenshot({ path: "e2e/resultados/telas/aplicar-1440.png", fullPage: true });
+  await botao.click();
+  await expect(page).toHaveURL(/\?aplicada=1$/);
+  await expect(page.getByText("Preços aplicados ao processo.")).toBeVisible();
+  await expect(page.getByTestId("secao-aplicar")).toContainText("já foi aplicada");
 });

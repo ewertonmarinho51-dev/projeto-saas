@@ -271,3 +271,24 @@ export async function baixarDaApi(caminho: string): Promise<Response> {
     throw new ErroDaApi(503, "API_INDISPONIVEL", "");
   }
 }
+
+// ---------------------------------------------------------------------------
+// Aplicar ao processo (P04f). Prévia primeiro, sempre (§26).
+// ---------------------------------------------------------------------------
+export type PreviaDaAplicacao = {
+  impedimento: string;
+  processo_id: string | null;
+  versao_processo: string;
+  valor_atual: Valor | null;
+  valor_novo: Valor | null;
+  mudancas: {
+    posicao: number;
+    descricao: string;
+    unitario_atual: Valor | null;
+    unitario_novo: Valor | null;
+    quantidade: string | null;
+    avisos: string[];
+  }[];
+  recusas: string[];
+  documentos_a_descartar: { chave: string; nome: string }[];
+};

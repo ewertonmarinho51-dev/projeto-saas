@@ -2817,35 +2817,11 @@ def _impedimento_para_aplicar(pesquisa: dict) -> str:
     Por que ainda não dá para aplicar — em texto, e não em botão cinza.
 
     Botão desabilitado sem explicação faz o servidor procurar o defeito
-    no lugar errado.
+    no lugar errado. A regra é `aplicacao.impedimento`, a mesma da API;
+    aqui entram o processo aberto e a planilha dele.
     """
-    estado = str(pesquisa.get("estado") or "")
-    if estado == EstadoPesquisa.APLICADA.value:
-        return ("Esta pesquisa já foi aplicada. Para mudar os preços do "
-                "processo, crie uma revisão e aplique a revisão.")
-    if estado == EstadoPesquisa.ARQUIVADA.value:
-        return "Pesquisa arquivada não se aplica a processo."
-    if estado != EstadoPesquisa.CONCLUIDA.value:
-        return ("Conclua a pesquisa antes de aplicá-la. Enquanto houver "
-                "item por revisar, o preço ainda não passou por decisão "
-                "humana.")
-
-    processo_da_pesquisa = pesquisa.get("processo_id")
-    processo_aberto = st.session_state.get("processo_id")
-    if not processo_da_pesquisa:
-        return ("Esta pesquisa é autônoma. Vincule-a a um processo (na "
-                "lista, em “Mais ações”) antes de aplicar.")
-    if not processo_aberto:
-        return ("Abra o processo vinculado a esta pesquisa para aplicar os "
-                "preços — a aplicação escreve na planilha dele.")
-    if str(processo_da_pesquisa) != str(processo_aberto):
-        # A guarda que impede o pior erro possível desta tela: escrever
-        # o preço na planilha de OUTRA contratação.
-        return ("A pesquisa está vinculada a outro processo. Abra o "
-                "processo correto antes de aplicar.")
-    if not (st.session_state.get("dados") or {}).get("itens"):
-        return "O processo aberto ainda não tem planilha de itens."
-    return ""
+    return aplicacao.impedimento(pesquisa, st.session_state.get("processo_id"),
+                                 st.session_state.get("dados"))
 
 
 def _render_diff(dados: dict, mudancas: list, recusas: list[str]) -> None:
