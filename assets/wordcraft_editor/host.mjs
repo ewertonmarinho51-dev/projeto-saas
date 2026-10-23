@@ -125,7 +125,11 @@ export class EditorController {
     if (this.state !== 'opening' || await sha256(bytes) !== this.initialHash) throw new Error('Conteúdo carregado diverge da revisão autorizada.');
     this.generation = this.native.generation();
     this.state = 'ready';
-    this.publish('document.loaded', {content_hash: this.initialHash});
+    // event_ack > 0 means the backend bridge already accepted the opening of
+    // this instance. A frontend remount must rebuild the authorized native
+    // canvas, but it must not replay document.loaded into an already-ready
+    // protocol state.
+    if (this.sequence === 0) this.publish('document.loaded', {content_hash: this.initialHash});
   }
   changed() {
     if (!['ready', 'saved', 'dirty', 'saving', 'error'].includes(this.state)) return false;

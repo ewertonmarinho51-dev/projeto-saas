@@ -30,7 +30,7 @@ test('outbox applies backpressure without dropping unconsumed events', () => {
   assert.equal(outbox.last, 256);
 });
 
-test('remount resumes after the backend event ACK instead of replaying loaded', async () => {
+test('remount resumes after the backend event ACK without replaying loaded', async () => {
   let latest;
   const outbox = new EventOutbox((key, value) => { latest = value; }, 7);
   outbox.push('edit', {sequence: 8, event: 'document.loaded'});
@@ -44,9 +44,9 @@ test('remount resumes after the backend event ACK instead of replaying loaded', 
   const native = {generation: () => '1'};
   const controller = new EditorController(native, data, (key, event) => sent.push(event));
   await controller.loaded(bytes);
-  assert.equal(controller.sequence, 8);
-  assert.equal(sent[0].sequence, 8);
-  assert.equal(sent[0].event, 'document.loaded');
+  assert.equal(controller.sequence, 7);
+  assert.deepEqual(sent, []);
+  assert.equal(controller.state, 'ready');
 });
 function deferred() {
   let resolve;
