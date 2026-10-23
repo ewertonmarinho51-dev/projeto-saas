@@ -1,0 +1,16 @@
+<!-- @dsCard group="Components" viewport="700x200" name="Core" subtitle="Logo, Icon, Avatar, Tooltip" -->
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{padding:24px;background:var(--bg-app)}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.col{display:grid;gap:14px}.lbl{font:600 11px/1 var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:-4px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const NS = window.GovConectDesignSystem_76359c;
+const { Logo, Icon, Avatar, Tooltip, IconButton } = NS;
+function App(){return <div className="col">
+<div className="row" style={{gap:32}}><Logo size={32} src="../../assets/logo-govconect-96.png" /><Logo size={40} withName={false} src="../../assets/logo-govconect-96.png" /><div style={{background:"var(--gc-gray-800)",padding:10,borderRadius:8}}><Logo size={28} withName={false} src="../../assets/logo-govconect-96.png" /></div><div className="row"><Avatar size="sm" name="Ana Lima" /><Avatar name="Antonio Marinho" /><Avatar size="lg" name="Maria Silva" /></div></div>
+<div className="row" style={{gap:18,fontSize:20,color:"var(--text-secondary)"}}>{["house","folder-open","currency-circle-dollar","file-text","books","scales","shield-check","gear-six","sparkle","magnifying-glass","funnel","upload-simple","download-simple","check-circle","warning","info"].map(n=><Icon key={n} name={n} />)}<Tooltip content="Ajuda contextual" open><IconButton size="sm" icon="question" label="Ajuda" /></Tooltip></div>
+</div>}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script></body></html>

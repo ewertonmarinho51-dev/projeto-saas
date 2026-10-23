@@ -1,0 +1,19 @@
+/* Gerado a partir do export do Claude Design (23/10/2026). Fonte da verdade: DESIGN.md na raiz. */
+:root {
+  --dur-instant:80ms;
+  --dur-fast:120ms;
+  --dur-base:180ms;
+  --dur-slow:280ms;
+  --gc-ease-standard:cubic-bezier(.2,0,0,1);
+  --gc-ease-out:cubic-bezier(.16,1,.3,1);
+  --gc-ease-in:cubic-bezier(.4,0,1,1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+}

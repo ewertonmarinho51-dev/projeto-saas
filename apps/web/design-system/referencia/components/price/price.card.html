@@ -1,0 +1,36 @@
+<!-- @dsCard group="Components" viewport="700x1180" name="Pesquisa de preços" subtitle="ItemNav, ScreeningSummary, Dispersion, ReferenceRow, Basket, Stats, MapTable, ValidationSummary, Traceability, SourcePicker, ExclusionDialog" -->
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{padding:16px;background:var(--bg-app)}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.col{display:grid;gap:14px}.lbl{font:600 11px/1 var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:-4px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const NS = window.GovConectDesignSystem_76359c;
+const { PriceReferenceRow, PriceBasket, PriceStats, TraceabilityPanel, SourcePicker, PriceItemNav, PriceDispersion, ScreeningSummary, ValidationSummary, PriceMapTable, ExclusionDialog, Card, Badge, Alert } = NS;
+function App(){const [src,setSrc]=React.useState(["pncp","compras"]);const [s,setS]=React.useState([true,true,false]);const [f,setF]=React.useState(null);
+const t=(i)=>setS(s.map((v,j)=>j===i?!v:v));
+return <div className="col">
+<div style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:16,alignItems:"start"}}>
+<Card flush title="Itens"><div style={{padding:"0 8px 10px"}}><PriceItemNav activeId={1} items={[{id:1,n:"01",title:"Notebook corporativo i5",unit:"UN",refs:3,status:"review"},{id:2,n:"02",title:"Monitor 24''",unit:"UN",refs:9,value:"R$ 899,00",status:"done"},{id:3,n:"03",title:"Teclado ABNT2",unit:"UN",refs:2,status:"blocked"}]} /></div></Card>
+<div className="col" style={{gap:12}}>
+<ScreeningSummary counts={{total:3,valid:2,attention:0,discrepant:1,excluded:0}} active={f} onFilter={setF} />
+<Card title="Dispersão" actions={<Badge variant="warning" caps size="sm">Avaliação preliminar</Badge>}><PriceDispersion median={4250} band={[3187,5312]} values={[{value:3900},{value:4250},{value:9800,state:"discrepant"},{value:3500,state:"attention"}]} /></Card>
+</div></div>
+<div className="col" style={{gap:8}}>
+<PriceReferenceRow selected={s[0]} onToggle={()=>t(0)} title="Notebook corporativo Core i5, 8 GB, SSD 256 GB" source="PNCP" agency="Pref. de Belém · PA" date="12/09/2026" value="R$ 3.900,00" status="compatible" />
+<PriceReferenceRow selected={s[1]} onToggle={()=>t(1)} title="Notebook Core i5 12ª ger., 8 GB, 256 GB" source="Compras.gov.br" agency="UFPA" date="03/08/2026" value="R$ 4.250,00" status="compatible" />
+<PriceReferenceRow selected={s[2]} onToggle={()=>t(2)} title="Notebook i5, 16 GB, SSD 512 GB, tela 15,6''" source="PNCP" agency="Gov. do Estado · PA" date="21/06/2026" value="R$ 9.800,00" unitNote="+131% sobre a mediana" status="discrepant" />
+</div>
+<PriceStats items={[{label:"Referências",value:"2",hint:"de 3 coletadas"},{label:"Menor",value:"R$ 3.900,00"},{label:"Média",value:"R$ 4.075,00",highlight:true,hint:"Método adotado"},{label:"Mediana",value:"R$ 4.075,00"},{label:"Coef. variação",value:"6,1%"}]} />
+<div className="g2" style={{alignItems:"start"}}>
+<Card title="Cesta de preços" actions={<Badge variant="brand">2</Badge>}><PriceBasket onRemove={()=>{}} total="R$ 4.075,00" items={[{source:"PNCP",detail:"Pref. de Belém · 12/09/2026",value:"R$ 3.900,00"},{source:"Compras.gov.br",detail:"UFPA · 03/08/2026",value:"R$ 4.250,00"}]} /></Card>
+<Card title="Rastreabilidade"><TraceabilityPanel url="#" urlLabel="Registro original" hash="a91f·3c07" status={<Badge variant="warning" icon="warning-circle" size="sm">Exige conferência</Badge>} fields={[{label:"Fonte",value:"PNCP — Contratações"},{label:"Órgão",value:"Pref. de Belém"},{label:"Data",value:"12/09/2026"}]} /></Card>
+</div>
+<PriceMapTable method="Média" total="R$ 171.900,00" sources={[{key:"r1",label:"Ref. 1",sub:"PNCP"},{key:"r2",label:"Ref. 2",sub:"Compras.gov.br"},{key:"r3",label:"Ref. 3",sub:"PNCP"}]} rows={[{id:1,n:"01",desc:"Notebook corporativo i5",unit:"UN",qty:"40",cells:{r1:{value:"R$ 3.900,00"},r2:{value:"R$ 4.250,00"},r3:{value:"R$ 9.800,00",excluded:true}},estimate:"R$ 4.075,00",total:"R$ 163.000,00"},{id:2,n:"02",desc:"Monitor 24''",unit:"UN",qty:"10",cells:{r1:{value:"R$ 879,00"},r2:{value:"R$ 919,00"}},estimate:"R$ 890,00",total:"R$ 8.900,00"}]} />
+<ValidationSummary issues={[{severity:"blocking",title:"Item 03 tem apenas 2 referências válidas",item:"Item 03",action:"Resolver"},{severity:"warning",title:"Referência com mais de 180 dias",item:"Item 01"},{severity:"info",title:"Justificativas de exclusão incluídas no relatório"}]} />
+<SourcePicker value={src} onChange={setSrc} sources={[{id:"pncp",name:"PNCP",description:"Contratações e atas"},{id:"compras",name:"Compras.gov.br",description:"Dados abertos federais"},{id:"painel",name:"Painel de Preços",description:"Homologações federais"}]} />
+<div style={{position:"relative",height:470,borderRadius:12,overflow:"hidden"}}><ExclusionDialog contained reference={{title:"Notebook i5, 16 GB, SSD 512 GB",value:"R$ 9.800,00"}} onCancel={()=>{}} onConfirm={()=>{}} /></div>
+</div>}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script></body></html>

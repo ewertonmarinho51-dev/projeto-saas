@@ -1,0 +1,34 @@
+/* Gerado a partir do export do Claude Design (23/10/2026). Fonte da verdade: DESIGN.md na raiz. */
+:root {
+  --space-0:0;
+  --space-0-5:2px;
+  --space-1:4px;
+  --space-1-5:6px;
+  --space-2:8px;
+  --space-2-5:10px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-5:20px;
+  --space-6:24px;
+  --space-8:32px;
+  --space-10:40px;
+  --space-12:48px;
+  --space-16:64px;
+  /* Radii — 8px is the single control radius inherited from the web app */
+  --gc-radius-xs:4px;
+  --gc-radius-sm:6px;
+  --gc-radius-md:8px;
+  --gc-radius-lg:12px;
+  --gc-radius-xl:16px;
+  --gc-radius-pill:999px;
+  --border-width:1px;
+  --border-width-strong:1.5px;
+  /* Control heights */
+  --control-sm:32px;
+  --control-md:40px;
+  --control-lg:44px;
+  --icon-xs:14px;
+  --icon-sm:16px;
+  --icon-md:18px;
+  --icon-lg:20px;
+}

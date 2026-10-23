@@ -1,0 +1,16 @@
+/*
+ * Entrada única do design system Gov Conect. Importada por
+ * app/globals.css logo depois do Tailwind.
+ *
+ * Tokens: os valores moram em DESIGN.md (raiz do repositório), que é a
+ * fonte da verdade; tests/design-system.test.ts reprova se os dois
+ * divergirem.
+ */
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";
+@import "./tokens/elevation.css";
+@import "./tokens/motion.css";
+@import "./tokens/layout.css";
+@import "./styles/base.css";
+@import "./styles/components.css";
