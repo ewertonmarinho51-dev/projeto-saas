@@ -353,6 +353,20 @@ def semear_emissao(pilha: Pilha, dono: str = "a1") -> str:
     return pid
 
 
+def gravar_planilha_e2e(pasta: Path) -> Path:
+    """A planilha que o E2E importa: dois itens, um com quantidade decimal."""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Código", "Descrição", "Unidade", "Quantidade"])
+    ws.append(["451234", "Caneta esferográfica azul", "UN", 150])
+    ws.append(["", "Papel A4 75 g/m²", "RESMA", "12,5"])
+    caminho = pasta / "itens-e2e.xlsx"
+    wb.save(caminho)
+    return caminho
+
+
 def principal() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--estado", required=True, type=Path,
@@ -368,6 +382,10 @@ def principal() -> int:
                   "precos": semear_precos(pilha),
                   "coleta": semear_coleta(pilha),
                   "emissao": semear_emissao(pilha, dono="admin_a"),
+                  # P04e: pesquisa própria para concluir/reabrir (não mexe na
+                  # da emissão) e uma planilha XLSX real para importar.
+                  "escrita": semear_emissao(pilha, dono="admin_a"),
+                  "planilha": str(gravar_planilha_e2e(args.estado.parent)),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
         temporario = args.estado.with_suffix(".tmp")

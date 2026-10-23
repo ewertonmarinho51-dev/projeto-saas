@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
-from . import artefatos, cesta, coleta, erros, precos, processos, relatorios
+from . import artefatos, cesta, coleta, erros, precos, precos_escrita, processos, relatorios
 from .observabilidade import METRICAS
 from .camadas import CamadaDeRequisicao
 from .config import Configuracao, carregar
@@ -104,6 +104,7 @@ def _rotas_v1() -> APIRouter:
     rotas.include_router(processos.rotas())
     rotas.include_router(precos.rotas())
     rotas.include_router(cesta.rotas())
+    rotas.include_router(precos_escrita.rotas())
     rotas.include_router(coleta.rotas())
     rotas.include_router(relatorios.rotas())
     return rotas

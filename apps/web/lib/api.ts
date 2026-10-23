@@ -70,7 +70,14 @@ async function tokenDaSessao(): Promise<string> {
 
 export async function chamarApi<T>(
   caminho: string,
-  init: { metodo?: string; corpo?: unknown; cabecalhos?: Record<string, string> } = {},
+  init: {
+    metodo?: string;
+    corpo?: unknown;
+    // Corpo binário (planilha XLSX): vai como veio, com o tipo dele.
+    corpoBruto?: { dados: ArrayBuffer; tipo: string };
+    cabecalhos?: Record<string, string>;
+    tempoMs?: number;
+  } = {},
 ): Promise<{ dados: T; cabecalhos: Headers }> {
   const token = await tokenDaSessao();
   let resposta: Response;
@@ -82,10 +89,11 @@ export async function chamarApi<T>(
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
         ...(init.corpo !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...(init.corpoBruto ? { "Content-Type": init.corpoBruto.tipo } : {}),
         ...init.cabecalhos,
       },
-      body: init.corpo !== undefined ? JSON.stringify(init.corpo) : undefined,
-      signal: AbortSignal.timeout(8000),
+      body: init.corpoBruto ? init.corpoBruto.dados : init.corpo !== undefined ? JSON.stringify(init.corpo) : undefined,
+      signal: AbortSignal.timeout(init.tempoMs ?? 8000),
     });
   } catch {
     throw new ErroDaApi(503, "API_INDISPONIVEL", "");
@@ -201,6 +209,29 @@ export type Job = {
     registrado?: boolean;
     mensagem?: string;
   };
+};
+
+// ---------------------------------------------------------------------------
+// Importação da planilha (P04e). O plano vem do SERVIDOR, com o hash que a
+// confirmação devolve; o navegador só mostra.
+// ---------------------------------------------------------------------------
+export type PlanoDeImportacao = {
+  pode_importar: boolean;
+  erros: { linha: number; campo: string; valor: string; motivo: string }[];
+  linhas_em_branco: number;
+  resumo: { novo: number; atualizar: number; igual: number; refaz_busca: number };
+  acoes: {
+    numero: number;
+    tipo: "novo" | "atualizar" | "igual";
+    descricao: string;
+    unidade: string;
+    quantidade: string;
+    codigo: string;
+    mudancas: string[];
+    refaz_busca: boolean;
+  }[];
+  plano: string;
+  gravado: boolean;
 };
 
 // ---------------------------------------------------------------------------

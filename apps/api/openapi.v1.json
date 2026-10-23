@@ -1,6 +1,57 @@
 {
   "components": {
     "schemas": {
+      "AcaoDoPlano": {
+        "properties": {
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "mudancas": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Mudancas",
+            "type": "array"
+          },
+          "numero": {
+            "title": "Numero",
+            "type": "integer"
+          },
+          "quantidade": {
+            "title": "Quantidade",
+            "type": "string"
+          },
+          "refaz_busca": {
+            "title": "Refaz Busca",
+            "type": "boolean"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          },
+          "unidade": {
+            "title": "Unidade",
+            "type": "string"
+          }
+        },
+        "required": [
+          "numero",
+          "tipo",
+          "descricao",
+          "unidade",
+          "quantidade",
+          "codigo",
+          "mudancas",
+          "refaz_busca"
+        ],
+        "title": "AcaoDoPlano",
+        "type": "object"
+      },
       "AlertaDePreco": {
         "properties": {
           "descricao": {
@@ -101,6 +152,34 @@
           }
         },
         "title": "EdicaoDeProcesso",
+        "type": "object"
+      },
+      "ErroDaPlanilha": {
+        "properties": {
+          "campo": {
+            "title": "Campo",
+            "type": "string"
+          },
+          "linha": {
+            "title": "Linha",
+            "type": "integer"
+          },
+          "motivo": {
+            "title": "Motivo",
+            "type": "string"
+          },
+          "valor": {
+            "title": "Valor",
+            "type": "string"
+          }
+        },
+        "required": [
+          "linha",
+          "campo",
+          "valor",
+          "motivo"
+        ],
+        "title": "ErroDaPlanilha",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -252,6 +331,29 @@
         "title": "Item",
         "type": "object"
       },
+      "ItemDepois": {
+        "properties": {
+          "estado": {
+            "title": "Estado",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "revisao": {
+            "title": "Revisao",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "estado",
+          "revisao"
+        ],
+        "title": "ItemDepois",
+        "type": "object"
+      },
       "Job": {
         "properties": {
           "concluido_em": {
@@ -335,6 +437,19 @@
         "title": "Job",
         "type": "object"
       },
+      "Justificativa": {
+        "additionalProperties": false,
+        "properties": {
+          "justificativa": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Justificativa",
+            "type": "string"
+          }
+        },
+        "title": "Justificativa",
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "auth_user_id": {
@@ -369,6 +484,22 @@
         "title": "Me",
         "type": "object"
       },
+      "Motivo": {
+        "additionalProperties": false,
+        "properties": {
+          "motivo": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Motivo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "motivo"
+        ],
+        "title": "Motivo",
+        "type": "object"
+      },
       "MudancaNaCesta": {
         "additionalProperties": false,
         "properties": {
@@ -393,6 +524,82 @@
           "incluir"
         ],
         "title": "MudancaNaCesta",
+        "type": "object"
+      },
+      "NovaPesquisa": {
+        "additionalProperties": false,
+        "properties": {
+          "data_base": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Base"
+          },
+          "local_referencia": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Local Referencia",
+            "type": "string"
+          },
+          "nome": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome",
+            "type": "string"
+          },
+          "objeto": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Objeto",
+            "type": "string"
+          },
+          "perfil_normativo": {
+            "default": "lei_14133",
+            "title": "Perfil Normativo",
+            "type": "string"
+          },
+          "processo_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processo Id"
+          },
+          "responsavel": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Responsavel",
+            "type": "string"
+          },
+          "uf": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uf"
+          }
+        },
+        "required": [
+          "nome"
+        ],
+        "title": "NovaPesquisa",
         "type": "object"
       },
       "NovoProcesso": {
@@ -689,6 +896,81 @@
           "itens"
         ],
         "title": "Pesquisa",
+        "type": "object"
+      },
+      "PesquisaCriada": {
+        "properties": {
+          "estado": {
+            "title": "Estado",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nome",
+          "estado"
+        ],
+        "title": "PesquisaCriada",
+        "type": "object"
+      },
+      "PlanoDeImportacao": {
+        "properties": {
+          "acoes": {
+            "items": {
+              "$ref": "#/components/schemas/AcaoDoPlano"
+            },
+            "title": "Acoes",
+            "type": "array"
+          },
+          "erros": {
+            "items": {
+              "$ref": "#/components/schemas/ErroDaPlanilha"
+            },
+            "title": "Erros",
+            "type": "array"
+          },
+          "gravado": {
+            "title": "Gravado",
+            "type": "boolean"
+          },
+          "linhas_em_branco": {
+            "title": "Linhas Em Branco",
+            "type": "integer"
+          },
+          "plano": {
+            "title": "Plano",
+            "type": "string"
+          },
+          "pode_importar": {
+            "title": "Pode Importar",
+            "type": "boolean"
+          },
+          "resumo": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Resumo",
+            "type": "object"
+          }
+        },
+        "required": [
+          "pode_importar",
+          "erros",
+          "linhas_em_branco",
+          "resumo",
+          "acoes",
+          "plano",
+          "gravado"
+        ],
+        "title": "PlanoDeImportacao",
         "type": "object"
       },
       "PreparoDaEmissao": {
@@ -1441,6 +1723,63 @@
           "v1",
           "precos"
         ]
+      },
+      "post": {
+        "operationId": "criar_api_v1_precos_pesquisas_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovaPesquisa"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesquisaCriada"
+                }
+              }
+            },
+            "description": "Repetição da mesma Idempotency-Key"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesquisaCriada"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "description": "Regra do domínio recusou"
+          }
+        },
+        "summary": "Criar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
       }
     },
     "/api/v1/precos/pesquisas/{pesquisa_id}": {
@@ -1675,6 +2014,242 @@
           }
         },
         "summary": "Preparar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/importacao": {
+      "post": {
+        "operationId": "importar_api_v1_precos_pesquisas__pesquisa_id__importacao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "confirmar",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Confirmar",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanoDeImportacao"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o dono ou o administrador"
+          },
+          "409": {
+            "description": "O plano mudou desde a conferência (PLANO_DESATUALIZADO)"
+          },
+          "413": {
+            "description": "Planilha acima do limite"
+          },
+          "415": {
+            "description": "Não é XLSX"
+          },
+          "422": {
+            "description": "Planilha com erros (nada gravado)"
+          }
+        },
+        "summary": "Importar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/itens/{item_id}/conclusao": {
+      "post": {
+        "operationId": "concluir_api_v1_precos_pesquisas__pesquisa_id__itens__item_id__conclusao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Justificativa"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDepois"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o dono ou o administrador"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "409": {
+            "description": "Revisão desatualizada ou cotação imutável"
+          },
+          "422": {
+            "description": "Regra do domínio recusou (ex.: falta justificativa)"
+          },
+          "428": {
+            "description": "If-Match ausente"
+          }
+        },
+        "summary": "Concluir",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/itens/{item_id}/reabertura": {
+      "post": {
+        "operationId": "reabrir_api_v1_precos_pesquisas__pesquisa_id__itens__item_id__reabertura_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Motivo"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDepois"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o dono ou o administrador"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "409": {
+            "description": "Cotação imutável"
+          },
+          "422": {
+            "description": "Regra do domínio recusou (ex.: motivo curto)"
+          }
+        },
+        "summary": "Reabrir",
         "tags": [
           "v1",
           "precos"
