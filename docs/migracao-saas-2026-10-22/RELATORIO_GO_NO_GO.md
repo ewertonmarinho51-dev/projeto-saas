@@ -1,0 +1,94 @@
+# Relatório GO/NO-GO: migração Gov Conect 2.0 (PRELIMINAR)
+
+Data: 22/10/2026. Base: `main` depois do #85 (P06a) e do #86 (P06b).
+
+## Decisão: **NO-GO**
+
+O P07 manda NO-GO quando "falta acesso ao editor funcional", quando não
+há "rollback/backup válido" e quando o staging não existe ou é o banco de
+produção. As três condições valem hoje. Nada aqui autoriza corte, e nenhum
+corte foi feito.
+
+| Bloqueio | Estado | O que destrava |
+|---|---|---|
+| Editor (P05) | **BLOCKED**: runtime WordCraft `INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED`, canário de 21/10 reprovado | entrega da frente WordCraft com artefato aprovado |
+| Staging isolado | inexistente | projeto Supabase e domínio próprios (operador) |
+| Backup e restauração testados | não feitos | staging |
+| Rollback de imagem testado | não feito | staging |
+| Medição de memória e latência no host | não feita | `nproc; free -m; docker stats` no VPS (operador) |
+| Pentest/exploração | não feito (só em staging autorizado) | staging |
+| `insecure-defaults` (Trail of Bits) | não rodado: Codex CLI não disponível nesta sessão | operador com o CLI autorizado |
+
+## O que está provado (com evidência)
+
+| Requisito do P07 | Evidência |
+|---|---|
+| RLS tenant A × B, revogação e expiração de sessão | job `api-rls` (pilha real GoTrue ES256 + PostgREST): `test_rls_processos`, `test_rls_precos`, `test_rls_cesta`, `test_rls_coleta`, `test_rls_relatorios` |
+| Build do front sem segredo | job `imagens`: o build do web recusa chave de servidor; `NEXT_PUBLIC_*` só URL e chave publicável |
+| Origem/CORS | CORS desligado por padrão; `*` recusado (`test_config`); a API não é publicada pelo Caddy |
+| CSRF | ações do web são server actions (checagem de Origin do Next); a API exige Bearer, sem cookie |
+| XSS/CSP | CSP com nonce por requisição (P03, `tests/seguranca.test.ts`) |
+| SSRF/links | `links.resolver`: só https e host oficial (PNCP, Compras.gov) |
+| Rate limit | API 120/min por usuário; login 5 por IP+e-mail a cada 15 min |
+| Idempotência | `Idempotency-Key` com unicidade no banco (0030, 0031) e provas de repetição |
+| Workers | Celery + Redis reais em `api-rls` e `web-e2e`; token fora do log; job para antes do `exp` |
+| Preço em Decimal | nenhum `float`/`Number()` sobre dinheiro na API ou no web; JSON com string decimal |
+| Relatório não fictício | emissão pelo motor institucional, registrada com o hash do byte entregue (`test_rls_relatorios`) |
+| Ciência na emissão | exigida pelo worker na hora de gerar; mutação reprova |
+| Fluxo no navegador | Playwright `web-e2e`: login, processos, preços, cesta, coleta, emissão e download (capturas no artefato `web-e2e-telas`) |
+| Logs sem dado sensível | `test_observabilidade`: sem ids no caminho, query, token, texto de exceção ou id de município |
+
+Fluxos que o P07 pede e ainda NÃO existem no web: documentos, aprovar e
+exportar documento (dependem do P05).
+
+## Achados da auditoria estática (por severidade)
+
+Leitura do código desta frente; não substitui pentest.
+
+**MÉDIO**
+
+1. **Redis sem autenticação.** A proteção é a rede (`interna`, porta não
+   publicada). Quem alcançar o Redis lê os avisos da fila, que levam o
+   token do usuário (ADR-004), válido por até 1 h. *Fix*: ACL com senha
+   em `api.env` antes do corte; TLS se o Redis sair do host.
+2. **Proteção contra senha vazada desligada no Supabase Auth** (advisor
+   `auth_leaked_password_protection`). *Fix*: ligar no painel (decisão do
+   operador; muda o comportamento do cadastro de senha).
+
+**BAIXO**
+
+3. **Limitadores em memória, por processo** (login no web, requisições na
+   API): zeram ao reiniciar e não valem entre réplicas. Aceito pela
+   ADR-007 (um processo); com réplica, Redis.
+4. **O limite de login conta as entradas que deram certo.** Quem entra e
+   sai 6 vezes em 15 min do mesmo IP fica bloqueado (achado no E2E do
+   P04d). *Fix* sugerido: zerar a chave no sucesso; é decisão de
+   segurança, não feita aqui.
+5. **O dono do job reescreve `estado`/`resultado` do próprio job** pelo
+   PostgREST (0031/0032 declaram). Efeito só na tela dele; download e
+   registro da emissão não leem esses campos.
+
+**INFORMATIVO**
+
+6. `flags_do_app()` (0033) mostra a qualquer autenticado quais flags estão
+   ligadas. Intencional: é o que a API precisa para valer a mesma política
+   da tela.
+7. Avisos anteriores do advisor: `vector` em `public`; funções SECURITY
+   DEFINER executáveis por `authenticated` (`aprovacao_no_escopo`,
+   `registrar_evento_governanca`, `revisar_pesquisa_preco`, e agora
+   `flags_do_app`, todas com `search_path` fixo).
+
+**Fora desta frente (WordCraft), registrados sem alteração**
+
+8. As tabelas `documentos_editor*` estão em produção, mas o inventário de
+   segurança as dá como não implantadas.
+9. As mesmas três estão com RLS ligada e **não forçada**.
+
+## Para virar GO
+
+1. P05 desbloqueado e integrado (editor funcional, aprovação e exportação).
+2. Staging isolado com as migrações, smoke completo e prova de
+   restauração de backup e de rollback de imagem.
+3. Medição de memória e latência no host com os cinco serviços.
+4. Achados 1 e 2 corrigidos (o 4, decidido).
+5. Plano de implantação final aprovado explicitamente pelo operador.
