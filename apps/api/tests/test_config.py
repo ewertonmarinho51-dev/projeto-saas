@@ -94,3 +94,21 @@ def test_chave_de_servidor_no_lugar_da_publicavel_e_recusada(chave):
 def test_ambiente_protegido_exige_chave_publicavel(ambiente):
     with pytest.raises(ConfiguracaoInvalida, match="SUPABASE_KEY"):
         carregar({"APP_ENV": ambiente, "SUPABASE_URL": "https://prod.exemplo.co"})
+
+
+@pytest.mark.parametrize("ambiente", ["staging", "production"])
+def test_redis_sem_senha_nao_sobe_em_ambiente_protegido(ambiente):
+    # O aviso da fila leva o token do usuário (ADR-004).
+    with pytest.raises(ConfiguracaoInvalida, match="sem senha"):
+        carregar({**PROD, "APP_ENV": ambiente, "REDIS_URL": "redis://redis:6379/0"})
+
+
+def test_redis_com_senha_sobe_e_a_senha_nao_vai_para_o_repr():
+    config = carregar({**PROD, "REDIS_URL": "redis://:senha-de-teste-123@redis:6379/0"})
+    assert config.redis_url.endswith("@redis:6379/0")
+    assert "senha-de-teste-123" not in repr(config)
+
+
+def test_redis_sem_senha_vale_em_desenvolvimento():
+    assert carregar({"APP_ENV": "development",
+                     "REDIS_URL": "redis://127.0.0.1:6379/0"}).redis_url

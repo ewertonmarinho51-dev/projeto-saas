@@ -478,7 +478,7 @@ jobs:
           servicos="$(docker compose -f implantacao/docker-compose.yml config --services | sort | tr '\n' ' ')"
           echo "sem profile: $servicos"
           [ "$servicos" = "app caddy " ]
-          sudo touch /etc/govdocs/api.env /etc/govdocs/web.env
+          sudo touch /etc/govdocs/api.env /etc/govdocs/web.env /etc/govdocs/redis.env
           servicos="$(docker compose -f implantacao/docker-compose.yml --profile govconect config --services | sort | tr '\n' ' ')"
           echo "com profile: $servicos"
           [ "$servicos" = "api app caddy redis web worker " ]
@@ -511,3 +511,24 @@ jobs:
 
       - name: Smoke das imagens
         run: bash implantacao/smoke_imagens.sh govconect-api:ci govconect-worker:ci govconect-web:ci
+
+      - name: Redis do compose exige senha
+        # O MESMO comando do serviço `redis` do compose, lido do arquivo:
+        # sem senha, PING é recusado; com ela, responde. Senha de TESTE,
+        # gerada aqui.
+        shell: bash
+        run: |
+          senha="$(openssl rand -hex 16)"
+          printf 'REDIS_SENHA=%s\n' "$senha" | sudo tee /etc/govdocs/redis.env >/dev/null
+          docker compose -f implantacao/docker-compose.yml --profile govconect up -d redis
+          for i in $(seq 1 30); do
+            [ "$(docker compose -f implantacao/docker-compose.yml ps redis --format '{{.Health}}')" = healthy ] && break
+            sleep 1
+          done
+          docker compose -f implantacao/docker-compose.yml ps redis
+          sem="$(docker compose -f implantacao/docker-compose.yml exec -T redis redis-cli ping 2>&1 || true)"
+          echo "sem senha: $sem"
+          echo "$sem" | grep -q NOAUTH
+          com="$(docker compose -f implantacao/docker-compose.yml exec -T -e REDISCLI_AUTH="$senha" redis redis-cli ping)"
+          [ "$com" = PONG ]
+          docker compose -f implantacao/docker-compose.yml --profile govconect down

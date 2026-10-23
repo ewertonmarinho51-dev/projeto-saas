@@ -21,8 +21,9 @@ Decisões de desenho (ADR-001/004/007):
 - **Segredo por serviço.** `api.env` e `web.env` são arquivos novos; o
   `/etc/govdocs/env` do Streamlit (que tem a chave de SERVIDOR) não é
   lido por nenhum serviço novo.
-- **Redis** sem persistência, `noeviction`, 256 MB: fila e arquivo
-  efêmero (relatório por 30 min). Job de negócio no Postgres (0031/0032).
+- **Redis** com senha, sem persistência, `noeviction`, 256 MB: fila e
+  arquivo efêmero (relatório por 30 min). Job de negócio no Postgres
+  (0031/0032).
 - **Raiz somente leitura** em `web`, `api`, `worker`, `redis`; `/tmp` em
   tmpfs; limites de memória por serviço; `stop_grace_period` de 60 s no
   worker (`acks_late` devolve o aviso se o item não terminar).
@@ -36,7 +37,7 @@ Decisões de desenho (ADR-001/004/007):
 | `APP_ENV` | `production` |
 | `SUPABASE_URL` | URL do projeto |
 | `SUPABASE_KEY` | chave **publicável** (`sb_publishable_…`); a de servidor é recusada |
-| `REDIS_URL` | `redis://redis:6379/0` |
+| `REDIS_URL` | `redis://:<senha>@redis:6379/0` (sem senha, a API recusa subir em staging/produção) |
 | `PRICE_RESEARCH_ENABLED` | `0` até o corte do módulo; depois `1` |
 | `GOVCONECT_LIMITE_POR_MINUTO` | opcional (padrão 120) |
 
@@ -47,6 +48,12 @@ Decisões de desenho (ADR-001/004/007):
 | `GOVCONECT_API_URL` | `http://api:8000` |
 | `GOVCONECT_SITE_URL` | `https://<domínio novo>` |
 | `PRICE_RESEARCH_ENABLED` | igual ao da API |
+
+`/etc/govdocs/redis.env` (só o Redis):
+
+| Variável | Valor esperado |
+|---|---|
+| `REDIS_SENHA` | a mesma senha de `REDIS_URL`; gerar com `openssl rand -hex 32` |
 
 Build do web (shell do operador, não arquivo): `NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
@@ -70,8 +77,9 @@ Build do web (shell do operador, não arquivo): `NEXT_PUBLIC_SUPABASE_URL`,
    identidades de teste estáveis) e domínio próprio (ex.:
    `staging.<domínio>`). DNS é decisão do operador.
 3. **Domínio do Gov Conect 2.0** e o destino do `govconect.com` no corte.
-4. **Senha/ACL do Redis**, quando houver gestão de segredo para ela
-   (hoje a proteção é a rede interna sem porta publicada).
+4. ~~Senha do Redis~~: feito no P06c. O Redis exige `requirepass`
+   (`redis.env`), a API recusa `REDIS_URL` sem senha em staging/produção,
+   e o job `imagens` prova que PING sem senha é recusado.
 
 ## 4. Staging (quando houver projeto e domínio)
 
