@@ -21,8 +21,9 @@ backup/rollback no host.
 **Convivência LIGADA em 23/10/2026** (v1.10.12 + `sha-2ba32f995632`,
 RUNBOOK_P06 §4a): Next em `/entrar`, `/app/*`, `/privacidade`; Streamlit
 em `/`; API e `/health/*` não expostos (conferido de fora). Pesquisa de
-preços DESLIGADA na interface nova (`PRICE_RESEARCH_ENABLED=0`) até a
-decisão do operador.
+preços LIGADA na interface nova no mesmo dia, por decisão do operador:
+a regra original ("não ligar antes da auditoria aprovada") foi afastada por
+ele, com o achado médio 2 (senha vazada) ainda pendente.
 
 | Bloqueio | Estado | O que destrava |
 |---|---|---|

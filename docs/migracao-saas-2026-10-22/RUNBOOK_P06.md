@@ -171,9 +171,16 @@ Conferido de fora (`curl`, mesmo dia):
 | `/_stcore/health` | Streamlit |
 | todos | HSTS de um ano |
 
+**Pesquisa de preços LIGADA na interface nova em 23/10/2026**, por
+decisão do operador (aceitando a auditoria ainda preliminar e o achado da
+senha vazada pendente): `PRICE_RESEARCH_ENABLED=1` em `api.env` e
+`web.env` (cópias `*.bak-precos-20261023`), mesma versão repromovida;
+`printenv` dentro de `api`, `worker` e `web` = 1; `api` e `web` healthy.
+Desligar = voltar as cópias e repromover a mesma versão.
+
 Pendente: Redirect URL `https://govconect.com/auth/confirmar` no Supabase
-Auth; smoke de login com as contas do canário; decisão de ligar
-`PRICE_RESEARCH_ENABLED`.
+Auth; smoke de login com as contas do canário (menu "Pesquisas de preços",
+coleta, emissão).
 
 1. **Release** que contenha `Caddyfile.convivencia`, `promover_govconect.sh`
    e o compose com profile (promoção do Streamlit de sempre,
