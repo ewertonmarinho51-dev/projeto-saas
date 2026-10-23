@@ -276,6 +276,20 @@ def test_confirmacoes_em_form_nao_criam_botoes_impossiveis_de_habilitar():
     assert "if not restore_confirmed:" in restore
 
 
+def test_controles_de_aprovacao_sao_renderizados_antes_da_espera_do_canvas():
+    source = (Path(__file__).parents[1] / "src/ui/wordcraft_operacional.py").read_text(
+        encoding="utf-8")
+    render = source[source.index("def render(doc_key") : source.index("def render_sucesso")]
+
+    reserved = render.index("editor_slot = st.empty()")
+    freeze = render.index('st.button("Revisar e preparar aprovação"')
+    approve = render.index('aprovar.button(f"Aprovar {meta[\'sigla\']}"')
+    mounted = render.index("with editor_slot:")
+    component = render.index("render_editor(", mounted)
+
+    assert reserved < freeze < approve < mounted < component
+
+
 def test_template_operacional_prepara_confirma_reabre_e_remonta_head(monkeypatch):
     process = "11111111-1111-1111-1111-111111111111"
     version = "55555555-5555-5555-5555-555555555555"
