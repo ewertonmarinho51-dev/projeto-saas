@@ -150,6 +150,38 @@ no `govconect.com` e no projeto Supabase de produção, nos caminhos dele
 (`/entrar`, `/app/*`, `/auth/*`, `/privacidade`). O `/` continua sendo o
 Streamlit.
 
+**LIGADA em 23/10/2026, ~12:32 (horário do servidor), pelo operador:**
+
+| Passo | Resultado |
+|---|---|
+| Release | `v1.10.12` (2ba32f9) promovida com `promover.sh`: "no ar e respondendo" |
+| `.env` | `api.env`, `web.env`, `redis.env` em `/etc/govdocs`, modo 600; senha do Redis gerada no servidor; `PRICE_RESEARCH_ENABLED=0` |
+| GHCR | `docker login ghcr.io` com token só de leitura |
+| Promoção | `promover_govconect.sh sha-2ba32f995632 production`: redis, api e web healthy, worker de pé |
+| Caddy | `GOVCONECT_CADDYFILE=Caddyfile.convivencia` em `implantacao/.env` |
+
+Conferido de fora (`curl`, mesmo dia):
+
+| Caminho | Quem responde |
+|---|---|
+| `/` | Streamlit ("GovConnect \| GovDocs"), `X-Frame-Options: SAMEORIGIN` |
+| `/entrar`, `/privacidade` | Next ("Entrar \| Gov Conect"), CSP com nonce, `X-Frame-Options: DENY`, `no-store` |
+| `/app` | Next, 307 para o login |
+| `/api/v1/*`, `/health/*` | Streamlit (HTML): **a API não está exposta** |
+| `/_stcore/health` | Streamlit |
+| todos | HSTS de um ano |
+
+**Pesquisa de preços LIGADA na interface nova em 23/10/2026**, por
+decisão do operador (aceitando a auditoria ainda preliminar e o achado da
+senha vazada pendente): `PRICE_RESEARCH_ENABLED=1` em `api.env` e
+`web.env` (cópias `*.bak-precos-20261023`), mesma versão repromovida;
+`printenv` dentro de `api`, `worker` e `web` = 1; `api` e `web` healthy.
+Desligar = voltar as cópias e repromover a mesma versão.
+
+Pendente: Redirect URL `https://govconect.com/auth/confirmar` no Supabase
+Auth; smoke de login com as contas do canário (menu "Pesquisas de preços",
+coleta, emissão).
+
 1. **Release** que contenha `Caddyfile.convivencia`, `promover_govconect.sh`
    e o compose com profile (promoção do Streamlit de sempre,
    `promover.sh <tag>`).
