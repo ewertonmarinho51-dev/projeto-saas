@@ -21,6 +21,7 @@ import random
 import time
 
 from celery import Celery
+from celery.signals import worker_init
 
 from .coleta import (ErroTransitorio, atualizar_job, expiracao_do_token,
                      processar_job, _agora_iso)
@@ -58,6 +59,28 @@ _config = carregar()
 celery = _criar_celery(_config.redis_url)
 
 
+@worker_init.connect
+def _logs_do_worker(**_):
+    # O mesmo JSON da API (`worker_hijack_root_logger=False` deixa a raiz
+    # para nós).
+    from .observabilidade import configurar_logs
+
+    configurar_logs()
+
+
+def _registrar_fim(tipo: str, job_id: str, tenant_id: str, estado: str, inicio: float,
+                   tentativa: int) -> str:
+    """Uma linha por execução do job: o "R/E/D" da fila, sem token nem
+    dado de documento. Devolve o estado, para encadear no `return`."""
+    from .observabilidade import METRICAS, pseudonimo
+
+    METRICAS.job(tipo=tipo, estado=estado)
+    _log.info("job", extra={"evento": "job", "tipo": tipo, "job_id": job_id, "estado": estado,
+                            "tentativa": tentativa, "tenant": pseudonimo(tenant_id),
+                            "duracao_ms": round((time.monotonic() - inicio) * 1000, 1)})
+    return estado
+
+
 class FilaCelery:
     def __init__(self, app: Celery = celery) -> None:
         self._app = app
@@ -89,22 +112,28 @@ def coletar_precos(self, job_id: str, token: str, tenant_id: str, auth_user_id: 
     configurar_supabase(config.supabase_url, config.supabase_chave_publica)
     rest = ClienteRest(config.supabase_url, config.supabase_chave_publica)
     fontes = [] if config.fontes_coleta == "nenhuma" else None
+    inicio, tentativa = time.monotonic(), self.request.retries + 1
+
+    def fim(estado: str) -> str:
+        return _registrar_fim("coleta_precos", job_id, tenant_id, estado, inicio, tentativa)
+
     try:
-        return processar_job(job_id=job_id, token=token, tenant_id=tenant_id,
-                             auth_user_id=auth_user_id, secretaria_id=secretaria_id,
-                             rest=rest, fontes=fontes)
+        return fim(processar_job(job_id=job_id, token=token, tenant_id=tenant_id,
+                                 auth_user_id=auth_user_id, secretaria_id=secretaria_id,
+                                 rest=rest, fontes=fontes))
     except (ErroTransitorio, ErroApi) as exc:
         if isinstance(exc, ErroApi) and exc.status == 401:
             # Token vencido no caminho: não há com que escrever no job.
             _log.warning("job_token_vencido job=%s", job_id)
-            return "failed"
+            return fim("failed")
         if self.request.retries >= MAX_TENTATIVAS:
             try:
                 atualizar_job(rest, token, job_id, estado="failed",
                               erro_codigo="DATABASE_UNAVAILABLE", concluido_em=_agora_iso())
             except Exception:  # noqa: BLE001
                 _log.error("job_sem_registro_de_falha job=%s", job_id)
-            return "failed"
+            return fim("failed")
+        fim("retry")
         raise self.retry(exc=exc, countdown=_espera(self.request.retries)) from None
     finally:
         rest.fechar()
@@ -122,22 +151,28 @@ def emitir_relatorio(self, job_id: str, token: str, tenant_id: str, auth_user_id
     config = carregar()
     configurar_supabase(config.supabase_url, config.supabase_chave_publica)
     rest = ClienteRest(config.supabase_url, config.supabase_chave_publica)
+    inicio, tentativa = time.monotonic(), self.request.retries + 1
+
+    def fim(estado: str) -> str:
+        return _registrar_fim("relatorio_precos", job_id, tenant_id, estado, inicio, tentativa)
+
     try:
-        return processar_relatorio(job_id=job_id, token=token, tenant_id=tenant_id,
-                                   auth_user_id=auth_user_id, secretaria_id=secretaria_id,
-                                   usuario_id=usuario_id, rest=rest,
-                                   deposito=DepositoRedis(config.redis_url))
+        return fim(processar_relatorio(job_id=job_id, token=token, tenant_id=tenant_id,
+                                       auth_user_id=auth_user_id, secretaria_id=secretaria_id,
+                                       usuario_id=usuario_id, rest=rest,
+                                       deposito=DepositoRedis(config.redis_url)))
     except (ErroTransitorio, ErroApi) as exc:
         if isinstance(exc, ErroApi) and exc.status == 401:
             _log.warning("job_token_vencido job=%s", job_id)
-            return "failed"
+            return fim("failed")
         if self.request.retries >= MAX_TENTATIVAS:
             try:
                 atualizar_job(rest, token, job_id, estado="failed",
                               erro_codigo="DATABASE_UNAVAILABLE", concluido_em=_agora_iso())
             except Exception:  # noqa: BLE001
                 _log.error("job_sem_registro_de_falha job=%s", job_id)
-            return "failed"
+            return fim("failed")
+        fim("retry")
         raise self.retry(exc=exc, countdown=_espera(self.request.retries)) from None
     finally:
         rest.fechar()

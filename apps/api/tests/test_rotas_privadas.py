@@ -21,7 +21,9 @@ from govconect_api.main import criar_app
 
 # Rotas públicas, com nome. Acrescentar aqui é decisão de segurança e
 # aparece no diff — que é a ideia.
-PUBLICAS = {"/health/live", "/health/ready"}
+# `/health/metrics` (P06): contadores por modelo de rota, sem usuário nem
+# município; a API não é publicada pelo Caddy.
+PUBLICAS = {"/health/live", "/health/ready", "/health/metrics"}
 
 _PARAMETRO = re.compile(r"\{[^}]+\}")
 
