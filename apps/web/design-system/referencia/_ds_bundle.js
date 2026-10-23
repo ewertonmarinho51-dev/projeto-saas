@@ -3503,7 +3503,7 @@ function LoginScreen({
   const [loading, setLoading] = React.useState(false);
   const [err, setErr] = React.useState(null);
   const [authErr, setAuthErr] = React.useState(false);
-  const [email, setEmail] = React.useState("antonio.marinho@paragominas.pa.gov.br");
+  const [email, setEmail] = React.useState("servidor@prefeitura.example");
   const submit = e => {
     e.preventDefault();
     setAuthErr(false);

@@ -4,7 +4,7 @@ function LoginScreen({ onLogin }) {
   const [loading, setLoading] = React.useState(false);
   const [err, setErr] = React.useState(null);
   const [authErr, setAuthErr] = React.useState(false);
-  const [email, setEmail] = React.useState("antonio.marinho@paragominas.pa.gov.br");
+  const [email, setEmail] = React.useState("servidor@prefeitura.example");
   const submit = (e) => { e.preventDefault(); setAuthErr(false); if (!email.includes("@")) { setErr("Informe o e-mail institucional."); return; } setErr(null); setLoading(true); setTimeout(() => { if (!email.endsWith(".gov.br")) { setLoading(false); setAuthErr(true); return; } onLogin(); }, 700); };
   return (
     <main style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,520px)", minHeight: "100vh" }}>

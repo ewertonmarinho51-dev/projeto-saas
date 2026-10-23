@@ -216,7 +216,7 @@ export function GaleriaBase({ tema }: { tema: string }) {
         <Grade>
           <Exemplo rotulo="Input — padrão, ícone, obrigatório com ajuda">
             <Field label="E-mail institucional" htmlFor={`${tema}-email`} required help="Use o domínio do órgão.">
-              <Input id={`${tema}-email`} icon="envelope-simple" placeholder="usuario@orgao.gov.br" />
+              <Input id={`${tema}-email`} icon="envelope-simple" placeholder="usuario@orgao.example" />
             </Field>
           </Exemplo>
           <Exemplo rotulo="Input — erro">

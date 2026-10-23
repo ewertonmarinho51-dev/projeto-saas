@@ -16,6 +16,13 @@ React 18, Babel e os ícones Phosphor vêm de CDN (unpkg), então precisa de
 rede. Os caminhos são os do export, relativos a esta pasta — nenhum foi
 alterado.
 
+Única alteração de conteúdo: o e-mail de demonstração do login do kit
+(`ui_kits/app/LoginScreen.jsx` e a cópia compilada em `_ds_bundle.js`)
+era o endereço institucional de uma pessoa real; virou
+`servidor@prefeitura.example`. Como a simulação só "entra" com
+`.gov.br`, o botão Entrar agora mostra o estado de falha de
+autenticação — digite um `@….gov.br` qualquer para ver o resto do kit.
+
 O que ficou de fora, e por quê:
 
 | Do export | Destino |

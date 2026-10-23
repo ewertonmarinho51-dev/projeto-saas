@@ -406,7 +406,7 @@ export function GaleriaIA({ tema }: { tema: string }) {
                   <p className="text-secundario">Use a conta criada pelo administrador do seu órgão.</p>
                 </div>
                 <Field label="E-mail institucional" htmlFor={`${tema}-login`}>
-                  <Input id={`${tema}-login`} size="lg" icon="envelope-simple" placeholder="usuario@orgao.gov.br" />
+                  <Input id={`${tema}-login`} size="lg" icon="envelope-simple" placeholder="usuario@orgao.example" />
                 </Field>
                 <Field label="Senha" htmlFor={`${tema}-senha`}>
                   <Input id={`${tema}-senha`} size="lg" icon="lock-simple" type="password" />
