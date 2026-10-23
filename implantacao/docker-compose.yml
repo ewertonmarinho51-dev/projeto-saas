@@ -181,18 +181,22 @@ services:
     # a escrita (o job falha com código) em vez de jogar fora um aviso de
     # fila em silêncio. Sem persistência em disco: reiniciar perde avisos
     # e arquivos, não jobs — o usuário pede de novo e o domínio retoma.
-    # `protected-mode no`: sem senha, o modo protegido recusaria a API e o
-    # worker (outros contentores). A proteção é a rede: porta não
-    # publicada, só a `interna` alcança. Senha/ACL entra quando houver
-    # gestão de segredo para ela (RUNBOOK_P06.md, pendências).
-    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction",
-              "--save", "", "--appendonly", "no", "--protected-mode", "no"]
+    # Com senha (P06c): o aviso da fila leva o token do usuário (ADR-004),
+    # e a API recusa subir em staging/produção com REDIS_URL sem senha.
+    # A senha vem de `/etc/govdocs/redis.env` (`REDIS_SENHA`), a mesma que
+    # entra em `REDIS_URL` do `api.env`. `protected-mode no` porque, com
+    # `requirepass`, a autenticação é a barreira e os clientes são outros
+    # contentores; a porta continua sem publicar.
+    env_file:
+      - /etc/govdocs/redis.env
+    command: ["sh", "-c", "test -n \"$$REDIS_SENHA\" && exec redis-server --requirepass \"$$REDIS_SENHA\" --maxmemory 256mb --maxmemory-policy noeviction --save '' --appendonly no --protected-mode no"]
     expose:
       - "6379"
     read_only: true
     mem_limit: 320m
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # REDISCLI_AUTH em vez de `-a`: a senha não aparece nos argumentos.
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_SENHA\" redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 3s
       retries: 5

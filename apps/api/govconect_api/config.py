@@ -178,6 +178,13 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
     redis_url = _ler(env, "REDIS_URL")
     if redis_url and urlsplit(redis_url).scheme not in ("redis", "rediss"):
         raise ConfiguracaoInvalida("REDIS_URL precisa ser redis:// ou rediss://.")
+    # O aviso da fila leva o token do usuário (ADR-004): Redis sem senha
+    # em staging/produção é token legível para quem alcançar a rede. A
+    # mensagem não repete a URL (que, com senha, seria o segredo).
+    if redis_url and protegido and not urlsplit(redis_url).password:
+        raise ConfiguracaoInvalida(
+            "REDIS_URL sem senha em ambiente protegido. Use "
+            "redis://:<senha>@redis:6379/0 (RUNBOOK_P06.md).")
     fontes = _ler(env, "GOVCONECT_FONTES_COLETA") or "padrao"
     if fontes not in ("padrao", "nenhuma"):
         raise ConfiguracaoInvalida("GOVCONECT_FONTES_COLETA: use padrao ou nenhuma.")
