@@ -64,7 +64,10 @@ services:
       - /etc/govdocs/caddy.env
 
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Qual Caddyfile: o de sempre, ou o de convivência no mesmo domínio
+      # (`GOVCONECT_CADDYFILE=Caddyfile.convivencia` em `implantacao/.env`,
+      # RUNBOOK_P06.md §4a). Voltar = apagar a linha e `up -d caddy`.
+      - ./${GOVCONECT_CADDYFILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy_data:/data       # certificados — PRECISA persistir
       - caddy_config:/config
     depends_on:

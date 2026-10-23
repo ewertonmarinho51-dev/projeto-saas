@@ -576,3 +576,59 @@ jobs:
             | grep -q "govconect-web:staging-$boa healthy"
           cat "$LOG"
           docker compose -f implantacao/docker-compose.yml --profile govconect down
+
+      - name: Caddy de convivência separa os caminhos no mesmo domínio
+        # ADR-009: Streamlit e Next no mesmo govconect.com. O Caddy de
+        # verdade, com o arquivo de verdade (só o endereço trocado por
+        # :8080, sem TLS), diante de dois serviços falsos que dizem quem
+        # são. `/app/static/*` tem de continuar no Streamlit (runtime do
+        # WordCraft) e o DENY do Next não pode virar SAMEORIGIN.
+        shell: bash
+        run: |
+          ACME_EMAIL=ci@example.invalid docker run --rm -e ACME_EMAIL \
+            -v "$PWD/implantacao/Caddyfile.convivencia:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+          cat > "$RUNNER_TEMP/servico.py" <<'PY'
+          import http.server, sys
+          nome, porta = sys.argv[1], int(sys.argv[2])
+          class H(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  self.send_response(200)
+                  if nome == "next":
+                      self.send_header("X-Frame-Options", "DENY")
+                  self.end_headers()
+                  self.wfile.write(nome.encode())
+              def log_message(self, *a):
+                  pass
+          http.server.HTTPServer(("0.0.0.0", porta), H).serve_forever()
+          PY
+          sed 's/^govconect.com, www.govconect.com {$/:8080 {/' implantacao/Caddyfile.convivencia > "$RUNNER_TEMP/Caddyfile"
+          grep -q '^:8080 {' "$RUNNER_TEMP/Caddyfile"
+          docker network create convivencia
+          docker run -d --network convivencia --network-alias app -v "$RUNNER_TEMP/servico.py:/s.py:ro" python:3.11-alpine python /s.py streamlit 8501
+          docker run -d --network convivencia --network-alias web -v "$RUNNER_TEMP/servico.py:/s.py:ro" python:3.11-alpine python /s.py next 3000
+          docker run -d --network convivencia -p 127.0.0.1:18080:8080 -e ACME_EMAIL=ci@example.invalid \
+            -v "$RUNNER_TEMP/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine
+          for i in $(seq 1 30); do curl -fs -o /dev/null http://127.0.0.1:18080/ && break; sleep 1; done
+
+          espera() {  # caminho quem
+            veio="$(curl -fs "http://127.0.0.1:18080$1")"
+            echo "$1 -> $veio"
+            [ "$veio" = "$2" ] || { echo "ESPERADO $2" >&2; exit 1; }
+          }
+          espera / streamlit
+          espera /_stcore/health streamlit
+          espera /app/static/wordcraft/runtime.js streamlit
+          espera /qualquer-pagina streamlit
+          espera /entrar next
+          espera /entrar/recuperar next
+          espera /app next
+          espera /app/precos/123 next
+          espera /auth/confirmar next
+          espera /privacidade next
+          espera /_next/static/chunk.js next
+          espera /logo-govconect.png next
+          curl -fs -D - -o /dev/null http://127.0.0.1:18080/app | tr -d '\r' | grep -ix 'x-frame-options: DENY'
+          ! curl -fs -D - -o /dev/null http://127.0.0.1:18080/app | grep -i 'sameorigin'
+          curl -fs -D - -o /dev/null http://127.0.0.1:18080/ | tr -d '\r' | grep -ix 'x-frame-options: SAMEORIGIN'

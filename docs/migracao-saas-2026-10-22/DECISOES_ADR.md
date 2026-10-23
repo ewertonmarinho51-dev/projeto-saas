@@ -225,3 +225,39 @@ replicar serviço. Streamlit sai do compose só depois do cutover.
 
 Itens B e C seguem a coluna da matriz: registrados com gatilho de
 adoção, sem implementação.
+
+---
+
+## ADR-009 — Convivência no mesmo domínio e no mesmo projeto Supabase
+
+**Status:** Aceita por decisão do operador em 23/10/2026 ("vamos fazer
+tudo no mesmo domínio e no mesmo projeto atual do Supabase por enquanto;
+quando o projeto estiver sendo implementado em outros lugares fazemos
+estas questões").
+
+**Contexto.** O pacote (P06/P07) pede staging com Supabase e domínio
+isolados e declara NO-GO se "staging for banco de produção". Hoje há um
+município, um projeto Supabase e um domínio.
+
+**Decisão.**
+- Não há staging separado por enquanto. O Gov Conect 2.0 sobe no MESMO
+  host, no MESMO `govconect.com` e contra o MESMO projeto Supabase.
+- O domínio é dividido por caminho (`implantacao/Caddyfile.convivencia`):
+  `/entrar`, `/app/*` (menos `/app/static/*`, que é do Streamlit),
+  `/auth/*`, `/privacidade`, `/_next/*` e os arquivos do Next vão para o
+  `web`; todo o resto continua no Streamlit. É a ADR-006 (strangler)
+  aplicada ao endereço: o `/` de sempre não muda.
+- A API continua sem rota pública; o RLS é o mesmo dos dois apps, porque
+  o banco é o mesmo.
+- A convivência liga e desliga por uma linha
+  (`GOVCONECT_CADDYFILE=Caddyfile.convivencia` em `implantacao/.env`).
+
+**Consequências e riscos aceitos.**
+- Teste no ar é teste com dado real. Smoke só com o tenant e as contas do
+  canário; nunca com dados de município de verdade.
+- Migração da API vai direto para produção (já era assim: 0030–0033 foram
+  ensaiadas no descartável e medidas em produção). O ensaio no projeto
+  descartável continua obrigatório.
+- Um erro no `web` afeta só os caminhos dele; o Streamlit segue servindo.
+- Revisitar quando houver um segundo município ou outro ambiente: aí
+  staging isolado e domínio próprio voltam a ser pré-requisito.
