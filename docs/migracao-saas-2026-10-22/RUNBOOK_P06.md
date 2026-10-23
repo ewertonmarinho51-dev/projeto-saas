@@ -92,8 +92,14 @@ Build do web (shell do operador, não arquivo): `NEXT_PUBLIC_SUPABASE_URL`,
      registro, e o host só faz `pull`.
 
    Recomendação (decisão do operador):
-   1. **Antes de qualquer staging no mesmo host**: 2 GB de swap (rede de
-      segurança contra OOM; reversível).
+   1. ~~**Swap de 2 GB**~~ **feito em 23/10/2026** pelo operador:
+      `/swapfile` de 2 GB, ativo (`swapon --show`: 2G, 0B usados), no
+      `/etc/fstab` (cópia anterior em `/etc/fstab.bak-20261023`),
+      `vm.swappiness=10` em `/etc/sysctl.d/99-govconect-swap.conf`.
+      Depois: 3.102 MB de RAM disponíveis + 2.047 MB de swap. Desfazer:
+      `swapoff /swapfile && rm /swapfile && cp /etc/fstab.bak-20261023
+      /etc/fstab && rm /etc/sysctl.d/99-govconect-swap.conf && sysctl -w
+      vm.swappiness=60`. O swap protege contra OOM; não resolve o vCPU.
    2. **Antes do corte**: VPS com **2 vCPU / 8 GB** (P06: "proponha
       upgrade, não esconda limitação"). Com o Streamlit como rollback
       durante a transição, são seis serviços num host.
