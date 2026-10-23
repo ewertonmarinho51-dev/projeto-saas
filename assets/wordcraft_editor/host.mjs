@@ -89,7 +89,7 @@ export class EventOutbox {
 }
 
 export class EditorController {
-  constructor(native, data, send, {awaitFrame = nextAnimationFrame} = {}) {
+  constructor(native, data, send, {awaitFrame = nextAnimationFrame, ensureVisible = () => {}} = {}) {
     for (const key of ['instance_id', 'session_id', 'document_id']) if (!uuidPattern.test(data[key])) throw new Error('Escopo inválido.');
     if (!Number.isSafeInteger(data.revision) || data.revision < 0 || !hashPattern.test(data.content_hash)
         || typeof data.nonce !== 'string' || !/^[a-zA-Z0-9_-]{32,128}$/.test(data.nonce)) throw new Error('Contrato de abertura inválido.');
@@ -112,6 +112,7 @@ export class EditorController {
     this.frozenCommand = null;
     this.controlStates = new Map();
     this.awaitFrame = awaitFrame;
+    this.ensureVisible = ensureVisible;
   }
   publish(event, payload) {
     if (this.disposed) throw new Error('Instância encerrada.');
@@ -329,6 +330,11 @@ export class EditorController {
       return true;
     };
     try {
+      // Browsers may stop driving the eframe canvas when the server-side
+      // approval control scrolls it outside the viewport.  The native lock is
+      // proven only after a complete UI pass, so expose the canvas before
+      // requesting that pass instead of weakening the barrier.
+      this.ensureVisible();
       this.native.set_interaction_locked(true); locked = true;
       // The first native frame must consume already-captured keyboard/IME input
       // through WordApp.ui. Requesting a lock alone is not a frame barrier.
@@ -445,7 +451,9 @@ export default function render(component) {
     finally { instance.starting = false; }
     if (instance.disposed) { native.dispose(); return; }
     openingStage = 'controller';
-    const controller = new EditorController(native, data, (...args) => instance.outbox.push(...args));
+    const controller = new EditorController(native, data, (...args) => instance.outbox.push(...args), {
+      ensureVisible: () => canvas.scrollIntoView({block: 'nearest', inline: 'nearest'}),
+    });
     instance.controller = controller;
     await controller.loaded(bytes);
     controller.receive(instance.data);
