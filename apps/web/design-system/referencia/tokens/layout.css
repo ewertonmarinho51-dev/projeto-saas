@@ -1,0 +1,8 @@
+:root{
+/* Breakpoints (reference — use in media queries as literal values) */
+--bp-sm:640px;--bp-md:768px;--bp-lg:1024px;--bp-xl:1280px;--bp-2xl:1536px;
+--sidebar-width:248px;--sidebar-width-collapsed:68px;--topbar-height:64px;
+--content-max:1200px;--content-max-narrow:880px;--prose-max:70ch;
+--grid-columns:12;/* @kind other */--grid-gutter:24px;--page-padding-x:32px;--page-padding-y:32px;
+}
+@media (max-width:768px){:root{--grid-gutter:16px;--page-padding-x:16px;--page-padding-y:20px}}

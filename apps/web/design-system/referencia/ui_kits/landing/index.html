@@ -1,0 +1,119 @@
+<!-- @dsCard group="Landing pública" viewport="1440x860" name="Hero — Landing pública" subtitle="Hero com revelação animada, fluxo DFD → ETP → TR → Preços e painéis de vidro" -->
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gov Conect — Planejamento de contratações públicas</title>
+<link rel="icon" href="../../assets/favicon-32.png"><link rel="stylesheet" href="../../styles.css">
+<style>
+body{margin:0;background:var(--surface-card);overflow-x:hidden}
+@keyframes hero-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes hero-pop{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}
+@keyframes hero-draw{to{stroke-dashoffset:0}}
+@keyframes hero-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.hero{position:relative;isolation:isolate;min-height:100vh;display:flex;flex-direction:column;background:radial-gradient(52% 60% at 82% 38%,rgba(0,107,255,.14),transparent 70%),radial-gradient(40% 46% at 62% 88%,rgba(77,141,255,.12),transparent 70%),linear-gradient(180deg,#FFFFFF 0%,var(--bg-app) 100%);overflow:hidden}
+.hero::before{content:"";position:absolute;inset:0;z-index:-1;background-image:radial-gradient(rgba(0,89,214,.16) 1px,transparent 1.2px);background-size:22px 22px;-webkit-mask-image:radial-gradient(60% 70% at 78% 45%,#000 20%,transparent 75%);mask-image:radial-gradient(60% 70% at 78% 45%,#000 20%,transparent 75%)}
+.glass{background:rgba(255,255,255,.64);border:1px solid rgba(215,222,232,.9);-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2)}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.glass{background:var(--surface-card)}}
+@media (prefers-reduced-transparency:reduce){.glass{background:var(--surface-card);backdrop-filter:none;-webkit-backdrop-filter:none}}
+.pub-head{position:sticky;top:12px;z-index:30;margin:12px auto 0;width:min(1200px,calc(100% - 32px));display:flex;align-items:center;gap:24px;height:60px;padding:0 10px 0 16px;border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)}
+.pub-brand{white-space:nowrap;flex-shrink:0;display:inline-flex;align-items:center;gap:10px;font:600 17px/1 var(--font-sans);letter-spacing:-.015em;color:var(--text-primary);text-decoration:none}
+.pub-brand:hover{color:var(--text-primary)}
+.pub-nav{display:flex;gap:4px;margin-left:8px}
+.pub-nav a{padding:8px 12px;border-radius:var(--radius-md);font:500 14px/1 var(--font-sans);color:var(--text-secondary);text-decoration:none;transition:color var(--dur-fast),background-color var(--dur-fast)}
+.pub-nav a:hover{color:var(--text-primary);background:rgba(240,243,248,.8)}
+.pub-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.pub-menu{display:none}
+.hero-grid{flex:1;width:min(1200px,calc(100% - 48px));margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:56px;align-items:center;padding:56px 0 72px}
+.hero-copy{display:grid;gap:20px;max-width:560px}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:8px;justify-self:start;min-height:28px;padding:4px 12px 4px 8px;white-space:nowrap;max-width:100%;line-height:1.3!important;border-radius:var(--radius-pill);border:1px solid var(--info-border);background:var(--surface-card);font:500 13px/1 var(--font-sans);color:var(--accent-strong-text)}
+.hero-eyebrow i{font-size:15px;color:var(--accent-brand)}
+.hero h1{font:600 clamp(34px,4.4vw,52px)/1.08 var(--font-sans);letter-spacing:-.03em;color:var(--text-primary);text-wrap:balance}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero-sub{font:400 clamp(16px,1.3vw,18px)/1.6 var(--font-sans);color:var(--text-secondary);max-width:52ch;text-wrap:pretty}
+.hero-ctas{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px}
+.hero-ctas .gc-btn{transition:transform var(--dur-base) var(--ease-standard),box-shadow var(--dur-base) var(--ease-standard),background-color var(--dur-fast),border-color var(--dur-fast)}
+.hero-ctas .gc-btn--primary{box-shadow:0 1px 2px rgba(0,62,172,.2)}
+.hero-ctas .gc-btn:hover{transform:translateY(-1px);box-shadow:var(--shadow-md)}
+.hero-ctas .gc-btn:active{transform:translateY(0)}
+.hero-ctas .gc-btn--secondary:hover{border-color:var(--gc-blue-300)}
+.hero-ctas .gc-btn .ph-arrow-right{transition:transform var(--dur-base) var(--ease-standard)}
+.hero-ctas .gc-btn:hover .ph-arrow-right{transform:translateX(2px)}
+.hero-facts{display:flex;gap:8px 20px;flex-wrap:wrap;margin-top:12px;font:500 13px/1.3 var(--font-sans);color:var(--text-secondary)}
+.hero-facts span{display:inline-flex;align-items:center;gap:6px}
+.hero-facts i{color:var(--success-solid);font-size:15px}
+.viz{position:relative;display:grid;gap:20px}
+.viz-note{position:absolute;right:0;top:-30px;font:500 11px/1 var(--font-sans);letter-spacing:.04em;text-transform:uppercase;color:var(--text-tertiary)}
+.flow{position:relative;height:150px}
+.flow svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.flow-path{fill:none;stroke:var(--accent-brand);stroke-width:2;stroke-dasharray:1;stroke-dashoffset:1;animation:hero-draw .95s var(--ease-standard) .45s forwards}
+.flow-path--track{stroke:var(--gc-blue-200);stroke-dasharray:4 6;stroke-dashoffset:0;animation:none}
+.node{position:absolute;width:22%;min-width:0;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-md);background:var(--surface-card);border:1px solid var(--border-default);box-shadow:var(--shadow-sm);opacity:0;animation:hero-pop .45s var(--ease-out) forwards;transition:border-color var(--dur-fast),transform var(--dur-base) var(--ease-standard),box-shadow var(--dur-base)}
+.node:hover{border-color:var(--gc-blue-300);transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.node__icon{width:30px;height:30px;flex-shrink:0;border-radius:var(--radius-sm);display:grid;place-items:center;background:var(--accent-subtle);color:var(--accent);font-size:16px}
+.node__t{display:grid;gap:2px;min-width:0;flex:1}
+.node__t b{font:600 14px/1.1 var(--font-sans)}
+.node__t span{font:400 11px/1.25 var(--font-sans);color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.node--done .node__icon{background:var(--success-bg);color:var(--success-fg)}
+.n1{left:0;top:8px;animation-delay:.5s}.n2{left:26%;top:80px;animation-delay:.78s}.n3{left:52%;top:8px;animation-delay:1.06s}.n4{left:78%;top:80px;animation-delay:1.3s}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.panel{border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-md);display:grid;gap:14px;opacity:0;animation:hero-pop .7s var(--ease-out) .7s forwards;transition:border-color var(--dur-fast),transform var(--dur-base) var(--ease-standard),box-shadow var(--dur-base)}
+.panel:hover{border-color:var(--gc-blue-200);transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.panel--b{margin-top:40px;animation-delay:1s}
+.panel--b .panel__float{animation:hero-float 6s ease-in-out 2s infinite}
+.panel__head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.panel__eyebrow{font:600 11px/1 var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--accent-strong-text)}
+.panel__title{font:600 15px/1.3 var(--font-sans);margin-top:6px}
+.lines{display:grid;gap:8px}
+.lines i{display:block;height:8px;border-radius:4px;background:var(--gc-gray-100)}
+.lines i.ai{background:var(--gc-blue-100)}
+.prow{white-space:nowrap;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:var(--radius-md);background:rgba(255,255,255,.75);border:1px solid var(--border-subtle);font:500 13px/1.2 var(--font-sans)}
+.prow i{font-size:15px;color:var(--success-solid)}
+.prow b{font-variant-numeric:tabular-nums;font-weight:600}
+.prow--warn i{color:var(--warning-solid)}
+.pmed{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:var(--radius-md);background:var(--accent-subtle);color:var(--accent-strong-text);font:500 13px/1 var(--font-sans)}
+.pmed b{font:600 18px/1 var(--font-sans);font-variant-numeric:tabular-nums}
+.rv{opacity:0;animation:hero-in .5s var(--ease-out) forwards}
+.d0{animation-delay:0ms}.d1{animation-delay:90ms}.d2{animation-delay:180ms}.d3{animation-delay:270ms}.d4{animation-delay:360ms}
+@media (prefers-reduced-motion:reduce){.rv,.node,.panel{opacity:1!important;animation:none!important;transform:none!important}.flow-path{animation:none!important;stroke-dashoffset:0}.panel--b .panel__float{animation:none!important}.node:hover,.panel:hover,.hero-ctas .gc-btn:hover{transform:none}}
+@media (max-width:1180px){.pub-nav{display:none}}
+@media (max-width:1100px){.hero-grid{grid-template-columns:minmax(0,1fr);padding:40px 0 56px;gap:48px}.hero-copy{max-width:640px}.viz{max-width:680px;width:100%;margin-top:24px}}
+@media (max-width:600px){.pub-head{height:56px}.pub-actions .gc-btn--subtle{display:none}.pub-menu{display:inline-flex}.hero-grid{width:calc(100% - 32px);padding-top:32px}.flow{height:auto;display:grid;grid-template-columns:1fr 1fr;gap:8px}.flow svg{display:none}.node{position:static;width:auto}.panels{grid-template-columns:minmax(0,1fr)}.panel--b{margin-top:0}.viz-note{position:static;justify-self:end}.hero-ctas .gc-btn{flex:1 1 100%}}
+</style></head><body>
+<section class="hero" aria-labelledby="hero-title" data-screen-label="Hero">
+<header class="pub-head glass">
+<a class="pub-brand" href="#"><img src="../../assets/logo-govconect-96.png" width="30" height="30" alt="">Gov Conect</a>
+<nav class="pub-nav" aria-label="Navegação pública"><a href="#plataforma">Plataforma</a><a href="#documentos">Documentos</a><a href="#precos">Pesquisa de preços</a><a href="#seguranca">Segurança</a></nav>
+<div class="pub-actions"><a class="gc-btn gc-btn--subtle gc-btn--sm" href="#contato">Falar com a equipe</a><a class="gc-btn gc-btn--primary gc-btn--sm" href="../app/index.html">Acessar sistema</a><button type="button" class="gc-iconbtn gc-iconbtn--sm pub-menu" aria-label="Abrir menu"><i class="gc-icon ph-bold ph-list" aria-hidden="true"></i></button></div>
+</header>
+<div class="hero-grid">
+<div class="hero-copy">
+<span class="hero-eyebrow rv d0"><i class="ph-fill ph-seal-check" aria-hidden="true"></i>Fase preparatória · Lei nº 14.133/2021</span>
+<h1 id="hero-title" class="rv d1">Planejamento público, com método e <em>inteligência</em>.</h1>
+<p class="hero-sub rv d2">Elabore DFD, ETP, Mapa de Riscos e Termo de Referência com apoio de IA e revisão humana, e pesquise preços em fontes oficiais com a origem de cada valor registrada.</p>
+<div class="hero-ctas rv d3"><a class="gc-btn gc-btn--primary gc-btn--lg" href="#plataforma">Conhecer a plataforma<i class="gc-icon ph-bold ph-arrow-right" aria-hidden="true"></i></a><a class="gc-btn gc-btn--secondary gc-btn--lg" href="../app/index.html"><i class="gc-icon ph-bold ph-sign-in" aria-hidden="true"></i>Acessar sistema</a></div>
+<div class="hero-facts rv d4"><span><i class="ph-fill ph-check-circle" aria-hidden="true"></i>Revisão humana em cada documento</span><span><i class="ph-fill ph-check-circle" aria-hidden="true"></i>PNCP, Compras.gov.br e Painel de Preços</span></div>
+</div>
+<div class="viz" aria-label="Ilustração do fluxo da fase preparatória">
+<span class="viz-note rv d2">Exemplo ilustrativo</span>
+<div class="flow">
+<svg viewBox="0 0 1000 150" preserveAspectRatio="none" aria-hidden="true"><path class="flow-path flow-path--track" vector-effect="non-scaling-stroke" d="M110 36 C240 36 240 108 370 108 S500 36 630 36 S760 108 890 108"></path><path class="flow-path" pathLength="1" vector-effect="non-scaling-stroke" d="M110 36 C240 36 240 108 370 108 S500 36 630 36 S760 108 890 108"></path></svg>
+<div class="node n1 node--done"><span class="node__icon"><i class="ph-bold ph-check" aria-hidden="true"></i></span><span class="node__t"><b>DFD</b><span>Formalização da demanda</span></span></div>
+<div class="node n2"><span class="node__icon"><i class="ph-bold ph-file-text" aria-hidden="true"></i></span><span class="node__t"><b>ETP</b><span>Estudo técnico preliminar</span></span></div>
+<div class="node n3"><span class="node__icon"><i class="ph-bold ph-clipboard-text" aria-hidden="true"></i></span><span class="node__t"><b>TR</b><span>Termo de referência</span></span></div>
+<div class="node n4"><span class="node__icon"><i class="ph-bold ph-currency-circle-dollar" aria-hidden="true"></i></span><span class="node__t"><b>Preços</b><span>Pesquisa em fontes oficiais</span></span></div>
+</div>
+<div class="panels">
+<article class="panel glass">
+<div class="panel__head"><div><div class="panel__eyebrow">Documento</div><div class="panel__title">Estudo Técnico Preliminar</div></div><span class="gc-badge gc-badge--warning gc-badge--sm"><i class="gc-icon ph-bold ph-eye" aria-hidden="true"></i>Em revisão</span></div>
+<div class="lines" aria-hidden="true"><i style="width:92%"></i><i class="ai" style="width:100%"></i><i class="ai" style="width:78%"></i><i style="width:86%"></i><i style="width:54%"></i></div>
+<div class="gc-progress"><div class="gc-progress__row"><span>Seções revisadas</span><span class="gc-progress__value">4 de 6</span></div><div class="gc-progress__track"><div class="gc-progress__fill" style="width:66%"></div></div></div>
+</article>
+<article class="panel panel--b glass"><div class="panel__float" style="display:grid;gap:12px">
+<div class="panel__head"><div><div class="panel__eyebrow">Pesquisa de preços</div><div class="panel__title">Papel A4 75 g/m² · resma</div></div><span class="gc-badge gc-badge--brand gc-badge--sm">3 fontes</span></div>
+<div class="prow"><i class="ph-fill ph-check-circle" aria-hidden="true"></i><span>PNCP</span><b>R$ 22,00</b></div>
+<div class="prow"><i class="ph-fill ph-check-circle" aria-hidden="true"></i><span>Compras.gov.br</span><b>R$ 21,50</b></div>
+<div class="prow prow--warn"><i class="ph-fill ph-warning-circle" aria-hidden="true"></i><span>Painel de Preços</span><b>R$ 19,03</b></div>
+<div class="pmed"><span>Mediana</span><b>R$ 21,50</b></div>
+</div></article>
+</div>
+</div>
+</div>
+</section>
+</body></html>

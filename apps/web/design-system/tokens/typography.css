@@ -1,0 +1,38 @@
+/* Gerado a partir do export do Claude Design (23/10/2026). Fonte da verdade: DESIGN.md na raiz. */
+:root {
+  --gc-font-sans:var(--font-geist-sans),"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --gc-font-mono:var(--font-geist-mono),"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --weight-regular:400;
+  --weight-medium:500;
+  --weight-semibold:600;
+  --weight-bold:700;
+  --gc-fs-2xs:11px;
+  --gc-fs-xs:12px;
+  --gc-fs-sm:13px;
+  --gc-fs-base:14px;
+  --gc-fs-md:15px;
+  --gc-fs-lg:16px;
+  --gc-fs-xl:18px;
+  --gc-fs-2xl:20px;
+  --gc-fs-3xl:24px;
+  --gc-fs-4xl:30px;
+  --gc-fs-5xl:36px;
+  --gc-leading-tight:1.25;
+  --gc-leading-snug:1.4;
+  --gc-leading-normal:1.55;
+  --gc-leading-relaxed:1.65;
+  --gc-tracking-tight:-0.015em;
+  --gc-tracking-tighter:-0.025em;
+  --gc-tracking-caps:0.06em;
+  /* Roles */
+  --type-display:600 var(--gc-fs-4xl)/1.15 var(--gc-font-sans);
+  --type-h1:600 var(--gc-fs-3xl)/1.25 var(--gc-font-sans);
+  --type-h2:600 var(--gc-fs-xl)/1.35 var(--gc-font-sans);
+  --type-h3:600 var(--gc-fs-md)/1.4 var(--gc-font-sans);
+  --type-body:400 var(--gc-fs-base)/1.55 var(--gc-font-sans);
+  --type-body-lg:400 var(--gc-fs-md)/1.6 var(--gc-font-sans);
+  --type-label:500 var(--gc-fs-sm)/1.3 var(--gc-font-sans);
+  --type-caption:400 var(--gc-fs-xs)/1.4 var(--gc-font-sans);
+  --type-overline:600 var(--gc-fs-2xs)/1.2 var(--gc-font-sans);
+  --type-mono:400 var(--gc-fs-sm)/1.45 var(--gc-font-mono);
+}

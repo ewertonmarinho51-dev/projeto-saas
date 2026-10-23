@@ -1,0 +1,82 @@
+/*
+ * Base do design system. Reset e tipografia de elemento ficam com o
+ * preflight do Tailwind e com `.gc-base` (styles/components.css); aqui só
+ * o que vale para a página inteira.
+ */
+@layer base {
+  /* Foco de teclado sempre visível, no azul elétrico, com folga. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--focus-ring-color);
+    outline-offset: 2px;
+  }
+
+  .gc-num {
+    font-variant-numeric: tabular-nums;
+  }
+  .gc-mono {
+    font-family: var(--gc-font-mono);
+  }
+  .gc-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @keyframes gc-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes gc-shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+  @keyframes gc-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes gc-indeterminate {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(250%);
+    }
+  }
+  @keyframes gc-pulse {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  /* Movimento reduzido: nada anima, shimmer para. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

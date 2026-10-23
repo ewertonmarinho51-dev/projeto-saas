@@ -84,6 +84,16 @@ projeto-saas/
         └── steps.py              # Telas: formulário, preview/edição, sucesso
 ```
 
+## 🎨 Interface nova e design system
+
+A interface nova (`apps/web`, Next.js) segue o design system Gov Conect:
+
+- [`DESIGN.md`](DESIGN.md) — fonte da verdade de cores, tipografia, raios e espaçamento;
+- [`apps/web/design-system/`](apps/web/design-system/README.md) — os componentes (importe de `@/design-system`) e o mapa da biblioteca;
+- `/design-system` no servidor de desenvolvimento do web — vitrine com tudo, nos dois temas.
+
+O app Streamlit acima continua com o tema próprio (`.streamlit/config.toml`).
+
 ## 🔐 Controle de acesso
 
 Com Supabase configurado, o app exige login:
