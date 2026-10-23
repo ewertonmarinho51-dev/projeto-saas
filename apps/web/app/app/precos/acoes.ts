@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { chamarApi, ErroDaApi } from "@/lib/api";
+import { chamarApi, ErroDaApi, type PlanoDeImportacao } from "@/lib/api";
 
 export type EstadoDaCesta = { erro: string | null };
 
@@ -61,13 +61,15 @@ const ERROS_DA_COLETA: Record<string, string> = {
 /** Põe a coleta na fila e volta à pesquisa acompanhando o job. */
 export async function iniciarColeta(_: EstadoDaColeta, form: FormData): Promise<EstadoDaColeta> {
   const pesquisa = String(form.get("pesquisa") ?? "");
-  const chave = String(form.get("chave") ?? "");
+  const modo = form.get("modo") === "automatico" ? "automatico" : "manual";
+  // Uma chave por modo: os dois botões da mesma tela não colidem.
+  const chave = `${String(form.get("chave") ?? "")}-${modo}`;
   if (!UUID.test(pesquisa) || !/^[A-Za-z0-9._:-]{8,128}$/.test(chave)) return { erro: "Requisição inválida." };
   let jobId: string;
   try {
     const { dados } = await chamarApi<{ id: string }>(`/precos/pesquisas/${pesquisa}/coleta`, {
       metodo: "POST",
-      corpo: { modo: "manual" },
+      corpo: { modo },
       cabecalhos: { "Idempotency-Key": chave },
     });
     jobId = dados.id;
@@ -127,4 +129,128 @@ export async function emitirRelatorio(_: EstadoDaEmissao, form: FormData): Promi
   }
   revalidatePath(`/app/precos/${pesquisa}`);
   redirect(`/app/precos/${pesquisa}?relatorio=${jobId}`);
+}
+
+// ---------------------------------------------------------------------------
+// P04e: criar pesquisa, importar planilha, concluir e reabrir item.
+// ---------------------------------------------------------------------------
+export type EstadoDaCriacao = { erro: string | null };
+
+const DATA = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Nova pesquisa; a chave da renderização evita duas com o duplo clique. */
+export async function criarPesquisa(_: EstadoDaCriacao, form: FormData): Promise<EstadoDaCriacao> {
+  const texto = (nome: string, max: number) => String(form.get(nome) ?? "").trim().slice(0, max);
+  const nome = texto("nome", 200);
+  const chave = String(form.get("chave") ?? "");
+  const dataBase = texto("data_base", 10);
+  if (!nome) return { erro: "Dê um nome à pesquisa." };
+  if (!/^[A-Za-z0-9._:-]{8,128}$/.test(chave) || (dataBase && !DATA.test(dataBase))) {
+    return { erro: "Requisição inválida." };
+  }
+  let id: string;
+  try {
+    const { dados } = await chamarApi<{ id: string }>("/precos/pesquisas", {
+      metodo: "POST",
+      corpo: {
+        nome,
+        objeto: texto("objeto", 2000),
+        responsavel: texto("responsavel", 200),
+        local_referencia: texto("local_referencia", 200),
+        ...(dataBase ? { data_base: dataBase } : {}),
+      },
+      cabecalhos: { "Idempotency-Key": chave },
+    });
+    id = dados.id;
+  } catch (e) {
+    if (e instanceof ErroDaApi && e.status === 422) return { erro: e.mensagem || "Confira os campos." };
+    return { erro: e instanceof ErroDaApi ? (MENSAGENS[e.status] ?? "Não foi possível criar agora.") : "Não foi possível criar agora." };
+  }
+  revalidatePath("/app/precos");
+  redirect(`/app/precos/${id}?criada=1`);
+}
+
+export type EstadoDaImportacao = { erro: string | null; plano: PlanoDeImportacao | null };
+
+const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/**
+ * Conferir (sem `plano`) ou confirmar (com o `plano` que a pessoa viu). Nos
+ * dois casos o arquivo vai inteiro e o SERVIDOR refaz o plano; se a cotação
+ * mudou no meio, a confirmação é recusada e o plano novo aparece.
+ */
+export async function importarPlanilha(_: EstadoDaImportacao, form: FormData): Promise<EstadoDaImportacao> {
+  const pesquisa = String(form.get("pesquisa") ?? "");
+  const plano = String(form.get("plano") ?? "");
+  const arquivo = form.get("planilha");
+  if (!UUID.test(pesquisa) || (plano && !/^[0-9a-f]{64}$/.test(plano))) return { erro: "Requisição inválida.", plano: null };
+  if (!(arquivo instanceof File) || arquivo.size === 0) return { erro: "Escolha a planilha (XLSX).", plano: null };
+  if (arquivo.size > 5 * 1024 * 1024) return { erro: "A planilha passa de 5 MB. Divida o arquivo.", plano: null };
+  try {
+    const { dados } = await chamarApi<PlanoDeImportacao>(
+      `/precos/pesquisas/${pesquisa}/importacao${plano ? "?confirmar=true" : ""}`,
+      {
+        metodo: "POST",
+        corpoBruto: { dados: await arquivo.arrayBuffer(), tipo: XLSX },
+        cabecalhos: plano ? { "If-Match": `"${plano}"` } : {},
+        tempoMs: 30000,
+      },
+    );
+    if (dados.gravado) {
+      revalidatePath(`/app/precos/${pesquisa}`);
+      redirect(`/app/precos/${pesquisa}?importada=1`);
+    }
+    return { erro: null, plano: dados };
+  } catch (e) {
+    if (e instanceof ErroDaApi) {
+      const porCodigo: Record<string, string> = {
+        PLANO_DESATUALIZADO: "A cotação mudou desde a conferência. Confira o plano de novo.",
+        UNSUPPORTED_MEDIA_TYPE: "O arquivo não é uma planilha XLSX legível.",
+        PAYLOAD_TOO_LARGE: "A planilha passa de 5 MB. Divida o arquivo.",
+        SPREADSHEET_ERRORS: "A planilha tem erros; corrija e confira de novo.",
+        FORBIDDEN: "Só quem criou a pesquisa (ou o administrador) pode importar itens.",
+        IMMUTABLE: "Pesquisa aplicada ou arquivada não recebe itens.",
+      };
+      return { erro: porCodigo[e.codigo] ?? MENSAGENS[e.status] ?? "Não foi possível importar agora.", plano: null };
+    }
+    throw e; // o redirect do Next passa por aqui e precisa seguir
+  }
+}
+
+export type EstadoDoItem = { erro: string | null };
+
+const ERROS_DO_ITEM: Record<string, string> = {
+  FORBIDDEN: "Só quem criou a pesquisa (ou o administrador) pode concluir ou reabrir itens.",
+  VERSION_CONFLICT: "O item mudou desde que você abriu a página. Recarregue e refaça.",
+  IMMUTABLE: "Pesquisa aplicada ou arquivada: crie uma revisão nova.",
+};
+
+async function atoNoItem(form: FormData, ato: "conclusao" | "reabertura"): Promise<EstadoDoItem> {
+  const pesquisa = String(form.get("pesquisa") ?? "");
+  const item = String(form.get("item") ?? "");
+  const revisao = String(form.get("revisao") ?? "");
+  if (![pesquisa, item].every((v) => UUID.test(v)) || !/^\d+$/.test(revisao)) return { erro: "Requisição inválida." };
+  const texto = String(form.get("texto") ?? "").trim().slice(0, 2000);
+  try {
+    await chamarApi(`/precos/pesquisas/${pesquisa}/itens/${item}/${ato}`, {
+      metodo: "POST",
+      corpo: ato === "conclusao" ? { justificativa: texto } : { motivo: texto },
+      cabecalhos: ato === "conclusao" ? { "If-Match": `"${revisao}"` } : {},
+    });
+  } catch (e) {
+    if (e instanceof ErroDaApi && e.status === 422) return { erro: e.mensagem || "A regra do item recusou." };
+    if (e instanceof ErroDaApi) return { erro: ERROS_DO_ITEM[e.codigo] ?? MENSAGENS[e.status] ?? "Não foi possível agora." };
+    return { erro: "Não foi possível agora." };
+  }
+  const caminho = `/app/precos/${pesquisa}/itens/${item}`;
+  revalidatePath(caminho);
+  redirect(`${caminho}?item=${ato === "conclusao" ? "concluido" : "reaberto"}`);
+}
+
+export async function concluirItem(_: EstadoDoItem, form: FormData) {
+  return atoNoItem(form, "conclusao");
+}
+
+export async function reabrirItem(_: EstadoDoItem, form: FormData) {
+  return atoNoItem(form, "reabertura");
 }

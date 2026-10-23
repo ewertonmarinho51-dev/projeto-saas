@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CaretRight } from "@phosphor-icons/react/dist/ssr";
+import { CaretRight, Plus } from "@phosphor-icons/react/dist/ssr";
 
 import { dataCurta, rotuloEstadoPesquisa } from "@/components/precos";
-import { cartao } from "@/components/ui";
+import { botaoPrimario, cartao } from "@/components/ui";
 import { chamarApi, ErroDaApi, precosHabilitado, type Pagina, type ResumoPesquisa } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Pesquisas de preços" };
@@ -30,11 +30,15 @@ export default async function Pesquisas({
 
   return (
     <div className="grid gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Pesquisas de preços</h1>
-        <p className="mt-1 text-sm text-secundario">
-          Consulta das pesquisas do seu órgão. Coleta e edição da cesta chegam na próxima etapa.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Pesquisas de preços</h1>
+          <p className="mt-1 text-sm text-secundario">As pesquisas do seu órgão, com fonte verificável para cada preço.</p>
+        </div>
+        <Link href="/app/precos/nova" className={botaoPrimario}>
+          <Plus size={16} weight="bold" aria-hidden />
+          Nova pesquisa
+        </Link>
       </div>
 
       {dados.itens.length > 0 ? (

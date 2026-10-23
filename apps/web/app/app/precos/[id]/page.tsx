@@ -5,6 +5,7 @@ import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 
 import { BotaoDeColeta, ProgressoDaColeta } from "@/components/coleta";
 import { PainelDeEmissao, ProgressoDoRelatorio } from "@/components/emissao";
+import { ImportarPlanilha } from "@/components/importar-planilha";
 import { dataCurta, rotuloEstadoItem, rotuloEstadoPesquisa, rotuloMetodo } from "@/components/precos";
 import { cartao } from "@/components/ui";
 import {
@@ -30,7 +31,7 @@ export default async function Pesquisa({
 }) {
   if (!precosHabilitado()) notFound();
   const { id } = await params;
-  const { job, relatorio } = await searchParams;
+  const { job, relatorio, criada, importada } = await searchParams;
   const jobId = typeof job === "string" && UUID.test(job) ? job : null;
   const relatorioId = typeof relatorio === "string" && UUID.test(relatorio) ? relatorio : null;
   if (!UUID.test(id)) notFound();
@@ -88,6 +89,13 @@ export default async function Pesquisa({
           </div>
         </dl>
         <div className="mt-6 grid gap-3">
+          {(criada === "1" || importada === "1") && (
+            <p role="status" className="rounded-[var(--radius-ui)] bg-ok-fundo px-4 py-3 text-sm text-ok">
+              {criada === "1"
+                ? "Pesquisa criada. Importe a planilha de itens para começar."
+                : "Planilha importada. Os itens novos estão pendentes de coleta."}
+            </p>
+          )}
           {jobId && <ProgressoDaColeta jobId={jobId} />}
           {!IMUTAVEIS.has(p.estado) && (
             // Chave nova a cada renderização: um clique (ou o reenvio do
@@ -98,13 +106,22 @@ export default async function Pesquisa({
         </div>
       </div>
 
+      {!IMUTAVEIS.has(p.estado) && (
+        <section aria-labelledby="titulo-importar" className={`${cartao} grid gap-3 p-5`}>
+          <h2 id="titulo-importar" className="text-lg font-semibold">
+            Importar itens
+          </h2>
+          <ImportarPlanilha pesquisa={p.id} />
+        </section>
+      )}
+
       <section aria-labelledby="titulo-itens" className="grid gap-3">
         <h2 id="titulo-itens" className="text-lg font-semibold">
           Itens <span className="font-normal text-secundario">({p.itens.length})</span>
         </h2>
         {p.itens.length === 0 ? (
           <p className={`${cartao} px-6 py-10 text-center text-sm text-secundario`}>
-            Esta pesquisa ainda não tem itens.
+            Esta pesquisa ainda não tem itens. Importe a planilha acima.
           </p>
         ) : (
           // Rolagem horizontal no celular: tabela de preço não se espreme em

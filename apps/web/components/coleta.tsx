@@ -5,7 +5,7 @@ import { useActionState } from "react";
 
 import { iniciarColeta, type EstadoDaColeta } from "@/app/app/precos/acoes";
 import { useJob } from "@/components/acompanhar-job";
-import { botaoPrimario } from "@/components/ui";
+import { botaoPrimario, botaoSecundario } from "@/components/ui";
 
 const FALHAS: Record<string, string> = {
   SESSION_EXPIRED: "A coleta parou porque sua sessão estava terminando. O que já foi coletado ficou; inicie de novo para continuar.",
@@ -20,9 +20,16 @@ export function BotaoDeColeta({ pesquisa, chave }: { pesquisa: string; chave: st
     <form action={acao} className="grid justify-items-start gap-2">
       <input type="hidden" name="pesquisa" value={pesquisa} />
       <input type="hidden" name="chave" value={chave} />
-      <button type="submit" className={botaoPrimario} disabled={enviando}>
-        {enviando ? "Iniciando..." : "Coletar preços"}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" name="modo" value="manual" className={botaoPrimario} disabled={enviando}>
+          {enviando ? "Iniciando..." : "Coletar preços"}
+        </button>
+        {/* Automática: a cesta é formada pela regra determinística (teto e
+            triagem); o revisor confere e conclui depois. */}
+        <button type="submit" name="modo" value="automatico" className={botaoSecundario} disabled={enviando}>
+          Cotação automática
+        </button>
+      </div>
       {estado.erro && (
         <p role="alert" className="rounded-[var(--radius-ui)] bg-erro-fundo px-3 py-2 text-sm text-erro">
           {estado.erro}

@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowSquareOut } from "@phosphor-icons/react/dist/ssr";
 
 import { dataCurta, rotuloNatureza, rotuloStatusReferencia } from "@/components/precos";
 import { AcaoNaCesta } from "@/components/acao-cesta";
+import { AtoNoItem } from "@/components/ato-item";
 import { cartao } from "@/components/ui";
 import {
   chamarApi,
@@ -32,7 +33,7 @@ export default async function Referencias({
 }) {
   if (!precosHabilitado()) notFound();
   const { id, itemId } = await params;
-  const { cesta } = await searchParams;
+  const { cesta, item: atoNoItem } = await searchParams;
   if (!UUID.test(id) || !UUID.test(itemId)) notFound();
 
   let refs: ReferenciaDePreco[];
@@ -50,7 +51,14 @@ export default async function Referencias({
   }
   const item = pesquisa.itens.find((i) => i.id === itemId);
   if (!item) notFound();
-  const aviso = typeof cesta === "string" ? AVISOS[cesta] : undefined;
+  const aviso =
+    typeof cesta === "string"
+      ? AVISOS[cesta]
+      : atoNoItem === "concluido"
+        ? "Item concluído."
+        : atoNoItem === "reaberto"
+          ? "Item reaberto para revisão."
+          : undefined;
 
   return (
     <div className="grid gap-6">
@@ -79,6 +87,10 @@ export default async function Referencias({
           {aviso}
         </p>
       )}
+
+      {/* `key` pelo estado: concluir troca o formulário por reabrir, e um
+          componente novo nasce com a ação certa e sem o erro anterior. */}
+      <AtoNoItem key={item.estado} pesquisa={id} item={item.id} revisao={item.revisao} estado={item.estado} />
 
       {refs.length === 0 ? (
         <p className={`${cartao} px-6 py-10 text-center text-sm text-secundario`}>
