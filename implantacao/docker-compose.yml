@@ -64,7 +64,10 @@ services:
       - /etc/govdocs/caddy.env
 
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Qual Caddyfile: o de sempre, ou o de convivência no mesmo domínio
+      # (`GOVCONECT_CADDYFILE=Caddyfile.convivencia` em `implantacao/.env`,
+      # RUNBOOK_P06.md §4a). Voltar = apagar a linha e `up -d caddy`.
+      - ./${GOVCONECT_CADDYFILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy_data:/data       # certificados — PRECISA persistir
       - caddy_config:/config
     depends_on:
@@ -100,7 +103,9 @@ services:
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
         NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:-}
         GOVCONECT_RELEASE: ${GOVDOCS_RELEASE:-desconhecida}
-    image: govconect-web:local
+    # No VPS, a imagem publicada pelo CI (`promover_govconect.sh` grava a
+    # referência por SHA); sem a variável, o build local de sempre.
+    image: ${GOVCONECT_IMAGEM_WEB:-govconect-web:local}
     restart: unless-stopped
     expose:
       - "3000"
@@ -126,7 +131,7 @@ services:
       args:
         GOVCONECT_RELEASE: ${GOVDOCS_RELEASE:-desconhecida}
         GOVCONECT_COMMIT: ${GOVDOCS_COMMIT:-desconhecido}
-    image: govconect-api:local
+    image: ${GOVCONECT_IMAGEM_API:-govconect-api:local}
     restart: unless-stopped
     expose:
       - "8000"
@@ -152,7 +157,7 @@ services:
       args:
         GOVCONECT_RELEASE: ${GOVDOCS_RELEASE:-desconhecida}
         GOVCONECT_COMMIT: ${GOVDOCS_COMMIT:-desconhecido}
-    image: govconect-worker:local
+    image: ${GOVCONECT_IMAGEM_WORKER:-govconect-worker:local}
     restart: unless-stopped
     # Sem porta nenhuma: só consome a fila.
     env_file:

@@ -115,16 +115,76 @@ Build do web (shell do operador, não arquivo): `NEXT_PUBLIC_SUPABASE_URL`,
 
 ## 4. Staging (quando houver projeto e domínio)
 
-```
-cd /opt/govdocs/implantacao
-export NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
-GOVDOCS_RELEASE=<tag> docker compose --profile govconect build
-docker compose --profile govconect up -d redis api worker web
-docker compose ps        # todos healthy; o worker não tem healthcheck HTTP
-```
+O host NÃO constrói imagem (1 vCPU). Elas vêm do GHCR, publicadas por
+`.github/workflows/govconect-imagens.yml`:
+
+1. **Variáveis do repositório** (Settings → Variables, não segredo):
+   `NEXT_PUBLIC_SUPABASE_URL_staging` e
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_staging` (e as `_production`
+   no corte). A chave é a PUBLICÁVEL; a de servidor é recusada no build.
+2. **Publicar**: a cada merge no `main`, api e worker saem como
+   `ghcr.io/ewertonmarinho51-dev/govconect-{api,worker}:sha-<12>`. O web
+   sai por *Run workflow* com o ambiente:
+   `govconect-web:<ambiente>-sha-<12>`.
+3. **Host, uma vez**: `docker login ghcr.io` com um token de **leitura**
+   de pacotes (PAT `read:packages`), se os pacotes forem privados.
+4. **Promover**:
+   ```
+   cd /opt/govdocs/implantacao && git pull
+   ./promover_govconect.sh sha-<12> staging
+   ./promover_govconect.sh --atual
+   ```
+   Baixa as três imagens antes de mexer em nada; sobe `redis`, `api`,
+   `worker`, `web` (o Streamlit e o Caddy não são tocados); espera `api`
+   e `web` healthy por 120 s; se não ficarem, volta sozinho às imagens
+   anteriores. Provado no CI (job `imagens`): versão boa sobe, versão
+   quebrada é recusada e a anterior volta healthy.
 
 Smoke manual: login, lista de processos, pesquisa de preços (com a
 flag), coleta (job até `succeeded`), emissão DOCX e PDF, download.
+
+## 4a. Convivência no mesmo domínio e projeto (ADR-009, decisão de 23/10)
+
+Sem staging separado por enquanto: o Gov Conect 2.0 sobe no mesmo host,
+no `govconect.com` e no projeto Supabase de produção, nos caminhos dele
+(`/entrar`, `/app/*`, `/auth/*`, `/privacidade`). O `/` continua sendo o
+Streamlit.
+
+1. **Release** que contenha `Caddyfile.convivencia`, `promover_govconect.sh`
+   e o compose com profile (promoção do Streamlit de sempre,
+   `promover.sh <tag>`).
+2. **Ambiente** (valores no servidor, nunca no repositório):
+   - `/etc/govdocs/api.env`: `APP_ENV=production`, `SUPABASE_URL` do
+     projeto, `SUPABASE_KEY` **publicável**, `REDIS_URL` com senha,
+     `PRICE_RESEARCH_ENABLED=1`;
+   - `/etc/govdocs/web.env`: `GOVCONECT_API_URL=http://api:8000`,
+     `GOVCONECT_SITE_URL=https://govconect.com`, `PRICE_RESEARCH_ENABLED=1`;
+   - `/etc/govdocs/redis.env`: `REDIS_SENHA`.
+3. **Variáveis do repositório** `NEXT_PUBLIC_SUPABASE_URL_production` e
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_production` (URL e chave
+   publicável do projeto) e *Run workflow* "Gov Conect - imagens" com
+   `production`.
+4. **Supabase Auth** (painel): acrescentar
+   `https://govconect.com/auth/confirmar` às Redirect URLs (recuperação
+   de senha do web).
+5. **Host**: `docker login ghcr.io` (token só de leitura) e
+   `./promover_govconect.sh sha-<12> production`.
+6. **Ligar a convivência**:
+   ```
+   cd /opt/govdocs/implantacao
+   echo 'GOVCONECT_CADDYFILE=Caddyfile.convivencia' >> .env
+   docker compose up -d caddy
+   ```
+7. **Smoke** só com o tenant e as contas do canário: `/entrar`, lista de
+   processos, pesquisa de preços, coleta, emissão, download; e `/` ainda
+   o Streamlit.
+
+**Desligar** (o Streamlit nunca saiu do ar):
+```
+cd /opt/govdocs/implantacao
+sed -i '/^GOVCONECT_CADDYFILE=/d' .env
+docker compose up -d caddy
+```
 
 ## 5. Corte e rollback
 
@@ -143,9 +203,9 @@ rollback de banco.
 - métricas RED e de job, alertas de indisponibilidade e de orçamento de
   IA (ADR-005);
 - backup e restauração testada do banco (inclui políticas de RLS);
-- release com tag e promoção por SHA para os serviços novos (o
-  `promover.sh` de hoje promove o Streamlit);
-- relatório de rollback **testado** (exige staging).
+- ~~promoção por SHA para os serviços novos~~: `promover_govconect.sh`
+  + imagens no GHCR (rollback automático provado no CI);
+- relatório de rollback **testado no host** (exige staging).
 
 ## 7. P05 (editor WordCraft): BLOCKED
 

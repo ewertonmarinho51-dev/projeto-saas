@@ -532,3 +532,103 @@ jobs:
           com="$(docker compose -f implantacao/docker-compose.yml exec -T -e REDISCLI_AUTH="$senha" redis redis-cli ping)"
           [ "$com" = PONG ]
           docker compose -f implantacao/docker-compose.yml --profile govconect down
+
+      - name: Promoção por SHA e rollback automático
+        # `promover_govconect.sh` de verdade, contra um registro local: a
+        # versão boa sobe healthy; a quebrada (web que nunca fica healthy)
+        # é recusada e o script VOLTA SOZINHO para a anterior. Senhas e
+        # valores de TESTE, gerados aqui.
+        shell: bash
+        run: |
+          docker run -d -p 127.0.0.1:5000:5000 --name registro registry:2.8.3
+          R=localhost:5000/govconect
+          boa=sha-aaaaaaaaaaaa; ruim=sha-bbbbbbbbbbbb
+          for v in "$boa" "$ruim"; do
+            for n in api worker; do docker tag "govconect-$n:ci" "$R/govconect-$n:$v"; docker push -q "$R/govconect-$n:$v"; done
+          done
+          docker tag govconect-web:ci "$R/govconect-web:staging-$boa"
+          docker push -q "$R/govconect-web:staging-$boa"
+          printf 'FROM busybox:1.36.1\nHEALTHCHECK --interval=2s --retries=1 CMD false\nCMD ["sleep","3600"]\n' \
+            | docker build -q -t "$R/govconect-web:staging-$ruim" -
+          docker push -q "$R/govconect-web:staging-$ruim"
+
+          senha="$(openssl rand -hex 16)"
+          printf 'REDIS_SENHA=%s\n' "$senha" | sudo tee /etc/govdocs/redis.env >/dev/null
+          printf 'APP_ENV=test\nREDIS_URL=redis://:%s@redis:6379/0\n' "$senha" | sudo tee /etc/govdocs/api.env >/dev/null
+          printf 'GOVCONECT_API_URL=http://api:8000\n' | sudo tee /etc/govdocs/web.env >/dev/null
+          export COMPOSE_DIR="$PWD/implantacao" ESTADO="$RUNNER_TEMP/imagens.env" REGISTRO="$R" LOG="$RUNNER_TEMP/promocoes.log"
+
+          bash implantacao/promover_govconect.sh "$boa" staging
+          grep -q "govconect-web:staging-$boa" "$ESTADO"
+
+          if bash implantacao/promover_govconect.sh "$ruim" staging; then
+            echo "o script aceitou uma versão que não fica healthy" >&2; exit 1
+          fi
+          echo "estado depois da recusa:"; cat "$ESTADO"
+          grep -q "govconect-web:staging-$boa" "$ESTADO"
+          # E o web da versão boa volta a ficar healthy de fato.
+          for i in $(seq 1 45); do
+            id="$(docker compose -f implantacao/docker-compose.yml --profile govconect ps -q web)"
+            [ "$(docker inspect -f '{{.State.Health.Status}}' "$id")" = healthy ] && break
+            sleep 2
+          done
+          docker inspect -f '{{.Config.Image}} {{.State.Health.Status}}' "$id" | tee /dev/stderr \
+            | grep -q "govconect-web:staging-$boa healthy"
+          cat "$LOG"
+          docker compose -f implantacao/docker-compose.yml --profile govconect down
+
+      - name: Caddy de convivência separa os caminhos no mesmo domínio
+        # ADR-009: Streamlit e Next no mesmo govconect.com. O Caddy de
+        # verdade, com o arquivo de verdade (só o endereço trocado por
+        # :8080, sem TLS), diante de dois serviços falsos que dizem quem
+        # são. `/app/static/*` tem de continuar no Streamlit (runtime do
+        # WordCraft) e o DENY do Next não pode virar SAMEORIGIN.
+        shell: bash
+        run: |
+          ACME_EMAIL=ci@example.invalid docker run --rm -e ACME_EMAIL \
+            -v "$PWD/implantacao/Caddyfile.convivencia:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+          cat > "$RUNNER_TEMP/servico.py" <<'PY'
+          import http.server, sys
+          nome, porta = sys.argv[1], int(sys.argv[2])
+          class H(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  self.send_response(200)
+                  if nome == "next":
+                      self.send_header("X-Frame-Options", "DENY")
+                  self.end_headers()
+                  self.wfile.write(nome.encode())
+              def log_message(self, *a):
+                  pass
+          http.server.HTTPServer(("0.0.0.0", porta), H).serve_forever()
+          PY
+          sed 's/^govconect.com, www.govconect.com {$/:8080 {/' implantacao/Caddyfile.convivencia > "$RUNNER_TEMP/Caddyfile"
+          grep -q '^:8080 {' "$RUNNER_TEMP/Caddyfile"
+          docker network create convivencia
+          docker run -d --network convivencia --network-alias app -v "$RUNNER_TEMP/servico.py:/s.py:ro" python:3.11-alpine python /s.py streamlit 8501
+          docker run -d --network convivencia --network-alias web -v "$RUNNER_TEMP/servico.py:/s.py:ro" python:3.11-alpine python /s.py next 3000
+          docker run -d --network convivencia -p 127.0.0.1:18080:8080 -e ACME_EMAIL=ci@example.invalid \
+            -v "$RUNNER_TEMP/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine
+          for i in $(seq 1 30); do curl -fs -o /dev/null http://127.0.0.1:18080/ && break; sleep 1; done
+
+          espera() {  # caminho quem
+            veio="$(curl -fs "http://127.0.0.1:18080$1")"
+            echo "$1 -> $veio"
+            [ "$veio" = "$2" ] || { echo "ESPERADO $2" >&2; exit 1; }
+          }
+          espera / streamlit
+          espera /_stcore/health streamlit
+          espera /app/static/wordcraft/runtime.js streamlit
+          espera /qualquer-pagina streamlit
+          espera /entrar next
+          espera /entrar/recuperar next
+          espera /app next
+          espera /app/precos/123 next
+          espera /auth/confirmar next
+          espera /privacidade next
+          espera /_next/static/chunk.js next
+          espera /logo-govconect.png next
+          curl -fs -D - -o /dev/null http://127.0.0.1:18080/app | tr -d '\r' | grep -ix 'x-frame-options: DENY'
+          ! curl -fs -D - -o /dev/null http://127.0.0.1:18080/app | grep -i 'sameorigin'
+          curl -fs -D - -o /dev/null http://127.0.0.1:18080/ | tr -d '\r' | grep -ix 'x-frame-options: SAMEORIGIN'

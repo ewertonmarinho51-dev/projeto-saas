@@ -9,6 +9,15 @@ há "rollback/backup válido" e quando o staging não existe ou é o banco de
 produção. As três condições valem hoje. Nada aqui autoriza corte, e nenhum
 corte foi feito.
 
+**Decisão do operador em 23/10/2026 (ADR-009):** por enquanto, mesmo
+domínio e mesmo projeto Supabase; staging isolado volta quando o sistema
+for implantado em outros lugares. Consequência neste relatório: o critério
+"staging não pode ser o banco de produção" passa a **risco aceito pelo
+operador** para a fase de **convivência** (Next nos caminhos próprios,
+Streamlit em `/`, desligável por uma linha). O **corte** (o Next como
+porta principal) continua NO-GO pelos outros bloqueios: editor e prova de
+backup/rollback no host.
+
 | Bloqueio | Estado | O que destrava |
 |---|---|---|
 | Editor (P05) | **BLOCKED**: runtime WordCraft `INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED`, canário de 21/10 reprovado | entrega da frente WordCraft com artefato aprovado |

@@ -1,0 +1,75 @@
+# ###########################################################
+#  Caddy — convivência no MESMO domínio (decisão do operador, 23/10/2026)
+#
+#  govconect.com continua sendo o Streamlit. O Gov Conect 2.0 (Next)
+#  responde nos caminhos dele, no mesmo domínio e com o mesmo projeto
+#  Supabase (ADR-009). É a estratégia strangler da ADR-006 aplicada ao
+#  endereço: o usuário entra pelo `/entrar` novo quando quiser, e o `/`
+#  de sempre não muda.
+#
+#  Vale só quando o operador liga (RUNBOOK_P06.md §4a):
+#    GOVCONECT_CADDYFILE=Caddyfile.convivencia   em implantacao/.env
+#  e o `web` está de pé (`--profile govconect`). Sem o `web`, os caminhos
+#  dele dão 502 e o resto do site segue igual.
+#
+#  A API não tem rota aqui: o navegador fala com o Next (BFF, ADR-001).
+# ###########################################################
+
+{
+	email {$ACME_EMAIL}
+}
+
+govconect.com, www.govconect.com {
+	# Os caminhos do Next. `/app/static/*` NÃO entra: é o estático do
+	# Streamlit (`enableStaticServing`), por onde sai o runtime do
+	# WordCraft. A ordem dos `handle` abaixo garante isso.
+	@estatico_streamlit path /app/static/*
+	@govconect path /entrar /entrar/* /app /app/* /auth/* /privacidade /_next/* /favicon-32.png /logo-govconect.png /logo-govconect-96.png
+
+	handle @estatico_streamlit {
+		reverse_proxy app:8501 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+			header_up Host {host}
+		}
+	}
+
+	handle @govconect {
+		reverse_proxy web:3000 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+			# O limite de login do web conta por IP: o IP real, nunca o
+			# que o cliente escrever no cabeçalho.
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+
+	handle {
+		# O Streamlit de sempre, com WebSocket em /_stcore/stream.
+		reverse_proxy app:8501 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+			header_up Host {host}
+		}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		# `?`: só se a resposta não trouxer o seu. O Next manda DENY; o
+		# Streamlit não manda nada e recebe SAMEORIGIN, como hoje.
+		?X-Frame-Options "SAMEORIGIN"
+		?Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /data/acesso.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+	}
+
+	encode gzip zstd
+}
