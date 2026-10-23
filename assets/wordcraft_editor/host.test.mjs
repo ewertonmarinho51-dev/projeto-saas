@@ -54,7 +54,7 @@ function deferred() {
   return {promise, resolve};
 }
 
-async function setup({awaitFrame} = {}) {
+async function setup({awaitFrame, ensureVisible} = {}) {
   const data = {instance_id: crypto.randomUUID(), session_id: crypto.randomUUID(), document_id: crypto.randomUUID(),
     nonce: 'n'.repeat(64), revision: 0, content_hash: await sha256(bytes)};
   const sent = [];
@@ -90,7 +90,8 @@ async function setup({awaitFrame} = {}) {
     acknowledge_checkpoint(id) { assert.equal(id, this.pending.id); this.unsaved = this.gen !== this.pending.gen; this.pending = null; },
     dispose() { this.disposed = true; this.locked = false; this.ready = false; }};
   const controller = new EditorController(native, data, (key, value) => sent.push({key, ...value}),
-    {awaitFrame: signal => awaitFrame ? awaitFrame(native, signal) : Promise.resolve(native.frame())});
+    {awaitFrame: signal => awaitFrame ? awaitFrame(native, signal) : Promise.resolve(native.frame()),
+      ensureVisible: () => ensureVisible?.(native)});
   await controller.loaded(bytes);
   return {data, native, controller, sent};
 }
@@ -252,6 +253,19 @@ test('an active key or pointer gesture cannot satisfy the barrier before release
   native.heldInput = true;
   await c.control(freeze(c));
   assert.equal(native.frames, 2); assert.equal(c.state, 'frozen'); assert.equal(native.serializations, 1);
+});
+
+test('freeze exposes an offscreen canvas before requesting the native frame barrier', async () => {
+  const order = [];
+  const {native, controller: c} = await setup({
+    ensureVisible: () => order.push('visible'),
+    awaitFrame: async n => { order.push('frame'); n.frame(); },
+  });
+  const lock = native.set_interaction_locked.bind(native);
+  native.set_interaction_locked = value => { order.push(value ? 'lock' : 'unlock'); lock(value); };
+  await c.control(freeze(c));
+  assert.equal(c.state, 'frozen');
+  assert.deepEqual(order.slice(0, 3), ['visible', 'lock', 'frame']);
 });
 
 test('uninitialized native input and invalid readiness types never produce a proof', async () => {
