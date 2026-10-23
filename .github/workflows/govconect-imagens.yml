@@ -1,0 +1,124 @@
+# Gov Conect 2.0: publica as imagens no GHCR por SHA (P06).
+#
+# O VPS tem 1 vCPU (medido em 23/10/2026): construir o web lá é lento e
+# arrisca OOM com o Streamlit de pé. As imagens nascem AQUI, passam pelo
+# mesmo smoke do job `imagens` do CI, e o host só faz `pull` da tag
+# `sha-<12>` (implantacao/promover_govconect.sh).
+#
+# * push no `main`: api e worker (iguais em todo ambiente);
+# * disparo manual com o ambiente: o web, porque URL e chave PUBLICÁVEL do
+#   Supabase entram no bundle no build. Vêm das variáveis do repositório
+#   `NEXT_PUBLIC_SUPABASE_URL_<ambiente>` e
+#   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_<ambiente>` (não são segredo;
+#   chave de servidor é recusada no build). Sem elas, o web não é
+#   publicado e o job diz por quê.
+#
+# Nada aqui faz deploy.
+name: Gov Conect - imagens
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "src/**"
+      - "implantacao/Dockerfile.api"
+      - "implantacao/smoke_imagens.sh"
+      - ".dockerignore"
+      - ".github/workflows/govconect-imagens.yml"
+  workflow_dispatch:
+    inputs:
+      ambiente:
+        description: "Ambiente do bundle do web"
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions: {}
+
+concurrency:
+  group: govconect-imagens-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRO: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  api-worker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - id: tag
+        run: echo "tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Construir
+        run: |
+          docker build -f implantacao/Dockerfile.api --target api \
+            --build-arg GOVCONECT_COMMIT="$GITHUB_SHA" -t govconect-api:ci .
+          docker build -f implantacao/Dockerfile.api --target worker \
+            --build-arg GOVCONECT_COMMIT="$GITHUB_SHA" -t govconect-worker:ci .
+          # Web só para o smoke (valores de TESTE; não é publicado daqui).
+          docker build -f implantacao/Dockerfile.web -t govconect-web:ci \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL=https://exemplo-ci.supabase.invalid \
+            --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=chave-publicavel-de-teste .
+
+      - name: Smoke antes de publicar
+        run: bash implantacao/smoke_imagens.sh govconect-api:ci govconect-worker:ci govconect-web:ci
+
+      - name: Publicar api e worker
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          for nome in api worker; do
+            docker tag "govconect-$nome:ci" "$REGISTRO/govconect-$nome:$TAG"
+            docker push "$REGISTRO/govconect-$nome:$TAG"
+          done
+          {
+            echo "### Imagens publicadas"
+            echo "- \`$REGISTRO/govconect-api:$TAG\`"
+            echo "- \`$REGISTRO/govconect-worker:$TAG\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  web:
+    if: github.event_name == 'workflow_dispatch'
+    needs: api-worker
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Construir e publicar o web do ambiente
+        env:
+          AMBIENTE: ${{ inputs.ambiente }}
+          URL: ${{ vars[format('NEXT_PUBLIC_SUPABASE_URL_{0}', inputs.ambiente)] }}
+          CHAVE: ${{ vars[format('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_{0}', inputs.ambiente)] }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.api-worker.outputs.tag }}
+        run: |
+          if [ -z "$URL" ] || [ -z "$CHAVE" ]; then
+            echo "::warning::Variáveis NEXT_PUBLIC_SUPABASE_URL_$AMBIENTE e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_$AMBIENTE não definidas; web não publicado."
+            exit 0
+          fi
+          docker build -f implantacao/Dockerfile.web -t "govconect-web:$AMBIENTE" \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL="$URL" \
+            --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$CHAVE" \
+            --build-arg GOVCONECT_RELEASE="$TAG" .
+          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          destino="$REGISTRO/govconect-web:$AMBIENTE-$TAG"
+          docker tag "govconect-web:$AMBIENTE" "$destino"
+          docker push "$destino"
+          echo "- \`$destino\`" >> "$GITHUB_STEP_SUMMARY"
