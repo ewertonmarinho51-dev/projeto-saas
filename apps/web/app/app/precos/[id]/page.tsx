@@ -5,6 +5,7 @@ import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 
 import { BotaoDeColeta, ProgressoDaColeta } from "@/components/coleta";
 import { PainelDeEmissao, ProgressoDoRelatorio } from "@/components/emissao";
+import { AplicarAoProcesso } from "@/components/aplicar-processo";
 import { ImportarPlanilha } from "@/components/importar-planilha";
 import { dataCurta, rotuloEstadoItem, rotuloEstadoPesquisa, rotuloMetodo } from "@/components/precos";
 import { cartao } from "@/components/ui";
@@ -14,6 +15,7 @@ import {
   precosHabilitado,
   type PesquisaDePrecos,
   type PreparoDaEmissao,
+  type PreviaDaAplicacao,
 } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Pesquisa de preços" };
@@ -31,7 +33,7 @@ export default async function Pesquisa({
 }) {
   if (!precosHabilitado()) notFound();
   const { id } = await params;
-  const { job, relatorio, criada, importada } = await searchParams;
+  const { job, relatorio, criada, importada, aplicada } = await searchParams;
   const jobId = typeof job === "string" && UUID.test(job) ? job : null;
   const relatorioId = typeof relatorio === "string" && UUID.test(relatorio) ? relatorio : null;
   if (!UUID.test(id)) notFound();
@@ -42,6 +44,16 @@ export default async function Pesquisa({
   } catch (e) {
     if (e instanceof ErroDaApi && e.status === 404) notFound();
     throw e;
+  }
+  // Aplicar ao processo: a prévia só faz sentido com a pesquisa concluída
+  // (ou já aplicada, para dizer isso). Erro na prévia não derruba a página.
+  let previa: PreviaDaAplicacao | null = null;
+  if (p.estado === "completed" || p.estado === "applied") {
+    try {
+      previa = (await chamarApi<PreviaDaAplicacao>(`/precos/pesquisas/${id}/aplicacao`)).dados;
+    } catch {
+      previa = null;
+    }
   }
   // A emissão não derruba a página: sem preparo, a seção diz que não deu.
   let preparo: PreparoDaEmissao | null = null;
@@ -89,11 +101,13 @@ export default async function Pesquisa({
           </div>
         </dl>
         <div className="mt-6 grid gap-3">
-          {(criada === "1" || importada === "1") && (
+          {(criada === "1" || importada === "1" || aplicada === "1") && (
             <p role="status" className="rounded-[var(--radius-ui)] bg-ok-fundo px-4 py-3 text-sm text-ok">
               {criada === "1"
                 ? "Pesquisa criada. Importe a planilha de itens para começar."
-                : "Planilha importada. Os itens novos estão pendentes de coleta."}
+                : importada === "1"
+                  ? "Planilha importada. Os itens novos estão pendentes de coleta."
+                  : "Preços aplicados ao processo. Os documentos descartados precisam ser gerados novamente."}
             </p>
           )}
           {jobId && <ProgressoDaColeta jobId={jobId} />}
@@ -190,6 +204,24 @@ export default async function Pesquisa({
             <PainelDeEmissao pesquisa={p.id} preparo={preparo} chave={`web-rel-${crypto.randomUUID()}`} />
           ) : (
             <p className="text-sm text-secundario">Não foi possível preparar a emissão agora. Recarregue a página em instantes.</p>
+          )}
+        </section>
+      )}
+
+      {(p.estado === "completed" || p.estado === "applied") && (
+        <section aria-labelledby="titulo-aplicar" className="grid gap-3" data-testid="secao-aplicar">
+          <div>
+            <h2 id="titulo-aplicar" className="text-lg font-semibold">
+              Aplicar ao processo
+            </h2>
+            <p className="mt-1 max-w-[65ch] text-sm text-secundario">
+              O preço estimado passa a ser o valor da contratação, e é ele que vai para o DFD, o ETP, o TR e o edital.
+            </p>
+          </div>
+          {previa ? (
+            <AplicarAoProcesso pesquisa={p.id} previa={previa} />
+          ) : (
+            <p className="text-sm text-secundario">Não foi possível montar a prévia agora. Recarregue a página em instantes.</p>
           )}
         </section>
       )}

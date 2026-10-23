@@ -353,6 +353,38 @@ def semear_emissao(pilha: Pilha, dono: str = "a1") -> str:
     return pid
 
 
+def semear_aplicacao(pilha: Pilha, dono: str = "a1") -> dict:
+    """Processo de `dono` com planilha de um item e DFD/ETP gerados (DFD
+    aprovado), e uma pesquisa CONCLUÍDA vinculada a ele com o mesmo item
+    concluído — o que a aplicação ao processo precisa para ter efeito."""
+    import psycopg
+    from psycopg.types.json import Jsonb
+
+    conta = pilha.contas[dono]
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        processo = str(c.execute(
+            "insert into public.processos (tenant_id, secretaria_id, auth_user_id, orgao, objeto, "
+            "etapa, dados, documentos, aprovados) values (%s,%s,%s,'Prefeitura','Canetas',2,%s,%s,"
+            "'{dfd}') returning id",
+            (conta.tenant_id, conta.secretaria_id, conta.auth_user_id,
+             Jsonb({"objeto": "Canetas", "valor_estimado": 300.0,
+                    "itens": [{"codigo": "451234", "descricao": "Caneta esferográfica azul",
+                               "unidade": "UN", "quantidade": 150, "valor_unitario": 2.0}]}),
+             Jsonb({"dfd": "## DFD", "etp": "## ETP"}))).fetchone()[0])
+        pesquisa = str(c.execute(
+            "insert into public.pesquisas_preco (tenant_id, secretaria_id, auth_user_id, nome, "
+            "estado, processo_id, idempotency_key) values (%s,%s,%s,'Aplicação E2E','completed',%s,%s) "
+            "returning id",
+            (conta.tenant_id, conta.secretaria_id, conta.auth_user_id, processo,
+             uuid.uuid4().hex)).fetchone()[0])
+        c.execute(
+            "insert into public.pesquisa_preco_itens (pesquisa_id, tenant_id, numero, codigo, "
+            "tipo_catalogo, descricao, unidade, quantidade, estado, metodo, preco_estimado, "
+            "preco_total) values (%s,%s,1,'451234','CATMAT','Caneta esferográfica azul','UN',150,"
+            "'complete','mediana',2.3450,351.7500)", (pesquisa, conta.tenant_id))
+    return {"processo": processo, "pesquisa": pesquisa}
+
+
 def gravar_planilha_e2e(pasta: Path) -> Path:
     """A planilha que o E2E importa: dois itens, um com quantidade decimal."""
     from openpyxl import Workbook
@@ -386,6 +418,7 @@ def principal() -> int:
                   # da emissão) e uma planilha XLSX real para importar.
                   "escrita": semear_emissao(pilha, dono="admin_a"),
                   "planilha": str(gravar_planilha_e2e(args.estado.parent)),
+                  "aplicacao": semear_aplicacao(pilha, dono="admin_a"),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
         temporario = args.estado.with_suffix(".tmp")

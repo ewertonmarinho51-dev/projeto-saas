@@ -254,3 +254,36 @@ export async function concluirItem(_: EstadoDoItem, form: FormData) {
 export async function reabrirItem(_: EstadoDoItem, form: FormData) {
   return atoNoItem(form, "reabertura");
 }
+
+export type EstadoDaAplicacao = { erro: string | null };
+
+const ERROS_DA_APLICACAO: Record<string, string> = {
+  VERSION_CONFLICT: "O processo mudou desde a prévia (alguém salvou no meio). Recarregue e confira de novo.",
+  CONFIRMAR_DESCARTE: "Confirme que os documentos listados serão descartados.",
+  FORBIDDEN: "Só quem é responsável pela pesquisa e pelo processo (ou o administrador) pode aplicar.",
+  NADA_A_APLICAR: "Nenhum item da planilha do processo casou com a pesquisa.",
+};
+
+/** Aplica com a versão do processo que a pessoa viu na prévia (compare-and-set). */
+export async function aplicarAoProcesso(_: EstadoDaAplicacao, form: FormData): Promise<EstadoDaAplicacao> {
+  const pesquisa = String(form.get("pesquisa") ?? "");
+  const versao = String(form.get("versao") ?? "");
+  if (!UUID.test(pesquisa) || !/^[0-9T:.+\- ]{10,40}$/.test(versao)) return { erro: "Requisição inválida." };
+  let processo: string;
+  try {
+    const { dados } = await chamarApi<{ processo_id: string }>(`/precos/pesquisas/${pesquisa}/aplicacao`, {
+      metodo: "POST",
+      corpo: { confirmo_descarte: form.get("confirmo") === "1" },
+      cabecalhos: { "If-Match": `"${versao}"` },
+      tempoMs: 30000,
+    });
+    processo = dados.processo_id;
+  } catch (e) {
+    if (e instanceof ErroDaApi && e.codigo === "APLICACAO_IMPEDIDA") return { erro: e.mensagem || "A aplicação está impedida." };
+    if (e instanceof ErroDaApi) return { erro: ERROS_DA_APLICACAO[e.codigo] ?? MENSAGENS[e.status] ?? "Não foi possível aplicar agora." };
+    return { erro: "Não foi possível aplicar agora." };
+  }
+  revalidatePath(`/app/precos/${pesquisa}`);
+  revalidatePath(`/app/processos/${processo}`);
+  redirect(`/app/precos/${pesquisa}?aplicada=1`);
+}

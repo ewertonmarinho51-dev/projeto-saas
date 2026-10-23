@@ -33,19 +33,23 @@ import json
 import re
 import uuid
 from datetime import date
+from decimal import Decimal
 
 from fastapi import APIRouter, Body, Depends, Header, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from src import db
-from src.precos import cotacoes, importacao
+from src.config import DOCUMENTOS
+from src.precos import aplicacao, cotacoes, importacao, relatorio
 from src.precos import repositorio as repo
+from src.precos.estados import EstadoPesquisa
 from src.precos.perfil import PERFIS
 from src.streamlit_opcional import sessao_da_requisicao
 
 from .cesta import _revisao
 from .erros import ErroApi
-from .precos import TABELA_ITENS, TABELA_PESQUISAS, exigir_precos_habilitado
+from .precos import (TABELA_ITENS, TABELA_PESQUISAS, Valor, exigir_precos_habilitado,
+                     valor_monetario)
 from .seguranca import Identidade, exigir_identidade
 from .supabase_rest import ClienteRest
 
@@ -120,6 +124,49 @@ class ItemDepois(BaseModel):
     revisao: int
 
 
+class MudancaDoProcesso(BaseModel):
+    posicao: int
+    descricao: str
+    unitario_atual: Valor | None
+    unitario_novo: Valor | None
+    quantidade: str | None
+    avisos: list[str]
+
+
+class DocumentoDescartado(BaseModel):
+    chave: str
+    nome: str
+
+
+class PreviaDaAplicacao(BaseModel):
+    # Vazio: pode aplicar. Senão, por quê não (texto do domínio).
+    impedimento: str
+    processo_id: str | None
+    # A versão do processo lida agora; a aplicação a devolve em If-Match.
+    versao_processo: str
+    valor_atual: Valor | None
+    valor_novo: Valor | None
+    mudancas: list[MudancaDoProcesso]
+    recusas: list[str]
+    documentos_a_descartar: list[DocumentoDescartado]
+
+
+class ConfirmacaoDaAplicacao(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # Obrigatório quando há documento a descartar (§26: nunca em silêncio).
+    confirmo_descarte: bool = False
+
+
+class AplicacaoFeita(BaseModel):
+    processo_id: str
+    valor_global: Valor | None
+    itens_atualizados: int
+    documentos_descartados: list[DocumentoDescartado]
+    # False: o processo foi alterado, mas a pesquisa não pôde ser marcada
+    # como aplicada (o Streamlit avisa do mesmo jeito).
+    pesquisa_marcada: bool
+
+
 # ---------------------------------------------------------------------------
 # Apoio
 # ---------------------------------------------------------------------------
@@ -147,6 +194,26 @@ def _traduzir(exc: Exception) -> ErroApi:
 
 
 _TRADUZIVEIS = (repo.ConflitoDeVersao, cotacoes.ErroCotacao, db.ErroBanco)
+
+
+def _nome_do_documento(chave: str) -> str:
+    info = DOCUMENTOS.get(chave) or {}
+    return str(info.get("sigla") or chave)
+
+
+def _quantidade(valor) -> str | None:
+    return None if valor is None else format(valor.normalize(), "f")
+
+
+def _do_formulario(valor) -> Valor | None:
+    """Dinheiro da planilha do PROCESSO (Formulário Matriz), que o app de
+    sempre grava como número float no jsonb. `valor_monetario` recusa float
+    de propósito; aqui o número passa pelo TEXTO dele (`str(float)` é a
+    representação curta que reproduz o que está gravado) e nunca por conta
+    em float."""
+    if valor is None or valor == "":
+        return None
+    return valor_monetario(Decimal(str(valor)))
 
 
 # ---------------------------------------------------------------------------
@@ -339,5 +406,147 @@ def rotas() -> APIRouter:
                 return _depois(str(item_id))
         except _TRADUZIVEIS as exc:
             raise _traduzir(exc) from None
+
+    # -- aplicar ao processo (§26) ----------------------------------------
+    # O diff vem ANTES, sempre: a prévia mostra preço a preço, o que a
+    # pesquisa não cobre e a lista NOMINAL dos documentos que serão
+    # descartados. A aplicação refaz tudo no servidor e grava o processo
+    # com compare-and-set na versão que a pessoa viu.
+    def _processo(rest: ClienteRest, eu: Identidade, processo_id) -> dict | None:
+        resposta = rest.requisitar(eu.token, "GET", "processos", params={
+            "select": "id,dados,documentos,aprovados,auth_user_id,atualizado_em",
+            "id": f"eq.{processo_id}", "tenant_id": f"eq.{eu.tenant_id}", "limit": "1"})
+        return (resposta.dados or [None])[0] if resposta.status == 200 else None
+
+    def _calcular(pesquisa_id: str, processo: dict | None, pesquisa: dict):
+        itens = cotacoes.ativos(repo.listar_itens(pesquisa_id))
+        if processo is None and pesquisa.get("processo_id"):
+            # Vinculado, mas invisível para este usuário: as regras de estado
+            # valem do mesmo jeito; a mensagem de "abra o processo" é da tela.
+            impedimento = aplicacao.impedimento(
+                pesquisa, str(pesquisa["processo_id"]), {"itens": [None]}) or \
+                "O processo vinculado não está acessível para você."
+        else:
+            impedimento = aplicacao.impedimento(
+                pesquisa, str(processo["id"]) if processo else None,
+                (processo or {}).get("dados"))
+        resultado = (aplicacao.aplicar_ao_processo(processo, pesquisa, itens)
+                     if processo and not impedimento else None)
+        return itens, impedimento, resultado
+
+    @r.get("/pesquisas/{pesquisa_id}/aplicacao", response_model=PreviaDaAplicacao,
+           responses={404: {"description": "Inexistente ou fora do seu acesso"}})
+    def previa(pesquisa_id: uuid.UUID, request: Request,
+               eu: Identidade = Depends(exigir_identidade)) -> PreviaDaAplicacao:
+        rest = _rest(request)
+        try:
+            with sessao_da_requisicao(eu.token, eu.tenant_id):
+                pesquisa = repo.obter_pesquisa(str(pesquisa_id))
+                if not pesquisa or str(pesquisa.get("tenant_id") or eu.tenant_id) != eu.tenant_id:
+                    raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
+                vinculado = pesquisa.get("processo_id")
+                processo = _processo(rest, eu, vinculado) if vinculado else None
+                _, impedimento, resultado = _calcular(str(pesquisa_id), processo, pesquisa)
+        except _TRADUZIVEIS as exc:
+            raise _traduzir(exc) from None
+        dados = (processo or {}).get("dados") or {}
+        mudancas = resultado.mudancas if resultado else []
+        if resultado is not None and not mudancas:
+            impedimento = ("Nenhum item da planilha do processo casou com um item "
+                           "concluído desta pesquisa. Nada seria alterado.")
+        return PreviaDaAplicacao(
+            impedimento=impedimento,
+            processo_id=str(vinculado) if vinculado else None,
+            versao_processo=str((processo or {}).get("atualizado_em") or ""),
+            valor_atual=_do_formulario(dados.get("valor_estimado")) if processo else None,
+            valor_novo=(valor_monetario(aplicacao.valor_global_apos(dados, mudancas))
+                        if resultado else None),
+            mudancas=[MudancaDoProcesso(
+                posicao=m.posicao, descricao=m.descricao[:300],
+                unitario_atual=valor_monetario(m.unitario_atual),
+                unitario_novo=valor_monetario(m.unitario_novo),
+                quantidade=_quantidade(m.quantidade), avisos=m.avisos[:5])
+                for m in mudancas[:1000]],
+            recusas=(resultado.recusas if resultado else [])[:500],
+            documentos_a_descartar=[DocumentoDescartado(chave=c, nome=_nome_do_documento(c))
+                                    for c in (resultado.descartados if resultado else [])])
+
+    @r.post("/pesquisas/{pesquisa_id}/aplicacao", response_model=AplicacaoFeita,
+            responses={403: {"description": "Precisa ser dono (ou admin) da pesquisa e do processo"},
+                       404: {"description": "Inexistente ou fora do seu acesso"},
+                       409: {"description": "Impedida, nada a aplicar, ou o processo mudou (VERSION_CONFLICT)"},
+                       422: {"description": "Falta confirmar o descarte dos documentos"},
+                       428: {"description": "If-Match ausente"}})
+    def aplicar(pesquisa_id: uuid.UUID, request: Request,
+                corpo: ConfirmacaoDaAplicacao = Body(default_factory=ConfirmacaoDaAplicacao),
+                if_match: str | None = Header(None, alias="If-Match"),
+                eu: Identidade = Depends(exigir_identidade)) -> AplicacaoFeita:
+        versao = (if_match or "").strip().removeprefix("W/").strip('"')
+        if not versao:
+            raise ErroApi(428, "PRECONDITION_REQUIRED",
+                          "If-Match obrigatório: envie a versão do processo que você viu")
+        rest = _rest(request)
+        _exigir_dono(rest, eu, pesquisa_id)
+        try:
+            with sessao_da_requisicao(eu.token, eu.tenant_id):
+                pesquisa = repo.obter_pesquisa(str(pesquisa_id))
+                if not pesquisa:
+                    raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
+                vinculado = pesquisa.get("processo_id")
+                processo = _processo(rest, eu, vinculado) if vinculado else None
+                # Espelha `processos_edita` (0020): dono do processo ou admin.
+                if processo and eu.papel != "admin" and \
+                        str(processo.get("auth_user_id") or "") != eu.auth_user_id:
+                    raise ErroApi(403, "FORBIDDEN",
+                                  "Só o responsável pelo processo (ou o administrador) "
+                                  "pode aplicar preços nele.")
+                itens, impedimento, resultado = _calcular(str(pesquisa_id), processo, pesquisa)
+                if impedimento:
+                    raise ErroApi(409, "APLICACAO_IMPEDIDA", impedimento)
+                if not resultado.mudancas:
+                    raise ErroApi(409, "NADA_A_APLICAR",
+                                  "Nenhum item da planilha do processo casou com a pesquisa.")
+                if resultado.descartados and not corpo.confirmo_descarte:
+                    raise ErroApi(422, "CONFIRMAR_DESCARTE",
+                                  "Confirme o descarte dos documentos gerados.")
+                if versao != str(processo.get("atualizado_em")):
+                    raise ErroApi(409, "VERSION_CONFLICT",
+                                  "O processo mudou desde a prévia. Confira de novo.")
+                # 1. o processo, com compare-and-set na versão vista.
+                gravado = rest.requisitar(
+                    eu.token, "PATCH", "processos", prefer="return=representation",
+                    params={"id": f"eq.{processo['id']}", "atualizado_em": f"eq.{versao}"},
+                    corpo={"dados": resultado.dados, "documentos": resultado.documentos,
+                           "aprovados": resultado.aprovados})
+                if gravado.status not in (200, 204) or not gravado.dados:
+                    raise ErroApi(409, "VERSION_CONFLICT",
+                                  "O processo mudou desde a prévia. Confira de novo.")
+                # 2. a pesquisa vira APLICADA; 3. a trilha, por último (ato consumado).
+                marcada = True
+                try:
+                    repo.mover_pesquisa(str(pesquisa_id), EstadoPesquisa.APLICADA,
+                                        str(pesquisa.get("estado") or ""))
+                except Exception:  # noqa: BLE001 — o processo já foi alterado
+                    marcada = False
+                referencias = {str(i["id"]): repo.listar_referencias(str(i["id"])) for i in itens}
+                repo.registrar_evento(
+                    str(pesquisa_id), "pesquisa_aplicada", ator=eu.auth_user_id,
+                    descricao=f"{len(resultado.mudancas)} item(ns) atualizado(s)",
+                    payload={"processo": str(processo["id"]),
+                             "valor_global": str(resultado.dados.get("valor_estimado")),
+                             "itens": [m.posicao for m in resultado.mudancas],
+                             "identificador_da_versao": relatorio.identificador_da_versao(
+                                 pesquisa, itens, referencias),
+                             "origem": "api"},
+                    idempotency_key=f"aplicacao:{pesquisa_id}")
+        except _TRADUZIVEIS as exc:
+            raise _traduzir(exc) from None
+        return AplicacaoFeita(
+            processo_id=str(processo["id"]),
+            valor_global=_do_formulario(resultado.dados.get("valor_estimado")),
+            itens_atualizados=len(resultado.mudancas),
+            documentos_descartados=[DocumentoDescartado(chave=c, nome=_nome_do_documento(c))
+                                    for c in resultado.descartados],
+            pesquisa_marcada=marcada)
 
     return r
