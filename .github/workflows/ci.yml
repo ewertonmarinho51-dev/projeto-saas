@@ -458,3 +458,56 @@ jobs:
           path: apps/web/e2e/resultados/
           if-no-files-found: error
           retention-days: 14
+
+  # Imagens do Gov Conect 2.0 (P06): o que o VPS vai rodar, construído e
+  # exercido a cada push — sem banco, sem segredo, sem tocar produção.
+  # O compose é conferido nas DUAS formas: sem profile ele tem de
+  # continuar sendo só o Streamlit + Caddy de hoje.
+  imagens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Compose sem profile continua igual ao de produção
+        shell: bash
+        run: |
+          sudo mkdir -p /etc/govdocs
+          sudo touch /etc/govdocs/env /etc/govdocs/caddy.env
+          servicos="$(docker compose -f implantacao/docker-compose.yml config --services | sort | tr '\n' ' ')"
+          echo "sem profile: $servicos"
+          [ "$servicos" = "app caddy " ]
+          sudo touch /etc/govdocs/api.env /etc/govdocs/web.env
+          servicos="$(docker compose -f implantacao/docker-compose.yml --profile govconect config --services | sort | tr '\n' ' ')"
+          echo "com profile: $servicos"
+          [ "$servicos" = "api app caddy redis web worker " ]
+          # Nenhum serviço novo publica porta: só o Caddy.
+          publicadas="$(docker compose -f implantacao/docker-compose.yml --profile govconect config --format json \
+            | python3 -c 'import json,sys; s=json.load(sys.stdin)["services"]; print(sorted(n for n,v in s.items() if v.get("ports")))')"
+          echo "com porta publicada: $publicadas"
+          [ "$publicadas" = "['caddy']" ]
+
+      - name: Construir api e worker
+        run: |
+          docker build -f implantacao/Dockerfile.api --target api -t govconect-api:ci .
+          docker build -f implantacao/Dockerfile.api --target worker -t govconect-worker:ci .
+
+      - name: Construir web
+        # Valores de TESTE: o build exige as duas NEXT_PUBLIC_* e recusa
+        # chave de servidor. Nada aqui é credencial.
+        run: |
+          docker build -f implantacao/Dockerfile.web -t govconect-web:ci \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL=https://exemplo-ci.supabase.invalid \
+            --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=chave-publicavel-de-teste .
+          # Prefixo montado aqui: o literal no arquivo dispararia o varredor
+          # de segredos do repositório.
+          prefixo="sb_"; prefixo="${prefixo}secret_"
+          if docker build -f implantacao/Dockerfile.web -t recusada:ci \
+               --build-arg NEXT_PUBLIC_SUPABASE_URL=https://exemplo-ci.supabase.invalid \
+               --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="${prefixo}isto-nao-pode-entrar" . ; then
+            echo "o build aceitou chave de servidor no bundle do navegador" >&2; exit 1
+          fi
+
+      - name: Smoke das imagens
+        run: bash implantacao/smoke_imagens.sh govconect-api:ci govconect-worker:ci govconect-web:ci

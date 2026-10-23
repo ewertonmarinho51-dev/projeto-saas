@@ -1,0 +1,73 @@
+# ###########################################################
+#  Gov Conect — API (FastAPI) e worker (Celery), P06
+#
+#  Dois alvos da MESMA base, para a API e o worker rodarem o mesmo
+#  código e as mesmas dependências fixadas (apps/api/requirements.txt):
+#
+#    docker build -f implantacao/Dockerfile.api --target api    -t govconect-api .
+#    docker build -f implantacao/Dockerfile.api --target worker -t govconect-worker .
+#
+#  O contexto é a RAIZ do repositório (o `.dockerignore` mora lá). Só
+#  entram `src/` (o domínio) e `apps/api/govconect_api`. Nada de
+#  Streamlit: a imagem nem tem o pacote (`GOVDOCS_SEM_STREAMLIT=1`, e o
+#  job `imagens` do CI prova).
+# ###########################################################
+
+FROM python:3.11-slim-bookworm AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    GOVDOCS_SEM_STREAMLIT=1 \
+    PYTHONPATH=/app
+
+# Usuário sem privilégio, uid próprio (o do Streamlit é 10001).
+RUN useradd --create-home --uid 10002 govconect
+
+WORKDIR /app
+
+# Dependências antes do código: a camada só refaz quando o arquivo muda.
+COPY apps/api/requirements.txt /tmp/requirements.txt
+RUN pip install -r /tmp/requirements.txt && rm /tmp/requirements.txt
+
+COPY --chown=govconect:govconect src/ ./src/
+COPY --chown=govconect:govconect apps/api/govconect_api/ ./govconect_api/
+
+ARG GOVCONECT_RELEASE=desconhecida
+ARG GOVCONECT_COMMIT=desconhecido
+ENV GOVCONECT_RELEASE=${GOVCONECT_RELEASE} \
+    GOVCONECT_COMMIT=${GOVCONECT_COMMIT}
+
+# ---------------------------------------------------------------
+# API: só a rede interna fala com ela (o web é o BFF; ADR-001). O
+# liveness não toca Supabase nem Redis: queda do provedor não pode
+# reiniciar a API em cascata.
+# ---------------------------------------------------------------
+FROM base AS api
+USER govconect
+EXPOSE 8000
+HEALTHCHECK --interval=15s --timeout=4s --start-period=20s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)"]
+CMD ["uvicorn", "govconect_api.asgi:app", "--host", "0.0.0.0", "--port", "8000", \
+     "--workers", "1", "--no-server-header", "--timeout-graceful-shutdown", "25"]
+
+# ---------------------------------------------------------------
+# WORKER: coleta e emissão. O PDF institucional sai pelo LibreOffice
+# (§33: nada de segundo pipeline de PDF), com o Writer NOMEADO e a
+# DejaVu — sem ela, acento vira caixa no PDF final.
+#
+# HOME em /tmp: o LibreOffice grava o perfil de usuário no HOME, e o
+# compose monta a raiz somente leitura com /tmp em tmpfs.
+# ---------------------------------------------------------------
+FROM base AS worker
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libreoffice-writer \
+        fonts-dejavu \
+    && rm -rf /var/lib/apt/lists/*
+# /tmp, e não um subdiretório: o tmpfs é montado vazio a cada subida.
+ENV HOME=/tmp
+USER govconect
+# Concorrência 1 no VPS (ADR-004/007): medir antes de subir.
+CMD ["celery", "-A", "govconect_api.fila:celery", "worker", "--concurrency=1", \
+     "--loglevel=INFO", "--without-gossip", "--without-mingle"]

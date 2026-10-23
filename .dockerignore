@@ -50,3 +50,18 @@ node_modules/
 # O bundle do editor é versionado e PRECISA entrar (está em
 # assets/), mas o código-fonte e as dependências dele, não.
 assets/rich_editor/node_modules/
+
+# Gov Conect 2.0 (P06). `node_modules/` acima só casa na RAIZ do
+# contexto; o do web precisa do próprio padrão, senão 400 MB de
+# dependências locais (e binários do Windows) subiriam para o build.
+**/node_modules
+apps/web/.next/
+apps/web/.env*
+apps/web/e2e/resultados/
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/tsconfig.tsbuildinfo
+apps/api/tests/
+apps/api/tests_rls/
+**/.pytest_cache
+**/__pycache__
