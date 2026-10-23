@@ -279,9 +279,12 @@ def render(doc_key: str, meta: dict) -> None:
     message = st.session_state.get(_chave(doc_key, "message"))
     if message:
         st.caption(message)
-    render_editor(bridge, document.payload, module_url=runtime.module_url,
-                  wasm_url=runtime.wasm_url,
-                  on_edit_change=lambda: _receber(doc_key, service))
+    # Components v2 may keep this run open until the browser publishes its next
+    # state value.  Reserve the visual position now, but mount the canvas only
+    # after the server-side controls have been rendered.  Otherwise a freeze
+    # acknowledgement can update the bridge while the approval controls below
+    # remain unreachable behind the pending component call.
+    editor_slot = st.empty()
     preparation_key = _chave(doc_key, "preparation")
     audit_key = _chave(doc_key, "audit")
     opinions_key = _chave(doc_key, "legal_opinions")
@@ -621,6 +624,11 @@ def render(doc_key: str, meta: dict) -> None:
                 st.session_state[_chave(doc_key, "approval")] = receipt
                 if sincronizar():
                     state.ir_para(meta["etapa"] + 1)
+
+    with editor_slot:
+        render_editor(bridge, document.payload, module_url=runtime.module_url,
+                      wasm_url=runtime.wasm_url,
+                      on_edit_change=lambda: _receber(doc_key, service))
 
 
 def render_sucesso() -> None:
