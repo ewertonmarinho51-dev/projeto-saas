@@ -61,7 +61,10 @@ export function assetURL(value, base) {
 // State updates can be coalesced by Streamlit. Every update therefore carries
 // all unconsumed events, rather than relying on callback delivery per emission.
 export class EventOutbox {
-  constructor(send) { this.send = send; this.events = []; this.consumed = 0; this.last = 0; this.buffered = 0; }
+  constructor(send, eventAck = 0) {
+    if (!Number.isSafeInteger(eventAck) || eventAck < 0) throw new Error('Confirmação inicial inválida.');
+    this.send = send; this.events = []; this.consumed = eventAck; this.last = eventAck; this.buffered = 0;
+  }
   push(key, event) {
     const size = JSON.stringify(event).length;
     if (key !== 'edit' || event.sequence !== this.last + 1 || this.events.length >= 256 || this.buffered + size > 2 * maxBytes) {
@@ -96,7 +99,10 @@ export class EditorController {
     this.initialHash = data.content_hash;
     this.currentHash = data.content_hash;
     this.send = send;
-    this.sequence = 0;
+    // A full-page reload can preserve the backend bridge while recreating the
+    // browser controller. Resume after the last consumed event so the new
+    // document.loaded cannot be rejected as a replay.
+    this.sequence = Number.isSafeInteger(data.event_ack) && data.event_ack >= 0 ? data.event_ack : 0;
     this.state = 'opening';
     this.pending = null;
     this.lastAck = null;
@@ -396,7 +402,7 @@ export default function render(component) {
   const retry = document.createElement('button'); retry.textContent = 'Tentar salvar novamente'; retry.disabled = true;
   root.append(status, canvas, retry);
   const instance = {data, send: setStateValue, controller: null, native: null, starting: false, timer: null, disposed: false}; root.__instance = instance;
-  instance.outbox = new EventOutbox((...args) => instance.send(...args));
+  instance.outbox = new EventOutbox((...args) => instance.send(...args), data.event_ack);
   const update = () => { if (instance.controller) { status.textContent = labels[instance.controller.state]; retry.disabled = instance.controller.state !== 'error'; } };
   const unload = event => { if (instance.controller && !['ready', 'saved'].includes(instance.controller.state)) { event.preventDefault(); event.returnValue = ''; } };
   window.addEventListener('beforeunload', unload);

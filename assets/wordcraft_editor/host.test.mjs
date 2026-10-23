@@ -29,6 +29,25 @@ test('outbox applies backpressure without dropping unconsumed events', () => {
   assert.equal(outbox.events.length, 256);
   assert.equal(outbox.last, 256);
 });
+
+test('remount resumes after the backend event ACK instead of replaying loaded', async () => {
+  let latest;
+  const outbox = new EventOutbox((key, value) => { latest = value; }, 7);
+  outbox.push('edit', {sequence: 8, event: 'document.loaded'});
+  assert.deepEqual(latest.events.map(e => e.sequence), [8]);
+  assert.equal(outbox.consumed, 7);
+  assert.throws(() => new EventOutbox(() => {}, -1));
+
+  const data = {instance_id: crypto.randomUUID(), session_id: crypto.randomUUID(), document_id: crypto.randomUUID(),
+    nonce: 'n'.repeat(64), revision: 0, content_hash: await sha256(bytes), event_ack: 7};
+  const sent = [];
+  const native = {generation: () => '1'};
+  const controller = new EditorController(native, data, (key, event) => sent.push(event));
+  await controller.loaded(bytes);
+  assert.equal(controller.sequence, 8);
+  assert.equal(sent[0].sequence, 8);
+  assert.equal(sent[0].event, 'document.loaded');
+});
 function deferred() {
   let resolve;
   const promise = new Promise(done => { resolve = done; });
