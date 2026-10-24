@@ -303,13 +303,9 @@ jobs:
           import {readFile, writeFile, readdir} from 'node:fs/promises';
           import {createHash} from 'node:crypto';
           import {resolve} from 'node:path';
-          import {pathToFileURL} from 'node:url';
-          import {verifyBundle} from './assets/wordcraft_editor/validate.mjs';
+          import {exportCheckpoint} from './assets/wordcraft_editor/validate.mjs';
           const root = resolve('wordcraft-local-qa');
           const pin = createHash('sha256').update(await readFile(root + '/qa-manifest.json')).digest('hex');
-          const bundle = await verifyBundle(root, pin);
-          const engine = await import(pathToFileURL(bundle.modulePath).href);
-          await engine.default({module_or_path: bundle.wasmBytes});
           const base = 'build-evidence/corpus-roundtrip';
           const cases = ['01-texto-listas-links', '02-tabela-210-itens', '03-timbrado-assinaturas'];
           const directories = (await readdir(base, {withFileTypes:true})).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
@@ -317,8 +313,7 @@ jobs:
           for (const name of cases) {
             const bytes = await readFile(`${base}/${name}/checkpoint.json`);
             for (const format of ['docx', 'pdf']) {
-              const result = engine.export_checkpoint(bytes, format);
-              const output = Buffer.from(result);
+              const output = await exportCheckpoint(bytes, root, pin, format);
               if (!output.length || output.length > 64 * 1024 * 1024
                   || (format === 'pdf' ? output.subarray(0, 5).toString() !== '%PDF-'
                     : !output.subarray(0, 4).equals(Buffer.from([80, 75, 3, 4])))) {
@@ -328,7 +323,7 @@ jobs:
             }
           }
           let rejected = false;
-          try { engine.export_checkpoint(await readFile(`${base}/01-texto-listas-links/checkpoint.json`), 'html'); }
+          try { await exportCheckpoint(await readFile(`${base}/01-texto-listas-links/checkpoint.json`), root, pin, 'html'); }
           catch { rejected = true; }
           if (!rejected) throw new Error('Unapproved export format was accepted');
           await writeFile('build-evidence/native-server-export.txt',
