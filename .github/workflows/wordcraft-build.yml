@@ -390,15 +390,10 @@ jobs:
           import {readFile, writeFile} from 'node:fs/promises';
           import {createHash} from 'node:crypto';
           import {resolve} from 'node:path';
-          import {pathToFileURL} from 'node:url';
-          import {verifyBundle} from './assets/wordcraft_editor/validate.mjs';
+          import {applyPatch, exportCheckpoint} from './assets/wordcraft_editor/validate.mjs';
           const hash = bytes => createHash('sha256').update(bytes).digest('hex');
           const root = resolve('wordcraft-local-qa');
           const pin = hash(await readFile(root + '/qa-manifest.json'));
-          const bundle = await verifyBundle(root, pin);
-          const engine = await import(pathToFileURL(bundle.modulePath).href);
-          await engine.default({module_or_path:bundle.wasmBytes});
-          if (typeof engine.apply_patch !== 'function') throw new Error('Native patch API missing');
           const cases = ['01-texto-listas-links', '02-tabela-210-itens', '03-timbrado-assinaturas'];
           for (const name of cases) {
             const base = `build-evidence/corpus-roundtrip/${name}`;
@@ -411,14 +406,14 @@ jobs:
             const plan = {schema:'gc-wordcraft-native-patch/v1', source_hash:originalHash,
               source_revision:1, operations:[{op:'replace_text', story:'body', path:[index],
                 start_byte:0, end_byte:6, old_text:'Corpus', new_text:'Ensaio'}]};
-            const result = Buffer.from(engine.apply_patch(bytes, 1, JSON.stringify(plan)));
-            if (engine.validate_checkpoint(result) !== undefined || hash(bytes) !== originalHash
+            const result = await applyPatch(bytes, root, pin, 1, plan);
+            if (hash(bytes) !== originalHash
                 || !JSON.parse(result).document.body[index].text.startsWith('Ensaio inteiramente sintético')) {
               throw new Error('Native patch result or original buffer differs');
             }
             await writeFile(`${base}/wasm-patched-checkpoint.json`, result);
             for (const format of ['docx', 'pdf']) {
-              const artifact = Buffer.from(engine.export_checkpoint(result, format));
+              const artifact = await exportCheckpoint(result, root, pin, format);
               if (!artifact.length || (format === 'pdf' ? artifact.subarray(0,5).toString() !== '%PDF-'
                   : !artifact.subarray(0,4).equals(Buffer.from([80,75,3,4])))) {
                 throw new Error('Patched native export format differs');
@@ -433,7 +428,7 @@ jobs:
             ];
             for (const rejectedPlan of invalid) {
               let rejected = false;
-              try { engine.apply_patch(bytes, 1, JSON.stringify(rejectedPlan)); }
+              try { await applyPatch(bytes, root, pin, 1, rejectedPlan); }
               catch { rejected = true; }
               if (!rejected) throw new Error('Invalid/stale native patch was accepted');
             }
