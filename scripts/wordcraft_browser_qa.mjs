@@ -689,8 +689,14 @@ export async function buildAssets(config) {
     assets.set('/app/static/wordcraft/' + item.path, {bytes, mime: item.path.endsWith('.wasm') ? 'application/wasm' : 'text/javascript; charset=utf-8'});
     engineAssetBytes.push({path: item.path, bytes});
   }
-  const moduleUrl = '/app/static/wordcraft/' + relative(config.bundle, bundle.modulePath).split(sep).join('/');
-  const wasmUrl = [...assets.keys()].find(name => !name.slice('/app/static/wordcraft/'.length).includes('/') && name.endsWith('.wasm'));
+  // verifyBundle deliberately exposes verified bytes only. Derive the public
+  // entry-point URLs from the same admitted manifest instead of reaching for
+  // an internal filesystem path that is not part of its contract.
+  const rootModule = manifest.files.find(item => !item.path.includes('/') && item.path.endsWith('.js'));
+  const rootWasm = manifest.files.find(item => !item.path.includes('/') && item.path.endsWith('.wasm'));
+  check(Boolean(rootModule && rootWasm), 'bundle_admission');
+  const moduleUrl = '/app/static/wordcraft/' + rootModule.path;
+  const wasmUrl = '/app/static/wordcraft/' + rootWasm.path;
   const host = await boundedFile(resolve(ROOT, 'assets/wordcraft_editor/host.mjs'), 256 * 1024, 'bundle_admission');
   assets.set('/qa/host.mjs', {bytes: host, mime: 'text/javascript; charset=utf-8'});
   assets.set('/qa/page.mjs', {bytes: pageModule(moduleUrl, wasmUrl), mime: 'text/javascript; charset=utf-8'});
