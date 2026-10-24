@@ -1,9 +1,9 @@
 {
-  "producer_commit": "793e239285530ac4fe66ae1fd6731aa4fac43e6a",
-  "build_run_id": 39513783552,
-  "build_artifact_id": 12306909076,
-  "build_artifact_sha256": "223d16f761a5b147ec87b86a1b8bfce10917bac9708bf57a7d1122fd1e5320e6",
-  "fidelity_run_id": 39513783658,
-  "fidelity_artifact_id": 12306936343,
-  "fidelity_artifact_sha256": "9f77f27edf1dd179aaa2239860e22c07f9872847f4d98a758270d8bca0381b05"
+  "producer_commit": "55e0407d953b5f9df8a1eb8649212435e8ed8194",
+  "build_run_id": 40140680999,
+  "build_artifact_id": 12579896177,
+  "build_artifact_sha256": "012f3388681dc7b74d56191610fb485f951f9cc0ee4b2d02fad81cec6895dd48",
+  "fidelity_run_id": 40140717267,
+  "fidelity_artifact_id": 12578412775,
+  "fidelity_artifact_sha256": "00831301167dbf1d18e84b35f7b7126ac62d8c08f2303ecd980618d5d16486cf"
 }
