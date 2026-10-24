@@ -105,7 +105,7 @@ server component. Componente que recebe função (`render`, `trigger`,
 | price | `ExclusionDialog` | retirar referência com motivo | sim |
 | templates | `PageHead` | cabeçalho de página | |
 | templates | `AppShell` | casca do app (barra lateral + superior) | sim |
-| templates | `AuthLayout` | entrada dividida marca/formulário | |
+| templates | `AuthLayout` | entrada dividida marca/formulário; sempre no tema claro (usado em `/entrar` e `/entrar/recuperar`) | |
 
 ## Integração com o resto do app
 
