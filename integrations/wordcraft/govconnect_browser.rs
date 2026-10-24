@@ -11,7 +11,6 @@ use wordcraft_ui_egui::{Services, WordApp};
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum InteractionLock {
     Open,
-    Requested,
     Draining,
     Locked,
 }
@@ -75,11 +74,8 @@ impl eframe::App for EditorApp {
             input.focused = false;
             return;
         }
-        if self.interaction_lock.get() == InteractionLock::Requested {
-            self.interaction_lock.set(InteractionLock::Draining);
-        }
-        // Requested/draining must forward existing input. Hidden tabs have no
-        // UI pass; eframe retains their RawInput and readiness remains false.
+        // Draining must forward existing input. Hidden tabs have no UI pass;
+        // eframe retains their RawInput and readiness remains false.
         self.app.raw_input_hook(input);
     }
 }
@@ -365,7 +361,12 @@ impl GovConnectEditor {
                 return Err(error("canvas input is not initialized"));
             }
             if self.interaction_lock.get() == InteractionLock::Open {
-                self.interaction_lock.set(InteractionLock::Requested);
+                // The host call runs between eframe passes. Mark the next pass
+                // as draining immediately: some WebRunner repaint paths do not
+                // invoke raw_input_hook when there is no fresh browser input.
+                // EditorApp::ui still runs WordApp first and only then promotes
+                // this to Locked after proving pointer, keys and IME released.
+                self.interaction_lock.set(InteractionLock::Draining);
             }
         } else {
             self.interaction_lock.set(InteractionLock::Open);
