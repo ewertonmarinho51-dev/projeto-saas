@@ -1,14 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, readFile, writeFile, rm} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {CASES, QA_PIN, BrowserQaFailure, admitGovbotProposal, browserEnvironment, browserExecutablePath, compressionInventory, failureRecord, pageModule, parseArgs,
-  chromiumProcessMemory, rendererMetrics, serveAssets, staticResponse, summarizePerformance,
+  buildAssets, chromiumProcessMemory, rendererMetrics, serveAssets, staticResponse, summarizePerformance,
   verifyPlaywright} from './wordcraft_browser_qa.mjs';
 
 const sha = 'a'.repeat(64), commit = 'b'.repeat(40);
 const absolute = name => resolve(tmpdir(), name);
+const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+
+test('browser bundle admission derives entry points from the verified manifest contract', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'wordcraft-browser-bundle-'));
+  t.after(() => rm(root, {recursive:true, force:true}));
+  const module = Buffer.from('export default async function init(){}; export function validate_checkpoint(){}');
+  const wasm = Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]);
+  await writeFile(join(root, 'engine.js'), module);
+  await writeFile(join(root, 'engine.wasm'), wasm);
+  const upstream = JSON.parse(await readFile(new URL('../docs/wordcraft/upstream.lock.json', import.meta.url))).commit;
+  const manifest = Buffer.from(JSON.stringify({status:'INTERNAL_LOCAL_QA_ONLY_NOT_DEPLOY_APPROVED',
+    upstream_commit:upstream, govconnect_commit:commit, files:[
+      {path:'engine.js', bytes:module.length, sha256:digest(module)},
+      {path:'engine.wasm', bytes:wasm.length, sha256:digest(wasm)},
+    ]}) + '\n');
+  await writeFile(join(root, 'qa-manifest.json'), manifest);
+  const built = await buildAssets({bundle:root, 'manifest-sha256':digest(manifest), 'producer-commit':commit});
+  assert.ok(built.assets.has('/app/static/wordcraft/engine.js'));
+  assert.ok(built.assets.has('/app/static/wordcraft/engine.wasm'));
+  assert.match(built.assets.get('/qa/page.mjs').bytes.toString(), /engine\.js/);
+});
 
 test('argument contract is closed and absolute', () => {
   const args = ['bundle','manifest-sha256','checkpoints','inputs','playwright','python','out','producer-commit']
