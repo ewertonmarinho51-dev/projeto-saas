@@ -8,7 +8,9 @@ temas: `/design-system` (em desenvolvimento; em produção só com
 Regras:
 
 - Fora desta pasta, importe **só do índice**: `import { Button } from "@/design-system"`.
-- Componente novo nasce aqui, com variante e estado na vitrine — não na página.
+- Peça de interface nova (sem regra de negócio) nasce aqui, com variante e
+  estado na vitrine — não na página. Tela de funcionalidade fica em
+  `components/` e se monta só com peças daqui.
 - Nenhum valor visual solto: hex, px e fonte vêm de token. O ESLint avisa
   no app e **recusa** aqui dentro.
 - Mudou token? Mude `DESIGN.md` e `tokens/*.css` no mesmo commit:

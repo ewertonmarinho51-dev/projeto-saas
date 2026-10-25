@@ -16,7 +16,7 @@ Estratégia de busca:
 import io
 import re
 
-import streamlit as st
+from .streamlit_opcional import st
 
 from . import db
 from .config import (

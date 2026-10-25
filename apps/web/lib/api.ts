@@ -292,3 +292,37 @@ export type PreviaDaAplicacao = {
   recusas: string[];
   documentos_a_descartar: { chave: string; nome: string }[];
 };
+
+// ---------------------------------------------------------------------------
+// Formulário Matriz (M1). Os campos, rótulos e regras vêm da API, que usa
+// os de `config.CAMPOS_FORMULARIO` do wizard; a planilha é recalculada no
+// servidor a cada gravação.
+// ---------------------------------------------------------------------------
+export type CampoDoFormulario = {
+  chave: string;
+  tipo: "texto" | "area" | "selecao" | "planilha";
+  rotulo: string;
+  ajuda: string;
+  exemplo: string;
+  placeholder: string;
+  obrigatorio: boolean;
+  opcoes: string[];
+};
+
+export type ItemDaPlanilha = Record<string, string | number>;
+
+export type Formulario = {
+  campos: CampoDoFormulario[];
+  valores: Record<string, string>;
+  itens: ItemDaPlanilha[];
+  valor_estimado: number;
+  valor_estimado_exibicao: string;
+  faltantes: string[];
+  a_descartar: string[];
+  etapa: number;
+  versao: string;
+};
+
+export type FormularioGravado = Formulario & { descartados: string[]; mudou: boolean };
+
+export type PlanilhaLida = { itens: ItemDaPlanilha[]; valor_estimado: number; valor_estimado_exibicao: string };

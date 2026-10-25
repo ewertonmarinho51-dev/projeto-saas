@@ -379,8 +379,9 @@ Padrões que valem para o produto inteiro:
 
 ## Do's and Don'ts
 
-- Faça: componente novo nasce de `@/design-system`; se faltar peça,
-  crie-a lá (com variante na vitrine), não na página.
+- Faça: peça de interface nova nasce em `@/design-system`; se faltar
+  peça, crie-a lá (com variante na vitrine), não na página. Tela de
+  funcionalidade fica fora da biblioteca e se monta só com essas peças.
 - Faça: valor visual vem de token (`var(--…)` ou utilitário do Tailwind
   que aponta para token, como `bg-canvas`, `text-secundario`,
   `border-linha`).
