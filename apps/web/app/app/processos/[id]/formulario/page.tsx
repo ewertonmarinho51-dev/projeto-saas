@@ -15,7 +15,7 @@ export default async function PaginaDoFormulario({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const { salvo } = await searchParams;
+  const { salvo, demanda } = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
   let processo: Processo;
@@ -45,7 +45,13 @@ export default async function PaginaDoFormulario({
         desc="Preencha as informações essenciais para iniciar o planejamento da contratação. Os documentos vêm depois."
       />
       {/* key: depois de salvar, a página volta com a versão nova e o estado da tela recomeça dela. */}
-      <FormularioMatriz key={formulario.versao} processo={id} formulario={formulario} aviso={salvo === "1" ? "Rascunho salvo." : null} />
+      <FormularioMatriz key={formulario.versao} processo={id} formulario={formulario} aviso={
+          salvo === "1"
+            ? "Rascunho salvo."
+            : typeof demanda === "string" && /^\d+$/.test(demanda)
+              ? `Demanda consolidada aplicada: ${demanda} itens na planilha. Preencha os preços e confira os demais dados.`
+              : null
+        } />
     </div>
   );
 }

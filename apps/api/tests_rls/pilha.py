@@ -305,7 +305,10 @@ def semear_coleta(pilha: Pilha) -> str:
     return pid
 
 
-FLAGS_DA_EMISSAO = ("flag_precos_ciencia_emissao", "flag_precos_relatorio_visual")
+# Também a de Consolidar Demandas (M4), ligada em produção: a tela nova
+# segue o mesmo `modulo_disponivel_aqui` do menu do Streamlit.
+FLAGS_DA_EMISSAO = ("flag_precos_ciencia_emissao", "flag_precos_relatorio_visual",
+                    "flag_demand_consolidation")
 
 
 def ligar_flags_da_emissao(pilha: Pilha) -> None:
@@ -399,6 +402,38 @@ def gravar_planilha_e2e(pasta: Path) -> Path:
     return caminho
 
 
+def gravar_demandas_e2e(pasta: Path) -> list[str]:
+    """Dois Documentos de Formalização de Demanda em PDF de texto (M4): o
+    mesmo envelope pedido por duas secretarias, para a soma aparecer."""
+    import pymupdf
+
+    quadros = {
+        "dfd-semec.pdf": ("20260101001", "Secretaria de Educação",
+                          "370614 ENVELOPE AMARELO 260MMX360MM 50,0000 UNIDADE
+"
+                          "133975 PAPEL VERGE CORES VARIADAS 30,0000 PACOTE
+"),
+        "dfd-semsa.pdf": ("20260101002", "Secretaria de Saúde",
+                          "370614 ENVELOPE AMARELO 260MMX360MM 20,0000 UNIDADE
+"),
+    }
+    caminhos = []
+    for nome, (numero, orgao, linhas) in quadros.items():
+        texto = (f"DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA Nº {numero}
+ÓRGÃO :
+05  {orgao}
+"
+                 f"Código Quant Unidade Descrição
+{linhas}")
+        doc = pymupdf.open()
+        doc.new_page().insert_textbox(pymupdf.Rect(40, 40, 560, 780), texto, fontsize=9)
+        caminho = pasta / nome
+        doc.save(caminho)
+        doc.close()
+        caminhos.append(str(caminho))
+    return caminhos
+
+
 def principal() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--estado", required=True, type=Path,
@@ -419,6 +454,7 @@ def principal() -> int:
                   "escrita": semear_emissao(pilha, dono="admin_a"),
                   "planilha": str(gravar_planilha_e2e(args.estado.parent)),
                   "aplicacao": semear_aplicacao(pilha, dono="admin_a"),
+                  "demandas": gravar_demandas_e2e(args.estado.parent),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
         temporario = args.estado.with_suffix(".tmp")
