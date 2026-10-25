@@ -15,6 +15,7 @@ Estratégia de busca:
 
 import io
 import re
+from dataclasses import dataclass
 
 from .streamlit_opcional import st
 
@@ -425,8 +426,27 @@ def _gerar_embeddings(textos: list[str], para_consulta: bool) -> list[list[float
 # ---------------------------------------------------------------------------
 # Indexação e gestão da biblioteca
 # ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class Indexada:
+    """Resultado de uma indexação: quantos trechos e se o vetor ficou devendo."""
+    documento_id: str
+    trechos: int
+    pendente_de_vetor: bool
+
+
 def indexar_arquivo(nome_arquivo: str, titulo: str, categoria: str, dados: bytes) -> int:
     """Extrai, divide, gera embeddings e grava o documento. Retorna nº de chunks."""
+    return indexar(nome_arquivo, titulo, categoria, dados).trechos
+
+
+def indexar(nome_arquivo: str, titulo: str, categoria: str, dados: bytes) -> Indexada:
+    """
+    O mesmo de `indexar_arquivo`, dizendo também se o material ficou
+    PENDENTE de vetor (busca só textual) — a API mostra isso na tela.
+    O documento nasce no tenant da sessão, que é o que o RLS confere.
+    """
+    if categoria not in CATEGORIAS:
+        raise ErroRAG(f"Categoria inexistente: {categoria!r}.")
     if not db.disponivel():
         raise ErroRAG(
             "A Base de Conhecimento exige o Supabase configurado "
@@ -445,6 +465,7 @@ def indexar_arquivo(nome_arquivo: str, titulo: str, categoria: str, dados: bytes
             cliente.table("documentos_referencia")
             .insert(
                 {
+                    "tenant_id": db.tenant_atual(),
                     "titulo": titulo or nome_arquivo,
                     "categoria": categoria,
                     "nome_arquivo": nome_arquivo,
@@ -481,7 +502,8 @@ def indexar_arquivo(nome_arquivo: str, titulo: str, categoria: str, dados: bytes
                 "mas está PENDENTE de indexação vetorial (o provedor de "
                 "embeddings não respondeu). Reindexe quando a chave estiver "
                 "disponível — até lá ele não aparece na busca semântica.")
-        return len(chunks)
+        return Indexada(documento_id=str(doc["id"]), trechos=len(chunks),
+                        pendente_de_vetor=not embeddings)
     except Exception as exc:  # noqa: BLE001
         raise ErroRAG(_falha("gravar na base de conhecimento", exc)) from exc
 

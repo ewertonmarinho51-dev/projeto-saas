@@ -459,3 +459,26 @@ export type Timbrado = {
   rodape_texto: string;
   marca_texto: string;
 };
+
+// ---------------------------------------------------------------------------
+// Base de Conhecimento (M6, admin)
+// ---------------------------------------------------------------------------
+export type ReferenciaDaBase = {
+  id: string;
+  titulo: string;
+  categoria: string;
+  categoria_rotulo: string;
+  nome_arquivo: string;
+  total_chunks: number;
+  criado_em: string;
+};
+
+export type BaseDeConhecimento = {
+  categorias: { codigo: string; rotulo: string }[];
+  extensoes: string[];
+  referencias: ReferenciaDaBase[];
+};
+
+export type ReferenciaIndexada = { id: string; nome_arquivo: string; trechos: number; pendente_de_vetor: boolean };
+
+export type TrechoRecuperado = { titulo: string; categoria_rotulo: string; similaridade: number; conteudo: string };
