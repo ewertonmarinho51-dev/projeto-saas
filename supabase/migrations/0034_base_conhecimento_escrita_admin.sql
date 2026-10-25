@@ -1,6 +1,33 @@
 -- ## 0034 — Base de Conhecimento: o ADMIN grava os trechos e exclui a
 -- ##        referência com o próprio JWT (interface nova, M6)
--- ## ESTADO: aplicável. NÃO aplicada em produção.
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 25/10/2026 como
+-- ##   `m0034_base_conhecimento_escrita_admin` (registro 20261025132439),
+-- ##   depois do ensaio no projeto descartável `govdocs-ensaio-descartavel`
+-- ##   no mesmo dia.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (25/10/2026):
+--   * ANTES: 71 referências, 5595 trechos; 97 políticas em public; 92
+--     grants a `authenticated`, 0 a `anon`; nas duas tabelas,
+--     `authenticated` com SELECT (trechos) e INSERT/SELECT (referências),
+--     nenhum TRUNCATE/REFERENCES/TRIGGER nem UPDATE por coluna;
+--   * aplicação: conferência interna aprovada;
+--   * DEPOIS: 71 referências e 5595 trechos (dado intacto); 99 políticas
+--     (+2), 94 grants a `authenticated` (+2: INSERT nos trechos, DELETE na
+--     referência), 0 a `anon`; políticas novas com `roles = {authenticated}`;
+--   * comportamento, num bloco desfeito, com referência descartável criada
+--     e apagada na hora: usuário comum não grava trecho (negado) nem exclui
+--     (0 linhas); admin grava trecho; ninguém apaga trecho solto (negado);
+--     admin de outro tenant exclui 0 linhas; admin do tenant exclui 1 e os
+--     trechos caem pelo cascade (0 restantes) — o cascade vale sob o
+--     `force row level security` da 0019, medido no Supabase real;
+--   * advisors de segurança: nenhum aviso novo; os listados são anteriores.
+--
+-- REGISTRO DO ENSAIO (25/10/2026):
+--   * nível 1: PostgreSQL do CI, tests/test_migracao_0034.py (cada ramo da
+--     conferência com mutação que a faz morder);
+--   * nível 2, descartável: antes, o mesmo estado de produção nas duas
+--     tabelas; conferência interna aprovada; comportamento idêntico ao
+--     registrado acima, num bloco desfeito; nada ficou gravado.
 --
 -- O PROBLEMA (auditoria de produção, 24/10/2026, catálogo)
 --   A 0020 decidiu o grupo da Base de Conhecimento: "leitura do tenant
