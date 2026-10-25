@@ -168,6 +168,9 @@ SEQUENCIA_EM_ENSAIO = (
     # confere grants que só fazem sentido depois da 0019. Antes da 0027,
     # que é a última.
     "0034_base_conhecimento_escrita_admin.sql",
+    # A 0035 pelo mesmo motivo da 0034: políticas com `e_admin()` e
+    # `tenant_do_jwt()` (0020) e grants que só fazem sentido depois da 0019.
+    "0035_cadastro_institucional_admin.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

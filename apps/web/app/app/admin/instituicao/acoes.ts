@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { chamarApi, ErroDaApi } from "@/lib/api";
+import { chamarApi, ErroDaApi, type PreviaDoModelo } from "@/lib/api";
 
 export type EstadoDoAto = { erro: string | null; ok: string | null };
 
@@ -19,7 +19,7 @@ const MENSAGENS: Record<number, string> = {
 
 function mensagem(e: unknown): string {
   if (e instanceof ErroDaApi) {
-    if (e.status === 422 && e.mensagem) return e.mensagem;
+    if ((e.status === 422 || e.status === 409 || e.status === 413) && e.mensagem) return e.mensagem;
     return MENSAGENS[e.status] ?? "Não foi possível salvar agora. Tente de novo.";
   }
   return "Não foi possível salvar agora. Tente de novo.";
@@ -115,4 +115,104 @@ export async function moduloNaSecretaria(secretaria: string, modulo: string, est
       }),
     "Módulo atualizado na secretaria.",
   );
+}
+
+// ---------------------------------------------------------------------------
+// Prefeitura, Secretarias e Identidade visual (M7b)
+// ---------------------------------------------------------------------------
+const CAMPOS_DA_PREFEITURA = ["nome_oficial", "cnpj", "sigla", "cidade", "endereco", "telefone", "email", "site"];
+const LIMITE_DO_MODELO = 10 * 1024 * 1024;
+
+export async function salvarPrefeitura(_: EstadoDoAto, form: FormData): Promise<EstadoDoAto> {
+  // Vazio vai como "", e a API grava NULL: o sistema não inventa dado.
+  const corpo = Object.fromEntries(CAMPOS_DA_PREFEITURA.map((c) => [c, texto(form, c)]));
+  return ato(() => chamarApi("/admin/instituicao/prefeitura", { metodo: "PUT", corpo }), "Dados institucionais salvos.");
+}
+
+export async function criarSecretaria(_: EstadoDoAto, form: FormData): Promise<EstadoDoAto> {
+  const nome = texto(form, "nome");
+  if (!nome) return { erro: "Informe o nome da secretaria.", ok: null };
+  return ato(
+    () => chamarApi("/admin/instituicao/secretarias", { metodo: "POST", corpo: { nome, sigla: texto(form, "sigla") } }),
+    `Secretaria ${nome} criada.`,
+  );
+}
+
+export async function editarSecretaria(id: string, mudanca: { ativo?: boolean; padrao?: true }): Promise<EstadoDoAto> {
+  if (!UUID.test(id)) return { erro: "Secretaria inválida.", ok: null };
+  const ok = mudanca.padrao ? "Identidade padrão do município atualizada." : mudanca.ativo ? "Secretaria reativada." : "Secretaria desativada.";
+  return ato(() => chamarApi(`/admin/instituicao/secretarias/${id}`, { metodo: "PATCH", corpo: mudanca }), ok);
+}
+
+async function modelo(form: FormData): Promise<Record<string, unknown> | string> {
+  const arquivo = form.get("modelo");
+  if (!(arquivo instanceof File) || arquivo.size === 0) return "Envie o documento-modelo em PDF.";
+  if (arquivo.size > LIMITE_DO_MODELO) return "O documento-modelo passa do limite de 10 MB.";
+  return {
+    nome_arquivo: arquivo.name.slice(0, 200),
+    conteudo: Buffer.from(await arquivo.arrayBuffer()).toString("base64"),
+    cabecalho_pct: Number(texto(form, "cabecalho_pct")) || 14,
+    rodape_pct: Number(texto(form, "rodape_pct")) || 10,
+    marca: form.get("marca") === "on",
+  };
+}
+
+export async function previaDoModelo(form: FormData): Promise<{ erro: string | null; previa: PreviaDoModelo | null }> {
+  const corpo = await modelo(form);
+  if (typeof corpo === "string") return { erro: corpo, previa: null };
+  try {
+    const { dados } = await chamarApi<PreviaDoModelo>("/admin/instituicao/identidades/previa", {
+      metodo: "POST",
+      corpo,
+      tempoMs: 30_000,
+    });
+    return { erro: null, previa: dados };
+  } catch (e) {
+    return { erro: mensagem(e), previa: null };
+  }
+}
+
+export async function salvarIdentidadePorImagem(form: FormData): Promise<EstadoDoAto> {
+  const orgao = texto(form, "orgao");
+  if (!orgao) return { erro: "Informe o nome do órgão.", ok: null };
+  const corpo = await modelo(form);
+  if (typeof corpo === "string") return { erro: corpo, ok: null };
+  return ato(
+    () =>
+      chamarApi("/admin/instituicao/identidades/imagem", {
+        metodo: "POST",
+        corpo: { ...corpo, orgao, padrao: form.get("padrao") === "on" },
+        tempoMs: 30_000,
+      }),
+    "Identidade (imagem) salva.",
+  );
+}
+
+export async function salvarIdentidadePorTexto(_: EstadoDoAto, form: FormData): Promise<EstadoDoAto> {
+  const orgao = texto(form, "orgao");
+  if (!orgao) return { erro: "Informe o nome do órgão.", ok: null };
+  return ato(
+    () =>
+      chamarApi("/admin/instituicao/identidades/texto", {
+        metodo: "POST",
+        corpo: {
+          orgao,
+          cabecalho: texto(form, "cabecalho"),
+          rodape: texto(form, "rodape"),
+          marca_dagua: texto(form, "marca_dagua"),
+          padrao: form.get("padrao") === "on",
+        },
+      }),
+    "Identidade (texto) salva.",
+  );
+}
+
+export async function tornarIdentidadePadrao(id: string): Promise<EstadoDoAto> {
+  if (!UUID.test(id)) return { erro: "Identidade inválida.", ok: null };
+  return ato(() => chamarApi(`/admin/instituicao/identidades/${id}/padrao`, { metodo: "PUT" }), "Identidade padrão atualizada.");
+}
+
+export async function excluirIdentidade(id: string): Promise<EstadoDoAto> {
+  if (!UUID.test(id)) return { erro: "Identidade inválida.", ok: null };
+  return ato(() => chamarApi(`/admin/instituicao/identidades/${id}`, { metodo: "DELETE" }), "Identidade excluída.");
 }
