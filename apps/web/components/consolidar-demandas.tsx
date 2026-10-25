@@ -2,7 +2,20 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 
-import { Alert, Badge, Button, Card, Checkbox, EmptyState, Field, Input, Select } from "@/design-system";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  DataTable,
+  EmptyState,
+  Field,
+  Input,
+  Select,
+  TableContainer,
+  type DataTableColumn,
+} from "@/design-system";
 import {
   aplicarDemanda,
   consolidar,
@@ -21,6 +34,10 @@ const VARIANTE: Record<string, "success" | "warning" | "error"> = { lido: "succe
 export function ConsolidarDemandas({ processo, versao }: { processo: string; versao: string }) {
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [rotulos, setRotulos] = useState<Record<string, string>>({});
+  // As secretarias com que a tabela NA TELA foi consolidada. Aplicar e
+  // baixar usam estas, nunca as que a pessoa digitou depois: o servidor
+  // aplicaria uma consolidação que ninguém conferiu.
+  const [conferidos, setConferidos] = useState<Record<string, string>>({});
   const [aceitos, setAceitos] = useState<string[]>([]);
   const [resultado, setResultado] = useState<Consolidacao | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -44,18 +61,41 @@ export function ConsolidarDemandas({ processo, versao }: { processo: string; ver
       const r = await consolidar(processo, montar(lista, nomes));
       setErro(r.erro);
       setResultado(r.resultado);
+      setConferidos(nomes);
     });
 
   const pendentes = useMemo(
     () => (resultado?.conflitos ?? []).filter((c) => !aceitos.includes(c.codigo)).map((c) => c.codigo),
     [resultado, aceitos],
   );
-  const podeAplicar = Boolean(resultado?.fecha && resultado.linhas.length && pendentes.length === 0);
+  // Secretaria corrigida e ainda não conferida: a tabela da tela não é mais
+  // o que sairia. Aplicar e baixar ficam travados até conferir de novo.
+  const desatualizado = JSON.stringify(rotulos) !== JSON.stringify(conferidos);
+  const podeAplicar = Boolean(resultado?.fecha && resultado.linhas.length && pendentes.length === 0 && !desatualizado);
   const linhaDeOrigem = resultado?.linhas.find((l) => `${l.codigo}|${l.unidade}` === origem);
+
+  type Linha = Consolidacao["linhas"][number] & { id: string };
+  const colunas: DataTableColumn<Linha>[] = [
+    { key: "codigo", label: "Código", render: (l) => <span className="gc-mono">{l.codigo}</span> },
+    { key: "descricao", label: "Descrição" },
+    { key: "unidade", label: "Unidade" },
+    ...(resultado?.secretarias ?? []).map((s) => ({
+      key: `sec:${s}`,
+      label: s,
+      align: "right" as const,
+      render: (l: Linha) => <span className="gc-num">{l.por_secretaria[s] ?? "—"}</span>,
+    })),
+    {
+      key: "total",
+      label: "Total",
+      align: "right",
+      render: (l) => <strong className="gc-num">{l.total}</strong>,
+    },
+  ];
 
   const baixar = () =>
     executar(async () => {
-      const r = await planilhaConsolidada(processo, montar());
+      const r = await planilhaConsolidada(processo, montar(arquivos, conferidos));
       if (r.erro || !r.base64) {
         setErro(r.erro ?? "Não foi possível gerar a planilha.");
         return;
@@ -73,7 +113,7 @@ export function ConsolidarDemandas({ processo, versao }: { processo: string; ver
 
   const aplicar = () =>
     executar(async () => {
-      const r = await aplicarDemanda(processo, versao, confirmado, montar());
+      const r = await aplicarDemanda(processo, versao, confirmado, montar(arquivos, conferidos));
       // Sucesso redireciona; aqui só voltam erro e descarte pendente.
       setErro(r.erro);
       setDescarte(r.descarte);
@@ -173,10 +213,19 @@ export function ConsolidarDemandas({ processo, versao }: { processo: string; ver
                 )}
               </Card>
             ))}
-            {Object.keys(rotulos).length > 0 && (
-              <Button variant="secondary" icon="arrows-clockwise" loading={ocupado} onClick={() => conferir()} className="justify-self-start">
-                Conferir de novo com as secretarias corrigidas
-              </Button>
+            {desatualizado && (
+              <Alert
+                variant="warning"
+                title="Secretaria corrigida: confira de novo"
+                actions={
+                  <Button variant="secondary" size="sm" icon="arrows-clockwise" loading={ocupado} onClick={() => conferir()}>
+                    Conferir de novo
+                  </Button>
+                }
+              >
+                A tabela abaixo ainda é a da conferência anterior. Corrigir a secretaria pode mudar as somas — por exemplo, dois
+                documentos com o mesmo número passam a contar como um. Aplicar e baixar ficam travados até conferir.
+              </Alert>
             )}
           </section>
 
@@ -205,43 +254,17 @@ export function ConsolidarDemandas({ processo, versao }: { processo: string; ver
           {resultado.linhas.length > 0 && (
             <section aria-labelledby="titulo-tabela" className="grid gap-3">
               <h2 id="titulo-tabela">Tabela consolidada</h2>
-              <div className="gc-table-wrap">
-                <table className="gc-table gc-table--compact min-w-[48rem]" data-testid="tabela-consolidada">
-                  <caption className="gc-sr-only">Itens consolidados por secretaria</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Código</th>
-                      <th scope="col">Descrição</th>
-                      <th scope="col">Unidade</th>
-                      {resultado.secretarias.map((s) => (
-                        <th key={s} scope="col" data-align="right">
-                          {s}
-                        </th>
-                      ))}
-                      <th scope="col" data-align="right">
-                        Total
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {resultado.linhas.map((l) => (
-                      <tr key={`${l.codigo}|${l.unidade}`}>
-                        <td className="gc-mono">{l.codigo}</td>
-                        <td>{l.descricao}</td>
-                        <td>{l.unidade}</td>
-                        {resultado.secretarias.map((s) => (
-                          <td key={s} data-align="right" className="gc-num">
-                            {l.por_secretaria[s] ?? "—"}
-                          </td>
-                        ))}
-                        <td data-align="right" className="gc-num font-[number:var(--weight-semibold)]">
-                          {l.total}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <TableContainer>
+                <div data-testid="tabela-consolidada">
+                  <DataTable
+                    compact
+                    caption="Itens consolidados por secretaria"
+                    minWidth="48rem"
+                    columns={colunas}
+                    rows={resultado.linhas.map((l) => ({ ...l, id: `${l.codigo}|${l.unidade}` }))}
+                  />
+                </div>
+              </TableContainer>
               <Field label="Ver a origem de um item" htmlFor="origem-item">
                 <Select
                   id="origem-item"
@@ -294,7 +317,7 @@ export function ConsolidarDemandas({ processo, versao }: { processo: string; ver
 
           {resultado.linhas.length > 0 && (
             <div className="flex flex-wrap justify-end gap-3">
-              <Button variant="secondary" size="lg" icon="microsoft-excel-logo" loading={ocupado} onClick={baixar}>
+              <Button variant="secondary" size="lg" icon="microsoft-excel-logo" loading={ocupado} disabled={desatualizado} onClick={baixar}>
                 Baixar tabela consolidada (XLSX)
               </Button>
               <Button size="lg" loading={ocupado} disabled={!podeAplicar || (Boolean(descarte) && !confirmado)} onClick={aplicar}>

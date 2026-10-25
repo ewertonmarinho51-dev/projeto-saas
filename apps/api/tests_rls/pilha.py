@@ -409,22 +409,15 @@ def gravar_demandas_e2e(pasta: Path) -> list[str]:
 
     quadros = {
         "dfd-semec.pdf": ("20260101001", "Secretaria de Educação",
-                          "370614 ENVELOPE AMARELO 260MMX360MM 50,0000 UNIDADE
-"
-                          "133975 PAPEL VERGE CORES VARIADAS 30,0000 PACOTE
-"),
+                          "370614 ENVELOPE AMARELO 260MMX360MM 50,0000 UNIDADE\n"
+                          "133975 PAPEL VERGE CORES VARIADAS 30,0000 PACOTE\n"),
         "dfd-semsa.pdf": ("20260101002", "Secretaria de Saúde",
-                          "370614 ENVELOPE AMARELO 260MMX360MM 20,0000 UNIDADE
-"),
+                          "370614 ENVELOPE AMARELO 260MMX360MM 20,0000 UNIDADE\n"),
     }
     caminhos = []
     for nome, (numero, orgao, linhas) in quadros.items():
-        texto = (f"DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA Nº {numero}
-ÓRGÃO :
-05  {orgao}
-"
-                 f"Código Quant Unidade Descrição
-{linhas}")
+        texto = (f"DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA Nº {numero}\nÓRGÃO :\n05  {orgao}\n"
+                 f"Código Quant Unidade Descrição\n{linhas}")
         doc = pymupdf.open()
         doc.new_page().insert_textbox(pymupdf.Rect(40, 40, 560, 780), texto, fontsize=9)
         caminho = pasta / nome
