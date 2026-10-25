@@ -181,13 +181,13 @@
 .gc-tab{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 12px;margin-bottom:-1px;border:0;border-bottom:2px solid transparent;background:transparent;font:500 var(--gc-fs-base)/1 var(--gc-font-sans);color:var(--text-secondary);white-space:nowrap;cursor:pointer;transition:color var(--dur-fast),border-color var(--dur-fast)}
 .gc-tab .gc-icon{font-size:var(--icon-sm)}
 .gc-tab:hover{color:var(--text-primary)}
-.gc-tab[aria-selected="true"]{color:var(--accent-strong-text);border-bottom-color:var(--accent-brand);font-weight:600}
+.gc-tab[aria-selected="true"],.gc-tab[aria-current="page"]{color:var(--accent-strong-text);border-bottom-color:var(--accent-brand);font-weight:600}
 .gc-tab:disabled{color:var(--text-disabled);cursor:not-allowed}
 .gc-tab__count{font:600 11px/1 var(--gc-font-sans);padding:3px 6px;border-radius:var(--gc-radius-pill);background:var(--surface-sunken);color:var(--text-secondary)}
-.gc-tab[aria-selected="true"] .gc-tab__count{background:var(--accent-subtle);color:var(--accent-strong-text)}
+.gc-tab[aria-selected="true"] .gc-tab__count,.gc-tab[aria-current="page"] .gc-tab__count{background:var(--accent-subtle);color:var(--accent-strong-text)}
 .gc-tabs--segmented{display:inline-flex;justify-self:start;align-self:start;max-width:100%;gap:2px;padding:3px;border:1px solid var(--border-subtle);border-radius:var(--gc-radius-md);background:var(--surface-sunken)}
 .gc-tabs--segmented .gc-tab{height:32px;margin:0;border:0;border-radius:6px;padding:0 12px;font-size:var(--gc-fs-sm)}
-.gc-tabs--segmented .gc-tab[aria-selected="true"]{background:var(--surface-card);color:var(--text-primary);box-shadow:var(--gc-shadow-sm)}
+.gc-tabs--segmented .gc-tab[aria-selected="true"],.gc-tabs--segmented .gc-tab[aria-current="page"]{background:var(--surface-card);color:var(--text-primary);box-shadow:var(--gc-shadow-sm)}
 .gc-stepper{display:flex;list-style:none;margin:0;padding:0 0 2px;overflow-x:auto;scrollbar-width:thin}
 .gc-step{position:relative;flex:1;min-width:88px;display:grid;justify-items:center;gap:8px;text-align:center;min-width:0}
 .gc-step::before{content:"";position:absolute;top:13px;right:calc(50% + 18px);left:calc(-50% + 18px);height:2px;border-radius:2px;background:var(--border-default)}
@@ -628,6 +628,8 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   .gc-sidebar__expand{display:grid;place-items:center;padding-bottom:var(--space-1)}
   .gc-draft__spacer{flex:1}
   .gc-table tr[data-clickable]{cursor:pointer}
+  /* Aba como link de navegação (aria-current), não só como botão de tablist. */
+  a.gc-tab{text-decoration:none}
   .gc-page-head__actions{display:flex;gap:var(--space-2);flex-wrap:wrap}
   fieldset.gc-srcpick{border:0;padding:0;margin:0}
   figure.gc-disp{margin:0}
