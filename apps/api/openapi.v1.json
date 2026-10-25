@@ -133,6 +133,57 @@
         "title": "AplicacaoFeita",
         "type": "object"
       },
+      "CampoDoFormulario": {
+        "properties": {
+          "ajuda": {
+            "title": "Ajuda",
+            "type": "string"
+          },
+          "chave": {
+            "title": "Chave",
+            "type": "string"
+          },
+          "exemplo": {
+            "title": "Exemplo",
+            "type": "string"
+          },
+          "obrigatorio": {
+            "title": "Obrigatorio",
+            "type": "boolean"
+          },
+          "opcoes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Opcoes",
+            "type": "array"
+          },
+          "placeholder": {
+            "title": "Placeholder",
+            "type": "string"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chave",
+          "tipo",
+          "rotulo",
+          "ajuda",
+          "exemplo",
+          "placeholder",
+          "obrigatorio",
+          "opcoes"
+        ],
+        "title": "CampoDoFormulario",
+        "type": "object"
+      },
       "CienciaRegistrada": {
         "properties": {
           "assinatura": {
@@ -252,6 +303,179 @@
           "motivo"
         ],
         "title": "ErroDaPlanilha",
+        "type": "object"
+      },
+      "Formulario": {
+        "properties": {
+          "a_descartar": {
+            "items": {
+              "type": "string"
+            },
+            "title": "A Descartar",
+            "type": "array"
+          },
+          "campos": {
+            "items": {
+              "$ref": "#/components/schemas/CampoDoFormulario"
+            },
+            "title": "Campos",
+            "type": "array"
+          },
+          "etapa": {
+            "title": "Etapa",
+            "type": "integer"
+          },
+          "faltantes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Faltantes",
+            "type": "array"
+          },
+          "itens": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Itens",
+            "type": "array"
+          },
+          "valor_estimado": {
+            "title": "Valor Estimado",
+            "type": "number"
+          },
+          "valor_estimado_exibicao": {
+            "title": "Valor Estimado Exibicao",
+            "type": "string"
+          },
+          "valores": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Valores",
+            "type": "object"
+          },
+          "versao": {
+            "title": "Versao",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campos",
+          "valores",
+          "itens",
+          "valor_estimado",
+          "valor_estimado_exibicao",
+          "faltantes",
+          "a_descartar",
+          "etapa",
+          "versao"
+        ],
+        "title": "Formulario",
+        "type": "object"
+      },
+      "FormularioGravado": {
+        "properties": {
+          "a_descartar": {
+            "items": {
+              "type": "string"
+            },
+            "title": "A Descartar",
+            "type": "array"
+          },
+          "campos": {
+            "items": {
+              "$ref": "#/components/schemas/CampoDoFormulario"
+            },
+            "title": "Campos",
+            "type": "array"
+          },
+          "descartados": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Descartados",
+            "type": "array"
+          },
+          "etapa": {
+            "title": "Etapa",
+            "type": "integer"
+          },
+          "faltantes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Faltantes",
+            "type": "array"
+          },
+          "itens": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Itens",
+            "type": "array"
+          },
+          "mudou": {
+            "title": "Mudou",
+            "type": "boolean"
+          },
+          "valor_estimado": {
+            "title": "Valor Estimado",
+            "type": "number"
+          },
+          "valor_estimado_exibicao": {
+            "title": "Valor Estimado Exibicao",
+            "type": "string"
+          },
+          "valores": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Valores",
+            "type": "object"
+          },
+          "versao": {
+            "title": "Versao",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campos",
+          "valores",
+          "itens",
+          "valor_estimado",
+          "valor_estimado_exibicao",
+          "faltantes",
+          "a_descartar",
+          "etapa",
+          "versao",
+          "descartados",
+          "mudou"
+        ],
+        "title": "FormularioGravado",
+        "type": "object"
+      },
+      "GravacaoDoFormulario": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmar_descarte": {
+            "default": false,
+            "title": "Confirmar Descarte",
+            "type": "boolean"
+          },
+          "iniciar": {
+            "default": false,
+            "title": "Iniciar",
+            "type": "boolean"
+          },
+          "valores": {
+            "additionalProperties": true,
+            "title": "Valores",
+            "type": "object"
+          }
+        },
+        "title": "GravacaoDoFormulario",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -554,6 +778,24 @@
           "papel"
         ],
         "title": "Me",
+        "type": "object"
+      },
+      "MemorandoLido": {
+        "properties": {
+          "caracteres": {
+            "title": "Caracteres",
+            "type": "integer"
+          },
+          "texto": {
+            "title": "Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "texto",
+          "caracteres"
+        ],
+        "title": "MemorandoLido",
         "type": "object"
       },
       "Motivo": {
@@ -1051,6 +1293,33 @@
           "estado"
         ],
         "title": "PesquisaCriada",
+        "type": "object"
+      },
+      "PlanilhaLida": {
+        "properties": {
+          "itens": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Itens",
+            "type": "array"
+          },
+          "valor_estimado": {
+            "title": "Valor Estimado",
+            "type": "number"
+          },
+          "valor_estimado_exibicao": {
+            "title": "Valor Estimado Exibicao",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itens",
+          "valor_estimado",
+          "valor_estimado_exibicao"
+        ],
+        "title": "PlanilhaLida",
         "type": "object"
       },
       "PlanoDeImportacao": {
@@ -2945,6 +3214,27 @@
         ]
       }
     },
+    "/api/v1/processos/modelo-planilha.xlsx": {
+      "get": {
+        "operationId": "modelo_api_v1_processos_modelo_planilha_xlsx_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Modelo",
+        "tags": [
+          "v1",
+          "formulario"
+        ]
+      }
+    },
     "/api/v1/processos/{processo_id}": {
       "get": {
         "operationId": "consultar_api_v1_processos__processo_id__get",
@@ -3066,6 +3356,231 @@
         "tags": [
           "v1",
           "processos"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/formulario": {
+      "get": {
+        "operationId": "ler_api_v1_processos__processo_id__formulario_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Formulario"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ler",
+        "tags": [
+          "v1",
+          "formulario"
+        ]
+      },
+      "put": {
+        "operationId": "gravar_api_v1_processos__processo_id__formulario_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GravacaoDoFormulario"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormularioGravado"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "409": {
+            "description": "Versão desatualizada (VERSION_CONFLICT) ou descarte não confirmado (DESCARTE_PENDENTE)"
+          },
+          "422": {
+            "description": "Campo inválido ou obrigatório vazio (nada gravado)"
+          },
+          "428": {
+            "description": "If-Match ausente"
+          }
+        },
+        "summary": "Gravar",
+        "tags": [
+          "v1",
+          "formulario"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/formulario/memorando": {
+      "post": {
+        "operationId": "ler_memorando_api_v1_processos__processo_id__formulario_memorando_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "nome",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Nome",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemorandoLido"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "Arquivo acima do limite"
+          },
+          "415": {
+            "description": "Formato não suportado"
+          },
+          "422": {
+            "description": "Sem texto extraível"
+          }
+        },
+        "summary": "Ler Memorando",
+        "tags": [
+          "v1",
+          "formulario"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/formulario/planilha": {
+      "post": {
+        "operationId": "ler_planilha_api_v1_processos__processo_id__formulario_planilha_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanilhaLida"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "Planilha acima do limite"
+          },
+          "415": {
+            "description": "Não é XLSX"
+          },
+          "422": {
+            "description": "Planilha ilegível ou sem itens"
+          }
+        },
+        "summary": "Ler Planilha",
+        "tags": [
+          "v1",
+          "formulario"
         ]
       }
     },
