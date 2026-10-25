@@ -402,3 +402,60 @@ export type AplicacaoDaDemanda = {
   descartados: string[];
   versao: string;
 };
+
+// ---------------------------------------------------------------------------
+// Administração — cadastro institucional (M7a). Só admin; o RLS da 0025
+// é quem garante.
+// ---------------------------------------------------------------------------
+export type Opcao = { codigo: string; rotulo: string };
+
+export type Instituicao = {
+  secoes: string[];
+  secretarias: { id: string; nome: string }[];
+  tipos_de_portaria: Opcao[];
+  funcoes_de_membro: Opcao[];
+  situacoes_declaradas: string[];
+};
+
+export type ServidorInstitucional = {
+  id: string;
+  nome: string;
+  cargo: string | null;
+  matricula: string | null;
+  email: string | null;
+  ativo: boolean;
+};
+
+export type PortariaInstitucional = {
+  id: string;
+  tipo: string;
+  tipo_rotulo: string;
+  numero: string;
+  ano: number;
+  situacao: string;
+  situacao_declarada: string;
+  citacao: string;
+  data_publicacao: string | null;
+  data_inicio_vigencia: string | null;
+  data_fim_vigencia: string | null;
+  membros: { nome: string; funcao: string; funcao_rotulo: string; servidor_ativo: boolean }[];
+};
+
+export type ModuloInstitucional = {
+  modulo: string;
+  rotulo: string;
+  disponivel_no_sistema: boolean;
+  na_prefeitura: boolean;
+  na_secretaria: string | null;
+  explicacao: string;
+};
+
+export type Timbrado = {
+  origem: "secretaria" | "municipio" | "nenhuma";
+  cabecalho_img: string | null;
+  rodape_img: string | null;
+  marca_img: string | null;
+  cabecalho_texto: string;
+  rodape_texto: string;
+  marca_texto: string;
+};

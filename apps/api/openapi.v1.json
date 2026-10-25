@@ -503,6 +503,73 @@
         "title": "EdicaoDeProcesso",
         "type": "object"
       },
+      "EdicaoDeServidor": {
+        "additionalProperties": false,
+        "properties": {
+          "ativo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ativo"
+          },
+          "cargo": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cargo"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "matricula": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matricula"
+          },
+          "nome": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome"
+          }
+        },
+        "title": "EdicaoDeServidor",
+        "type": "object"
+      },
       "ErroDaPlanilha": {
         "properties": {
           "campo": {
@@ -733,6 +800,54 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Instituicao": {
+        "properties": {
+          "funcoes_de_membro": {
+            "items": {
+              "$ref": "#/components/schemas/Opcao"
+            },
+            "title": "Funcoes De Membro",
+            "type": "array"
+          },
+          "secoes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Secoes",
+            "type": "array"
+          },
+          "secretarias": {
+            "items": {
+              "$ref": "#/components/schemas/Secretaria"
+            },
+            "title": "Secretarias",
+            "type": "array"
+          },
+          "situacoes_declaradas": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Situacoes Declaradas",
+            "type": "array"
+          },
+          "tipos_de_portaria": {
+            "items": {
+              "$ref": "#/components/schemas/Opcao"
+            },
+            "title": "Tipos De Portaria",
+            "type": "array"
+          }
+        },
+        "required": [
+          "secoes",
+          "secretarias",
+          "tipos_de_portaria",
+          "funcoes_de_membro",
+          "situacoes_declaradas"
+        ],
+        "title": "Instituicao",
         "type": "object"
       },
       "Item": {
@@ -1065,6 +1180,34 @@
         "title": "Me",
         "type": "object"
       },
+      "Membro": {
+        "properties": {
+          "funcao": {
+            "title": "Funcao",
+            "type": "string"
+          },
+          "funcao_rotulo": {
+            "title": "Funcao Rotulo",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "servidor_ativo": {
+            "title": "Servidor Ativo",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "nome",
+          "funcao",
+          "funcao_rotulo",
+          "servidor_ativo"
+        ],
+        "title": "Membro",
+        "type": "object"
+      },
       "MemorandoLido": {
         "properties": {
           "caracteres": {
@@ -1083,17 +1226,82 @@
         "title": "MemorandoLido",
         "type": "object"
       },
-      "Modulos": {
+      "Modulo": {
         "properties": {
-          "consolidar_demandas": {
-            "title": "Consolidar Demandas",
+          "disponivel_no_sistema": {
+            "title": "Disponivel No Sistema",
+            "type": "boolean"
+          },
+          "explicacao": {
+            "title": "Explicacao",
+            "type": "string"
+          },
+          "modulo": {
+            "title": "Modulo",
+            "type": "string"
+          },
+          "na_prefeitura": {
+            "title": "Na Prefeitura",
+            "type": "boolean"
+          },
+          "na_secretaria": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Na Secretaria"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "modulo",
+          "rotulo",
+          "disponivel_no_sistema",
+          "na_prefeitura",
+          "na_secretaria",
+          "explicacao"
+        ],
+        "title": "Modulo",
+        "type": "object"
+      },
+      "ModuloNaPrefeitura": {
+        "additionalProperties": false,
+        "properties": {
+          "habilitado": {
+            "title": "Habilitado",
             "type": "boolean"
           }
         },
         "required": [
-          "consolidar_demandas"
+          "habilitado"
         ],
-        "title": "Modulos",
+        "title": "ModuloNaPrefeitura",
+        "type": "object"
+      },
+      "ModuloNaSecretaria": {
+        "additionalProperties": false,
+        "properties": {
+          "estado": {
+            "enum": [
+              "HERDAR",
+              "HABILITADO",
+              "DESABILITADO"
+            ],
+            "title": "Estado",
+            "type": "string"
+          }
+        },
+        "required": [
+          "estado"
+        ],
+        "title": "ModuloNaSecretaria",
         "type": "object"
       },
       "Motivo": {
@@ -1274,6 +1482,90 @@
         "title": "NovaPesquisa",
         "type": "object"
       },
+      "NovaPortaria": {
+        "additionalProperties": false,
+        "properties": {
+          "ano": {
+            "maximum": 2100.0,
+            "minimum": 2000.0,
+            "title": "Ano",
+            "type": "integer"
+          },
+          "data_fim_vigencia": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Fim Vigencia"
+          },
+          "data_inicio_vigencia": {
+            "format": "date",
+            "title": "Data Inicio Vigencia",
+            "type": "string"
+          },
+          "data_publicacao": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Publicacao"
+          },
+          "numero": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Numero",
+            "type": "string"
+          },
+          "secretaria_id": {
+            "format": "uuid",
+            "title": "Secretaria Id",
+            "type": "string"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secretaria_id",
+          "tipo",
+          "numero",
+          "ano",
+          "data_inicio_vigencia"
+        ],
+        "title": "NovaPortaria",
+        "type": "object"
+      },
+      "NovoMembro": {
+        "additionalProperties": false,
+        "properties": {
+          "funcao": {
+            "title": "Funcao",
+            "type": "string"
+          },
+          "servidor_id": {
+            "format": "uuid",
+            "title": "Servidor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "servidor_id",
+          "funcao"
+        ],
+        "title": "NovoMembro",
+        "type": "object"
+      },
       "NovoProcesso": {
         "additionalProperties": false,
         "properties": {
@@ -1301,6 +1593,76 @@
           "objeto"
         ],
         "title": "NovoProcesso",
+        "type": "object"
+      },
+      "NovoServidor": {
+        "additionalProperties": false,
+        "properties": {
+          "cargo": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cargo"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "matricula": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matricula"
+          },
+          "nome": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome"
+        ],
+        "title": "NovoServidor",
+        "type": "object"
+      },
+      "Opcao": {
+        "properties": {
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigo",
+          "rotulo"
+        ],
+        "title": "Opcao",
         "type": "object"
       },
       "OpcaoDeRelatorio": {
@@ -1743,6 +2105,122 @@
           "gravado"
         ],
         "title": "PlanoDeImportacao",
+        "type": "object"
+      },
+      "Portaria": {
+        "properties": {
+          "ano": {
+            "title": "Ano",
+            "type": "integer"
+          },
+          "citacao": {
+            "title": "Citacao",
+            "type": "string"
+          },
+          "data_fim_vigencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Fim Vigencia"
+          },
+          "data_inicio_vigencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Inicio Vigencia"
+          },
+          "data_publicacao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Publicacao"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "membros": {
+            "items": {
+              "$ref": "#/components/schemas/Membro"
+            },
+            "title": "Membros",
+            "type": "array"
+          },
+          "numero": {
+            "title": "Numero",
+            "type": "string"
+          },
+          "situacao": {
+            "title": "Situacao",
+            "type": "string"
+          },
+          "situacao_declarada": {
+            "title": "Situacao Declarada",
+            "type": "string"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          },
+          "tipo_rotulo": {
+            "title": "Tipo Rotulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tipo",
+          "tipo_rotulo",
+          "numero",
+          "ano",
+          "situacao",
+          "situacao_declarada",
+          "citacao",
+          "data_publicacao",
+          "data_inicio_vigencia",
+          "data_fim_vigencia",
+          "membros"
+        ],
+        "title": "Portaria",
+        "type": "object"
+      },
+      "Portarias": {
+        "properties": {
+          "avisos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Avisos",
+            "type": "array"
+          },
+          "portarias": {
+            "items": {
+              "$ref": "#/components/schemas/Portaria"
+            },
+            "title": "Portarias",
+            "type": "array"
+          }
+        },
+        "required": [
+          "portarias",
+          "avisos"
+        ],
+        "title": "Portarias",
         "type": "object"
       },
       "PreparoDaEmissao": {
@@ -2294,6 +2772,166 @@
         "title": "ResumoPesquisa",
         "type": "object"
       },
+      "Secretaria": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nome"
+        ],
+        "title": "Secretaria",
+        "type": "object"
+      },
+      "Servidor": {
+        "properties": {
+          "ativo": {
+            "title": "Ativo",
+            "type": "boolean"
+          },
+          "cargo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cargo"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "matricula": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matricula"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nome",
+          "cargo",
+          "matricula",
+          "email",
+          "ativo"
+        ],
+        "title": "Servidor",
+        "type": "object"
+      },
+      "SituacaoDaPortaria": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "RASCUNHO",
+              "ATIVA",
+              "REVOGADA"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SituacaoDaPortaria",
+        "type": "object"
+      },
+      "Timbrado": {
+        "properties": {
+          "cabecalho_img": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cabecalho Img"
+          },
+          "cabecalho_texto": {
+            "title": "Cabecalho Texto",
+            "type": "string"
+          },
+          "marca_img": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marca Img"
+          },
+          "marca_texto": {
+            "title": "Marca Texto",
+            "type": "string"
+          },
+          "origem": {
+            "title": "Origem",
+            "type": "string"
+          },
+          "rodape_img": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rodape Img"
+          },
+          "rodape_texto": {
+            "title": "Rodape Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "origem",
+          "cabecalho_img",
+          "rodape_img",
+          "marca_img",
+          "cabecalho_texto",
+          "rodape_texto",
+          "marca_texto"
+        ],
+        "title": "Timbrado",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -2365,6 +3003,35 @@
         ],
         "title": "Vivo",
         "type": "object"
+      },
+      "govconect_api__demandas__Modulos": {
+        "properties": {
+          "consolidar_demandas": {
+            "title": "Consolidar Demandas",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "consolidar_demandas"
+        ],
+        "title": "Modulos",
+        "type": "object"
+      },
+      "govconect_api__instituicao__Modulos": {
+        "properties": {
+          "modulos": {
+            "items": {
+              "$ref": "#/components/schemas/Modulo"
+            },
+            "title": "Modulos",
+            "type": "array"
+          }
+        },
+        "required": [
+          "modulos"
+        ],
+        "title": "Modulos",
+        "type": "object"
       }
     }
   },
@@ -2374,6 +3041,554 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/instituicao": {
+      "get": {
+        "operationId": "visao_api_v1_admin_instituicao_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Instituicao"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Visao",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/modulos": {
+      "get": {
+        "operationId": "listar_modulos_api_v1_admin_instituicao_modulos_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "secretaria_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Secretaria Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/govconect_api__instituicao__Modulos"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listar Modulos",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/modulos/prefeitura/{modulo}": {
+      "put": {
+        "operationId": "modulo_na_prefeitura_api_v1_admin_instituicao_modulos_prefeitura__modulo__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "modulo",
+            "required": true,
+            "schema": {
+              "title": "Modulo",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuloNaPrefeitura"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/govconect_api__instituicao__Modulos"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Modulo Na Prefeitura",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/modulos/secretarias/{secretaria_id}/{modulo}": {
+      "put": {
+        "operationId": "modulo_na_secretaria_api_v1_admin_instituicao_modulos_secretarias__secretaria_id___modulo__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "secretaria_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Secretaria Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "modulo",
+            "required": true,
+            "schema": {
+              "title": "Modulo",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuloNaSecretaria"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/govconect_api__instituicao__Modulos"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Modulo Na Secretaria",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/portarias": {
+      "get": {
+        "operationId": "listar_portarias_api_v1_admin_instituicao_portarias_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "secretaria_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Secretaria Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portarias"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listar Portarias",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      },
+      "post": {
+        "operationId": "criar_portaria_api_v1_admin_instituicao_portarias_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovaPortaria"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portaria"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Criar Portaria",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/portarias/{portaria_id}": {
+      "patch": {
+        "operationId": "mudar_situacao_api_v1_admin_instituicao_portarias__portaria_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "portaria_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Portaria Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SituacaoDaPortaria"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portaria"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mudar Situacao",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/portarias/{portaria_id}/membros": {
+      "post": {
+        "operationId": "adicionar_membro_api_v1_admin_instituicao_portarias__portaria_id__membros_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "portaria_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Portaria Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovoMembro"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portaria"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Adicionar Membro",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/servidores": {
+      "get": {
+        "operationId": "servidores_api_v1_admin_instituicao_servidores_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Servidor"
+                  },
+                  "title": "Response Servidores Api V1 Admin Instituicao Servidores Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Servidores",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      },
+      "post": {
+        "operationId": "criar_servidor_api_v1_admin_instituicao_servidores_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovoServidor"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Servidor"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Criar Servidor",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/servidores/{servidor_id}": {
+      "patch": {
+        "operationId": "editar_servidor_api_v1_admin_instituicao_servidores__servidor_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "servidor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Servidor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EdicaoDeServidor"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Servidor"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou de outro município"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Editar Servidor",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/timbrado": {
+      "get": {
+        "operationId": "timbrado_api_v1_admin_instituicao_timbrado_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "secretaria_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Secretaria Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Timbrado"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Timbrado",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
     "/api/v1/jobs/{job_id}": {
       "get": {
         "operationId": "consultar_api_v1_jobs__job_id__get",
@@ -2509,7 +3724,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Modulos"
+                  "$ref": "#/components/schemas/govconect_api__demandas__Modulos"
                 }
               }
             },

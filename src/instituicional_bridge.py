@@ -31,9 +31,11 @@ _log = logging.getLogger("govdocs.instituicional")
 
 def ativo() -> bool:
     from . import db
-    from .ui import instituicional
+    # Do catálogo puro: importar a tela puxaria o Streamlit, e na API a
+    # falha cairia no `except` do congelamento, calada.
+    from .instituicional_catalogo import FLAG_MULTI_PREFEITURAS
 
-    return db.flag_ativa(instituicional.FLAG_MULTI_PREFEITURAS)
+    return db.flag_ativa(FLAG_MULTI_PREFEITURAS)
 
 
 def escolhas_da_sessao(doc_key: str) -> list[dict]:

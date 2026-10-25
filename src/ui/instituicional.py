@@ -27,8 +27,10 @@ import datetime as _dt
 import streamlit as st
 
 from .. import assinaturas, branding, contexto, db, modulos, portarias
+from ..instituicional_catalogo import (FLAG_ADMIN, FLAG_MULTI_PREFEITURAS,  # noqa: F401 — reexportados
+                                       FLAG_PORTARIAS, FLAG_SERVIDORES,
+                                       MODULOS_OFERECIDOS, TIPOS_DE_PORTARIA)
 
-FLAG_MULTI_PREFEITURAS = "multi_prefeituras"
 
 # §59 — as seções têm flag PRÓPRIA, e a relação com a de cima é de
 # CONJUNÇÃO, como a dos módulos: `multi_prefeituras` diz que a aba
@@ -46,20 +48,12 @@ FLAG_MULTI_PREFEITURAS = "multi_prefeituras"
 # seção exigir uma segunda decisão seria transformar o §59 num
 # labirinto de caixas. Estas flags existem para DESLIGAR uma seção
 # que ainda não está pronta, não para ligar uma por uma.
-FLAG_ADMIN = "multi_tenant_admin"
-FLAG_SERVIDORES = "servidores"
-FLAG_PORTARIAS = "portarias"
+# (as três constantes moram em `instituicional_catalogo`)
 
 # Os módulos que o painel oferece por prefeitura e por secretaria. São os
 # que o produto de fato entrega hoje; a flag global de cada um continua
 # sendo a palavra final, e a tela diz isso.
-MODULOS_OFERECIDOS = (
-    ("price_research", "Pesquisa de Preços"),
-    ("demand_consolidation", "Consolidação de Solicitações de Despesa"),
-    ("legal_opinion_correction", "Correção por Parecer Jurídico"),
-    ("canonical_facts", "Fatos Canônicos"),
-    ("process_consistency", "Consistência do Processo"),
-)
+# MODULOS_OFERECIDOS: `instituicional_catalogo`
 
 _SECOES_FIXAS = ("Prefeitura", "Timbrado", "Módulos")
 
@@ -447,15 +441,7 @@ def _render_servidores() -> None:
 # ---------------------------------------------------------------------------
 # PORTARIAS (§19–§22, §52, §54)
 # ---------------------------------------------------------------------------
-TIPOS_DE_PORTARIA = (
-    ("EQUIPE_PLANEJAMENTO", "Equipe de Planejamento"),
-    ("PREGOEIRO", "Pregoeiro"),
-    ("AGENTE_CONTRATACAO", "Agente de Contratação"),
-    ("FISCAL", "Fiscal"),
-    ("GESTOR", "Gestor"),
-    ("COMISSAO", "Comissão"),
-    ("OUTRO", "Outro"),
-)
+# TIPOS_DE_PORTARIA: `instituicional_catalogo`
 
 
 def _render_portarias() -> None:
