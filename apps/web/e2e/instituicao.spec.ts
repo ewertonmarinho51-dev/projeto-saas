@@ -33,7 +33,8 @@ test("administrador cadastra servidor e portaria com membro", async ({ page }) =
   await page.getByRole("button", { name: "Registrar portaria" }).click();
   await expect(page.getByText(new RegExp(`Portaria ${numero}/\\d{4} registrada como RASCUNHO`))).toBeVisible();
 
-  const cartao = page.locator("section", { hasText: `Portaria ${numero}/` });
+  // `.last()`: a seção externa da página também contém o texto; o cartão é a mais interna.
+  const cartao = page.locator("section", { hasText: `Portaria ${numero}/` }).last();
   await cartao.getByLabel("Situação declarada").selectOption("ATIVA");
   await expect(cartao.getByText("Situação atualizada.")).toBeVisible();
   await cartao.getByLabel("Servidor").selectOption({ label: nome });
