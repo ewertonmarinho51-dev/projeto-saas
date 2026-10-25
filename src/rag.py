@@ -494,8 +494,18 @@ def indexar(nome_arquivo: str, titulo: str, categoria: str, dados: bytes) -> Ind
             for i, trecho in enumerate(chunks)
         ]
         # insere em lotes para não estourar o payload
-        for i in range(0, len(registros), 50):
-            cliente.table("chunks_referencia").insert(registros[i : i + 50]).execute()
+        try:
+            for i in range(0, len(registros), 50):
+                cliente.table("chunks_referencia").insert(registros[i : i + 50]).execute()
+        except Exception:
+            # Sem compensação, o documento ficava "indexado" com trechos
+            # parciais ou nenhum — invisível na busca e com `total_chunks`
+            # mentindo. Melhor esforço: o erro original é o que sobe.
+            try:
+                cliente.table("documentos_referencia").delete().eq("id", doc["id"]).execute()
+            except Exception:  # noqa: BLE001
+                pass
+            raise
         if not embeddings:
             st.warning(
                 f"'{titulo or nome_arquivo}' foi indexado para BUSCA TEXTUAL, "

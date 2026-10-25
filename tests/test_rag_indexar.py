@@ -67,3 +67,42 @@ def test_categoria_fora_do_catalogo_e_recusada_antes_de_qualquer_trabalho(banco,
     with pytest.raises(rag.ErroRAG, match="Categoria inexistente"):
         rag.indexar("norma.txt", "", "inventada", b"x" * 200)
     assert not banco
+
+
+def test_falha_nos_trechos_desfaz_o_documento(monkeypatch):
+    """Sem compensação, o documento ficava "indexado" sem trecho nenhum."""
+    apagados = []
+
+    class _Tabela:
+        def __init__(self, nome):
+            self.nome, self.op = nome, None
+
+        def insert(self, dados):
+            self.op = "insert"
+            return self
+
+        def delete(self):
+            self.op = "delete"
+            return self
+
+        def eq(self, coluna, valor):
+            apagados.append((self.nome, coluna, valor))
+            return self
+
+        def execute(self):
+            if self.nome == "chunks_referencia" and self.op == "insert":
+                raise RuntimeError("new row violates row-level security policy")
+            return type("R", (), {"data": [{"id": "doc-1"}]})()
+
+    class _Cliente:
+        def table(self, nome):
+            return _Tabela(nome)
+
+    monkeypatch.setattr(rag.db, "disponivel", lambda: True)
+    monkeypatch.setattr(rag.db, "_cliente", _Cliente)
+    monkeypatch.setattr(rag.db, "tenant_atual", lambda: "t")
+    monkeypatch.setattr(rag, "_gerar_embeddings", lambda textos, para_consulta: None)
+    monkeypatch.setattr(rag.st, "warning", lambda *a, **k: None)
+    with pytest.raises(rag.ErroRAG):
+        rag.indexar("norma.txt", "", "lei", b"x" * 200)
+    assert apagados == [("documentos_referencia", "id", "doc-1")]

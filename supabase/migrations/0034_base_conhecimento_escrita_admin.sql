@@ -44,6 +44,15 @@
 --   * as outras duas tabelas do grupo (`fontes_conhecimento`,
 --     `regras_conhecimento`) continuam sem DELETE: a interface nova não as
 --     edita, e abrir escrita sem tela que a use é porta sem dono;
+--   * a PROVENIÊNCIA do vetor: o INSERT é de tabela inteira, então o admin
+--     consegue gravar `embedding_v2`/`embedding_status` com o valor que
+--     quiser. Quem garante o modelo pinado é o código (`rag.indexar`), não o
+--     banco. Alcance: o próprio tenant, só o admin;
+--   * a exclusão não deixa trilha no banco (só o log da API), como já era no
+--     Streamlit com `service_role` — a 0027 manteve esse DELETE de propósito;
+--   * o cascade sob `force row level security` (0019): o PostgreSQL não
+--     aplica RLS às ações referenciais; o ensaio local roda como dono e
+--     prova o PostgreSQL. A primeira exclusão real em produção é a medida;
 --   * o vetor: sem `OPENAI_EMBEDDINGS_KEY` no ambiente da API, o trecho
 --     nasce PENDENTE (busca textual). Isso é configuração do servidor, não
 --     do banco.
@@ -78,12 +87,14 @@ begin
     select 'politica_chunks_admin'
      where not exists (select 1 from pg_policies
                         where schemaname = 'public' and tablename = 'chunks_referencia'
-                          and policyname = 'chunks_referencia_admin' and cmd = 'INSERT')
+                          and policyname = 'chunks_referencia_admin' and cmd = 'INSERT'
+                          and roles = '{authenticated}'::name[])
     union all
     select 'politica_documentos_exclui'
      where not exists (select 1 from pg_policies
                         where schemaname = 'public' and tablename = 'documentos_referencia'
-                          and policyname = 'documentos_referencia_admin_exclui' and cmd = 'DELETE')
+                          and policyname = 'documentos_referencia_admin_exclui' and cmd = 'DELETE'
+                          and roles = '{authenticated}'::name[])
     union all
     -- o que NÃO pode ter vindo junto
     select 'delete_em_chunks'
@@ -95,7 +106,16 @@ begin
     union all
     select 'anon_em_' || t
       from unnest(array['chunks_referencia', 'documentos_referencia']) t
-     where has_table_privilege('anon', 'public.' || t, 'SELECT,INSERT,UPDATE,DELETE')
+     where has_table_privilege('anon', 'public.' || t, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+    union all
+    -- a classe da 0021/0024: o privilégio que ninguém nomeou
+    select 'privilegio_largo_em_' || t
+      from unnest(array['chunks_referencia', 'documentos_referencia']) t
+     where has_table_privilege('authenticated', 'public.' || t, 'TRUNCATE,REFERENCES,TRIGGER')
+    union all
+    select 'update_por_coluna_em_' || t
+      from unnest(array['chunks_referencia', 'documentos_referencia']) t
+     where has_any_column_privilege('authenticated', 'public.' || t, 'UPDATE')
     union all
     select 'rls_desligado_em_' || c.relname
       from pg_class c

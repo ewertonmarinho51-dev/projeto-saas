@@ -143,13 +143,41 @@ def test_ninguem_apaga_trecho_solto(banco, cenario):
     assert estado == "42501"
 
 
+# Cada ramo da conferência, quebrado de propósito: um `revoke` ou uma
+# política que não pegou não dá erro, e só este bloco os denuncia.
+MUTACOES = [
+    ("grant delete on public.chunks_referencia to authenticated", "delete_em_chunks"),
+    ("revoke insert on public.chunks_referencia from authenticated", "grant_insert_chunks"),
+    ("revoke delete on public.documentos_referencia from authenticated", "grant_delete_documentos"),
+    ('drop policy "chunks_referencia_admin" on public.chunks_referencia', "politica_chunks_admin"),
+    ('alter policy "chunks_referencia_admin" on public.chunks_referencia to public', "politica_chunks_admin"),
+    ('drop policy "documentos_referencia_admin_exclui" on public.documentos_referencia',
+     "politica_documentos_exclui"),
+    ("grant update on public.documentos_referencia to authenticated", "update_em_documentos_referencia"),
+    ("grant update (titulo) on public.documentos_referencia to authenticated",
+     "update_por_coluna_em_documentos_referencia"),
+    ("grant select on public.chunks_referencia to anon", "anon_em_chunks_referencia"),
+    ("grant truncate on public.chunks_referencia to authenticated", "privilegio_largo_em_chunks_referencia"),
+    ("alter table public.documentos_referencia disable row level security",
+     "rls_desligado_em_documentos_referencia"),
+]
+
+
 @requer_pg
-def test_a_conferencia_morde_com_delete_nos_trechos(banco, cenario):
+@pytest.mark.parametrize("mutacao,denuncia", MUTACOES)
+def test_a_conferencia_morde(banco, cenario, mutacao, denuncia):
     import psycopg
 
     conferencia = TEXTO[TEXTO.index("do $$"):]
-    with pytest.raises(psycopg.errors.RaiseException, match="delete_em_chunks"):
+    with pytest.raises(psycopg.errors.RaiseException, match=denuncia):
         with banco.transaction(force_rollback=True), banco.cursor() as c:
             voltar_a_ser_servidor(c)
-            c.execute("grant delete on public.chunks_referencia to authenticated")
+            c.execute(mutacao)
             c.execute(conferencia)
+
+
+@requer_pg
+def test_a_conferencia_passa_no_estado_certo(banco, cenario):
+    with banco.transaction(force_rollback=True), banco.cursor() as c:
+        voltar_a_ser_servidor(c)
+        c.execute(TEXTO[TEXTO.index("do $$"):])

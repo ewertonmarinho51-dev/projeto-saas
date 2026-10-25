@@ -246,6 +246,38 @@
         "title": "ArquivoLido",
         "type": "object"
       },
+      "BaseDeConhecimento": {
+        "properties": {
+          "categorias": {
+            "items": {
+              "$ref": "#/components/schemas/Opcao"
+            },
+            "title": "Categorias",
+            "type": "array"
+          },
+          "extensoes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Extensoes",
+            "type": "array"
+          },
+          "referencias": {
+            "items": {
+              "$ref": "#/components/schemas/govconect_api__base_conhecimento__Referencia"
+            },
+            "title": "Referencias",
+            "type": "array"
+          }
+        },
+        "required": [
+          "categorias",
+          "extensoes",
+          "referencias"
+        ],
+        "title": "BaseDeConhecimento",
+        "type": "object"
+      },
       "CampoDoFormulario": {
         "properties": {
           "ajuda": {
@@ -438,6 +470,22 @@
           "nao_lidos"
         ],
         "title": "Consolidacao",
+        "type": "object"
+      },
+      "Consulta": {
+        "additionalProperties": false,
+        "properties": {
+          "consulta": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Consulta",
+            "type": "string"
+          }
+        },
+        "required": [
+          "consulta"
+        ],
+        "title": "Consulta",
         "type": "object"
       },
       "DocumentoDescartado": {
@@ -1546,6 +1594,49 @@
         "title": "NovaPortaria",
         "type": "object"
       },
+      "NovaReferencia": {
+        "additionalProperties": false,
+        "properties": {
+          "categoria": {
+            "enum": [
+              "lei",
+              "acordao",
+              "entendimento",
+              "manual",
+              "processo_anterior",
+              "modelo",
+              "outro"
+            ],
+            "title": "Categoria",
+            "type": "string"
+          },
+          "conteudo": {
+            "maxLength": 13981021,
+            "minLength": 1,
+            "title": "Conteudo",
+            "type": "string"
+          },
+          "nome_arquivo": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome Arquivo",
+            "type": "string"
+          },
+          "titulo": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Titulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome_arquivo",
+          "categoria",
+          "conteudo"
+        ],
+        "title": "NovaReferencia",
+        "type": "object"
+      },
       "NovoMembro": {
         "additionalProperties": false,
         "properties": {
@@ -2483,207 +2574,45 @@
         "title": "Pronto",
         "type": "object"
       },
-      "Referencia": {
+      "ReferenciaExcluida": {
         "properties": {
-          "coletado_em": {
-            "title": "Coletado Em",
+          "id": {
+            "title": "Id",
             "type": "string"
-          },
-          "data_compra": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data Compra"
-          },
-          "data_resultado": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data Resultado"
-          },
-          "descricao_original": {
-            "title": "Descricao Original",
-            "type": "string"
-          },
-          "fonte": {
-            "title": "Fonte",
-            "type": "string"
-          },
-          "fonte_tipo": {
-            "title": "Fonte Tipo",
-            "type": "string"
-          },
-          "fornecedor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fornecedor"
-          },
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "ReferenciaExcluida",
+        "type": "object"
+      },
+      "ReferenciaIndexada": {
+        "properties": {
           "id": {
             "title": "Id",
             "type": "string"
           },
-          "identificacao": {
-            "title": "Identificacao",
+          "nome_arquivo": {
+            "title": "Nome Arquivo",
             "type": "string"
           },
-          "link_contratacao": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Link Contratacao"
+          "pendente_de_vetor": {
+            "title": "Pendente De Vetor",
+            "type": "boolean"
           },
-          "link_fonte": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Link Fonte"
-          },
-          "motivos": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Motivos",
-            "type": "array"
-          },
-          "municipio": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Municipio"
-          },
-          "natureza_valor": {
-            "title": "Natureza Valor",
-            "type": "string"
-          },
-          "orgao": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Orgao"
-          },
-          "rotulo_contratacao": {
-            "title": "Rotulo Contratacao",
-            "type": "string"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "uf": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Uf"
-          },
-          "unidade_normalizada": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unidade Normalizada"
-          },
-          "unidade_original": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unidade Original"
-          },
-          "valor_unitario_normalizado": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Valor"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "valor_unitario_original": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Valor"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "trechos": {
+            "title": "Trechos",
+            "type": "integer"
           }
         },
         "required": [
           "id",
-          "fonte",
-          "fonte_tipo",
-          "natureza_valor",
-          "status",
-          "descricao_original",
-          "unidade_original",
-          "valor_unitario_original",
-          "unidade_normalizada",
-          "valor_unitario_normalizado",
-          "orgao",
-          "uf",
-          "municipio",
-          "fornecedor",
-          "data_compra",
-          "data_resultado",
-          "coletado_em",
-          "motivos",
-          "link_contratacao",
-          "rotulo_contratacao",
-          "link_fonte",
-          "identificacao"
+          "nome_arquivo",
+          "trechos",
+          "pendente_de_vetor"
         ],
-        "title": "Referencia",
+        "title": "ReferenciaIndexada",
         "type": "object"
       },
       "ResultadoDaCesta": {
@@ -2932,6 +2861,34 @@
         "title": "Timbrado",
         "type": "object"
       },
+      "Trecho": {
+        "properties": {
+          "categoria_rotulo": {
+            "title": "Categoria Rotulo",
+            "type": "string"
+          },
+          "conteudo": {
+            "title": "Conteudo",
+            "type": "string"
+          },
+          "similaridade": {
+            "title": "Similaridade",
+            "type": "number"
+          },
+          "titulo": {
+            "title": "Titulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "titulo",
+          "categoria_rotulo",
+          "similaridade",
+          "conteudo"
+        ],
+        "title": "Trecho",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -3004,6 +2961,49 @@
         "title": "Vivo",
         "type": "object"
       },
+      "govconect_api__base_conhecimento__Referencia": {
+        "properties": {
+          "categoria": {
+            "title": "Categoria",
+            "type": "string"
+          },
+          "categoria_rotulo": {
+            "title": "Categoria Rotulo",
+            "type": "string"
+          },
+          "criado_em": {
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "nome_arquivo": {
+            "title": "Nome Arquivo",
+            "type": "string"
+          },
+          "titulo": {
+            "title": "Titulo",
+            "type": "string"
+          },
+          "total_chunks": {
+            "title": "Total Chunks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "titulo",
+          "categoria",
+          "categoria_rotulo",
+          "nome_arquivo",
+          "total_chunks",
+          "criado_em"
+        ],
+        "title": "Referencia",
+        "type": "object"
+      },
       "govconect_api__demandas__Modulos": {
         "properties": {
           "consolidar_demandas": {
@@ -3032,6 +3032,209 @@
         ],
         "title": "Modulos",
         "type": "object"
+      },
+      "govconect_api__precos__Referencia": {
+        "properties": {
+          "coletado_em": {
+            "title": "Coletado Em",
+            "type": "string"
+          },
+          "data_compra": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Compra"
+          },
+          "data_resultado": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Resultado"
+          },
+          "descricao_original": {
+            "title": "Descricao Original",
+            "type": "string"
+          },
+          "fonte": {
+            "title": "Fonte",
+            "type": "string"
+          },
+          "fonte_tipo": {
+            "title": "Fonte Tipo",
+            "type": "string"
+          },
+          "fornecedor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fornecedor"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "identificacao": {
+            "title": "Identificacao",
+            "type": "string"
+          },
+          "link_contratacao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Contratacao"
+          },
+          "link_fonte": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Fonte"
+          },
+          "motivos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Motivos",
+            "type": "array"
+          },
+          "municipio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Municipio"
+          },
+          "natureza_valor": {
+            "title": "Natureza Valor",
+            "type": "string"
+          },
+          "orgao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orgao"
+          },
+          "rotulo_contratacao": {
+            "title": "Rotulo Contratacao",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "uf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uf"
+          },
+          "unidade_normalizada": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidade Normalizada"
+          },
+          "unidade_original": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidade Original"
+          },
+          "valor_unitario_normalizado": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valor_unitario_original": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "fonte",
+          "fonte_tipo",
+          "natureza_valor",
+          "status",
+          "descricao_original",
+          "unidade_original",
+          "valor_unitario_original",
+          "unidade_normalizada",
+          "valor_unitario_normalizado",
+          "orgao",
+          "uf",
+          "municipio",
+          "fornecedor",
+          "data_compra",
+          "data_resultado",
+          "coletado_em",
+          "motivos",
+          "link_contratacao",
+          "rotulo_contratacao",
+          "link_fonte",
+          "identificacao"
+        ],
+        "title": "Referencia",
+        "type": "object"
       }
     }
   },
@@ -3041,6 +3244,158 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/base-conhecimento": {
+      "get": {
+        "operationId": "listar_api_v1_admin_base_conhecimento_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseDeConhecimento"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Listar",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      },
+      "post": {
+        "operationId": "indexar_api_v1_admin_base_conhecimento_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovaReferencia"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenciaIndexada"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "Arquivo acima de 10 MB"
+          },
+          "422": {
+            "description": "Formato não aceito ou sem texto indexável"
+          }
+        },
+        "summary": "Indexar",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/base-conhecimento/busca": {
+      "post": {
+        "description": "O que a IA veria: os trechos que a recuperação devolve para a consulta.",
+        "operationId": "buscar_api_v1_admin_base_conhecimento_busca_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Consulta"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Trecho"
+                  },
+                  "title": "Response Buscar Api V1 Admin Base Conhecimento Busca Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Buscar",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/base-conhecimento/{referencia_id}": {
+      "delete": {
+        "operationId": "excluir_api_v1_admin_base_conhecimento__referencia_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referencia_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Referencia Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenciaExcluida"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Referência fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Excluir",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
     "/api/v1/admin/instituicao": {
       "get": {
         "operationId": "visao_api_v1_admin_instituicao_get",
@@ -4492,7 +4847,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/Referencia"
+                    "$ref": "#/components/schemas/govconect_api__precos__Referencia"
                   },
                   "title": "Response Referencias Api V1 Precos Pesquisas  Pesquisa Id  Itens  Item Id  Referencias Get",
                   "type": "array"
