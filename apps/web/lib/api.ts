@@ -272,6 +272,39 @@ export async function baixarDaApi(caminho: string): Promise<Response> {
   }
 }
 
+/**
+ * Arquivo gerado a partir de um corpo JSON (POST). Mesma regra do
+ * `baixarDaApi`: erro vira `ErroDaApi`; quem chama decide o que mostrar.
+ */
+export async function baixarDaApiComCorpo(caminho: string, corpo: unknown): Promise<ArrayBuffer> {
+  const token = await tokenDaSessao();
+  let resposta: Response;
+  try {
+    resposta = await fetch(`${baseDaApi()}/api/v1${caminho}`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+      signal: AbortSignal.timeout(60000),
+    });
+  } catch {
+    throw new ErroDaApi(503, "API_INDISPONIVEL", "");
+  }
+  if (!resposta.ok) {
+    let codigo = "ERRO";
+    let mensagem = "";
+    try {
+      const erro = (await resposta.json()) as { code?: string; message?: string };
+      codigo = erro.code ?? codigo;
+      mensagem = typeof erro.message === "string" ? erro.message.slice(0, 300) : "";
+    } catch {
+      /* corpo não-JSON */
+    }
+    throw new ErroDaApi(resposta.status, codigo, resposta.headers.get("x-request-id") ?? "", mensagem);
+  }
+  return resposta.arrayBuffer();
+}
+
 // ---------------------------------------------------------------------------
 // Aplicar ao processo (P04f). Prévia primeiro, sempre (§26).
 // ---------------------------------------------------------------------------
@@ -326,3 +359,46 @@ export type Formulario = {
 export type FormularioGravado = Formulario & { descartados: string[]; mudou: boolean };
 
 export type PlanilhaLida = { itens: ItemDaPlanilha[]; valor_estimado: number; valor_estimado_exibicao: string };
+
+// ---------------------------------------------------------------------------
+// Consolidar Demandas (M4). Quantidades chegam como TEXTO já formatado
+// pelo domínio (Decimal): o navegador não soma.
+// ---------------------------------------------------------------------------
+export type Modulos = { consolidar_demandas: boolean };
+
+export type Consolidacao = {
+  arquivos: {
+    nome: string;
+    status: string;
+    status_texto: string;
+    secretaria: string;
+    precisa_confirmar: boolean;
+    documentos: string[];
+    itens: number;
+  }[];
+  erros: { nome: string; mensagem: string }[];
+  secretarias: string[];
+  linhas: {
+    codigo: string;
+    descricao: string;
+    unidade: string;
+    por_secretaria: Record<string, string>;
+    total: string;
+    explicacao: string;
+  }[];
+  conflitos: { codigo: string; unidades: string[]; secretarias: string[]; aceito: boolean }[];
+  fecha: boolean;
+  divergencia: string;
+  ocorrencias: number;
+  duplicatas: string[];
+  nao_lidos: string[];
+};
+
+export type AplicacaoDaDemanda = {
+  itens: number;
+  secretarias: number;
+  ocorrencias: number;
+  nao_lidos: string[];
+  descartados: string[];
+  versao: string;
+};

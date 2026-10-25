@@ -91,6 +91,50 @@
         "title": "AlertaDePreco",
         "type": "object"
       },
+      "AplicacaoDaDemanda": {
+        "properties": {
+          "descartados": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Descartados",
+            "type": "array"
+          },
+          "itens": {
+            "title": "Itens",
+            "type": "integer"
+          },
+          "nao_lidos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Nao Lidos",
+            "type": "array"
+          },
+          "ocorrencias": {
+            "title": "Ocorrencias",
+            "type": "integer"
+          },
+          "secretarias": {
+            "title": "Secretarias",
+            "type": "integer"
+          },
+          "versao": {
+            "title": "Versao",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itens",
+          "secretarias",
+          "ocorrencias",
+          "nao_lidos",
+          "descartados",
+          "versao"
+        ],
+        "title": "AplicacaoDaDemanda",
+        "type": "object"
+      },
       "AplicacaoFeita": {
         "properties": {
           "documentos_descartados": {
@@ -131,6 +175,75 @@
           "pesquisa_marcada"
         ],
         "title": "AplicacaoFeita",
+        "type": "object"
+      },
+      "ArquivoEnviado": {
+        "additionalProperties": false,
+        "properties": {
+          "conteudo": {
+            "maxLength": 13981021,
+            "minLength": 1,
+            "title": "Conteudo",
+            "type": "string"
+          },
+          "nome": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome",
+          "conteudo"
+        ],
+        "title": "ArquivoEnviado",
+        "type": "object"
+      },
+      "ArquivoLido": {
+        "properties": {
+          "documentos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Documentos",
+            "type": "array"
+          },
+          "itens": {
+            "title": "Itens",
+            "type": "integer"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "precisa_confirmar": {
+            "title": "Precisa Confirmar",
+            "type": "boolean"
+          },
+          "secretaria": {
+            "title": "Secretaria",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "status_texto": {
+            "title": "Status Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome",
+          "status",
+          "status_texto",
+          "secretaria",
+          "precisa_confirmar",
+          "documentos",
+          "itens"
+        ],
+        "title": "ArquivoLido",
         "type": "object"
       },
       "CampoDoFormulario": {
@@ -212,6 +325,119 @@
           }
         },
         "title": "ConfirmacaoDaAplicacao",
+        "type": "object"
+      },
+      "ConflitoDeUnidade": {
+        "properties": {
+          "aceito": {
+            "title": "Aceito",
+            "type": "boolean"
+          },
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "secretarias": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Secretarias",
+            "type": "array"
+          },
+          "unidades": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unidades",
+            "type": "array"
+          }
+        },
+        "required": [
+          "codigo",
+          "unidades",
+          "secretarias",
+          "aceito"
+        ],
+        "title": "ConflitoDeUnidade",
+        "type": "object"
+      },
+      "Consolidacao": {
+        "properties": {
+          "arquivos": {
+            "items": {
+              "$ref": "#/components/schemas/ArquivoLido"
+            },
+            "title": "Arquivos",
+            "type": "array"
+          },
+          "conflitos": {
+            "items": {
+              "$ref": "#/components/schemas/ConflitoDeUnidade"
+            },
+            "title": "Conflitos",
+            "type": "array"
+          },
+          "divergencia": {
+            "title": "Divergencia",
+            "type": "string"
+          },
+          "duplicatas": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Duplicatas",
+            "type": "array"
+          },
+          "erros": {
+            "items": {
+              "$ref": "#/components/schemas/ErroDeArquivo"
+            },
+            "title": "Erros",
+            "type": "array"
+          },
+          "fecha": {
+            "title": "Fecha",
+            "type": "boolean"
+          },
+          "linhas": {
+            "items": {
+              "$ref": "#/components/schemas/LinhaConsolidada"
+            },
+            "title": "Linhas",
+            "type": "array"
+          },
+          "nao_lidos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Nao Lidos",
+            "type": "array"
+          },
+          "ocorrencias": {
+            "title": "Ocorrencias",
+            "type": "integer"
+          },
+          "secretarias": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Secretarias",
+            "type": "array"
+          }
+        },
+        "required": [
+          "arquivos",
+          "erros",
+          "secretarias",
+          "linhas",
+          "conflitos",
+          "fecha",
+          "divergencia",
+          "ocorrencias",
+          "duplicatas",
+          "nao_lidos"
+        ],
+        "title": "Consolidacao",
         "type": "object"
       },
       "DocumentoDescartado": {
@@ -303,6 +529,24 @@
           "motivo"
         ],
         "title": "ErroDaPlanilha",
+        "type": "object"
+      },
+      "ErroDeArquivo": {
+        "properties": {
+          "mensagem": {
+            "title": "Mensagem",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome",
+          "mensagem"
+        ],
+        "title": "ErroDeArquivo",
         "type": "object"
       },
       "Formulario": {
@@ -746,6 +990,47 @@
         "title": "Justificativa",
         "type": "object"
       },
+      "LinhaConsolidada": {
+        "properties": {
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "explicacao": {
+            "title": "Explicacao",
+            "type": "string"
+          },
+          "por_secretaria": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Por Secretaria",
+            "type": "object"
+          },
+          "total": {
+            "title": "Total",
+            "type": "string"
+          },
+          "unidade": {
+            "title": "Unidade",
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigo",
+          "descricao",
+          "unidade",
+          "por_secretaria",
+          "total",
+          "explicacao"
+        ],
+        "title": "LinhaConsolidada",
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "auth_user_id": {
@@ -796,6 +1081,19 @@
           "caracteres"
         ],
         "title": "MemorandoLido",
+        "type": "object"
+      },
+      "Modulos": {
+        "properties": {
+          "consolidar_demandas": {
+            "title": "Consolidar Demandas",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "consolidar_demandas"
+        ],
+        "title": "Modulos",
         "type": "object"
       },
       "Motivo": {
@@ -1084,6 +1382,45 @@
         "title": "PaginaDeProcessos",
         "type": "object"
       },
+      "PedidoDeAplicacao": {
+        "additionalProperties": false,
+        "properties": {
+          "arquivos": {
+            "items": {
+              "$ref": "#/components/schemas/ArquivoEnviado"
+            },
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Arquivos",
+            "type": "array"
+          },
+          "confirmar_descarte": {
+            "default": false,
+            "title": "Confirmar Descarte",
+            "type": "boolean"
+          },
+          "conflitos_aceitos": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Conflitos Aceitos",
+            "type": "array"
+          },
+          "rotulos": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Rotulos",
+            "type": "object"
+          }
+        },
+        "required": [
+          "arquivos"
+        ],
+        "title": "PedidoDeAplicacao",
+        "type": "object"
+      },
       "PedidoDeCiencia": {
         "additionalProperties": false,
         "properties": {
@@ -1110,6 +1447,40 @@
           }
         },
         "title": "PedidoDeColeta",
+        "type": "object"
+      },
+      "PedidoDeConsolidacao": {
+        "additionalProperties": false,
+        "properties": {
+          "arquivos": {
+            "items": {
+              "$ref": "#/components/schemas/ArquivoEnviado"
+            },
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Arquivos",
+            "type": "array"
+          },
+          "conflitos_aceitos": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Conflitos Aceitos",
+            "type": "array"
+          },
+          "rotulos": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Rotulos",
+            "type": "object"
+          }
+        },
+        "required": [
+          "arquivos"
+        ],
+        "title": "PedidoDeConsolidacao",
         "type": "object"
       },
       "PedidoDeRelatorio": {
@@ -2126,6 +2497,29 @@
         "summary": "Me",
         "tags": [
           "v1"
+        ]
+      }
+    },
+    "/api/v1/modulos": {
+      "get": {
+        "description": "Módulos opcionais disponíveis para quem está logado (menu da tela).",
+        "operationId": "modulos_api_v1_modulos_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Modulos"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Modulos",
+        "tags": [
+          "v1",
+          "demandas"
         ]
       }
     },
@@ -3356,6 +3750,194 @@
         "tags": [
           "v1",
           "processos"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/demandas/aplicacao": {
+      "put": {
+        "operationId": "aplicar_api_v1_processos__processo_id__demandas_aplicacao_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeAplicacao"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AplicacaoDaDemanda"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso ou módulo desligado"
+          },
+          "409": {
+            "description": "Versão desatualizada ou descarte não confirmado"
+          },
+          "422": {
+            "description": "Conflito pendente, soma que não fecha ou nada lido"
+          },
+          "428": {
+            "description": "If-Match ausente"
+          }
+        },
+        "summary": "Aplicar",
+        "tags": [
+          "v1",
+          "demandas"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/demandas/consolidacao": {
+      "post": {
+        "operationId": "consolidar_api_v1_processos__processo_id__demandas_consolidacao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeConsolidacao"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Consolidacao"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso ou módulo desligado"
+          },
+          "413": {
+            "description": "Arquivos acima do limite"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consolidar",
+        "tags": [
+          "v1",
+          "demandas"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/demandas/planilha": {
+      "post": {
+        "operationId": "planilha_consolidada_api_v1_processos__processo_id__demandas_planilha_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeConsolidacao"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso ou módulo desligado"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Planilha Consolidada",
+        "tags": [
+          "v1",
+          "demandas"
         ]
       }
     },

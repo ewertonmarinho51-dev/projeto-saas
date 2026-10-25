@@ -7,12 +7,14 @@ import {
   Button,
   Card,
   Checkbox,
+  DataTable,
   Field,
   IconButton,
   Input,
   ProgressBar,
   Select,
   Textarea,
+  type DataTableColumn,
 } from "@/design-system";
 import {
   gravarFormulario,
@@ -166,6 +168,39 @@ export function FormularioMatriz({ processo, formulario, aviso }: { processo: st
 
   const campoItens = campos.itens;
 
+  // A planilha editável pelo DataTable do design system: cada célula é um
+  // Input; a linha carrega o índice como chave.
+  type LinhaDaTabela = Linha & { id: string };
+  const colunasDaPlanilha: DataTableColumn<LinhaDaTabela>[] = [
+    ...[...COLUNAS, ...extras.map((e) => ({ chave: e, rotulo: e, numero: false, largo: false }))].map((c) => ({
+      key: c.chave,
+      label: c.rotulo,
+      width: c.largo ? "20rem" : undefined,
+      render: (linha: LinhaDaTabela) => (
+        <Input
+          size="sm"
+          aria-label={`${c.rotulo}, item ${Number(linha.id) + 1}`}
+          inputMode={"numero" in c && c.numero ? "decimal" : undefined}
+          value={linha[c.chave] ?? ""}
+          onChange={(e) => mudarCelula(Number(linha.id), c.chave, e.target.value)}
+        />
+      ),
+    })),
+    {
+      key: "remover",
+      label: <span className="gc-sr-only">Remover</span>,
+      render: (linha: LinhaDaTabela) => (
+        <IconButton
+          icon="trash"
+          label={`Remover item ${Number(linha.id) + 1}`}
+          size="sm"
+          variant="danger"
+          onClick={() => setLinhas((ls) => ls.filter((_, j) => j !== Number(linha.id)))}
+        />
+      ),
+    },
+  ];
+
   return (
     <form action={executar} className="grid gap-6" data-testid="formulario-matriz">
       <input type="hidden" name="id" value={processo} />
@@ -268,48 +303,14 @@ export function FormularioMatriz({ processo, formulario, aviso }: { processo: st
             </div>
           }
         >
-          <div className="gc-table-wrap rounded-none border-0">
-            <table className="gc-table gc-table--compact min-w-[56rem]" data-testid="planilha-itens">
-              <caption className="gc-sr-only">Planilha orçamentária: um item por linha</caption>
-              <thead>
-                <tr>
-                  {[...COLUNAS, ...extras.map((e) => ({ chave: e, rotulo: e }))].map((c) => (
-                    <th key={c.chave} scope="col">
-                      {c.rotulo}
-                    </th>
-                  ))}
-                  <th scope="col">
-                    <span className="gc-sr-only">Remover</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {linhas.map((linha, i) => (
-                  <tr key={i}>
-                    {[...COLUNAS, ...extras.map((e) => ({ chave: e, rotulo: e, numero: false, largo: false }))].map((c) => (
-                      <td key={c.chave} className={c.largo ? "min-w-[20rem]" : undefined}>
-                        <Input
-                          size="sm"
-                          aria-label={`${c.rotulo}, item ${i + 1}`}
-                          inputMode={"numero" in c && c.numero ? "decimal" : undefined}
-                          value={linha[c.chave] ?? ""}
-                          onChange={(e) => mudarCelula(i, c.chave, e.target.value)}
-                        />
-                      </td>
-                    ))}
-                    <td>
-                      <IconButton
-                        icon="trash"
-                        label={`Remover item ${i + 1}`}
-                        size="sm"
-                        variant="danger"
-                        onClick={() => setLinhas((ls) => ls.filter((_, j) => j !== i))}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div data-testid="planilha-itens">
+            <DataTable
+              compact
+              caption="Planilha orçamentária: um item por linha"
+              minWidth="56rem"
+              columns={colunasDaPlanilha}
+              rows={linhas.map((linha, i) => ({ ...linha, id: String(i) }))}
+            />
           </div>
         </Card>
       )}
