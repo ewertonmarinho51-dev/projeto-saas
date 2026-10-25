@@ -35,9 +35,14 @@ App Streamlit que gera documentos da fase preparatória de licitações
   DESIGN.md do Google Labs). O CSS em `apps/web/design-system/tokens/`
   implementa; `apps/web/tests/design-system.test.ts` reprova se divergirem.
   Mudou token: os dois no mesmo commit.
-- **Componente novo nasce de `apps/web/design-system/`** e é importado de
-  `@/design-system` (nunca de arquivo interno). Faltou peça: crie lá, com
-  variante na vitrine `/design-system`, não na página.
+- **Peça de interface nova nasce em `apps/web/design-system/`** (botão,
+  campo, tabela, cartão, padrão de tela — o que serve a mais de uma tela,
+  sem regra de negócio) e é importada de `@/design-system` (nunca de
+  arquivo interno), com variante na vitrine `/design-system`. **Tela de
+  funcionalidade** (formulário de processo, consolidação de demandas…)
+  mora em `apps/web/components/` ou na rota, chama as actions do
+  servidor e se monta SÓ com peças do design system — sem estilo próprio
+  além de layout com token.
 - **Nenhum valor visual solto**: hex, px e fonte vêm de token
   (`var(--…)` ou utilitário do Tailwind mapeado em `app/globals.css`). O
   ESLint avisa no app e recusa dentro de `design-system/`.
