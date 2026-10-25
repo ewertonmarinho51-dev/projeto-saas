@@ -164,6 +164,10 @@ SEQUENCIA_EM_ENSAIO = (
     # A 0033 confere que `config_app` continua sem grant e sem política —
     # o que só é verdade depois da 0018/0020.
     "0033_flags_do_app.sql",
+    # A 0034 usa `e_admin()` e `tenant_do_jwt()` da 0020 nas políticas e
+    # confere grants que só fazem sentido depois da 0019. Antes da 0027,
+    # que é a última.
+    "0034_base_conhecimento_escrita_admin.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

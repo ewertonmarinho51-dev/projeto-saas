@@ -22,7 +22,7 @@ Feature flag `flag_canonical_facts` (default OFF):
 import logging
 import re
 
-import streamlit as st
+from .streamlit_opcional import st
 
 from . import blocos, db, governanca, planilha
 
