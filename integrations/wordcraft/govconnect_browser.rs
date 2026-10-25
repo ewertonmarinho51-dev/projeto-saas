@@ -15,6 +15,10 @@ enum InteractionLock {
     Locked,
 }
 
+fn drain_completed(input_ready: bool, released: bool, ime_empty: bool) -> bool {
+    input_ready && released && ime_empty
+}
+
 struct EditorApp {
     app: WordApp,
     interaction_lock: Rc<Cell<InteractionLock>>,
@@ -51,8 +55,13 @@ impl eframe::App for EditorApp {
         if self.interaction_lock.get() == InteractionLock::Draining {
             // raw_input_hook runs BEFORE WordApp's text/IME commands. Only the
             // completed UI pass can attest that captured input reached Session.
-            let released = ui.input(|input| !input.pointer.any_down() && input.keys_down.is_empty());
-            if released && self.app.canvas.ime_preedit.is_empty() {
+            let released =
+                ui.input(|input| !input.pointer.any_down() && input.keys_down.is_empty());
+            if drain_completed(
+                self.input_ready.get(),
+                released,
+                self.app.canvas.ime_preedit.is_empty(),
+            ) {
                 self.interaction_lock.set(InteractionLock::Locked);
             } else {
                 // Preserve an active composition/gesture, including its eventual commit/release.
@@ -77,6 +86,19 @@ impl eframe::App for EditorApp {
         // Draining must forward existing input. Hidden tabs have no UI pass;
         // eframe retains their RawInput and readiness remains false.
         self.app.raw_input_hook(input);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::drain_completed;
+
+    #[test]
+    fn remounted_canvas_waits_for_input_initialization_before_freezing() {
+        assert!(!drain_completed(false, true, true));
+        assert!(!drain_completed(true, false, true));
+        assert!(!drain_completed(true, true, false));
+        assert!(drain_completed(true, true, true));
     }
 }
 
@@ -357,15 +379,15 @@ impl GovConnectEditor {
             return Err(error("editor is not ready"));
         }
         if locked {
-            if !self.input_ready.get() {
-                return Err(error("canvas input is not initialized"));
-            }
             if self.interaction_lock.get() == InteractionLock::Open {
                 // The host call runs between eframe passes. Mark the next pass
-                // as draining immediately: some WebRunner repaint paths do not
-                // invoke raw_input_hook when there is no fresh browser input.
-                // EditorApp::ui still runs WordApp first and only then promotes
-                // this to Locked after proving pointer, keys and IME released.
+                // as draining immediately, even when Streamlit delivered the
+                // command while a freshly remounted canvas is still completing
+                // its font/input initialization. EditorApp::ui waits for all
+                // initialization passes, then runs WordApp and only afterwards
+                // promotes this to Locked after proving pointer, keys and IME
+                // released. Some WebRunner repaint paths do not invoke
+                // raw_input_hook when there is no fresh browser input.
                 self.interaction_lock.set(InteractionLock::Draining);
             }
         } else {
