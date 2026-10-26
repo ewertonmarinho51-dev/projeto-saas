@@ -148,6 +148,14 @@ export type ItemDePesquisa = {
   revisao: number;
 };
 
+/** O card "Confira este preço" da cesta (M10a). */
+export type AlertaDePreco = {
+  referencia_id: string;
+  mantida: boolean;
+  faixa_min: Valor | null;
+  faixa_max: Valor | null;
+};
+
 export type PesquisaDePrecos = ResumoPesquisa & {
   data_base: string | null;
   responsavel: string;
