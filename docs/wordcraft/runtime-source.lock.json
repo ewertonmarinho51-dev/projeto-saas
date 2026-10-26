@@ -1,5 +1,6 @@
 {
   "producer_commit": "f90814ab8e3b60406fc62df0afe8bacf279db63a",
+  "ancestry_merge_commit": "64e8e7795826bebdc93ed3fe22e2f39eb70fec38",
   "build_run_id": 40195890362,
   "build_artifact_id": 12600179455,
   "build_artifact_sha256": "15cb0f8cc02fda2bfbbe5b8764830787985ec916cd431c1a280625f9b0b3ee3e",
