@@ -110,3 +110,20 @@ nativos de volta para Markdown.
 saudáveis, Auth real foi confirmado e o escopo do tenant está correto. Corte
 global, retirada do legado e conclusão do Gate 7 continuam bloqueados até o
 roteiro funcional acima produzir evidência em produção.
+
+## Candidato de correção do bloqueio no remount — 26/10/2026
+
+O runtime que tolera a solicitação de `freeze` antes da terceira passagem de
+inicialização do canvas foi produzido e reconciliado com evidência imutável:
+
+- produtor: `f90814ab8e3b60406fc62df0afe8bacf279db63a`;
+- build WordCraft: run `40195890362`, artefato `12600179455`, SHA-256
+  `15cb0f8cc02fda2bfbbe5b8764830787985ec916cd431c1a280625f9b0b3ee3e`;
+- fidelidade G3 sobre esse artefato: run `40326757449`, artefato
+  `12652350104`, SHA-256
+  `822f77d3fbd1d14224fc68d93ca30d1de7592e6d44e6f2147596c0c9dcc55b1c`.
+
+A aprovação do runtime exige que o produtor pertença à ancestralidade de
+`main`. Por isso, a branch de evidência deve ser integrada com método `merge`,
+preservando o produtor como ancestral; squash não satisfaz esse gate. O run de
+release posterior a essa integração é a autoridade para o pacote implantável.
