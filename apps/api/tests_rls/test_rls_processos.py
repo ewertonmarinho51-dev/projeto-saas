@@ -41,7 +41,9 @@ def test_me_devolve_o_vinculo_do_token_real(api, pilha):
     r = api.get("/api/v1/me", headers=_h(a1))
     assert r.status_code == 200, r.text
     assert r.json() == {"auth_user_id": a1.auth_user_id, "tenant_id": a1.tenant_id,
-                        "papel": "usuario", "secretaria_id": a1.secretaria_id}
+                        "papel": "usuario", "secretaria_id": a1.secretaria_id,
+                        # servidor comum, sem papel de governança: sem Centro
+                        "governanca": False}
 
 
 def test_sem_credencial_e_401(api):
