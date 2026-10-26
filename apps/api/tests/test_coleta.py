@@ -232,3 +232,65 @@ def test_token_nao_vai_para_o_log_da_fila():
     assert kw["args"][1] == token                       # vai na mensagem...
     assert token not in kw["argsrepr"]                  # ...mas não no log
     assert 1700 <= kw["expires"] <= 1800                # e expira com ele
+
+
+# ---------------------------------------------------------------------------
+# Busca de UM item (M10b): o painel "Pesquisar preços" do GovDocs
+# ---------------------------------------------------------------------------
+ITEM = "dddddddd-0000-4000-8000-0000000000a1"
+
+
+def _banco_do_item(estado="in_review", existe=True):
+    b = PostgrestFalso()
+    b.responder("GET", "pesquisas_preco", 200, [{"id": P, "auth_user_id": USUARIO_A, "estado": "review"}])
+    b.responder("GET", "pesquisa_preco_itens", 200, [{"id": ITEM, "estado": estado}] if existe else [])
+    return b
+
+
+def test_pedido_de_um_item_grava_termo_e_filtros_e_total_1(emissor):
+    banco = _banco_do_item()
+    banco.responder("POST", "api_jobs", 201, [_job(total=1)])
+    fila = FilaFalsa()
+    r = _api(emissor, banco, fila).post(URL, headers=_h(emissor), json={
+        "modo": "automatico", "item_id": ITEM, "termo": " caneta azul ",
+        "filtros": {"janela_dias": 90, "uf": "pa"}})
+    assert r.status_code == 202, r.text
+    gravado = banco.corpo(next(c for c in banco.chamadas if c.method == "POST"))
+    assert gravado["total"] == 1
+    assert gravado["parametros"] == {"modo": "automatico", "item_id": ITEM, "termo": "caneta azul",
+                                     "filtros": {"janela_dias": 90, "uf": "pa"}}
+
+
+@pytest.mark.parametrize("estado, existe, status", [("complete", True, 409), ("in_review", False, 404)])
+def test_item_concluido_ou_de_fora_nao_vai_para_a_fila(emissor, estado, existe, status):
+    banco = _banco_do_item(estado, existe)
+    fila = FilaFalsa()
+    r = _api(emissor, banco, fila).post(URL, headers=_h(emissor), json={"item_id": ITEM})
+    assert r.status_code == status
+    assert fila.avisos == [] and not any(c.method == "POST" for c in banco.chamadas)
+
+
+@pytest.mark.parametrize("filtros", [{"janela_dias": 10}, {"janela_dias": 400}, {"uf": "PAR"}, {"x": 1}])
+def test_filtros_fora_da_regra_sao_422(emissor, filtros):
+    banco = _banco_do_item()
+    r = _api(emissor, banco, FilaFalsa()).post(URL, headers=_h(emissor), json={"item_id": ITEM, "filtros": filtros})
+    assert r.status_code == 422
+
+
+def test_worker_busca_so_o_item_pedido_literal_e_guarda_a_mensagem(banco, dominio, monkeypatch):
+    recebido = {}
+
+    def pesquisar_item(ctx, pesquisa_id, item_id, *, modo, termo, filtros, **opcoes):
+        recebido.update(item=item_id, modo=modo, termo=termo, filtros=filtros, opcoes=opcoes)
+        return type("R", (), {"mensagem": "Preço formado com 3 preços."})()
+
+    monkeypatch.setattr(cotacoes, "pesquisar_item", pesquisar_item)
+    banco.responder("GET", "api_jobs", 200, [_job(total=1, parametros={
+        "modo": "manual", "item_id": ITEM, "termo": "caneta", "filtros": {"janela_dias": 90, "uf": "pa"}})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    assert recebido == {"item": ITEM, "modo": "manual", "termo": "caneta",
+                        "filtros": {"janela_dias": 90, "uf": "PA", "literal": True}, "opcoes": {"fontes": []}}
+    assert dominio["chamadas"] == 0, "o lote não pode rodar junto"
+    final = _patches(banco)[-1]
+    assert final["estado"] == "succeeded" and final["feitos"] == 1
+    assert final["resultado"] == {"mensagem": "Preço formado com 3 preços."}

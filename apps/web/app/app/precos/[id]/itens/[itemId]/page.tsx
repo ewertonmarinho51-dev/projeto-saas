@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowSquareOut } from "@phosphor-icons/react/dist/ssr";
 import { dataCurta, rotuloNatureza, rotuloStatusReferencia } from "@/components/precos";
 import { AcaoNaCesta } from "@/components/acao-cesta";
 import { AtoNoItem } from "@/components/ato-item";
-import { AlertaDoPreco, DesfazerRetirada, EdicaoDoItem } from "@/components/gestao-cotacao";
+import { AlertaDoPreco, BuscaDoItem, DesfazerRetirada, EdicaoDoItem, ProgressoDaBusca } from "@/components/gestao-cotacao";
 import { cartao } from "@/components/ui";
 import {
   chamarApi,
@@ -39,7 +39,7 @@ export default async function Referencias({
 }) {
   if (!precosHabilitado()) notFound();
   const { id, itemId } = await params;
-  const { cesta, item: atoNoItem, ref } = await searchParams;
+  const { cesta, item: atoNoItem, ref, busca } = await searchParams;
   if (!UUID.test(id) || !UUID.test(itemId)) notFound();
 
   let refs: ReferenciaDePreco[];
@@ -110,6 +110,17 @@ export default async function Referencias({
       {/* `key` pelo estado: concluir troca o formulário por reabrir, e um
           componente novo nasce com a ação certa e sem o erro anterior. */}
       <AtoNoItem key={item.estado} pesquisa={id} item={item.id} revisao={item.revisao} estado={item.estado} />
+      {typeof busca === "string" && UUID.test(busca) && <ProgressoDaBusca jobId={busca} />}
+      {editavel && item.estado !== "complete" && (
+        // Chave nova a cada renderização: reenviar não põe duas buscas na fila.
+        <BuscaDoItem
+          pesquisa={id}
+          item={item.id}
+          termo={item.descricao}
+          uf={item.uf ?? ""}
+          chave={`web-busca-${crypto.randomUUID()}`}
+        />
+      )}
       {editavel && <EdicaoDoItem key={item.revisao} pesquisa={id} item={item} />}
 
       {refs.length === 0 ? (

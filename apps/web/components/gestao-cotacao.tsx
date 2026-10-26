@@ -1,10 +1,14 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
 
 import { Alert, Button, Card, Dialog, Field, Input, Textarea } from "@/design-system";
 import {
   arquivarPesquisa,
+  buscarItem,
+  concluirPesquisa,
+  criarRevisao,
   desfazerRetirada,
   duplicarPesquisa,
   editarItem,
@@ -13,6 +17,7 @@ import {
   retirarItem,
   type EstadoDaGestao,
 } from "@/app/app/precos/gestao";
+import { useJob } from "@/components/acompanhar-job";
 import type { AlertaDePreco, ItemDePesquisa } from "@/lib/api";
 
 const INICIAL: EstadoDaGestao = { erro: null, ok: null };
@@ -265,4 +270,150 @@ export function AlertaDoPreco({
       <Retorno estado={ato.estado} />
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// M10b: concluir a cotação e criar revisão
+// ---------------------------------------------------------------------------
+export function FechamentoDaPesquisa({
+  pesquisa,
+  estado,
+  itens,
+  faltam,
+}: {
+  pesquisa: string;
+  estado: string;
+  itens: number;
+  /** Itens ainda não concluídos: com algum, o botão diz por que não. */
+  faltam: number;
+}) {
+  const [revisar, setRevisar] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const ato = useAto();
+  const podeConcluir = itens > 0 && !["completed", "applied", "archived"].includes(estado);
+  return (
+    <div className="grid gap-2" data-testid="fechamento-pesquisa">
+      <div className="flex flex-wrap items-center gap-2">
+        {podeConcluir && (
+          <Button
+            icon="check-circle"
+            disabled={faltam > 0}
+            loading={ato.ocupado}
+            onClick={() => ato.rodar(() => concluirPesquisa(pesquisa))}
+          >
+            Concluir cotação
+          </Button>
+        )}
+        {estado !== "archived" && (
+          <Button variant="ghost" icon="arrows-clockwise" onClick={() => setRevisar(true)}>
+            Nova revisão
+          </Button>
+        )}
+      </div>
+      {podeConcluir && faltam > 0 && (
+        <p className="text-[length:var(--gc-fs-sm)] text-secundario">
+          Para concluir, todos os itens precisam estar concluídos. Faltam {faltam}.
+        </p>
+      )}
+      <Retorno estado={ato.estado} />
+      <Dialog
+        open={revisar}
+        onClose={() => setRevisar(false)}
+        icon="arrows-clockwise"
+        title="Criar uma revisão"
+        description="A revisão é a mesma pesquisa numa versão nova e editável, com os itens e os preços copiados. A versão atual fica guardada como está."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRevisar(false)}>
+              Cancelar
+            </Button>
+            <Button
+              loading={ato.ocupado}
+              onClick={() => {
+                setRevisar(false);
+                ato.rodar(() => criarRevisao(pesquisa, motivo));
+              }}
+            >
+              Criar revisão
+            </Button>
+          </>
+        }
+      >
+        <Field label="Motivo da revisão" htmlFor="revisao-motivo" optional>
+          <Textarea id="revisao-motivo" rows={2} maxLength={1000} value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+        </Field>
+      </Dialog>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// M10b: pesquisar preços de UM item (pelo worker)
+// ---------------------------------------------------------------------------
+export function BuscaDoItem({
+  pesquisa,
+  item,
+  termo,
+  uf,
+  chave,
+}: {
+  pesquisa: string;
+  item: string;
+  termo: string;
+  uf: string;
+  chave: string;
+}) {
+  const [estado, acao, enviando] = useActionState(buscarItem.bind(null, pesquisa, item, chave), INICIAL);
+  return (
+    <Card
+      title="Pesquisar preços deste item"
+      subtitle="A descrição do item continua sendo a referência de comparação; o termo só amplia a consulta às fontes oficiais."
+      divided
+    >
+      <form action={acao} className="grid gap-4 md:grid-cols-[3fr_1fr_1fr]" data-testid="busca-item">
+        <Field label="Termo da busca" htmlFor="busca-termo">
+          <Input id="busca-termo" name="termo" defaultValue={termo} maxLength={300} />
+        </Field>
+        <Field label="Janela (dias)" htmlFor="busca-janela" help="De 30 a 180">
+          <Input id="busca-janela" name="janela" type="number" min={30} max={180} step={30} defaultValue={180} />
+        </Field>
+        <Field label="UF" htmlFor="busca-uf" optional>
+          <Input id="busca-uf" name="uf" maxLength={2} defaultValue={uf} />
+        </Field>
+        <div className="grid gap-3 md:col-span-3">
+          <Retorno estado={estado} />
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" name="modo" value="manual" variant="secondary" icon="magnifying-glass" loading={enviando}>
+              Pesquisar preços
+            </Button>
+            <Button type="submit" name="modo" value="automatico" loading={enviando}>
+              Cotação automática deste item
+            </Button>
+          </div>
+          <p className="text-[length:var(--gc-fs-sm)] text-secundario">
+            Busca pelo termo literal, em todas as fontes oficiais. A ampliação por sinônimos continua no GovDocs.
+          </p>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+export function ProgressoDaBusca({ jobId }: { jobId: string }) {
+  const router = useRouter();
+  const { job, erro } = useJob(jobId, () => router.refresh());
+  if (!job) return <Alert variant="info" compact>{erro ?? "Consultando a busca..."}</Alert>;
+  if (job.estado === "succeeded")
+    return (
+      <Alert variant="success" compact title="Busca concluída">
+        {job.resultado?.mensagem || "As referências encontradas estão abaixo."}
+      </Alert>
+    );
+  if (job.estado === "failed")
+    return (
+      <Alert variant="error" compact>
+        A busca não terminou. O que já estava no item continua; tente de novo.
+      </Alert>
+    );
+  return <Alert variant="info" compact>{job.estado === "queued" ? "Busca na fila." : "Consultando as fontes oficiais..."}</Alert>;
 }

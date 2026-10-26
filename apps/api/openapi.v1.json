@@ -846,6 +846,27 @@
         "title": "Excluida",
         "type": "object"
       },
+      "FiltrosDaBusca": {
+        "additionalProperties": false,
+        "description": "Os filtros da busca de UM item (o painel \"Pesquisar preços\" do GovDocs).",
+        "properties": {
+          "janela_dias": {
+            "default": 180,
+            "maximum": 180.0,
+            "minimum": 30.0,
+            "title": "Janela Dias",
+            "type": "integer"
+          },
+          "uf": {
+            "default": "",
+            "maxLength": 2,
+            "title": "Uf",
+            "type": "string"
+          }
+        },
+        "title": "FiltrosDaBusca",
+        "type": "object"
+      },
       "Formulario": {
         "properties": {
           "a_descartar": {
@@ -2287,9 +2308,37 @@
       "PedidoDeColeta": {
         "additionalProperties": false,
         "properties": {
+          "filtros": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FiltrosDaBusca"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id"
+          },
           "modo": {
             "default": "manual",
             "title": "Modo",
+            "type": "string"
+          },
+          "termo": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Termo",
             "type": "string"
           }
         },
@@ -2366,6 +2415,19 @@
           "formato"
         ],
         "title": "PedidoDeRelatorio",
+        "type": "object"
+      },
+      "PedidoDeRevisao": {
+        "additionalProperties": false,
+        "properties": {
+          "motivo": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Motivo",
+            "type": "string"
+          }
+        },
+        "title": "PedidoDeRevisao",
         "type": "object"
       },
       "PendenciaDeItem": {
@@ -5618,6 +5680,53 @@
         ]
       }
     },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/conclusao": {
+      "post": {
+        "description": "Todos os itens concluídos → cotação CONCLUÍDA. É ato humano: o sistema nunca a declara sozinho.",
+        "operationId": "concluir_api_v1_precos_pesquisas__pesquisa_id__conclusao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesquisaCriada"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o dono ou o administrador"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "409": {
+            "description": "Cotação imutável"
+          },
+          "422": {
+            "description": "Há itens não concluídos"
+          }
+        },
+        "summary": "Concluir",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
     "/api/v1/precos/pesquisas/{pesquisa_id}/duplicacao": {
       "post": {
         "description": "Cópia NOVA, mesmos itens e nenhum preço: a coleta é refeita na nova data-base.\nLer basta: a cópia é de quem duplica.",
@@ -6621,6 +6730,66 @@
           }
         },
         "summary": "Pedir Relatorio",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/revisao": {
+      "post": {
+        "description": "Revisão lógica (§44): a mesma pesquisa, nova versão editável, com itens e referências\ncopiados no banco (RPC `revisar_pesquisa_preco`, numa transação só).",
+        "operationId": "revisar_api_v1_precos_pesquisas__pesquisa_id__revisao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeRevisao"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesquisaCriada"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o dono ou o administrador"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revisar",
         "tags": [
           "v1",
           "precos"

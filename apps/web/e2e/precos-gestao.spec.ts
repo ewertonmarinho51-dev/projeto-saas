@@ -11,7 +11,7 @@ const estado = JSON.parse(readFileSync(process.env.GOVCONECT_E2E_ESTADO ?? "", "
   contas: Record<string, { email: string; senha: string }>;
 };
 
-test("incluir, editar e retirar item; duplicar e arquivar a pesquisa", async ({ page }) => {
+test("incluir, editar, pesquisar e retirar item; duplicar, revisar e arquivar", async ({ page }) => {
   await page.goto("/entrar");
   await page.getByLabel("E-mail institucional").fill(estado.contas.a1_gestao.email);
   await page.getByLabel("Senha", { exact: true }).fill(estado.contas.a1_gestao.senha);
@@ -35,6 +35,9 @@ test("incluir, editar e retirar item; duplicar e arquivar a pesquisa", async ({ 
   await expect(page.getByText("Item incluído.")).toBeVisible();
   const linhas = page.locator("section[aria-labelledby=titulo-itens] tbody tr");
   await expect(linhas).toHaveCount(1);
+  // Com item aberto, concluir a cotação fica travado e diz por quê.
+  await expect(page.getByRole("button", { name: "Concluir cotação" })).toBeDisabled();
+  await expect(page.getByText("Faltam 1.")).toBeVisible();
 
   // Editar a quantidade.
   await linhas.first().getByRole("link").click();
@@ -43,6 +46,11 @@ test("incluir, editar e retirar item; duplicar e arquivar a pesquisa", async ({ 
   await edicao.getByLabel("Quantidade").fill("12");
   await edicao.getByRole("button", { name: "Salvar item" }).click();
   await expect(page.getByText("Item salvo.")).toBeVisible();
+
+  // Pesquisar preços só deste item: vai pelo worker e a página acompanha.
+  await page.getByTestId("busca-item").getByRole("button", { name: "Pesquisar preços" }).click();
+  await expect(page).toHaveURL(/\?busca=[0-9a-f-]{36}$/);
+  await expect(page.getByText("Busca concluída")).toBeVisible({ timeout: 30_000 });
 
   // Retirar (sem motivo: a auditoria é automática).
   await page.getByRole("button", { name: "Retirar item" }).click();
@@ -55,6 +63,11 @@ test("incluir, editar e retirar item; duplicar e arquivar a pesquisa", async ({ 
   await page.getByRole("button", { name: "Duplicar" }).click();
   await expect(page).toHaveURL(/\?duplicada=1$/);
   await expect(page.getByTestId("titulo-pesquisa")).toHaveText(`${nome} (cópia)`);
+  await page.getByRole("button", { name: "Nova revisão" }).click();
+  await page.getByRole("dialog").getByLabel("Motivo da revisão").fill("Conferência do E2E");
+  await page.getByRole("dialog").getByRole("button", { name: "Criar revisão" }).click();
+  await expect(page).toHaveURL(/\?revisao=1$/);
+  await expect(page.getByText("Revisão criada")).toBeVisible();
   await page.getByRole("button", { name: "Arquivar" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Arquivar", exact: true }).click();
   await expect(page).toHaveURL(/\?arquivada=1$/);

@@ -211,3 +211,31 @@ def test_alertas_basta_ler_e_traz_a_faixa_dos_demais(emissor, dominio):
     assert primeiro["referencia_id"] == R and primeiro["mantida"] is False
     assert (primeiro["faixa_min"]["valor"], primeiro["faixa_max"]["valor"]) == ("1.90", "2.10")
     assert segundo["mantida"] is True and segundo["faixa_min"] is None
+
+
+def test_concluir_a_cotacao_e_ato_do_dono_e_repetir_nao_refaz(emissor, dominio):
+    dominio["monkeypatch"].setattr(cotacoes, "concluir_cotacao",
+                                   dominio["registra"]("concluir", {"id": P, "estado": "completed"}))
+    assert _api(emissor, _banco(dono="outra-pessoa")).post(f"{BASE}/conclusao", headers=_h(emissor)).status_code == 403
+    r = _api(emissor, _banco()).post(f"{BASE}/conclusao", headers=_h(emissor))
+    assert r.status_code == 200 and r.json()["estado"] == "completed"
+    assert [c[0] for c in dominio["chamadas"]] == ["concluir"]
+    r = _api(emissor, _banco(estado="completed")).post(f"{BASE}/conclusao", headers=_h(emissor))
+    assert r.status_code == 200 and len(dominio["chamadas"]) == 1
+
+
+def test_concluir_com_item_aberto_devolve_a_mensagem_do_dominio(emissor, dominio):
+    erro = cotacoes.ErroCotacao("conclua todos os itens antes — faltam: 2, 5")
+    dominio["monkeypatch"].setattr(cotacoes, "concluir_cotacao", dominio["registra"]("concluir", erro=erro))
+    r = _api(emissor, _banco()).post(f"{BASE}/conclusao", headers=_h(emissor))
+    assert r.status_code == 422 and "faltam: 2, 5" in r.json()["message"]
+
+
+def test_revisao_cria_nova_versao_e_arquivada_e_409(emissor, dominio):
+    dominio["monkeypatch"].setattr(repo, "revisar", dominio["registra"]("revisar", OUTRO))
+    r = _api(emissor, _banco(estado="applied")).post(f"{BASE}/revisao", headers=_h(emissor),
+                                                     json={"motivo": "preço desatualizado"})
+    assert r.status_code == 201 and r.json()["id"] == OUTRO
+    assert dominio["chamadas"][-1][1] == (P, "preço desatualizado")
+    r = _api(emissor, _banco(estado="archived")).post(f"{BASE}/revisao", headers=_h(emissor))
+    assert r.status_code == 409 and len(dominio["chamadas"]) == 1
