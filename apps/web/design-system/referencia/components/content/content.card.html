@@ -1,0 +1,22 @@
+<!-- @dsCard group="Components" viewport="700x600" name="Content" subtitle="Card, DataList, Accordion, Dialog, DocumentViewer, Avatar, Tooltip" -->
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{padding:20px;background:var(--bg-app)}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.col{display:grid;gap:14px}.lbl{font:600 11px/1 var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:-4px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const NS = window.GovConectDesignSystem_76359c;
+const { Card, DataList, Accordion, Dialog, DocumentViewer, Button, Badge, StatusBadge, ProgressBar, Tooltip, IconButton } = NS;
+function App(){return <div className="col">
+<div className="g2">
+<Card elevated eyebrow="Proc. 2026/001234" title="Aquisição de equipamentos de TI" subtitle="Secretaria Municipal de Administração" actions={<StatusBadge status="em_elaboracao" />} footer={<><span className="gc-help">Atualizado há 2 h</span><Button size="sm" variant="secondary">Ver processo</Button></>}><ProgressBar label="Estudo Técnico Preliminar" value={65} /></Card>
+<Card title="Resumo" divided actions={<Tooltip content="Dados da pesquisa"><IconButton size="sm" icon="info" label="Sobre" /></Tooltip>}><DataList stacked items={[{label:"Situação",value:"Em elaboração"},{label:"Valor global",value:"R$ 18.535,00",numeric:true},{label:"Data-base",value:"18/10/2026"},{label:"Responsável",value:"Maria Silva"}]} /></Card>
+</div>
+<Accordion items={[{title:"Entenda o cálculo",meta:"Média aritmética",defaultOpen:true,content:"O preço estimado é a média das referências válidas na cesta, após a triagem de discrepâncias feita pelo responsável."},{title:"Detalhes da busca",meta:"8 considerados · 15 abaixo do piso",content:"…"}]} />
+<div style={{position:"relative",height:250,borderRadius:12,overflow:"hidden",border:"1px solid var(--border-subtle)"}}>
+<DocumentViewer height={250} name="ETP — Aquisição de equipamentos de TI" meta="Versão 3 · editado há 2 h" badges={<Badge variant="warning" icon="eye">Em revisão</Badge>} actions={<IconButton size="sm" icon="download-simple" label="Baixar" />}><h1>Estudo Técnico Preliminar</h1><h2>1. Descrição da necessidade</h2><p><span className="gc-mark-ai">A Secretaria Municipal de Administração necessita renovar o parque computacional</span>, atualmente com equipamentos de mais de oito anos de uso. <span className="gc-mark-review">Quantidade estimada a confirmar.</span></p></DocumentViewer>
+<Dialog contained title="Excluir processo?" tone="danger" icon="trash" size="sm" description="Os documentos gerados também serão removidos. Esta ação não pode ser desfeita." onClose={()=>{}} footer={<><Button variant="secondary">Cancelar</Button><Button variant="danger">Excluir processo</Button></>} />
+</div></div>}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script></body></html>

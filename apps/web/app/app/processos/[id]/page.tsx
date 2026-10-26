@@ -5,7 +5,8 @@ import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 
 import { FormularioDeProcesso } from "@/components/form-processo";
 import { cartao } from "@/components/ui";
-import { chamarApi, ErroDaApi, type Processo } from "@/lib/api";
+import { Button } from "@/design-system";
+import { chamarApi, ErroDaApi, type Modulos, type Processo } from "@/lib/api";
 
 import { editarProcesso } from "../acoes";
 
@@ -25,15 +26,24 @@ export default async function DetalheDoProcesso({
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
   let p: Processo;
+  let modulos: Modulos = { consolidar_demandas: false };
   try {
     p = (await chamarApi<Processo>(`/processos/${id}`)).dados;
+    // Módulos opcionais: falha aqui não derruba a página, só some o atalho.
+    modulos = await chamarApi<Modulos>("/modulos").then((r) => r.dados).catch(() => modulos);
   } catch (e) {
     // 404 também para processo de outro município: não confirma que existe.
     if (e instanceof ErroDaApi && e.status === 404) notFound();
     throw e;
   }
 
-  const aviso = avisos.criado ? "Processo criado." : avisos.salvo ? "Alterações salvas." : null;
+  const aviso = avisos.criado
+    ? "Processo criado."
+    : avisos.salvo
+      ? "Alterações salvas."
+      : avisos.iniciado
+        ? "Dados da demanda completos. A geração dos documentos ainda é feita no GovDocs, até a próxima etapa da migração."
+        : null;
 
   return (
     <div className="grid gap-8">
@@ -75,6 +85,27 @@ export default async function DetalheDoProcesso({
           {aviso}
         </p>
       )}
+
+      <section aria-labelledby="titulo-formulario" className={`${cartao} flex flex-wrap items-center justify-between gap-4 p-6 sm:p-8`}>
+        <div className="grid gap-1">
+          <h2 id="titulo-formulario" className="text-lg font-semibold">
+            Dados da demanda
+          </h2>
+          <p className="text-sm text-secundario">
+            Formulário Matriz: objeto, justificativa, planilha de itens e o restante que os documentos usam.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {modulos.consolidar_demandas && (
+            <Button href={`/app/processos/${p.id}/demandas`} variant="secondary" icon="tray">
+              Consolidar demandas
+            </Button>
+          )}
+          <Button href={`/app/processos/${p.id}/formulario`} icon="pencil-simple">
+            Preencher dados da demanda
+          </Button>
+        </div>
+      </section>
 
       <section aria-labelledby="titulo-editar" className={`${cartao} p-6 sm:p-8`}>
         <h2 id="titulo-editar" className="text-lg font-semibold">

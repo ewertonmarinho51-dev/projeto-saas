@@ -1,0 +1,9 @@
+:root{
+--space-0:0;--space-0-5:2px;--space-1:4px;--space-1-5:6px;--space-2:8px;--space-2-5:10px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;--space-10:40px;--space-12:48px;--space-16:64px;
+/* Radii — 8px is the single control radius inherited from the web app */
+--radius-xs:4px;--radius-sm:6px;--radius-md:8px;--radius-lg:12px;--radius-xl:16px;--radius-pill:999px;
+--border-width:1px;--border-width-strong:1.5px;
+/* Control heights */
+--control-sm:32px;--control-md:40px;--control-lg:44px;
+--icon-sm:16px;--icon-md:18px;--icon-lg:20px;
+}

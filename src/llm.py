@@ -32,7 +32,7 @@ import os
 import time
 from datetime import datetime
 
-import streamlit as st
+from .streamlit_opcional import st
 
 from .config import (
     API_BACKOFF_BASE,

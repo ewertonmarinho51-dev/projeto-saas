@@ -10,7 +10,8 @@ App Streamlit que gera documentos da fase preparatória de licitações
   qualquer trabalho de UI/CSS/layout. Contexto: setor público —
   sobriedade, credibilidade e acessibilidade prevalecem sobre estética;
   paleta institucional azul (#1B4F8A) definida em `.streamlit/config.toml`
-  e `src/ui/components.py`.
+  e `src/ui/components.py`. Isso vale para o **Streamlit**; a interface
+  nova (`apps/web`) segue o design system Gov Conect (seção abaixo).
 - **Comunicação**: skill `caveman` ativo (respostas curtas; código,
   comandos e erros exatos).
 - **IA do produto**: OpenAI motor principal (`gpt-5-mini` padrão),
@@ -27,6 +28,31 @@ App Streamlit que gera documentos da fase preparatória de licitações
 - **Git**: trunk `main`; trabalho em branch `claude/<assunto>` por
   entrega, com PR. Usuário autoriza o merge caso a caso, quando o CI
   fecha verde. Textos de commit em português.
+
+## Design system (apps/web)
+
+- **`DESIGN.md` na raiz é a fonte da verdade** dos tokens (formato
+  DESIGN.md do Google Labs). O CSS em `apps/web/design-system/tokens/`
+  implementa; `apps/web/tests/design-system.test.ts` reprova se divergirem.
+  Mudou token: os dois no mesmo commit.
+- **Peça de interface nova nasce em `apps/web/design-system/`** (botão,
+  campo, tabela, cartão, padrão de tela — o que serve a mais de uma tela,
+  sem regra de negócio) e é importada de `@/design-system` (nunca de
+  arquivo interno), com variante na vitrine `/design-system`. **Tela de
+  funcionalidade** (formulário de processo, consolidação de demandas…)
+  mora em `apps/web/components/` ou na rota, chama as actions do
+  servidor e se monta SÓ com peças do design system — sem estilo próprio
+  além de layout com token.
+- **Nenhum valor visual solto**: hex, px e fonte vêm de token
+  (`var(--…)` ou utilitário do Tailwind mapeado em `app/globals.css`). O
+  ESLint avisa no app e recusa dentro de `design-system/`.
+- Não redefinir `--text-*`, `--radius-*`, `--shadow-*`, `--leading-*`,
+  `--tracking-*`, `--ease-*`, `--font-*`: são nomes do tema do Tailwind v4
+  e mudariam cada utilitário do app. O design system usa `--gc-fs-*`,
+  `--gc-radius-*` etc. (há prova disso).
+- Mapa da biblioteca (70 componentes + `PROCESS_STATUS` + 3 templates):
+  `apps/web/design-system/README.md`. HTMLs originais do Claude Design, só
+  para comparação: `apps/web/design-system/referencia/`.
 
 ## Camada de automação de agentes
 

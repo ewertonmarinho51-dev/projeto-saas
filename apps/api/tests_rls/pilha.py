@@ -56,6 +56,11 @@ CONTAS = (
     ("a1_colega", "A", "A1", "usuario", True),
     ("a2", "A", "A2", "usuario", True),
     ("admin_a", "A", "A1", "admin", True),
+    # Admins só dos E2E de administração: o limite da API é por usuário
+    # (120/min), e cinco specs seguidos com `admin_a` estouravam a cota do
+    # próximo — o `precos-escrita` caía em 429 no meio.
+    ("admin_inst", "A", "A1", "admin", True),
+    ("admin_base", "A", "A1", "admin", True),
     ("b1", "B", "B1", "usuario", True),
     ("a1_revogado", "A", "A1", "usuario", False),
 )
@@ -305,7 +310,10 @@ def semear_coleta(pilha: Pilha) -> str:
     return pid
 
 
-FLAGS_DA_EMISSAO = ("flag_precos_ciencia_emissao", "flag_precos_relatorio_visual")
+# Também a de Consolidar Demandas (M4) e a do cadastro institucional
+# (M7a), ligadas em produção: as telas novas seguem as mesmas flags.
+FLAGS_DA_EMISSAO = ("flag_precos_ciencia_emissao", "flag_precos_relatorio_visual",
+                    "flag_demand_consolidation", "flag_multi_prefeituras")
 
 
 def ligar_flags_da_emissao(pilha: Pilha) -> None:
@@ -399,6 +407,31 @@ def gravar_planilha_e2e(pasta: Path) -> Path:
     return caminho
 
 
+def gravar_demandas_e2e(pasta: Path) -> list[str]:
+    """Dois Documentos de Formalização de Demanda em PDF de texto (M4): o
+    mesmo envelope pedido por duas secretarias, para a soma aparecer."""
+    import pymupdf
+
+    quadros = {
+        "dfd-semec.pdf": ("20260101001", "Secretaria de Educação",
+                          "370614 ENVELOPE AMARELO 260MMX360MM 50,0000 UNIDADE\n"
+                          "133975 PAPEL VERGE CORES VARIADAS 30,0000 PACOTE\n"),
+        "dfd-semsa.pdf": ("20260101002", "Secretaria de Saúde",
+                          "370614 ENVELOPE AMARELO 260MMX360MM 20,0000 UNIDADE\n"),
+    }
+    caminhos = []
+    for nome, (numero, orgao, linhas) in quadros.items():
+        texto = (f"DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA Nº {numero}\nÓRGÃO :\n05  {orgao}\n"
+                 f"Código Quant Unidade Descrição\n{linhas}")
+        doc = pymupdf.open()
+        doc.new_page().insert_textbox(pymupdf.Rect(40, 40, 560, 780), texto, fontsize=9)
+        caminho = pasta / nome
+        doc.save(caminho)
+        doc.close()
+        caminhos.append(str(caminho))
+    return caminhos
+
+
 def principal() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--estado", required=True, type=Path,
@@ -419,6 +452,7 @@ def principal() -> int:
                   "escrita": semear_emissao(pilha, dono="admin_a"),
                   "planilha": str(gravar_planilha_e2e(args.estado.parent)),
                   "aplicacao": semear_aplicacao(pilha, dono="admin_a"),
+                  "demandas": gravar_demandas_e2e(args.estado.parent),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
         temporario = args.estado.with_suffix(".tmp")

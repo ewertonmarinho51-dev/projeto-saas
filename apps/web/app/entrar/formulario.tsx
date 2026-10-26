@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
-import { botaoPrimario, campo, rotulo } from "@/components/ui";
+import { Alert, Button, Field, Icon, Input } from "@/design-system";
 
 import { entrar, type EstadoDoLogin } from "./acoes";
 
@@ -12,74 +12,77 @@ export function FormularioDeEntrada({ proximo, aviso }: { proximo: string; aviso
     erro: null,
     email: "",
   });
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const comErro = Boolean(estado.erro);
 
   return (
-    <form action={acao} className="grid gap-5" noValidate>
+    <form action={acao} className="gc-auth__form" noValidate>
       <input type="hidden" name="proximo" value={proximo} />
 
       {aviso && !comErro && (
-        <p role="status" className="rounded-[var(--radius-ui)] bg-ok-fundo px-4 py-3 text-sm text-ok">
+        <Alert variant="success" compact>
           {aviso}
-        </p>
+        </Alert>
       )}
 
-      <div className="grid gap-2">
-        <label htmlFor="email" className={rotulo}>
-          E-mail institucional
-        </label>
-        <input
+      <Field label="E-mail institucional" htmlFor="email">
+        <Input
           id="email"
           name="email"
           type="email"
+          size="lg"
+          icon="envelope-simple"
           autoComplete="username"
           inputMode="email"
           required
           defaultValue={estado.email}
-          aria-invalid={comErro}
+          invalid={comErro}
           aria-describedby={comErro ? "erro-login" : undefined}
-          className={campo}
         />
-      </div>
+      </Field>
 
-      <div className="grid gap-2">
-        <div className="flex items-baseline justify-between">
-          <label htmlFor="senha" className={rotulo}>
-            Senha
-          </label>
-          <Link
-            href="/entrar/recuperar"
-            className="text-sm text-acento underline-offset-4 hover:text-acento-forte hover:underline"
-          >
-            Esqueci minha senha
-          </Link>
-        </div>
-        <input
+      <Field label="Senha" htmlFor="senha">
+        <Input
           id="senha"
           name="senha"
-          type="password"
+          type={mostrarSenha ? "text" : "password"}
+          size="lg"
+          icon="lock-simple"
           autoComplete="current-password"
           required
-          aria-invalid={comErro}
+          invalid={comErro}
           aria-describedby={comErro ? "erro-login" : undefined}
-          className={campo}
+          suffix={
+            <button
+              type="button"
+              className="gc-input__clear"
+              aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
+              aria-pressed={mostrarSenha}
+              onClick={() => setMostrarSenha((m) => !m)}
+            >
+              <Icon name={mostrarSenha ? "eye-slash" : "eye"} />
+            </button>
+          }
         />
+      </Field>
+
+      <div className="gc-auth__row">
+        <Link href="/entrar/recuperar" className="gc-auth__link">
+          Esqueci a senha
+        </Link>
       </div>
 
-      <div aria-live="assertive" className="min-h-0">
-        {comErro && (
-          <p
-            id="erro-login"
-            className="rounded-[var(--radius-ui)] bg-erro-fundo px-4 py-3 text-sm text-erro"
-          >
+      {comErro && (
+        <div id="erro-login">
+          <Alert variant="error" title="Não foi possível entrar">
             {estado.erro}
-          </p>
-        )}
-      </div>
+          </Alert>
+        </div>
+      )}
 
-      <button type="submit" className={`${botaoPrimario} w-full`} disabled={enviando}>
-        {enviando ? "Entrando..." : "Entrar"}
-      </button>
+      <Button type="submit" size="lg" block loading={enviando}>
+        {enviando ? "Entrando" : "Entrar"}
+      </Button>
     </form>
   );
 }

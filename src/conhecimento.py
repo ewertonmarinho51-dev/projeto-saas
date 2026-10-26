@@ -27,7 +27,7 @@ bloqueios) na tela final. Ambas OFF (default) = comportamento idêntico.
 import logging
 from datetime import datetime, timezone
 
-import streamlit as st
+from .streamlit_opcional import st
 
 from . import db, fatos as fatos_mod, governanca
 

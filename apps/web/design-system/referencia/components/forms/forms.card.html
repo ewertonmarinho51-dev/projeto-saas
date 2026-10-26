@@ -1,0 +1,28 @@
+<!-- @dsCard group="Components" viewport="700x560" name="Forms" subtitle="Field, Input, Select, Textarea, Checkbox, Radio, Switch, DateField, FileUpload" -->
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{padding:20px;background:var(--bg-app)}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.col{display:grid;gap:14px}.lbl{font:600 11px/1 var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:-4px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const NS = window.GovConectDesignSystem_76359c;
+const { Field, Input, Select, Textarea, Checkbox, RadioGroup, Switch, DateField, FileUpload, SearchField, Badge } = NS;
+function App(){return <div className="col">
+<div className="g2">
+<Field label="Quem está pedindo" htmlFor="a" required help="Órgão ou secretaria demandante."><Input id="a" placeholder="Ex.: Secretaria Municipal de Saúde" /></Field>
+<Field label="E-mail institucional" htmlFor="b" required error="Informe um e-mail válido do órgão."><Input id="b" icon="envelope-simple" invalid defaultValue="usuario@" /></Field>
+<Field label="Categoria da contratação"><Select placeholder="Selecione uma opção" options={["Materiais","Serviços","Obras e serviços de engenharia"]} /></Field>
+<Field label="Valor estimado" optional><Input prefix="R$" placeholder="0,00" suffix="/ UN" /></Field>
+<Field label="Período da contratação"><DateField range /></Field>
+<Field label="Buscar"><SearchField placeholder="Nome, órgão ou objeto" shortcut="/" /></Field>
+</div>
+<Field label="O que vai ser comprado ou contratado" required counter="62 / 2.000"><Textarea rows={2} defaultValue="Aquisição de 40 computadores desktop tipo corporativo, com monitor de 24 polegadas." /></Field>
+<div className="g2" style={{alignItems:"start"}}>
+<div className="col" style={{gap:10}}><Checkbox label="Pesquisar apenas referências rastreáveis" defaultChecked /><Checkbox label="Incluir atas de registro de preços" description="Atas vigentes no PNCP" /><Checkbox label="Opção indisponível" disabled /><Switch label="Notificar ao concluir a coleta" defaultChecked /></div>
+<RadioGroup name="m" legend="Método de cálculo" defaultValue="media" options={[{value:"media",label:"Média"},{value:"mediana",label:"Mediana"},{value:"menor",label:"Menor preço"}]} />
+</div>
+<FileUpload files={[{name:"Parecer_Juridico_n_1251_2025_SEJUR.pdf",meta:"PDF · 2,8 MB · 22 trechos",status:<Badge variant="success" icon="check">Indexado</Badge>},{name:"Planilha_itens_expediente.xlsx",progress:64}]} onRemove={()=>{}} />
+</div>}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script></body></html>

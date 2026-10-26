@@ -272,6 +272,39 @@ export async function baixarDaApi(caminho: string): Promise<Response> {
   }
 }
 
+/**
+ * Arquivo gerado a partir de um corpo JSON (POST). Mesma regra do
+ * `baixarDaApi`: erro vira `ErroDaApi`; quem chama decide o que mostrar.
+ */
+export async function baixarDaApiComCorpo(caminho: string, corpo: unknown): Promise<ArrayBuffer> {
+  const token = await tokenDaSessao();
+  let resposta: Response;
+  try {
+    resposta = await fetch(`${baseDaApi()}/api/v1${caminho}`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+      signal: AbortSignal.timeout(60000),
+    });
+  } catch {
+    throw new ErroDaApi(503, "API_INDISPONIVEL", "");
+  }
+  if (!resposta.ok) {
+    let codigo = "ERRO";
+    let mensagem = "";
+    try {
+      const erro = (await resposta.json()) as { code?: string; message?: string };
+      codigo = erro.code ?? codigo;
+      mensagem = typeof erro.message === "string" ? erro.message.slice(0, 300) : "";
+    } catch {
+      /* corpo não-JSON */
+    }
+    throw new ErroDaApi(resposta.status, codigo, resposta.headers.get("x-request-id") ?? "", mensagem);
+  }
+  return resposta.arrayBuffer();
+}
+
 // ---------------------------------------------------------------------------
 // Aplicar ao processo (P04f). Prévia primeiro, sempre (§26).
 // ---------------------------------------------------------------------------
@@ -292,3 +325,188 @@ export type PreviaDaAplicacao = {
   recusas: string[];
   documentos_a_descartar: { chave: string; nome: string }[];
 };
+
+// ---------------------------------------------------------------------------
+// Formulário Matriz (M1). Os campos, rótulos e regras vêm da API, que usa
+// os de `config.CAMPOS_FORMULARIO` do wizard; a planilha é recalculada no
+// servidor a cada gravação.
+// ---------------------------------------------------------------------------
+export type CampoDoFormulario = {
+  chave: string;
+  tipo: "texto" | "area" | "selecao" | "planilha";
+  rotulo: string;
+  ajuda: string;
+  exemplo: string;
+  placeholder: string;
+  obrigatorio: boolean;
+  opcoes: string[];
+};
+
+export type ItemDaPlanilha = Record<string, string | number>;
+
+export type Formulario = {
+  campos: CampoDoFormulario[];
+  valores: Record<string, string>;
+  itens: ItemDaPlanilha[];
+  valor_estimado: number;
+  valor_estimado_exibicao: string;
+  faltantes: string[];
+  a_descartar: string[];
+  etapa: number;
+  versao: string;
+};
+
+export type FormularioGravado = Formulario & { descartados: string[]; mudou: boolean };
+
+export type PlanilhaLida = { itens: ItemDaPlanilha[]; valor_estimado: number; valor_estimado_exibicao: string };
+
+// ---------------------------------------------------------------------------
+// Consolidar Demandas (M4). Quantidades chegam como TEXTO já formatado
+// pelo domínio (Decimal): o navegador não soma.
+// ---------------------------------------------------------------------------
+export type Modulos = { consolidar_demandas: boolean };
+
+export type Consolidacao = {
+  arquivos: {
+    nome: string;
+    status: string;
+    status_texto: string;
+    secretaria: string;
+    precisa_confirmar: boolean;
+    documentos: string[];
+    itens: number;
+  }[];
+  erros: { nome: string; mensagem: string }[];
+  secretarias: string[];
+  linhas: {
+    codigo: string;
+    descricao: string;
+    unidade: string;
+    por_secretaria: Record<string, string>;
+    total: string;
+    explicacao: string;
+  }[];
+  conflitos: { codigo: string; unidades: string[]; secretarias: string[]; aceito: boolean }[];
+  fecha: boolean;
+  divergencia: string;
+  ocorrencias: number;
+  duplicatas: string[];
+  nao_lidos: string[];
+};
+
+export type AplicacaoDaDemanda = {
+  itens: number;
+  secretarias: number;
+  ocorrencias: number;
+  nao_lidos: string[];
+  descartados: string[];
+  versao: string;
+};
+
+// ---------------------------------------------------------------------------
+// Administração — cadastro institucional (M7a). Só admin; o RLS da 0025
+// é quem garante.
+// ---------------------------------------------------------------------------
+export type Opcao = { codigo: string; rotulo: string };
+
+export type Instituicao = {
+  secoes: string[];
+  secretarias: { id: string; nome: string }[];
+  tipos_de_portaria: Opcao[];
+  funcoes_de_membro: Opcao[];
+  situacoes_declaradas: string[];
+};
+
+export type ServidorInstitucional = {
+  id: string;
+  nome: string;
+  cargo: string | null;
+  matricula: string | null;
+  email: string | null;
+  ativo: boolean;
+};
+
+export type PortariaInstitucional = {
+  id: string;
+  tipo: string;
+  tipo_rotulo: string;
+  numero: string;
+  ano: number;
+  situacao: string;
+  situacao_declarada: string;
+  citacao: string;
+  data_publicacao: string | null;
+  data_inicio_vigencia: string | null;
+  data_fim_vigencia: string | null;
+  membros: { nome: string; funcao: string; funcao_rotulo: string; servidor_ativo: boolean }[];
+};
+
+export type ModuloInstitucional = {
+  modulo: string;
+  rotulo: string;
+  disponivel_no_sistema: boolean;
+  na_prefeitura: boolean;
+  na_secretaria: string | null;
+  explicacao: string;
+};
+
+export type Timbrado = {
+  origem: "secretaria" | "municipio" | "nenhuma";
+  cabecalho_img: string | null;
+  rodape_img: string | null;
+  marca_img: string | null;
+  cabecalho_texto: string;
+  rodape_texto: string;
+  marca_texto: string;
+};
+
+// ---------------------------------------------------------------------------
+// Prefeitura, Secretarias e Identidade visual (M7b, admin)
+// ---------------------------------------------------------------------------
+export type CampoDaPrefeitura = { chave: string; rotulo: string; exemplo: string; valor: string };
+export type PrefeituraInstitucional = { nome: string; campos: CampoDaPrefeitura[] };
+
+export type SecretariaCadastrada = {
+  id: string;
+  nome: string;
+  sigla: string;
+  ativo: boolean;
+  padrao: boolean;
+  identidade_propria: boolean;
+};
+
+export type IdentidadeVisual = {
+  id: string;
+  orgao: string;
+  padrao: boolean;
+  por_imagem: boolean;
+  cabecalho: string;
+  rodape: string;
+  marca_dagua: string;
+  cabecalho_img: string | null;
+};
+
+export type PreviaDoModelo = { pagina: string; cabecalho: string; rodape: string; marca: string | null };
+
+// ---------------------------------------------------------------------------
+// Base de Conhecimento (M6, admin)
+// ---------------------------------------------------------------------------
+export type ReferenciaDaBase = {
+  id: string;
+  titulo: string;
+  categoria: string;
+  categoria_rotulo: string;
+  nome_arquivo: string;
+  total_chunks: number;
+  criado_em: string;
+};
+
+export type BaseDeConhecimento = {
+  categorias: { codigo: string; rotulo: string }[];
+  extensoes: string[];
+  referencias: ReferenciaDaBase[];
+};
+
+export type ReferenciaIndexada = { id: string; nome_arquivo: string; trechos: number; pendente_de_vetor: boolean };
+
+export type TrechoRecuperado = { titulo: string; categoria_rotulo: string; similaridade: number; conteudo: string };

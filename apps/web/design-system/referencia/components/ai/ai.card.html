@@ -1,0 +1,30 @@
+<!-- @dsCard group="Components" viewport="700x900" name="GovBot (IA)" subtitle="ChatMessage, ContextBar, AiDraftBlock, MessageFeedback, ConversationList, SourceList, AiProcessing, PromptSuggestions, ChatComposer" -->
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{padding:20px;background:var(--bg-app)}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.col{display:grid;gap:14px}.lbl{font:600 11px/1 var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:-4px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const NS = window.GovConectDesignSystem_76359c;
+const { ChatMessage, Cite, ChatComposer, PromptSuggestions, AiProcessing, SourceList, ConversationList, ContextBar, AiDraftBlock, MessageFeedback, Button, Badge, Card } = NS;
+function App(){const [st,setSt]=React.useState("pending");return <div className="col">
+<div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:16,alignItems:"start"}}>
+<Card><ConversationList activeId="c1" onNew={()=>{}} groups={[{label:"Hoje",items:[{id:"c1",title:"Requisitos do ETP",meta:"Proc. 2026/001234"},{id:"c2",title:"Mínimo de referências",meta:"Cotação"}]},{label:"Esta semana",items:[{id:"c3",title:"Riscos de entrega",meta:"Proc. 2026/001198"}]}]} /></Card>
+<Card><div className="col" style={{gap:16}}>
+<ContextBar onAdd={()=>{}} items={[{kind:"process",icon:"folder-open",label:"Proc. 2026/001234",onRemove:()=>{}},{kind:"document",icon:"file-text",label:"DFD v2"},{kind:"knowledge",icon:"books",label:"Base do órgão"}]} />
+<ChatMessage role="user">Proponha os requisitos da contratação para o ETP.</ChatMessage>
+<ChatMessage time="14:02" notice="Confira as fontes e ajuste antes de inserir." sources={<SourceList compact items={[{n:1,title:"Lei nº 14.133/2021, art. 18",meta:"Referência normativa"},{n:2,title:"DFD — Equipamentos de TI",meta:"Processo · versão 2"}]} />} actions={<><Button variant="ghost" size="sm" icon="copy">Copiar</Button><MessageFeedback /></>}>
+<p>Com base no DFD <Cite n={2} /> e no art. 18 <Cite n={1} />, segue a proposta:</p>
+<div style={{marginTop:10}}><AiDraftBlock target="ETP · Seção 4" title="Requisitos da contratação" meta="2 fontes" status={st} onAccept={()=>setSt("accepted")} onEdit={()=>{}} onReject={()=>setSt("rejected")} onUndo={()=>setSt("pending")} acceptedNote="Inserido no ETP · seção 4"><ul style={{margin:0}}><li>16 GB de RAM e SSD de 512 GB;</li><li><span className="gc-mark-review">Garantia on-site de 36 meses — confirmar.</span></li></ul></AiDraftBlock></div>
+</ChatMessage>
+</div></Card></div>
+<div className="g2" style={{alignItems:"start"}}>
+<AiProcessing title="Gerando ETP" progress={55} steps={[{label:"Lendo DFD e demanda",state:"done"},{label:"Consultando base de conhecimento",state:"active",meta:"12 trechos"},{label:"Redigindo seções",state:"pending"}]} />
+<SourceList items={[{n:3,title:"Parecer jurídico nº 128/2026 — SEJUR",meta:"Base de conhecimento · trecho 7",excerpt:"Recomenda-se vedar a indicação de marca, admitindo-se referência de desempenho mínimo.",href:"#"}]} />
+</div>
+<PromptSuggestions chips items={[{icon:"file-text",label:"Gerar Mapa de Riscos"},{icon:"scales",label:"Explicar art. 23"},{icon:"currency-circle-dollar",label:"Resumir cotação"}]} />
+<ChatComposer />
+</div>}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script></body></html>

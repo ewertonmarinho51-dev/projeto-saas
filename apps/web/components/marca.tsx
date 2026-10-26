@@ -1,33 +1,16 @@
-import Image from "next/image";
-import Link from "next/link";
+import { Logo as LogoDoSistema } from "@/design-system";
 
 /**
- * Logo oficial, sem redesenho: o PNG da marca com o fundo branco
- * original (o miolo branco do documento é parte do desenho). Sobre fundo
- * escuro ele fica numa placa branca, que é como a marca foi feita.
+ * Marca oficial, pelo design system: PNG transparente do logo
+ * vetorizado, sem placa branca (o cliente confirmou em 23/10/2026 que a
+ * marca nunca vai num quadrado branco). Estes dois nomes ficam para não
+ * mexer nas páginas que já os usam; código novo usa `<Logo>` de
+ * `@/design-system`.
  */
 export function Logo({ tamanho = 32, prioridade = false }: { tamanho?: number; prioridade?: boolean }) {
-  return (
-    <span
-      className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-white ring-1 ring-linha"
-      style={{ width: tamanho, height: tamanho }}
-    >
-      <Image
-        src={tamanho > 96 ? "/logo-govconect.png" : "/logo-govconect-96.png"}
-        alt=""
-        width={tamanho}
-        height={tamanho}
-        priority={prioridade}
-      />
-    </span>
-  );
+  return <LogoDoSistema size={tamanho} withName={false} name="" priority={prioridade} />;
 }
 
 export function MarcaComNome({ href = "/" }: { href?: string }) {
-  return (
-    <Link href={href} className="inline-flex items-center gap-2.5 font-semibold tracking-tight">
-      <Logo tamanho={32} />
-      <span>Gov Conect</span>
-    </Link>
-  );
+  return <LogoDoSistema size={32} href={href} />;
 }

@@ -1,0 +1,22 @@
+<!-- @dsCard group="Components" viewport="700x560" name="Navigation" subtitle="Sidebar, Topbar, Breadcrumbs, Tabs, Stepper" -->
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{padding:0px;background:var(--bg-app)}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.col{display:grid;gap:14px}.lbl{font:600 11px/1 var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:-4px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}</style>
+</head><body><div id="root"></div><script type="text/babel">
+const NS = window.GovConectDesignSystem_76359c;
+const { Sidebar, UserCard, Avatar, Logo, Topbar, Breadcrumbs, Tabs, Stepper, IconButton, Badge } = NS;
+function App(){const [c,setC]=React.useState(false);return <div style={{display:"flex",height:520,border:"1px solid var(--border-subtle)",borderRadius:12,overflow:"hidden",background:"var(--bg-app)"}}>
+<Sidebar collapsed={c} onToggle={()=>setC(!c)} brand={<Logo size={28} src="../../assets/logo-govconect-96.png" />} groups={[{items:[{icon:"house",label:"Início",active:true},{icon:"folder-open",label:"Processos",badge:7},{icon:"tray",label:"Consolidar demandas"}]},{label:"Preparação",items:[{icon:"currency-circle-dollar",label:"Cotações"},{icon:"books",label:"Base de conhecimento"},{icon:"scales",label:"Parecer jurídico"}]},{label:"Gestão",items:[{icon:"shield-check",label:"Governança"},{icon:"gear-six",label:"Administração"}]}]} footer={<UserCard name="Antonio Marinho" role="Administrador" avatar={<Avatar name="Antonio Marinho" />} />} />
+<div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
+<Topbar style={{padding:"0 20px"}} start={<Breadcrumbs items={[{label:"Processos"},{label:"Aquisição de equipamentos de TI"}]} />} end={<><Badge variant="success" dot>Salvo</Badge><IconButton icon="bell" label="Notificações" /><Avatar name="Antonio Marinho" /></>} />
+<div style={{padding:20,display:"grid",gap:24}}>
+<Tabs tabs={[{value:"g",label:"Visão geral"},{value:"c",label:"Catálogo de cláusulas",count:12},{value:"p",label:"Políticas"},{value:"m",label:"Modelos"},{value:"x",label:"Laboratório",disabled:true}]} />
+<Tabs variant="segmented" defaultValue="etp" tabs={[{value:"dfd",label:"DFD"},{value:"etp",label:"ETP"},{value:"mr",label:"Mapa de Riscos"},{value:"tr",label:"TR"}]} />
+<Stepper current={2} steps={[{label:"Dados da demanda"},{label:"DFD"},{label:"ETP"},{label:"Mapa de Riscos"},{label:"TR"},{label:"Minuta do edital"}]} />
+<Stepper current={2} steps={[{label:"Definir itens"},{label:"Coletar preços"},{label:"Triagem",state:"error"},{label:"Mapa de preços"},{label:"Relatório"}]} />
+</div></div></div>}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script></body></html>

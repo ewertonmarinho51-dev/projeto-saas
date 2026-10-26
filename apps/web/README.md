@@ -45,11 +45,17 @@ navegador não fala com o Supabase nem com a API (`connect-src 'self'`).
 
 ## Identidade visual
 
-Acento `#0050D8` amostrado do logo (`assets/marca/logo-original.png`);
-neutros frios, raio de 8px, borda de 1px, Geist. O logo é usado com o
-fundo branco original (o miolo do documento faz parte da marca), recortado
-e redimensionado, sem redesenho. Contrastes conferidos por cálculo: texto
-15,4:1, secundário 5,9:1, acento 6,7:1, borda de campo 3,8:1.
+Vem do design system: [`DESIGN.md`](../../DESIGN.md) na raiz é a fonte
+da verdade dos tokens, e [`design-system/`](design-system/README.md) tem
+os componentes (importe de `@/design-system`) e o mapa da biblioteca.
+Vitrine em `/design-system` (em produção, só com `GOVCONECT_VITRINE=1`).
+
+Acento de ação `#0059D6` (6,2:1 sobre branco), confirmado pelo cliente em
+23/10/2026 a partir dos azuis do logo; neutros frios, raio de 8 px em
+controle e 12 px em cartão, borda de 1 px, Geist. O logo é o PNG
+transparente do logo vetorizado, sem placa branca e sem redesenho.
+Componente novo nasce no design system; valor visual solto (hex, px,
+fonte) o ESLint aponta.
 
 ## E2E
 

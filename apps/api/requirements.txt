@@ -36,3 +36,8 @@ fonttools==4.66.1
 defusedxml==0.7.1
 pypdf==6.20.1
 pymupdf==1.28.2
+# Embeddings da Base de Conhecimento (M6): o índice é pinado a
+# `text-embedding-3-small` da OpenAI (`rag._gerar_embeddings`). Sem o
+# pacote, todo material indexado pela API entraria PENDENTE de vetor.
+# Versão do ambiente do app (raiz: `openai>=1.40.0`), fixada.
+openai==3.29.0

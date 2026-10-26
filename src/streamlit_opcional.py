@@ -110,11 +110,26 @@ def _memorizar(func=None, *, ttl=None, **_ignorado):
     return decorar(func) if callable(func) else decorar
 
 
+def _para_o_log(nivel: int):
+    """`st.warning`/`info`/`error` sem tela: a mensagem vai para o log da API."""
+    import logging
+
+    registro = logging.getLogger("govdocs.dominio")
+
+    def emitir(mensagem="", *_args, **_kwargs):
+        registro.log(nivel, "%s", str(mensagem)[:500])
+
+    return emitir
+
+
 _SUBSTITUTO = SimpleNamespace(
     session_state=_EstadoDaRequisicao(),
     secrets={},
     cache_resource=_memorizar,
     cache_data=_memorizar,
+    warning=_para_o_log(30),
+    info=_para_o_log(20),
+    error=_para_o_log(40),
 )
 
 if SEM_STREAMLIT:

@@ -152,6 +152,15 @@ FALSOS_CONHECIDOS = frozenset({
     # continua APARECENDO no laudo como falso documentado, que é o
     # ponto: a ocorrência não some, ela fica explicada.
     _montado("senha", "@127.0.0.1"),
+    # especificador `pacote@versão` das URLs de CDN dos HTMLs de
+    # referência do Claude Design (`apps/web/design-system/referencia/`):
+    # `unpkg.com/react@18.3.1/...` tem a forma de e-mail e não é endereço
+    # de ninguém. Valor exato, versão incluída — outra versão volta a
+    # aparecer como real e pede revisão.
+    _montado("react", "@18.3.1"),
+    _montado("react-dom", "@18.3.1"),
+    _montado("standalone", "@7.29.0"),
+    _montado("web", "@2.1.1"),
 })
 
 # ---------------------------------------------------------------------------

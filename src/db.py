@@ -1471,11 +1471,15 @@ def _espelhar_orgao_em_secretaria(registro: dict, orgao_id: str | None) -> None:
             tabela.update({"padrao": False}).eq(
                 "tenant_id", tenant_atual()
             ).execute()
+        # Tenant em toda busca e escrita: `origem_orgao_id` não tem FK, e
+        # o Streamlit escreve com a credencial de servidor (sem RLS).
         existentes = (
-            tabela.select("id").eq("origem_orgao_id", orgao_id).limit(1).execute()
+            tabela.select("id").eq("origem_orgao_id", orgao_id)
+            .eq("tenant_id", tenant_atual()).limit(1).execute()
         )
         if existentes.data:
-            tabela.update(espelho).eq("id", existentes.data[0]["id"]).execute()
+            (tabela.update(espelho).eq("id", existentes.data[0]["id"])
+             .eq("tenant_id", tenant_atual()).execute())
         else:
             tabela.insert({
                 **espelho,
@@ -1518,7 +1522,8 @@ def salvar_secretaria(registro: dict, secretaria_id: str | None = None) -> None:
                 "tenant_id", tenant_atual()
             ).execute()
         if secretaria_id:
-            tabela.update(registro).eq("id", secretaria_id).execute()
+            (tabela.update(registro).eq("id", secretaria_id)
+             .eq("tenant_id", tenant_atual()).execute())
         else:
             tabela.insert(registro).execute()
     except Exception as exc:  # noqa: BLE001

@@ -91,6 +91,50 @@
         "title": "AlertaDePreco",
         "type": "object"
       },
+      "AplicacaoDaDemanda": {
+        "properties": {
+          "descartados": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Descartados",
+            "type": "array"
+          },
+          "itens": {
+            "title": "Itens",
+            "type": "integer"
+          },
+          "nao_lidos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Nao Lidos",
+            "type": "array"
+          },
+          "ocorrencias": {
+            "title": "Ocorrencias",
+            "type": "integer"
+          },
+          "secretarias": {
+            "title": "Secretarias",
+            "type": "integer"
+          },
+          "versao": {
+            "title": "Versao",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itens",
+          "secretarias",
+          "ocorrencias",
+          "nao_lidos",
+          "descartados",
+          "versao"
+        ],
+        "title": "AplicacaoDaDemanda",
+        "type": "object"
+      },
       "AplicacaoFeita": {
         "properties": {
           "documentos_descartados": {
@@ -133,6 +177,186 @@
         "title": "AplicacaoFeita",
         "type": "object"
       },
+      "ArquivoEnviado": {
+        "additionalProperties": false,
+        "properties": {
+          "conteudo": {
+            "maxLength": 13981021,
+            "minLength": 1,
+            "title": "Conteudo",
+            "type": "string"
+          },
+          "nome": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome",
+          "conteudo"
+        ],
+        "title": "ArquivoEnviado",
+        "type": "object"
+      },
+      "ArquivoLido": {
+        "properties": {
+          "documentos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Documentos",
+            "type": "array"
+          },
+          "itens": {
+            "title": "Itens",
+            "type": "integer"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "precisa_confirmar": {
+            "title": "Precisa Confirmar",
+            "type": "boolean"
+          },
+          "secretaria": {
+            "title": "Secretaria",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "status_texto": {
+            "title": "Status Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome",
+          "status",
+          "status_texto",
+          "secretaria",
+          "precisa_confirmar",
+          "documentos",
+          "itens"
+        ],
+        "title": "ArquivoLido",
+        "type": "object"
+      },
+      "BaseDeConhecimento": {
+        "properties": {
+          "categorias": {
+            "items": {
+              "$ref": "#/components/schemas/Opcao"
+            },
+            "title": "Categorias",
+            "type": "array"
+          },
+          "extensoes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Extensoes",
+            "type": "array"
+          },
+          "referencias": {
+            "items": {
+              "$ref": "#/components/schemas/govconect_api__base_conhecimento__Referencia"
+            },
+            "title": "Referencias",
+            "type": "array"
+          }
+        },
+        "required": [
+          "categorias",
+          "extensoes",
+          "referencias"
+        ],
+        "title": "BaseDeConhecimento",
+        "type": "object"
+      },
+      "CampoDaPrefeitura": {
+        "properties": {
+          "chave": {
+            "title": "Chave",
+            "type": "string"
+          },
+          "exemplo": {
+            "title": "Exemplo",
+            "type": "string"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          },
+          "valor": {
+            "title": "Valor",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chave",
+          "rotulo",
+          "exemplo",
+          "valor"
+        ],
+        "title": "CampoDaPrefeitura",
+        "type": "object"
+      },
+      "CampoDoFormulario": {
+        "properties": {
+          "ajuda": {
+            "title": "Ajuda",
+            "type": "string"
+          },
+          "chave": {
+            "title": "Chave",
+            "type": "string"
+          },
+          "exemplo": {
+            "title": "Exemplo",
+            "type": "string"
+          },
+          "obrigatorio": {
+            "title": "Obrigatorio",
+            "type": "boolean"
+          },
+          "opcoes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Opcoes",
+            "type": "array"
+          },
+          "placeholder": {
+            "title": "Placeholder",
+            "type": "string"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chave",
+          "tipo",
+          "rotulo",
+          "ajuda",
+          "exemplo",
+          "placeholder",
+          "obrigatorio",
+          "opcoes"
+        ],
+        "title": "CampoDoFormulario",
+        "type": "object"
+      },
       "CienciaRegistrada": {
         "properties": {
           "assinatura": {
@@ -161,6 +385,238 @@
           }
         },
         "title": "ConfirmacaoDaAplicacao",
+        "type": "object"
+      },
+      "ConflitoDeUnidade": {
+        "properties": {
+          "aceito": {
+            "title": "Aceito",
+            "type": "boolean"
+          },
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "secretarias": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Secretarias",
+            "type": "array"
+          },
+          "unidades": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unidades",
+            "type": "array"
+          }
+        },
+        "required": [
+          "codigo",
+          "unidades",
+          "secretarias",
+          "aceito"
+        ],
+        "title": "ConflitoDeUnidade",
+        "type": "object"
+      },
+      "Consolidacao": {
+        "properties": {
+          "arquivos": {
+            "items": {
+              "$ref": "#/components/schemas/ArquivoLido"
+            },
+            "title": "Arquivos",
+            "type": "array"
+          },
+          "conflitos": {
+            "items": {
+              "$ref": "#/components/schemas/ConflitoDeUnidade"
+            },
+            "title": "Conflitos",
+            "type": "array"
+          },
+          "divergencia": {
+            "title": "Divergencia",
+            "type": "string"
+          },
+          "duplicatas": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Duplicatas",
+            "type": "array"
+          },
+          "erros": {
+            "items": {
+              "$ref": "#/components/schemas/ErroDeArquivo"
+            },
+            "title": "Erros",
+            "type": "array"
+          },
+          "fecha": {
+            "title": "Fecha",
+            "type": "boolean"
+          },
+          "linhas": {
+            "items": {
+              "$ref": "#/components/schemas/LinhaConsolidada"
+            },
+            "title": "Linhas",
+            "type": "array"
+          },
+          "nao_lidos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Nao Lidos",
+            "type": "array"
+          },
+          "ocorrencias": {
+            "title": "Ocorrencias",
+            "type": "integer"
+          },
+          "secretarias": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Secretarias",
+            "type": "array"
+          }
+        },
+        "required": [
+          "arquivos",
+          "erros",
+          "secretarias",
+          "linhas",
+          "conflitos",
+          "fecha",
+          "divergencia",
+          "ocorrencias",
+          "duplicatas",
+          "nao_lidos"
+        ],
+        "title": "Consolidacao",
+        "type": "object"
+      },
+      "Consulta": {
+        "additionalProperties": false,
+        "properties": {
+          "consulta": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Consulta",
+            "type": "string"
+          }
+        },
+        "required": [
+          "consulta"
+        ],
+        "title": "Consulta",
+        "type": "object"
+      },
+      "DadosDaPrefeitura": {
+        "additionalProperties": false,
+        "properties": {
+          "cidade": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cidade"
+          },
+          "cnpj": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cnpj"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "endereco": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endereco"
+          },
+          "nome_oficial": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome Oficial"
+          },
+          "sigla": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sigla"
+          },
+          "site": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site"
+          },
+          "telefone": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefone"
+          }
+        },
+        "title": "DadosDaPrefeitura",
         "type": "object"
       },
       "DocumentoDescartado": {
@@ -226,6 +682,102 @@
         "title": "EdicaoDeProcesso",
         "type": "object"
       },
+      "EdicaoDeSecretaria": {
+        "additionalProperties": false,
+        "properties": {
+          "ativo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ativo"
+          },
+          "padrao": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Padrao"
+          }
+        },
+        "title": "EdicaoDeSecretaria",
+        "type": "object"
+      },
+      "EdicaoDeServidor": {
+        "additionalProperties": false,
+        "properties": {
+          "ativo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ativo"
+          },
+          "cargo": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cargo"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "matricula": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matricula"
+          },
+          "nome": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome"
+          }
+        },
+        "title": "EdicaoDeServidor",
+        "type": "object"
+      },
       "ErroDaPlanilha": {
         "properties": {
           "campo": {
@@ -254,6 +806,210 @@
         "title": "ErroDaPlanilha",
         "type": "object"
       },
+      "ErroDeArquivo": {
+        "properties": {
+          "mensagem": {
+            "title": "Mensagem",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome",
+          "mensagem"
+        ],
+        "title": "ErroDeArquivo",
+        "type": "object"
+      },
+      "Excluida": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Excluida",
+        "type": "object"
+      },
+      "Formulario": {
+        "properties": {
+          "a_descartar": {
+            "items": {
+              "type": "string"
+            },
+            "title": "A Descartar",
+            "type": "array"
+          },
+          "campos": {
+            "items": {
+              "$ref": "#/components/schemas/CampoDoFormulario"
+            },
+            "title": "Campos",
+            "type": "array"
+          },
+          "etapa": {
+            "title": "Etapa",
+            "type": "integer"
+          },
+          "faltantes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Faltantes",
+            "type": "array"
+          },
+          "itens": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Itens",
+            "type": "array"
+          },
+          "valor_estimado": {
+            "title": "Valor Estimado",
+            "type": "number"
+          },
+          "valor_estimado_exibicao": {
+            "title": "Valor Estimado Exibicao",
+            "type": "string"
+          },
+          "valores": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Valores",
+            "type": "object"
+          },
+          "versao": {
+            "title": "Versao",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campos",
+          "valores",
+          "itens",
+          "valor_estimado",
+          "valor_estimado_exibicao",
+          "faltantes",
+          "a_descartar",
+          "etapa",
+          "versao"
+        ],
+        "title": "Formulario",
+        "type": "object"
+      },
+      "FormularioGravado": {
+        "properties": {
+          "a_descartar": {
+            "items": {
+              "type": "string"
+            },
+            "title": "A Descartar",
+            "type": "array"
+          },
+          "campos": {
+            "items": {
+              "$ref": "#/components/schemas/CampoDoFormulario"
+            },
+            "title": "Campos",
+            "type": "array"
+          },
+          "descartados": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Descartados",
+            "type": "array"
+          },
+          "etapa": {
+            "title": "Etapa",
+            "type": "integer"
+          },
+          "faltantes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Faltantes",
+            "type": "array"
+          },
+          "itens": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Itens",
+            "type": "array"
+          },
+          "mudou": {
+            "title": "Mudou",
+            "type": "boolean"
+          },
+          "valor_estimado": {
+            "title": "Valor Estimado",
+            "type": "number"
+          },
+          "valor_estimado_exibicao": {
+            "title": "Valor Estimado Exibicao",
+            "type": "string"
+          },
+          "valores": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Valores",
+            "type": "object"
+          },
+          "versao": {
+            "title": "Versao",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campos",
+          "valores",
+          "itens",
+          "valor_estimado",
+          "valor_estimado_exibicao",
+          "faltantes",
+          "a_descartar",
+          "etapa",
+          "versao",
+          "descartados",
+          "mudou"
+        ],
+        "title": "FormularioGravado",
+        "type": "object"
+      },
+      "GravacaoDoFormulario": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmar_descarte": {
+            "default": false,
+            "title": "Confirmar Descarte",
+            "type": "boolean"
+          },
+          "iniciar": {
+            "default": false,
+            "title": "Iniciar",
+            "type": "boolean"
+          },
+          "valores": {
+            "additionalProperties": true,
+            "title": "Valores",
+            "type": "object"
+          }
+        },
+        "title": "GravacaoDoFormulario",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -265,6 +1021,202 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IdentidadePorImagem": {
+        "additionalProperties": false,
+        "properties": {
+          "cabecalho_pct": {
+            "default": 14,
+            "maximum": 40.0,
+            "minimum": 3.0,
+            "title": "Cabecalho Pct",
+            "type": "number"
+          },
+          "conteudo": {
+            "maxLength": 13981021,
+            "minLength": 1,
+            "title": "Conteudo",
+            "type": "string"
+          },
+          "marca": {
+            "default": false,
+            "title": "Marca",
+            "type": "boolean"
+          },
+          "nome_arquivo": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome Arquivo",
+            "type": "string"
+          },
+          "orgao": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Orgao",
+            "type": "string"
+          },
+          "padrao": {
+            "default": false,
+            "title": "Padrao",
+            "type": "boolean"
+          },
+          "rodape_pct": {
+            "default": 10,
+            "maximum": 40.0,
+            "minimum": 3.0,
+            "title": "Rodape Pct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "nome_arquivo",
+          "conteudo",
+          "orgao"
+        ],
+        "title": "IdentidadePorImagem",
+        "type": "object"
+      },
+      "IdentidadePorTexto": {
+        "additionalProperties": false,
+        "properties": {
+          "cabecalho": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Cabecalho",
+            "type": "string"
+          },
+          "marca_dagua": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Marca Dagua",
+            "type": "string"
+          },
+          "orgao": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Orgao",
+            "type": "string"
+          },
+          "padrao": {
+            "default": false,
+            "title": "Padrao",
+            "type": "boolean"
+          },
+          "rodape": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Rodape",
+            "type": "string"
+          }
+        },
+        "required": [
+          "orgao"
+        ],
+        "title": "IdentidadePorTexto",
+        "type": "object"
+      },
+      "IdentidadeVisual": {
+        "properties": {
+          "cabecalho": {
+            "title": "Cabecalho",
+            "type": "string"
+          },
+          "cabecalho_img": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cabecalho Img"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "marca_dagua": {
+            "title": "Marca Dagua",
+            "type": "string"
+          },
+          "orgao": {
+            "title": "Orgao",
+            "type": "string"
+          },
+          "padrao": {
+            "title": "Padrao",
+            "type": "boolean"
+          },
+          "por_imagem": {
+            "title": "Por Imagem",
+            "type": "boolean"
+          },
+          "rodape": {
+            "title": "Rodape",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "orgao",
+          "padrao",
+          "por_imagem",
+          "cabecalho",
+          "rodape",
+          "marca_dagua",
+          "cabecalho_img"
+        ],
+        "title": "IdentidadeVisual",
+        "type": "object"
+      },
+      "Instituicao": {
+        "properties": {
+          "funcoes_de_membro": {
+            "items": {
+              "$ref": "#/components/schemas/Opcao"
+            },
+            "title": "Funcoes De Membro",
+            "type": "array"
+          },
+          "secoes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Secoes",
+            "type": "array"
+          },
+          "secretarias": {
+            "items": {
+              "$ref": "#/components/schemas/Secretaria"
+            },
+            "title": "Secretarias",
+            "type": "array"
+          },
+          "situacoes_declaradas": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Situacoes Declaradas",
+            "type": "array"
+          },
+          "tipos_de_portaria": {
+            "items": {
+              "$ref": "#/components/schemas/Opcao"
+            },
+            "title": "Tipos De Portaria",
+            "type": "array"
+          }
+        },
+        "required": [
+          "secoes",
+          "secretarias",
+          "tipos_de_portaria",
+          "funcoes_de_membro",
+          "situacoes_declaradas"
+        ],
+        "title": "Instituicao",
         "type": "object"
       },
       "Item": {
@@ -522,6 +1474,47 @@
         "title": "Justificativa",
         "type": "object"
       },
+      "LinhaConsolidada": {
+        "properties": {
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "explicacao": {
+            "title": "Explicacao",
+            "type": "string"
+          },
+          "por_secretaria": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Por Secretaria",
+            "type": "object"
+          },
+          "total": {
+            "title": "Total",
+            "type": "string"
+          },
+          "unidade": {
+            "title": "Unidade",
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigo",
+          "descricao",
+          "unidade",
+          "por_secretaria",
+          "total",
+          "explicacao"
+        ],
+        "title": "LinhaConsolidada",
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "auth_user_id": {
@@ -554,6 +1547,172 @@
           "papel"
         ],
         "title": "Me",
+        "type": "object"
+      },
+      "Membro": {
+        "properties": {
+          "funcao": {
+            "title": "Funcao",
+            "type": "string"
+          },
+          "funcao_rotulo": {
+            "title": "Funcao Rotulo",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "servidor_ativo": {
+            "title": "Servidor Ativo",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "nome",
+          "funcao",
+          "funcao_rotulo",
+          "servidor_ativo"
+        ],
+        "title": "Membro",
+        "type": "object"
+      },
+      "MemorandoLido": {
+        "properties": {
+          "caracteres": {
+            "title": "Caracteres",
+            "type": "integer"
+          },
+          "texto": {
+            "title": "Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "texto",
+          "caracteres"
+        ],
+        "title": "MemorandoLido",
+        "type": "object"
+      },
+      "ModeloEnviado": {
+        "additionalProperties": false,
+        "properties": {
+          "cabecalho_pct": {
+            "default": 14,
+            "maximum": 40.0,
+            "minimum": 3.0,
+            "title": "Cabecalho Pct",
+            "type": "number"
+          },
+          "conteudo": {
+            "maxLength": 13981021,
+            "minLength": 1,
+            "title": "Conteudo",
+            "type": "string"
+          },
+          "marca": {
+            "default": false,
+            "title": "Marca",
+            "type": "boolean"
+          },
+          "nome_arquivo": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome Arquivo",
+            "type": "string"
+          },
+          "rodape_pct": {
+            "default": 10,
+            "maximum": 40.0,
+            "minimum": 3.0,
+            "title": "Rodape Pct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "nome_arquivo",
+          "conteudo"
+        ],
+        "title": "ModeloEnviado",
+        "type": "object"
+      },
+      "Modulo": {
+        "properties": {
+          "disponivel_no_sistema": {
+            "title": "Disponivel No Sistema",
+            "type": "boolean"
+          },
+          "explicacao": {
+            "title": "Explicacao",
+            "type": "string"
+          },
+          "modulo": {
+            "title": "Modulo",
+            "type": "string"
+          },
+          "na_prefeitura": {
+            "title": "Na Prefeitura",
+            "type": "boolean"
+          },
+          "na_secretaria": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Na Secretaria"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "modulo",
+          "rotulo",
+          "disponivel_no_sistema",
+          "na_prefeitura",
+          "na_secretaria",
+          "explicacao"
+        ],
+        "title": "Modulo",
+        "type": "object"
+      },
+      "ModuloNaPrefeitura": {
+        "additionalProperties": false,
+        "properties": {
+          "habilitado": {
+            "title": "Habilitado",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "habilitado"
+        ],
+        "title": "ModuloNaPrefeitura",
+        "type": "object"
+      },
+      "ModuloNaSecretaria": {
+        "additionalProperties": false,
+        "properties": {
+          "estado": {
+            "enum": [
+              "HERDAR",
+              "HABILITADO",
+              "DESABILITADO"
+            ],
+            "title": "Estado",
+            "type": "string"
+          }
+        },
+        "required": [
+          "estado"
+        ],
+        "title": "ModuloNaSecretaria",
         "type": "object"
       },
       "Motivo": {
@@ -734,6 +1893,155 @@
         "title": "NovaPesquisa",
         "type": "object"
       },
+      "NovaPortaria": {
+        "additionalProperties": false,
+        "properties": {
+          "ano": {
+            "maximum": 2100.0,
+            "minimum": 2000.0,
+            "title": "Ano",
+            "type": "integer"
+          },
+          "data_fim_vigencia": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Fim Vigencia"
+          },
+          "data_inicio_vigencia": {
+            "format": "date",
+            "title": "Data Inicio Vigencia",
+            "type": "string"
+          },
+          "data_publicacao": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Publicacao"
+          },
+          "numero": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Numero",
+            "type": "string"
+          },
+          "secretaria_id": {
+            "format": "uuid",
+            "title": "Secretaria Id",
+            "type": "string"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secretaria_id",
+          "tipo",
+          "numero",
+          "ano",
+          "data_inicio_vigencia"
+        ],
+        "title": "NovaPortaria",
+        "type": "object"
+      },
+      "NovaReferencia": {
+        "additionalProperties": false,
+        "properties": {
+          "categoria": {
+            "enum": [
+              "lei",
+              "acordao",
+              "entendimento",
+              "manual",
+              "processo_anterior",
+              "modelo",
+              "outro"
+            ],
+            "title": "Categoria",
+            "type": "string"
+          },
+          "conteudo": {
+            "maxLength": 13981021,
+            "minLength": 1,
+            "title": "Conteudo",
+            "type": "string"
+          },
+          "nome_arquivo": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome Arquivo",
+            "type": "string"
+          },
+          "titulo": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Titulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome_arquivo",
+          "categoria",
+          "conteudo"
+        ],
+        "title": "NovaReferencia",
+        "type": "object"
+      },
+      "NovaSecretaria": {
+        "additionalProperties": false,
+        "properties": {
+          "nome": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome",
+            "type": "string"
+          },
+          "sigla": {
+            "default": "",
+            "maxLength": 30,
+            "title": "Sigla",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome"
+        ],
+        "title": "NovaSecretaria",
+        "type": "object"
+      },
+      "NovoMembro": {
+        "additionalProperties": false,
+        "properties": {
+          "funcao": {
+            "title": "Funcao",
+            "type": "string"
+          },
+          "servidor_id": {
+            "format": "uuid",
+            "title": "Servidor Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "servidor_id",
+          "funcao"
+        ],
+        "title": "NovoMembro",
+        "type": "object"
+      },
       "NovoProcesso": {
         "additionalProperties": false,
         "properties": {
@@ -761,6 +2069,76 @@
           "objeto"
         ],
         "title": "NovoProcesso",
+        "type": "object"
+      },
+      "NovoServidor": {
+        "additionalProperties": false,
+        "properties": {
+          "cargo": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cargo"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "matricula": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matricula"
+          },
+          "nome": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome"
+        ],
+        "title": "NovoServidor",
+        "type": "object"
+      },
+      "Opcao": {
+        "properties": {
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigo",
+          "rotulo"
+        ],
+        "title": "Opcao",
         "type": "object"
       },
       "OpcaoDeRelatorio": {
@@ -842,6 +2220,45 @@
         "title": "PaginaDeProcessos",
         "type": "object"
       },
+      "PedidoDeAplicacao": {
+        "additionalProperties": false,
+        "properties": {
+          "arquivos": {
+            "items": {
+              "$ref": "#/components/schemas/ArquivoEnviado"
+            },
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Arquivos",
+            "type": "array"
+          },
+          "confirmar_descarte": {
+            "default": false,
+            "title": "Confirmar Descarte",
+            "type": "boolean"
+          },
+          "conflitos_aceitos": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Conflitos Aceitos",
+            "type": "array"
+          },
+          "rotulos": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Rotulos",
+            "type": "object"
+          }
+        },
+        "required": [
+          "arquivos"
+        ],
+        "title": "PedidoDeAplicacao",
+        "type": "object"
+      },
       "PedidoDeCiencia": {
         "additionalProperties": false,
         "properties": {
@@ -868,6 +2285,40 @@
           }
         },
         "title": "PedidoDeColeta",
+        "type": "object"
+      },
+      "PedidoDeConsolidacao": {
+        "additionalProperties": false,
+        "properties": {
+          "arquivos": {
+            "items": {
+              "$ref": "#/components/schemas/ArquivoEnviado"
+            },
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Arquivos",
+            "type": "array"
+          },
+          "conflitos_aceitos": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Conflitos Aceitos",
+            "type": "array"
+          },
+          "rotulos": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Rotulos",
+            "type": "object"
+          }
+        },
+        "required": [
+          "arquivos"
+        ],
+        "title": "PedidoDeConsolidacao",
         "type": "object"
       },
       "PedidoDeRelatorio": {
@@ -1053,6 +2504,33 @@
         "title": "PesquisaCriada",
         "type": "object"
       },
+      "PlanilhaLida": {
+        "properties": {
+          "itens": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Itens",
+            "type": "array"
+          },
+          "valor_estimado": {
+            "title": "Valor Estimado",
+            "type": "number"
+          },
+          "valor_estimado_exibicao": {
+            "title": "Valor Estimado Exibicao",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itens",
+          "valor_estimado",
+          "valor_estimado_exibicao"
+        ],
+        "title": "PlanilhaLida",
+        "type": "object"
+      },
       "PlanoDeImportacao": {
         "properties": {
           "acoes": {
@@ -1103,6 +2581,143 @@
           "gravado"
         ],
         "title": "PlanoDeImportacao",
+        "type": "object"
+      },
+      "Portaria": {
+        "properties": {
+          "ano": {
+            "title": "Ano",
+            "type": "integer"
+          },
+          "citacao": {
+            "title": "Citacao",
+            "type": "string"
+          },
+          "data_fim_vigencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Fim Vigencia"
+          },
+          "data_inicio_vigencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Inicio Vigencia"
+          },
+          "data_publicacao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Publicacao"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "membros": {
+            "items": {
+              "$ref": "#/components/schemas/Membro"
+            },
+            "title": "Membros",
+            "type": "array"
+          },
+          "numero": {
+            "title": "Numero",
+            "type": "string"
+          },
+          "situacao": {
+            "title": "Situacao",
+            "type": "string"
+          },
+          "situacao_declarada": {
+            "title": "Situacao Declarada",
+            "type": "string"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          },
+          "tipo_rotulo": {
+            "title": "Tipo Rotulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tipo",
+          "tipo_rotulo",
+          "numero",
+          "ano",
+          "situacao",
+          "situacao_declarada",
+          "citacao",
+          "data_publicacao",
+          "data_inicio_vigencia",
+          "data_fim_vigencia",
+          "membros"
+        ],
+        "title": "Portaria",
+        "type": "object"
+      },
+      "Portarias": {
+        "properties": {
+          "avisos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Avisos",
+            "type": "array"
+          },
+          "portarias": {
+            "items": {
+              "$ref": "#/components/schemas/Portaria"
+            },
+            "title": "Portarias",
+            "type": "array"
+          }
+        },
+        "required": [
+          "portarias",
+          "avisos"
+        ],
+        "title": "Portarias",
+        "type": "object"
+      },
+      "Prefeitura": {
+        "properties": {
+          "campos": {
+            "items": {
+              "$ref": "#/components/schemas/CampoDaPrefeitura"
+            },
+            "title": "Campos",
+            "type": "array"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome",
+          "campos"
+        ],
+        "title": "Prefeitura",
         "type": "object"
       },
       "PreparoDaEmissao": {
@@ -1264,6 +2879,41 @@
         "title": "PreviaDaAplicacao",
         "type": "object"
       },
+      "PreviaDoModelo": {
+        "properties": {
+          "cabecalho": {
+            "title": "Cabecalho",
+            "type": "string"
+          },
+          "marca": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marca"
+          },
+          "pagina": {
+            "title": "Pagina",
+            "type": "string"
+          },
+          "rodape": {
+            "title": "Rodape",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pagina",
+          "cabecalho",
+          "rodape",
+          "marca"
+        ],
+        "title": "PreviaDoModelo",
+        "type": "object"
+      },
       "Processo": {
         "properties": {
           "atualizado_em": {
@@ -1365,7 +3015,504 @@
         "title": "Pronto",
         "type": "object"
       },
-      "Referencia": {
+      "ReferenciaExcluida": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "ReferenciaExcluida",
+        "type": "object"
+      },
+      "ReferenciaIndexada": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "nome_arquivo": {
+            "title": "Nome Arquivo",
+            "type": "string"
+          },
+          "pendente_de_vetor": {
+            "title": "Pendente De Vetor",
+            "type": "boolean"
+          },
+          "trechos": {
+            "title": "Trechos",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "nome_arquivo",
+          "trechos",
+          "pendente_de_vetor"
+        ],
+        "title": "ReferenciaIndexada",
+        "type": "object"
+      },
+      "ResultadoDaCesta": {
+        "properties": {
+          "metodo": {
+            "title": "Metodo",
+            "type": "string"
+          },
+          "pendencias": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pendencias",
+            "type": "array"
+          },
+          "preco_estimado": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisao": {
+            "title": "Revisao",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "preco_estimado",
+          "metodo",
+          "status",
+          "pendencias",
+          "revisao"
+        ],
+        "title": "ResultadoDaCesta",
+        "type": "object"
+      },
+      "ResumoPesquisa": {
+        "properties": {
+          "atualizado_em": {
+            "title": "Atualizado Em",
+            "type": "string"
+          },
+          "estado": {
+            "title": "Estado",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "objeto": {
+            "title": "Objeto",
+            "type": "string"
+          },
+          "valor_global": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "nome",
+          "objeto",
+          "estado",
+          "valor_global",
+          "atualizado_em"
+        ],
+        "title": "ResumoPesquisa",
+        "type": "object"
+      },
+      "Secretaria": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nome"
+        ],
+        "title": "Secretaria",
+        "type": "object"
+      },
+      "SecretariaCadastrada": {
+        "properties": {
+          "ativo": {
+            "title": "Ativo",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "identidade_propria": {
+            "title": "Identidade Propria",
+            "type": "boolean"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "padrao": {
+            "title": "Padrao",
+            "type": "boolean"
+          },
+          "sigla": {
+            "title": "Sigla",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nome",
+          "sigla",
+          "ativo",
+          "padrao",
+          "identidade_propria"
+        ],
+        "title": "SecretariaCadastrada",
+        "type": "object"
+      },
+      "Servidor": {
+        "properties": {
+          "ativo": {
+            "title": "Ativo",
+            "type": "boolean"
+          },
+          "cargo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cargo"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "matricula": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matricula"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nome",
+          "cargo",
+          "matricula",
+          "email",
+          "ativo"
+        ],
+        "title": "Servidor",
+        "type": "object"
+      },
+      "SituacaoDaPortaria": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "RASCUNHO",
+              "ATIVA",
+              "REVOGADA"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SituacaoDaPortaria",
+        "type": "object"
+      },
+      "Timbrado": {
+        "properties": {
+          "cabecalho_img": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cabecalho Img"
+          },
+          "cabecalho_texto": {
+            "title": "Cabecalho Texto",
+            "type": "string"
+          },
+          "marca_img": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marca Img"
+          },
+          "marca_texto": {
+            "title": "Marca Texto",
+            "type": "string"
+          },
+          "origem": {
+            "title": "Origem",
+            "type": "string"
+          },
+          "rodape_img": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rodape Img"
+          },
+          "rodape_texto": {
+            "title": "Rodape Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "origem",
+          "cabecalho_img",
+          "rodape_img",
+          "marca_img",
+          "cabecalho_texto",
+          "rodape_texto",
+          "marca_texto"
+        ],
+        "title": "Timbrado",
+        "type": "object"
+      },
+      "Trecho": {
+        "properties": {
+          "categoria_rotulo": {
+            "title": "Categoria Rotulo",
+            "type": "string"
+          },
+          "conteudo": {
+            "title": "Conteudo",
+            "type": "string"
+          },
+          "similaridade": {
+            "title": "Similaridade",
+            "type": "number"
+          },
+          "titulo": {
+            "title": "Titulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "titulo",
+          "categoria_rotulo",
+          "similaridade",
+          "conteudo"
+        ],
+        "title": "Trecho",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "Valor": {
+        "description": "Dinheiro ou quantidade exatos. `valor` é o canônico, para máquina;\n`exibicao` é o que se mostra, já arredondado pela regra do domínio.",
+        "properties": {
+          "exibicao": {
+            "title": "Exibicao",
+            "type": "string"
+          },
+          "valor": {
+            "title": "Valor",
+            "type": "string"
+          }
+        },
+        "required": [
+          "valor",
+          "exibicao"
+        ],
+        "title": "Valor",
+        "type": "object"
+      },
+      "Vivo": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "Vivo",
+        "type": "object"
+      },
+      "govconect_api__base_conhecimento__Referencia": {
+        "properties": {
+          "categoria": {
+            "title": "Categoria",
+            "type": "string"
+          },
+          "categoria_rotulo": {
+            "title": "Categoria Rotulo",
+            "type": "string"
+          },
+          "criado_em": {
+            "title": "Criado Em",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "nome_arquivo": {
+            "title": "Nome Arquivo",
+            "type": "string"
+          },
+          "titulo": {
+            "title": "Titulo",
+            "type": "string"
+          },
+          "total_chunks": {
+            "title": "Total Chunks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "titulo",
+          "categoria",
+          "categoria_rotulo",
+          "nome_arquivo",
+          "total_chunks",
+          "criado_em"
+        ],
+        "title": "Referencia",
+        "type": "object"
+      },
+      "govconect_api__demandas__Modulos": {
+        "properties": {
+          "consolidar_demandas": {
+            "title": "Consolidar Demandas",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "consolidar_demandas"
+        ],
+        "title": "Modulos",
+        "type": "object"
+      },
+      "govconect_api__instituicao__Modulos": {
+        "properties": {
+          "modulos": {
+            "items": {
+              "$ref": "#/components/schemas/Modulo"
+            },
+            "title": "Modulos",
+            "type": "array"
+          }
+        },
+        "required": [
+          "modulos"
+        ],
+        "title": "Modulos",
+        "type": "object"
+      },
+      "govconect_api__precos__Referencia": {
         "properties": {
           "coletado_em": {
             "title": "Coletado Em",
@@ -1567,164 +3714,6 @@
         ],
         "title": "Referencia",
         "type": "object"
-      },
-      "ResultadoDaCesta": {
-        "properties": {
-          "metodo": {
-            "title": "Metodo",
-            "type": "string"
-          },
-          "pendencias": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Pendencias",
-            "type": "array"
-          },
-          "preco_estimado": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Valor"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "revisao": {
-            "title": "Revisao",
-            "type": "integer"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "preco_estimado",
-          "metodo",
-          "status",
-          "pendencias",
-          "revisao"
-        ],
-        "title": "ResultadoDaCesta",
-        "type": "object"
-      },
-      "ResumoPesquisa": {
-        "properties": {
-          "atualizado_em": {
-            "title": "Atualizado Em",
-            "type": "string"
-          },
-          "estado": {
-            "title": "Estado",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "nome": {
-            "title": "Nome",
-            "type": "string"
-          },
-          "objeto": {
-            "title": "Objeto",
-            "type": "string"
-          },
-          "valor_global": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Valor"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "nome",
-          "objeto",
-          "estado",
-          "valor_global",
-          "atualizado_em"
-        ],
-        "title": "ResumoPesquisa",
-        "type": "object"
-      },
-      "ValidationError": {
-        "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "title": "Location",
-            "type": "array"
-          },
-          "msg": {
-            "title": "Message",
-            "type": "string"
-          },
-          "type": {
-            "title": "Error Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError",
-        "type": "object"
-      },
-      "Valor": {
-        "description": "Dinheiro ou quantidade exatos. `valor` é o canônico, para máquina;\n`exibicao` é o que se mostra, já arredondado pela regra do domínio.",
-        "properties": {
-          "exibicao": {
-            "title": "Exibicao",
-            "type": "string"
-          },
-          "valor": {
-            "title": "Valor",
-            "type": "string"
-          }
-        },
-        "required": [
-          "valor",
-          "exibicao"
-        ],
-        "title": "Valor",
-        "type": "object"
-      },
-      "Vivo": {
-        "properties": {
-          "status": {
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "title": "Vivo",
-        "type": "object"
       }
     }
   },
@@ -1734,6 +3723,1160 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/base-conhecimento": {
+      "get": {
+        "operationId": "listar_api_v1_admin_base_conhecimento_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseDeConhecimento"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Listar",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      },
+      "post": {
+        "operationId": "indexar_api_v1_admin_base_conhecimento_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovaReferencia"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenciaIndexada"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "Arquivo acima de 10 MB"
+          },
+          "422": {
+            "description": "Formato não aceito ou sem texto indexável"
+          }
+        },
+        "summary": "Indexar",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/base-conhecimento/busca": {
+      "post": {
+        "description": "O que a IA veria: os trechos que a recuperação devolve para a consulta.",
+        "operationId": "buscar_api_v1_admin_base_conhecimento_busca_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Consulta"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Trecho"
+                  },
+                  "title": "Response Buscar Api V1 Admin Base Conhecimento Busca Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Buscar",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/base-conhecimento/{referencia_id}": {
+      "delete": {
+        "operationId": "excluir_api_v1_admin_base_conhecimento__referencia_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referencia_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Referencia Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenciaExcluida"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Referência fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Excluir",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao": {
+      "get": {
+        "operationId": "visao_api_v1_admin_instituicao_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Instituicao"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Visao",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/identidades": {
+      "get": {
+        "operationId": "identidades_api_v1_admin_instituicao_identidades_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IdentidadeVisual"
+                  },
+                  "title": "Response Identidades Api V1 Admin Instituicao Identidades Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Identidades",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/identidades/imagem": {
+      "post": {
+        "operationId": "salvar_por_imagem_api_v1_admin_instituicao_identidades_imagem_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentidadePorImagem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IdentidadeVisual"
+                  },
+                  "title": "Response Salvar Por Imagem Api V1 Admin Instituicao Identidades Imagem Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Salvar Por Imagem",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/identidades/previa": {
+      "post": {
+        "operationId": "previa_api_v1_admin_instituicao_identidades_previa_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModeloEnviado"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviaDoModelo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "Modelo acima de 10 MB"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Previa",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/identidades/texto": {
+      "post": {
+        "operationId": "salvar_por_texto_api_v1_admin_instituicao_identidades_texto_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentidadePorTexto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IdentidadeVisual"
+                  },
+                  "title": "Response Salvar Por Texto Api V1 Admin Instituicao Identidades Texto Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Salvar Por Texto",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/identidades/{orgao_id}": {
+      "delete": {
+        "operationId": "excluir_api_v1_admin_instituicao_identidades__orgao_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orgao_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Orgao Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Excluida"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Identidade fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Excluir",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/identidades/{orgao_id}/padrao": {
+      "put": {
+        "operationId": "tornar_padrao_api_v1_admin_instituicao_identidades__orgao_id__padrao_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orgao_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Orgao Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IdentidadeVisual"
+                  },
+                  "title": "Response Tornar Padrao Api V1 Admin Instituicao Identidades  Orgao Id  Padrao Put",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Identidade fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Tornar Padrao",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/modulos": {
+      "get": {
+        "operationId": "listar_modulos_api_v1_admin_instituicao_modulos_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "secretaria_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Secretaria Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/govconect_api__instituicao__Modulos"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listar Modulos",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/modulos/prefeitura/{modulo}": {
+      "put": {
+        "operationId": "modulo_na_prefeitura_api_v1_admin_instituicao_modulos_prefeitura__modulo__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "modulo",
+            "required": true,
+            "schema": {
+              "title": "Modulo",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuloNaPrefeitura"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/govconect_api__instituicao__Modulos"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Modulo Na Prefeitura",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/modulos/secretarias/{secretaria_id}/{modulo}": {
+      "put": {
+        "operationId": "modulo_na_secretaria_api_v1_admin_instituicao_modulos_secretarias__secretaria_id___modulo__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "secretaria_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Secretaria Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "modulo",
+            "required": true,
+            "schema": {
+              "title": "Modulo",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuloNaSecretaria"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/govconect_api__instituicao__Modulos"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Modulo Na Secretaria",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/portarias": {
+      "get": {
+        "operationId": "listar_portarias_api_v1_admin_instituicao_portarias_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "secretaria_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Secretaria Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portarias"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listar Portarias",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      },
+      "post": {
+        "operationId": "criar_portaria_api_v1_admin_instituicao_portarias_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovaPortaria"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portaria"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Criar Portaria",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/portarias/{portaria_id}": {
+      "patch": {
+        "operationId": "mudar_situacao_api_v1_admin_instituicao_portarias__portaria_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "portaria_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Portaria Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SituacaoDaPortaria"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portaria"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mudar Situacao",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/portarias/{portaria_id}/membros": {
+      "post": {
+        "operationId": "adicionar_membro_api_v1_admin_instituicao_portarias__portaria_id__membros_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "portaria_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Portaria Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovoMembro"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portaria"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Adicionar Membro",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/prefeitura": {
+      "get": {
+        "operationId": "prefeitura_api_v1_admin_instituicao_prefeitura_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Prefeitura"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Prefeitura",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      },
+      "put": {
+        "operationId": "salvar_prefeitura_api_v1_admin_instituicao_prefeitura_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DadosDaPrefeitura"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Prefeitura"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Salvar Prefeitura",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/secretarias": {
+      "get": {
+        "operationId": "secretarias_api_v1_admin_instituicao_secretarias_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SecretariaCadastrada"
+                  },
+                  "title": "Response Secretarias Api V1 Admin Instituicao Secretarias Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Secretarias",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      },
+      "post": {
+        "operationId": "criar_secretaria_api_v1_admin_instituicao_secretarias_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovaSecretaria"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SecretariaCadastrada"
+                  },
+                  "title": "Response Criar Secretaria Api V1 Admin Instituicao Secretarias Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Criar Secretaria",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/secretarias/{secretaria_id}": {
+      "patch": {
+        "operationId": "editar_secretaria_api_v1_admin_instituicao_secretarias__secretaria_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "secretaria_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Secretaria Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EdicaoDeSecretaria"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SecretariaCadastrada"
+                  },
+                  "title": "Response Editar Secretaria Api V1 Admin Instituicao Secretarias  Secretaria Id  Patch",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Secretaria fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Editar Secretaria",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/servidores": {
+      "get": {
+        "operationId": "servidores_api_v1_admin_instituicao_servidores_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Servidor"
+                  },
+                  "title": "Response Servidores Api V1 Admin Instituicao Servidores Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Servidores",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      },
+      "post": {
+        "operationId": "criar_servidor_api_v1_admin_instituicao_servidores_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovoServidor"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Servidor"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Criar Servidor",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/servidores/{servidor_id}": {
+      "patch": {
+        "operationId": "editar_servidor_api_v1_admin_instituicao_servidores__servidor_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "servidor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Servidor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EdicaoDeServidor"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Servidor"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou de outro município"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Editar Servidor",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/timbrado": {
+      "get": {
+        "operationId": "timbrado_api_v1_admin_instituicao_timbrado_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "secretaria_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Secretaria Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Timbrado"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Timbrado",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
     "/api/v1/jobs/{job_id}": {
       "get": {
         "operationId": "consultar_api_v1_jobs__job_id__get",
@@ -1857,6 +5000,29 @@
         "summary": "Me",
         "tags": [
           "v1"
+        ]
+      }
+    },
+    "/api/v1/modulos": {
+      "get": {
+        "description": "Módulos opcionais disponíveis para quem está logado (menu da tela).",
+        "operationId": "modulos_api_v1_modulos_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/govconect_api__demandas__Modulos"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Modulos",
+        "tags": [
+          "v1",
+          "demandas"
         ]
       }
     },
@@ -2614,7 +5780,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/Referencia"
+                    "$ref": "#/components/schemas/govconect_api__precos__Referencia"
                   },
                   "title": "Response Referencias Api V1 Precos Pesquisas  Pesquisa Id  Itens  Item Id  Referencias Get",
                   "type": "array"
@@ -2945,6 +6111,27 @@
         ]
       }
     },
+    "/api/v1/processos/modelo-planilha.xlsx": {
+      "get": {
+        "operationId": "modelo_api_v1_processos_modelo_planilha_xlsx_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Modelo",
+        "tags": [
+          "v1",
+          "formulario"
+        ]
+      }
+    },
     "/api/v1/processos/{processo_id}": {
       "get": {
         "operationId": "consultar_api_v1_processos__processo_id__get",
@@ -3066,6 +6253,419 @@
         "tags": [
           "v1",
           "processos"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/demandas/aplicacao": {
+      "put": {
+        "operationId": "aplicar_api_v1_processos__processo_id__demandas_aplicacao_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeAplicacao"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AplicacaoDaDemanda"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso ou módulo desligado"
+          },
+          "409": {
+            "description": "Versão desatualizada ou descarte não confirmado"
+          },
+          "422": {
+            "description": "Conflito pendente, soma que não fecha ou nada lido"
+          },
+          "428": {
+            "description": "If-Match ausente"
+          }
+        },
+        "summary": "Aplicar",
+        "tags": [
+          "v1",
+          "demandas"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/demandas/consolidacao": {
+      "post": {
+        "operationId": "consolidar_api_v1_processos__processo_id__demandas_consolidacao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeConsolidacao"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Consolidacao"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso ou módulo desligado"
+          },
+          "413": {
+            "description": "Arquivos acima do limite"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consolidar",
+        "tags": [
+          "v1",
+          "demandas"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/demandas/planilha": {
+      "post": {
+        "operationId": "planilha_consolidada_api_v1_processos__processo_id__demandas_planilha_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeConsolidacao"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso ou módulo desligado"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Planilha Consolidada",
+        "tags": [
+          "v1",
+          "demandas"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/formulario": {
+      "get": {
+        "operationId": "ler_api_v1_processos__processo_id__formulario_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Formulario"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ler",
+        "tags": [
+          "v1",
+          "formulario"
+        ]
+      },
+      "put": {
+        "operationId": "gravar_api_v1_processos__processo_id__formulario_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GravacaoDoFormulario"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormularioGravado"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "409": {
+            "description": "Versão desatualizada (VERSION_CONFLICT) ou descarte não confirmado (DESCARTE_PENDENTE)"
+          },
+          "422": {
+            "description": "Campo inválido ou obrigatório vazio (nada gravado)"
+          },
+          "428": {
+            "description": "If-Match ausente"
+          }
+        },
+        "summary": "Gravar",
+        "tags": [
+          "v1",
+          "formulario"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/formulario/memorando": {
+      "post": {
+        "operationId": "ler_memorando_api_v1_processos__processo_id__formulario_memorando_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "nome",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Nome",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemorandoLido"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "Arquivo acima do limite"
+          },
+          "415": {
+            "description": "Formato não suportado"
+          },
+          "422": {
+            "description": "Sem texto extraível"
+          }
+        },
+        "summary": "Ler Memorando",
+        "tags": [
+          "v1",
+          "formulario"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/formulario/planilha": {
+      "post": {
+        "operationId": "ler_planilha_api_v1_processos__processo_id__formulario_planilha_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanilhaLida"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "Planilha acima do limite"
+          },
+          "415": {
+            "description": "Não é XLSX"
+          },
+          "422": {
+            "description": "Planilha ilegível ou sem itens"
+          }
+        },
+        "summary": "Ler Planilha",
+        "tags": [
+          "v1",
+          "formulario"
         ]
       }
     },
