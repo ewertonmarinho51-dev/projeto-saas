@@ -18,7 +18,12 @@ test("administrador edita a prefeitura, cria secretaria e identidade visual", as
   await page.waitForURL(/\/app$/);
 
   await page.getByRole("link", { name: "Instituição" }).click();
-  await page.getByRole("link", { name: "Prefeitura" }).click();
+  // Espera a página: sem isto, o clique seguinte pega o link de um processo
+  // "Prefeitura — ..." ainda na tela inicial.
+  await expect(page.getByRole("heading", { name: "Instituição", level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: "Prefeitura", exact: true }).click();
+  await page.waitForURL(/secao=prefeitura/);
+  await expect(page.getByRole("button", { name: "Salvar dados institucionais" })).toBeVisible();
   const cidade = `Cidade E2E ${Date.now()}`;
   await page.getByLabel("Cidade").fill(cidade);
   await page.getByRole("button", { name: "Salvar dados institucionais" }).click();
@@ -26,15 +31,19 @@ test("administrador edita a prefeitura, cria secretaria e identidade visual", as
   await page.reload();
   await expect(page.getByLabel("Cidade")).toHaveValue(cidade);
 
-  await page.getByRole("link", { name: "Secretarias" }).click();
+  await page.getByRole("link", { name: "Secretarias", exact: true }).click();
+  await page.waitForURL(/secao=secretarias/);
+  await expect(page.getByRole("heading", { name: "Nova secretaria" })).toBeVisible();
   const secretaria = `Secretaria E2E ${Date.now()}`;
-  await page.getByLabel("Nome").fill(secretaria);
+  await page.getByLabel("Nome", { exact: true }).fill(secretaria);
   await page.getByLabel("Sigla").fill("SE2E");
   await page.getByRole("button", { name: "Criar secretaria" }).click();
   await expect(page.getByText(`Secretaria ${secretaria} criada.`)).toBeVisible();
   await expect(page.getByTestId("lista-secretarias")).toContainText(secretaria);
 
-  await page.getByRole("link", { name: "Identidade visual" }).click();
+  await page.getByRole("link", { name: "Identidade visual", exact: true }).click();
+  await page.waitForURL(/secao=identidade/);
+  await expect(page.getByRole("heading", { name: "Nova identidade" })).toBeVisible();
   await page.getByRole("tab", { name: "Definir por texto" }).click();
   const orgao = `Órgão E2E ${Date.now()}`;
   await page.getByTestId("identidade-texto").getByLabel("Órgão").fill(orgao);
@@ -45,10 +54,14 @@ test("administrador edita a prefeitura, cria secretaria e identidade visual", as
   await page.screenshot({ path: "e2e/resultados/telas/identidade-visual-1440.png", fullPage: true });
 
   // A identidade salva é espelhada em Secretarias (o resolvedor do timbrado lê de lá).
-  await page.getByRole("link", { name: "Secretarias" }).click();
+  await page.getByRole("link", { name: "Secretarias", exact: true }).click();
+  await page.waitForURL(/secao=secretarias/);
+  await expect(page.getByRole("heading", { name: "Nova secretaria" })).toBeVisible();
   await expect(page.getByTestId("lista-secretarias")).toContainText(orgao);
 
-  await page.getByRole("link", { name: "Identidade visual" }).click();
+  await page.getByRole("link", { name: "Identidade visual", exact: true }).click();
+  await page.waitForURL(/secao=identidade/);
+  await expect(page.getByRole("heading", { name: "Nova identidade" })).toBeVisible();
   const linha = page.getByTestId("lista-identidades").getByRole("listitem").filter({ hasText: orgao });
   await linha.getByRole("button", { name: "Excluir" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Excluir", exact: true }).click();
