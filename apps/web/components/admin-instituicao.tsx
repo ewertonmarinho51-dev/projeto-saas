@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
 
 import {
@@ -60,7 +61,19 @@ function Retorno({ estado }: { estado: EstadoDoAto }) {
 function useAto() {
   const [estado, setEstado] = useState<EstadoDoAto>(INICIAL);
   const [ocupado, executar] = useTransition();
-  return { estado, ocupado, rodar: (f: () => Promise<EstadoDoAto>) => executar(async () => setEstado(await f())) };
+  const router = useRouter();
+  // `revalidatePath` na action não basta quando ela é chamada fora de um
+  // <form>: a tela continuava mostrando o que acabara de ser excluído.
+  return {
+    estado,
+    ocupado,
+    rodar: (f: () => Promise<EstadoDoAto>) =>
+      executar(async () => {
+        const r = await f();
+        setEstado(r);
+        if (!r.erro) router.refresh();
+      }),
+  };
 }
 
 // ---------------------------------------------------------------------------

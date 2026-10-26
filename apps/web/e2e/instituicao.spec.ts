@@ -13,8 +13,8 @@ const estado = JSON.parse(readFileSync(process.env.GOVCONECT_E2E_ESTADO ?? "", "
 
 test("administrador cadastra servidor e portaria com membro", async ({ page }) => {
   await page.goto("/entrar");
-  await page.getByLabel("E-mail institucional").fill(estado.contas.admin_a.email);
-  await page.getByLabel("Senha", { exact: true }).fill(estado.contas.admin_a.senha);
+  await page.getByLabel("E-mail institucional").fill(estado.contas.admin_inst.email);
+  await page.getByLabel("Senha", { exact: true }).fill(estado.contas.admin_inst.senha);
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await page.waitForURL(/\/app$/);
 

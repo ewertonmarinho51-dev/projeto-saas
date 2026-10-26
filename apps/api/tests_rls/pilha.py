@@ -56,6 +56,11 @@ CONTAS = (
     ("a1_colega", "A", "A1", "usuario", True),
     ("a2", "A", "A2", "usuario", True),
     ("admin_a", "A", "A1", "admin", True),
+    # Admins só dos E2E de administração: o limite da API é por usuário
+    # (120/min), e cinco specs seguidos com `admin_a` estouravam a cota do
+    # próximo — o `precos-escrita` caía em 429 no meio.
+    ("admin_inst", "A", "A1", "admin", True),
+    ("admin_base", "A", "A1", "admin", True),
     ("b1", "B", "B1", "usuario", True),
     ("a1_revogado", "A", "A1", "usuario", False),
 )

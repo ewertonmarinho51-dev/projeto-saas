@@ -12,8 +12,8 @@ const estado = JSON.parse(readFileSync(process.env.GOVCONECT_E2E_ESTADO ?? "", "
 
 test("administrador edita a prefeitura, cria secretaria e identidade visual", async ({ page }) => {
   await page.goto("/entrar");
-  await page.getByLabel("E-mail institucional").fill(estado.contas.admin_a.email);
-  await page.getByLabel("Senha", { exact: true }).fill(estado.contas.admin_a.senha);
+  await page.getByLabel("E-mail institucional").fill(estado.contas.admin_inst.email);
+  await page.getByLabel("Senha", { exact: true }).fill(estado.contas.admin_inst.senha);
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await page.waitForURL(/\/app$/);
 
@@ -66,5 +66,6 @@ test("administrador edita a prefeitura, cria secretaria e identidade visual", as
   await linha.getByRole("button", { name: "Excluir" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Excluir", exact: true }).click();
   await expect(page.getByText("Identidade excluída.")).toBeVisible();
-  await expect(page.getByTestId("lista-identidades")).not.toContainText(orgao);
+  // Era a única identidade da pilha: a lista some e fica o "nenhuma".
+  await expect(page.getByText(orgao)).toHaveCount(0);
 });
