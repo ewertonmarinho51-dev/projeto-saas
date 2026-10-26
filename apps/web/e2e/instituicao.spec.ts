@@ -24,7 +24,7 @@ test("administrador cadastra servidor e portaria com membro", async ({ page }) =
   await page.waitForURL(/secao=servidores/);
   await expect(page.getByRole("heading", { name: "Novo servidor" })).toBeVisible();
   const nome = `Servidora E2E ${Date.now()}`;
-  await page.getByLabel("Nome", { exact: true }).fill(nome);
+  await page.getByRole("textbox", { name: "Nome", exact: true }).fill(nome);
   await page.getByLabel("Cargo").fill("Agente de Contratação");
   await page.getByRole("button", { name: "Cadastrar servidor" }).click();
   await expect(page.getByText(`${nome} cadastrado.`)).toBeVisible();

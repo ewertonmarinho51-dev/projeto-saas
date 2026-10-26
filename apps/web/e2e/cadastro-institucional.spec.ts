@@ -35,7 +35,7 @@ test("administrador edita a prefeitura, cria secretaria e identidade visual", as
   await page.waitForURL(/secao=secretarias/);
   await expect(page.getByRole("heading", { name: "Nova secretaria" })).toBeVisible();
   const secretaria = `Secretaria E2E ${Date.now()}`;
-  await page.getByLabel("Nome", { exact: true }).fill(secretaria);
+  await page.getByRole("textbox", { name: "Nome", exact: true }).fill(secretaria);
   await page.getByLabel("Sigla").fill("SE2E");
   await page.getByRole("button", { name: "Criar secretaria" }).click();
   await expect(page.getByText(`Secretaria ${secretaria} criada.`)).toBeVisible();
