@@ -147,3 +147,68 @@ export async function desfazerRetirada(pesquisa: string, item: string, referenci
 export async function manterPreco(pesquisa: string, item: string, referencia: string, revisao: number) {
   return naCesta("manter", pesquisa, item, referencia, revisao);
 }
+
+// ---------------------------------------------------------------------------
+// M10b: concluir a cotação, criar revisão e pesquisar preços de UM item
+// ---------------------------------------------------------------------------
+export async function concluirPesquisa(pesquisa: string): Promise<EstadoDaGestao> {
+  if (!UUID.test(pesquisa)) return { erro: "Pesquisa inválida.", ok: null };
+  try {
+    await chamarApi(`/precos/pesquisas/${pesquisa}/conclusao`, { metodo: "POST" });
+  } catch (e) {
+    return { erro: mensagem(e), ok: null };
+  }
+  revalidatePath(`/app/precos/${pesquisa}`);
+  redirect(`/app/precos/${pesquisa}?concluida=1`);
+}
+
+export async function criarRevisao(pesquisa: string, motivo: string): Promise<EstadoDaGestao> {
+  if (!UUID.test(pesquisa)) return { erro: "Pesquisa inválida.", ok: null };
+  let nova: string;
+  try {
+    const { dados } = await chamarApi<{ id: string }>(`/precos/pesquisas/${pesquisa}/revisao`, {
+      metodo: "POST",
+      corpo: { motivo: motivo.trim().slice(0, 1000) },
+    });
+    nova = dados.id;
+  } catch (e) {
+    return { erro: mensagem(e), ok: null };
+  }
+  revalidatePath("/app/precos");
+  redirect(`/app/precos/${nova}?revisao=1`);
+}
+
+export async function buscarItem(
+  pesquisa: string,
+  item: string,
+  chave: string,
+  _: EstadoDaGestao,
+  form: FormData,
+): Promise<EstadoDaGestao> {
+  if (![pesquisa, item].every((v) => UUID.test(v))) return { erro: "Item inválido.", ok: null };
+  const modo = form.get("modo") === "automatico" ? "automatico" : "manual";
+  // Uma chave por modo: os dois botões não colidem; reenviar não duplica.
+  const idempotencia = `${chave}-${modo}`;
+  if (!/^[A-Za-z0-9._:-]{8,128}$/.test(idempotencia)) return { erro: "Requisição inválida.", ok: null };
+  const janela = Number.parseInt(texto(form, "janela", 4), 10);
+  let jobId: string;
+  try {
+    const { dados } = await chamarApi<{ id: string }>(`/precos/pesquisas/${pesquisa}/coleta`, {
+      metodo: "POST",
+      corpo: {
+        modo,
+        item_id: item,
+        termo: texto(form, "termo", 300),
+        filtros: { janela_dias: Number.isFinite(janela) ? janela : 180, uf: texto(form, "uf", 2) },
+      },
+      cabecalhos: { "Idempotency-Key": idempotencia },
+    });
+    jobId = dados.id;
+  } catch (e) {
+    if (e instanceof ErroDaApi && e.codigo === "QUEUE_UNAVAILABLE")
+      return { erro: "A busca está indisponível no momento. Tente de novo em instantes.", ok: null };
+    if (e instanceof ErroDaApi && e.status === 422) return { erro: "Confira a janela (30 a 180 dias) e a UF.", ok: null };
+    return { erro: mensagem(e), ok: null };
+  }
+  redirect(`/app/precos/${pesquisa}/itens/${item}?busca=${jobId}`);
+}

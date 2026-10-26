@@ -55,6 +55,10 @@ class AlertaDePreco(BaseModel):
     faixa_max: Valor | None
 
 
+class PedidoDeRevisao(_Entrada):
+    motivo: str = Field(default="", max_length=1000)
+
+
 class Retirada(_Entrada):
     # Opcional (pacote Jev, RF-02): a auditoria é automática.
     motivo: str = Field(default="", max_length=1000)
@@ -135,6 +139,45 @@ def rotas() -> APIRouter:
             return PesquisaCriada(id=str(pesquisa_id), nome=str(linha.get("nome") or atual.get("nome") or ""),
                                   estado=str(linha.get("estado") or "archived"))
         return _executar(eu, guardar)
+
+    @r.post("/pesquisas/{pesquisa_id}/conclusao", response_model=PesquisaCriada,
+            responses={403: {"description": "Só o dono ou o administrador"},
+                       404: {"description": "Inexistente ou fora do seu acesso"},
+                       409: {"description": "Cotação imutável"},
+                       422: {"description": "Há itens não concluídos"}})
+    def concluir(pesquisa_id: uuid.UUID, request: Request,
+                 eu: Identidade = Depends(exigir_identidade)) -> PesquisaCriada:
+        """Todos os itens concluídos → cotação CONCLUÍDA. É ato humano: o sistema nunca a declara sozinho."""
+        atual = _pesquisa(_rest(request), eu, pesquisa_id, escrever=True)
+        if atual.get("estado") == "completed":
+            return PesquisaCriada(id=str(pesquisa_id), nome=str(atual.get("nome") or ""), estado="completed")
+
+        def fechar():
+            linha = cotacoes.concluir_cotacao(_ctx(eu), str(pesquisa_id)) or {}
+            return PesquisaCriada(id=str(pesquisa_id), nome=str(atual.get("nome") or ""),
+                                  estado=str(linha.get("estado") or "completed"))
+        return _executar(eu, fechar)
+
+    @r.post("/pesquisas/{pesquisa_id}/revisao", status_code=201, response_model=PesquisaCriada,
+            responses={403: {"description": "Só o dono ou o administrador"},
+                       404: {"description": "Inexistente ou fora do seu acesso"}})
+    def revisar(pesquisa_id: uuid.UUID, request: Request,
+                corpo: PedidoDeRevisao = Body(default_factory=PedidoDeRevisao),
+                eu: Identidade = Depends(exigir_identidade)) -> PesquisaCriada:
+        """Revisão lógica (§44): a mesma pesquisa, nova versão editável, com itens e referências
+        copiados no banco (RPC `revisar_pesquisa_preco`, numa transação só)."""
+        atual = _pesquisa(_rest(request), eu, pesquisa_id, escrever=True)
+        if atual.get("estado") == "archived":
+            # A RPC recusa com 42501, que a tradução genérica não distingue de
+            # falha de banco: arquivada é terminal, e é isso que a tela precisa dizer.
+            raise ErroApi(409, "IMMUTABLE", "Pesquisa arquivada não admite revisão.")
+
+        def criar():
+            nova = repo.revisar(str(pesquisa_id), corpo.motivo)
+            if not nova:
+                raise cotacoes.ErroCotacao("a revisão não pôde ser criada")
+            return PesquisaCriada(id=str(nova), nome=str(atual.get("nome") or ""), estado="draft")
+        return _executar(eu, criar)
 
     # -- item --------------------------------------------------------------
     def _campos(corpo: DadosDoItem) -> dict:

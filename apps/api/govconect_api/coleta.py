@@ -33,12 +33,12 @@ from datetime import datetime, timezone
 from typing import Callable, Protocol
 
 from fastapi import APIRouter, Body, Depends, Header, Request, Response
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from src import db
 from src.precos import cotacoes
 from src.precos import repositorio as repo
-from src.precos.execucao import A_PROCESSAR
+from src.precos.execucao import A_PROCESSAR, JANELA_MAXIMA_DIAS
 from src.streamlit_opcional import sessao_da_requisicao
 
 from .erros import ErroApi
@@ -73,9 +73,22 @@ class Job(BaseModel):
     resultado: dict = {}
 
 
+class FiltrosDaBusca(BaseModel):
+    """Os filtros da busca de UM item (o painel "Pesquisar preços" do GovDocs)."""
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    # Dentro da janela que a busca consulta de fato (`execucao.JANELA_MAXIMA_DIAS`).
+    janela_dias: int = Field(default=180, ge=30, le=JANELA_MAXIMA_DIAS)
+    uf: str = Field(default="", max_length=2)
+
+
 class PedidoDeColeta(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     modo: str = "manual"
+    # Com `item_id`, a coleta é de UM item, mesmo já pesquisado — a busca
+    # de novo que o servidor pede, com termo e filtros. Sem ele, o lote.
+    item_id: uuid.UUID | None = None
+    termo: str = Field(default="", max_length=300)
+    filtros: FiltrosDaBusca | None = None
 
 
 def job_do_banco(linha: dict) -> Job:
@@ -161,7 +174,8 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
 
     expira = expiracao_do_token(token)
     pesquisa_id = str(job["recurso_id"])
-    modo = (job.get("parametros") or {}).get("modo", "manual")
+    parametros = job.get("parametros") or {}
+    modo = parametros.get("modo", "manual")
     total = int(job.get("total") or 0)
     atualizar_job(rest, token, job_id, estado="running", iniciado_em=_agora_iso(),
                   tentativas=int(job.get("tentativas") or 0) + 1)
@@ -172,6 +186,18 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
     try:
         with sessao_da_requisicao(token, tenant_id):
             cotacoes._exigir_editavel(repo.obter_pesquisa(pesquisa_id))  # noqa: SLF001
+            if parametros.get("item_id"):
+                # UM item, a pedido: termo e filtros do servidor, literal (a
+                # ampliação semântica pede o motor de IA, que o worker não tem).
+                filtros = dict(parametros.get("filtros") or {})
+                filtros["uf"] = (filtros.get("uf") or "").upper() or None
+                filtros["literal"] = True
+                resultado = cotacoes.pesquisar_item(
+                    ctx, pesquisa_id, str(parametros["item_id"]), modo=modo,
+                    termo=str(parametros.get("termo") or ""), filtros=filtros, **opcoes)
+                atualizar_job(rest, token, job_id, estado="succeeded", concluido_em=_agora_iso(),
+                              feitos=1, resultado={"mensagem": str(resultado.mensagem)[:500]})
+                return "succeeded"
             while True:
                 if expira is not None and expira - agora() < MARGEM_DO_TOKEN_S:
                     atualizar_job(rest, token, job_id, estado="failed",
@@ -233,15 +259,29 @@ def rotas() -> APIRouter:
         if eu.papel != "admin" and str(dono.dados[0].get("auth_user_id")) != eu.auth_user_id:
             raise ErroApi(403, "FORBIDDEN", "Acesso negado")
 
-        itens = rest.requisitar(eu.token, "GET", TABELA_ITENS, params={
-            "select": "id", "pesquisa_id": f"eq.{pesquisa_id}", "removido_em": "is.null",
-            "estado": f"in.({','.join(sorted(A_PROCESSAR))})", "limit": "5000"})
-        total = len(itens.dados or []) if itens.status == 200 else 0
+        parametros: dict = {"modo": pedido.modo}
+        if pedido.item_id is not None:
+            alvo = rest.requisitar(eu.token, "GET", TABELA_ITENS, params={
+                "select": "id,estado", "id": f"eq.{pedido.item_id}", "pesquisa_id": f"eq.{pesquisa_id}",
+                "tenant_id": f"eq.{eu.tenant_id}", "removido_em": "is.null", "limit": "1"})
+            if alvo.status != 200 or not alvo.dados:
+                raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
+            if alvo.dados[0].get("estado") == "complete":
+                raise ErroApi(409, "ITEM_COMPLETE",
+                              "Item concluído: reabra o item, com o motivo, antes de pesquisar de novo.")
+            parametros.update({"item_id": str(pedido.item_id), "termo": pedido.termo,
+                               "filtros": (pedido.filtros or FiltrosDaBusca()).model_dump()})
+            total = 1
+        else:
+            itens = rest.requisitar(eu.token, "GET", TABELA_ITENS, params={
+                "select": "id", "pesquisa_id": f"eq.{pesquisa_id}", "removido_em": "is.null",
+                "estado": f"in.({','.join(sorted(A_PROCESSAR))})", "limit": "5000"})
+            total = len(itens.dados or []) if itens.status == 200 else 0
 
         criado = rest.requisitar(eu.token, "POST", TABELA_JOBS, prefer="return=representation",
                                  corpo={"tenant_id": eu.tenant_id, "auth_user_id": eu.auth_user_id,
                                         "tipo": "coleta_precos", "recurso_id": str(pesquisa_id),
-                                        "parametros": {"modo": pedido.modo}, "total": total,
+                                        "parametros": parametros, "total": total,
                                         "idempotency_key": idempotency_key})
         if criado.status == 409 and criado.codigo_pg == "23505":
             existente = rest.requisitar(eu.token, "GET", TABELA_JOBS, params={
