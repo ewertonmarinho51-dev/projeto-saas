@@ -19,7 +19,9 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from . import (artefatos, base_conhecimento, cadastro_institucional, cesta, coleta, demandas, erros,
-               formulario, instituicao, precos, precos_escrita, precos_gestao, processos, relatorios)
+               formulario, instituicao, precos, precos_escrita, precos_gestao, processos, relatorios,
+               usuarios_admin)
+from .admin_auth import AdminDoAuth
 from .observabilidade import METRICAS
 from .camadas import CamadaDeRequisicao
 from .config import Configuracao, carregar
@@ -108,6 +110,7 @@ def _rotas_v1() -> APIRouter:
     rotas.include_router(instituicao.rotas())
     rotas.include_router(cadastro_institucional.rotas())
     rotas.include_router(base_conhecimento.rotas())
+    rotas.include_router(usuarios_admin.rotas())
     rotas.include_router(processos.rotas())
     rotas.include_router(precos.rotas())
     rotas.include_router(cesta.rotas())
@@ -136,7 +139,8 @@ def criar_app(config: Configuracao | None = None,
               verificador: VerificadorDeToken | None = None,
               rest: ClienteRest | None = None,
               fila: "coleta.Fila | None" = None,
-              deposito: "artefatos.Deposito | None" = None) -> FastAPI:
+              deposito: "artefatos.Deposito | None" = None,
+              admin_auth: "AdminDoAuth | None" = None) -> FastAPI:
     config = config or carregar()
     if config.autenticacao_configurada:
         # O domínio (`db.cliente_do_usuario`) usa a MESMA URL e chave
@@ -166,6 +170,10 @@ def criar_app(config: Configuracao | None = None,
         deposito = artefatos.DepositoRedis(config.redis_url)
     app.state.deposito = deposito
     app.state.limitador = Limitador(config.limite_por_minuto)
+    if admin_auth is None and config.auth_admin_chave and config.supabase_url:
+        # ADR-010: a chave de servidor só existe dentro deste cliente.
+        admin_auth = AdminDoAuth(config.supabase_url, config.auth_admin_chave)
+    app.state.admin_auth = admin_auth
 
     erros.instalar(app)
 

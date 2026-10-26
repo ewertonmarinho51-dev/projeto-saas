@@ -1761,6 +1761,51 @@
         "title": "Motivo",
         "type": "object"
       },
+      "Mudanca": {
+        "additionalProperties": false,
+        "properties": {
+          "ativo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ativo"
+          },
+          "papel": {
+            "anyOf": [
+              {
+                "enum": [
+                  "usuario",
+                  "admin"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Papel"
+          },
+          "secretaria_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secretaria Id"
+          }
+        },
+        "title": "Mudanca",
+        "type": "object"
+      },
       "MudancaDoProcesso": {
         "properties": {
           "avisos": {
@@ -2153,6 +2198,50 @@
         "title": "NovoServidor",
         "type": "object"
       },
+      "NovoUsuario": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 254,
+            "minLength": 5,
+            "title": "Email",
+            "type": "string"
+          },
+          "nome": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Nome",
+            "type": "string"
+          },
+          "papel": {
+            "default": "usuario",
+            "enum": [
+              "usuario",
+              "admin"
+            ],
+            "title": "Papel",
+            "type": "string"
+          },
+          "secretaria_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secretaria Id"
+          }
+        },
+        "required": [
+          "nome",
+          "email"
+        ],
+        "title": "NovoUsuario",
+        "type": "object"
+      },
       "Opcao": {
         "properties": {
           "codigo": {
@@ -2192,6 +2281,24 @@
           "rotulo"
         ],
         "title": "OpcaoDeRelatorio",
+        "type": "object"
+      },
+      "OpcaoDeSecretaria": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nome"
+        ],
+        "title": "OpcaoDeSecretaria",
         "type": "object"
       },
       "PaginaDePesquisas": {
@@ -3450,6 +3557,90 @@
           "conteudo"
         ],
         "title": "Trecho",
+        "type": "object"
+      },
+      "UsuarioDoMunicipio": {
+        "properties": {
+          "acesso_por_email": {
+            "title": "Acesso Por Email",
+            "type": "boolean"
+          },
+          "ativo": {
+            "title": "Ativo",
+            "type": "boolean"
+          },
+          "eu": {
+            "title": "Eu",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "login": {
+            "title": "Login",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "papel": {
+            "title": "Papel",
+            "type": "string"
+          },
+          "secretaria_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secretaria Id"
+          }
+        },
+        "required": [
+          "id",
+          "nome",
+          "login",
+          "papel",
+          "ativo",
+          "secretaria_id",
+          "acesso_por_email",
+          "eu"
+        ],
+        "title": "UsuarioDoMunicipio",
+        "type": "object"
+      },
+      "Usuarios": {
+        "properties": {
+          "gestao_de_acesso": {
+            "title": "Gestao De Acesso",
+            "type": "boolean"
+          },
+          "secretarias": {
+            "items": {
+              "$ref": "#/components/schemas/OpcaoDeSecretaria"
+            },
+            "title": "Secretarias",
+            "type": "array"
+          },
+          "usuarios": {
+            "items": {
+              "$ref": "#/components/schemas/UsuarioDoMunicipio"
+            },
+            "title": "Usuarios",
+            "type": "array"
+          }
+        },
+        "required": [
+          "usuarios",
+          "secretarias",
+          "gestao_de_acesso"
+        ],
+        "title": "Usuarios",
         "type": "object"
       },
       "ValidationError": {
@@ -5035,6 +5226,137 @@
           }
         },
         "summary": "Timbrado",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/usuarios": {
+      "get": {
+        "operationId": "listar_api_v1_admin_usuarios_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Usuarios"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Listar",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      },
+      "post": {
+        "operationId": "convidar_api_v1_admin_usuarios_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovoUsuario"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioDoMunicipio"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Já existe conta com este e-mail"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Admin API não configurada ou fora do ar"
+          }
+        },
+        "summary": "Convidar",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/usuarios/{usuario_id}": {
+      "patch": {
+        "operationId": "alterar_api_v1_admin_usuarios__usuario_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "usuario_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Usuario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mudanca"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioDoMunicipio"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Usuário fora do seu município"
+          },
+          "409": {
+            "description": "Alteração em si mesmo"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Admin API não configurada ou fora do ar"
+          }
+        },
+        "summary": "Alterar",
         "tags": [
           "v1",
           "administracao"
