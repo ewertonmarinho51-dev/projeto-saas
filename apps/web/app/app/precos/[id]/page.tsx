@@ -6,6 +6,7 @@ import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { BotaoDeColeta, ProgressoDaColeta } from "@/components/coleta";
 import { PainelDeEmissao, ProgressoDoRelatorio } from "@/components/emissao";
 import { AplicarAoProcesso } from "@/components/aplicar-processo";
+import { GestaoDaPesquisa, NovoItem } from "@/components/gestao-cotacao";
 import { ImportarPlanilha } from "@/components/importar-planilha";
 import { dataCurta, rotuloEstadoItem, rotuloEstadoPesquisa, rotuloMetodo } from "@/components/precos";
 import { cartao } from "@/components/ui";
@@ -33,7 +34,7 @@ export default async function Pesquisa({
 }) {
   if (!precosHabilitado()) notFound();
   const { id } = await params;
-  const { job, relatorio, criada, importada, aplicada } = await searchParams;
+  const { job, relatorio, criada, importada, aplicada, duplicada, arquivada, item_retirado } = await searchParams;
   const jobId = typeof job === "string" && UUID.test(job) ? job : null;
   const relatorioId = typeof relatorio === "string" && UUID.test(relatorio) ? relatorio : null;
   if (!UUID.test(id)) notFound();
@@ -101,15 +102,23 @@ export default async function Pesquisa({
           </div>
         </dl>
         <div className="mt-6 grid gap-3">
-          {(criada === "1" || importada === "1" || aplicada === "1") && (
+          {(criada === "1" || importada === "1" || aplicada === "1" || duplicada === "1" || arquivada === "1" ||
+            item_retirado === "1") && (
             <p role="status" className="rounded-[var(--radius-ui)] bg-ok-fundo px-4 py-3 text-sm text-ok">
               {criada === "1"
                 ? "Pesquisa criada. Importe a planilha de itens para começar."
                 : importada === "1"
                   ? "Planilha importada. Os itens novos estão pendentes de coleta."
-                  : "Preços aplicados ao processo. Os documentos descartados precisam ser gerados novamente."}
+                  : duplicada === "1"
+                    ? "Pesquisa duplicada: mesmos itens, nenhum preço. A coleta é refeita na nova data-base."
+                    : arquivada === "1"
+                      ? "Pesquisa arquivada. Nada foi apagado."
+                      : item_retirado === "1"
+                        ? "Item retirado da pesquisa. Ele continua na trilha."
+                        : "Preços aplicados ao processo. Os documentos descartados precisam ser gerados novamente."}
             </p>
           )}
+          <GestaoDaPesquisa pesquisa={p.id} editavel={!IMUTAVEIS.has(p.estado)} />
           {jobId && <ProgressoDaColeta jobId={jobId} />}
           {!IMUTAVEIS.has(p.estado) && (
             // Chave nova a cada renderização: um clique (ou o reenvio do
@@ -126,6 +135,12 @@ export default async function Pesquisa({
             Importar itens
           </h2>
           <ImportarPlanilha pesquisa={p.id} />
+          <details className="group border-t border-linha pt-3" data-testid="incluir-item">
+            <summary className="cursor-pointer text-sm font-medium text-acento">Ou inclua um item à mão</summary>
+            <div className="mt-4">
+              <NovoItem pesquisa={p.id} />
+            </div>
+          </details>
         </section>
       )}
 

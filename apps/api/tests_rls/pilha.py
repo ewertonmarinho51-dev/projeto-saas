@@ -61,6 +61,8 @@ CONTAS = (
     # próximo — o `precos-escrita` caía em 429 no meio.
     ("admin_inst", "A", "A1", "admin", True),
     ("admin_base", "A", "A1", "admin", True),
+    # Só do E2E de gestão da cotação: o limite da API é por usuário (120/min).
+    ("a1_gestao", "A", "A1", "usuario", True),
     ("b1", "B", "B1", "usuario", True),
     ("a1_revogado", "A", "A1", "usuario", False),
 )
