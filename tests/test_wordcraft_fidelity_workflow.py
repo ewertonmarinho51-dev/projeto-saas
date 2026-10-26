@@ -45,6 +45,9 @@ def test_workflow_has_read_only_permissions_no_services_and_scoped_artifact_toke
     assert job["runs-on"] == "ubuntu-24.04" and "services" not in job
     assert value["concurrency"]["cancel-in-progress"] == "false"
     assert "workflow_dispatch" in value["on"]
+    dispatch = value["on"]["workflow_dispatch"]["inputs"]
+    assert set(dispatch) == {"build_artifact_id", "build_artifact_sha256",
+                             "producer_commit", "manifest_sha256"}
     token_steps = [step for step in job["steps"] if "github.token" in json.dumps(step)]
     assert len(token_steps) == 1 and token_steps[0]["name"].startswith("Download and admit pinned")
     assert "secrets." not in WORKFLOW.read_text() and "pull_request_target" not in value["on"]
@@ -89,7 +92,11 @@ def ci_env(tmp_path, monkeypatch):
     env_file = tmp_path / "github-env"
     evidence = repo / "build-evidence/wordcraft-fidelity"
     for key, value in {"GITHUB_WORKSPACE": repo, "GITHUB_ENV": env_file, "GITHUB_RUN_ID": "12345",
-                       "GITHUB_RUN_ATTEMPT": "2", "GITHUB_SHA": "b" * 40, "RUNNER_TEMP": tmp_path / "temp"}.items():
+                       "GITHUB_RUN_ATTEMPT": "2", "GITHUB_SHA": "b" * 40, "RUNNER_TEMP": tmp_path / "temp",
+                       "WORDCRAFT_QA_ARTIFACT_ID": "12600179455",
+                       "WORDCRAFT_QA_ARTIFACT_SHA256": ZIP_SHA,
+                       "WORDCRAFT_QA_PRODUCER": PRODUCER,
+                       "WORDCRAFT_QA_MANIFEST_SHA256": MANIFEST_SHA}.items():
         monkeypatch.setenv(key, str(value))
     return repo, evidence, env_file
 
@@ -151,7 +158,8 @@ def test_artifact_step_passes_exact_pins_to_existing_installer_and_refuses_chang
 
 def test_native_and_lo_steps_use_explicit_real_adapters_and_preserve_partial_markers():
     native = step_starting("Execute actual native")["run"]
-    assert "scripts/wordcraft_full_roundtrip.py" in native and "--manifest-sha256 " + MANIFEST_SHA in native
+    assert "scripts/wordcraft_full_roundtrip.py" in native
+    assert '--manifest-sha256 "$WORDCRAFT_QA_MANIFEST_SHA256"' in native
     for name in ("Convert original synthetic", "Convert actual native"):
         command = step_starting(name)["run"]
         assert "--institutional-adapter --system-soffice /usr/bin/libreoffice" in command
