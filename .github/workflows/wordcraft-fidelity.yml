@@ -2,6 +2,19 @@ name: WordCraft synthetic G3 fidelity on Linux
 
 on:
   workflow_dispatch:
+    inputs:
+      build_artifact_id:
+        description: Exact wordcraft-govconnect-local-qa artifact ID
+        required: false
+      build_artifact_sha256:
+        description: SHA-256 of the downloaded artifact ZIP
+        required: false
+      producer_commit:
+        description: Commit that produced the QA artifact
+        required: false
+      manifest_sha256:
+        description: SHA-256 of qa-manifest.json inside the artifact
+        required: false
   push:
     branches: [feature/wordcraft-wasm-govconnect]
     paths:
@@ -33,6 +46,10 @@ jobs:
     env:
       PYTHONUTF8: '1'
       PYTHONDONTWRITEBYTECODE: '1'
+      WORDCRAFT_QA_ARTIFACT_ID: ${{ inputs.build_artifact_id || '12600179455' }}
+      WORDCRAFT_QA_ARTIFACT_SHA256: ${{ inputs.build_artifact_sha256 || '15cb0f8cc02fda2bfbbe5b8764830787985ec916cd431c1a280625f9b0b3ee3e' }}
+      WORDCRAFT_QA_PRODUCER: ${{ inputs.producer_commit || 'f90814ab8e3b60406fc62df0afe8bacf279db63a' }}
+      WORDCRAFT_QA_MANIFEST_SHA256: ${{ inputs.manifest_sha256 || '598e011aadeb464316e68cddd9b49afc6209644ad80689c98a57e9a2f0de555b' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,10 +87,10 @@ jobs:
               'schema': 'gc-wordcraft-fidelity-ci/v1', 'synthetic_only': True,
               'status': 'PREPARED_NOT_FIDELITY_APPROVED', 'consumer_commit': os.environ['GITHUB_SHA'],
               'run_id': os.environ['GITHUB_RUN_ID'], 'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
-              'artifact_id': 12600179455,
-              'artifact_sha256': '15cb0f8cc02fda2bfbbe5b8764830787985ec916cd431c1a280625f9b0b3ee3e',
-              'producer_commit': 'f90814ab8e3b60406fc62df0afe8bacf279db63a',
-              'manifest_sha256': '598e011aadeb464316e68cddd9b49afc6209644ad80689c98a57e9a2f0de555b',
+              'artifact_id': int(os.environ['WORDCRAFT_QA_ARTIFACT_ID']),
+              'artifact_sha256': os.environ['WORDCRAFT_QA_ARTIFACT_SHA256'],
+              'producer_commit': os.environ['WORDCRAFT_QA_PRODUCER'],
+              'manifest_sha256': os.environ['WORDCRAFT_QA_MANIFEST_SHA256'],
               'visual_review': 'PENDING'}, indent=2) + '\n', encoding='utf-8')
           PY
       - name: Install distribution LibreOffice and existing product QA dependencies
@@ -98,7 +115,7 @@ jobs:
           python -m pytest tests/test_wordcraft_libreoffice_qa.py tests/test_wordcraft_fidelity_workflow.py -q \
             --basetemp "$RUNNER_TEMP/wordcraft-fidelity-tests" \
             --junitxml "$FIDELITY_EVIDENCE/tests.xml" 2>&1 | tee "$FIDELITY_EVIDENCE/tests.txt"
-      - name: Download and admit pinned QA 40 artifact without rebuilding WordCraft
+      - name: Download and admit pinned QA artifact without rebuilding WordCraft
         env:
           ARTIFACT_READ_TOKEN: ${{ github.token }}
         shell: bash
@@ -107,9 +124,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/wordcraft-fidelity-download"
           curl --fail --location --silent --show-error --retry 2 --connect-timeout 15 --max-time 180 \
             -H "Authorization: Bearer $ARTIFACT_READ_TOKEN" -H 'Accept: application/vnd.github+json' \
-            https://api.github.com/repos/ewertonmarinho51-dev/projeto-saas/actions/artifacts/12600179455/zip \
+            "https://api.github.com/repos/ewertonmarinho51-dev/projeto-saas/actions/artifacts/$WORDCRAFT_QA_ARTIFACT_ID/zip" \
             -o "$RUNNER_TEMP/wordcraft-fidelity-download/native-qa.zip"
-          echo "15cb0f8cc02fda2bfbbe5b8764830787985ec916cd431c1a280625f9b0b3ee3e  $RUNNER_TEMP/wordcraft-fidelity-download/native-qa.zip" | sha256sum --check
+          echo "$WORDCRAFT_QA_ARTIFACT_SHA256  $RUNNER_TEMP/wordcraft-fidelity-download/native-qa.zip" | sha256sum --check
           python - <<'PY'
           import json, os
           from pathlib import Path
@@ -118,12 +135,12 @@ jobs:
           lab.mkdir(exist_ok=False)
           (lab / '.wordcraft-local-qa').write_text(MARKER, encoding='utf-8')
           result = install(Path(os.environ['RUNNER_TEMP']) / 'wordcraft-fidelity-download/native-qa.zip', lab,
-              artifact_sha256='15cb0f8cc02fda2bfbbe5b8764830787985ec916cd431c1a280625f9b0b3ee3e',
-              producer_commit='f90814ab8e3b60406fc62df0afe8bacf279db63a')
-          if result['manifest_sha256'] != '598e011aadeb464316e68cddd9b49afc6209644ad80689c98a57e9a2f0de555b':
+              artifact_sha256=os.environ['WORDCRAFT_QA_ARTIFACT_SHA256'],
+              producer_commit=os.environ['WORDCRAFT_QA_PRODUCER'])
+          if result['manifest_sha256'] != os.environ['WORDCRAFT_QA_MANIFEST_SHA256']:
               raise ValueError('Native QA manifest differs from approved producer')
           (Path(os.environ['FIDELITY_EVIDENCE']) / 'native-artifact-admission.json').write_text(
-              json.dumps({'artifact_id': 12600179455, **result}, indent=2) + '\n', encoding='utf-8')
+              json.dumps({'artifact_id': int(os.environ['WORDCRAFT_QA_ARTIFACT_ID']), **result}, indent=2) + '\n', encoding='utf-8')
           with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as output:
               output.write('FIDELITY_NATIVE_BUNDLE=' + str(lab / 'static/wordcraft') + '\n')
           PY
@@ -139,7 +156,7 @@ jobs:
           set -euo pipefail
           python scripts/wordcraft_full_roundtrip.py --inputs "$FIDELITY_CORPUS" --out "$FIDELITY_NATIVE" \
             --node "$(command -v node)" --bundle "$FIDELITY_NATIVE_BUNDLE" \
-            --manifest-sha256 598e011aadeb464316e68cddd9b49afc6209644ad80689c98a57e9a2f0de555b \
+            --manifest-sha256 "$WORDCRAFT_QA_MANIFEST_SHA256" \
             2>&1 | tee "$FIDELITY_EVIDENCE/native-roundtrip.txt"
           python - <<'PY'
           import hashlib, os
