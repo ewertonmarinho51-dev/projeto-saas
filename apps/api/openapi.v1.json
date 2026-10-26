@@ -52,45 +52,6 @@
         "title": "AcaoDoPlano",
         "type": "object"
       },
-      "AlertaDePreco": {
-        "properties": {
-          "descricao": {
-            "title": "Descricao",
-            "type": "string"
-          },
-          "mensagem": {
-            "title": "Mensagem",
-            "type": "string"
-          },
-          "numero": {
-            "title": "Numero",
-            "type": "integer"
-          },
-          "origem": {
-            "title": "Origem",
-            "type": "string"
-          },
-          "valor": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Valor"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "numero",
-          "descricao",
-          "valor",
-          "origem",
-          "mensagem"
-        ],
-        "title": "AlertaDePreco",
-        "type": "object"
-      },
       "AplicacaoDaDemanda": {
         "properties": {
           "descartados": {
@@ -617,6 +578,54 @@
           }
         },
         "title": "DadosDaPrefeitura",
+        "type": "object"
+      },
+      "DadosDoItem": {
+        "additionalProperties": false,
+        "properties": {
+          "codigo": {
+            "default": "",
+            "maxLength": 40,
+            "title": "Codigo",
+            "type": "string"
+          },
+          "descricao": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Descricao",
+            "type": "string"
+          },
+          "lote": {
+            "default": "",
+            "maxLength": 40,
+            "title": "Lote",
+            "type": "string"
+          },
+          "quantidade": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Quantidade",
+            "type": "string"
+          },
+          "uf": {
+            "default": "",
+            "maxLength": 2,
+            "title": "Uf",
+            "type": "string"
+          },
+          "unidade": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Unidade",
+            "type": "string"
+          }
+        },
+        "required": [
+          "descricao",
+          "unidade",
+          "quantidade"
+        ],
+        "title": "DadosDoItem",
         "type": "object"
       },
       "DocumentoDescartado": {
@@ -2724,7 +2733,7 @@
         "properties": {
           "alertas": {
             "items": {
-              "$ref": "#/components/schemas/AlertaDePreco"
+              "$ref": "#/components/schemas/govconect_api__relatorios__AlertaDePreco"
             },
             "title": "Alertas",
             "type": "array"
@@ -3140,6 +3149,19 @@
           "atualizado_em"
         ],
         "title": "ResumoPesquisa",
+        "type": "object"
+      },
+      "Retirada": {
+        "additionalProperties": false,
+        "properties": {
+          "motivo": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Motivo",
+            "type": "string"
+          }
+        },
+        "title": "Retirada",
         "type": "object"
       },
       "Secretaria": {
@@ -3713,6 +3735,86 @@
           "identificacao"
         ],
         "title": "Referencia",
+        "type": "object"
+      },
+      "govconect_api__precos_gestao__AlertaDePreco": {
+        "description": "O card \"Confira este preço\" (04_UX): qual preço e a faixa dos demais.",
+        "properties": {
+          "faixa_max": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "faixa_min": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mantida": {
+            "title": "Mantida",
+            "type": "boolean"
+          },
+          "referencia_id": {
+            "title": "Referencia Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "referencia_id",
+          "mantida",
+          "faixa_min",
+          "faixa_max"
+        ],
+        "title": "AlertaDePreco",
+        "type": "object"
+      },
+      "govconect_api__relatorios__AlertaDePreco": {
+        "properties": {
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "mensagem": {
+            "title": "Mensagem",
+            "type": "string"
+          },
+          "numero": {
+            "title": "Numero",
+            "type": "integer"
+          },
+          "origem": {
+            "title": "Origem",
+            "type": "string"
+          },
+          "valor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "numero",
+          "descricao",
+          "valor",
+          "origem",
+          "mensagem"
+        ],
+        "title": "AlertaDePreco",
         "type": "object"
       }
     }
@@ -5322,6 +5424,59 @@
         ]
       }
     },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/arquivamento": {
+      "post": {
+        "operationId": "arquivar_api_v1_precos_pesquisas__pesquisa_id__arquivamento_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesquisaCriada"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o dono ou o administrador"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "409": {
+            "description": "Transição de estado não permitida"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Arquivar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
     "/api/v1/precos/pesquisas/{pesquisa_id}/ciencia": {
       "post": {
         "operationId": "registrar_ciencia_api_v1_precos_pesquisas__pesquisa_id__ciencia_post",
@@ -5463,6 +5618,54 @@
         ]
       }
     },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/duplicacao": {
+      "post": {
+        "description": "Cópia NOVA, mesmos itens e nenhum preço: a coleta é refeita na nova data-base.\nLer basta: a cópia é de quem duplica.",
+        "operationId": "duplicar_api_v1_precos_pesquisas__pesquisa_id__duplicacao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PesquisaCriada"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Duplicar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
     "/api/v1/precos/pesquisas/{pesquisa_id}/emissao": {
       "get": {
         "operationId": "preparar_api_v1_precos_pesquisas__pesquisa_id__emissao_get",
@@ -5593,6 +5796,213 @@
           }
         },
         "summary": "Importar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/itens": {
+      "post": {
+        "operationId": "incluir_item_api_v1_precos_pesquisas__pesquisa_id__itens_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DadosDoItem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDepois"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o dono ou o administrador"
+          },
+          "409": {
+            "description": "Cotação imutável"
+          },
+          "422": {
+            "description": "Regra do domínio recusou (unidade, quantidade…)"
+          }
+        },
+        "summary": "Incluir Item",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/itens/{item_id}": {
+      "put": {
+        "operationId": "editar_item_api_v1_precos_pesquisas__pesquisa_id__itens__item_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DadosDoItem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDepois"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o dono ou o administrador"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "409": {
+            "description": "Revisão desatualizada ou cotação imutável"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "428": {
+            "description": "If-Match ausente"
+          }
+        },
+        "summary": "Editar Item",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/itens/{item_id}/alertas": {
+      "get": {
+        "description": "Os preços da cesta que merecem conferência — a régua do Streamlit e da emissão.",
+        "operationId": "alertas_api_v1_precos_pesquisas__pesquisa_id__itens__item_id__alertas_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/govconect_api__precos_gestao__AlertaDePreco"
+                  },
+                  "title": "Response Alertas Api V1 Precos Pesquisas  Pesquisa Id  Itens  Item Id  Alertas Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Alertas",
         "tags": [
           "v1",
           "precos"
@@ -5896,6 +6306,239 @@
           }
         },
         "summary": "Mudar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/itens/{item_id}/referencias/{referencia_id}/desfazer": {
+      "post": {
+        "description": "O \"Desfazer\" da retirada sem motivo: só a última, e só a sua.",
+        "operationId": "desfazer_retirada_api_v1_precos_pesquisas__pesquisa_id__itens__item_id__referencias__referencia_id__desfazer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "referencia_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Referencia Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultadoDaCesta"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Revisão desatualizada, item concluído ou cotação imutável"
+          },
+          "422": {
+            "description": "Não há retirada sua para desfazer"
+          },
+          "428": {
+            "description": "If-Match ausente"
+          }
+        },
+        "summary": "Desfazer Retirada",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/itens/{item_id}/referencias/{referencia_id}/manter": {
+      "post": {
+        "description": "\"Manter preço\" no alerta de atípico: fica na cesta, sinalizado, e a decisão é registrada.",
+        "operationId": "manter_api_v1_precos_pesquisas__pesquisa_id__itens__item_id__referencias__referencia_id__manter_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "referencia_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Referencia Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultadoDaCesta"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Revisão desatualizada, item concluído ou cotação imutável"
+          },
+          "422": {
+            "description": "O preço não está na cesta"
+          },
+          "428": {
+            "description": "If-Match ausente"
+          }
+        },
+        "summary": "Manter",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/itens/{item_id}/retirada": {
+      "post": {
+        "description": "Retira SEM apagar: o item e as referências ficam no banco e na trilha.",
+        "operationId": "retirar_item_api_v1_precos_pesquisas__pesquisa_id__itens__item_id__retirada_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Retirada"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDepois"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o dono ou o administrador"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "409": {
+            "description": "Cotação imutável"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retirar Item",
         "tags": [
           "v1",
           "precos"
