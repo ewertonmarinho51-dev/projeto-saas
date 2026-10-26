@@ -19,8 +19,8 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from . import (artefatos, base_conhecimento, cadastro_institucional, cesta, coleta, demandas, erros,
-               formulario, instituicao, precos, precos_escrita, precos_gestao, processos, relatorios,
-               usuarios_admin)
+               formulario, governanca_central, instituicao, precos, precos_escrita, precos_gestao,
+               processos, relatorios, usuarios_admin)
 from .admin_auth import AdminDoAuth
 from .observabilidade import METRICAS
 from .camadas import CamadaDeRequisicao
@@ -48,6 +48,9 @@ class Me(BaseModel):
     tenant_id: str
     papel: str
     secretaria_id: str | None = None
+    # Centro de Governança disponível para quem chama (flag + papel): o menu
+    # da interface nova só mostra o item quando é verdade.
+    governanca: bool = False
 
 
 def _rotas_de_saude(config: Configuracao) -> APIRouter:
@@ -100,9 +103,13 @@ def _rotas_v1() -> APIRouter:
                responses={401: {"description": "Sessão ausente ou inválida"},
                           503: {"description": "Autenticação indisponível"}})
     def me(identidade: Identidade = Depends(exigir_identidade)) -> Me:
+        try:
+            governanca = governanca_central.centro_disponivel(identidade)
+        except Exception:  # noqa: BLE001 — o menu não derruba o /me
+            governanca = False
         return Me(auth_user_id=identidade.auth_user_id,
                   tenant_id=identidade.tenant_id, papel=identidade.papel,
-                  secretaria_id=identidade.secretaria_id)
+                  secretaria_id=identidade.secretaria_id, governanca=governanca)
 
     # Formulário antes de processos: tem rota estática sob /processos.
     rotas.include_router(formulario.rotas())
@@ -111,6 +118,7 @@ def _rotas_v1() -> APIRouter:
     rotas.include_router(cadastro_institucional.rotas())
     rotas.include_router(base_conhecimento.rotas())
     rotas.include_router(usuarios_admin.rotas())
+    rotas.include_router(governanca_central.rotas())
     rotas.include_router(processos.rotas())
     rotas.include_router(precos.rotas())
     rotas.include_router(cesta.rotas())

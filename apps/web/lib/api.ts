@@ -20,6 +20,8 @@ export type Identidade = {
   tenant_id: string;
   papel: "admin" | "usuario";
   secretaria_id: string | null;
+  /** Centro de Governança disponível para quem chama (flag + papel). */
+  governanca?: boolean;
 };
 
 export type Processo = {
@@ -495,6 +497,34 @@ export type IdentidadeVisual = {
 };
 
 export type PreviaDoModelo = { pagina: string; cabecalho: string; rodape: string; marca: string | null };
+
+// ---------------------------------------------------------------------------
+// Centro de Governança, leitura (M8a)
+// ---------------------------------------------------------------------------
+export type CentroDeGovernanca = {
+  papel: string;
+  abas: { tipo: string; rotulo: string; ativa: boolean }[];
+  resumo: { clausulas: number; publicadas: number; em_elaboracao: number };
+};
+
+export type VersaoDeGovernanca = {
+  id: string;
+  versao: number;
+  status: string;
+  status_rotulo: string;
+  hash: string;
+  payload: Record<string, unknown>;
+};
+
+export type ArtefatoDeGovernanca = {
+  id: string;
+  chave: string;
+  escopo: "plataforma" | "municipio";
+  ultima: VersaoDeGovernanca | null;
+  vigente: VersaoDeGovernanca | null;
+  versoes: number;
+  descricao: string;
+};
 
 // ---------------------------------------------------------------------------
 // Usuários e papéis (M7c, admin)

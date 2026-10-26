@@ -1,6 +1,29 @@
 {
   "components": {
     "schemas": {
+      "Aba": {
+        "properties": {
+          "ativa": {
+            "title": "Ativa",
+            "type": "boolean"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tipo",
+          "rotulo",
+          "ativa"
+        ],
+        "title": "Aba",
+        "type": "object"
+      },
       "AcaoDoPlano": {
         "properties": {
           "codigo": {
@@ -207,6 +230,65 @@
         "title": "ArquivoLido",
         "type": "object"
       },
+      "Artefato": {
+        "properties": {
+          "chave": {
+            "title": "Chave",
+            "type": "string"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "escopo": {
+            "enum": [
+              "plataforma",
+              "municipio"
+            ],
+            "title": "Escopo",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "ultima": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Versao"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "versoes": {
+            "title": "Versoes",
+            "type": "integer"
+          },
+          "vigente": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Versao"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "chave",
+          "escopo",
+          "ultima",
+          "vigente",
+          "versoes",
+          "descricao"
+        ],
+        "title": "Artefato",
+        "type": "object"
+      },
       "BaseDeConhecimento": {
         "properties": {
           "categorias": {
@@ -316,6 +398,31 @@
           "opcoes"
         ],
         "title": "CampoDoFormulario",
+        "type": "object"
+      },
+      "Centro": {
+        "properties": {
+          "abas": {
+            "items": {
+              "$ref": "#/components/schemas/Aba"
+            },
+            "title": "Abas",
+            "type": "array"
+          },
+          "papel": {
+            "title": "Papel",
+            "type": "string"
+          },
+          "resumo": {
+            "$ref": "#/components/schemas/Resumo"
+          }
+        },
+        "required": [
+          "papel",
+          "abas",
+          "resumo"
+        ],
+        "title": "Centro",
         "type": "object"
       },
       "CienciaRegistrada": {
@@ -1550,6 +1657,11 @@
           "auth_user_id": {
             "title": "Auth User Id",
             "type": "string"
+          },
+          "governanca": {
+            "default": false,
+            "title": "Governanca",
+            "type": "boolean"
           },
           "papel": {
             "title": "Papel",
@@ -3276,6 +3388,29 @@
         "title": "ResultadoDaCesta",
         "type": "object"
       },
+      "Resumo": {
+        "properties": {
+          "clausulas": {
+            "title": "Clausulas",
+            "type": "integer"
+          },
+          "em_elaboracao": {
+            "title": "Em Elaboracao",
+            "type": "integer"
+          },
+          "publicadas": {
+            "title": "Publicadas",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clausulas",
+          "publicadas",
+          "em_elaboracao"
+        ],
+        "title": "Resumo",
+        "type": "object"
+      },
       "ResumoPesquisa": {
         "properties": {
           "atualizado_em": {
@@ -3700,6 +3835,45 @@
           "exibicao"
         ],
         "title": "Valor",
+        "type": "object"
+      },
+      "Versao": {
+        "properties": {
+          "hash": {
+            "title": "Hash",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "status_rotulo": {
+            "title": "Status Rotulo",
+            "type": "string"
+          },
+          "versao": {
+            "title": "Versao",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "versao",
+          "status",
+          "status_rotulo",
+          "hash",
+          "payload"
+        ],
+        "title": "Versao",
         "type": "object"
       },
       "Vivo": {
@@ -5360,6 +5534,87 @@
         "tags": [
           "v1",
           "administracao"
+        ]
+      }
+    },
+    "/api/v1/governanca": {
+      "get": {
+        "operationId": "centro_api_v1_governanca_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Centro"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Centro desligado"
+          }
+        },
+        "summary": "Centro",
+        "tags": [
+          "v1",
+          "governanca"
+        ]
+      }
+    },
+    "/api/v1/governanca/artefatos": {
+      "get": {
+        "operationId": "artefatos_api_v1_governanca_artefatos_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tipo",
+            "required": true,
+            "schema": {
+              "enum": [
+                "clausula",
+                "politica",
+                "familia",
+                "template"
+              ],
+              "title": "Tipo",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Artefato"
+                  },
+                  "title": "Response Artefatos Api V1 Governanca Artefatos Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Centro ou aba desligados"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Artefatos",
+        "tags": [
+          "v1",
+          "governanca"
         ]
       }
     },

@@ -42,6 +42,10 @@ class Identidade:
     # `usuarios.id` — o identificador da tabela própria do app, diferente
     # de `auth_user_id`. O Streamlit lista processos do servidor por ele.
     usuario_id: str = ""
+    # Papel no Centro de Governança (`app_metadata.papel_governanca`, do
+    # vocabulário `governanca.PAPEIS_GOVERNANCA`); None = sem acesso, salvo
+    # admin, que opera como admin_municipal — a regra do Streamlit.
+    papel_governanca: str | None = None
     # O token segue com a identidade para as chamadas ao PostgREST irem
     # com ELE. Fora do repr e da comparação: não aparece em log nem em
     # mensagem de asserção.

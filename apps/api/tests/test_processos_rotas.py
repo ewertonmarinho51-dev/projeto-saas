@@ -65,7 +65,8 @@ def test_me_devolve_identidade_do_token(api, emissor):
     r = api().get("/api/v1/me", headers=_auth(emissor))
     assert r.status_code == 200
     assert r.json() == {"auth_user_id": USUARIO_A, "tenant_id": TENANT_A,
-                        "papel": "usuario", "secretaria_id": SECRETARIA_A}
+                        "papel": "usuario", "secretaria_id": SECRETARIA_A,
+                        "governanca": False}
 
 
 def test_sem_vinculo_e_403_sem_dizer_por_que(api, emissor, banco):

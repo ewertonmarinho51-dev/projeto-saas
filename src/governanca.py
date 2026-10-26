@@ -585,3 +585,18 @@ def derivar_versao_artefato(versao: dict) -> dict:
         versao["tipo_artefato"], versao["chave_estavel"],
         versao["payload"], versao=int(versao.get("versao", 1)) + 1,
         status="DRAFT")
+
+
+# ---------------------------------------------------------------------------
+# Condição de política em linguagem de gente (Streamlit e API)
+# ---------------------------------------------------------------------------
+def descrever_condicao(condicao: dict) -> str:
+    if "op" in condicao:
+        juntor = {"ALL": " E ", "ANY": " OU ", "NOT": "NÃO "}[condicao["op"]]
+        partes = [descrever_condicao(f)
+                  for f in condicao.get("children", [])]
+        if condicao["op"] == "NOT":
+            return f"NÃO ({partes[0]})"
+        return "(" + juntor.join(partes) + ")"
+    return (f"{condicao.get('field')} {condicao.get('operator')} "
+            f"{condicao.get('value', '')}")
