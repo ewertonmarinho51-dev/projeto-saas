@@ -15,7 +15,7 @@ import logging
 import os
 import secrets
 
-import streamlit as st
+from .streamlit_opcional import st
 
 from . import db
 

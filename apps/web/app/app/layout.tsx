@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Books, Buildings, CurrencyCircleDollar, FolderOpen, House, Key, SignOut, UsersThree } from "@phosphor-icons/react/dist/ssr";
+import { Books, Buildings, CurrencyCircleDollar, FolderOpen, House, Key, ShieldCheck, SignOut, UsersThree } from "@phosphor-icons/react/dist/ssr";
 
 import { MarcaComNome } from "@/components/marca";
 import { LinkDoMenu } from "@/components/menu";
@@ -62,6 +62,11 @@ export default async function LayoutDoApp({ children }: { children: React.ReactN
           {eu?.papel === "admin" && (
             <LinkDoMenu href="/app/admin/usuarios" icone={<UsersThree size={18} weight="bold" aria-hidden />}>
               Usuários
+            </LinkDoMenu>
+          )}
+          {eu?.governanca && (
+            <LinkDoMenu href="/app/governanca" icone={<ShieldCheck size={18} weight="bold" aria-hidden />}>
+              Governança
             </LinkDoMenu>
           )}
           <LinkDoMenu href="/app/conta/senha" icone={<Key size={18} weight="bold" aria-hidden />}>

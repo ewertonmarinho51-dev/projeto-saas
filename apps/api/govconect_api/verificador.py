@@ -39,6 +39,10 @@ ALGORITMOS_JWKS = ("ES256", "RS256")
 AUDIENCIA = "authenticated"
 FOLGA_DE_RELOGIO_S = 30
 PAPEIS = ("admin", "usuario")
+# O vocabulário de `governanca.PAPEIS_GOVERNANCA`, repetido aqui: o
+# verificador não importa o domínio (`src`), e a prova confere a igualdade.
+PAPEIS_GOVERNANCA = ("proprietario", "admin_global", "admin_municipal",
+                     "revisor_juridico", "publicador", "auditor")
 
 
 def _uuid_ou_none(valor) -> str | None:
@@ -119,6 +123,9 @@ class VerificadorSupabase:
         if papel not in PAPEIS:
             raise SemVinculo("papel_desconhecido")
         secretaria = _uuid_ou_none(meta.get("secretaria_id"))
+        governanca = meta.get("papel_governanca")
+        if governanca not in PAPEIS_GOVERNANCA:
+            governanca = None        # desconhecido não vira papel nenhum
 
         resposta = self._rest.requisitar(
             token, "GET", "usuarios",
@@ -136,5 +143,5 @@ class VerificadorSupabase:
             raise SemVinculo("tenant_divergente")
 
         return Identidade(auth_user_id=sub, tenant_id=tenant, papel=papel,
-                          secretaria_id=secretaria,
+                          secretaria_id=secretaria, papel_governanca=governanca,
                           usuario_id=str(linha.get("id") or ""), token=token)

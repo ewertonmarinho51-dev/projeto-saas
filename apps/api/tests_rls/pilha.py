@@ -318,7 +318,9 @@ def semear_coleta(pilha: Pilha) -> str:
 # Também a de Consolidar Demandas (M4) e a do cadastro institucional
 # (M7a), ligadas em produção: as telas novas seguem as mesmas flags.
 FLAGS_DA_EMISSAO = ("flag_precos_ciencia_emissao", "flag_precos_relatorio_visual",
-                    "flag_demand_consolidation", "flag_multi_prefeituras")
+                    "flag_demand_consolidation", "flag_multi_prefeituras",
+                    # Só na pilha: em produção o Centro continua DESLIGADO.
+                    "flag_governance_center", "flag_clause_catalog_admin")
 
 
 def ligar_flags_da_emissao(pilha: Pilha) -> None:
