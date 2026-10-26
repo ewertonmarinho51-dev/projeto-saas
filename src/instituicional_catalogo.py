@@ -36,6 +36,19 @@ TIPOS_DE_PORTARIA = (
     ("OUTRO", "Outro"),
 )
 
+# Campos institucionais da prefeitura (§8): (coluna, rótulo, exemplo). São
+# exatamente as colunas que a 0035 abre ao admin por grant de coluna.
+CAMPOS_DA_PREFEITURA = (
+    ("nome_oficial", "Nome oficial", "Ex.: Município de Paragominas"),
+    ("cnpj", "CNPJ", "00.000.000/0001-00"),
+    ("sigla", "Sigla", "Ex.: PMP"),
+    ("cidade", "Cidade", "Ex.: Paragominas"),
+    ("endereco", "Endereço", "Rua, número, bairro"),
+    ("telefone", "Telefone", "(00) 0000-0000"),
+    ("email", "E-mail institucional", "contato@municipio.gov.br"),
+    ("site", "Site", "https://..."),
+)
+
 # Situação DECLARADA de uma portaria. EXPIRADA e FUTURA não entram: são
 # efeito da vigência, calculados por `portarias.situacao`.
 SITUACOES_DECLARADAS = ("RASCUNHO", "ATIVA", "REVOGADA")

@@ -110,7 +110,8 @@ def test_flag_do_cadastro_desligada_e_404(api, emissor, cadastro):
 
 def test_visao_lista_secoes_secretarias_e_vocabulario(api, emissor, cadastro):
     corpo = api.get("/api/v1/admin/instituicao", headers=_admin(emissor)).json()
-    assert corpo["secoes"] == ["Timbrado", "Módulos", "Servidores", "Portarias"]
+    assert corpo["secoes"] == ["Prefeitura", "Secretarias", "Identidade visual", "Timbrado", "Módulos",
+                              "Servidores", "Portarias"]
     assert corpo["secretarias"] == [{"id": SEC, "nome": "Secretaria de Educação"}]
     assert {o["codigo"] for o in corpo["tipos_de_portaria"]} >= {"EQUIPE_PLANEJAMENTO", "PREGOEIRO"}
     # Seção desligada de propósito some (ausente = ligada).

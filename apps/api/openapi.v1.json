@@ -278,6 +278,34 @@
         "title": "BaseDeConhecimento",
         "type": "object"
       },
+      "CampoDaPrefeitura": {
+        "properties": {
+          "chave": {
+            "title": "Chave",
+            "type": "string"
+          },
+          "exemplo": {
+            "title": "Exemplo",
+            "type": "string"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          },
+          "valor": {
+            "title": "Valor",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chave",
+          "rotulo",
+          "exemplo",
+          "valor"
+        ],
+        "title": "CampoDaPrefeitura",
+        "type": "object"
+      },
       "CampoDoFormulario": {
         "properties": {
           "ajuda": {
@@ -488,6 +516,109 @@
         "title": "Consulta",
         "type": "object"
       },
+      "DadosDaPrefeitura": {
+        "additionalProperties": false,
+        "properties": {
+          "cidade": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cidade"
+          },
+          "cnpj": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cnpj"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "endereco": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endereco"
+          },
+          "nome_oficial": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nome Oficial"
+          },
+          "sigla": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sigla"
+          },
+          "site": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site"
+          },
+          "telefone": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefone"
+          }
+        },
+        "title": "DadosDaPrefeitura",
+        "type": "object"
+      },
       "DocumentoDescartado": {
         "properties": {
           "chave": {
@@ -549,6 +680,35 @@
           }
         },
         "title": "EdicaoDeProcesso",
+        "type": "object"
+      },
+      "EdicaoDeSecretaria": {
+        "additionalProperties": false,
+        "properties": {
+          "ativo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ativo"
+          },
+          "padrao": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Padrao"
+          }
+        },
+        "title": "EdicaoDeSecretaria",
         "type": "object"
       },
       "EdicaoDeServidor": {
@@ -662,6 +822,19 @@
           "mensagem"
         ],
         "title": "ErroDeArquivo",
+        "type": "object"
+      },
+      "Excluida": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Excluida",
         "type": "object"
       },
       "Formulario": {
@@ -848,6 +1021,154 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IdentidadePorImagem": {
+        "additionalProperties": false,
+        "properties": {
+          "cabecalho_pct": {
+            "default": 14,
+            "maximum": 40.0,
+            "minimum": 3.0,
+            "title": "Cabecalho Pct",
+            "type": "number"
+          },
+          "conteudo": {
+            "maxLength": 13981021,
+            "minLength": 1,
+            "title": "Conteudo",
+            "type": "string"
+          },
+          "marca": {
+            "default": false,
+            "title": "Marca",
+            "type": "boolean"
+          },
+          "nome_arquivo": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome Arquivo",
+            "type": "string"
+          },
+          "orgao": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Orgao",
+            "type": "string"
+          },
+          "padrao": {
+            "default": false,
+            "title": "Padrao",
+            "type": "boolean"
+          },
+          "rodape_pct": {
+            "default": 10,
+            "maximum": 40.0,
+            "minimum": 3.0,
+            "title": "Rodape Pct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "nome_arquivo",
+          "conteudo",
+          "orgao"
+        ],
+        "title": "IdentidadePorImagem",
+        "type": "object"
+      },
+      "IdentidadePorTexto": {
+        "additionalProperties": false,
+        "properties": {
+          "cabecalho": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Cabecalho",
+            "type": "string"
+          },
+          "marca_dagua": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Marca Dagua",
+            "type": "string"
+          },
+          "orgao": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Orgao",
+            "type": "string"
+          },
+          "padrao": {
+            "default": false,
+            "title": "Padrao",
+            "type": "boolean"
+          },
+          "rodape": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Rodape",
+            "type": "string"
+          }
+        },
+        "required": [
+          "orgao"
+        ],
+        "title": "IdentidadePorTexto",
+        "type": "object"
+      },
+      "IdentidadeVisual": {
+        "properties": {
+          "cabecalho": {
+            "title": "Cabecalho",
+            "type": "string"
+          },
+          "cabecalho_img": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cabecalho Img"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "marca_dagua": {
+            "title": "Marca Dagua",
+            "type": "string"
+          },
+          "orgao": {
+            "title": "Orgao",
+            "type": "string"
+          },
+          "padrao": {
+            "title": "Padrao",
+            "type": "boolean"
+          },
+          "por_imagem": {
+            "title": "Por Imagem",
+            "type": "boolean"
+          },
+          "rodape": {
+            "title": "Rodape",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "orgao",
+          "padrao",
+          "por_imagem",
+          "cabecalho",
+          "rodape",
+          "marca_dagua",
+          "cabecalho_img"
+        ],
+        "title": "IdentidadeVisual",
         "type": "object"
       },
       "Instituicao": {
@@ -1274,6 +1595,48 @@
         "title": "MemorandoLido",
         "type": "object"
       },
+      "ModeloEnviado": {
+        "additionalProperties": false,
+        "properties": {
+          "cabecalho_pct": {
+            "default": 14,
+            "maximum": 40.0,
+            "minimum": 3.0,
+            "title": "Cabecalho Pct",
+            "type": "number"
+          },
+          "conteudo": {
+            "maxLength": 13981021,
+            "minLength": 1,
+            "title": "Conteudo",
+            "type": "string"
+          },
+          "marca": {
+            "default": false,
+            "title": "Marca",
+            "type": "boolean"
+          },
+          "nome_arquivo": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome Arquivo",
+            "type": "string"
+          },
+          "rodape_pct": {
+            "default": 10,
+            "maximum": 40.0,
+            "minimum": 3.0,
+            "title": "Rodape Pct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "nome_arquivo",
+          "conteudo"
+        ],
+        "title": "ModeloEnviado",
+        "type": "object"
+      },
       "Modulo": {
         "properties": {
           "disponivel_no_sistema": {
@@ -1635,6 +1998,28 @@
           "conteudo"
         ],
         "title": "NovaReferencia",
+        "type": "object"
+      },
+      "NovaSecretaria": {
+        "additionalProperties": false,
+        "properties": {
+          "nome": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nome",
+            "type": "string"
+          },
+          "sigla": {
+            "default": "",
+            "maxLength": 30,
+            "title": "Sigla",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome"
+        ],
+        "title": "NovaSecretaria",
         "type": "object"
       },
       "NovoMembro": {
@@ -2314,6 +2699,27 @@
         "title": "Portarias",
         "type": "object"
       },
+      "Prefeitura": {
+        "properties": {
+          "campos": {
+            "items": {
+              "$ref": "#/components/schemas/CampoDaPrefeitura"
+            },
+            "title": "Campos",
+            "type": "array"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nome",
+          "campos"
+        ],
+        "title": "Prefeitura",
+        "type": "object"
+      },
       "PreparoDaEmissao": {
         "properties": {
           "alertas": {
@@ -2471,6 +2877,41 @@
           "documentos_a_descartar"
         ],
         "title": "PreviaDaAplicacao",
+        "type": "object"
+      },
+      "PreviaDoModelo": {
+        "properties": {
+          "cabecalho": {
+            "title": "Cabecalho",
+            "type": "string"
+          },
+          "marca": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marca"
+          },
+          "pagina": {
+            "title": "Pagina",
+            "type": "string"
+          },
+          "rodape": {
+            "title": "Rodape",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pagina",
+          "cabecalho",
+          "rodape",
+          "marca"
+        ],
+        "title": "PreviaDoModelo",
         "type": "object"
       },
       "Processo": {
@@ -2717,6 +3158,44 @@
           "nome"
         ],
         "title": "Secretaria",
+        "type": "object"
+      },
+      "SecretariaCadastrada": {
+        "properties": {
+          "ativo": {
+            "title": "Ativo",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "identidade_propria": {
+            "title": "Identidade Propria",
+            "type": "boolean"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "padrao": {
+            "title": "Padrao",
+            "type": "boolean"
+          },
+          "sigla": {
+            "title": "Sigla",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "nome",
+          "sigla",
+          "ativo",
+          "padrao",
+          "identidade_propria"
+        ],
+        "title": "SecretariaCadastrada",
         "type": "object"
       },
       "Servidor": {
@@ -3418,6 +3897,267 @@
         ]
       }
     },
+    "/api/v1/admin/instituicao/identidades": {
+      "get": {
+        "operationId": "identidades_api_v1_admin_instituicao_identidades_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IdentidadeVisual"
+                  },
+                  "title": "Response Identidades Api V1 Admin Instituicao Identidades Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Identidades",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/identidades/imagem": {
+      "post": {
+        "operationId": "salvar_por_imagem_api_v1_admin_instituicao_identidades_imagem_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentidadePorImagem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IdentidadeVisual"
+                  },
+                  "title": "Response Salvar Por Imagem Api V1 Admin Instituicao Identidades Imagem Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Salvar Por Imagem",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/identidades/previa": {
+      "post": {
+        "operationId": "previa_api_v1_admin_instituicao_identidades_previa_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModeloEnviado"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviaDoModelo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "Modelo acima de 10 MB"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Previa",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/identidades/texto": {
+      "post": {
+        "operationId": "salvar_por_texto_api_v1_admin_instituicao_identidades_texto_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentidadePorTexto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IdentidadeVisual"
+                  },
+                  "title": "Response Salvar Por Texto Api V1 Admin Instituicao Identidades Texto Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Salvar Por Texto",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/identidades/{orgao_id}": {
+      "delete": {
+        "operationId": "excluir_api_v1_admin_instituicao_identidades__orgao_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orgao_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Orgao Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Excluida"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Identidade fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Excluir",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/identidades/{orgao_id}/padrao": {
+      "put": {
+        "operationId": "tornar_padrao_api_v1_admin_instituicao_identidades__orgao_id__padrao_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orgao_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Orgao Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IdentidadeVisual"
+                  },
+                  "title": "Response Tornar Padrao Api V1 Admin Instituicao Identidades  Orgao Id  Padrao Put",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Identidade fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Tornar Padrao",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
     "/api/v1/admin/instituicao/modulos": {
       "get": {
         "operationId": "listar_modulos_api_v1_admin_instituicao_modulos_get",
@@ -3771,6 +4511,199 @@
           }
         },
         "summary": "Adicionar Membro",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/prefeitura": {
+      "get": {
+        "operationId": "prefeitura_api_v1_admin_instituicao_prefeitura_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Prefeitura"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Prefeitura",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      },
+      "put": {
+        "operationId": "salvar_prefeitura_api_v1_admin_instituicao_prefeitura_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DadosDaPrefeitura"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Prefeitura"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Salvar Prefeitura",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/secretarias": {
+      "get": {
+        "operationId": "secretarias_api_v1_admin_instituicao_secretarias_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SecretariaCadastrada"
+                  },
+                  "title": "Response Secretarias Api V1 Admin Instituicao Secretarias Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Secretarias",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      },
+      "post": {
+        "operationId": "criar_secretaria_api_v1_admin_instituicao_secretarias_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NovaSecretaria"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SecretariaCadastrada"
+                  },
+                  "title": "Response Criar Secretaria Api V1 Admin Instituicao Secretarias Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Criar Secretaria",
+        "tags": [
+          "v1",
+          "administracao"
+        ]
+      }
+    },
+    "/api/v1/admin/instituicao/secretarias/{secretaria_id}": {
+      "patch": {
+        "operationId": "editar_secretaria_api_v1_admin_instituicao_secretarias__secretaria_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "secretaria_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Secretaria Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EdicaoDeSecretaria"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SecretariaCadastrada"
+                  },
+                  "title": "Response Editar Secretaria Api V1 Admin Instituicao Secretarias  Secretaria Id  Patch",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Secretaria fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Editar Secretaria",
         "tags": [
           "v1",
           "administracao"

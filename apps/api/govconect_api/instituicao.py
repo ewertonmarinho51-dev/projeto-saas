@@ -9,10 +9,8 @@ dentro da sessão do usuário: toda leitura e escrita vai ao PostgREST com o
 JWT do ADMIN, e quem garante é o RLS da 0025 (`e_admin()` e
 `tenant_do_jwt()` nas políticas de escrita).
 
-Fora daqui, de propósito, até a migração que dá ao admin a escrita em
-`tenants` e `secretarias` (M7b): dados da Prefeitura, cadastro de
-secretarias e identidade visual. O Streamlit grava essas duas tabelas com
-a credencial de servidor; a API não tem — e não deve ter — essa saída.
+Prefeitura, Secretarias e Identidade visual moram em
+`cadastro_institucional` (M7b), no mesmo prefixo.
 """
 
 from __future__ import annotations
@@ -26,7 +24,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src import assinaturas, branding, contexto, db, modulos, portarias
-from src.instituicional_catalogo import (FLAG_MULTI_PREFEITURAS, FLAG_PORTARIAS,
+from src.instituicional_catalogo import (FLAG_ADMIN, FLAG_MULTI_PREFEITURAS, FLAG_PORTARIAS,
                                          FLAG_SERVIDORES, MODULOS_OFERECIDOS,
                                          SITUACOES_DECLARADAS, TIPOS_DE_PORTARIA,
                                          secao_liberada)
@@ -230,7 +228,14 @@ def rotas() -> APIRouter:
     @r.get("", response_model=Instituicao)
     def visao(eu: Identidade = Depends(exigir_identidade)) -> Instituicao:
         def ler():
-            secoes = ["Timbrado", "Módulos"]
+            # A ordem do cadastro: quem é a prefeitura, suas unidades, o
+            # timbrado delas — e só então módulos, servidores e portarias.
+            # `FLAG_ADMIN` some com Prefeitura, Timbrado e Módulos, como no
+            # Streamlit; Secretarias e Identidade visual são da aba de
+            # Administração, que não tem flag.
+            admin = secao_liberada(db.obter_config(f"flag_{FLAG_ADMIN}"))
+            secoes = (["Prefeitura"] if admin else []) + ["Secretarias", "Identidade visual"]
+            secoes += ["Timbrado", "Módulos"] if admin else []
             if secao_liberada(db.obter_config(f"flag_{FLAG_SERVIDORES}")):
                 secoes.append("Servidores")
             if secao_liberada(db.obter_config(f"flag_{FLAG_PORTARIAS}")):

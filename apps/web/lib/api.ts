@@ -461,6 +461,34 @@ export type Timbrado = {
 };
 
 // ---------------------------------------------------------------------------
+// Prefeitura, Secretarias e Identidade visual (M7b, admin)
+// ---------------------------------------------------------------------------
+export type CampoDaPrefeitura = { chave: string; rotulo: string; exemplo: string; valor: string };
+export type PrefeituraInstitucional = { nome: string; campos: CampoDaPrefeitura[] };
+
+export type SecretariaCadastrada = {
+  id: string;
+  nome: string;
+  sigla: string;
+  ativo: boolean;
+  padrao: boolean;
+  identidade_propria: boolean;
+};
+
+export type IdentidadeVisual = {
+  id: string;
+  orgao: string;
+  padrao: boolean;
+  por_imagem: boolean;
+  cabecalho: string;
+  rodape: string;
+  marca_dagua: string;
+  cabecalho_img: string | null;
+};
+
+export type PreviaDoModelo = { pagina: string; cabecalho: string; rodape: string; marca: string | null };
+
+// ---------------------------------------------------------------------------
 // Base de Conhecimento (M6, admin)
 // ---------------------------------------------------------------------------
 export type ReferenciaDaBase = {

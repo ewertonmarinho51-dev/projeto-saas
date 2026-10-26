@@ -13,21 +13,26 @@ const estado = JSON.parse(readFileSync(process.env.GOVCONECT_E2E_ESTADO ?? "", "
 
 test("administrador cadastra servidor e portaria com membro", async ({ page }) => {
   await page.goto("/entrar");
-  await page.getByLabel("E-mail institucional").fill(estado.contas.admin_a.email);
-  await page.getByLabel("Senha", { exact: true }).fill(estado.contas.admin_a.senha);
+  await page.getByLabel("E-mail institucional").fill(estado.contas.admin_inst.email);
+  await page.getByLabel("Senha", { exact: true }).fill(estado.contas.admin_inst.senha);
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await page.waitForURL(/\/app$/);
 
   await page.getByRole("link", { name: "Instituição" }).click();
-  await page.getByRole("link", { name: "Servidores" }).click();
+  await expect(page.getByRole("heading", { name: "Instituição", level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: "Servidores", exact: true }).click();
+  await page.waitForURL(/secao=servidores/);
+  await expect(page.getByRole("heading", { name: "Novo servidor" })).toBeVisible();
   const nome = `Servidora E2E ${Date.now()}`;
-  await page.getByLabel("Nome").fill(nome);
+  await page.getByRole("textbox", { name: "Nome", exact: true }).fill(nome);
   await page.getByLabel("Cargo").fill("Agente de Contratação");
   await page.getByRole("button", { name: "Cadastrar servidor" }).click();
   await expect(page.getByText(`${nome} cadastrado.`)).toBeVisible();
   await expect(page.getByTestId("lista-servidores")).toContainText(nome);
 
-  await page.getByRole("link", { name: "Portarias" }).click();
+  await page.getByRole("link", { name: "Portarias", exact: true }).click();
+  await page.waitForURL(/secao=portarias/);
+  await expect(page.getByRole("heading", { name: "Nova portaria" })).toBeVisible();
   const numero = String(Date.now()).slice(-4);
   await page.getByLabel("Número").fill(numero);
   await page.getByRole("button", { name: "Registrar portaria" }).click();

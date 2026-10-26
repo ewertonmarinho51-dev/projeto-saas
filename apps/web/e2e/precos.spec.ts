@@ -25,7 +25,7 @@ test.describe.configure({ mode: "serial" });
 
 test("dono vê a pesquisa com dinheiro exato e evidência verificável", async ({ page }) => {
   await entrar(page, "a1");
-  await page.getByRole("link", { name: "Preços" }).click();
+  await page.getByRole("link", { name: "Preços", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/precos$/);
   // A pilha semeia DUAS pesquisas com o mesmo valor; a conferência é na linha da certa.
   const linhaDaPesquisa = page.getByRole("listitem").filter({ hasText: "Luvas E2E" });

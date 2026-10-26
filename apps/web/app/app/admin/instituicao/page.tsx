@@ -4,9 +4,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import {
+  DadosDaPrefeitura,
+  IdentidadesVisuais,
   ModulosDaPrefeitura,
   ModulosDaSecretaria,
   NovaPortaria,
+  Secretarias,
   Servidores,
   UmaPortaria,
 } from "@/components/admin-instituicao";
@@ -15,9 +18,12 @@ import {
   chamarApi,
   ErroDaApi,
   type Identidade,
+  type IdentidadeVisual,
   type Instituicao,
   type ModuloInstitucional,
   type PortariaInstitucional,
+  type PrefeituraInstitucional,
+  type SecretariaCadastrada,
   type ServidorInstitucional,
   type Timbrado,
 } from "@/lib/api";
@@ -26,6 +32,9 @@ export const metadata: Metadata = { title: "Instituição" };
 
 const UUID = /^[0-9a-f-]{36}$/i;
 const SECOES: Record<string, string> = {
+  Prefeitura: "prefeitura",
+  Secretarias: "secretarias",
+  "Identidade visual": "identidade",
   Timbrado: "timbrado",
   Módulos: "modulos",
   Servidores: "servidores",
@@ -35,7 +44,7 @@ const SECOES: Record<string, string> = {
 const ORIGEM: Record<Timbrado["origem"], { variante: "success" | "info" | "warning"; texto: string }> = {
   secretaria: { variante: "success", texto: "Identidade própria: esta secretaria tem timbrado cadastrado, e é ele que sai nos documentos dela." },
   municipio: { variante: "info", texto: "Herdado do município: esta secretaria não tem timbrado próprio, e os documentos dela saem com o da secretaria marcada como padrão." },
-  nenhuma: { variante: "warning", texto: "Nenhuma identidade cadastrada: os documentos sairão SEM timbrado. Defina uma identidade padrão em Secretarias." },
+  nenhuma: { variante: "warning", texto: "Nenhuma identidade cadastrada: os documentos sairão SEM timbrado. Defina uma identidade padrão em Identidade visual." },
 };
 
 async function dados<T>(caminho: string): Promise<T> {
@@ -68,13 +77,19 @@ export default async function PaginaDaInstituicao({
   const link = (s: string, sec = secretaria) => `/app/admin/instituicao?secao=${s}${sec ? `&secretaria=${sec}` : ""}`;
 
   let corpo: React.ReactNode = null;
-  if (secao === "servidores") {
+  if (secao === "prefeitura") {
+    corpo = <DadosDaPrefeitura prefeitura={await dados<PrefeituraInstitucional>("/admin/instituicao/prefeitura")} />;
+  } else if (secao === "secretarias") {
+    corpo = <Secretarias secretarias={await dados<SecretariaCadastrada[]>("/admin/instituicao/secretarias")} />;
+  } else if (secao === "identidade") {
+    corpo = <IdentidadesVisuais identidades={await dados<IdentidadeVisual[]>("/admin/instituicao/identidades")} />;
+  } else if (secao === "servidores") {
     corpo = <Servidores servidores={await dados<ServidorInstitucional[]>("/admin/instituicao/servidores")} />;
   } else if (!secretaria) {
     corpo = (
       <Alert variant="info">
-        Nenhuma secretaria cadastrada. Timbrado, módulos por secretaria e portarias são por secretaria — o cadastro de
-        secretarias ainda é feito no GovDocs.
+        Nenhuma secretaria cadastrada. Timbrado, módulos por secretaria e portarias são por secretaria: cadastre-as na
+        seção Secretarias.
       </Alert>
     );
   } else if (secao === "timbrado") {
@@ -155,7 +170,7 @@ export default async function PaginaDaInstituicao({
           </Link>
         ))}
       </nav>
-      {secao !== "servidores" && visao.secretarias.length > 1 && (
+      {["timbrado", "modulos", "portarias"].includes(secao) && visao.secretarias.length > 1 && (
         <nav aria-label="Secretaria" className="flex flex-wrap gap-2">
           {visao.secretarias.map((s) => (
             <Link

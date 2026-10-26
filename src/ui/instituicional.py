@@ -27,8 +27,8 @@ import datetime as _dt
 import streamlit as st
 
 from .. import assinaturas, branding, contexto, db, modulos, portarias
-from ..instituicional_catalogo import (FLAG_ADMIN, FLAG_MULTI_PREFEITURAS,  # noqa: F401 — reexportados
-                                       FLAG_PORTARIAS, FLAG_SERVIDORES,
+from ..instituicional_catalogo import (CAMPOS_DA_PREFEITURA, FLAG_ADMIN,  # noqa: F401 — reexportados
+                                       FLAG_MULTI_PREFEITURAS, FLAG_PORTARIAS, FLAG_SERVIDORES,
                                        MODULOS_OFERECIDOS, TIPOS_DE_PORTARIA)
 
 
@@ -154,16 +154,7 @@ def _exigir_migracao() -> bool:
 # ---------------------------------------------------------------------------
 # PREFEITURA (§8)
 # ---------------------------------------------------------------------------
-CAMPOS_DA_PREFEITURA = (
-    ("nome_oficial", "Nome oficial", "Ex.: Município de Paragominas"),
-    ("cnpj", "CNPJ", "00.000.000/0001-00"),
-    ("sigla", "Sigla", "Ex.: PMP"),
-    ("cidade", "Cidade", "Ex.: Paragominas"),
-    ("endereco", "Endereço", "Rua, número, bairro"),
-    ("telefone", "Telefone", "(00) 0000-0000"),
-    ("email", "E-mail institucional", "contato@municipio.gov.br"),
-    ("site", "Site", "https://..."),
-)
+# CAMPOS_DA_PREFEITURA: `instituicional_catalogo`
 
 
 def _render_prefeitura() -> None:
