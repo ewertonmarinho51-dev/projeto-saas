@@ -9,6 +9,9 @@ coisas, de propósito poucas:
 * `criar(email, nome, escopo)`: conta confirmada, com `app_metadata` no
   mesmo ato — sem janela de conta sem escopo;
 * `atualizar_escopo(uid, escopo)`: gravar `app_metadata`;
+* `bloquear(uid, sim)`: impedir (ou devolver) a entrada e a RENOVAÇÃO de
+  token — é o que faz "desativar" valer também fora da API, no PostgREST
+  direto, quando o token atual vencer;
 * `desfazer_criacao(uid)`: apagar a conta que ESTA requisição acabou de
   criar, quando o vínculo em `usuarios` falha. Quem chama garante isso.
 
@@ -32,6 +35,23 @@ class ErroAdminAuth(Exception):
 
 class ContaJaExiste(Exception):
     """Já há conta no Auth com este e-mail."""
+
+
+class EmailRecusado(Exception):
+    """O Auth recusou o e-mail por outro motivo (formato, domínio…)."""
+
+
+# "Bloqueado" no Auth: o GoTrue mede em duração; ~100 anos é o "até
+# desbloquear" que ele aceita, e "none" desfaz.
+BLOQUEIO = "876000h"
+
+
+def _json(resposta: httpx.Response) -> dict:
+    try:
+        corpo = resposta.json()
+    except ValueError:
+        raise ErroAdminAuth("resposta ilegível da Admin API") from None
+    return corpo if isinstance(corpo, dict) else {}
 
 
 class AdminDoAuth:
@@ -63,19 +83,24 @@ class AdminDoAuth:
             return None
         if resposta.status_code != 200:
             raise ErroAdminAuth(f"leitura da conta: {resposta.status_code}")
-        return resposta.json()
+        return _json(resposta)
 
     def criar(self, email: str, nome: str, escopo: dict) -> str:
         resposta = self._pedir("POST", corpo={
             "email": email, "email_confirm": True,
             "app_metadata": escopo, "user_metadata": {"nome": nome}})
-        if resposta.status_code == 422 or resposta.status_code == 409:
-            # `email_exists`: o corpo não sobe — diz se a conta existe, e isso
-            # basta. Detalhar seria sonda de e-mails cadastrados no projeto.
-            raise ContaJaExiste()
+        if resposta.status_code in (409, 422):
+            # O corpo não sobe: ele pode ecoar o e-mail. Só o CÓDIGO decide.
+            corpo = _json(resposta) if resposta.content else {}
+            codigo = str(corpo.get("error_code") or corpo.get("code") or "")
+            texto = str(corpo.get("msg") or corpo.get("message") or "").lower()
+            ja_existe = codigo in ("email_exists", "user_already_exists") or "already" in texto
+            if resposta.status_code == 409 or ja_existe:
+                raise ContaJaExiste()
+            raise EmailRecusado()
         if resposta.status_code not in (200, 201):
             raise ErroAdminAuth(f"criação da conta: {resposta.status_code}")
-        uid = str((resposta.json() or {}).get("id") or "")
+        uid = str(_json(resposta).get("id") or "")
         if not uid:
             raise ErroAdminAuth("criação da conta sem id")
         return uid
@@ -84,6 +109,11 @@ class AdminDoAuth:
         resposta = self._pedir("PUT", f"/{uid}", {"app_metadata": escopo})
         if resposta.status_code != 200:
             raise ErroAdminAuth(f"atualização do escopo: {resposta.status_code}")
+
+    def bloquear(self, uid: str, bloquear: bool) -> None:
+        resposta = self._pedir("PUT", f"/{uid}", {"ban_duration": BLOQUEIO if bloquear else "none"})
+        if resposta.status_code != 200:
+            raise ErroAdminAuth(f"bloqueio da conta: {resposta.status_code}")
 
     def desfazer_criacao(self, uid: str) -> None:
         resposta = self._pedir("DELETE", f"/{uid}")

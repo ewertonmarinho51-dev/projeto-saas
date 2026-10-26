@@ -5340,7 +5340,7 @@
             "description": "Usuário fora do seu município"
           },
           "409": {
-            "description": "Alteração em si mesmo"
+            "description": "Alteração em si mesmo ou no último administrador"
           },
           "422": {
             "content": {

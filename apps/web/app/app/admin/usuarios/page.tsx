@@ -23,7 +23,7 @@ export default async function PaginaDeUsuarios() {
     <div className="grid gap-6">
       <PageHead
         title="Usuários"
-        desc="Quem acessa o sistema por este município, com qual papel e de qual secretaria. Desativar corta o acesso na hora."
+        desc="Quem acessa o sistema por este município, com qual papel e de qual secretaria."
       />
       <GestaoDeUsuariosTela dados={dados} />
     </div>

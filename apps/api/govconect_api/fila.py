@@ -59,8 +59,23 @@ _config = carregar()
 celery = _criar_celery(_config.redis_url)
 
 
+# ADR-010: a chave da Admin API do Auth chega ao worker porque o compose
+# dá o mesmo `api.env` aos dois. O worker não a usa, e roda o LibreOffice
+# (que herdaria o ambiente) sobre texto de usuário e de fontes externas.
+CREDENCIAIS_SO_DA_API = ("GOVCONECT_AUTH_ADMIN_KEY",)
+
+
+def sem_credencial_de_servidor() -> None:
+    import os
+
+    for nome in CREDENCIAIS_SO_DA_API:
+        os.environ.pop(nome, None)
+
+
 @worker_init.connect
 def _logs_do_worker(**_):
+    # Antes de tudo, e antes de o pool nascer: os filhos herdam o ambiente.
+    sem_credencial_de_servidor()
     # O mesmo JSON da API (`worker_hijack_root_logger=False` deixa a raiz
     # para nós).
     from .observabilidade import configurar_logs

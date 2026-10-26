@@ -285,11 +285,12 @@ A aba "Usuários" do Streamlit edita a tabela legada `usuarios`
    `sb_secret_`), o worker nem o log. Sem a chave, as rotas que precisam
    dela respondem 503 `ADMIN_AUTH_UNAVAILABLE` (falha fechada) e o resto
    funciona.
-2. **O cliente só sabe três coisas:** ler UMA conta pelo id, criar conta
-   já com escopo, e atualizar o `app_metadata` de uma conta — mais o
-   desfazer da conta criada na MESMA requisição, se o vínculo em
-   `usuarios` falhar. Não lista contas, não apaga conta alheia, não troca
-   e-mail nem senha, não gera link.
+2. **O cliente só sabe quatro coisas:** ler UMA conta pelo id, criar conta
+   já com escopo, atualizar o `app_metadata` e bloquear/desbloquear a
+   entrada (`ban_duration`) — mais o desfazer da conta criada na MESMA
+   requisição, se o vínculo em `usuarios` falhar (por qualquer exceção).
+   Não lista contas, não apaga conta alheia, não troca e-mail nem senha,
+   não gera link.
 3. **Escopo vem do chamador, nunca do corpo.** `tenant_id` é o do JWT do
    admin; papel só `usuario`/`admin`; secretaria só do mesmo tenant
    (conferida com o JWT do admin). Antes de alterar `app_metadata`, a API
@@ -297,29 +298,51 @@ A aba "Usuários" do Streamlit edita a tabela legada `usuarios`
    chamador — a Admin API atravessa o RLS, então essa conferência é a
    fronteira. Chaves que a API não gere (ex.: `papel_governanca`) são
    preservadas como estavam.
-4. **O que não precisa da chave, não usa.** Listar usuários e desativar/
-   reativar vão pelo JWT do admin em `usuarios` (políticas
-   `usuarios_admin_le` / `usuarios_admin_edita` da 0020). Desativar já
-   corta o acesso na requisição seguinte: o verificador da ADR-002 confere
-   `usuarios.ativo` a cada chamada.
+4. **Desativar = `usuarios.ativo` + bloqueio no Auth.** O `ativo` (pelo
+   JWT do admin, política `usuarios_admin_edita` da 0020) corta a API na
+   requisição seguinte — o verificador da ADR-002 o confere sempre. Mas
+   nenhuma política do banco olha `ativo`: sem o bloqueio, o desativado
+   renovaria o token e falaria com o PostgREST direto. O bloqueio impede
+   entrar e renovar; o token JÁ emitido vale até vencer (≤ 1 h). Sem a
+   chave, desativar ainda corta a API, e a tela avisa que o bloqueio não
+   acontece.
 5. **"Convidar" = criar a conta confirmada, com escopo no mesmo ato.** O
    convite por e-mail do Supabase devolve o token no fragmento da URL, que
    a rota de servidor `/auth/confirmar` não lê; a conta nasce sem senha e a
    pessoa a define em "Esqueci minha senha" (fluxo PKCE que já funciona).
    Sem janela de conta sem escopo (o script `criar_contas_auth.py` tinha
    uma, entre o convite e o `app_metadata`).
-6. **Ninguém mexe em si mesmo:** o admin não troca o próprio papel nem se
-   desativa (evita a prefeitura sem administrador por um clique).
+6. **Ninguém mexe em si mesmo, e o último admin não sai:** o admin não
+   troca o próprio papel nem se desativa, e ninguém rebaixa nem desativa o
+   último administrador ativo do município.
+7. **Quem chama é conferido ao vivo.** O papel do JWT pode ter até 1 h:
+   antes de convidar ou de mexer em papel e acesso, a API lê a conta do
+   CHAMADOR na Admin API e exige `papel = admin`, o mesmo tenant e conta
+   não bloqueada. Um admin recém-rebaixado não usa a janela do token para
+   rebaixar quem o rebaixou.
 
 **Consequências e riscos aceitos.**
 - A chave dá poder total sobre o Auth do projeto. Mitigação: um módulo,
   três chamadas, conferência de tenant antes de toda escrita, guarda de
   admin + papel no JWT antes de tudo, log de cada ato (ids, nunca e-mail).
 - Ela fica em `/etc/govdocs/api.env`, que o worker também carrega (mesmo
-  `env_file` no compose). O worker não tem código que a use; separar em
-  arquivo só da API é endurecimento futuro, que pede mudança no compose.
+  `env_file` no compose). O worker a APAGA do próprio ambiente ao subir
+  (`fila.sem_credencial_de_servidor`, antes de o pool nascer), para que o
+  LibreOffice e outros filhos não a herdem. Separar o arquivo só para a
+  API continua sendo o endurecimento certo, quando o compose for revisto.
 - Papel e secretaria novos valem no PRÓXIMO token da pessoa (até 1 h, a
   renovação do Supabase). Desativar não espera: corta na hora.
 - A linha em `usuarios` de uma conta criada aqui leva `senha_hash`
   inutilizável (`!sem-senha-legada`): o login legado do Streamlit recusa,
   e a pessoa entra pelo e-mail nos dois apps.
+
+**Revisão de segurança (26/10/2026, `revisor-de-banco-e-seguranca`).**
+Três bloqueadores, corrigidos antes do merge, cada um com prova que morde
+(mutante morto): desativar não cortava o PostgREST direto (→ bloqueio no
+Auth); dois admins podiam se rebaixar mutuamente na janela do token, e o
+município ficar sem admin (→ conferência ao vivo + último admin); conta
+órfã com escopo quando o PostgREST caía no vínculo (→ desfazer em qualquer
+exceção). Também: "sem secretaria" envia `null` (o GoTrue mescla
+`app_metadata`), e 422 do Auth só vira "já existe" com o código certo.
+Risco aceito: o 409 do convite revela que um e-mail já tem conta no
+projeto (sonda limitada a 120/min por admin).

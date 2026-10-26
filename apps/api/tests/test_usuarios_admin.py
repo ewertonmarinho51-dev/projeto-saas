@@ -32,9 +32,13 @@ SEC = "dddddddd-0000-4000-8000-000000000001"
 OUTRO_TENANT = "99999999-0000-4000-8000-000000000009"
 
 
+CHAMADOR = {"app_metadata": {"papel": "admin", "tenant_id": TENANT_A}}
+
+
 class AdminFalso:
     def __init__(self, contas=None, existe=False, quebrar=False):
-        self.contas = contas or {}
+        # A conta de quem chama, conferida AO VIVO antes de toda escrita.
+        self.contas = {USUARIO_A: CHAMADOR, **(contas or {})}
         self.existe, self.quebrar = existe, quebrar
         self.chamadas: list = []
 
@@ -53,11 +57,14 @@ class AdminFalso:
     def atualizar_escopo(self, uid, escopo):
         self.chamadas.append(("atualizar", uid, escopo))
 
+    def bloquear(self, uid, bloquear):
+        self.chamadas.append(("bloquear", uid, bloquear))
+
     def desfazer_criacao(self, uid):
         self.chamadas.append(("desfazer", uid))
 
     def escritas(self):
-        return [c for c in self.chamadas if c[0] in ("criar", "atualizar", "desfazer")]
+        return [c for c in self.chamadas if c[0] in ("criar", "atualizar", "bloquear", "desfazer")]
 
 
 @pytest.fixture
@@ -133,8 +140,8 @@ def test_convite_cria_a_conta_com_o_escopo_do_chamador_e_vincula(emissor):
     r = _api(emissor, banco, admin).post(BASE, headers=_h(emissor), json={
         "nome": " Bia Souza ", "email": " Bia@X.gov.br ", "papel": "usuario", "secretaria_id": SEC})
     assert r.status_code == 201, r.text
-    assert admin.chamadas == [("criar", "bia@x.gov.br", "Bia Souza",
-                               {"papel": "usuario", "tenant_id": TENANT_A, "secretaria_id": SEC})]
+    assert admin.escritas() == [("criar", "bia@x.gov.br", "Bia Souza",
+                                 {"papel": "usuario", "tenant_id": TENANT_A, "secretaria_id": SEC})]
     linha = banco.corpo(next(c for c in banco.chamadas if c.method == "POST"))
     assert linha["tenant_id"] == TENANT_A and linha["login"] == "bia@x.gov.br"
     assert linha["auth_user_id"] == "eeeeeeee-0000-4000-8000-0000000000b1"
@@ -223,7 +230,8 @@ def test_tirar_a_secretaria_remove_a_chave_do_escopo(emissor):
     r = _api(emissor, _banco_com_alvo(), admin).patch(f"{BASE}/{ALVO}", headers=_h(emissor),
                                                       json={"secretaria_id": None})
     assert r.status_code == 200
-    assert admin.escritas()[-1][2] == {"tenant_id": TENANT_A, "papel": "usuario"}
+    # O GoTrue MESCLA app_metadata: só `null` apaga a chave.
+    assert admin.escritas()[-1][2] == {"tenant_id": TENANT_A, "papel": "usuario", "secretaria_id": None}
 
 
 @pytest.mark.parametrize("corpo", [{"papel": "usuario"}, {"ativo": False}])
@@ -234,12 +242,22 @@ def test_ninguem_altera_a_si_mesmo(emissor, corpo):
     assert r.status_code == 409 and admin.chamadas == []
 
 
-def test_desativar_nao_usa_a_chave(emissor):
+def test_desativar_sem_a_chave_ainda_corta_a_interface(emissor):
     banco = _banco_com_alvo()
     r = _api(emissor, banco, None).patch(f"{BASE}/{ALVO}", headers=_h(emissor), json={"ativo": False})
     assert r.status_code == 200, r.text
     patch = [c for c in banco.chamadas if c.method == "PATCH"][-1]
     assert banco.corpo(patch) == {"ativo": False} and patch.url.params["tenant_id"] == f"eq.{TENANT_A}"
+
+
+@pytest.mark.parametrize("ativo", [False, True])
+def test_desativar_com_a_chave_bloqueia_a_conta_no_auth(emissor, ativo):
+    """Sem o bloqueio, o desativado renovaria o token e falaria com o PostgREST
+    direto: nenhuma política do banco olha `usuarios.ativo`."""
+    admin = AdminFalso(contas={UID_ALVO: {"app_metadata": {"tenant_id": TENANT_A, "papel": "usuario"}}})
+    r = _api(emissor, _banco_com_alvo(), admin).patch(f"{BASE}/{ALVO}", headers=_h(emissor), json={"ativo": ativo})
+    assert r.status_code == 200, r.text
+    assert admin.escritas() == [("bloquear", UID_ALVO, not ativo)]
 
 
 def test_conta_do_login_antigo_so_muda_a_linha(emissor):
@@ -326,3 +344,103 @@ def test_chave_de_servidor_continua_fora_do_dominio():
 
     with pytest.raises(ValueError):
         configurar_supabase("https://x.exemplo.co", CHAVE)
+
+
+# ---------------------------------------------------------------------------
+# Achados da revisão de segurança (26/10/2026)
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("meta", [
+    {"papel": "usuario", "tenant_id": TENANT_A},          # rebaixado há pouco: JWT ainda diz admin
+    {"papel": "admin", "tenant_id": OUTRO_TENANT},
+])
+def test_admin_conferido_ao_vivo_antes_de_escrever(emissor, meta):
+    admin = AdminFalso(contas={USUARIO_A: {"app_metadata": meta},
+                               UID_ALVO: {"app_metadata": {"tenant_id": TENANT_A, "papel": "admin"}}})
+    banco = _banco_com_alvo(papel="admin")
+    banco.responder("GET", "usuarios", 200, [{"id": "outro"}])
+    r = _api(emissor, banco, admin).patch(f"{BASE}/{ALVO}", headers=_h(emissor), json={"papel": "usuario"})
+    assert r.status_code == 403
+    r = _api(emissor, _banco(), admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@x.gov.br"})
+    assert r.status_code == 403
+    assert admin.escritas() == []
+
+
+def test_admin_bloqueado_no_auth_nao_escreve(emissor):
+    admin = AdminFalso(contas={USUARIO_A: {**CHAMADOR, "banned_until": "2126-01-01T00:00:00Z"}})
+    r = _api(emissor, _banco(), admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@x.gov.br"})
+    assert r.status_code == 403 and admin.escritas() == []
+
+
+@pytest.mark.parametrize("corpo", [{"papel": "usuario"}, {"ativo": False}])
+def test_ultimo_admin_ativo_nao_sai(emissor, corpo):
+    banco = _banco()
+    banco.responder("GET", "usuarios", 200, [_linha(papel="admin")])
+    banco.responder("GET", "usuarios", 200, [])           # nenhum OUTRO admin ativo
+    admin = AdminFalso(contas={UID_ALVO: {"app_metadata": {"tenant_id": TENANT_A, "papel": "admin"}}})
+    r = _api(emissor, banco, admin).patch(f"{BASE}/{ALVO}", headers=_h(emissor), json=corpo)
+    assert r.status_code == 409 and r.json()["code"] == "LAST_ADMIN"
+    assert admin.escritas() == [] and not any(c.method == "PATCH" for c in banco.chamadas)
+
+
+def test_rebaixar_com_outro_admin_ativo_passa(emissor):
+    banco = _banco()
+    banco.responder("GET", "usuarios", 200, [_linha(papel="admin")])
+    banco.responder("GET", "usuarios", 200, [{"id": "outro"}])
+    banco.responder("PATCH", "usuarios", 200, [_linha(papel="usuario")])
+    admin = AdminFalso(contas={UID_ALVO: {"app_metadata": {"tenant_id": TENANT_A, "papel": "admin"}}})
+    r = _api(emissor, banco, admin).patch(f"{BASE}/{ALVO}", headers=_h(emissor), json={"papel": "usuario"})
+    assert r.status_code == 200, r.text
+    pedido = [c for c in banco.chamadas if c.method == "GET" and "neq." in str(c.url.params.get("id", ""))][-1]
+    assert pedido.url.params["papel"] == "eq.admin" and pedido.url.params["ativo"] == "is.true"
+
+
+def test_postgrest_fora_no_vinculo_desfaz_a_conta_e_sobe_o_erro(emissor, monkeypatch):
+    from govconect_api.erros import ErroApi
+    from govconect_api.supabase_rest import ClienteRest
+
+    original = ClienteRest.requisitar
+
+    def requisitar(self, token, metodo, tabela, **kw):
+        if metodo == "POST" and tabela == "usuarios":
+            raise ErroApi(503, "DATABASE_UNAVAILABLE", "Banco de dados indisponível")
+        return original(self, token, metodo, tabela, **kw)
+
+    monkeypatch.setattr(ClienteRest, "requisitar", requisitar)
+    admin = AdminFalso()
+    r = _api(emissor, _banco(), admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@x.gov.br"})
+    assert r.status_code == 503
+    assert admin.escritas()[-1] == ("desfazer", "eeeeeeee-0000-4000-8000-0000000000b1")
+
+
+def test_auth_recusa_email_por_outro_motivo_nao_vira_ja_existe():
+    from govconect_api.admin_auth import EmailRecusado
+
+    cliente, _ = _cliente(lambda r: httpx.Response(422, json={"code": "validation_failed", "msg": "invalid"}))
+    with pytest.raises(EmailRecusado):
+        cliente.criar("a@b.gov.br", "A", {})
+
+
+def test_bloqueio_vai_como_ban_duration():
+    import json as _json
+
+    cliente, chamadas = _cliente(lambda r: httpx.Response(200, json={}))
+    cliente.bloquear("u1", True)
+    cliente.bloquear("u1", False)
+    assert [_json.loads(c.content)["ban_duration"] for c in chamadas] == ["876000h", "none"]
+
+
+def test_chave_nao_aparece_no_log_nem_no_erro(caplog):
+    cliente, _ = _cliente(lambda r: httpx.Response(503, text=f"eco {CHAVE}"))
+    with caplog.at_level("DEBUG"), pytest.raises(ErroAdminAuth) as erro:
+        cliente.conta("u1")
+    assert CHAVE not in caplog.text and CHAVE not in str(erro.value)
+
+
+def test_worker_tira_a_chave_do_proprio_ambiente(monkeypatch):
+    import os
+
+    from govconect_api import fila
+
+    monkeypatch.setenv("GOVCONECT_AUTH_ADMIN_KEY", CHAVE)
+    fila.sem_credencial_de_servidor()
+    assert "GOVCONECT_AUTH_ADMIN_KEY" not in os.environ

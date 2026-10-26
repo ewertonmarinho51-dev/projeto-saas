@@ -141,12 +141,12 @@ export function GestaoDeUsuariosTela({ dados }: { dados: GestaoDeUsuarios }) {
     <div className="grid gap-6">
       {!acesso && (
         <Alert variant="warning">
-          A chave da Admin API não está configurada no servidor: dá para desativar e reativar, mas convidar e trocar papel ou
-          secretaria de conta por e-mail ficam indisponíveis.
+          A chave da Admin API não está configurada no servidor. Desativar ainda corta a interface, mas não bloqueia a conta no
+          serviço de login; convidar e trocar papel ou secretaria de conta por e-mail ficam indisponíveis.
         </Alert>
       )}
       {acesso && <Convite secretarias={dados.secretarias} />}
-      <Card title={`${dados.usuarios.length} usuário(s)`} subtitle="Você não altera o próprio papel nem se desativa." divided flush>
+      <Card title={`${dados.usuarios.length} usuário(s)`} subtitle="Você não altera o próprio papel nem se desativa, e o último administrador ativo não sai." divided flush>
         <TableContainer>
           <div data-testid="lista-usuarios">
             <DataTable compact caption="Usuários do município" minWidth="48rem" columns={colunas} rows={dados.usuarios} />

@@ -66,7 +66,7 @@ export async function alterarUsuario(
   revalidatePath(CAMINHO);
   const ok =
     mudanca.ativo === false
-      ? "Usuário desativado: o acesso é cortado na próxima ação dele."
+      ? "Usuário desativado: a interface nega na próxima ação. Com a gestão de acesso ligada, a conta também é bloqueada no serviço de login (um token já emitido vale até vencer, até 1 hora)."
       : mudanca.ativo === true
         ? "Usuário reativado."
         : "Alteração salva. Ela vale a partir do próximo acesso da pessoa (até 1 hora).";
