@@ -73,7 +73,7 @@ def emissor():
 
 
 def _linha(**extra):
-    base = {"id": ALVO, "nome": "Ana", "login": "ana@exemplo.gov.br", "papel": "usuario", "ativo": True,
+    base = {"id": ALVO, "nome": "Ana", "login": "ana@exemplo.test", "papel": "usuario", "ativo": True,
             "secretaria_id": None, "auth_user_id": UID_ALVO}
     return {**base, **extra}
 
@@ -102,7 +102,7 @@ def _h(emissor, papel="admin"):
 # Guarda
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("metodo,caminho,corpo", [
-    ("GET", "", None), ("POST", "", {"nome": "Bia", "email": "bia@x.gov.br"}),
+    ("GET", "", None), ("POST", "", {"nome": "Bia", "email": "bia@exemplo.test"}),
     ("PATCH", f"/{ALVO}", {"ativo": False}),
 ])
 def test_so_admin(emissor, metodo, caminho, corpo):
@@ -124,7 +124,7 @@ def test_lista_diz_se_a_gestao_de_acesso_esta_ligada_e_quem_e_voce(emissor):
 
 
 def test_sem_a_chave_convidar_e_503(emissor):
-    r = _api(emissor, _banco()).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@x.gov.br"})
+    r = _api(emissor, _banco()).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@exemplo.test"})
     assert r.status_code == 503 and r.json()["code"] == "ADMIN_AUTH_UNAVAILABLE"
 
 
@@ -134,24 +134,24 @@ def test_sem_a_chave_convidar_e_503(emissor):
 def test_convite_cria_a_conta_com_o_escopo_do_chamador_e_vincula(emissor):
     banco = _banco()
     banco.responder("GET", "secretarias", 200, [{"id": SEC}])
-    banco.responder("POST", "usuarios", 201, [_linha(id="novo", login="bia@x.gov.br", nome="Bia",
+    banco.responder("POST", "usuarios", 201, [_linha(id="novo", login="bia@exemplo.test", nome="Bia",
                                                       auth_user_id="eeeeeeee-0000-4000-8000-0000000000b1")])
     admin = AdminFalso()
     r = _api(emissor, banco, admin).post(BASE, headers=_h(emissor), json={
-        "nome": " Bia Souza ", "email": " Bia@X.gov.br ", "papel": "usuario", "secretaria_id": SEC})
+        "nome": " Bia Souza ", "email": " Bia@Exemplo.test ", "papel": "usuario", "secretaria_id": SEC})
     assert r.status_code == 201, r.text
-    assert admin.escritas() == [("criar", "bia@x.gov.br", "Bia Souza",
+    assert admin.escritas() == [("criar", "bia@exemplo.test", "Bia Souza",
                                  {"papel": "usuario", "tenant_id": TENANT_A, "secretaria_id": SEC})]
     linha = banco.corpo(next(c for c in banco.chamadas if c.method == "POST"))
-    assert linha["tenant_id"] == TENANT_A and linha["login"] == "bia@x.gov.br"
+    assert linha["tenant_id"] == TENANT_A and linha["login"] == "bia@exemplo.test"
     assert linha["auth_user_id"] == "eeeeeeee-0000-4000-8000-0000000000b1"
     assert not linha["senha_hash"].startswith("pbkdf2")
 
 
 @pytest.mark.parametrize("corpo", [
-    {"nome": "Bia", "email": "bia@x.gov.br", "tenant_id": OUTRO_TENANT},
-    {"nome": "Bia", "email": "bia@x.gov.br", "papel": "superadmin"},
-    {"nome": "Bia", "email": "bia@x.gov.br", "papel_governanca": "proprietario"},
+    {"nome": "Bia", "email": "bia@exemplo.test", "tenant_id": OUTRO_TENANT},
+    {"nome": "Bia", "email": "bia@exemplo.test", "papel": "superadmin"},
+    {"nome": "Bia", "email": "bia@exemplo.test", "papel_governanca": "proprietario"},
     {"nome": "Bia", "email": "nao-e-email"},
 ])
 def test_convite_recusa_escopo_no_corpo_e_dado_invalido(emissor, corpo):
@@ -166,14 +166,14 @@ def test_secretaria_de_outro_municipio_nao_entra_no_escopo(emissor):
     banco.responder("GET", "secretarias", 200, [])
     admin = AdminFalso()
     r = _api(emissor, banco, admin).post(BASE, headers=_h(emissor),
-                                         json={"nome": "Bia", "email": "bia@x.gov.br", "secretaria_id": SEC})
+                                         json={"nome": "Bia", "email": "bia@exemplo.test", "secretaria_id": SEC})
     assert r.status_code == 422 and admin.escritas() == []
 
 
 def test_email_ja_cadastrado_e_409_sem_dizer_mais(emissor):
     admin = AdminFalso(existe=True)
     banco = _banco()
-    r = _api(emissor, banco, admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@x.gov.br"})
+    r = _api(emissor, banco, admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@exemplo.test"})
     assert r.status_code == 409 and r.json()["message"] == "Já existe uma conta com este e-mail."
     assert not any(c.method == "POST" for c in banco.chamadas), "nada vinculado"
 
@@ -182,7 +182,7 @@ def test_vinculo_que_falha_desfaz_a_conta_criada(emissor):
     banco = _banco()
     banco.responder("POST", "usuarios", 409, {"code": "23505"})
     admin = AdminFalso()
-    r = _api(emissor, banco, admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@x.gov.br"})
+    r = _api(emissor, banco, admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@exemplo.test"})
     assert r.status_code == 409
     assert admin.chamadas[-1] == ("desfazer", "eeeeeeee-0000-4000-8000-0000000000b1")
 
@@ -293,7 +293,7 @@ def _cliente(responder):
 
 def test_cliente_so_fala_com_a_admin_api_de_usuarios():
     cliente, chamadas = _cliente(lambda r: httpx.Response(200, json={"id": "u1"}))
-    cliente.criar("a@b.gov.br", "A", {"papel": "usuario", "tenant_id": TENANT_A})
+    cliente.criar("a@b.test", "A", {"papel": "usuario", "tenant_id": TENANT_A})
     cliente.atualizar_escopo("u1", {"papel": "admin"})
     cliente.conta("u1")
     cliente.desfazer_criacao("u1")
@@ -303,10 +303,10 @@ def test_cliente_so_fala_com_a_admin_api_de_usuarios():
 
 
 def test_cliente_nao_sobe_o_corpo_do_provedor():
-    cliente, _ = _cliente(lambda r: httpx.Response(422, json={"msg": "a@b.gov.br já existe", "code": "email_exists"}))
+    cliente, _ = _cliente(lambda r: httpx.Response(422, json={"msg": "a@b.test já existe", "code": "email_exists"}))
     with pytest.raises(ContaJaExiste) as erro:
-        cliente.criar("a@b.gov.br", "A", {})
-    assert "a@b.gov.br" not in str(erro.value)
+        cliente.criar("a@b.test", "A", {})
+    assert "a@b.test" not in str(erro.value)
     cliente, _ = _cliente(lambda r: httpx.Response(500, json={"msg": "segredo interno"}))
     with pytest.raises(ErroAdminAuth) as erro:
         cliente.conta("u1")
@@ -360,14 +360,14 @@ def test_admin_conferido_ao_vivo_antes_de_escrever(emissor, meta):
     banco.responder("GET", "usuarios", 200, [{"id": "outro"}])
     r = _api(emissor, banco, admin).patch(f"{BASE}/{ALVO}", headers=_h(emissor), json={"papel": "usuario"})
     assert r.status_code == 403
-    r = _api(emissor, _banco(), admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@x.gov.br"})
+    r = _api(emissor, _banco(), admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@exemplo.test"})
     assert r.status_code == 403
     assert admin.escritas() == []
 
 
 def test_admin_bloqueado_no_auth_nao_escreve(emissor):
     admin = AdminFalso(contas={USUARIO_A: {**CHAMADOR, "banned_until": "2126-01-01T00:00:00Z"}})
-    r = _api(emissor, _banco(), admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@x.gov.br"})
+    r = _api(emissor, _banco(), admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@exemplo.test"})
     assert r.status_code == 403 and admin.escritas() == []
 
 
@@ -407,7 +407,7 @@ def test_postgrest_fora_no_vinculo_desfaz_a_conta_e_sobe_o_erro(emissor, monkeyp
 
     monkeypatch.setattr(ClienteRest, "requisitar", requisitar)
     admin = AdminFalso()
-    r = _api(emissor, _banco(), admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@x.gov.br"})
+    r = _api(emissor, _banco(), admin).post(BASE, headers=_h(emissor), json={"nome": "Bia", "email": "bia@exemplo.test"})
     assert r.status_code == 503
     assert admin.escritas()[-1] == ("desfazer", "eeeeeeee-0000-4000-8000-0000000000b1")
 
@@ -417,7 +417,7 @@ def test_auth_recusa_email_por_outro_motivo_nao_vira_ja_existe():
 
     cliente, _ = _cliente(lambda r: httpx.Response(422, json={"code": "validation_failed", "msg": "invalid"}))
     with pytest.raises(EmailRecusado):
-        cliente.criar("a@b.gov.br", "A", {})
+        cliente.criar("a@b.test", "A", {})
 
 
 def test_bloqueio_vai_como_ban_duration():
