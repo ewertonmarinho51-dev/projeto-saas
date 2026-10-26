@@ -261,3 +261,88 @@ município, um projeto Supabase e um domínio.
 - Um erro no `web` afeta só os caminhos dele; o Streamlit segue servindo.
 - Revisitar quando houver um segundo município ou outro ambiente: aí
   staging isolado e domínio próprio voltam a ser pré-requisito.
+
+## ADR-010 — Exceção estreita à ADR-002: Admin API do Auth para gestão de usuários (M7c)
+
+**Status:** Aceita em 26/10/2026, por decisão do operador ("rota só de
+admin na API que usa a credencial de servidor apenas para a Admin API do
+Auth"). Revisada pelo `revisor-de-banco-e-seguranca`.
+
+**Contexto.** A ADR-002 tira a chave de servidor da API: toda operação de
+usuário vai ao PostgREST com o JWT dele, e o RLS decide. Gestão de usuário
+é a exceção de natureza: papel, prefeitura e secretaria moram em
+`app_metadata` do Supabase Auth (é DALI que a API e o RLS os leem, nunca de
+`user_metadata` nem de `usuarios`), e `app_metadata` só a Admin API grava.
+A aba "Usuários" do Streamlit edita a tabela legada `usuarios`
+(login/senha), que a interface nova não usa para entrar.
+
+**Decisão.**
+1. **Uma chave, um uso.** `GOVCONECT_AUTH_ADMIN_KEY` (formato
+   `sb_secret_…`; JWT legado `service_role` recusado na subida) é lida pela
+   configuração da API e entregue SÓ ao cliente `admin_auth.AdminDoAuth`.
+   Ela vai apenas para `{SUPABASE_URL}/auth/v1/admin/users…`; nunca para o
+   PostgREST, o domínio (`configurar_supabase` continua recusando
+   `sb_secret_`), o worker nem o log. Sem a chave, as rotas que precisam
+   dela respondem 503 `ADMIN_AUTH_UNAVAILABLE` (falha fechada) e o resto
+   funciona.
+2. **O cliente só sabe quatro coisas:** ler UMA conta pelo id, criar conta
+   já com escopo, atualizar o `app_metadata` e bloquear/desbloquear a
+   entrada (`ban_duration`) — mais o desfazer da conta criada na MESMA
+   requisição, se o vínculo em `usuarios` falhar (por qualquer exceção).
+   Não lista contas, não apaga conta alheia, não troca e-mail nem senha,
+   não gera link.
+3. **Escopo vem do chamador, nunca do corpo.** `tenant_id` é o do JWT do
+   admin; papel só `usuario`/`admin`; secretaria só do mesmo tenant
+   (conferida com o JWT do admin). Antes de alterar `app_metadata`, a API
+   lê a conta pela Admin API e exige `app_metadata.tenant_id` igual ao do
+   chamador — a Admin API atravessa o RLS, então essa conferência é a
+   fronteira. Chaves que a API não gere (ex.: `papel_governanca`) são
+   preservadas como estavam.
+4. **Desativar = `usuarios.ativo` + bloqueio no Auth.** O `ativo` (pelo
+   JWT do admin, política `usuarios_admin_edita` da 0020) corta a API na
+   requisição seguinte — o verificador da ADR-002 o confere sempre. Mas
+   nenhuma política do banco olha `ativo`: sem o bloqueio, o desativado
+   renovaria o token e falaria com o PostgREST direto. O bloqueio impede
+   entrar e renovar; o token JÁ emitido vale até vencer (≤ 1 h). Sem a
+   chave, desativar ainda corta a API, e a tela avisa que o bloqueio não
+   acontece.
+5. **"Convidar" = criar a conta confirmada, com escopo no mesmo ato.** O
+   convite por e-mail do Supabase devolve o token no fragmento da URL, que
+   a rota de servidor `/auth/confirmar` não lê; a conta nasce sem senha e a
+   pessoa a define em "Esqueci minha senha" (fluxo PKCE que já funciona).
+   Sem janela de conta sem escopo (o script `criar_contas_auth.py` tinha
+   uma, entre o convite e o `app_metadata`).
+6. **Ninguém mexe em si mesmo, e o último admin não sai:** o admin não
+   troca o próprio papel nem se desativa, e ninguém rebaixa nem desativa o
+   último administrador ativo do município.
+7. **Quem chama é conferido ao vivo.** O papel do JWT pode ter até 1 h:
+   antes de convidar ou de mexer em papel e acesso, a API lê a conta do
+   CHAMADOR na Admin API e exige `papel = admin`, o mesmo tenant e conta
+   não bloqueada. Um admin recém-rebaixado não usa a janela do token para
+   rebaixar quem o rebaixou.
+
+**Consequências e riscos aceitos.**
+- A chave dá poder total sobre o Auth do projeto. Mitigação: um módulo,
+  três chamadas, conferência de tenant antes de toda escrita, guarda de
+  admin + papel no JWT antes de tudo, log de cada ato (ids, nunca e-mail).
+- Ela fica em `/etc/govdocs/api.env`, que o worker também carrega (mesmo
+  `env_file` no compose). O worker a APAGA do próprio ambiente ao subir
+  (`fila.sem_credencial_de_servidor`, antes de o pool nascer), para que o
+  LibreOffice e outros filhos não a herdem. Separar o arquivo só para a
+  API continua sendo o endurecimento certo, quando o compose for revisto.
+- Papel e secretaria novos valem no PRÓXIMO token da pessoa (até 1 h, a
+  renovação do Supabase). Desativar não espera: corta na hora.
+- A linha em `usuarios` de uma conta criada aqui leva `senha_hash`
+  inutilizável (`!sem-senha-legada`): o login legado do Streamlit recusa,
+  e a pessoa entra pelo e-mail nos dois apps.
+
+**Revisão de segurança (26/10/2026, `revisor-de-banco-e-seguranca`).**
+Três bloqueadores, corrigidos antes do merge, cada um com prova que morde
+(mutante morto): desativar não cortava o PostgREST direto (→ bloqueio no
+Auth); dois admins podiam se rebaixar mutuamente na janela do token, e o
+município ficar sem admin (→ conferência ao vivo + último admin); conta
+órfã com escopo quando o PostgREST caía no vínculo (→ desfazer em qualquer
+exceção). Também: "sem secretaria" envia `null` (o GoTrue mescla
+`app_metadata`), e 422 do Auth só vira "já existe" com o código certo.
+Risco aceito: o 409 do convite revela que um e-mail já tem conta no
+projeto (sonda limitada a 120/min por admin).

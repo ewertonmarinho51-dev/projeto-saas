@@ -63,6 +63,9 @@ CONTAS = (
     ("admin_base", "A", "A1", "admin", True),
     # Só do E2E de gestão da cotação: o limite da API é por usuário (120/min).
     ("a1_gestao", "A", "A1", "usuario", True),
+    # Só para o E2E de usuários desativar e reativar (M7c): nenhuma outra
+    # prova depende dela estar ativa.
+    ("a1_alternavel", "A", "A1", "usuario", True),
     ("b1", "B", "B1", "usuario", True),
     ("a1_revogado", "A", "A1", "usuario", False),
 )

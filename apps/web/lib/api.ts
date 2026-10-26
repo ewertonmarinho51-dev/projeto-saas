@@ -497,6 +497,26 @@ export type IdentidadeVisual = {
 export type PreviaDoModelo = { pagina: string; cabecalho: string; rodape: string; marca: string | null };
 
 // ---------------------------------------------------------------------------
+// Usuários e papéis (M7c, admin)
+// ---------------------------------------------------------------------------
+export type UsuarioDoMunicipio = {
+  id: string;
+  nome: string;
+  login: string;
+  papel: string;
+  ativo: boolean;
+  secretaria_id: string | null;
+  acesso_por_email: boolean;
+  eu: boolean;
+};
+
+export type GestaoDeUsuarios = {
+  usuarios: UsuarioDoMunicipio[];
+  secretarias: { id: string; nome: string }[];
+  gestao_de_acesso: boolean;
+};
+
+// ---------------------------------------------------------------------------
 // Base de Conhecimento (M6, admin)
 // ---------------------------------------------------------------------------
 export type ReferenciaDaBase = {

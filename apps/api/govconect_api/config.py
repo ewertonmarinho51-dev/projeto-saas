@@ -50,6 +50,10 @@ class Configuracao:
     # `nenhuma` só existe para a pilha de teste: a coleta roda o fluxo
     # inteiro sem sair para PNCP/Compras.gov. Recusada em produção.
     fontes_coleta: str = "padrao"
+    # ADR-010: a ÚNICA credencial de servidor da API, e só para a Admin API
+    # do Auth (gestão de usuários). Vazia = gestão de usuários indisponível
+    # (503), resto da API igual. Nunca vai ao PostgREST nem ao domínio.
+    auth_admin_chave: str = field(default="", repr=False)
 
     @property
     def jwt_emissor(self) -> str:
@@ -192,10 +196,18 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
         raise ConfiguracaoInvalida(
             "GOVCONECT_FONTES_COLETA=nenhuma é só para teste; recusado em produção.")
 
+    admin = _ler(env, "GOVCONECT_AUTH_ADMIN_KEY")
+    if admin and _papel_de_chave_jwt(admin) == "service_role":
+        raise ConfiguracaoInvalida(
+            "GOVCONECT_AUTH_ADMIN_KEY: use a chave secreta nova (sb_secret_...), "
+            "não o JWT legado service_role.")
+    if admin and not admin.startswith("sb_secret_"):
+        raise ConfiguracaoInvalida("GOVCONECT_AUTH_ADMIN_KEY precisa ser uma chave sb_secret_.")
+
     return Configuracao(ambiente=nome_ambiente, supabase_url=supabase_url,
                         origens_cors=origens,
                         supabase_chave_publica=chave_publica,
                         jwt_segredo_hs256=segredo, limite_por_minuto=limite,
                         precos_habilitado=_ler(env, "PRICE_RESEARCH_ENABLED").lower()
                         in _VERDADEIRO,
-                        redis_url=redis_url, fontes_coleta=fontes)
+                        redis_url=redis_url, fontes_coleta=fontes, auth_admin_chave=admin)
