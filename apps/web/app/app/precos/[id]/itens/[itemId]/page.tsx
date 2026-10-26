@@ -6,11 +6,13 @@ import { ArrowLeft, ArrowSquareOut } from "@phosphor-icons/react/dist/ssr";
 import { dataCurta, rotuloNatureza, rotuloStatusReferencia } from "@/components/precos";
 import { AcaoNaCesta } from "@/components/acao-cesta";
 import { AtoNoItem } from "@/components/ato-item";
+import { AlertaDoPreco, DesfazerRetirada, EdicaoDoItem } from "@/components/gestao-cotacao";
 import { cartao } from "@/components/ui";
 import {
   chamarApi,
   ErroDaApi,
   precosHabilitado,
+  type AlertaDePreco,
   type PesquisaDePrecos,
   type ReferenciaDePreco,
 } from "@/lib/api";
@@ -22,7 +24,11 @@ const UUID = /^[0-9a-f-]{36}$/i;
 const AVISOS: Record<string, string> = {
   retirada: "Preço retirado da cesta. Estimativa recalculada.",
   incluida: "Preço incluído na cesta. Estimativa recalculada.",
+  desfeita: "Retirada desfeita: o preço voltou à cesta.",
+  mantida: "Preço mantido. A decisão ficou registrada.",
 };
+
+const IMUTAVEIS = new Set(["applied", "archived"]);
 
 export default async function Referencias({
   params,
@@ -33,17 +39,22 @@ export default async function Referencias({
 }) {
   if (!precosHabilitado()) notFound();
   const { id, itemId } = await params;
-  const { cesta, item: atoNoItem } = await searchParams;
+  const { cesta, item: atoNoItem, ref } = await searchParams;
   if (!UUID.test(id) || !UUID.test(itemId)) notFound();
 
   let refs: ReferenciaDePreco[];
   let pesquisa: PesquisaDePrecos;
+  let alertas: AlertaDePreco[];
   try {
     // Duas leituras em paralelo: as referências e o item (revisão e preço
     // atuais). A revisão é a que vai no If-Match de cada botão da cesta.
-    [refs, pesquisa] = await Promise.all([
+    [refs, pesquisa, alertas] = await Promise.all([
       chamarApi<ReferenciaDePreco[]>(`/precos/pesquisas/${id}/itens/${itemId}/referencias`).then((r) => r.dados),
       chamarApi<PesquisaDePrecos>(`/precos/pesquisas/${id}`).then((r) => r.dados),
+      // Os alertas não derrubam a página: sem eles, a cesta segue igual.
+      chamarApi<AlertaDePreco[]>(`/precos/pesquisas/${id}/itens/${itemId}/alertas`)
+        .then((r) => r.dados)
+        .catch(() => [] as AlertaDePreco[]),
     ]);
   } catch (e) {
     if (e instanceof ErroDaApi && e.status === 404) notFound();
@@ -51,8 +62,15 @@ export default async function Referencias({
   }
   const item = pesquisa.itens.find((i) => i.id === itemId);
   if (!item) notFound();
+  const editavel = !IMUTAVEIS.has(pesquisa.estado);
+  const alertaPorReferencia = new Map(alertas.map((a) => [a.referencia_id, a]));
+  const desfazivel = cesta === "retirada" && typeof ref === "string" && UUID.test(ref) && editavel ? ref : null;
   const aviso =
-    typeof cesta === "string"
+    desfazivel
+      ? undefined
+      : atoNoItem === "editado"
+        ? "Item salvo."
+        : typeof cesta === "string"
       ? AVISOS[cesta]
       : atoNoItem === "concluido"
         ? "Item concluído."
@@ -82,6 +100,7 @@ export default async function Referencias({
         </p>
       </div>
 
+      {desfazivel && <DesfazerRetirada pesquisa={id} item={itemId} referencia={desfazivel} revisao={item.revisao} />}
       {aviso && (
         <p role="status" className="rounded-[var(--radius-ui)] bg-ok-fundo px-4 py-3 text-sm text-ok">
           {aviso}
@@ -91,6 +110,7 @@ export default async function Referencias({
       {/* `key` pelo estado: concluir troca o formulário por reabrir, e um
           componente novo nasce com a ação certa e sem o erro anterior. */}
       <AtoNoItem key={item.estado} pesquisa={id} item={item.id} revisao={item.revisao} estado={item.estado} />
+      {editavel && <EdicaoDoItem key={item.revisao} pesquisa={id} item={item} />}
 
       {refs.length === 0 ? (
         <p className={`${cartao} px-6 py-10 text-center text-sm text-secundario`}>
@@ -120,6 +140,17 @@ export default async function Referencias({
                   <span>Coletada em {dataCurta(r.coletado_em)}</span>
                   {r.identificacao && <span className="font-mono">{r.identificacao}</span>}
                 </p>
+                {alertaPorReferencia.has(r.id) && (
+                  <div className="mt-3">
+                    <AlertaDoPreco
+                      pesquisa={id}
+                      item={itemId}
+                      revisao={item.revisao}
+                      alerta={alertaPorReferencia.get(r.id)!}
+                      editavel={editavel && item.estado !== "complete"}
+                    />
+                  </div>
+                )}
                 {r.motivos.length > 0 && (
                   <p className="mt-2 text-xs text-secundario">Observações: {r.motivos.join(", ")}</p>
                 )}

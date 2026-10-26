@@ -1234,3 +1234,40 @@ def reabrir_item(ctx: Contexto, cotacao_id: str, item_id: str,
                           item_id=item_id, descricao=f"reaberto: {motivo}")
     sincronizar_estado(cotacao_id)
     return linha
+
+
+# ---------------------------------------------------------------------------
+# Alertas da cesta (04_UX): o card "Confira este preço"
+# ---------------------------------------------------------------------------
+def alertas_do_item(item: dict, referencias: list[dict]) -> list[dict]:
+    """
+    Os preços DA CESTA que merecem conferência, com tudo que o card
+    precisa: a mesma régua da emissão (`saneamento.alertas_da_cesta`) mais
+    o que o cálculo sinalizou (anomalias gravadas) e as já sinalizadas.
+    """
+    dentro = cesta.consideradas(referencias)
+    if not dentro:
+        return []
+    alvo: set[str] = {str(a.referencia_id) for a in
+                      saneamento.alertas_da_cesta(
+                          [item], {str(item["id"]): referencias})}
+    anomalias = {(str(a.get("fonte_id")), str(a.get("id_externo")))
+                 for a in (item.get("estatisticas") or {}).get("anomalias")
+                 or []}
+    for linha in dentro:
+        if str(linha.get("status")) == "warning" or \
+                (str(linha.get("fonte_id")), str(linha.get("id_externo"))) \
+                in anomalias:
+            alvo.add(str(linha["id"]))
+    mantidas = cesta.decisoes_do_item(item).get("mantidas") or {}
+    saida = []
+    for linha in dentro:
+        if str(linha["id"]) not in alvo:
+            continue
+        outros = [Decimal(str(o["valor_unitario_normalizado"])) for o in dentro
+                  if o is not linha and o.get("valor_unitario_normalizado")
+                  not in (None, "")]
+        saida.append({"linha": linha, "outros": outros,
+                      "mantida": mantidas.get(estatistica.chave_da_referencia(
+                          linha))})
+    return saida

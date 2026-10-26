@@ -48,7 +48,7 @@ export async function alterarCesta(_: EstadoDaCesta, form: FormData): Promise<Es
   }
   const caminho = `/app/precos/${pesquisa}/itens/${item}`;
   revalidatePath(caminho);
-  redirect(`${caminho}?cesta=${incluir ? "incluida" : "retirada"}`);
+  redirect(`${caminho}?cesta=${incluir ? "incluida" : `retirada&ref=${referencia}`}`);
 }
 
 export type EstadoDaColeta = { erro: string | null };
