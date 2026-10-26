@@ -1,10 +1,10 @@
 {
-  "producer_commit": "f90814ab8e3b60406fc62df0afe8bacf279db63a",
+  "producer_commit": "64e14f42d9262279a634fb78dbfbb40f4b578378",
   "ancestry_merge_commit": "64e8e7795826bebdc93ed3fe22e2f39eb70fec38",
-  "build_run_id": 40195890362,
-  "build_artifact_id": 12600179455,
-  "build_artifact_sha256": "15cb0f8cc02fda2bfbbe5b8764830787985ec916cd431c1a280625f9b0b3ee3e",
-  "fidelity_run_id": 40326757449,
-  "fidelity_artifact_id": 12652350104,
-  "fidelity_artifact_sha256": "822f77d3fbd1d14224fc68d93ca30d1de7592e6d44e6f2147596c0c9dcc55b1c"
+  "build_run_id": 40334604312,
+  "build_artifact_id": 12658373533,
+  "build_artifact_sha256": "0baaa94d3adcb90707a26fce7ea3c55e41141c62a9b117d17ee896d7020a55fa",
+  "fidelity_run_id": 40398660095,
+  "fidelity_artifact_id": 12689831825,
+  "fidelity_artifact_sha256": "24ffb3219d5ac52c2828b45091fa223096352d8c4cc145344809e892059e8700"
 }
