@@ -13,9 +13,9 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/wordcraft-fidelity.yml"
 BUILD_WORKFLOW = ROOT / ".github/workflows/wordcraft-build.yml"
-ZIP_SHA = "a57bdc0b05660afb3ea37e0625e50fc2d33e78fa9e995822210e51580c79221d"
-PRODUCER = "39fec20fc5e94590a95cfd9af8d0ce34d07c3e54"
-MANIFEST_SHA = "bd306cdb4709a43314366375da91ca1d00b2dd6db3c7683fff44eb15eb087548"
+ZIP_SHA = "15cb0f8cc02fda2bfbbe5b8764830787985ec916cd431c1a280625f9b0b3ee3e"
+PRODUCER = "f90814ab8e3b60406fc62df0afe8bacf279db63a"
+MANIFEST_SHA = "598e011aadeb464316e68cddd9b49afc6209644ad80689c98a57e9a2f0de555b"
 
 
 def workflow():
@@ -102,7 +102,7 @@ def test_namespace_creates_only_fresh_synthetic_siblings_and_records_pins(ci_env
     assert len(values) == 6
     assert all(Path(value).parent == repo.parent and not Path(value).exists() for value in values.values())
     receipt = json.loads((evidence / "execution.json").read_text())
-    assert receipt["artifact_id"] == 11995992777 and receipt["artifact_sha256"] == ZIP_SHA
+    assert receipt["artifact_id"] == 12600179455 and receipt["artifact_sha256"] == ZIP_SHA
     assert receipt["producer_commit"] == PRODUCER and receipt["manifest_sha256"] == MANIFEST_SHA
     assert receipt["visual_review"] == "PENDING" and receipt["synthetic_only"] is True
 
@@ -138,7 +138,7 @@ def test_artifact_step_passes_exact_pins_to_existing_installer_and_refuses_chang
     if manifest_valid:
         run_python_block(step_starting("Download and admit pinned"))
         receipt = json.loads((evidence / "native-artifact-admission.json").read_text())
-        assert receipt["artifact_id"] == 11995992777 and receipt["manifest_sha256"] == MANIFEST_SHA
+        assert receipt["artifact_id"] == 12600179455 and receipt["manifest_sha256"] == MANIFEST_SHA
         assert "FIDELITY_NATIVE_BUNDLE=" in env_file.read_text()
     else:
         with pytest.raises(ValueError, match="manifest differs"):
