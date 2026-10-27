@@ -49,6 +49,7 @@ def _artifact(inventory: dict, name: str, run_id: int) -> dict:
 
 def promover(bundle: Path, build_run_path: Path, build_artifacts_path: Path,
              fidelity_run_path: Path, fidelity_artifacts_path: Path,
+             fidelity_artifact_id: int, fidelity_artifact_digest: str,
              approval_commit: str, output: Path) -> dict:
     build_id, producer = _run(_json(build_run_path), BUILD_WORKFLOW)
     fidelity_id, fidelity_sha = _run(_json(fidelity_run_path), FIDELITY_WORKFLOW)
@@ -59,12 +60,20 @@ def promover(bundle: Path, build_run_path: Path, build_artifacts_path: Path,
 
     build_artifact = _artifact(_json(build_artifacts_path),
                                "wordcraft-govconnect-local-qa", build_id)
-    fidelity_inventory = _json(fidelity_artifacts_path)
-    fidelity_names = [item.get("name") for item in fidelity_inventory.get("artifacts", [])
-                      if not item.get("expired")]
     expected_prefix = f"wordcraft-synthetic-fidelity-{fidelity_id}-"
-    if sum(str(name).startswith(expected_prefix) for name in fidelity_names) != 1:
-        raise ValueError("prova de fidelidade ausente ou ambígua")
+    fidelity_matches = [item for item in _json(fidelity_artifacts_path).get("artifacts", [])
+                        if (item.get("id") == fidelity_artifact_id
+                            and item.get("digest") == fidelity_artifact_digest
+                            and str(item.get("name", "")).startswith(expected_prefix)
+                            and item.get("workflow_run", {}).get("id") == fidelity_id
+                            and not item.get("expired"))]
+    if len(fidelity_matches) != 1:
+        raise ValueError("prova de fidelidade fixada ausente ou divergente")
+    fidelity_artifact = {
+        "id": fidelity_artifact_id,
+        "name": fidelity_matches[0]["name"],
+        "digest": fidelity_artifact_digest,
+    }
 
     manifest_path = bundle / "qa-manifest.json"
     raw = manifest_path.read_bytes()
@@ -107,7 +116,7 @@ def promover(bundle: Path, build_run_path: Path, build_artifacts_path: Path,
         "build_run_id": build_id,
         "build_artifact": build_artifact,
         "fidelity_run_id": fidelity_id,
-        "fidelity_artifact_prefix": expected_prefix,
+        "fidelity_artifact": fidelity_artifact,
     }
     promoted = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
     (output / "qa-manifest.json").write_bytes(promoted)
@@ -123,12 +132,15 @@ def main() -> None:
     parser.add_argument("--build-artifacts", type=Path, required=True)
     parser.add_argument("--fidelity-run", type=Path, required=True)
     parser.add_argument("--fidelity-artifacts", type=Path, required=True)
+    parser.add_argument("--fidelity-artifact-id", type=int, required=True)
+    parser.add_argument("--fidelity-artifact-digest", required=True)
     parser.add_argument("--approval-commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     print(json.dumps(promover(args.bundle.resolve(), args.build_run,
                               args.build_artifacts, args.fidelity_run,
-                              args.fidelity_artifacts, args.approval_commit,
+                              args.fidelity_artifacts, args.fidelity_artifact_id,
+                              args.fidelity_artifact_digest, args.approval_commit,
                               args.output.resolve()), sort_keys=True))
 
 

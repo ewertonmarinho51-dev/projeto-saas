@@ -67,6 +67,8 @@ jobs:
             --build-artifacts evidence/build-artifacts.json \
             --fidelity-run evidence/fidelity-run.json \
             --fidelity-artifacts evidence/fidelity-artifacts.json \
+            --fidelity-artifact-id "$(jq -r .fidelity_artifact_id docs/wordcraft/runtime-source.lock.json)" \
+            --fidelity-artifact-digest "sha256:$(jq -r .fidelity_artifact_sha256 docs/wordcraft/runtime-source.lock.json)" \
             --approval-commit "$GITHUB_SHA" \
             --output release/wordcraft | tee evidence/promotion.json
           test "$(jq -r .status evidence/promotion.json)" = GOVCONNECT_WORDCRAFT_DEPLOY_APPROVED
