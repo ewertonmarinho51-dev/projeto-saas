@@ -72,5 +72,10 @@ def render_editor(bridge: Ponte, checkpoint: bytes, *, module_url: str, wasm_url
     control = bridge.controle_pendente()
     if control is not None:
         data["control"] = control
+    # The component creates its 720 px canvas asynchronously, after importing
+    # the JS/WASM bundle.  A content-sized v2 host initially has no measurable
+    # children and can collapse to zero height before that import starts.  Keep
+    # a real viewport reserved so the browser mounts the host and drives the
+    # native render loop; the component still owns its internal canvas size.
     return _renderer()(data=data, key=f"wordcraft_{bridge.instance_id}",
-                       height="content", width="stretch", on_edit_change=on_edit_change)
+                       height=800, width="stretch", on_edit_change=on_edit_change)
