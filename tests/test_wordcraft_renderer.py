@@ -22,6 +22,8 @@ def test_rerun_preserva_chave_callback_e_bytes_autorizados(bridge, monkeypatch):
                              wasm_url="/app/static/wordcraft/editor.wasm", on_edit_change=callback)
     assert calls[0]["key"] == calls[1]["key"] == f"wordcraft_{bridge.instance_id}"
     assert calls[0]["on_edit_change"] is callback
+    assert calls[0]["height"] == calls[1]["height"] == 800
+    assert calls[0]["width"] == calls[1]["width"] == "stretch"
     assert calls[0]["data"]["checkpoint_base64"] == "Zml4dHVyZQ=="
     assert "ack" not in calls[0]["data"]
 
