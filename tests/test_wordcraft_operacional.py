@@ -124,6 +124,64 @@ def test_rascunho_legado_impede_runtime_importacao_e_canvas(monkeypatch):
     assert "nenhum documento nativo" in messages[1][1]
 
 
+def test_preflight_fatos_sincroniza_exibe_confirma_e_so_entao_libera_aprovacao(monkeypatch):
+    processo = "11111111-1111-1111-1111-111111111111"
+    session = Session(dados={"objeto": "Aquisição sintética"},
+                      usuario={"id": "22222222-2222-2222-2222-222222222222"})
+    state = {"facts": []}
+    reruns, messages, calls = [], [], []
+    confirm_key = "wordcraft_confirmar_fatos:" + processo
+    buttons = {confirm_key: False}
+    monkeypatch.setattr(ui.st, "session_state", session)
+    monkeypatch.setattr(ui.st, "button", lambda label, **kw: buttons.get(kw.get("key"), False))
+    monkeypatch.setattr(ui.st, "warning", lambda value: messages.append(("warning", value)))
+    monkeypatch.setattr(ui.st, "error", lambda value: messages.append(("error", value)))
+    monkeypatch.setattr(ui.st, "success", lambda value: messages.append(("success", value)))
+    monkeypatch.setattr(ui.st, "caption", lambda value: messages.append(("caption", value)))
+    rows = []
+    monkeypatch.setattr(ui.st, "dataframe", lambda value, **kw: rows.extend(value))
+    monkeypatch.setattr(ui.st, "rerun", lambda: reruns.append(True))
+    def sync(process, data):
+        calls.append(("sync", process, data))
+        if not state["facts"]:
+            state["facts"] = [{"id": "f1", "status": "extraido",
+                "path": "objeto.descricao", "valor": "Aquisição sintética",
+                "fonte_campo": "objeto", "confianca": 1.0, "inferido": False}]
+        return list(state["facts"])
+    monkeypatch.setattr(ui.fatos, "sincronizar", sync)
+    monkeypatch.setattr(ui.fatos, "confirmar_todos", lambda *a: 1)
+
+    assert ui._preflight_fatos_aprovacao(processo) is False
+    assert calls == [("sync", processo, {"objeto": "Aquisição sintética"})]
+    assert rows == [{"Caminho": "objeto.descricao", "Valor": "Aquisição sintética",
+                     "Campo de origem": "objeto", "Confiança": 1.0, "Inferido": False}]
+    assert reruns == []
+
+    buttons[confirm_key] = True
+    def confirm(process, user):
+        calls.append(("confirm", process, user))
+        state["facts"] = [{"id": "f1", "status": "confirmado"}]
+        return 1
+    monkeypatch.setattr(ui.fatos, "confirmar_todos", confirm)
+    assert ui._preflight_fatos_aprovacao(processo) is False
+    assert calls[-1] == ("confirm", processo, session["usuario"]["id"])
+    assert reruns == [True]
+
+    buttons[confirm_key] = False
+    assert ui._preflight_fatos_aprovacao(processo) is True
+    assert ("caption", "Fatos canônicos confirmados: 1.") in messages
+
+
+def test_preflight_fatos_nao_libera_estado_incompativel(monkeypatch):
+    monkeypatch.setattr(ui.st, "session_state", Session())
+    errors = []
+    monkeypatch.setattr(ui.st, "error", errors.append)
+    monkeypatch.setattr(ui.fatos, "sincronizar", lambda process, data:
+        [{"id": "f1", "status": "revisao_humana"}])
+    assert ui._preflight_fatos_aprovacao("11111111-1111-1111-1111-111111111111") is False
+    assert errors and "estado incompatível" in errors[0]
+
+
 def test_sincronizacao_reidrata_so_aprovacao_nativa_com_projecao(monkeypatch):
     approved = SimpleNamespace(id="doc-a", tipo="dfd", status="aprovado",
                                approval=SimpleNamespace(id="approval-a"))
@@ -329,6 +387,9 @@ def test_controles_de_aprovacao_sao_renderizados_antes_da_espera_do_canvas():
     component = render.index("render_editor(", mounted)
 
     assert reserved < freeze < approve < mounted < component
+    assert "facts_ready = _preflight_fatos_aprovacao(processo_id)" in render
+    assert "disabled=not facts_ready or bridge.state" in render
+    assert "disabled=not facts_ready," in render
 
 
 def test_template_operacional_prepara_confirma_reabre_e_remonta_head(monkeypatch):

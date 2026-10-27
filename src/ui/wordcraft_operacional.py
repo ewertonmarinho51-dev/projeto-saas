@@ -13,7 +13,7 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import streamlit as st
 
-from .. import state
+from .. import db, fatos, state
 from ..documentos_editor import (AcessoNegado, ConflitoDocumento,
                                  DocumentoService, ErroDocumento,
                                  VinculoAprovacao)
@@ -42,6 +42,60 @@ def _rascunho_legado_pendente(doc_key: str) -> bool:
         candidates.append(pending.get(doc_key))
     candidates.append(st.session_state.get(f"editor_{doc_key}"))
     return any(isinstance(value, str) and value != canonical for value in candidates)
+
+
+def _preflight_fatos_aprovacao(processo_id: str) -> bool:
+    """Materializa e confirma a fonte canônica antes de congelar o canvas.
+
+    O aprovador nativo sempre exige fatos persistidos e confirmados. O fluxo
+    legado só os sincronizava na tela final, que é inalcançável antes da
+    primeira aprovação WordCraft. Este preflight reutiliza o registro canônico
+    existente e mantém a confirmação humana explícita; ele nunca reduz o gate
+    do backend nem deriva uma segunda fonte de verdade.
+    """
+    confirm_key = "wordcraft_confirmar_fatos:" + processo_id
+    message_key = "_wordcraft_fatos_message:" + processo_id
+    try:
+        atuais = fatos.sincronizar(
+            processo_id, dict(st.session_state.get("dados") or {}))
+    except (db.ErroBanco, ValueError) as error:
+        st.error(f"Não foi possível sincronizar os fatos canônicos: {error}")
+        return False
+    if not atuais:
+        st.error("O formulário não produziu fatos canônicos; revise os dados da demanda.")
+        return False
+    pendentes = [item for item in atuais if item.get("status") == "extraido"]
+    invalidos = [item for item in atuais if item.get("status") not in {"extraido", "confirmado"}]
+    if invalidos:
+        st.error("Há fatos canônicos em estado incompatível com a aprovação.")
+        return False
+    if pendentes:
+        st.warning(f"Confirme os {len(pendentes)} fato(s) canônicos extraídos antes de aprovar.")
+        st.dataframe([{
+            "Caminho": item.get("path"),
+            "Valor": item.get("valor"),
+            "Campo de origem": item.get("fonte_campo"),
+            "Confiança": item.get("confianca"),
+            "Inferido": bool(item.get("inferido")),
+        } for item in pendentes], hide_index=True, use_container_width=True)
+        if st.button(f"Confirmar {len(pendentes)} fato(s) canônicos",
+                     key=confirm_key, type="primary"):
+            usuario = st.session_state.get("usuario") or {}
+            try:
+                confirmados = fatos.confirmar_todos(processo_id, usuario.get("id"))
+            except db.ErroBanco as error:
+                st.error(f"Não foi possível confirmar os fatos canônicos: {error}")
+            else:
+                st.session_state.pop("_fatos_cache", None)
+                st.session_state[message_key] = (
+                    f"{confirmados} fato(s) canônico(s) confirmado(s).")
+                st.rerun()
+        return False
+    message = st.session_state.pop(message_key, None)
+    if message:
+        st.success(message)
+    st.caption(f"Fatos canônicos confirmados: {len(atuais)}.")
+    return True
 
 
 def _owner(runtime: Runtime) -> DocumentoService:
@@ -608,10 +662,11 @@ def render(doc_key: str, meta: dict) -> None:
             st.session_state[_chave(doc_key, "preparation")] = None
             st.session_state[_chave(doc_key, "message")] = "Proposta rejeitada sem alterar o documento."
             st.rerun()
+    facts_ready = _preflight_fatos_aprovacao(processo_id)
     proof = bridge.canvas_bloqueado()
     if proof is None:
         if st.button("Revisar e preparar aprovação", type="primary",
-                     disabled=bridge.state not in {"ready", "saved"}
+                     disabled=not facts_ready or bridge.state not in {"ready", "saved"}
                      or bridge.controle_pendente() is not None,
                      key=_chave(doc_key, "freeze")):
             bridge.solicitar_bloqueio(str(uuid4()))
@@ -623,6 +678,7 @@ def render(doc_key: str, meta: dict) -> None:
             bridge.liberar_bloqueio(proof["command_id"])
             st.rerun()
         if aprovar.button(f"Aprovar {meta['sigla']}", type="primary",
+                          disabled=not facts_ready,
                           key=_chave(doc_key, "approve")):
             binding = VinculoAprovacao(document.id, document.revision,
                                        document.content_hash, proof["command_id"])
