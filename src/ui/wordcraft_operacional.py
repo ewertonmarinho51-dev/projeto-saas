@@ -190,6 +190,7 @@ def _receber(doc_key: str, service: DocumentoService) -> None:
     batch = result.get("edit") if isinstance(result, Mapping) else getattr(result, "edit", None)
     if batch is None:
         return
+    sequence_before = bridge.sequence
     checkpoint = None
     try:
         checkpoint = bridge.receber_lote(batch, origin=bridge.origin, source_ok=True)
@@ -237,6 +238,13 @@ def _receber(doc_key: str, service: DocumentoService) -> None:
             st.session_state[_chave(doc_key, "message")] = "Canvas exato bloqueado para revisão."
         elif bridge.falha_controle() is not None:
             st.session_state[_chave(doc_key, "message")] = "O canvas recusou o bloqueio; a revisão foi preservada."
+        # A component-v2 callback can finish after the current render already
+        # sent its data payload.  Force one complete application rerun whenever
+        # the bridge consumes new transport events so ``event_ack`` reaches the
+        # browser before the outbox re-emits the accepted prefix.  Replayed
+        # prefixes do not advance ``sequence`` and therefore cannot loop here.
+        if bridge.sequence != sequence_before:
+            st.rerun()
     except Exception as error:
         if checkpoint is not None:
             bridge.falhar_checkpoint(request_id=checkpoint.request_id,
