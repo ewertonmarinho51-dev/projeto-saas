@@ -199,7 +199,10 @@ def test_checkpoint_de_patch_confirma_lote_antes_do_ack_do_canvas(monkeypatch):
         instance_id = "33333333-3333-3333-3333-333333333333"
         document_id = "44444444-4444-4444-4444-444444444444"
         origin = "http://127.0.0.1:8501"
-        def receber_lote(self, batch, **kwargs): return checkpoint
+        sequence = 3
+        def receber_lote(self, batch, **kwargs):
+            self.sequence = 4
+            return checkpoint
         def confirmar_checkpoint(self, **kwargs): confirmed.append(kwargs)
         def canvas_bloqueado(self): return None
         def falha_controle(self): return None
@@ -219,6 +222,8 @@ def test_checkpoint_de_patch_confirma_lote_antes_do_ack_do_canvas(monkeypatch):
     session[ui._chave("tr", "document")] = SimpleNamespace(revision=3)
     session["wordcraft_" + session[ui._chave("tr", "bridge")].instance_id] = {"edit": {"events": []}}
     monkeypatch.setattr(ui.st, "session_state", session)
+    reruns = []
+    monkeypatch.setattr(ui.st, "rerun", lambda: reruns.append(True))
     monkeypatch.setattr(ui, "replace", lambda current, **values: SimpleNamespace(**{**vars(current), **values}))
     ui._receber("tr", Service())
     assert confirmed == [{"request_id": operation, "revision": 4, "content_hash": "b" * 64}]
@@ -226,6 +231,42 @@ def test_checkpoint_de_patch_confirma_lote_antes_do_ack_do_canvas(monkeypatch):
     assert session[ui._chave("tr", "patch_receipt")] is batch_receipt
     assert session[ui._chave("tr", "document")].payload == b"patched"
     assert session[ui._chave("tr", "history")][-1]["canvas_confirmado"] is True
+    assert reruns == [True]
+
+
+def test_evento_de_controle_aceito_forca_rerun_para_publicar_event_ack(monkeypatch):
+    class Bridge:
+        instance_id = "33333333-3333-3333-3333-333333333333"
+        document_id = "44444444-4444-4444-4444-444444444444"
+        origin = "http://127.0.0.1:8501"
+        sequence = 2
+        def receber_lote(self, batch, **kwargs):
+            assert batch == {"events": ["frozen"]}
+            self.sequence = 3
+            return None
+        def canvas_bloqueado(self): return {"command_id": "freeze"}
+        def falha_controle(self): return None
+    class Service: pass
+    bridge = Bridge()
+    session = Session()
+    session[ui._chave("tr", "bridge")] = bridge
+    session["wordcraft_" + bridge.instance_id] = {"edit": {"events": ["frozen"]}}
+    reruns = []
+    monkeypatch.setattr(ui.st, "session_state", session)
+    monkeypatch.setattr(ui.st, "rerun", lambda: reruns.append(True))
+
+    ui._receber("tr", Service())
+
+    assert bridge.sequence == 3
+    assert session[ui._chave("tr", "message")] == "Canvas exato bloqueado para revisão."
+    assert reruns == [True]
+
+    # The component may resend the now-consumed prefix until it receives the
+    # updated data payload.  A prefix that does not advance the bridge must not
+    # schedule another rerun and recreate the production loop.
+    ui._receber("tr", Service())
+    assert bridge.sequence == 3
+    assert reruns == [True]
 
 
 def test_restore_operacional_usa_historico_persistido_cas_e_remonta_canvas(monkeypatch):
