@@ -187,6 +187,31 @@ def _reabrir_revisao_persistida(doc_key: str, service: DocumentoService,
         "prepare novamente a aprovação.")
 
 
+def _reabrir_falha_controle_persistida(doc_key: str, service: DocumentoService,
+                                        runtime: Runtime) -> None:
+    """Remonta somente falhas transitórias de controle sobre o mesmo head."""
+    document = st.session_state[_chave(doc_key, "document")]
+    bridge = st.session_state[_chave(doc_key, "bridge")]
+    failure = bridge.falha_controle() if isinstance(bridge, Ponte) else None
+    if (not failure or failure.get("reason") not in {"pending", "stale", "unavailable"}
+            or bridge.state not in {"ready", "saved"} or bridge._pending is not None
+            or bridge.controle_pendente() is not None or bridge.canvas_bloqueado() is not None):
+        raise ErroDocumento(
+            "A sessão nativa não pode ser reaberta após edição suja ou controle pendente.")
+    reopened = service.abrir(document.id)
+    if ((reopened.id, reopened.processo_id, reopened.tipo, reopened.revision,
+         reopened.content_hash, reopened.status)
+            != (document.id, document.processo_id, document.tipo,
+                document.revision, document.content_hash, document.status)):
+        raise ConflitoDocumento(
+            "O head mudou; reabra o processo antes de continuar a aprovação.")
+    st.session_state.pop("wordcraft_" + bridge.instance_id, None)
+    _montar(doc_key, reopened, runtime)
+    st.session_state[_chave(doc_key, "message")] = (
+        "Sessão de controle renovada a partir da mesma revisão persistida; "
+        "prepare novamente a aprovação.")
+
+
 def _revisoes_restauraveis(history, current_revision: int) -> tuple[int, ...]:
     """Return only persisted historical revisions eligible for a new CAS revision."""
     if type(current_revision) is not int or current_revision < 1:
@@ -317,7 +342,9 @@ def _receber(doc_key: str, service: DocumentoService) -> None:
         elif bridge.canvas_bloqueado() is not None:
             st.session_state[_chave(doc_key, "message")] = "Canvas exato bloqueado para revisão."
         elif bridge.falha_controle() is not None:
-            st.session_state[_chave(doc_key, "message")] = "O canvas recusou o bloqueio; a revisão foi preservada."
+            reason = bridge.falha_controle()["reason"]
+            st.session_state[_chave(doc_key, "message")] = (
+                f"O canvas recusou o bloqueio ({reason}); a revisão foi preservada.")
         # A component-v2 callback can finish after the current render already
         # sent its data payload.  Force one complete application rerun whenever
         # the bridge consumes new transport events so ``event_ack`` reaches the
@@ -376,6 +403,21 @@ def render(doc_key: str, meta: dict) -> None:
         if st.button("Reabrir revisão persistida", key=_chave(doc_key, "recover_transport")):
             try:
                 _reabrir_revisao_persistida(doc_key, service, runtime)
+            except ErroDocumento as error:
+                st.error(str(error))
+            else:
+                st.rerun()
+    control_failure = bridge.falha_controle()
+    if (control_failure is not None
+            and control_failure.get("reason") in {"pending", "stale", "unavailable"}
+            and bridge.state in {"ready", "saved"} and bridge._pending is None
+            and bridge.controle_pendente() is None):
+        st.warning(
+            "O canvas recusou um controle transitório. A aprovação não ocorreu e "
+            "a revisão persistida pode ser reaberta com segurança.")
+        if st.button("Reabrir sessão de controle", key=_chave(doc_key, "recover_control")):
+            try:
+                _reabrir_falha_controle_persistida(doc_key, service, runtime)
             except ErroDocumento as error:
                 st.error(str(error))
             else:
