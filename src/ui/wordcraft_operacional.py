@@ -161,6 +161,32 @@ def _montar(doc_key: str, document, runtime: Runtime) -> None:
         content_hash=document.content_hash)
 
 
+def _reabrir_revisao_persistida(doc_key: str, service: DocumentoService,
+                                 runtime: Runtime) -> None:
+    """Descarta somente um transporte congelado recusado e remonta o head exato."""
+    document = st.session_state[_chave(doc_key, "document")]
+    bridge = st.session_state[_chave(doc_key, "bridge")]
+    proof = bridge.canvas_bloqueado() if isinstance(bridge, Ponte) else None
+    if (proof is None or bridge.state != "frozen" or bridge._pending is not None
+            or (proof.get("revision"), proof.get("content_hash"))
+            != (document.revision, document.content_hash)):
+        raise ErroDocumento(
+            "A sessão nativa não pode ser reaberta sem uma revisão limpa e bloqueada.")
+    reopened = service.abrir(document.id)
+    if ((reopened.id, reopened.processo_id, reopened.tipo, reopened.revision,
+         reopened.content_hash, reopened.status)
+            != (document.id, document.processo_id, document.tipo,
+                document.revision, document.content_hash, document.status)):
+        raise ConflitoDocumento(
+            "O head mudou; reabra o processo antes de continuar a aprovação.")
+    component_key = "wordcraft_" + bridge.instance_id
+    st.session_state.pop(component_key, None)
+    _montar(doc_key, reopened, runtime)
+    st.session_state[_chave(doc_key, "message")] = (
+        "Sessão nativa renovada a partir da mesma revisão persistida; "
+        "prepare novamente a aprovação.")
+
+
 def _revisoes_restauraveis(history, current_revision: int) -> tuple[int, ...]:
     """Return only persisted historical revisions eligible for a new CAS revision."""
     if type(current_revision) is not int or current_revision < 1:
@@ -341,6 +367,19 @@ def render(doc_key: str, meta: dict) -> None:
     message = st.session_state.get(_chave(doc_key, "message"))
     if message:
         st.caption(message)
+    if (message == "Operação nativa recusada: ErroPonte"
+            and bridge.state == "frozen" and bridge._pending is None
+            and bridge.canvas_bloqueado() is not None):
+        st.warning(
+            "A fila do componente foi recusada depois do bloqueio. "
+            "A aprovação não ocorreu e a revisão persistida pode ser reaberta com segurança.")
+        if st.button("Reabrir revisão persistida", key=_chave(doc_key, "recover_transport")):
+            try:
+                _reabrir_revisao_persistida(doc_key, service, runtime)
+            except ErroDocumento as error:
+                st.error(str(error))
+            else:
+                st.rerun()
     # Components v2 may keep this run open until the browser publishes its next
     # state value.  Reserve the visual position now, but mount the canvas only
     # after the server-side controls have been rendered.  Otherwise a freeze

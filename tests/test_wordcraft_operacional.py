@@ -2,6 +2,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import NAMESPACE_URL, uuid5
 
+import pytest
+
 from src.documentos_editor import AcessoNegado
 from src.ui import wordcraft_operacional as ui
 
@@ -446,6 +448,68 @@ def test_restore_options_ignore_receipts_current_and_divergent_rows():
         {"kind": "revision", "revision": 4, "current": False},
     ]
     assert ui._revisoes_restauraveis(history, 3) == (2, 1)
+
+
+def test_reabre_transporte_recusado_so_da_mesma_revisao_persistida(monkeypatch):
+    from src.wordcraft_protocol import Ponte
+    from tests.test_wordcraft_protocol import evento, receber
+
+    document = SimpleNamespace(id="44444444-4444-4444-4444-444444444444",
+        processo_id="11111111-1111-1111-1111-111111111111", tipo="dfd",
+        revision=8, content_hash="a" * 64, status="rascunho", payload=b"persisted")
+    bridge = Ponte("http://localhost:8884", "22222222-2222-2222-2222-222222222222",
+        "33333333-3333-3333-3333-333333333333", document.id, "n" * 48,
+        revision=document.revision, content_hash=document.content_hash)
+    receber(bridge, evento(bridge, "loaded", {"content_hash": document.content_hash}))
+    operation = "55555555-5555-5555-5555-555555555555"
+    bridge.solicitar_bloqueio(operation)
+    receber(bridge, evento(bridge, "frozen", dict(command_id=operation,
+        content_hash=document.content_hash, generation="1")))
+    component_key = "wordcraft_" + bridge.instance_id
+    session = Session({ui._chave("dfd", "document"): document,
+        ui._chave("dfd", "bridge"): bridge, component_key: {"edit": "poisoned"}})
+    monkeypatch.setattr(ui.st, "session_state", session)
+    mounted = []
+    monkeypatch.setattr(ui, "_montar", lambda key, value, runtime:
+        mounted.append((key, value, runtime)))
+    service = SimpleNamespace(abrir=lambda document_id: document)
+    runtime = object()
+
+    ui._reabrir_revisao_persistida("dfd", service, runtime)
+
+    assert mounted == [("dfd", document, runtime)]
+    assert component_key not in session
+    assert "mesma revisão persistida" in session[ui._chave("dfd", "message")]
+
+
+def test_reabertura_recusa_checkpoint_pendente_ou_head_divergente(monkeypatch):
+    from src.wordcraft_protocol import Ponte
+    from tests.test_wordcraft_protocol import evento, receber
+
+    document = SimpleNamespace(id="44444444-4444-4444-4444-444444444444",
+        processo_id="11111111-1111-1111-1111-111111111111", tipo="dfd",
+        revision=8, content_hash="a" * 64, status="rascunho", payload=b"persisted")
+    bridge = Ponte("http://localhost:8884", "22222222-2222-2222-2222-222222222222",
+        "33333333-3333-3333-3333-333333333333", document.id, "n" * 48,
+        revision=document.revision, content_hash=document.content_hash)
+    receber(bridge, evento(bridge, "loaded", {"content_hash": document.content_hash}))
+    operation = "55555555-5555-5555-5555-555555555555"
+    bridge.solicitar_bloqueio(operation)
+    receber(bridge, evento(bridge, "frozen", dict(command_id=operation,
+        content_hash=document.content_hash, generation="1")))
+    session = Session({ui._chave("dfd", "document"): document,
+        ui._chave("dfd", "bridge"): bridge})
+    monkeypatch.setattr(ui.st, "session_state", session)
+    bridge._pending = object()
+    with pytest.raises(ui.ErroDocumento, match="revisão limpa"):
+        ui._reabrir_revisao_persistida("dfd", SimpleNamespace(), object())
+
+    bridge._pending = None
+    changed = SimpleNamespace(**{**vars(document), "revision": 9,
+        "content_hash": "b" * 64})
+    with pytest.raises(ui.ConflitoDocumento, match="head mudou"):
+        ui._reabrir_revisao_persistida("dfd",
+            SimpleNamespace(abrir=lambda document_id: changed), object())
 
 
 def test_trilha_d_captura_selecao_prepara_diff_e_nao_aceita_lote_multicanvas():
