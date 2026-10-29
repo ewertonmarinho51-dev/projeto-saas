@@ -17,7 +17,7 @@ from .. import db, fatos, state
 from ..documentos_editor import (AcessoNegado, ConflitoDocumento,
                                  DocumentoService, ErroDocumento,
                                  VinculoAprovacao)
-from ..wordcraft_protocol import Ponte
+from ..wordcraft_protocol import ErroPonte, Ponte
 from ..wordcraft_runtime import ErroRuntime, Runtime, carregar
 from .. import wordcraft_session
 from ..wordcraft_capacidades import (Capacidade, CorrecaoContextual,
@@ -356,8 +356,9 @@ def _receber(doc_key: str, service: DocumentoService) -> None:
         if checkpoint is not None:
             bridge.falhar_checkpoint(request_id=checkpoint.request_id,
                                      conflict=isinstance(error, ConflitoDocumento))
+        detail = str(error) if isinstance(error, ErroPonte) else type(error).__name__
         st.session_state[_chave(doc_key, "message")] = \
-            "Operação nativa recusada: " + type(error).__name__
+            "Operação nativa recusada: " + detail
 
 
 def render(doc_key: str, meta: dict) -> None:
@@ -394,7 +395,8 @@ def render(doc_key: str, meta: dict) -> None:
     message = st.session_state.get(_chave(doc_key, "message"))
     if message:
         st.caption(message)
-    if (message == "Operação nativa recusada: ErroPonte"
+    if (isinstance(message, str)
+            and message.startswith("Operação nativa recusada: ")
             and bridge.state == "frozen" and bridge._pending is None
             and bridge.canvas_bloqueado() is not None):
         st.warning(
@@ -756,7 +758,10 @@ def render(doc_key: str, meta: dict) -> None:
         st.caption("Canvas bloqueado na revisão e no hash exibidos acima.")
         liberar, aprovar = st.columns([1, 2])
         if liberar.button("Continuar editando", key=_chave(doc_key, "release")):
-            bridge.liberar_bloqueio(proof["command_id"])
+            # A prova de freeze já foi consumida pelo servidor. Remontar a
+            # cabeça persistida evita depender de um controller de navegador
+            # que pode ter sido desmontado enquanto a decisão era exibida.
+            _reabrir_revisao_persistida(doc_key, service, runtime)
             st.rerun()
         if aprovar.button(f"Aprovar {meta['sigla']}", type="primary",
                           disabled=not facts_ready,
@@ -771,9 +776,16 @@ def render(doc_key: str, meta: dict) -> None:
                     state.ir_para(meta["etapa"] + 1)
 
     with editor_slot:
-        render_editor(bridge, document.payload, module_url=runtime.module_url,
-                      wasm_url=runtime.wasm_url,
-                      on_edit_change=lambda: _receber(doc_key, service))
+        if proof is None:
+            render_editor(bridge, document.payload, module_url=runtime.module_url,
+                          wasm_url=runtime.wasm_url,
+                          on_edit_change=lambda: _receber(doc_key, service))
+        else:
+            # Depois do ACK de freeze, a prova autoritativa já está no host.
+            # Não remonte o componente durante o clique de aprovação: um
+            # callback atrasado do outbox pode ganhar a corrida do botão e
+            # impedir o ato mesmo sem qualquer mutação no banco.
+            st.info("Editor pausado na revisão bloqueada; escolha aprovar ou continuar editando.")
 
 
 def render_sucesso() -> None:
