@@ -514,6 +514,8 @@ export type VersaoDeGovernanca = {
   status_rotulo: string;
   hash: string;
   payload: Record<string, unknown>;
+  atualizado_em: string;
+  proximos: string[];
 };
 
 export type ArtefatoDeGovernanca = {
