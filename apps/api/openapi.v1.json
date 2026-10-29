@@ -7756,6 +7756,25 @@
               ],
               "title": "Cursor"
             }
+          },
+          {
+            "description": "Busca no nome, no órgão e no objeto, feita pelo banco sobre TODOS os processos visíveis (não só a página). Cada palavra precisa aparecer em algum dos três campos.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Busca no nome, no órgão e no objeto, feita pelo banco sobre TODOS os processos visíveis (não só a página). Cada palavra precisa aparecer em algum dos três campos.",
+              "title": "Q"
+            }
           }
         ],
         "responses": {

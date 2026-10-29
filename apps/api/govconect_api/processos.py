@@ -135,6 +135,24 @@ def _ler_cursor(cursor: str) -> tuple[str, str]:
         raise ErroApi(400, "INVALID_CURSOR", "Cursor inválido") from None
 
 
+# Só letra (com acento), dígito e o que aparece em número de processo e
+# de lei. O resto — vírgula, parênteses, aspas, barra invertida, `*`, `%`,
+# `_` — tem sentido na sintaxe do PostgREST ou do LIKE e vira espaço: a
+# busca nunca injeta filtro nem curinga.
+_FORA_DA_BUSCA = re.compile(r"[^\w./-]|_", re.UNICODE)
+_CAMPOS_DA_BUSCA = ("nome", "orgao", "objeto")
+
+
+def _filtro_de_busca(q: str | None) -> str | None:
+    """`and=(or(nome.ilike."*p*",...),or(...))`: cada palavra em algum campo."""
+    palavras = [p for p in _FORA_DA_BUSCA.sub(" ", q or "").split() if p][:5]
+    if not palavras:
+        return None
+    grupos = (",".join(f'{c}.ilike."*{p[:40]}*"' for c in _CAMPOS_DA_BUSCA)
+              for p in palavras)
+    return "(" + ",".join(f"or({g})" for g in grupos) + ")"
+
+
 def _falha(resposta: RespostaRest) -> ErroApi:
     codigo = resposta.codigo_pg
     if codigo == "42501" or resposta.status == 403:
@@ -168,10 +186,17 @@ def rotas() -> APIRouter:
     def listar(request: Request,
                limit: int = Query(20, ge=1, le=100),
                cursor: str | None = Query(None, max_length=512),
+               q: str | None = Query(None, max_length=100, description=(
+                   "Busca no nome, no órgão e no objeto, feita pelo banco sobre "
+                   "TODOS os processos visíveis (não só a página). Cada palavra "
+                   "precisa aparecer em algum dos três campos.")),
                eu: Identidade = Depends(exigir_identidade)) -> PaginaDeProcessos:
         params: list[tuple[str, str]] = [
             ("select", _COLUNAS), ("tenant_id", f"eq.{eu.tenant_id}"),
             ("order", "atualizado_em.desc,id.desc"), ("limit", str(limit + 1))]
+        busca = _filtro_de_busca(q)
+        if busca:
+            params.append(("and", busca))
         if cursor:
             momento, ident = _ler_cursor(cursor)
             # Cursor por (atualizado_em, id), não OFFSET: página estável
