@@ -68,9 +68,15 @@ test("todas as telas autenticadas passam na auditoria de casca, layout e acessib
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await page.waitForURL(/\/app$/);
 
-  // O primeiro Tab cai no "Pular para o conteúdo".
+  // O primeiro Tab cai no "Pular para o conteúdo" — depois do login e
+  // depois de trocar de tela pelo menu (navegação no cliente, sem recarga).
+  const pular = page.getByRole("link", { name: "Pular para o conteúdo" });
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "Pular para o conteúdo" })).toBeFocused();
+  await expect(pular).toBeFocused();
+  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("link", { name: "Processos", exact: true }).click();
+  await page.waitForURL(/\/app\/processos$/);
+  await page.keyboard.press("Tab");
+  await expect(pular).toBeFocused();
 
   for (const [nome, rota] of ROTAS) {
     const resposta = await page.goto(rota);
