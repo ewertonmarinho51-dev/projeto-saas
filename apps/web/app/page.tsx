@@ -7,8 +7,8 @@ import {
   UserCheck,
 } from "@phosphor-icons/react/dist/ssr";
 
-import { Logo, MarcaComNome } from "@/components/marca";
-import { botaoPrimario, botaoSecundario, cartao } from "@/components/ui";
+import { cartao } from "@/components/ui";
+import { LandingHero } from "@/design-system";
 
 const ETAPAS = [
   { sigla: "DFD", nome: "Documento de Formalização da Demanda", texto: "Registra a necessidade, o responsável e a justificativa." },
@@ -18,7 +18,7 @@ const ETAPAS = [
   { sigla: "Edital", nome: "Edital e relatórios", texto: "Consolida o processo para publicação e controle." },
 ];
 
-const PERGUNTAS = [
+const PERGUNTAS: { id?: string; p: string; r: string }[] = [
   {
     p: "A inteligência artificial aprova documentos sozinha?",
     r: "Não. O sistema redige e sugere; cada documento passa pela revisão e aprovação de um servidor antes de seguir.",
@@ -32,6 +32,7 @@ const PERGUNTAS = [
     r: "Não. O isolamento é aplicado no próprio banco de dados, por município e por secretaria, e não depende só da tela.",
   },
   {
+    id: "acesso",
     p: "Como obter acesso?",
     r: "As contas são criadas pelo administrador do seu órgão. Não há cadastro aberto.",
   },
@@ -40,73 +41,17 @@ const PERGUNTAS = [
 export default function Inicio() {
   return (
     <>
-      <header className="border-b border-linha bg-canvas/90 backdrop-blur supports-[backdrop-filter]:bg-canvas/75">
-        <nav
-          aria-label="Principal"
-          className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6"
-        >
-          <MarcaComNome />
-          <div className="flex items-center gap-1 sm:gap-2">
-            <a
-              href="#plataforma"
-              className="hidden rounded-[var(--radius-ui)] px-3 py-2 text-sm text-secundario transition-colors hover:text-texto sm:inline-block"
-            >
-              Plataforma
-            </a>
-            <a
-              href="#perguntas"
-              className="hidden rounded-[var(--radius-ui)] px-3 py-2 text-sm text-secundario transition-colors hover:text-texto sm:inline-block"
-            >
-              Perguntas
-            </a>
-            <Link href="/entrar" className={`${botaoPrimario} h-10 px-4 text-sm`}>
-              Entrar
-            </Link>
-          </div>
-        </nav>
-      </header>
-
       <main id="conteudo">
-        {/* Hero: texto à esquerda, marca à direita. */}
-        <section className="relative overflow-hidden">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-40 -top-40 size-[36rem] rounded-full opacity-[0.07] blur-3xl"
-            style={{ background: "radial-gradient(circle, var(--color-acento), transparent 70%)" }}
-          />
-          <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 md:grid-cols-[1.25fr_1fr] md:py-24">
-            <div>
-              <h1
-                className="max-w-[18ch] text-4xl font-semibold leading-[1.08] tracking-tight text-balance md:text-5xl lg:text-[3.4rem]"
-              >
-                Da demanda ao termo de referência, com cada valor rastreável.
-              </h1>
-              <p
-                className="mt-6 max-w-[52ch] text-lg text-secundario"
-              >
-                Planeje contratações sob a Lei 14.133 com documentos revisados por servidores e preços
-                de fonte verificável.
-              </p>
-              <div
-                className="mt-9 flex flex-wrap gap-3"
-              >
-                <Link href="/entrar" className={botaoPrimario}>
-                  Entrar
-                  <ArrowRight size={18} weight="bold" aria-hidden />
-                </Link>
-                <a href="#plataforma" className={botaoSecundario}>
-                  Conhecer a plataforma
-                </a>
-              </div>
-            </div>
-            <div className="hidden justify-end md:flex">
-              <div className={`${cartao} p-6 md:p-8`}>
-                <Logo tamanho={280} prioridade />
-              </div>
-            </div>
-          </div>
-        </section>
-
+        <LandingHero
+          nav={[
+            { label: "Plataforma", href: "#plataforma" },
+            { label: "Revisão e segurança", href: "#seguranca" },
+            { label: "Perguntas", href: "#perguntas" },
+          ]}
+          secondary={{ label: "Como obter acesso", href: "#acesso" }}
+          signIn={{ label: "Acessar sistema", href: "/entrar" }}
+          explore={{ label: "Conhecer a plataforma", href: "#plataforma" }}
+        />
         {/* Fluxo da fase preparatória: lista ordenada, sem decoração falsa. */}
         <section id="plataforma" className="border-t border-linha bg-superficie">
           <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
@@ -140,7 +85,7 @@ export default function Inicio() {
         </section>
 
         {/* Compromissos: grade assimétrica 2 + 1 + 1. */}
-        <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+        <section id="seguranca" className="mx-auto max-w-6xl scroll-mt-6 px-4 py-20 sm:px-6">
           <h2 className="max-w-[30ch] text-3xl font-semibold tracking-tight">
             Feito para quem responde pelo processo
           </h2>
@@ -175,7 +120,7 @@ export default function Inicio() {
             <h2 className="text-3xl font-semibold tracking-tight">Perguntas frequentes</h2>
             <div className="mt-8">
               {PERGUNTAS.map((item) => (
-                <details key={item.p} className="group border-b border-linha py-5">
+                <details key={item.p} id={item.id} className="group scroll-mt-6 border-b border-linha py-5">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-6 font-medium">
                     {item.p}
                     <span aria-hidden className="font-mono text-lg text-secundario group-open:hidden">+</span>

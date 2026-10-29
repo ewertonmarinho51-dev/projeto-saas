@@ -1,0 +1,59 @@
+# Paridade visual com o Claude Design — matriz por tela
+
+Fonte da verdade visual: `apps/web/design-system/referencia/` (export de
+23/10/2026), `DESIGN.md` e `apps/web/design-system/`. O UI kit do app é
+**navegação simulada com dados ilustrativos**: dele vem o desenho, nunca o
+comportamento nem os números. O comportamento é o do app real (API +
+RLS), e nada aqui foi copiado de login simulado ou dado de demonstração.
+
+## Como comparar
+
+```bash
+# referência, nos mesmos tamanhos (1440×900, 768×1024, 390×844)
+node scripts/capturar-referencia.mjs            # em apps/web, com rede (unpkg)
+# resultado, na pilha real: job web-e2e do CI → artefato "web-e2e-telas",
+# pasta paridade/ (e2e/paridade.spec.ts)
+```
+
+A captura é evidência; o que reprova é a afirmação de comportamento na
+spec (menu por papel, gaveta, recolher, âncora com destino, sem rolagem
+lateral, movimento reduzido, sem erro de console).
+
+## Matriz
+
+Legenda: ✅ alinhada · 🟡 parcial (estrutura no design system, falta
+fidelidade de tela) · ⛔ sem tela/sem API — **não simulada**.
+
+| Tela da referência | Rota real | Entrega | Situação | Peças usadas | O que falta / divergência |
+|---|---|---|---|---|---|
+| Hero (`ui_kits/landing`) | `/` | 1 | ✅ | `LandingHero` (novo template), `Logo`, `buttonClasses`, `Icon` | Links do cabeçalho apontam às seções reais (Plataforma, Revisão e segurança, Perguntas) em vez de Documentos/Pesquisa de preços/Segurança, que não têm seção; "Falar com a equipe" virou "Como obter acesso" → FAQ (não há canal de contato publicado). Entre 600 e 1180 px o menu do celular aparece (na referência a navegação some sem substituto). |
+| Login (`LoginScreen.jsx`) | `/entrar` | 1 | ✅ | `AuthLayout`, `Field`, `Input`, `Button`, `Alert` | Sem "Manter conectado": a sessão do Supabase já persiste, e a caixa não teria efeito (botão sem ação). |
+| Casca (`Shell.jsx`) | `/app/**` | 1 | ✅ | `AppShell`, `Sidebar`, `NavItem`, `UserCard`, `Topbar`, `Breadcrumbs`, `Avatar`, `Badge`, `IconButton` | Menu só com o que existe e a pessoa pode ver (papel e flags do servidor). Sem GovBot, sino, "Salvo" nem Parecer jurídico: não há API. Até 768 px a barra vira gaveta (a referência não define celular). Trilha genérica para recurso ("Processo", "Pesquisa"): o layout não conhece o nome. |
+| Início (`HomeScreen.jsx`) | `/app` | 1 | ✅ | `PageHead`, `KpiCard`, `Alert`, `Card`, `ProgressBar`, `StatusBadge`, `EmptyState`, `Button` | Indicadores contados sobre os até 100 processos mais recentes que o RLS deixa ver (a nota do cartão diz o escopo). Sem "Cotações concluídas R$": somar dinheiro no navegador é proibido; mostra as pesquisas recentes com a `exibicao` da API. Sem saudação por nome: `/me` não devolve nome. **Proposta**: `GET /api/v1/painel` com as contagens no servidor, quando um órgão passar de 100 processos. |
+| Processos (`ProcessesScreen.jsx`) | `/app/processos` | 2 | 🟡 | lista nova em `Card` | Abas, busca, filtros, ordenação e seleção da `DataTable`; exclusão **não** existe na API (a 0020 não dá DELETE) — o menu de linha não terá "Excluir". |
+| Novo processo / DFD (`NewProcessScreen.jsx`) | `/app/processos#novo`, `/app/processos/[id]`, `/formulario` | 2 | 🟡 | formulário matriz já com `Field`/`Input` | Geração e visualizador de documento dependem do WordCraft (M2/M3) — fora desta frente. |
+| Consolidar demandas | `/app/processos/[id]/demandas` | 2 | 🟡 | `FileUpload`, `DataTable` | Ajuste de casca e cabeçalho. |
+| Cotação — triagem (`PriceResearchScreen.jsx`) | `/app/precos/[id]`, `/itens/[itemId]` | 3 | 🟡 | — | `Stepper`, `PriceItemNav`, `ScreeningSummary`, `PriceDispersion`, `PriceReferenceRow`, `ExclusionDialog`, `PriceBasket`, `PriceStats`, `TraceabilityPanel` sobre os dados reais da API (cesta e cálculo continuam no servidor). |
+| Mapa e relatório (`PriceStages.jsx`) | `/app/precos/[id]` (emissão) | 3 | 🟡 | — | `PriceMapTable`, `ValidationSummary`, `AiProcessing`/`ProgressBar` do job real. |
+| GovBot (`GovBotScreen.jsx`, `GovBotPanel.jsx`) | — | 4 | ⛔ | — | Não há endpoint de conversa na API v1 (só `POST /admin/base-conhecimento/busca`, de admin). Não entra no menu até existir; quando existir: `ChatMessage`, `Cite`, `SourceList`, `AiDraftBlock`, `MessageFeedback`, `PromptSuggestions`, `ConversationList`, `ContextBar`, `ChatComposer`. |
+| Base de conhecimento | `/app/admin/base-conhecimento` | 4 | 🟡 | já em peças do DS | Cabeçalho `PageHead` e casca. |
+| Governança | `/app/governanca` | 4 | 🟡 | `Tabs`, `Badge` | Escrita continua atrás de `GOVCONECT_GOVERNANCA_ESCRITA` (desligada por padrão). |
+| Administração: Instituição, Usuários | `/app/admin/instituicao`, `/app/admin/usuarios` | 4 | 🟡 | já em peças do DS | Cabeçalho `PageHead`. |
+| Conta / Senha | `/app/conta/senha` | 4 | 🟡 | `Field`, `Input` | Cabeçalho `PageHead`. |
+
+## Peças do design system ainda sem uso no app
+
+`Tooltip`, `Menu`, `Toolbar*`, `Radio*`, `SearchField`, `Stepper`,
+`Accordion`, `DataList`, `DocumentViewer`, `Spinner`, `Tag`,
+`Toast`/`ToastStack`, `BarChart`, `Pagination`, toda a família `ai/` e
+toda a família `price/`. As de preço e as de lista entram nas entregas 2
+e 3; as de IA esperam a API do GovBot.
+
+## Peças adaptadas nesta entrega
+
+- `AppShell`: gaveta até 768 px (botão de menu, fundo, Esc, fecha ao
+  navegar), barra lateral presa à altura da tela, `id` por `useId`.
+- `UserCard.name` aceita nó (o e-mail leva o `data-testid` do E2E).
+- `Icon`: `sign-in`, `clipboard-text`, `list`, `users-three`.
+- `LandingHero` (template novo) + `styles/landing.css`, só com tokens
+  (as transparências do export viraram `color-mix` sobre o token).

@@ -20,7 +20,7 @@ Regras:
 
 | Caminho | O que é |
 |---|---|
-| `index.ts` | ponto de entrada único (71 nomes do export + 3 templates) |
+| `index.ts` | ponto de entrada único (71 nomes do export + 4 templates) |
 | `styles.css` | entrada do CSS, importada por `app/globals.css` |
 | `tokens/` | `colors` (claro, escuro por atributo e por sistema), `typography`, `spacing`, `elevation`, `motion`, `layout` |
 | `styles/base.css` | foco, `.gc-num`, `.gc-mono`, `.gc-sr-only`, animações, movimento reduzido (camada `base`) |
@@ -108,6 +108,7 @@ server component. Componente que recebe função (`render`, `trigger`,
 | templates | `PageHead` | cabeçalho de página | |
 | templates | `AppShell` | casca do app (barra lateral + superior) | sim |
 | templates | `AuthLayout` | entrada dividida marca/formulário; sempre no tema claro (usado em `/entrar` e `/entrar/recuperar`) | |
+| templates | `LandingHero` | Hero da landing pública (`/`): cabeçalho de vidro, fluxo DFD → ETP → TR → Preços em SVG, painéis ilustrativos; CSS em `styles/landing.css`, sem JavaScript | |
 
 ## Integração com o resto do app
 

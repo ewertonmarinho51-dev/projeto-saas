@@ -636,6 +636,20 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   .gc-shell__body{display:flex;flex:1;min-height:0;position:relative}
   .gc-shell__content{flex:1;min-width:0;overflow-y:auto}
   .gc-shell__page{max-width:var(--content-max);margin:0 auto;padding:var(--space-8) var(--page-padding-x) var(--space-12);display:grid;gap:var(--space-6)}
+  /* Barra lateral presa à altura da tela; o conteúdo rola sozinho. */
+  .gc-shell__nav{position:sticky;top:0;height:100dvh;z-index:var(--z-sticky)}
+  .gc-shell__menu,.gc-shell__scrim{display:none}
+  /* Recolhida (68 px): avatar e ação do usuário um sobre o outro. */
+  .gc-sidebar--collapsed .gc-usercard{flex-direction:column;padding:var(--space-1-5) 0}
+  /* Até 768 px: gaveta sobre o conteúdo, aberta pelo botão de menu da barra superior. */
+  @media (max-width:768px){
+    .gc-shell{grid-template-columns:minmax(0,1fr)}
+    .gc-shell__nav{position:fixed;inset:0 auto 0 0;z-index:var(--z-overlay);transform:translateX(-100%);visibility:hidden;transition:transform var(--dur-slow) var(--gc-ease-standard),visibility 0s linear var(--dur-slow)}
+    .gc-shell--drawer-open .gc-shell__nav{transform:none;visibility:visible;box-shadow:var(--gc-shadow-lg);transition:transform var(--dur-slow) var(--gc-ease-out),visibility 0s}
+    .gc-shell__scrim{display:block;position:fixed;inset:0;z-index:calc(var(--z-overlay) - 1);background:var(--surface-overlay);animation:gc-fade-in var(--dur-base) var(--gc-ease-out)}
+    .gc-shell__menu{display:inline-flex}
+  }
+  @keyframes gc-fade-in{from{opacity:0}to{opacity:1}}
   .gc-auth{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,520px);min-height:100dvh}
   .gc-auth__brand{position:relative;overflow:hidden;border-right:var(--border-width) solid var(--border-subtle);background:var(--bg-app) center/cover no-repeat}
   .gc-auth__brand-img{object-fit:cover;object-position:center}
@@ -646,6 +660,7 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   .gc-auth__row{display:flex;justify-content:flex-end;align-items:center;gap:var(--space-3)}
   .gc-auth__link{font-size:var(--gc-fs-sm)}
   .gc-auth__legal{font-size:var(--gc-fs-xs);color:var(--text-secondary)}
+  .gc-auth__legal a,.gc-auth__link{text-decoration:underline}
   .gc-auth__pitch{max-width:460px;display:grid;gap:var(--space-4)}
   .gc-auth__headline{font:var(--type-display);letter-spacing:var(--gc-tracking-tighter)}
   .gc-auth__lead{font:var(--type-body-lg);color:var(--text-secondary)}

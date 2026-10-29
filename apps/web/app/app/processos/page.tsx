@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormularioDeProcesso } from "@/components/form-processo";
 import { ListaDeProcessos } from "@/components/lista-processos";
 import { cartao } from "@/components/ui";
+import { Card } from "@/design-system";
 import { chamarApi, type Pagina, type Processo } from "@/lib/api";
 
 import { criarProcesso } from "./acoes";
@@ -26,7 +27,9 @@ export default async function Processos({
       <section className="grid gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">Processos</h1>
         {dados.itens.length > 0 ? (
-          <ListaDeProcessos processos={dados.itens} />
+          <Card flush>
+            <ListaDeProcessos processos={dados.itens} />
+          </Card>
         ) : (
           <p className={`${cartao} px-6 py-10 text-center text-sm text-secundario`}>
             {cursor ? "Não há mais processos." : "Nenhum processo no seu órgão ainda."}

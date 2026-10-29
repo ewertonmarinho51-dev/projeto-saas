@@ -32,14 +32,14 @@ const DO_EXPORT = [
   "ExclusionDialog", "PriceBasket", "PriceDispersion", "PriceItemNav", "PriceMapTable", "PriceReferenceRow",
   "PriceStats", "ScreeningSummary", "SourcePicker", "TraceabilityPanel", "ValidationSummary",
 ];
-const TEMPLATES = ["AppShell", "AuthLayout", "PageHead"];
+const TEMPLATES = ["AppShell", "AuthLayout", "LandingHero", "PageHead"];
 
 describe("inventário do design system", () => {
   it("o export tem 71 nomes", () => {
     expect(new Set(DO_EXPORT).size).toBe(71);
   });
 
-  it("o índice exporta exatamente os 71 do export + 3 templates", () => {
+  it("o índice exporta exatamente os 71 do export + 4 templates", () => {
     // Componente e constante (PascalCase ou CAIXA_ALTA); helper em camelCase fica de fora.
     const publicos = Object.keys(ds).filter((n) => /^[A-Z]/.test(n));
     expect(publicos.sort()).toEqual([...DO_EXPORT, ...TEMPLATES].sort());

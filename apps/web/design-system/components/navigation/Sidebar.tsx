@@ -84,7 +84,7 @@ export function Sidebar({
 }
 
 export interface UserCardProps {
-  name: string;
+  name: ReactNode;
   role?: string;
   avatar?: ReactNode;
   action?: ReactNode;

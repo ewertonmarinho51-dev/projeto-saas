@@ -49,7 +49,7 @@ test("página pública: CSP com nonce, sem erro de console", async ({ page }) =>
   const csp = resposta?.headers()["content-security-policy"] ?? "";
   expect(csp).toContain("script-src 'self' 'nonce-");
   expect(csp).toContain("frame-ancestors 'none'");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("cada valor rastreável");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Planejamento público, com método");
   await capturar(page, "inicio");
   await page.goto("/entrar");
   await capturar(page, "entrar");

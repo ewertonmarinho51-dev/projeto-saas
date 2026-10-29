@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useId, useState, type ReactNode } from "react";
 
+import { Icon } from "../components/core/Icon";
 import { Sidebar, type SidebarGroup } from "../components/navigation/Sidebar";
 import { Topbar } from "../components/navigation/Topbar";
+import { cx } from "../lib/cx";
 
 export interface AppShellProps {
   /** Logo. Recolhida, o CSS esconde o nome. */
@@ -26,18 +29,62 @@ export interface AppShellProps {
 
 /**
  * Casca do app: barra lateral de 248 px (68 px recolhida) + barra superior
- * de 64 px com a trilha, e o conteúdo em até 1200 px. Abaixo de 768 px a
- * barra lateral vira navegação horizontal com rolagem (regra do CSS).
- * Recriada do ui_kit do export (Shell.jsx).
+ * de 64 px com a trilha, e o conteúdo em até 1200 px. Recriada do ui_kit
+ * do export (Shell.jsx).
+ *
+ * Até 768 px a barra lateral sai da grade e vira gaveta: o botão de menu
+ * da barra superior abre, e fecham o fundo escuro, o Esc e a troca de
+ * página. Recolher é só da tela larga — na gaveta o menu aparece inteiro.
  */
 export function AppShell({ brand, groups, footer, topStart, topEnd, aside, bleed = false, embedded = false, children }: AppShellProps) {
   const [recolhida, setRecolhida] = useState(false);
+  // A gaveta lembra em que página abriu: navegou, ela fecha sozinha (o
+  // link já levou aonde a pessoa queria), sem efeito para sincronizar.
+  const caminho = usePathname() ?? "";
+  const [abertaEm, setAbertaEm] = useState<string | null>(null);
+  const gaveta = abertaEm === caminho;
+  const setGaveta = (aberta: boolean) => setAbertaEm(aberta ? caminho : null);
+  const navId = useId();
   const Conteudo = embedded ? "div" : "main";
+
+  useEffect(() => {
+    if (!gaveta) return;
+    const aoTeclar = (e: KeyboardEvent) => e.key === "Escape" && setAbertaEm(null);
+    document.addEventListener("keydown", aoTeclar);
+    return () => document.removeEventListener("keydown", aoTeclar);
+  }, [gaveta]);
+
   return (
-    <div className="gc-shell gc-base">
-      <Sidebar collapsed={recolhida} onToggle={() => setRecolhida((r) => !r)} brand={brand} groups={groups} footer={footer} />
+    <div className={cx("gc-shell gc-base", gaveta && "gc-shell--drawer-open")}>
+      <div className="gc-shell__nav" id={navId}>
+        <Sidebar
+          collapsed={recolhida && !gaveta}
+          onToggle={gaveta ? undefined : () => setRecolhida((r) => !r)}
+          brand={brand}
+          groups={groups}
+          footer={footer}
+        />
+      </div>
+      {gaveta && <div className="gc-shell__scrim" aria-hidden="true" onClick={() => setGaveta(false)} />}
       <div className="gc-shell__main">
-        <Topbar start={topStart} end={topEnd} />
+        <Topbar
+          start={
+            <>
+              <button
+                type="button"
+                className="gc-iconbtn gc-iconbtn--sm gc-shell__menu"
+                aria-label={gaveta ? "Fechar menu" : "Abrir menu"}
+                aria-expanded={gaveta}
+                aria-controls={navId}
+                onClick={() => setGaveta(!gaveta)}
+              >
+                <Icon name={gaveta ? "x" : "list"} />
+              </button>
+              {topStart}
+            </>
+          }
+          end={topEnd}
+        />
         <div className="gc-shell__body">
           <Conteudo id={embedded ? undefined : "conteudo"} className="gc-shell__content">
             {bleed ? children : <div className="gc-shell__page">{children}</div>}
