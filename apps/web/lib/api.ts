@@ -503,6 +503,8 @@ export type PreviaDoModelo = { pagina: string; cabecalho: string; rodape: string
 // ---------------------------------------------------------------------------
 export type CentroDeGovernanca = {
   papel: string;
+  /** Trava de ambiente da escrita na interface nova (GOVCONECT_GOVERNANCA_ESCRITA). */
+  escrita: boolean;
   abas: { tipo: string; rotulo: string; ativa: boolean }[];
   resumo: { clausulas: number; publicadas: number; em_elaboracao: number };
 };

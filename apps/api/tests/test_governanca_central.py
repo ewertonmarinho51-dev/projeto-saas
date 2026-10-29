@@ -139,9 +139,10 @@ CLAUSULA = {"titulo": "DA GARANTIA", "comportamento": "FIXED_PARAMETERIZED",
             "parametros_permitidos": ["percentual"], "parametros_obrigatorios": ["percentual"]}
 
 
-def _api_com(emissor, banco):
+def _api_com(emissor, banco, escrita=True):
     config = carregar({"APP_ENV": "test", "SUPABASE_URL": "https://exemplo-staging.supabase.co",
-                       "SUPABASE_KEY": "chave-publicavel-de-teste"})
+                       "SUPABASE_KEY": "chave-publicavel-de-teste",
+                       **({"GOVCONECT_GOVERNANCA_ESCRITA": "1"} if escrita else {})})
     rest = banco.cliente()
     return TestClient(criar_app(config, rest=rest, verificador=VerificadorSupabase(
         emissor=EMISSOR, rest=rest, chave_para=emissor.chave_para)), raise_server_exceptions=False)
@@ -261,3 +262,30 @@ def test_escrita_com_centro_desligado_e_404_e_sem_papel_e_403(emissor, flags):
     assert api.post(f"{BASE}/versoes/{VERSAO}/transicao", headers={**_h(emissor, papel="admin"), **IF_MATCH},
                     json={"status": "UNDER_REVIEW"}).status_code == 404
     assert _rpcs(banco) == []
+
+
+def test_escrita_desligada_pela_trava_do_ambiente_nao_chega_ao_banco(emissor, flags):
+    # A flag do Centro ligada (é a mesma do Streamlit) não basta: sem a trava
+    # do ambiente, a interface nova só lê.
+    banco = PostgrestFalso()
+    api = _api_com(emissor, banco, escrita=False)
+    cab = {**_h(emissor, papel="admin"), **IF_MATCH}
+    r = api.post(f"{BASE}/versoes/{VERSAO}/transicao", headers=cab, json={"status": "UNDER_REVIEW"})
+    assert r.status_code == 403 and r.json()["code"] == "GOVERNANCE_WRITE_DISABLED", r.text
+    assert api.post(f"{BASE}/artefatos", headers=cab, json={
+        "tipo": "clausula", "chave": "clausula.tr.garantia", "payload": CLAUSULA}).status_code == 403
+    assert api.put(f"{BASE}/versoes/{VERSAO}", headers=cab, json={"payload": CLAUSULA}).status_code == 403
+    assert api.post(f"{BASE}/versoes/{VERSAO}/derivacao", headers=cab).status_code == 403
+    assert _rpcs(banco) == []
+
+
+def test_o_centro_diz_se_a_escrita_esta_ligada(emissor, flags):
+    for escrita in (False, True):
+        r = _api_com(emissor, PostgrestFalso(), escrita=escrita).get(BASE, headers=_h(emissor, papel="admin"))
+        assert r.status_code == 200 and r.json()["escrita"] is escrita, r.text
+
+
+def test_a_trava_nasce_desligada():
+    config = carregar({"APP_ENV": "production", "SUPABASE_URL": "https://exemplo.supabase.co",
+                       "SUPABASE_KEY": "chave-publicavel-de-teste"})
+    assert config.governanca_escrita is False
