@@ -648,6 +648,12 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
     .gc-shell--drawer-open .gc-shell__nav{transform:none;visibility:visible;box-shadow:var(--gc-shadow-lg);transition:transform var(--dur-slow) var(--gc-ease-out),visibility 0s}
     .gc-shell__scrim{display:block;position:fixed;inset:0;z-index:calc(var(--z-overlay) - 1);background:var(--surface-overlay);animation:gc-fade-in var(--dur-base) var(--gc-ease-out)}
     .gc-shell__menu{display:inline-flex}
+    /* Trilha da barra superior no celular: só a página atual, cortada com reticências — a trilha inteira empurrava a barra para fora da tela. */
+    .gc-topbar__start{flex:1 1 auto}
+    .gc-topbar__start .gc-breadcrumbs{min-width:0;overflow:hidden}
+    .gc-topbar .gc-breadcrumbs ol{flex-wrap:nowrap}
+    .gc-topbar .gc-breadcrumbs li:not(:last-child){display:none}
+    .gc-topbar .gc-breadcrumbs li:last-child{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   }
   @keyframes gc-fade-in{from{opacity:0}to{opacity:1}}
   .gc-auth{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,520px);min-height:100dvh}
