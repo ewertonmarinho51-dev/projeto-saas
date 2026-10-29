@@ -1,6 +1,21 @@
 -- ## 0036 — Governança: escrita por RPC, com a separação de funções e a
 -- ##        máquina de estados das versões NO BANCO (interface nova, M8b)
--- ## ESTADO: aplicável. NÃO aplicada em produção.
+-- ## ESTADO: APLICADA em produção em 29/10/2026 como
+-- ##         `m0036_governanca_escrita_por_rpc` (registro 20261029152420),
+-- ##         antes no descartável `uslaxaxomjawydqtbwkb`.
+-- ##   ANTES: authenticated com INSERT+SELECT em artefatos, SELECT em versões
+-- ##          e eventos; 0 funções `governanca_*`; 1 artefato, 1 versão,
+-- ##          0 eventos; 0 artefatos com duas publicadas; dono `postgres`
+-- ##          com BYPASSRLS (as tabelas têm FORCE RLS).
+-- ##   DEPOIS: só SELECT nas três; 9 funções; dados iguais (1/1/0; 7
+-- ##          processos, 2 usuários). Comportamento num bloco desfeito, com
+-- ##          tenant próprio: criar e enviar à revisão passam; trava = PT409;
+-- ##          publicador aprovando = 42501; revisor aprova; INSERT/UPDATE
+-- ##          direto = 42501; trilha versao_criada, _alterada, _aprovada.
+-- ##          Advisors: só as quatro RPCs (authenticated, intencional).
+-- ##   FLAGS: `flag_governance_center`, `flag_clause_catalog_admin` e
+-- ##          `flag_governance_publication_gate` estavam LIGADAS (= 1) em
+-- ##          produção em 29/10 — a auditoria de 27/10 não as encontrou.
 --
 -- O PROBLEMA (auditoria de produção, 27/10/2026, catálogo)
 --   O Centro de Governança separa funções — autor, revisor jurídico,
@@ -77,7 +92,8 @@
 --   * índices: `unique (artefato_id, versao)`; `governanca_artefatos_chave_idx`
 --     único em (tipo, chave, tenant, secretaria); nenhuma unicidade de
 --     PUBLISHED; 0 artefatos com duas publicadas;
---   * 1 artefato, 1 versão; `flag_governance_center` não existe.
+--   * 1 artefato, 1 versão; `flag_governance_center` não existia (em 29/10,
+--     ligada — ver ESTADO).
 --
 -- O QUE NÃO RESOLVE
 --   * a validação do CONTEÚDO (contrato do payload por tipo e o hash
