@@ -1,8 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EditorController, EventOutbox, assetURL, fromBase64, toBase64, sha256} from './host.mjs';
+import {EditorController, EventOutbox, assetURL, containEditorKeyboardEvent,
+  fromBase64, toBase64, sha256} from './host.mjs';
 
 const bytes = new TextEncoder().encode('synthetic transport fixture; not a native document corpus');
+
+test('editor keyboard events stop at the component boundary after reaching the canvas', () => {
+  for (const key of ['c', undefined]) {
+    let stopped = 0;
+    containEditorKeyboardEvent({key, stopPropagation() { stopped++; }});
+    assert.equal(stopped, 1);
+  }
+});
 
 test('coalesced Streamlit state retains every event until backend consumption', () => {
   let latest;

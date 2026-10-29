@@ -58,6 +58,15 @@ export function assetURL(value, base) {
   return url.href;
 }
 
+// WordCraft owns keyboard input while its native canvas is focused.  Let the
+// event reach the canvas first, then stop it at the component boundary so the
+// app-level Streamlit shortcut listener cannot reinterpret editor keystrokes.
+// This also keeps synthetic accessibility events that do not carry
+// KeyboardEvent.key away from Streamlit's global key normalizer.
+export function containEditorKeyboardEvent(event) {
+  event.stopPropagation();
+}
+
 // State updates can be coalesced by Streamlit. Every update therefore carries
 // all unconsumed events, rather than relying on callback delivery per emission.
 export class EventOutbox {
@@ -412,6 +421,8 @@ export default function render(component) {
   const retry = document.createElement('button'); retry.textContent = 'Tentar salvar novamente'; retry.disabled = true;
   root.append(status, canvas, retry);
   const instance = {data, send: setStateValue, controller: null, native: null, starting: false, timer: null, disposed: false}; root.__instance = instance;
+  root.addEventListener('keydown', containEditorKeyboardEvent);
+  root.addEventListener('keyup', containEditorKeyboardEvent);
   instance.outbox = new EventOutbox((...args) => instance.send(...args), data.event_ack);
   const update = () => { if (instance.controller) { status.textContent = labels[instance.controller.state]; retry.disabled = instance.controller.state !== 'error'; } };
   const unload = event => { if (instance.controller && !['ready', 'saved'].includes(instance.controller.state)) { event.preventDefault(); event.returnValue = ''; } };
@@ -429,6 +440,8 @@ export default function render(component) {
     instance.disposed = true;
     clearInterval(instance.interval); clearTimeout(instance.timer);
     window.removeEventListener('beforeunload', unload);
+    root.removeEventListener('keydown', containEditorKeyboardEvent);
+    root.removeEventListener('keyup', containEditorKeyboardEvent);
     if (!instance.starting) instance.native?.dispose();
     if (instance.controller) instance.controller.disposed = true;
     root.__instance = null;
