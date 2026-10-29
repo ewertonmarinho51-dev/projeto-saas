@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowSquareOut } from "@phosphor-icons/react/dist/ssr";
 
-import { dataCurta, rotuloNatureza, rotuloStatusReferencia } from "@/components/precos";
-import { AcaoNaCesta } from "@/components/acao-cesta";
+import { dataCurta, naCesta, rotuloEstadoItem, rotuloMetodo } from "@/components/precos";
 import { AtoNoItem } from "@/components/ato-item";
-import { AlertaDoPreco, BuscaDoItem, DesfazerRetirada, EdicaoDoItem, ProgressoDaBusca } from "@/components/gestao-cotacao";
-import { cartao } from "@/components/ui";
+import { BuscaDoItem, DesfazerRetirada, EdicaoDoItem, ProgressoDaBusca } from "@/components/gestao-cotacao";
+import { situacaoDoItem } from "@/components/situacao";
+import { NavegadorDeItens, TriagemDoItem } from "@/components/triagem-item";
+import { Alert, Badge, Button, Card, DataList, PageHead, PriceBasket, PriceStats, StatusBadge } from "@/design-system";
 import {
   chamarApi,
   ErroDaApi,
@@ -63,7 +62,6 @@ export default async function Referencias({
   const item = pesquisa.itens.find((i) => i.id === itemId);
   if (!item) notFound();
   const editavel = !IMUTAVEIS.has(pesquisa.estado);
-  const alertaPorReferencia = new Map(alertas.map((a) => [a.referencia_id, a]));
   const desfazivel = cesta === "retirada" && typeof ref === "string" && UUID.test(ref) && editavel ? ref : null;
   const aviso =
     desfazivel
@@ -78,128 +76,104 @@ export default async function Referencias({
           ? "Item reaberto para revisão."
           : undefined;
 
+  const escolhidas = refs.filter(naCesta);
+
   return (
-    <div className="grid gap-6">
-      <Link
-        href={`/app/precos/${id}`}
-        className="inline-flex items-center gap-2 justify-self-start text-sm text-secundario hover:text-texto"
-      >
-        <ArrowLeft size={16} weight="bold" aria-hidden />
-        Voltar à pesquisa
-      </Link>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{item.descricao}</h1>
-        <p className="mt-1 text-sm text-secundario">
-          Cada valor com a origem que permite conferi-lo. Só aparece link para portal oficial.
-        </p>
-        <p className="mt-3 text-sm">
-          Preço estimado{" "}
-          <span className="font-semibold tabular-nums" data-testid="preco-do-item">
-            {item.preco_estimado?.exibicao ?? "não calculado"}
+    <>
+      <PageHead
+        eyebrow={
+          <span className="flex flex-wrap items-center gap-2">
+            <Button variant="link" size="sm" icon="arrow-left" href={`/app/precos/${id}`}>
+              Voltar à pesquisa
+            </Button>
+            <StatusBadge status={situacaoDoItem(item.estado)} label={rotuloEstadoItem(item.estado)} size="sm" />
           </span>
-        </p>
-      </div>
+        }
+        title={item.descricao}
+        desc="Cada valor com a origem que permite conferi-lo. Só aparece link para portal oficial."
+      />
+
+      <Card>
+        <DataList
+          stacked
+          items={[
+            { label: "Item", value: `${item.numero} de ${pesquisa.itens.length}`, numeric: true },
+            { label: "Quantidade", value: `${item.quantidade?.exibicao ?? "—"} ${item.unidade}`, numeric: true },
+            { label: "Método", value: rotuloMetodo(item.metodo) || "Não definido" },
+            {
+              label: "Preço estimado",
+              value: <span data-testid="preco-do-item">{item.preco_estimado?.exibicao ?? "não calculado"}</span>,
+              numeric: true,
+            },
+            { label: "Total do item", value: item.preco_total?.exibicao ?? "—", numeric: true },
+          ]}
+        />
+      </Card>
 
       {desfazivel && <DesfazerRetirada pesquisa={id} item={itemId} referencia={desfazivel} revisao={item.revisao} />}
-      {aviso && (
-        <p role="status" className="rounded-[var(--radius-ui)] bg-ok-fundo px-4 py-3 text-sm text-ok">
-          {aviso}
-        </p>
-      )}
+      {aviso && <Alert variant="success" title={aviso} />}
 
-      {/* `key` pelo estado: concluir troca o formulário por reabrir, e um
-          componente novo nasce com a ação certa e sem o erro anterior. */}
-      <AtoNoItem key={item.estado} pesquisa={id} item={item.id} revisao={item.revisao} estado={item.estado} />
-      {typeof busca === "string" && UUID.test(busca) && <ProgressoDaBusca jobId={busca} />}
-      {editavel && item.estado !== "complete" && (
-        // Chave nova a cada renderização: reenviar não põe duas buscas na fila.
-        <BuscaDoItem
-          pesquisa={id}
-          item={item.id}
-          termo={item.descricao}
-          uf={item.uf ?? ""}
-          chave={`web-busca-${crypto.randomUUID()}`}
-        />
-      )}
-      {editavel && <EdicaoDoItem key={item.revisao} pesquisa={id} item={item} />}
+      <div className="grid items-start gap-5 xl:grid-cols-[calc(var(--space-16)*4)_minmax(0,1fr)_calc(var(--space-16)*4.75)]">
+        <Card title="Itens" flush actions={<Badge size="sm">{pesquisa.itens.length}</Badge>} className="hidden xl:block">
+          <div className="px-2 pb-3">
+            <NavegadorDeItens pesquisa={id} itens={pesquisa.itens} atual={item.id} />
+          </div>
+        </Card>
 
-      {refs.length === 0 ? (
-        <p className={`${cartao} px-6 py-10 text-center text-sm text-secundario`}>
-          Nenhuma referência coletada para este item.
-        </p>
-      ) : (
-        <ul className="grid gap-3">
-          {refs.map((r) => (
-            <li key={r.id} className={`${cartao} grid gap-3 p-5 sm:grid-cols-[1fr_auto]`} data-testid="referencia">
-              <div className="min-w-0">
-                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  <span className="font-medium">{r.fonte}</span>
-                  <span className="text-secundario">{rotuloNatureza(r.natureza_valor)}</span>
-                  <span
-                    className={`rounded-[var(--radius-ui)] px-2 py-0.5 text-xs ${
-                      r.status === "selected" ? "bg-ok-fundo text-ok" : r.status === "rejected" ? "bg-erro-fundo text-erro" : "bg-canvas text-secundario"
-                    }`}
-                  >
-                    {rotuloStatusReferencia(r.status)}
-                  </span>
-                </p>
-                <p className="mt-2 text-sm">{r.descricao_original}</p>
-                <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-secundario">
-                  {r.orgao && <span>{r.orgao}</span>}
-                  {(r.municipio || r.uf) && <span>{[r.municipio, r.uf].filter(Boolean).join("/")}</span>}
-                  {r.data_compra && <span>Compra em {dataCurta(r.data_compra)}</span>}
-                  <span>Coletada em {dataCurta(r.coletado_em)}</span>
-                  {r.identificacao && <span className="font-mono">{r.identificacao}</span>}
-                </p>
-                {alertaPorReferencia.has(r.id) && (
-                  <div className="mt-3">
-                    <AlertaDoPreco
-                      pesquisa={id}
-                      item={itemId}
-                      revisao={item.revisao}
-                      alerta={alertaPorReferencia.get(r.id)!}
-                      editavel={editavel && item.estado !== "complete"}
-                    />
-                  </div>
-                )}
-                {r.motivos.length > 0 && (
-                  <p className="mt-2 text-xs text-secundario">Observações: {r.motivos.join(", ")}</p>
-                )}
-                {r.link_contratacao && (
-                  <a
-                    href={r.link_contratacao}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center gap-1.5 text-sm text-acento underline-offset-4 hover:text-acento-forte hover:underline"
-                  >
-                    {r.rotulo_contratacao || "Ver na fonte"}
-                    <ArrowSquareOut size={14} weight="bold" aria-hidden />
-                  </a>
-                )}
-              </div>
-              <div className="text-right sm:min-w-[10rem]">
-                <p className="text-lg font-semibold tabular-nums">
-                  {r.valor_unitario_normalizado?.exibicao ?? r.valor_unitario_original?.exibicao ?? ""}
-                </p>
-                <p className="text-xs text-secundario">por {r.unidade_normalizada ?? r.unidade_original ?? "unidade"}</p>
-                <div className="mt-3 flex justify-end">
-                  {item.estado === "complete" ? (
-                    <p className="text-xs text-secundario">Item concluído: reabra para alterar a cesta.</p>
-                  ) : (
-                  <AcaoNaCesta
-                    pesquisa={id}
-                    item={itemId}
-                    referencia={r.id}
-                    revisao={item.revisao}
-                    naCesta={r.status === "selected" || r.status === "warning"}
-                  />
-                  )}
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+        <div className="grid min-w-0 gap-4">
+          <h2>Triagem das referências</h2>
+          {typeof busca === "string" && UUID.test(busca) && <ProgressoDaBusca jobId={busca} />}
+          <TriagemDoItem pesquisa={id} item={item} referencias={refs} alertas={alertas} editavel={editavel} />
+          {editavel && item.estado !== "complete" && (
+            // Chave nova a cada renderização: reenviar não põe duas buscas na fila.
+            <BuscaDoItem
+              pesquisa={id}
+              item={item.id}
+              termo={item.descricao}
+              uf={item.uf ?? ""}
+              chave={`web-busca-${crypto.randomUUID()}`}
+            />
+          )}
+          {editavel && <EdicaoDoItem key={item.revisao} pesquisa={id} item={item} />}
+        </div>
+
+        <div className="grid gap-4 xl:sticky xl:top-[calc(var(--topbar-height)+var(--space-4))]">
+          <Card title="Cesta de preços" subtitle="Referências que entram no cálculo." actions={<Badge variant="brand" size="sm">{escolhidas.length}</Badge>}>
+            {escolhidas.length > 0 ? (
+              <PriceBasket
+                items={escolhidas.map((r) => ({
+                  source: r.fonte,
+                  detail: [r.orgao, dataCurta(r.data_compra ?? r.coletado_em)].filter(Boolean).join(" · "),
+                  value: r.valor_unitario_normalizado?.exibicao ?? r.valor_unitario_original?.exibicao ?? "",
+                }))}
+                totalLabel={`Estimativa${item.metodo ? ` (${rotuloMetodo(item.metodo).toLowerCase()})` : ""}`}
+                total={item.preco_estimado?.exibicao ?? "não calculado"}
+              />
+            ) : (
+              <p className="gc-help">Nenhuma referência na cesta.</p>
+            )}
+          </Card>
+          <PriceStats
+            items={[
+              {
+                label: "Preço estimado",
+                value: item.preco_estimado?.exibicao ?? "—",
+                highlight: true,
+                hint: item.metodo ? `Método: ${rotuloMetodo(item.metodo)}` : "Método não definido",
+              },
+              {
+                label: "Total do item",
+                value: item.preco_total?.exibicao ?? "—",
+                hint: `${item.quantidade?.exibicao ?? "—"} ${item.unidade}`,
+              },
+              { label: "Na cesta", value: escolhidas.length, hint: `de ${refs.length} coletadas` },
+            ]}
+          />
+          {/* `key` pelo estado: concluir troca o formulário por reabrir, e um
+              componente novo nasce com a ação certa e sem o erro anterior. */}
+          <AtoNoItem key={item.estado} pesquisa={id} item={item.id} revisao={item.revisao} estado={item.estado} />
+        </div>
+      </div>
+    </>
   );
 }

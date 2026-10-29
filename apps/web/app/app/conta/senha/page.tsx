@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { cartao } from "@/components/ui";
+import { Card, PageHead } from "@/design-system";
 
 import { FormularioDeSenha } from "./formulario";
 
@@ -8,16 +8,11 @@ export const metadata: Metadata = { title: "Senha" };
 
 export default function Senha() {
   return (
-    <div className="grid gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Senha</h1>
-        <p className="mt-1 text-sm text-secundario">
-          Ao trocar a senha, as outras sessões abertas são encerradas.
-        </p>
-      </div>
-      <section className={`${cartao} max-w-xl p-6 sm:p-8`}>
+    <>
+      <PageHead title="Senha" desc="Ao trocar a senha, as outras sessões abertas são encerradas." />
+      <Card className="max-w-xl">
         <FormularioDeSenha />
-      </section>
-    </div>
+      </Card>
+    </>
   );
 }

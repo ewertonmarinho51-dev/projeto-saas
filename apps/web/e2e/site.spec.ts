@@ -17,13 +17,25 @@ const PAGINAS = [
   "/contato",
   "/privacidade",
 ];
-const SITE = "https://govconect.com";
+// Origem canônica: a do ambiente do web (GOVCONECT_SITE_URL; em produção
+// https://govconect.com, provado em tests/site.test.ts). A prova lê da home
+// e exige que todas as páginas, o sitemap e o JSON-LD usem a mesma.
+let SITE = "";
+async function origem(page: import("@playwright/test").Page) {
+  if (!SITE) {
+    await page.goto("/");
+    SITE = (await page.locator('link[rel="canonical"]').getAttribute("href")) ?? "";
+    expect(SITE).toMatch(/^https?:\/\/[^/]+$/);
+  }
+  return SITE;
+}
 
 test("cada página pública tem h1, título, descrição e canônica próprios", async ({ page }) => {
   const erros: string[] = [];
   page.on("console", (m) => m.type() === "error" && erros.push(`${page.url()}: ${m.text()}`));
   page.on("pageerror", (e) => erros.push(`${page.url()}: ${e.message}`));
   await page.emulateMedia({ reducedMotion: "reduce" });
+  await origem(page);
 
   const titulos = new Set<string>();
   const descricoes = new Set<string>();
@@ -80,6 +92,7 @@ test("a navegação marca a página atual e a trilha volta para Soluções", asy
 });
 
 test("dados estruturados da organização na página inicial", async ({ page }) => {
+  await origem(page);
   await page.goto("/");
   const json = await page.locator('script[type="application/ld+json"]').textContent();
   const dados = JSON.parse(json ?? "{}") as { "@graph": { "@type": string; url?: string }[] };
@@ -87,7 +100,8 @@ test("dados estruturados da organização na página inicial", async ({ page }) 
   expect(organizacao?.url).toBe(SITE);
 });
 
-test("sitemap lista as páginas públicas e robots deixa o sistema fora", async ({ request }) => {
+test("sitemap lista as páginas públicas e robots deixa o sistema fora", async ({ page, request }) => {
+  await origem(page);
   const mapa = await (await request.get("/sitemap.xml")).text();
   for (const caminho of PAGINAS) {
     expect(mapa).toContain(`<loc>${SITE}${caminho === "/" ? "" : caminho}</loc>`);
