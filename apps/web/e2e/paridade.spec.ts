@@ -148,5 +148,17 @@ test("casca e painel: menu por papel, trilha, recolher e gaveta", async ({ page 
   );
   await page.setViewportSize({ width: 1440, height: 900 });
   await capturar(page, "app-processos");
+
+  // Tabela: menu de linha só com ações reais, e a linha leva ao processo.
+  const tabela = page.getByRole("table", { name: "Processos do órgão" });
+  await expect(tabela).toBeVisible();
+  await tabela.getByRole("button", { name: /^Mais ações/ }).first().click();
+  await expect(page.getByRole("menuitem", { name: "Dados da demanda" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: /Excluir/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await tabela.getByRole("link").first().click();
+  await expect(page.getByTestId("titulo-processo")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Preencher dados da demanda" })).toBeVisible();
+  await capturar(page, "app-processo");
   expect(erros).toEqual([]);
 });

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { FormularioMatriz } from "@/components/formulario-matriz";
-import { Breadcrumbs, PageHead } from "@/design-system";
+import { Button, PageHead } from "@/design-system";
 import { chamarApi, ErroDaApi, type Formulario, type Processo } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Dados da demanda" };
@@ -33,14 +33,12 @@ export default async function PaginaDoFormulario({
 
   return (
     <div className="grid gap-6">
-      <Breadcrumbs
-        items={[
-          { label: "Processos", href: "/app/processos" },
-          { label: processo.nome_exibido, href: `/app/processos/${id}` },
-          { label: "Dados da demanda" },
-        ]}
-      />
       <PageHead
+        eyebrow={
+          <Button variant="link" size="sm" icon="arrow-left" href={`/app/processos/${id}`} className="justify-self-start">
+            {processo.nome_exibido}
+          </Button>
+        }
         title="Dados da demanda"
         desc="Preencha as informações essenciais para iniciar o planejamento da contratação. Os documentos vêm depois."
       />

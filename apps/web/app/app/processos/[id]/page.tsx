@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 
 import { FormularioDeProcesso } from "@/components/form-processo";
-import { cartao } from "@/components/ui";
-import { Button } from "@/design-system";
+import { situacaoDoProcesso } from "@/components/situacao";
+import { Alert, Button, Card, DataList, PageHead, ProgressBar, StatusBadge } from "@/design-system";
 import { chamarApi, ErroDaApi, type Modulos, type Processo } from "@/lib/api";
 
 import { editarProcesso } from "../acoes";
@@ -46,72 +44,56 @@ export default async function DetalheDoProcesso({
         : null;
 
   return (
-    <div className="grid gap-8">
-      <Link
-        href="/app/processos"
-        className="inline-flex items-center gap-2 justify-self-start text-sm text-secundario hover:text-texto"
-      >
-        <ArrowLeft size={16} weight="bold" aria-hidden />
-        Processos
-      </Link>
+    <>
+      <PageHead
+        eyebrow={<StatusBadge status={situacaoDoProcesso(p.status)} label={p.status} />}
+        title={<span data-testid="titulo-processo">{p.nome_exibido}</span>}
+        desc={`Atualizado em ${p.atualizado_em ? DATA.format(new Date(p.atualizado_em)) : "data indisponível"}.`}
+      />
 
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight" data-testid="titulo-processo">
-          {p.nome_exibido}
-        </h1>
-        <dl className="mt-4 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-3">
-          <div>
-            <dt className="text-secundario">Situação</dt>
-            <dd className="font-medium">{p.status}</dd>
-          </div>
-          <div>
-            <dt className="text-secundario">Etapa</dt>
-            <dd className="font-medium">{p.etapa}</dd>
-          </div>
-          <div>
-            <dt className="text-secundario">Documentos aprovados</dt>
-            <dd className="font-medium">
-              {p.progresso.feitos} de {p.progresso.total}
-            </dd>
-          </div>
-        </dl>
-        <p className="mt-3 text-xs text-secundario">
-          Atualizado em {p.atualizado_em ? DATA.format(new Date(p.atualizado_em)) : "data indisponível"}
-        </p>
-      </div>
+      {aviso && <Alert variant="success" title={aviso} />}
 
-      {aviso && (
-        <p role="status" className="rounded-[var(--radius-ui)] bg-ok-fundo px-4 py-3 text-sm text-ok">
-          {aviso}
-        </p>
-      )}
+      <Card>
+        <DataList
+          stacked
+          items={[
+            { label: "Situação", value: p.status },
+            { label: "Etapa", value: p.etapa },
+            {
+              label: "Documentos aprovados",
+              value: (
+                <ProgressBar
+                  size="sm"
+                  value={p.progresso.feitos}
+                  max={Math.max(p.progresso.total, 1)}
+                  showValue={false}
+                  hint={`${p.progresso.feitos} de ${p.progresso.total}`}
+                />
+              ),
+            },
+          ]}
+        />
+      </Card>
 
-      <section aria-labelledby="titulo-formulario" className={`${cartao} flex flex-wrap items-center justify-between gap-4 p-6 sm:p-8`}>
-        <div className="grid gap-1">
-          <h2 id="titulo-formulario" className="text-lg font-semibold">
-            Dados da demanda
-          </h2>
-          <p className="text-sm text-secundario">
-            Formulário Matriz: objeto, justificativa, planilha de itens e o restante que os documentos usam.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {modulos.consolidar_demandas && (
-            <Button href={`/app/processos/${p.id}/demandas`} variant="secondary" icon="tray">
-              Consolidar demandas
+      <Card
+        title="Dados da demanda"
+        subtitle="Formulário Matriz: objeto, justificativa, planilha de itens e o restante que os documentos usam."
+        actions={
+          <>
+            {modulos.consolidar_demandas && (
+              <Button href={`/app/processos/${p.id}/demandas`} variant="secondary" icon="tray">
+                Consolidar demandas
+              </Button>
+            )}
+            <Button href={`/app/processos/${p.id}/formulario`} icon="pencil-simple">
+              Preencher dados da demanda
             </Button>
-          )}
-          <Button href={`/app/processos/${p.id}/formulario`} icon="pencil-simple">
-            Preencher dados da demanda
-          </Button>
-        </div>
-      </section>
+          </>
+        }
+      />
 
-      <section aria-labelledby="titulo-editar" className={`${cartao} p-6 sm:p-8`}>
-        <h2 id="titulo-editar" className="text-lg font-semibold">
-          Dados do processo
-        </h2>
-        <div className="mt-6 max-w-xl">
+      <Card title="Dados do processo" divided>
+        <div className="max-w-xl">
           <FormularioDeProcesso
             acao={editarProcesso}
             rotuloDoBotao="Salvar alterações"
@@ -119,7 +101,7 @@ export default async function DetalheDoProcesso({
             inicial={{ nome: p.nome, orgao: p.orgao, objeto: p.objeto }}
           />
         </div>
-      </section>
-    </div>
+      </Card>
+    </>
   );
 }
