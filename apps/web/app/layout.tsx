@@ -3,6 +3,8 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import { headers } from "next/headers";
 
+import { FocoDeRota } from "@/components/foco-de-rota";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,6 +22,7 @@ export default async function LayoutRaiz({ children }: { children: React.ReactNo
   return (
     <html lang="pt-BR" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className="min-h-[100dvh]">
+        <FocoDeRota />
         <a
           href="#conteudo"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-[var(--radius-ui)] focus:bg-superficie focus:px-4 focus:py-2"
