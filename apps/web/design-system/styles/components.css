@@ -658,7 +658,7 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   .gc-auth__title{display:grid;gap:var(--space-1-5)}
   .gc-auth__sub{color:var(--text-secondary)}
   .gc-auth__row{display:flex;justify-content:flex-end;align-items:center;gap:var(--space-3)}
-  .gc-auth__link{font-size:var(--gc-fs-sm)}
+  .gc-auth__link{font-size:var(--gc-fs-sm);color:var(--text-link);text-underline-offset:3px}
   .gc-auth__legal{font-size:var(--gc-fs-xs);color:var(--text-secondary)}
   .gc-auth__legal a,.gc-auth__link{text-decoration:underline}
   .gc-auth__pitch{max-width:460px;display:grid;gap:var(--space-4)}
@@ -681,6 +681,7 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   .gc-base :where(h1){font:var(--type-h1);letter-spacing:var(--gc-tracking-tight)}
   .gc-base :where(h2){font:var(--type-h2);letter-spacing:var(--gc-tracking-tight)}
   .gc-base :where(h3){font:var(--type-h3)}
-  .gc-base :where(a){color:var(--text-link);text-underline-offset:3px}
-  .gc-base :where(a:hover){color:var(--text-link-hover)}
+  /* Só link solto: <a> com classe do design system (botão, item de menu, aba, logo) tem cor própria, e esta regra viria depois dela no arquivo. */
+  .gc-base :where(a:not([class*="gc-"])){color:var(--text-link);text-underline-offset:3px}
+  .gc-base :where(a:not([class*="gc-"]):hover){color:var(--text-link-hover)}
 }
