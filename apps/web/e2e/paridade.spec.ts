@@ -196,6 +196,19 @@ test("pesquisa de preços: etapas, itens, triagem que filtra e cesta", async ({ 
   await page.getByTestId("referencia").first().getByRole("button", { name: "Ver origem" }).click();
   await expect(page.getByRole("dialog")).toContainText("Rastreabilidade da referência");
   await page.screenshot({ path: `${PASTA}/app-item-origem-1440.png` });
-  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  // Dois controles "Fechar": o X do cabeçalho (primeiro no DOM) e o botão do
+  // rodapé (último). Cada um fecha; Esc também.
+  const dialogo = page.getByRole("dialog");
+  const fechar = dialogo.getByRole("button", { name: "Fechar", exact: true });
+  await expect(fechar).toHaveCount(2);
+  const verOrigem = page.getByTestId("referencia").first().getByRole("button", { name: "Ver origem" });
+  await fechar.last().click();
+  await expect(dialogo).toHaveCount(0);
+  await verOrigem.click();
+  await fechar.first().click();
+  await expect(dialogo).toHaveCount(0);
+  await verOrigem.click();
+  await page.keyboard.press("Escape");
+  await expect(dialogo).toHaveCount(0);
   expect(erros).toEqual([]);
 });
