@@ -159,3 +159,40 @@ test("casca e painel: menu por papel, trilha, recolher e gaveta", async ({ page 
   await capturar(page, "app-processo");
   expect(erros).toEqual([]);
 });
+
+test("pesquisa de preços: etapas, itens, triagem que filtra e cesta", async ({ page }) => {
+  const erros = vigiarConsole(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/entrar");
+  await page.getByLabel("E-mail institucional").fill(conta.email);
+  await page.getByLabel("Senha", { exact: true }).fill(conta.senha);
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await page.waitForURL(/\/app$/);
+
+  await page.goto("/app/precos");
+  await expect(page.getByRole("heading", { name: "Pesquisas de preços", level: 1 })).toBeVisible();
+  await capturar(page, "app-precos");
+  await page.getByRole("listitem").filter({ hasText: "Luvas E2E" }).first().getByRole("link").click();
+  await expect(page.getByTestId("titulo-pesquisa")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Etapas da pesquisa de preços" })).toBeVisible();
+  await capturar(page, "app-pesquisa");
+
+  await page.locator("section[aria-labelledby=titulo-itens] tbody a").first().click();
+  await expect(page.getByTestId("preco-do-item")).toBeVisible();
+  const resumo = page.getByRole("group", { name: "Resumo da triagem" });
+  await expect(resumo).toBeVisible();
+  // O contador filtra de verdade: "Fora do cálculo" esconde o que está na cesta.
+  const naCesta = await page.getByTestId("referencia").filter({ hasText: "Na cesta" }).count();
+  await resumo.getByRole("button", { name: /Fora do cálculo/ }).click();
+  await expect(resumo.getByRole("button", { name: /Fora do cálculo/ })).toHaveAttribute("aria-pressed", "true");
+  if (naCesta > 0) await expect(page.getByTestId("referencia").filter({ hasText: "Na cesta" })).toHaveCount(0);
+  await resumo.getByRole("button", { name: /Fora do cálculo/ }).click();
+  await capturar(page, "app-item");
+
+  // Origem: diálogo com o que a coleta registrou.
+  await page.getByTestId("referencia").first().getByRole("button", { name: "Ver origem" }).click();
+  await expect(page.getByRole("dialog")).toContainText("Rastreabilidade da referência");
+  await page.screenshot({ path: `${PASTA}/app-item-origem-1440.png` });
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  expect(erros).toEqual([]);
+});

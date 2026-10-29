@@ -48,8 +48,8 @@ export function PriceItemNav({ items, activeId, onSelect, minRefs = 3 }: PriceIt
               <span className="gc-itemnav__body">
                 <span className="gc-itemnav__title">{it.title}</span>
                 <span className="gc-itemnav__meta">
-                  <span className={cx(poucas && "gc-itemnav__refs--low")}>{it.refs ?? 0} ref.</span>
-                  {it.unit && <span>· {it.unit}</span>}
+                  {it.refs != null && <span className={cx(poucas && "gc-itemnav__refs--low")}>{it.refs} ref.</span>}
+                  {it.unit && <span>{it.refs != null && "· "}{it.unit}</span>}
                   {it.value && <span className="gc-num">· {it.value}</span>}
                 </span>
               </span>

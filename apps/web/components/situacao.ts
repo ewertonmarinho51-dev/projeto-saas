@@ -27,6 +27,18 @@ const DA_PESQUISA: Record<string, ProcessStatus> = {
   failed: "erro",
 };
 
+const DO_ITEM: Record<string, ProcessStatus> = {
+  pending: "pendente",
+  searching: "em_andamento",
+  matching: "em_andamento",
+  review: "em_revisao",
+  complete: "concluido",
+  incomplete: "pendente",
+  error: "erro",
+};
+
+export const situacaoDoItem = (estado: string): ProcessStatus => DO_ITEM[estado] ?? "em_andamento";
+
 export const situacaoDoProcesso = (status: string): ProcessStatus => DO_PROCESSO[status] ?? "em_andamento";
 
 export const situacaoDaPesquisa = (estado: string): ProcessStatus => DA_PESQUISA[estado] ?? "em_andamento";

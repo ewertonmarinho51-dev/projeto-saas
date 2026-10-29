@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 
 import { BotaoDeColeta, ProgressoDaColeta } from "@/components/coleta";
 import { PainelDeEmissao, ProgressoDoRelatorio } from "@/components/emissao";
@@ -9,7 +8,20 @@ import { AplicarAoProcesso } from "@/components/aplicar-processo";
 import { FechamentoDaPesquisa, GestaoDaPesquisa, NovoItem } from "@/components/gestao-cotacao";
 import { ImportarPlanilha } from "@/components/importar-planilha";
 import { dataCurta, rotuloEstadoItem, rotuloEstadoPesquisa, rotuloMetodo } from "@/components/precos";
-import { cartao } from "@/components/ui";
+import { situacaoDaPesquisa, situacaoDoItem } from "@/components/situacao";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  DataList,
+  EmptyState,
+  PageHead,
+  StatusBadge,
+  Stepper,
+  TableContainer,
+  type StepItem,
+} from "@/design-system";
 import {
   chamarApi,
   ErroDaApi,
@@ -66,190 +78,253 @@ export default async function Pesquisa({
     }
   }
 
-  return (
-    <div className="grid gap-8">
-      <Link
-        href="/app/precos"
-        className="inline-flex items-center gap-2 justify-self-start text-sm text-secundario hover:text-texto"
-      >
-        <ArrowLeft size={16} weight="bold" aria-hidden />
-        Pesquisas de preços
-      </Link>
+  const aviso =
+    criada === "1"
+      ? "Pesquisa criada. Importe a planilha de itens para começar."
+      : importada === "1"
+        ? "Planilha importada. Os itens novos estão pendentes de coleta."
+        : duplicada === "1"
+          ? "Pesquisa duplicada: mesmos itens, nenhum preço. A coleta é refeita na nova data-base."
+          : arquivada === "1"
+            ? "Pesquisa arquivada. Nada foi apagado."
+            : item_retirado === "1"
+              ? "Item retirado da pesquisa. Ele continua na trilha."
+              : concluida === "1"
+                ? "Cotação concluída. Agora ela pode ser aplicada ao processo."
+                : revisao === "1"
+                  ? "Revisão criada: esta é a versão nova, editável. A anterior ficou guardada."
+                  : aplicada === "1"
+                    ? "Preços aplicados ao processo. Os documentos descartados precisam ser gerados novamente."
+                    : null;
+  const concluidos = p.itens.filter((i) => i.estado === "complete").length;
 
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight" data-testid="titulo-pesquisa">
-          {p.nome}
-        </h1>
-        {p.objeto && <p className="mt-2 max-w-[70ch] text-secundario">{p.objeto}</p>}
-        <dl className="mt-5 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-4">
-          <div>
-            <dt className="text-secundario">Situação</dt>
-            <dd className="font-medium">{rotuloEstadoPesquisa(p.estado)}</dd>
-          </div>
-          <div>
-            <dt className="text-secundario">Valor global</dt>
-            <dd className="font-medium tabular-nums" data-testid="valor-global">
-              {p.valor_global?.exibicao ?? "Não calculado"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-secundario">Data-base</dt>
-            <dd className="font-medium">{dataCurta(p.data_base) || "Não informada"}</dd>
-          </div>
-          <div>
-            <dt className="text-secundario">Responsável</dt>
-            <dd className="font-medium">{p.responsavel || "Não informado"}</dd>
-          </div>
-        </dl>
-        <div className="mt-6 grid gap-3">
-          {(criada === "1" || importada === "1" || aplicada === "1" || duplicada === "1" || arquivada === "1" ||
-            item_retirado === "1" || concluida === "1" || revisao === "1") && (
-            <p role="status" className="rounded-[var(--radius-ui)] bg-ok-fundo px-4 py-3 text-sm text-ok">
-              {criada === "1"
-                ? "Pesquisa criada. Importe a planilha de itens para começar."
-                : importada === "1"
-                  ? "Planilha importada. Os itens novos estão pendentes de coleta."
-                  : duplicada === "1"
-                    ? "Pesquisa duplicada: mesmos itens, nenhum preço. A coleta é refeita na nova data-base."
-                    : arquivada === "1"
-                      ? "Pesquisa arquivada. Nada foi apagado."
-                      : item_retirado === "1"
-                        ? "Item retirado da pesquisa. Ele continua na trilha."
-                        : concluida === "1"
-                          ? "Cotação concluída. Agora ela pode ser aplicada ao processo."
-                          : revisao === "1"
-                            ? "Revisão criada: esta é a versão nova, editável. A anterior ficou guardada."
-                        : "Preços aplicados ao processo. Os documentos descartados precisam ser gerados novamente."}
-            </p>
-          )}
-          <GestaoDaPesquisa pesquisa={p.id} editavel={!IMUTAVEIS.has(p.estado)} />
-          <FechamentoDaPesquisa
-            pesquisa={p.id}
-            estado={p.estado}
-            itens={p.itens.length}
-            faltam={p.itens.filter((i) => i.estado !== "complete").length}
-          />
-          {jobId && <ProgressoDaColeta jobId={jobId} />}
-          {!IMUTAVEIS.has(p.estado) && (
-            // Chave nova a cada renderização: um clique (ou o reenvio do
-            // formulário) não põe duas coletas na fila — a API devolve o
-            // mesmo job para a mesma chave.
-            <BotaoDeColeta pesquisa={p.id} chave={`web-coleta-${crypto.randomUUID()}`} />
-          )}
-        </div>
-      </div>
+  return (
+    <>
+      <PageHead
+        eyebrow={
+          <span className="flex flex-wrap items-center gap-2">
+            <Button variant="link" size="sm" icon="arrow-left" href="/app/precos">
+              Pesquisas de preços
+            </Button>
+            <StatusBadge status={situacaoDaPesquisa(p.estado)} label={rotuloEstadoPesquisa(p.estado)} size="sm" />
+            <Badge variant="neutral" size="sm">
+              Lei nº 14.133/2021, art. 23
+            </Badge>
+          </span>
+        }
+        title={<span data-testid="titulo-pesquisa">{p.nome}</span>}
+        desc={p.objeto || undefined}
+      />
+
+      <Card>
+        <DataList
+          stacked
+          items={[
+            { label: "Itens", value: p.itens.length, numeric: true },
+            { label: "Itens concluídos", value: `${concluidos} de ${p.itens.length}`, numeric: true },
+            {
+              label: "Valor global",
+              value: <span data-testid="valor-global">{p.valor_global?.exibicao ?? "Não calculado"}</span>,
+              numeric: true,
+            },
+            { label: "Data-base", value: dataCurta(p.data_base) || "Não informada" },
+            { label: "Responsável", value: p.responsavel || "Não informado" },
+          ]}
+        />
+      </Card>
+
+      <Card>
+        <Stepper ariaLabel="Etapas da pesquisa de preços" steps={etapas(p.estado, p.itens.length, concluidos)} />
+      </Card>
+
+      {aviso && <Alert variant="success" title={aviso} />}
+      <GestaoDaPesquisa pesquisa={p.id} editavel={!IMUTAVEIS.has(p.estado)} />
+      <FechamentoDaPesquisa
+        pesquisa={p.id}
+        estado={p.estado}
+        itens={p.itens.length}
+        faltam={p.itens.length - concluidos}
+      />
+      {jobId && <ProgressoDaColeta jobId={jobId} />}
+      {!IMUTAVEIS.has(p.estado) && (
+        // Chave nova a cada renderização: um clique (ou o reenvio do
+        // formulário) não põe duas coletas na fila — a API devolve o
+        // mesmo job para a mesma chave.
+        <BotaoDeColeta pesquisa={p.id} chave={`web-coleta-${crypto.randomUUID()}`} />
+      )}
 
       {!IMUTAVEIS.has(p.estado) && (
-        <section aria-labelledby="titulo-importar" className={`${cartao} grid gap-3 p-5`}>
-          <h2 id="titulo-importar" className="text-lg font-semibold">
-            Importar itens
-          </h2>
-          <ImportarPlanilha pesquisa={p.id} />
-          <details className="group border-t border-linha pt-3" data-testid="incluir-item">
-            <summary className="cursor-pointer text-sm font-medium text-acento">Ou inclua um item à mão</summary>
-            <div className="mt-4">
-              <NovoItem pesquisa={p.id} />
+        <section aria-labelledby="titulo-importar" className="gc-card">
+          <div className="gc-card__header gc-card__header--divided">
+            <div className="gc-card__titles">
+              <h2 id="titulo-importar" className="gc-card__title">
+                Importar itens
+              </h2>
+              <p className="gc-card__subtitle">A planilha do modelo, conferida antes de gravar.</p>
             </div>
-          </details>
+          </div>
+          <div className="gc-card__body grid gap-3">
+            <ImportarPlanilha pesquisa={p.id} />
+            <details className="group border-t border-linha pt-3" data-testid="incluir-item">
+              <summary className="cursor-pointer text-[length:var(--gc-fs-sm)] font-[number:var(--weight-medium)] text-acento">
+                Ou inclua um item à mão
+              </summary>
+              <div className="mt-4">
+                <NovoItem pesquisa={p.id} />
+              </div>
+            </details>
+          </div>
         </section>
       )}
 
-      <section aria-labelledby="titulo-itens" className="grid gap-3">
-        <h2 id="titulo-itens" className="text-lg font-semibold">
-          Itens <span className="font-normal text-secundario">({p.itens.length})</span>
-        </h2>
-        {p.itens.length === 0 ? (
-          <p className={`${cartao} px-6 py-10 text-center text-sm text-secundario`}>
-            Esta pesquisa ainda não tem itens. Importe a planilha acima.
-          </p>
-        ) : (
-          // Rolagem horizontal no celular: tabela de preço não se espreme em
-          // cartões — a comparação entre linhas é o que importa.
-          <div className={`${cartao} overflow-x-auto`}>
-            <table className="w-full min-w-[56rem] text-sm">
-              <caption className="sr-only">Itens da pesquisa com preço estimado</caption>
-              <thead className="border-b border-linha text-left text-secundario">
-                <tr>
-                  <th scope="col" className="px-4 py-3 font-medium">Nº</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Descrição</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Unidade</th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">Quantidade</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Método</th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">Preço estimado</th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium">Total</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Situação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-linha">
-                {p.itens.map((i) => (
-                  <tr key={i.id} className="transition-colors hover:bg-canvas">
-                    <td className="px-4 py-3 font-mono text-secundario">{i.numero}</td>
-                    <td className="max-w-[28rem] px-4 py-3">
-                      <Link
-                        href={`/app/precos/${p.id}/itens/${i.id}`}
-                        className="text-texto underline-offset-4 hover:text-acento hover:underline"
-                      >
-                        {i.descricao}
-                      </Link>
-                      {i.codigo && (
-                        <span className="mt-0.5 block font-mono text-xs text-secundario">
-                          {i.tipo_catalogo ?? "Código"} {i.codigo}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">{i.unidade}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{i.quantidade?.exibicao ?? ""}</td>
-                    <td className="px-4 py-3">{rotuloMetodo(i.metodo)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{i.preco_estimado?.exibicao ?? ""}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{i.preco_total?.exibicao ?? ""}</td>
-                    <td className="px-4 py-3 text-secundario">{rotuloEstadoItem(i.estado)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <section aria-labelledby="titulo-itens" className="gc-card">
+        <div className="gc-card__header">
+          <div className="gc-card__titles">
+            <h2 id="titulo-itens" className="gc-card__title">
+              Itens <Badge size="sm">{p.itens.length}</Badge>
+            </h2>
+            <p className="gc-card__subtitle">Abra um item para ver as referências, a cesta e a origem de cada preço.</p>
           </div>
-        )}
+        </div>
+        <div className="gc-card__body gc-card__body--flush">
+          {p.itens.length === 0 ? (
+            <EmptyState
+              icon="tray"
+              title="Esta pesquisa ainda não tem itens."
+              description="Importe a planilha acima ou inclua um item à mão."
+            />
+          ) : (
+            // Rolagem horizontal no celular: tabela de preço não se espreme em
+            // cartões — a comparação entre linhas é o que importa.
+            <TableContainer>
+              <table className="gc-table" style={{ minWidth: "calc(var(--space-16) * 14)" }}>
+                <caption className="gc-sr-only">Itens da pesquisa com preço estimado</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Nº</th>
+                    <th scope="col">Descrição</th>
+                    <th scope="col">Unidade</th>
+                    <th scope="col" data-align="right">
+                      Quantidade
+                    </th>
+                    <th scope="col">Método</th>
+                    <th scope="col" data-align="right">
+                      Preço estimado
+                    </th>
+                    <th scope="col" data-align="right">
+                      Total
+                    </th>
+                    <th scope="col">Situação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {p.itens.map((i) => (
+                    <tr key={i.id}>
+                      <td className="gc-mono text-secundario">{i.numero}</td>
+                      <td className="max-w-[calc(var(--space-16)*7)]">
+                        <Link
+                          href={`/app/precos/${p.id}/itens/${i.id}`}
+                          className="font-[number:var(--weight-medium)] text-texto no-underline hover:underline"
+                        >
+                          {i.descricao}
+                        </Link>
+                        {i.codigo && (
+                          <span className="gc-table__sub gc-mono">
+                            {i.tipo_catalogo ?? "Código"} {i.codigo}
+                          </span>
+                        )}
+                      </td>
+                      <td>{i.unidade}</td>
+                      <td data-align="right" className="gc-num">
+                        {i.quantidade?.exibicao ?? ""}
+                      </td>
+                      <td>{rotuloMetodo(i.metodo)}</td>
+                      <td data-align="right" className="gc-num">
+                        {i.preco_estimado?.exibicao ?? ""}
+                      </td>
+                      <td data-align="right" className="gc-num">
+                        {i.preco_total?.exibicao ?? ""}
+                      </td>
+                      <td>
+                        <StatusBadge status={situacaoDoItem(i.estado)} label={rotuloEstadoItem(i.estado)} size="sm" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableContainer>
+          )}
+        </div>
       </section>
 
       {p.itens.length > 0 && (
-        <section aria-labelledby="titulo-emissao" className="grid gap-3" data-testid="secao-emissao">
-          <div>
-            <h2 id="titulo-emissao" className="text-lg font-semibold">
-              Relatórios
-            </h2>
-            {preparo && (
-              <p className="mt-1 text-sm text-secundario">
-                Identificador desta versão do resultado: <span className="font-mono">{preparo.identificador.slice(0, 16)}</span>.
-                O mesmo resultado gera sempre o mesmo identificador.
-              </p>
+        <section aria-labelledby="titulo-emissao" className="gc-card" data-testid="secao-emissao">
+          <div className="gc-card__header gc-card__header--divided">
+            <div className="gc-card__titles">
+              <h2 id="titulo-emissao" className="gc-card__title">
+                Relatórios
+              </h2>
+              {preparo && (
+                <p className="gc-card__subtitle">
+                  Identificador desta versão do resultado:{" "}
+                  <span className="gc-mono">{preparo.identificador.slice(0, 16)}</span>. O mesmo resultado gera sempre o
+                  mesmo identificador.
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="gc-card__body grid gap-3">
+            {relatorioId && <ProgressoDoRelatorio jobId={relatorioId} />}
+            {preparo ? (
+              <PainelDeEmissao pesquisa={p.id} preparo={preparo} chave={`web-rel-${crypto.randomUUID()}`} />
+            ) : (
+              <Alert variant="neutral" compact>
+                Não foi possível preparar a emissão agora. Recarregue a página em instantes.
+              </Alert>
             )}
           </div>
-          {relatorioId && <ProgressoDoRelatorio jobId={relatorioId} />}
-          {preparo ? (
-            <PainelDeEmissao pesquisa={p.id} preparo={preparo} chave={`web-rel-${crypto.randomUUID()}`} />
-          ) : (
-            <p className="text-sm text-secundario">Não foi possível preparar a emissão agora. Recarregue a página em instantes.</p>
-          )}
         </section>
       )}
 
       {(p.estado === "completed" || p.estado === "applied") && (
-        <section aria-labelledby="titulo-aplicar" className="grid gap-3" data-testid="secao-aplicar">
-          <div>
-            <h2 id="titulo-aplicar" className="text-lg font-semibold">
-              Aplicar ao processo
-            </h2>
-            <p className="mt-1 max-w-[65ch] text-sm text-secundario">
-              O preço estimado passa a ser o valor da contratação, e é ele que vai para o DFD, o ETP, o TR e o edital.
-            </p>
+        <section aria-labelledby="titulo-aplicar" className="gc-card" data-testid="secao-aplicar">
+          <div className="gc-card__header gc-card__header--divided">
+            <div className="gc-card__titles">
+              <h2 id="titulo-aplicar" className="gc-card__title">
+                Aplicar ao processo
+              </h2>
+              <p className="gc-card__subtitle">
+                O preço estimado passa a ser o valor da contratação, e é ele que vai para o DFD, o ETP, o TR e o edital.
+              </p>
+            </div>
           </div>
-          {previa ? (
-            <AplicarAoProcesso pesquisa={p.id} previa={previa} />
-          ) : (
-            <p className="text-sm text-secundario">Não foi possível montar a prévia agora. Recarregue a página em instantes.</p>
-          )}
+          <div className="gc-card__body">
+            {previa ? (
+              <AplicarAoProcesso pesquisa={p.id} previa={previa} />
+            ) : (
+              <Alert variant="neutral" compact>
+                Não foi possível montar a prévia agora. Recarregue a página em instantes.
+              </Alert>
+            )}
+          </div>
         </section>
       )}
-    </div>
+    </>
   );
+}
+
+/**
+ * As etapas da referência (Definir itens → Coletar → Triagem → Mapa →
+ * Relatório), lidas do estado que a API devolve — indicador, não
+ * navegação: cada etapa é uma seção desta página.
+ */
+function etapas(estado: string, itens: number, concluidos: number): StepItem[] {
+  const atual =
+    itens === 0 ? 0 : estado === "queued" || estado === "running" ? 1 : concluidos < itens ? 2 : estado === "completed" ? 4 : estado === "applied" ? 5 : 3;
+  const nomes = ["Definir itens", "Coletar preços", "Triagem", "Mapa de preços", "Relatório final"];
+  return nomes.map((label, i) => ({
+    label,
+    state: estado === "failed" && i === 1 ? "error" : i < atual ? "done" : i === atual ? "current" : "todo",
+    meta: i === 2 && itens > 0 ? `${concluidos} de ${itens} itens` : undefined,
+  }));
 }

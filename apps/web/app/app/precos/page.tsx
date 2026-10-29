@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CaretRight, Plus } from "@phosphor-icons/react/dist/ssr";
 
 import { dataCurta, rotuloEstadoPesquisa } from "@/components/precos";
-import { botaoPrimario, cartao } from "@/components/ui";
+import { situacaoDaPesquisa } from "@/components/situacao";
+import { Button, Card, EmptyState, Icon, PageHead, StatusBadge } from "@/design-system";
 import { chamarApi, ErroDaApi, precosHabilitado, type Pagina, type ResumoPesquisa } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Pesquisas de preços" };
@@ -29,60 +29,75 @@ export default async function Pesquisas({
   }
 
   return (
-    <div className="grid gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Pesquisas de preços</h1>
-          <p className="mt-1 text-sm text-secundario">As pesquisas do seu órgão, com fonte verificável para cada preço.</p>
-        </div>
-        <Link href="/app/precos/nova" className={botaoPrimario}>
-          <Plus size={16} weight="bold" aria-hidden />
-          Nova pesquisa
-        </Link>
-      </div>
+    <>
+      <PageHead
+        title="Pesquisas de preços"
+        desc="As pesquisas do seu órgão, com fonte verificável para cada preço."
+        actions={
+          <Button icon="plus" href="/app/precos/nova">
+            Nova pesquisa
+          </Button>
+        }
+      />
 
-      {dados.itens.length > 0 ? (
-        <ul className="divide-y divide-linha overflow-hidden rounded-[var(--radius-ui)] border border-linha bg-superficie">
-          {dados.itens.map((p) => (
-            <li key={p.id}>
-              <Link
-                href={`/app/precos/${p.id}`}
-                className="group grid grid-cols-[1fr_auto] items-center gap-4 px-5 py-4 transition-colors hover:bg-canvas"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{p.nome}</p>
-                  <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-secundario">
-                    <span className="text-texto">{rotuloEstadoPesquisa(p.estado)}</span>
-                    <span>Valor global {p.valor_global?.exibicao ?? "não calculado"}</span>
-                    <span>Atualizada em {dataCurta(p.atualizado_em)}</span>
-                  </p>
-                </div>
-                <CaretRight size={16} weight="bold" aria-hidden className="text-secundario" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className={`${cartao} px-6 py-10 text-center text-sm text-secundario`}>
-          {cursor ? "Não há mais pesquisas." : "Nenhuma pesquisa de preços no seu órgão."}
-        </p>
-      )}
-
-      <div className="flex gap-4 text-sm">
-        {cursor && (
-          <Link href="/app/precos" className="text-acento underline-offset-4 hover:underline">
-            Voltar ao início da lista
-          </Link>
+      <Card
+        flush
+        footer={
+          (cursor || dados.proximo_cursor) && (
+            <div className="flex flex-wrap justify-between gap-3">
+              {cursor ? (
+                <Button size="sm" variant="ghost" icon="arrow-left" href="/app/precos">
+                  Voltar ao início da lista
+                </Button>
+              ) : (
+                <span />
+              )}
+              {dados.proximo_cursor && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  iconRight="arrow-right"
+                  href={`/app/precos?cursor=${encodeURIComponent(dados.proximo_cursor)}`}
+                >
+                  Próxima página
+                </Button>
+              )}
+            </div>
+          )
+        }
+      >
+        {dados.itens.length > 0 ? (
+          <ul className="divide-y divide-linha">
+            {dados.itens.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={`/app/precos/${p.id}`}
+                  className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-2 px-5 py-3.5 text-texto no-underline transition-colors hover:bg-[var(--surface-hover)] hover:text-texto md:grid-cols-[minmax(0,1fr)_auto_var(--space-4)]"
+                >
+                  <span className="grid min-w-0 gap-1">
+                    <span className="truncate font-[number:var(--weight-medium)]">{p.nome}</span>
+                    <span className="flex flex-wrap gap-x-4 gap-y-1 text-[length:var(--gc-fs-sm)] text-secundario">
+                      <span className="gc-num">Valor global {p.valor_global?.exibicao ?? "não calculado"}</span>
+                      <span>Atualizada em {dataCurta(p.atualizado_em)}</span>
+                    </span>
+                  </span>
+                  <StatusBadge status={situacaoDaPesquisa(p.estado)} label={rotuloEstadoPesquisa(p.estado)} />
+                  <Icon
+                    name="caret-right"
+                    className="hidden text-[color:var(--text-tertiary)] transition-transform group-hover:translate-x-0.5 md:block"
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState
+            icon="currency-circle-dollar"
+            title={cursor ? "Não há mais pesquisas." : "Nenhuma pesquisa de preços no seu órgão."}
+            description={cursor ? undefined : "Crie uma pesquisa e importe a planilha de itens: o sistema busca referências em fontes oficiais."}
+          />
         )}
-        {dados.proximo_cursor && (
-          <Link
-            href={`/app/precos?cursor=${encodeURIComponent(dados.proximo_cursor)}`}
-            className="text-acento underline-offset-4 hover:underline"
-          >
-            Próxima página
-          </Link>
-        )}
-      </div>
-    </div>
+      </Card>
+    </>
   );
 }
