@@ -115,6 +115,9 @@ test("casca e painel: menu por papel, trilha, recolher e gaveta", async ({ page 
   }
   await expect(page.getByTestId("usuario-email")).toHaveText(conta.email);
   await expect(page.getByRole("heading", { name: "Processos recentes" })).toBeVisible();
+  // Link com classe do design system mantém a cor dele (a cor de link solto não vaza).
+  await expect(page.getByRole("link", { name: "Novo processo" }).first()).toHaveCSS("color", "rgb(255, 255, 255)");
+  await expect(menu.getByRole("link", { name: "Processos", exact: true })).toHaveCSS("color", "rgb(91, 104, 124)");
   await capturar(page, "app-inicio");
 
   // Recolher: a barra vai a 68 px e o rótulo some, o nome acessível fica.
