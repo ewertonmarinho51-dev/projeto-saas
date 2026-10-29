@@ -156,6 +156,21 @@ test("casca e painel: menu por papel, trilha, recolher e gaveta", async ({ page 
   await expect(page.getByRole("menuitem", { name: "Dados da demanda" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: /Excluir/ })).toHaveCount(0);
   await page.keyboard.press("Escape");
+
+  // Busca no banco: o primeiro processo é achado pelo próprio nome; termo
+  // sem correspondência mostra o vazio da busca; limpar volta à lista.
+  const primeiro = (await tabela.getByRole("link").first().textContent())?.trim() ?? "";
+  const palavra = primeiro.split(/\s+/).find((p) => p.length >= 4) ?? primeiro;
+  await page.getByRole("searchbox", { name: "Buscar processos" }).fill(palavra);
+  await page.getByRole("button", { name: "Buscar", exact: true }).click();
+  await expect(page).toHaveURL(/[?&]q=/);
+  await expect(tabela.getByRole("link", { name: primeiro })).toBeVisible();
+  await page.getByRole("searchbox", { name: "Buscar processos" }).fill("zzqx-sem-processo");
+  await page.getByRole("button", { name: "Buscar", exact: true }).click();
+  await expect(page.getByText("Nenhum processo com “zzqx-sem-processo”.")).toBeVisible();
+  await page.getByRole("link", { name: "Limpar busca" }).click();
+  await expect(page).toHaveURL(/\/app\/processos$/);
+
   await tabela.getByRole("link").first().click();
   await expect(page.getByTestId("titulo-processo")).toBeVisible();
   await expect(page.getByRole("link", { name: "Preencher dados da demanda" })).toBeVisible();

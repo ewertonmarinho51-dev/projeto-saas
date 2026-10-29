@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { FormularioDeProcesso } from "@/components/form-processo";
 import { TabelaDeProcessos } from "@/components/tabela-processos";
-import { Button, Card, EmptyState, PageHead } from "@/design-system";
+import { Button, Card, EmptyState, Field, Input, PageHead } from "@/design-system";
 import { chamarApi, type Modulos, type Pagina, type Processo } from "@/lib/api";
 
 import { criarProcesso } from "./acoes";
@@ -16,8 +16,16 @@ export default async function Processos({
 }) {
   const params = await searchParams;
   const cursor = typeof params.cursor === "string" ? params.cursor : "";
+  // A busca é do BANCO, sobre todos os processos que a pessoa pode ver —
+  // nunca um filtro na página já carregada.
+  const q = typeof params.q === "string" ? params.q.trim().slice(0, 100) : "";
   const consulta = new URLSearchParams({ limit: "20" });
   if (cursor) consulta.set("cursor", cursor);
+  if (q) consulta.set("q", q);
+  const lista = (extra: Record<string, string> = {}) => {
+    const busca = new URLSearchParams({ ...(q ? { q } : {}), ...extra }).toString();
+    return busca ? `/app/processos?${busca}` : "/app/processos";
+  };
   const [{ dados }, modulos] = await Promise.all([
     chamarApi<Pagina<Processo>>(`/processos?${consulta}`),
     // Módulo opcional: falha aqui só esconde o atalho do menu de linha.
@@ -38,13 +46,35 @@ export default async function Processos({
         }
       />
 
+      <form role="search" method="get" action="/app/processos" className="flex flex-wrap items-end gap-3">
+        <Field label="Buscar processos" htmlFor="busca-processos" className="min-w-0 flex-1 basis-64">
+          <Input
+            id="busca-processos"
+            name="q"
+            type="search"
+            icon="magnifying-glass"
+            defaultValue={q}
+            maxLength={100}
+            placeholder="Nome, órgão ou objeto"
+          />
+        </Field>
+        <Button type="submit" variant="secondary">
+          Buscar
+        </Button>
+        {q && (
+          <Button variant="ghost" href="/app/processos">
+            Limpar busca
+          </Button>
+        )}
+      </form>
+
       <Card
         flush
         footer={
           (cursor || dados.proximo_cursor) && (
             <div className="flex flex-wrap justify-between gap-3">
               {cursor ? (
-                <Button size="sm" variant="ghost" icon="arrow-left" href="/app/processos">
+                <Button size="sm" variant="ghost" icon="arrow-left" href={lista()}>
                   Voltar ao início da lista
                 </Button>
               ) : (
@@ -55,7 +85,7 @@ export default async function Processos({
                   size="sm"
                   variant="secondary"
                   iconRight="arrow-right"
-                  href={`/app/processos?cursor=${encodeURIComponent(dados.proximo_cursor)}`}
+                  href={lista({ cursor: dados.proximo_cursor })}
                 >
                   Próxima página
                 </Button>
@@ -68,8 +98,21 @@ export default async function Processos({
           <TabelaDeProcessos processos={dados.itens} consolidar={modulos.consolidar_demandas} />
         ) : (
           <EmptyState
-            title={cursor ? "Não há mais processos." : "Nenhum processo no seu órgão ainda."}
-            description={cursor ? undefined : "Comece registrando o órgão e o objeto da contratação, logo abaixo."}
+            icon={q ? "magnifying-glass" : undefined}
+            title={
+              q
+                ? `Nenhum processo com “${q}”.`
+                : cursor
+                  ? "Não há mais processos."
+                  : "Nenhum processo no seu órgão ainda."
+            }
+            description={
+              q
+                ? "A busca olha o nome, o órgão e o objeto de todos os processos que você pode ver."
+                : cursor
+                  ? undefined
+                  : "Comece registrando o órgão e o objeto da contratação, logo abaixo."
+            }
           />
         )}
       </Card>
