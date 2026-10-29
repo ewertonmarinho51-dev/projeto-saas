@@ -66,6 +66,9 @@ CONTAS = (
     # Só para o E2E de usuários desativar e reativar (M7c): nenhuma outra
     # prova depende dela estar ativa.
     ("a1_alternavel", "A", "A1", "usuario", True),
+    # Só da prova de paridade visual (paridade.spec.ts): admin para ver o menu
+    # inteiro, e própria pelo mesmo limite de 120/min por usuário.
+    ("admin_visual", "A", "A1", "admin", True),
     ("b1", "B", "B1", "usuario", True),
     ("a1_revogado", "A", "A1", "usuario", False),
 )

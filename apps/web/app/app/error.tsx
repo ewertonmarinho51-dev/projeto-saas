@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
-
-import { botaoSecundario } from "@/components/ui";
+import { Alert, Button } from "@/design-system";
 
 /**
  * Falha ao carregar dados da API. Sem detalhe técnico na tela: o
@@ -10,19 +8,21 @@ import { botaoSecundario } from "@/components/ui";
  */
 export default function Erro({ reset }: { error: Error; reset: () => void }) {
   return (
-    <div role="alert" className="grid gap-4 rounded-[var(--radius-ui)] border border-linha bg-superficie p-8">
-      <h1 className="text-lg font-semibold">Não foi possível carregar esta página</h1>
-      <p className="max-w-[56ch] text-sm text-secundario">
-        O serviço pode estar indisponível ou sua sessão pode ter expirado.
-      </p>
-      <div className="flex flex-wrap gap-3">
-        <button type="button" onClick={reset} className={botaoSecundario}>
-          Tentar de novo
-        </button>
-        <Link href="/entrar" className={botaoSecundario}>
-          Entrar novamente
-        </Link>
-      </div>
-    </div>
+    <Alert
+      variant="error"
+      title="Não foi possível carregar esta página"
+      actions={
+        <>
+          <Button size="sm" variant="secondary" icon="arrow-clockwise" onClick={reset}>
+            Tentar de novo
+          </Button>
+          <Button size="sm" variant="ghost" icon="sign-in" href="/entrar">
+            Entrar novamente
+          </Button>
+        </>
+      }
+    >
+      O serviço pode estar indisponível ou sua sessão pode ter expirado.
+    </Alert>
   );
 }

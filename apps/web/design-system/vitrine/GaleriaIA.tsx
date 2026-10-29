@@ -21,6 +21,7 @@ import {
   ExclusionDialog,
   Field,
   Input,
+  LandingHero,
   Logo,
   MessageFeedback,
   PageHead,
@@ -360,7 +361,7 @@ export function GaleriaIA({ tema }: { tema: string }) {
         </Grade>
       </Secao>
 
-      <Secao id="templates" tema={tema} titulo="Templates" descricao="PageHead, AppShell e AuthLayout: composições de página recriadas do ui_kit do export.">
+      <Secao id="templates" tema={tema} titulo="Templates" descricao="PageHead, AppShell, AuthLayout e LandingHero: composições de página recriadas dos ui_kits do export.">
         <Exemplo rotulo="PageHead">
           <PageHead
             eyebrow={<Badge variant="brand">Proc. 2026/001234</Badge>}
@@ -378,7 +379,7 @@ export function GaleriaIA({ tema }: { tema: string }) {
         </Exemplo>
         <Exemplo rotulo="AppShell (contido)">
           <Palco alto>
-            <div className="h-full [&_.gc-shell]:h-full [&_.gc-shell]:min-h-0">
+            <div className="h-full [&_.gc-shell]:h-full [&_.gc-shell]:min-h-0 [&_.gc-shell\_\_nav]:h-full">
               <AppShell
                 embedded
                 brand={<Logo size={28} />}
@@ -395,6 +396,17 @@ export function GaleriaIA({ tema }: { tema: string }) {
                 </Card>
               </AppShell>
             </div>
+          </Palco>
+        </Exemplo>
+        <Exemplo rotulo="LandingHero (contido)" largo>
+          <Palco>
+            <LandingHero
+              embedded
+              idPrefix={`${tema}-hero`}
+              nav={[{ label: "Plataforma", href: "#" }]}
+              signIn={{ label: "Acessar sistema", href: "#" }}
+              explore={{ label: "Conhecer a plataforma", href: "#" }}
+            />
           </Palco>
         </Exemplo>
         <Exemplo rotulo="AuthLayout (contido)">
