@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ConsolidarDemandas } from "@/components/consolidar-demandas";
-import { Alert, Breadcrumbs, PageHead } from "@/design-system";
+import { Alert, Button, PageHead } from "@/design-system";
 import { chamarApi, ErroDaApi, type Modulos, type Processo } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Consolidar demandas" };
@@ -28,14 +28,12 @@ export default async function PaginaDeDemandas({ params }: { params: Promise<{ i
 
   return (
     <div className="grid gap-6">
-      <Breadcrumbs
-        items={[
-          { label: "Processos", href: "/app/processos" },
-          { label: processo.nome_exibido, href: `/app/processos/${id}` },
-          { label: "Consolidar demandas" },
-        ]}
-      />
       <PageHead
+        eyebrow={
+          <Button variant="link" size="sm" icon="arrow-left" href={`/app/processos/${id}`} className="justify-self-start">
+            {processo.nome_exibido}
+          </Button>
+        }
         title="Consolidar demandas"
         desc="Junte os pedidos das secretarias numa tabela só, com a conta de cada item conferível, e aplique à planilha do processo."
       />

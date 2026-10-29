@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { FormularioDeProcesso } from "@/components/form-processo";
-import { ListaDeProcessos } from "@/components/lista-processos";
-import { cartao } from "@/components/ui";
-import { Card } from "@/design-system";
-import { chamarApi, type Pagina, type Processo } from "@/lib/api";
+import { TabelaDeProcessos } from "@/components/tabela-processos";
+import { Button, Card, EmptyState, PageHead } from "@/design-system";
+import { chamarApi, type Modulos, type Pagina, type Processo } from "@/lib/api";
 
 import { criarProcesso } from "./acoes";
 
@@ -20,51 +18,77 @@ export default async function Processos({
   const cursor = typeof params.cursor === "string" ? params.cursor : "";
   const consulta = new URLSearchParams({ limit: "20" });
   if (cursor) consulta.set("cursor", cursor);
-  const { dados } = await chamarApi<Pagina<Processo>>(`/processos?${consulta}`);
+  const [{ dados }, modulos] = await Promise.all([
+    chamarApi<Pagina<Processo>>(`/processos?${consulta}`),
+    // Módulo opcional: falha aqui só esconde o atalho do menu de linha.
+    chamarApi<Modulos>("/modulos")
+      .then((r) => r.dados)
+      .catch((): Modulos => ({ consolidar_demandas: false })),
+  ]);
 
   return (
-    <div className="grid gap-12">
-      <section className="grid gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Processos</h1>
-        {dados.itens.length > 0 ? (
-          <Card flush>
-            <ListaDeProcessos processos={dados.itens} />
-          </Card>
-        ) : (
-          <p className={`${cartao} px-6 py-10 text-center text-sm text-secundario`}>
-            {cursor ? "Não há mais processos." : "Nenhum processo no seu órgão ainda."}
-          </p>
-        )}
-        <div className="flex gap-4 text-sm">
-          {cursor && (
-            <Link href="/app/processos" className="text-acento underline-offset-4 hover:underline">
-              Voltar ao início da lista
-            </Link>
-          )}
-          {dados.proximo_cursor && (
-            <Link
-              href={`/app/processos?cursor=${encodeURIComponent(dados.proximo_cursor)}`}
-              className="text-acento underline-offset-4 hover:underline"
-            >
-              Próxima página
-            </Link>
-          )}
-        </div>
-      </section>
+    <>
+      <PageHead
+        title="Processos"
+        desc="Os processos de contratação do órgão, do mais recente ao mais antigo, com o andamento de cada documento."
+        actions={
+          <Button icon="plus" href="#novo">
+            Novo processo
+          </Button>
+        }
+      />
 
-      <section id="novo" aria-labelledby="titulo-novo" className={`${cartao} p-6 sm:p-8`}>
-        <h2 id="titulo-novo" className="text-lg font-semibold">
-          Novo processo
-        </h2>
-        <p className="mt-1 text-sm text-secundario">O município e a secretaria vêm da sua conta.</p>
-        <div className="mt-6 max-w-xl">
+      <Card
+        flush
+        footer={
+          (cursor || dados.proximo_cursor) && (
+            <div className="flex flex-wrap justify-between gap-3">
+              {cursor ? (
+                <Button size="sm" variant="ghost" icon="arrow-left" href="/app/processos">
+                  Voltar ao início da lista
+                </Button>
+              ) : (
+                <span />
+              )}
+              {dados.proximo_cursor && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  iconRight="arrow-right"
+                  href={`/app/processos?cursor=${encodeURIComponent(dados.proximo_cursor)}`}
+                >
+                  Próxima página
+                </Button>
+              )}
+            </div>
+          )
+        }
+      >
+        {dados.itens.length > 0 ? (
+          <TabelaDeProcessos processos={dados.itens} consolidar={modulos.consolidar_demandas} />
+        ) : (
+          <EmptyState
+            title={cursor ? "Não há mais processos." : "Nenhum processo no seu órgão ainda."}
+            description={cursor ? undefined : "Comece registrando o órgão e o objeto da contratação, logo abaixo."}
+          />
+        )}
+      </Card>
+
+      <Card
+        id="novo"
+        title="Novo processo"
+        subtitle="O município e a secretaria vêm da sua conta. Os documentos vêm depois."
+        divided
+        className="scroll-mt-20"
+      >
+        <div className="max-w-xl">
           <FormularioDeProcesso
             acao={criarProcesso}
             rotuloDoBotao="Criar processo"
             ocultos={{ chave: `web-${crypto.randomUUID()}` }}
           />
         </div>
-      </section>
-    </div>
+      </Card>
+    </>
   );
 }

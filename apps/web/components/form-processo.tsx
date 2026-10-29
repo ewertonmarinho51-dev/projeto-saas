@@ -2,8 +2,8 @@
 
 import { useActionState } from "react";
 
-import { botaoPrimario, campo, rotulo } from "@/components/ui";
 import type { EstadoDoFormulario } from "@/app/app/processos/acoes";
+import { Alert, Button, Field, Input, Textarea } from "@/design-system";
 
 type Acao = (estado: EstadoDoFormulario, form: FormData) => Promise<EstadoDoFormulario>;
 
@@ -29,43 +29,35 @@ export function FormularioDeProcesso({
       {Object.entries(ocultos).map(([nome, valor]) => (
         <input key={nome} type="hidden" name={nome} value={valor} />
       ))}
-      <div className="grid gap-2">
-        <label htmlFor="nome" className={rotulo}>
-          Nome do processo <span className="font-normal text-secundario">(opcional)</span>
-        </label>
-        <input id="nome" name="nome" maxLength={120} defaultValue={inicial.nome} className={campo} />
-      </div>
-      <div className="grid gap-2">
-        <label htmlFor="orgao" className={rotulo}>
-          Órgão ou secretaria
-        </label>
-        <input id="orgao" name="orgao" required maxLength={200} defaultValue={inicial.orgao} className={campo} />
-      </div>
-      <div className="grid gap-2">
-        <label htmlFor="objeto" className={rotulo}>
-          Objeto da contratação
-        </label>
-        <textarea
+      <Field label="Nome do processo" htmlFor="nome" optional help="Sem nome, a lista mostra órgão e objeto.">
+        <Input id="nome" name="nome" maxLength={120} defaultValue={inicial.nome} />
+      </Field>
+      <Field label="Órgão ou secretaria" htmlFor="orgao" required>
+        <Input
+          id="orgao"
+          name="orgao"
+          required
+          maxLength={200}
+          defaultValue={inicial.orgao}
+          placeholder="Ex.: Secretaria Municipal de Saúde"
+        />
+      </Field>
+      <Field label="Objeto da contratação" htmlFor="objeto" required>
+        <Textarea
           id="objeto"
           name="objeto"
           required
           maxLength={2000}
           rows={3}
           defaultValue={inicial.objeto}
-          className={`${campo} h-auto py-2.5`}
+          placeholder="Ex.: Aquisição de luvas de procedimento para as unidades de saúde"
         />
-      </div>
-      <div aria-live="assertive">
-        {estado.erro && (
-          <p role="alert" className="rounded-[var(--radius-ui)] bg-erro-fundo px-4 py-3 text-sm text-erro">
-            {estado.erro}
-          </p>
-        )}
-      </div>
+      </Field>
+      <div aria-live="assertive">{estado.erro && <Alert variant="error" title={estado.erro} />}</div>
       <div>
-        <button type="submit" className={botaoPrimario} disabled={enviando}>
-          {enviando ? "Salvando..." : rotuloDoBotao}
-        </button>
+        <Button type="submit" size="lg" loading={enviando}>
+          {enviando ? "Salvando" : rotuloDoBotao}
+        </Button>
       </div>
     </form>
   );
