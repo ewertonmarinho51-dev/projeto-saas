@@ -24,7 +24,8 @@ govconect.com, www.govconect.com {
 	# Streamlit (`enableStaticServing`), por onde sai o runtime do
 	# WordCraft. A ordem dos `handle` abaixo garante isso.
 	@estatico_streamlit path /app/static/*
-	@govconect path /entrar /entrar/* /app /app/* /auth/* /privacidade /_next/* /favicon-32.png /logo-govconect.png /logo-govconect-96.png
+	# Site institucional do Next (PR #133): páginas públicas, mapa do site e robots.
+	@govconect path /entrar /entrar/* /app /app/* /auth/* /privacidade /solucoes /solucoes/* /como-funciona /sobre /contato /sitemap.xml /robots.txt /_next/* /favicon-32.png /logo-govconect.png /logo-govconect-96.png
 
 	handle @estatico_streamlit {
 		reverse_proxy app:8501 {
