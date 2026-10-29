@@ -42,6 +42,10 @@ fidelidade de tela) · ⛔ sem tela/sem API — **não simulada**.
 | Administração: Instituição, Usuários | `/app/admin/instituicao`, `/app/admin/usuarios` | 4 | ✅ | `PageHead`, `Card`, `Tabs`, `DataTable`, `Dialog`, `DateField`, `Field`/`Input`/`Select`/`Switch` (M7a–c) | Na casca nova, no grupo Gestão do menu, só para admin. |
 | Conta / Senha | `/app/conta/senha` | 4 | ✅ | `PageHead`, `Card`, `Field`, `Input`, `Alert`, `Button` | — |
 
+## Auditoria global (entrega 5)
+
+`e2e/auditoria.spec.ts` (conta própria `admin_auditoria`) passa por todas as telas autenticadas — início, processos, processo, preços, nova pesquisa, pesquisa, item, instituição, usuários, base de conhecimento, senha — e reprova se alguma: não responder 200, sair da casca (`main#conteudo`, trilha), tiver mais ou menos de um `h1`, rolar para o lado em 1440 ou 390 px, tiver imagem sem `alt` ou botão sem nome, ou registrar erro no console. O primeiro Tab tem de cair em "Pular para o conteúdo". Capturas em `e2e/resultados/auditoria/`.
+
 ## Peças do design system ainda sem uso no app
 
 `Tooltip`, `Menu`, `Toolbar*`, `Radio*`, `SearchField`, `Stepper`,
