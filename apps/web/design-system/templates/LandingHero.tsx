@@ -3,14 +3,11 @@ import type { ReactNode } from "react";
 
 import { buttonClasses } from "../components/actions/Button";
 import { Icon, type IconName } from "../components/core/Icon";
-import { Logo } from "../components/core/Logo";
 import { cx } from "../lib/cx";
+import { PublicHeader, type PublicLink } from "./PublicSite";
 
-export interface LandingLink {
-  label: string;
-  /** Rota do app (`/entrar`) ou âncora da própria página (`#plataforma`). Nunca âncora sem destino. */
-  href: string;
-}
+/** Mesmo formato do link do site público. */
+export type LandingLink = PublicLink;
 
 export interface LandingHeroProps {
   /** Links do cabeçalho; viram o menu do celular abaixo de 1180 px. */
@@ -74,43 +71,7 @@ export function LandingHero({
   const titulo = `${idPrefix}-titulo`;
   return (
     <section className={cx("gc-hero", embedded && "gc-hero--embedded")} aria-labelledby={titulo}>
-      <header className="gc-hero__head gc-glass">
-        <Logo size={30} href="/" />
-        {nav.length > 0 && (
-          <nav className="gc-hero__nav" aria-label="Navegação pública">
-            {nav.map((l) => (
-              <Link key={l.href} href={l.href}>
-                {l.label}
-              </Link>
-            ))}
-          </nav>
-        )}
-        <div className="gc-hero__actions">
-          {secondary && (
-            <Link className={buttonClasses({ variant: "subtle", size: "sm" })} href={secondary.href}>
-              {secondary.label}
-            </Link>
-          )}
-          <Link className={buttonClasses({ variant: "primary", size: "sm" })} href={signIn.href}>
-            {signIn.label}
-          </Link>
-          {(nav.length > 0 || secondary) && (
-            <details className="gc-hero__menu">
-              <summary className="gc-iconbtn gc-iconbtn--sm" aria-label="Abrir menu" title="Menu">
-                <Icon name="list" />
-              </summary>
-              <div className="gc-hero__menu-panel">
-                {nav.map((l) => (
-                  <Link key={l.href} href={l.href}>
-                    {l.label}
-                  </Link>
-                ))}
-                {secondary && <Link href={secondary.href}>{secondary.label}</Link>}
-              </div>
-            </details>
-          )}
-        </div>
-      </header>
+      <PublicHeader nav={nav} signIn={signIn} secondary={secondary} current="/" />
 
       <div className="gc-hero__grid">
         <div className="gc-hero__copy">

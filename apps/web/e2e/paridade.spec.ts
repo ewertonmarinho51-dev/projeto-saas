@@ -82,12 +82,13 @@ test("Hero: fluxo animado, âncoras com destino, menu do celular", async ({ page
   await expect(hero.locator(".gc-hero__node").first()).toHaveCSS("animation-name", "none");
   await capturar(page, "landing");
 
-  // Celular: a navegação vira menu, e o menu leva à seção.
+  // Celular: a navegação vira menu, e o menu leva às páginas do site.
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("navigation", { name: "Navegação pública" })).toBeHidden();
   await page.getByLabel("Abrir menu").click();
-  await page.locator(".gc-hero__menu-panel").getByRole("link", { name: "Plataforma" }).click();
-  await expect(page).toHaveURL(/#plataforma$/);
+  await page.locator(".gc-pubhead__menu-panel").getByRole("link", { name: "Soluções" }).click();
+  await expect(page).toHaveURL(/\/solucoes$/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   expect(erros).toEqual([]);
 });
 

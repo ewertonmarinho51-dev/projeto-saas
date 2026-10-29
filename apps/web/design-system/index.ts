@@ -4,8 +4,8 @@
  * arquivo interno: o ESLint avisa.
  *
  * 70 componentes + PROCESS_STATUS — exatamente os 71 nomes do export do
- * Claude Design — e 4 templates do ui_kit (AppShell, AuthLayout,
- * LandingHero, PageHead). tests/design-system.test.ts confere a lista.
+ * Claude Design — e 11 templates (AppShell, AuthLayout, LandingHero,
+ * PageHead e as 7 peças do site público, PublicSite.tsx). tests/design-system.test.ts confere a lista.
  */
 
 // core
@@ -107,3 +107,20 @@ export { AppShell, type AppShellProps } from "./templates/AppShell";
 export { AuthLayout, type AuthLayoutProps } from "./templates/AuthLayout";
 export { LandingHero, type LandingHeroProps, type LandingLink } from "./templates/LandingHero";
 export { PageHead, type PageHeadProps } from "./templates/PageHead";
+export {
+  PublicFeature,
+  PublicFooter,
+  PublicGrid,
+  PublicHeader,
+  PublicPage,
+  PublicSection,
+  PublicSteps,
+  type PublicFeatureProps,
+  type PublicFooterColumn,
+  type PublicFooterProps,
+  type PublicHeaderProps,
+  type PublicLink,
+  type PublicPageProps,
+  type PublicSectionProps,
+  type PublicStep,
+} from "./templates/PublicSite";

@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { CascaDoApp } from "@/components/casca-do-app";
 import { Alert } from "@/design-system";
 import { chamarApi, ErroDaApi, precosHabilitado, type Identidade } from "@/lib/api";
 import { claimsVerificadas } from "@/lib/supabase/server";
+
+// Área autenticada: fora do índice dos buscadores, mesmo se um link escapar.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 /**
  * Casca da área autenticada. Verifica a sessão de novo, no servidor —

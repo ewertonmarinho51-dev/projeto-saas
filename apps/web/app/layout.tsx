@@ -3,9 +3,12 @@ import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import { headers } from "next/headers";
 
+import { SITE_URL } from "@/components/site";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: { default: "Gov Conect", template: "%s | Gov Conect" },
   description:
     "Planejamento de contratações públicas sob a Lei 14.133/2021, com revisão humana e preços de fonte verificável.",
