@@ -271,3 +271,37 @@ def test_limite_por_usuario_devolve_429_com_retry_after(api, emissor):
     # Outro usuário tem a própria cota.
     outro = _auth(emissor, sub="eeeeeeee-0000-4000-8000-000000000005")
     assert cliente.get("/api/v1/me", headers=outro).status_code == 200
+
+
+def test_busca_vai_ao_banco_em_and_de_or_por_palavra(api, emissor, banco):
+    banco.responder("GET", "processos", 200, [])
+    r = api().get("/api/v1/processos?q=lâmpadas  LED", headers=_auth(emissor))
+    assert r.status_code == 200
+    filtro = banco.chamadas[-1].url.params["and"]
+    assert filtro == ('(or(nome.ilike."*lâmpadas*",orgao.ilike."*lâmpadas*",objeto.ilike."*lâmpadas*"),'
+                      'or(nome.ilike."*LED*",orgao.ilike."*LED*",objeto.ilike."*LED*"))')
+
+
+@pytest.mark.parametrize("q", ['luvas"),or(id.not.is.null', "a%b_c*d", "x\\y,(z)"])
+def test_busca_nao_injeta_sintaxe_nem_curinga(api, emissor, banco, q):
+    banco.responder("GET", "processos", 200, [])
+    api().get("/api/v1/processos", params={"q": q}, headers=_auth(emissor))
+    filtro = banco.chamadas[-1].url.params["and"]
+    termos = filtro[len("(or("):-len("))")]
+    for proibido in ("\\", "%", "_"):
+        assert proibido not in termos
+    # Só os parênteses e aspas que a própria API escreveu.
+    assert filtro.count("or(") == filtro.count("),") + 1
+    assert all(t.count('"') == 2 for t in termos.replace("),or(", ",").split(","))
+
+
+@pytest.mark.parametrize("q", ["", "   ", "%%%", "(),"])
+def test_busca_vazia_nao_filtra(api, emissor, banco, q):
+    banco.responder("GET", "processos", 200, [])
+    api().get("/api/v1/processos", params={"q": q}, headers=_auth(emissor))
+    assert "and" not in banco.chamadas[-1].url.params
+
+
+def test_busca_maior_que_100_e_422(api, emissor):
+    assert api().get("/api/v1/processos", params={"q": "a" * 101},
+                     headers=_auth(emissor)).status_code == 422

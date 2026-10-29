@@ -213,3 +213,34 @@ def test_mesma_idempotency_key_nao_duplica_nem_em_paralelo(api, pilha):
         total = c.execute("select count(*) from public.processos where idempotency_key=%s",
                           (chave,)).fetchone()[0]
     assert total == 1
+
+
+# -- busca -----------------------------------------------------------------
+def test_busca_acha_pelo_banco_e_nao_atravessa_municipio(api, pilha):
+    """`q` filtra no PostgREST sobre a base inteira, com o RLS valendo."""
+    a1, b1 = pilha.contas["a1"], pilha.contas["b1"]
+    marca = uuid.uuid4().hex[:8]
+    alvo = _criar(api, a1, objeto=f"Aquisição de lâmpadas LED {marca}").json()
+    _criar(api, a1, objeto=f"Serviço de limpeza {uuid.uuid4().hex[:8]}")
+    # Mais de uma página de processos depois do alvo: a busca não pode
+    # depender de o alvo estar na primeira página.
+    for _ in range(3):
+        _criar(api, a1)
+
+    r = api.get(f"/api/v1/processos?limit=1&q=lâmpadas {marca}", headers=_h(a1))
+    assert r.status_code == 200, r.text
+    assert [p["id"] for p in r.json()["itens"]] == [alvo["id"]]
+    assert r.json()["proximo_cursor"] is None
+
+    # Maiúsculas não importam; palavra que não está em campo nenhum zera.
+    assert [p["id"] for p in api.get(f"/api/v1/processos?q=LED {marca.upper()}",
+                                     headers=_h(a1)).json()["itens"]] == [alvo["id"]]
+    assert api.get(f"/api/v1/processos?q={marca} inexistente",
+                   headers=_h(a1)).json()["itens"] == []
+
+    # Outro município, mesma busca: nada.
+    assert api.get(f"/api/v1/processos?q={marca}", headers=_h(b1)).json()["itens"] == []
+
+    # Sintaxe do PostgREST e curinga do LIKE na busca viram espaço.
+    r = api.get("/api/v1/processos", params={"q": '%),or(id.not.is.null'}, headers=_h(a1))
+    assert r.status_code == 200
