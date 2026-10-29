@@ -4,10 +4,12 @@ import { GeistSans } from "geist/font/sans";
 import { headers } from "next/headers";
 
 import { FocoDeRota } from "@/components/foco-de-rota";
+import { SITE_URL } from "@/components/site";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: { default: "Gov Conect", template: "%s | Gov Conect" },
   description:
     "Planejamento de contratações públicas sob a Lei 14.133/2021, com revisão humana e preços de fonte verificável.",

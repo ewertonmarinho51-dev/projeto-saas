@@ -9,7 +9,11 @@ import { claimsVerificadas } from "@/lib/supabase/server";
 
 import { FormularioDeEntrada } from "./formulario";
 
-export const metadata: Metadata = { title: "Entrar" };
+export const metadata: Metadata = {
+  title: "Entrar",
+  description: "Acesso ao Gov Conect com o e-mail institucional cadastrado pelo seu órgão.",
+  alternates: { canonical: "/entrar" },
+};
 
 const AVISOS: Record<string, string> = {
   saiu: "Sessão encerrada.",

@@ -32,6 +32,11 @@ import {
   PriceReferenceRow,
   PriceStats,
   PromptSuggestions,
+  PublicFeature,
+  PublicFooter,
+  PublicGrid,
+  PublicSection,
+  PublicSteps,
   ScreeningSummary,
   SourceList,
   SourcePicker,
@@ -408,6 +413,37 @@ export function GaleriaIA({ tema }: { tema: string }) {
               explore={{ label: "Conhecer a plataforma", href: "#" }}
             />
           </Palco>
+        </Exemplo>
+        <Exemplo rotulo="PublicSection + PublicGrid + PublicFeature" largo>
+          <PublicSection eyebrow="Plataforma" title="Seção do site público" lead="Abertura curta, até 62 caracteres por linha.">
+            <PublicGrid>
+              <PublicFeature icon="file-text" title="Recurso em destaque" wide href="#">
+                Ocupa duas colunas e ganha o fundo de destaque.
+              </PublicFeature>
+              <PublicFeature icon="currency-circle-dollar" title="Recurso">
+                Ícone, título e texto.
+              </PublicFeature>
+            </PublicGrid>
+          </PublicSection>
+        </Exemplo>
+        <Exemplo rotulo="PublicSteps" largo>
+          <PublicSteps
+            steps={[
+              { tag: "DFD", title: "Formalização da demanda", text: "Primeira etapa." },
+              { tag: "ETP", title: "Estudo técnico preliminar" },
+              { tag: "TR", title: "Termo de referência" },
+            ]}
+          />
+        </Exemplo>
+        <Exemplo rotulo="PublicFooter" largo>
+          <PublicFooter
+            columns={[
+              { title: "Plataforma", links: [{ label: "Soluções", href: "#" }] },
+              { title: "Institucional", links: [{ label: "Sobre", href: "#" }] },
+              { title: "Acesso", links: [{ label: "Acessar sistema", href: "#" }] },
+            ]}
+            note="Linha final do rodapé."
+          />
         </Exemplo>
         <Exemplo rotulo="AuthLayout (contido)">
           <Palco alto>

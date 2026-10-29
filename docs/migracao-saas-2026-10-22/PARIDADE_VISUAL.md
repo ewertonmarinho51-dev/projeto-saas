@@ -62,3 +62,22 @@ e 3; as de IA esperam a API do GovBot.
 - `Icon`: `sign-in`, `clipboard-text`, `list`, `users-three`.
 - `LandingHero` (template novo) + `styles/landing.css`, só com tokens
   (as transparências do export viraram `color-mix` sobre o token).
+
+## Ciclo de 29/10 (depois do merge das entregas 1–5)
+
+Resolvido:
+
+- **Foco depois de navegar** (entrega 5): na troca de rota no cliente (login, menu) o foco volta ao topo e o primeiro Tab é "Pular para o conteúdo" (`components/foco-de-rota.tsx`).
+- **Trilha da barra superior no celular**: só a página atual, com reticências até 768 px — a trilha inteira estourava 7 px na Base de Conhecimento.
+- **Site institucional** (PR do site): `/solucoes`, `/solucoes/documentos-ia`, `/solucoes/pesquisa-de-precos`, `/como-funciona`, `/sobre`, `/contato` e `/privacidade` com `PublicPage`; o cabeçalho de vidro da Hero virou `PublicHeader`. Divergência "Falar com a equipe → Como obter acesso" resolvida: o botão leva a `/contato`.
+- **Busca de processos** (PR da busca): `q=` na API, filtrada pelo banco sobre todos os processos visíveis.
+
+Ainda aberto:
+
+| Item | Bloqueio | Classe |
+|---|---|---|
+| `/` com a Hero em produção | o `/` é do Streamlit; falta um endereço para o legado (subdomínio no DNS) — subcaminho quebraria `/app/static` do WordCraft | P1 |
+| Contato comercial | não há e-mail comercial no repositório; a página lê `GOVCONECT_CONTATO_EMAIL` | P1 |
+| GovBot | API v1 sem endpoint de conversa | P1 |
+| Dispersão e estatísticas da pesquisa | conta em dinheiro só no servidor; falta endpoint de estatística por item | P2 |
+| Filtro de processos por situação | situação é derivada em Python; filtrar exigiria ler a base inteira | P3 |
