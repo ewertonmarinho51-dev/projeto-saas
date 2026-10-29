@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 
-import { botaoPrimario, campo, rotulo } from "@/components/ui";
+import { Alert, Button, Field, Input } from "@/design-system";
 
 import { trocarSenha, type EstadoDaSenha } from "./acoes";
 
@@ -10,41 +10,26 @@ export function FormularioDeSenha() {
   const [estado, acao, enviando] = useActionState<EstadoDaSenha, FormData>(trocarSenha, { erro: null });
   return (
     <form action={acao} className="grid gap-5">
-      <div className="grid gap-2">
-        <label htmlFor="nova" className={rotulo}>
-          Nova senha
-        </label>
-        <input
+      <Field label="Nova senha" htmlFor="nova" required help="Pelo menos 12 caracteres.">
+        <Input
           id="nova"
           name="nova"
           type="password"
+          icon="lock-simple"
           autoComplete="new-password"
           required
           minLength={12}
-          aria-describedby="ajuda-senha"
-          className={campo}
+          aria-describedby="nova-ajuda"
         />
-        <p id="ajuda-senha" className="text-xs text-secundario">
-          Pelo menos 12 caracteres.
-        </p>
-      </div>
-      <div className="grid gap-2">
-        <label htmlFor="confirmacao" className={rotulo}>
-          Confirme a nova senha
-        </label>
-        <input id="confirmacao" name="confirmacao" type="password" autoComplete="new-password" required className={campo} />
-      </div>
-      <div aria-live="assertive">
-        {estado.erro && (
-          <p role="alert" className="rounded-[var(--radius-ui)] bg-erro-fundo px-4 py-3 text-sm text-erro">
-            {estado.erro}
-          </p>
-        )}
-      </div>
+      </Field>
+      <Field label="Confirme a nova senha" htmlFor="confirmacao" required>
+        <Input id="confirmacao" name="confirmacao" type="password" icon="lock-simple" autoComplete="new-password" required />
+      </Field>
+      <div aria-live="assertive">{estado.erro && <Alert variant="error" title={estado.erro} />}</div>
       <div>
-        <button type="submit" className={botaoPrimario} disabled={enviando}>
-          {enviando ? "Salvando..." : "Trocar senha"}
-        </button>
+        <Button type="submit" size="lg" loading={enviando}>
+          {enviando ? "Salvando" : "Trocar senha"}
+        </Button>
       </div>
     </form>
   );
