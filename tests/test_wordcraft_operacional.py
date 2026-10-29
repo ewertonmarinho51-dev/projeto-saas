@@ -329,6 +329,40 @@ def test_evento_de_controle_aceito_forca_rerun_para_publicar_event_ack(monkeypat
     assert reruns == [True]
 
 
+def test_recusa_da_ponte_expoe_motivo_fechado_sem_consumir_lote(monkeypatch):
+    from src.wordcraft_protocol import ErroPonte
+
+    class Bridge:
+        instance_id = "33333333-3333-3333-3333-333333333333"
+        document_id = "44444444-4444-4444-4444-444444444444"
+        origin = "http://127.0.0.1:8501"
+        sequence = 7
+        def receber_lote(self, batch, **kwargs):
+            assert batch == {"events": ["late"]}
+            raise ErroPonte("Documento indisponível para edição.")
+
+    bridge = Bridge()
+    session = Session({ui._chave("dfd", "bridge"): bridge,
+        "wordcraft_" + bridge.instance_id: {"edit": {"events": ["late"]}}})
+    monkeypatch.setattr(ui.st, "session_state", session)
+
+    ui._receber("dfd", SimpleNamespace())
+
+    assert bridge.sequence == 7
+    assert session[ui._chave("dfd", "message")] == (
+        "Operação nativa recusada: Documento indisponível para edição.")
+
+
+def test_canvas_congelado_nao_e_remontado_durante_decisao_de_aprovacao():
+    source = (Path(__file__).parents[1] /
+        "src/ui/wordcraft_operacional.py").read_text(encoding="utf-8")
+    tail = source[source.index("    with editor_slot:") :]
+    assert "if proof is None:" in tail
+    assert "render_editor(bridge" in tail
+    assert "Editor pausado na revisão bloqueada" in tail
+    assert "_reabrir_revisao_persistida(doc_key, service, runtime)" in source
+
+
 def test_restore_operacional_usa_historico_persistido_cas_e_remonta_canvas(monkeypatch):
     document = SimpleNamespace(id="44444444-4444-4444-4444-444444444444",
         processo_id="11111111-1111-1111-1111-111111111111", tipo="tr",
