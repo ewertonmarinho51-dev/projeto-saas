@@ -75,6 +75,8 @@ class Resumo(BaseModel):
 
 class Centro(BaseModel):
     papel: str
+    # A trava de ambiente da escrita na interface nova (GOVCONECT_GOVERNANCA_ESCRITA).
+    escrita: bool
     abas: list[Aba]
     resumo: Resumo
 
@@ -171,11 +173,12 @@ def rotas() -> APIRouter:
             raise ErroApi(503, "DATABASE_UNAVAILABLE", str(erro)[:300]) from None
 
     @r.get("", response_model=Centro, responses={404: {"description": "Centro desligado"}})
-    def centro(eu: Identidade = Depends(exigir_identidade)) -> Centro:
+    def centro(request: Request, eu: Identidade = Depends(exigir_identidade)) -> Centro:
         def ler(papel: str) -> Centro:
             clausulas = catalogo.listar_com_situacao("clausula") if db.flag_ativa(governanca.FLAG_CATALOGO) else []
             return Centro(
                 papel=papel,
+                escrita=request.app.state.config.governanca_escrita,
                 abas=[Aba(tipo=t, rotulo=rotulo, ativa=flag is None or db.flag_ativa(flag))
                       for t, rotulo, flag in ABAS],
                 resumo=Resumo(
@@ -261,14 +264,19 @@ def rotas() -> APIRouter:
         linhas = resposta.dados if resposta.status == 200 else []
         return int((linhas or [{}])[0].get("versao") or 0) + 1
 
-    def _guarda(eu: Identidade) -> None:
+    def _guarda(eu: Identidade, request: Request) -> None:
         # Flag e papel ANTES do banco: a tela não existe sem eles.
         _executar(eu, lambda _papel: None)
+        # E a trava do ambiente: ler na interface nova não implica escrever.
+        if not request.app.state.config.governanca_escrita:
+            raise ErroApi(403, "GOVERNANCE_WRITE_DISABLED",
+                          "A escrita do Centro na interface nova está desligada neste ambiente. "
+                          "Altere pelo GovDocs.")
 
     @r.post("/artefatos", status_code=201, response_model=Escrita,
             responses={403: {"description": "Papel sem competência"}, 422: {"description": "Contrato inválido"}})
     def criar(corpo: NovoArtefato, request: Request, eu: Identidade = Depends(exigir_identidade)) -> Escrita:
-        _guarda(eu)
+        _guarda(eu, request)
         rest = _rest(request)
         existente = rest.requisitar(eu.token, "GET", "governanca_artefatos", params={
             "select": "id", "tenant_id": f"eq.{eu.tenant_id}", "tipo_artefato": f"eq.{corpo.tipo}",
@@ -293,7 +301,7 @@ def rotas() -> APIRouter:
                if_match: str | None = Header(None, alias="If-Match"),
                eu: Identidade = Depends(exigir_identidade)) -> Escrita:
         esperado = _esperado(if_match)
-        _guarda(eu)
+        _guarda(eu, request)
         rest = _rest(request)
         atual = _versao_com_artefato(rest, eu, versao_id)
         artefato = atual["artefato"]
@@ -306,7 +314,7 @@ def rotas() -> APIRouter:
 
     @r.post("/versoes/{versao_id}/derivacao", status_code=201, response_model=Escrita)
     def derivar(versao_id: uuid.UUID, request: Request, eu: Identidade = Depends(exigir_identidade)) -> Escrita:
-        _guarda(eu)
+        _guarda(eu, request)
         rest = _rest(request)
         origem = rest.requisitar(eu.token, "GET", "governanca_versoes", params={
             "select": "payload,artefato_id,artefato:governanca_artefatos(tipo_artefato,chave_estavel,tenant_id)",
@@ -331,7 +339,7 @@ def rotas() -> APIRouter:
                      eu: Identidade = Depends(exigir_identidade)) -> Escrita:
         # Aprova/publica o texto que a pessoa LEU: o banco recusa se mudou.
         esperado = _esperado(if_match)
-        _guarda(eu)
+        _guarda(eu, request)
         _rpc(_rest(request), eu, "governanca_transicionar", {
             "p_versao": str(versao_id), "p_novo": corpo.status, "p_esperado": esperado,
             "p_vigencia_inicio": corpo.vigencia_inicio.isoformat() if corpo.vigencia_inicio else None})

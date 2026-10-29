@@ -54,6 +54,11 @@ class Configuracao:
     # do Auth (gestão de usuários). Vazia = gestão de usuários indisponível
     # (503), resto da API igual. Nunca vai ao PostgREST nem ao domínio.
     auth_admin_chave: str = field(default="", repr=False)
+    # Escrita do Centro de Governança NA INTERFACE NOVA (M8b). DESLIGADA por
+    # padrão: a flag `governance_center` é a mesma que liga o Centro do
+    # Streamlit e está ligada em produção; esta trava é do AMBIENTE (não do
+    # painel), para a interface nova poder ler sem passar a escrever.
+    governanca_escrita: bool = False
 
     @property
     def jwt_emissor(self) -> str:
@@ -210,4 +215,6 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
                         jwt_segredo_hs256=segredo, limite_por_minuto=limite,
                         precos_habilitado=_ler(env, "PRICE_RESEARCH_ENABLED").lower()
                         in _VERDADEIRO,
-                        redis_url=redis_url, fontes_coleta=fontes, auth_admin_chave=admin)
+                        redis_url=redis_url, fontes_coleta=fontes, auth_admin_chave=admin,
+                        governanca_escrita=_ler(env, "GOVCONECT_GOVERNANCA_ESCRITA").lower()
+                        in _VERDADEIRO)

@@ -39,6 +39,7 @@ Decisões de desenho (ADR-001/004/007):
 | `SUPABASE_KEY` | chave **publicável** (`sb_publishable_…`); a de servidor é recusada |
 | `REDIS_URL` | `redis://:<senha>@redis:6379/0` (sem senha, a API recusa subir em staging/produção) |
 | `PRICE_RESEARCH_ENABLED` | `0` até o corte do módulo; depois `1` |
+| `GOVCONECT_GOVERNANCA_ESCRITA` | ausente (= desligada). Com ela, a interface nova também ESCREVE no Centro de Governança (RPCs da 0036). A flag `governance_center` do painel é a mesma do Streamlit; esta trava é só do ambiente |
 | `GOVCONECT_LIMITE_POR_MINUTO` | opcional (padrão 120) |
 
 `/etc/govdocs/web.env`:

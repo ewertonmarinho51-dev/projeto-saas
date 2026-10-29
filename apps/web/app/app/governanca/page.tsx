@@ -36,7 +36,12 @@ export default async function PaginaDaGovernanca({
         title="Centro de Governança"
         desc={`O conhecimento documental do município — cláusulas, políticas, modelos e templates versionados. Seu papel: ${centro.papel.replace("_", " ")}.`}
       />
-      {centro.papel === "auditor" ? (
+      {!centro.escrita ? (
+        <Alert variant="info" compact>
+          Modo leitura: a escrita do Centro na interface nova ainda não está liberada neste ambiente. Para criar, revisar ou
+          publicar, use o GovDocs.
+        </Alert>
+      ) : centro.papel === "auditor" ? (
         <Alert variant="info" compact>
           Seu papel é de auditoria: você acompanha o Centro sem alterar nada.
         </Alert>
@@ -63,9 +68,11 @@ export default async function PaginaDaGovernanca({
           </Link>
         ))}
       </nav>
-      {aba === "clausula" && ["proprietario", "admin_global", "admin_municipal"].includes(centro.papel) && <NovaClausula />}
+      {centro.escrita && aba === "clausula" && ["proprietario", "admin_global", "admin_municipal"].includes(centro.papel) && (
+        <NovaClausula />
+      )}
       {aba ? (
-        <ArtefatosDaGovernanca tipo={aba} artefatos={artefatos} escrever={centro.papel !== "auditor"} />
+        <ArtefatosDaGovernanca tipo={aba} artefatos={artefatos} escrever={centro.escrita && centro.papel !== "auditor"} />
       ) : (
         <p className="text-secundario">Nenhum módulo do Centro está ligado.</p>
       )}

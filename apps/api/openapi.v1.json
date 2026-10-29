@@ -409,6 +409,10 @@
             "title": "Abas",
             "type": "array"
           },
+          "escrita": {
+            "title": "Escrita",
+            "type": "boolean"
+          },
           "papel": {
             "title": "Papel",
             "type": "string"
@@ -419,6 +423,7 @@
         },
         "required": [
           "papel",
+          "escrita",
           "abas",
           "resumo"
         ],
