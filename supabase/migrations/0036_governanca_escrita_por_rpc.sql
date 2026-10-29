@@ -34,7 +34,13 @@
 --     meio. Publicar SUPERA a anterior.
 --   O hash canônico do domínio inclui o NÚMERO da versão; quem calcula é o
 --   app, então criar e derivar recebem o número que o app usou e a RPC o
---   confere sob a trava: divergiu, 40001.
+--   confere sob a trava: divergiu, conflito.
+--   Conflito (trava otimista, número divergente) e versão imutável levantam
+--   `PT409`, o SQLSTATE do PostgREST que vira HTTP 409. `40001`/`55000`
+--   chegariam como HTTP 500 — e a API traduz 5xx em "banco indisponível":
+--   a pessoa não saberia que foi ela que conflitou. A mensagem distingue.
+--   As tabelas têm FORCE RLS (0019): as RPCs leem como o DONO, que precisa
+--   de BYPASSRLS — a mesma premissa de `registrar_evento_governanca` (0020).
 --   E mais:
 --   * `revoke insert on governanca_artefatos from authenticated`: o INSERT
 --     direto da 0020 pulava a trilha;
@@ -82,6 +88,8 @@
 --     aqui — continuam no Streamlit;
 --   * a mesma pessoa pode ser autora e publicadora quando tem papel amplo
 --     (admin): separação por PAPEL, não por pessoa — como no Streamlit;
+--   * a vigência pedida não é validada (passado/futuro), como no Python; ela
+--     vai no evento de publicação;
 --   * revisor e publicador NÃO movem os estados sem porteiro (revisão,
 --     rascunho, shadow, agendada): o Python deixava; aqui é do autor;
 --   * imutabilidade da versão publicada vale nestas funções; o Streamlit
@@ -238,7 +246,7 @@ begin
   select coalesce(max(v.versao), 0) + 1 into v_proxima
     from public.governanca_versoes v where v.artefato_id = v_artefato;
   if p_versao is distinct from v_proxima then
-    raise exception 'outra versão foi criada no meio: recarregue' using errcode = '40001';
+    raise exception 'outra versão foi criada no meio: recarregue' using errcode = 'PT409';
   end if;
   insert into public.governanca_versoes (artefato_id, versao, status, payload, hash, autor)
   values (v_artefato, v_proxima, 'DRAFT', p_payload, p_hash, public.governanca_usuario_do_jwt())
@@ -264,16 +272,18 @@ declare
   v public.governanca_versoes%rowtype;
   v_agora timestamptz := clock_timestamp();  -- não `now()`: a trava compara instantes, e `now()` é o início da transação
 begin
-  select * into v from public.governanca_versoes where id = p_versao for update;
+  select * into v from public.governanca_versoes where id = p_versao;
   if v.id is null then
     raise exception 'artefato fora do seu alcance' using errcode = '42501';
   end if;
   perform public.governanca_exigir('versao_alterada', v.artefato_id);
+  -- Trava só DEPOIS de autorizar, e relê sob ela.
+  select * into v from public.governanca_versoes where id = p_versao for update;
   if v.status not in ('DRAFT', 'UNDER_REVIEW') then
-    raise exception 'versão publicada é imutável: derive uma nova' using errcode = '55000';
+    raise exception 'versão publicada é imutável: derive uma nova' using errcode = 'PT409';
   end if;
   if p_esperado is null or v.atualizado_em <> p_esperado then
-    raise exception 'a versão mudou desde a sua leitura' using errcode = '40001';
+    raise exception 'a versão mudou desde a sua leitura' using errcode = 'PT409';
   end if;
   if coalesce(p_hash, '') !~ '^[0-9a-f]{64}$' or coalesce(jsonb_typeof(p_payload), '') <> 'object' then
     raise exception 'conteúdo inválido' using errcode = '22023';
@@ -307,12 +317,12 @@ begin
   perform 1 from public.governanca_artefatos where id = v.artefato_id for update;
   select * into v from public.governanca_versoes where id = p_versao;
   if v.status <> 'PUBLISHED' then
-    raise exception 'só se deriva de uma versão publicada' using errcode = '55000';
+    raise exception 'só se deriva de uma versão publicada' using errcode = 'PT409';
   end if;
   select coalesce(max(x.versao), 0) + 1 into v_proxima
     from public.governanca_versoes x where x.artefato_id = v.artefato_id;
   if p_proxima is distinct from v_proxima then
-    raise exception 'outra versão foi criada no meio: recarregue' using errcode = '40001';
+    raise exception 'outra versão foi criada no meio: recarregue' using errcode = 'PT409';
   end if;
   if coalesce(p_hash, '') !~ '^[0-9a-f]{64}$' then
     raise exception 'conteúdo inválido' using errcode = '22023';
@@ -353,7 +363,7 @@ begin
   select * into v from public.governanca_versoes where id = p_versao for update;
   -- Aprova/publica o texto que a pessoa LEU: editado no meio, recusa.
   if p_esperado is null or v.atualizado_em <> p_esperado then
-    raise exception 'a versão mudou desde a sua leitura' using errcode = '40001';
+    raise exception 'a versão mudou desde a sua leitura' using errcode = 'PT409';
   end if;
   if not public.governanca_transicao_valida(v.status, p_novo) then
     raise exception 'transição inválida: % → %', v.status, p_novo using errcode = '22023';
@@ -371,10 +381,10 @@ begin
       perform public.governanca_evento('versao_superada', anterior.id,
                                        jsonb_build_object('versao', anterior.versao));
     end loop;
-    -- `vigencia_inicio` como o Python: só o que foi pedido (nulo = já).
+    -- `vigencia_inicio` como o Python: grava só quando pedida (nulo = mantém).
     update public.governanca_versoes
        set status = 'PUBLISHED', aprovador = v_usuario,
-           vigencia_inicio = p_vigencia_inicio, atualizado_em = clock_timestamp()
+           vigencia_inicio = coalesce(p_vigencia_inicio, vigencia_inicio), atualizado_em = clock_timestamp()
      where id = p_versao;
   elsif p_novo = 'APPROVED_FOR_SIMULATION' then
     update public.governanca_versoes
@@ -383,8 +393,8 @@ begin
     update public.governanca_versoes set status = p_novo, atualizado_em = clock_timestamp() where id = p_versao;
   end if;
 
-  perform public.governanca_evento(v_evento, p_versao, jsonb_build_object(
-    'versao', v.versao, 'de', v.status, 'status', p_novo));
+  perform public.governanca_evento(v_evento, p_versao, jsonb_strip_nulls(jsonb_build_object(
+    'versao', v.versao, 'de', v.status, 'status', p_novo, 'vigencia_inicio', p_vigencia_inicio)));
   return p_novo;
 end
 $$;
@@ -447,9 +457,15 @@ begin
        and not c.relrowsecurity
     union all
     -- as redes de proteção de que as RPCs dependem
+    -- pelo que o índice É (único, parcial em PUBLISHED, na tabela certa), não
+    -- só pelo nome: `if not exists` pularia um homônimo diferente, calado
     select 'sem_indice_uma_publicada'
-     where not exists (select 1 from pg_indexes where schemaname = 'public'
-                          and indexname = 'governanca_versoes_uma_publicada')
+     where not exists (select 1 from pg_index i join pg_class c on c.oid = i.indexrelid
+                        where c.relname = 'governanca_versoes_uma_publicada'
+                          and c.relnamespace = 'public'::regnamespace
+                          and i.indrelid = 'public.governanca_versoes'::regclass
+                          and i.indisunique
+                          and pg_get_expr(i.indpred, i.indrelid) like '%PUBLISHED%')
     union all
     select 'sem_gatilho_ator_confiavel'
      where not exists (select 1 from pg_trigger

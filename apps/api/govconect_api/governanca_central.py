@@ -221,8 +221,11 @@ def rotas() -> APIRouter:
     _ERROS_DA_RPC = {
         "42501": (403, "FORBIDDEN", "Seu papel de governança não permite este ato, ou o artefato está fora do seu alcance."),
         "22023": (422, "VALIDATION_ERROR", "Transição ou conteúdo inválido para a máquina de estados."),
-        "40001": (409, "VERSION_CONFLICT", "A versão mudou desde a sua leitura. Recarregue e refaça."),
-        "55000": (409, "IMMUTABLE", "Versão publicada é imutável: derive uma nova versão."),
+        # PT409 é o SQLSTATE do PostgREST que vira HTTP 409 (40001/55000 viriam
+        # como 500, e o cliente traduziria em "banco indisponível").
+        "PT409": (409, "VERSION_CONFLICT",
+                  "A versão mudou desde a sua leitura ou já não pode ser alterada (publicada é imutável: "
+                  "derive uma nova). Recarregue e refaça."),
     }
 
     def _rpc(rest: ClienteRest, eu: Identidade, funcao: str, corpo: dict) -> RespostaRest:
@@ -269,7 +272,7 @@ def rotas() -> APIRouter:
         rest = _rest(request)
         existente = rest.requisitar(eu.token, "GET", "governanca_artefatos", params={
             "select": "id", "tenant_id": f"eq.{eu.tenant_id}", "tipo_artefato": f"eq.{corpo.tipo}",
-            "chave_estavel": f"eq.{corpo.chave}", "limit": "1"})
+            "chave_estavel": f"eq.{corpo.chave}", "secretaria_id": "is.null", "limit": "1"})
         artefato_id = str(((existente.dados or [{}])[0] if existente.status == 200 else {}).get("id") or "")
         proxima = _proxima(rest, eu, artefato_id or None)
         contrato = _contrato(corpo.tipo, corpo.chave, corpo.payload, versao=proxima)

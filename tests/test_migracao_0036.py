@@ -93,6 +93,20 @@ def cenario(banco):
                       secretaria=d.get(secretaria), papel_governanca=governanca)
 
     d["admin"] = jwt("a", "admin")
+    # Com linha em `usuarios`: autor/revisor/aprovador apontam para ela.
+    with banco.cursor() as c:
+        voltar_a_ser_servidor(c)
+        meta = json.loads(d["admin"])
+        c.execute("insert into auth.users (email, raw_app_meta_data) values (%s, %s::jsonb) returning id",
+                  (f"{uuid.uuid4().hex}@example.invalid", json.dumps(meta["app_metadata"])))
+        uid = c.fetchone()[0]
+        c.execute("insert into usuarios (nome, login, senha_hash, papel, tenant_id, secretaria_id, auth_user_id) "
+                  "values ('Admin', %s, 'sem-uso', 'admin', %s, %s, %s) returning id",
+                  (uuid.uuid4().hex, d["tenant_a"], d["s1"], uid))
+        d["usuario_admin"] = c.fetchone()[0]
+        meta["sub"] = str(uid)
+        d["admin"] = json.dumps(meta)
+    banco.commit()
     d["admin_auditor"] = jwt("a", "admin", governanca="auditor")   # o papel do JWT manda
     d["revisor"] = jwt("a", governanca="revisor_juridico")
     d["publicador"] = jwt("a", governanca="publicador")
@@ -104,25 +118,42 @@ def cenario(banco):
 
 class _Banco:
     """Uma transação desfeita, onde cada chamada troca de identidade e as
-    falhas esperadas ficam num savepoint."""
+    falhas esperadas ficam num savepoint.
+
+    `como` só GUARDA a identidade; ela é assumida na hora de executar. Em
+    `b.como(jwt).falha(SQL, (_lido(b, v),))` o Python avalia `_lido` — que
+    volta a ser servidor — DEPOIS de `como`: assumir na hora de `como` faria
+    a chamada rodar sem JWT e a recusa sair pelo motivo errado (revisão de
+    segurança, 28/10/2026)."""
 
     def __init__(self, conexao, cursor):
         self.conexao, self.c = conexao, cursor
+        self._jwt = None
+        self.mensagem = ""
 
     def como(self, jwt):
-        voltar_a_ser_servidor(self.c)
-        como(self.c, jwt)
+        self._jwt = jwt
         return self
 
+    def _assumir(self):
+        if self._jwt is not None:
+            voltar_a_ser_servidor(self.c)
+            como(self.c, self._jwt)
+            self._jwt = None
+
     def rpc(self, sql, params=()):
+        self._assumir()
         self.c.execute(sql, params)
         return self.c.fetchone()[0]
 
     def falha(self, sql, params=()):
+        self._assumir()
+        self.mensagem = ""
         try:
             with self.conexao.transaction():
                 self.c.execute(sql, params)
         except Exception as erro:  # noqa: BLE001
+            self.mensagem = str(getattr(getattr(erro, "diag", None), "message_primary", "") or erro)
             return getattr(erro, "sqlstate", "erro")
         return None
 
@@ -224,10 +255,21 @@ def test_separacao_de_funcoes_no_fluxo_inteiro(b, cenario):
 
 
 @requer_pg
+def test_autor_e_aprovador_sao_a_pessoa_do_jwt(b, cenario):
+    v = _criar(b, cenario)
+    for status in CAMINHO:
+        _mover(b, cenario["admin"], v, status)
+    voltar_a_ser_servidor(b.c)
+    b.c.execute("select autor, revisor, aprovador from governanca_versoes where id = %s", (v,))
+    assert b.c.fetchone() == (cenario["usuario_admin"],) * 3
+
+
+@requer_pg
 def test_revisor_e_publicador_nao_editam_nem_derivam(b, cenario):
     v = _criar(b, cenario)
     for quem in ("revisor", "publicador"):
         assert b.como(cenario[quem]).falha(EDITAR, (v, '{"titulo":"x"}', HASH, _lido(b, v))) == "42501"
+        assert "não pode versao_alterada" in b.mensagem, b.mensagem
     for status in CAMINHO:
         _mover(b, cenario["admin"], v, status)
     for quem in ("revisor", "publicador", "auditor"):
@@ -251,8 +293,9 @@ def test_aprova_o_texto_lido_nao_o_editado_no_meio(b, cenario):
     v = _criar(b, cenario)
     lido = _lido(b, v)
     b.como(cenario["admin"]).rpc(EDITAR, (v, '{"titulo":"trocado"}', "b" * 64, lido))
-    assert b.como(cenario["admin"]).falha(TRANS, (v, "UNDER_REVIEW", lido)) == "40001"
-    assert b.como(cenario["admin"]).falha(TRANS, (v, "UNDER_REVIEW", None)) == "40001"
+    assert b.como(cenario["admin"]).falha(TRANS, (v, "UNDER_REVIEW", lido)) == "PT409"
+    assert "mudou desde a sua leitura" in b.mensagem, b.mensagem
+    assert b.como(cenario["admin"]).falha(TRANS, (v, "UNDER_REVIEW", None)) == "PT409"
     _mover(b, cenario["admin"], v, "UNDER_REVIEW")
 
 
@@ -261,7 +304,7 @@ def test_publicar_supera_a_anterior(b, cenario):
     v1 = _criar(b, cenario)
     for status in CAMINHO:
         _mover(b, cenario["admin"], v1, status)
-    assert b.como(cenario["admin"]).falha(DERIVAR, (v1, "c" * 64, 3)) == "40001"   # número errado
+    assert b.como(cenario["admin"]).falha(DERIVAR, (v1, "c" * 64, 3)) == "PT409"   # número errado
     v2 = str(b.como(cenario["admin"]).rpc(DERIVAR, (v1, "c" * 64, 2)))
     assert _status(b, v2) == "DRAFT"
     voltar_a_ser_servidor(b.c)
@@ -278,7 +321,8 @@ def test_publicar_supera_a_anterior(b, cenario):
 @requer_pg
 def test_so_deriva_de_publicada(b, cenario):
     v = _criar(b, cenario)
-    assert b.como(cenario["admin"]).falha(DERIVAR, (v, "c" * 64, 2)) == "55000"
+    assert b.como(cenario["admin"]).falha(DERIVAR, (v, "c" * 64, 2)) == "PT409"
+    assert "publicada" in b.mensagem, b.mensagem
 
 
 @requer_pg
@@ -306,11 +350,12 @@ def test_transicao_fora_da_maquina_e_recusada(b, cenario):
 def test_editar_so_rascunho_e_com_trava(b, cenario):
     v = _criar(b, cenario)
     lido = _lido(b, v)
-    assert b.como(cenario["admin"]).falha(EDITAR, (v, '{"titulo":"x"}', HASH, "2000-01-01")) == "40001"
+    assert b.como(cenario["admin"]).falha(EDITAR, (v, '{"titulo":"x"}', HASH, "2000-01-01")) == "PT409"
     b.como(cenario["admin"]).rpc(EDITAR, (v, '{"titulo":"novo"}', "b" * 64, lido))
     for status in CAMINHO:
         _mover(b, cenario["admin"], v, status)
-    assert b.como(cenario["admin"]).falha(EDITAR, (v, '{"titulo":"y"}', HASH, _lido(b, v))) == "55000"
+    assert b.como(cenario["admin"]).falha(EDITAR, (v, '{"titulo":"y"}', HASH, _lido(b, v))) == "PT409"
+    assert "imutável" in b.mensagem, b.mensagem
 
 
 @requer_pg
@@ -320,6 +365,7 @@ def test_outro_municipio_e_versao_inexistente_dao_a_mesma_recusa(b, cenario):
     assert b.como(cenario["admin"]).falha(TRANS, (str(uuid.uuid4()), "UNDER_REVIEW", _lido(b, v))) == "42501"
     assert b.como(cenario["admin_b"]).falha(DERIVAR, (v, "c" * 64, 2)) == "42501"
     assert b.como(cenario["admin_b"]).falha(EDITAR, (v, "{}", HASH, _lido(b, v))) == "42501"
+    assert "fora do seu alcance" in b.mensagem, b.mensagem
 
 
 @pytest.mark.parametrize("args", [
@@ -367,6 +413,16 @@ MUTACOES = [
     ("grant select on public.governanca_versoes to anon", "anon_em_governanca_versoes"),
     ("drop index public.governanca_versoes_uma_publicada", "sem_indice_uma_publicada"),
     ("alter table public.governanca_versoes disable row level security", "rls_desligado_em_governanca_versoes"),
+    ("drop index public.governanca_versoes_uma_publicada; create index governanca_versoes_uma_publicada "
+     "on public.governanca_versoes (artefato_id)", "sem_indice_uma_publicada"),
+    ("alter table public.governanca_eventos disable trigger evento_ator_confiavel; "
+     "drop trigger evento_ator_confiavel on public.governanca_eventos", "sem_gatilho_ator_confiavel"),
+    ("grant execute on function public.governanca_usuario_do_jwt() to authenticated",
+     "apoio_exposto_governanca_usuario_do_jwt"),
+    ("grant select on public.governanca_artefatos to anon", "anon_em_governanca_artefatos"),
+    ("grant select (id) on public.governanca_versoes to anon", "anon_em_governanca_versoes"),
+    ("grant execute on function public.governanca_transicionar(uuid, text, timestamptz, timestamptz) to anon",
+     "execucao_governanca_transicionar_anon"),
     ("grant execute on function public.governanca_criar_versao(text, text, jsonb, text, integer) to anon",
      "execucao_governanca_criar_versao_anon"),
     ("grant select on public.governanca_eventos to anon", "anon_em_governanca_eventos"),

@@ -175,10 +175,11 @@ LIDO = "2026-10-27T10:00:00+00:00"
 IF_MATCH = {"If-Match": f'"{LIDO}"'}
 
 
-@pytest.mark.parametrize("codigo,status", [("42501", 403), ("22023", 422), ("40001", 409), ("55000", 409)])
-def test_o_codigo_do_banco_decide_o_http(emissor, flags, codigo, status):
+@pytest.mark.parametrize("codigo,http_do_postgrest,status", [("42501", 403, 403), ("22023", 400, 422), ("PT409", 409, 409)])
+def test_o_codigo_do_banco_decide_o_http(emissor, flags, codigo, http_do_postgrest, status):
+    # O HTTP que o PostgREST de fato devolve para cada SQLSTATE.
     banco = PostgrestFalso()
-    banco.responder("POST", "governanca_transicionar", 400, {"code": codigo, "message": "x"})
+    banco.responder("POST", "governanca_transicionar", http_do_postgrest, {"code": codigo, "message": "x"})
     r = _api_com(emissor, banco).post(f"{BASE}/versoes/{VERSAO}/transicao", headers={**_h(emissor, papel="admin"), **IF_MATCH},
                                       json={"status": "PUBLISHED"})
     assert r.status_code == status
