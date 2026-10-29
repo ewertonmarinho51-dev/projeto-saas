@@ -1,5 +1,5 @@
 """
-`/api/v1/governanca` — Centro de Governança, em LEITURA (M8a).
+`/api/v1/governanca` — Centro de Governança (M8a leitura, M8b escrita).
 
 O que a tela do Streamlit (`ui/governanca_ui`) mostra: visão geral,
 catálogo de cláusulas, políticas de aplicação, biblioteca de modelos
@@ -7,11 +7,13 @@ catálogo de cláusulas, políticas de aplicação, biblioteca de modelos
 O domínio é o mesmo (`catalogo.listar_com_situacao`), com o JWT do
 usuário: as políticas de leitura da 0020 já cobrem.
 
-Escrever (criar, revisar, publicar) fica para a M8b: no banco, as versões
-são só leitura para o JWT do usuário e as políticas não conhecem o papel
-de governança — o Streamlit escreve com a credencial de servidor. Levar a
-separação de funções (autor, revisor, publicador) para o banco pede
-migração própria, com ritual e revisão.
+Escrever (M8b) passa SÓ pelas RPCs da 0036, que levam ao banco a separação
+de funções (a matriz da 0020: admins tudo; revisor jurídico aprova;
+publicador publica/revoga; auditor nada) e a máquina de estados das
+versões. A API valida o CONTEÚDO antes (`governanca.nova_versao_artefato`:
+contrato do payload por tipo e hash canônico) — a RPC confere forma, não
+semântica. Quem decide se a pessoa PODE é o banco; o código de erro dele
+vira o HTTP certo.
 
 Acesso, a regra do Streamlit: flag `governance_center` ligada E papel de
 governança (`app_metadata.papel_governanca`; admin sem papel opera como
@@ -22,14 +24,18 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+import uuid
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Header, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 
 from src import catalogo, db, governanca
 from src.streamlit_opcional import sessao_da_requisicao
 
 from .erros import ErroApi
 from .seguranca import Identidade, exigir_identidade
+from .supabase_rest import ClienteRest, RespostaRest
 
 TipoDeArtefato = Literal["clausula", "politica", "familia", "template"]
 
@@ -80,6 +86,36 @@ class Versao(BaseModel):
     status_rotulo: str
     hash: str
     payload: dict
+    # Trava otimista da edição: o If-Match manda este valor.
+    atualizado_em: str = ""
+    # Destinos que a máquina de estados admite a partir daqui. Quem PODE
+    # cada um é o banco que decide (a tela só oferece).
+    proximos: list[str] = []
+
+
+class _Entrada(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class NovoArtefato(_Entrada):
+    tipo: TipoDeArtefato
+    chave: str = Field(min_length=3, max_length=200)
+    payload: dict
+
+
+class Edicao(_Entrada):
+    payload: dict
+
+
+class Transicao(_Entrada):
+    status: Literal["UNDER_REVIEW", "DRAFT", "APPROVED_FOR_SIMULATION", "SHADOW", "SCHEDULED",
+                    "PUBLISHED", "REVOKED"]
+    vigencia_inicio: datetime | None = None
+
+
+class Escrita(BaseModel):
+    versao_id: str
+    status: str
 
 
 class Artefato(BaseModel):
@@ -108,7 +144,10 @@ def _versao(v: dict | None) -> Versao | None:
     return Versao(id=str(v.get("id") or ""), versao=int(v.get("versao") or 0), status=status,
                   status_rotulo=ROTULOS_STATUS.get(status, status.lower()),
                   hash=str(v.get("hash") or "")[:12],
-                  payload=v.get("payload") if isinstance(v.get("payload"), dict) else {})
+                  payload=v.get("payload") if isinstance(v.get("payload"), dict) else {},
+                  atualizado_em=str(v.get("atualizado_em") or ""),
+                  proximos=[d for d in governanca.ESTADOS_ARTEFATO
+                            if d != "SUPERSEDED" and governanca.transicao_artefato_valida(status, d)])
 
 
 def rotas() -> APIRouter:
@@ -170,5 +209,132 @@ def rotas() -> APIRouter:
                     versoes=len(item.get("versoes") or []), descricao=descricao))
             return saida
         return _executar(eu, ler)
+
+    # -- escrita (M8b): só pelas RPCs da 0036 --------------------------------
+    def _rest(request: Request) -> ClienteRest:
+        rest = getattr(request.app.state, "rest", None)
+        if rest is None:
+            raise ErroApi(503, "AUTH_UNAVAILABLE", "Autenticação indisponível neste ambiente")
+        return rest
+
+    # O código do banco decide o HTTP: a regra (quem pode, que transição) é dele.
+    _ERROS_DA_RPC = {
+        "42501": (403, "FORBIDDEN", "Seu papel de governança não permite este ato, ou o artefato está fora do seu alcance."),
+        "22023": (422, "VALIDATION_ERROR", "Transição ou conteúdo inválido para a máquina de estados."),
+        # PT409 é o SQLSTATE do PostgREST que vira HTTP 409 (40001/55000 viriam
+        # como 500, e o cliente traduziria em "banco indisponível").
+        "PT409": (409, "VERSION_CONFLICT",
+                  "A versão mudou desde a sua leitura ou já não pode ser alterada (publicada é imutável: "
+                  "derive uma nova). Recarregue e refaça."),
+    }
+
+    def _rpc(rest: ClienteRest, eu: Identidade, funcao: str, corpo: dict) -> RespostaRest:
+        resposta = rest.requisitar(eu.token, "POST", f"rpc/{funcao}", corpo=corpo)
+        if resposta.status not in (200, 204):
+            status, codigo, mensagem = _ERROS_DA_RPC.get(
+                resposta.codigo_pg or "", (400, "BAD_REQUEST", "O banco recusou o pedido."))
+            raise ErroApi(status, codigo, mensagem)
+        return resposta
+
+    def _contrato(tipo: str, chave: str, payload: dict, **extra) -> dict:
+        try:
+            return governanca.nova_versao_artefato(tipo, chave, payload, **extra)
+        except governanca.ErroContrato as erro:
+            raise ErroApi(422, "VALIDATION_ERROR", str(erro)[:300]) from None
+
+    def _versao_com_artefato(rest: ClienteRest, eu: Identidade, versao_id) -> dict:
+        resposta = rest.requisitar(eu.token, "GET", "governanca_versoes", params={
+            "select": "id,versao,status,atualizado_em,artefato:governanca_artefatos(tipo_artefato,chave_estavel,tenant_id)",
+            "id": f"eq.{versao_id}", "limit": "1"})
+        linha = (resposta.dados or [None])[0] if resposta.status == 200 else None
+        artefato = (linha or {}).get("artefato") or {}
+        if not linha or str(artefato.get("tenant_id") or "") != eu.tenant_id:
+            raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
+        return linha
+
+    def _proxima(rest: ClienteRest, eu: Identidade, artefato_id: str | None) -> int:
+        """O número da próxima versão: entra no hash canônico, e a RPC o confere."""
+        if not artefato_id:
+            return 1
+        resposta = rest.requisitar(eu.token, "GET", "governanca_versoes", params={
+            "select": "versao", "artefato_id": f"eq.{artefato_id}", "order": "versao.desc", "limit": "1"})
+        linhas = resposta.dados if resposta.status == 200 else []
+        return int((linhas or [{}])[0].get("versao") or 0) + 1
+
+    def _guarda(eu: Identidade) -> None:
+        # Flag e papel ANTES do banco: a tela não existe sem eles.
+        _executar(eu, lambda _papel: None)
+
+    @r.post("/artefatos", status_code=201, response_model=Escrita,
+            responses={403: {"description": "Papel sem competência"}, 422: {"description": "Contrato inválido"}})
+    def criar(corpo: NovoArtefato, request: Request, eu: Identidade = Depends(exigir_identidade)) -> Escrita:
+        _guarda(eu)
+        rest = _rest(request)
+        existente = rest.requisitar(eu.token, "GET", "governanca_artefatos", params={
+            "select": "id", "tenant_id": f"eq.{eu.tenant_id}", "tipo_artefato": f"eq.{corpo.tipo}",
+            "chave_estavel": f"eq.{corpo.chave}", "secretaria_id": "is.null", "limit": "1"})
+        artefato_id = str(((existente.dados or [{}])[0] if existente.status == 200 else {}).get("id") or "")
+        proxima = _proxima(rest, eu, artefato_id or None)
+        contrato = _contrato(corpo.tipo, corpo.chave, corpo.payload, versao=proxima)
+        resposta = _rpc(rest, eu, "governanca_criar_versao", {
+            "p_tipo": corpo.tipo, "p_chave": corpo.chave, "p_payload": contrato["payload"],
+            "p_hash": contrato["hash"], "p_versao": proxima})
+        return Escrita(versao_id=str(resposta.dados), status="DRAFT")
+
+    def _esperado(if_match: str | None) -> str:
+        """A versão que a pessoa leu (trava otimista): editar e transicionar."""
+        if not if_match:
+            raise ErroApi(428, "PRECONDITION_REQUIRED", "If-Match obrigatório: envie a versão que você leu")
+        return if_match.strip().removeprefix("W/").strip('"')
+
+    @r.put("/versoes/{versao_id}", response_model=Escrita,
+           responses={409: {"description": "Versão mudou ou é imutável"}, 428: {"description": "If-Match ausente"}})
+    def editar(versao_id: uuid.UUID, corpo: Edicao, request: Request,
+               if_match: str | None = Header(None, alias="If-Match"),
+               eu: Identidade = Depends(exigir_identidade)) -> Escrita:
+        esperado = _esperado(if_match)
+        _guarda(eu)
+        rest = _rest(request)
+        atual = _versao_com_artefato(rest, eu, versao_id)
+        artefato = atual["artefato"]
+        contrato = _contrato(artefato["tipo_artefato"], artefato["chave_estavel"], corpo.payload,
+                             versao=int(atual.get("versao") or 1), status=str(atual.get("status") or "DRAFT"))
+        _rpc(rest, eu, "governanca_editar_rascunho", {
+            "p_versao": str(versao_id), "p_payload": contrato["payload"], "p_hash": contrato["hash"],
+            "p_esperado": esperado})
+        return Escrita(versao_id=str(versao_id), status=str(atual.get("status") or ""))
+
+    @r.post("/versoes/{versao_id}/derivacao", status_code=201, response_model=Escrita)
+    def derivar(versao_id: uuid.UUID, request: Request, eu: Identidade = Depends(exigir_identidade)) -> Escrita:
+        _guarda(eu)
+        rest = _rest(request)
+        origem = rest.requisitar(eu.token, "GET", "governanca_versoes", params={
+            "select": "payload,artefato_id,artefato:governanca_artefatos(tipo_artefato,chave_estavel,tenant_id)",
+            "id": f"eq.{versao_id}", "limit": "1"})
+        linha = (origem.dados or [None])[0] if origem.status == 200 else None
+        artefato = (linha or {}).get("artefato") or {}
+        if not linha or str(artefato.get("tenant_id") or "") != eu.tenant_id:
+            raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
+        proxima = _proxima(rest, eu, str(linha["artefato_id"]))
+        # O conteúdo é o da publicada (a RPC copia do banco); daqui sai só o hash
+        # canônico da versão NOVA, que inclui o número dela.
+        contrato = _contrato(artefato["tipo_artefato"], artefato["chave_estavel"], linha.get("payload") or {},
+                             versao=proxima)
+        resposta = _rpc(rest, eu, "governanca_derivar_versao", {
+            "p_versao": str(versao_id), "p_hash": contrato["hash"], "p_proxima": proxima})
+        return Escrita(versao_id=str(resposta.dados), status="DRAFT")
+
+    @r.post("/versoes/{versao_id}/transicao", response_model=Escrita,
+            responses={409: {"description": "Versão mudou desde a leitura"}, 428: {"description": "If-Match ausente"}})
+    def transicionar(versao_id: uuid.UUID, corpo: Transicao, request: Request,
+                     if_match: str | None = Header(None, alias="If-Match"),
+                     eu: Identidade = Depends(exigir_identidade)) -> Escrita:
+        # Aprova/publica o texto que a pessoa LEU: o banco recusa se mudou.
+        esperado = _esperado(if_match)
+        _guarda(eu)
+        _rpc(_rest(request), eu, "governanca_transicionar", {
+            "p_versao": str(versao_id), "p_novo": corpo.status, "p_esperado": esperado,
+            "p_vigencia_inicio": corpo.vigencia_inicio.isoformat() if corpo.vigencia_inicio else None})
+        return Escrita(versao_id=str(versao_id), status=corpo.status)
 
     return r

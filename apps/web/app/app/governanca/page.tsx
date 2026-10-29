@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ArtefatosDaGovernanca } from "@/components/governanca";
+import { NovaClausula } from "@/components/governanca-acoes";
 import { Alert, KpiCard, PageHead } from "@/design-system";
 import { chamarApi, ErroDaApi, type ArtefatoDeGovernanca, type CentroDeGovernanca } from "@/lib/api";
 
@@ -35,10 +36,16 @@ export default async function PaginaDaGovernanca({
         title="Centro de Governança"
         desc={`O conhecimento documental do município — cláusulas, políticas, modelos e templates versionados. Seu papel: ${centro.papel.replace("_", " ")}.`}
       />
-      <Alert variant="info" compact>
-        Modo leitura: criar, revisar e publicar continuam no GovDocs até a separação de funções (autor, revisor, publicador)
-        chegar ao banco.
-      </Alert>
+      {centro.papel === "auditor" ? (
+        <Alert variant="info" compact>
+          Seu papel é de auditoria: você acompanha o Centro sem alterar nada.
+        </Alert>
+      ) : (
+        <Alert variant="info" compact>
+          Cada ato segue o seu papel: quem cria escreve e encaminha; o revisor jurídico aprova; o publicador publica e revoga.
+          Políticas, modelos e templates novos ainda são montados no GovDocs.
+        </Alert>
+      )}
       <div className="grid gap-4 sm:grid-cols-3">
         <KpiCard label="Cláusulas no catálogo" value={String(centro.resumo.clausulas)} />
         <KpiCard label="Publicadas (vigentes)" value={String(centro.resumo.publicadas)} />
@@ -56,8 +63,9 @@ export default async function PaginaDaGovernanca({
           </Link>
         ))}
       </nav>
+      {aba === "clausula" && ["proprietario", "admin_global", "admin_municipal"].includes(centro.papel) && <NovaClausula />}
       {aba ? (
-        <ArtefatosDaGovernanca tipo={aba} artefatos={artefatos} />
+        <ArtefatosDaGovernanca tipo={aba} artefatos={artefatos} escrever={centro.papel !== "auditor"} />
       ) : (
         <p className="text-secundario">Nenhum módulo do Centro está ligado.</p>
       )}

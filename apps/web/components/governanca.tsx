@@ -1,3 +1,4 @@
+import { AcoesDaVersao } from "@/components/governanca-acoes";
 import { Badge, Card, EmptyState, type BadgeVariant } from "@/design-system";
 import type { ArtefatoDeGovernanca, VersaoDeGovernanca } from "@/lib/api";
 
@@ -67,7 +68,16 @@ function Conteudo({ tipo, versao, descricao }: { tipo: string; versao: VersaoDeG
   return <p className="text-[length:var(--gc-fs-sm)] text-secundario">{blocos} bloco(s) no template.</p>;
 }
 
-export function ArtefatosDaGovernanca({ tipo, artefatos }: { tipo: string; artefatos: ArtefatoDeGovernanca[] }) {
+export function ArtefatosDaGovernanca({
+  tipo,
+  artefatos,
+  escrever,
+}: {
+  tipo: string;
+  artefatos: ArtefatoDeGovernanca[];
+  /** False para o auditor: só lê. O banco recusaria de qualquer forma. */
+  escrever: boolean;
+}) {
   if (artefatos.length === 0) return <EmptyState icon="folder-open" title={VAZIO[tipo] ?? "Nada aqui ainda."} />;
   return (
     <ul className="grid gap-4" data-testid="artefatos-governanca">
@@ -92,6 +102,7 @@ export function ArtefatosDaGovernanca({ tipo, artefatos }: { tipo: string; artef
             >
               <div className="grid gap-3">
                 {a.ultima && <Conteudo tipo={tipo} versao={a.ultima} descricao={a.descricao} />}
+                {escrever && a.escopo === "municipio" && a.ultima && <AcoesDaVersao tipo={tipo} versao={a.ultima} />}
                 <p className="text-[length:var(--gc-fs-sm)] text-secundario">
                   {a.vigente && a.vigente.id !== a.ultima?.id
                     ? `Vigente: v${a.vigente.versao} (hash ${a.vigente.hash}…) — a versão acima está em elaboração.`

@@ -14,7 +14,7 @@ from govconect_api.main import criar_app
 from govconect_api.verificador import VerificadorSupabase
 from src import catalogo, db, governanca
 
-from apoio_jwt import EMISSOR, Emissor, PostgrestFalso
+from apoio_jwt import EMISSOR, TENANT_A, Emissor, PostgrestFalso
 
 BASE = "/api/v1/governanca"
 
@@ -128,3 +128,136 @@ def test_papel_de_governanca_vem_do_app_metadata(emissor, flags):
 
 def test_papel_de_governanca_desconhecido_nao_vira_acesso(emissor, flags):
     assert _api(emissor).get(BASE, headers=_com_papel(emissor, "superusuario")).status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Escrita (M8b): só pelas RPCs da 0036
+# ---------------------------------------------------------------------------
+VERSAO = "aaaaaaaa-0000-4000-8000-000000000001"
+CLAUSULA = {"titulo": "DA GARANTIA", "comportamento": "FIXED_PARAMETERIZED",
+            "blocos": ["A garantia será de {{percentual}}% do valor."],
+            "parametros_permitidos": ["percentual"], "parametros_obrigatorios": ["percentual"]}
+
+
+def _api_com(emissor, banco):
+    config = carregar({"APP_ENV": "test", "SUPABASE_URL": "https://exemplo-staging.supabase.co",
+                       "SUPABASE_KEY": "chave-publicavel-de-teste"})
+    rest = banco.cliente()
+    return TestClient(criar_app(config, rest=rest, verificador=VerificadorSupabase(
+        emissor=EMISSOR, rest=rest, chave_para=emissor.chave_para)), raise_server_exceptions=False)
+
+
+def _rpcs(banco):
+    return [c for c in banco.chamadas if "/rpc/" in c.url.path]
+
+
+def test_criar_valida_o_contrato_antes_do_banco(emissor, flags):
+    banco = PostgrestFalso()
+    r = _api_com(emissor, banco).post(f"{BASE}/artefatos", headers=_h(emissor, papel="admin"), json={
+        "tipo": "clausula", "chave": "clausula.tr.garantia", "payload": {"titulo": "sem o resto"}})
+    assert r.status_code == 422 and _rpcs(banco) == []
+
+
+def test_criar_calcula_a_proxima_versao_e_o_hash_dela(emissor, flags):
+    banco = PostgrestFalso()
+    banco.responder("GET", "governanca_artefatos", 200, [{"id": "art-1"}])
+    banco.responder("GET", "governanca_versoes", 200, [{"versao": 3}])
+    banco.responder("POST", "governanca_criar_versao", 200, VERSAO)
+    r = _api_com(emissor, banco).post(f"{BASE}/artefatos", headers=_h(emissor, papel="admin"), json={
+        "tipo": "clausula", "chave": "clausula.tr.garantia", "payload": CLAUSULA})
+    assert r.status_code == 201, r.text
+    corpo = banco.corpo(_rpcs(banco)[-1])
+    esperado = governanca.nova_versao_artefato("clausula", "clausula.tr.garantia", CLAUSULA, versao=4)
+    assert corpo["p_versao"] == 4 and corpo["p_hash"] == esperado["hash"]
+
+
+LIDO = "2026-10-27T10:00:00+00:00"
+IF_MATCH = {"If-Match": f'"{LIDO}"'}
+
+
+@pytest.mark.parametrize("codigo,http_do_postgrest,status", [("42501", 403, 403), ("22023", 400, 422), ("PT409", 409, 409)])
+def test_o_codigo_do_banco_decide_o_http(emissor, flags, codigo, http_do_postgrest, status):
+    # O HTTP que o PostgREST de fato devolve para cada SQLSTATE.
+    banco = PostgrestFalso()
+    banco.responder("POST", "governanca_transicionar", http_do_postgrest, {"code": codigo, "message": "x"})
+    r = _api_com(emissor, banco).post(f"{BASE}/versoes/{VERSAO}/transicao", headers={**_h(emissor, papel="admin"), **IF_MATCH},
+                                      json={"status": "PUBLISHED"})
+    assert r.status_code == status
+
+
+def test_superar_nao_e_pedido_e_status_fora_do_vocabulario_e_422(emissor, flags):
+    banco = PostgrestFalso()
+    api = _api_com(emissor, banco)
+    for status in ("SUPERSEDED", "QUALQUER"):
+        assert api.post(f"{BASE}/versoes/{VERSAO}/transicao", headers={**_h(emissor, papel="admin"), **IF_MATCH},
+                        json={"status": status}).status_code == 422
+    assert _rpcs(banco) == []
+
+
+def test_transicionar_exige_if_match_e_manda_a_versao_lida(emissor, flags):
+    banco = PostgrestFalso()
+    api = _api_com(emissor, banco)
+    assert api.post(f"{BASE}/versoes/{VERSAO}/transicao", headers=_h(emissor, papel="admin"),
+                    json={"status": "UNDER_REVIEW"}).status_code == 428
+    assert _rpcs(banco) == []
+    banco.responder("POST", "governanca_transicionar", 200, "UNDER_REVIEW")
+    r = api.post(f"{BASE}/versoes/{VERSAO}/transicao", headers={**_h(emissor, papel="admin"), **IF_MATCH},
+                 json={"status": "UNDER_REVIEW"})
+    assert r.status_code == 200, r.text
+    corpo = banco.corpo(_rpcs(banco)[-1])
+    assert corpo["p_esperado"] == LIDO and corpo["p_novo"] == "UNDER_REVIEW"
+
+
+def test_editar_exige_if_match_e_manda_a_versao_lida(emissor, flags):
+    banco = PostgrestFalso()
+    api = _api_com(emissor, banco)
+    assert api.put(f"{BASE}/versoes/{VERSAO}", headers=_h(emissor, papel="admin"),
+                   json={"payload": CLAUSULA}).status_code == 428
+    banco.responder("GET", "governanca_versoes", 200, [{
+        "id": VERSAO, "versao": 2, "status": "DRAFT", "atualizado_em": "2026-10-27T10:00:00+00:00",
+        "artefato": {"tipo_artefato": "clausula", "chave_estavel": "clausula.tr.garantia", "tenant_id": TENANT_A}}])
+    banco.responder("POST", "governanca_editar_rascunho", 200, "2026-10-27T10:01:00+00:00")
+    r = api.put(f"{BASE}/versoes/{VERSAO}", headers={**_h(emissor, papel="admin"),
+                                                     "If-Match": '"2026-10-27T10:00:00+00:00"'},
+                json={"payload": CLAUSULA})
+    assert r.status_code == 200, r.text
+    corpo = banco.corpo(_rpcs(banco)[-1])
+    assert corpo["p_esperado"] == "2026-10-27T10:00:00+00:00"
+    assert corpo["p_hash"] == governanca.nova_versao_artefato(
+        "clausula", "clausula.tr.garantia", CLAUSULA, versao=2, status="DRAFT")["hash"]
+
+
+def test_versao_de_outro_municipio_e_404_sem_rpc(emissor, flags):
+    banco = PostgrestFalso()
+    banco.responder("GET", "governanca_versoes", 200, [{
+        "id": VERSAO, "versao": 1, "status": "DRAFT", "atualizado_em": "x",
+        "artefato": {"tipo_artefato": "clausula", "chave_estavel": "c.x.y", "tenant_id": "outro"}}])
+    r = _api_com(emissor, banco).put(f"{BASE}/versoes/{VERSAO}", headers={**_h(emissor, papel="admin"),
+                                                                          "If-Match": '"x"'},
+                                     json={"payload": CLAUSULA})
+    assert r.status_code == 404 and _rpcs(banco) == []
+
+
+def test_derivar_manda_o_hash_da_versao_nova(emissor, flags):
+    banco = PostgrestFalso()
+    banco.responder("GET", "governanca_versoes", 200, [{
+        "payload": CLAUSULA, "artefato_id": "art-1",
+        "artefato": {"tipo_artefato": "clausula", "chave_estavel": "clausula.tr.garantia", "tenant_id": TENANT_A}}])
+    banco.responder("GET", "governanca_versoes", 200, [{"versao": 2}])
+    banco.responder("POST", "governanca_derivar_versao", 200, VERSAO)
+    r = _api_com(emissor, banco).post(f"{BASE}/versoes/{VERSAO}/derivacao", headers=_h(emissor, papel="admin"))
+    assert r.status_code == 201, r.text
+    corpo = banco.corpo(_rpcs(banco)[-1])
+    assert corpo["p_proxima"] == 3 and corpo["p_hash"] == governanca.nova_versao_artefato(
+        "clausula", "clausula.tr.garantia", CLAUSULA, versao=3)["hash"]
+
+
+def test_escrita_com_centro_desligado_e_404_e_sem_papel_e_403(emissor, flags):
+    banco = PostgrestFalso()
+    api = _api_com(emissor, banco)
+    assert api.post(f"{BASE}/versoes/{VERSAO}/transicao", headers={**_h(emissor), **IF_MATCH},
+                    json={"status": "UNDER_REVIEW"}).status_code == 403
+    flags[governanca.FLAG_CENTRO] = False
+    assert api.post(f"{BASE}/versoes/{VERSAO}/transicao", headers={**_h(emissor, papel="admin"), **IF_MATCH},
+                    json={"status": "UNDER_REVIEW"}).status_code == 404
+    assert _rpcs(banco) == []

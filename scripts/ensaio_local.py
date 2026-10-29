@@ -171,6 +171,9 @@ SEQUENCIA_EM_ENSAIO = (
     # A 0035 pelo mesmo motivo da 0034: políticas com `e_admin()` e
     # `tenant_do_jwt()` (0020) e grants que só fazem sentido depois da 0019.
     "0035_cadastro_institucional_admin.sql",
+    # A 0036 cria RPCs que chamam a matriz da 0020 e conferem que
+    # `authenticated` segue SEM escrita direta — o que só vale depois dela.
+    "0036_governanca_escrita_por_rpc.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
