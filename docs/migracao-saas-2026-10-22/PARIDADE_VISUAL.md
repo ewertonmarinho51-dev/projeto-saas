@@ -41,6 +41,7 @@ fidelidade de tela) · ⛔ sem tela/sem API — **não simulada**.
 | Governança | `/app/governanca` | 4 | ✅ | `PageHead`, `KpiCard`, `Card`, `Badge`, `EmptyState`, `Alert`, `Field`/`Input`/`Select`/`Textarea` (M8a/M8b) | Escrita continua atrás de `GOVCONECT_GOVERNANCA_ESCRITA`, desligada por padrão; sem `loading.tsx` para o 404 de quem não tem acesso continuar 404. |
 | Administração: Instituição, Usuários | `/app/admin/instituicao`, `/app/admin/usuarios` | 4 | ✅ | `PageHead`, `Card`, `Tabs`, `DataTable`, `Dialog`, `DateField`, `Field`/`Input`/`Select`/`Switch` (M7a–c) | Na casca nova, no grupo Gestão do menu, só para admin. |
 | Conta / Senha | `/app/conta/senha` | 4 | ✅ | `PageHead`, `Card`, `Field`, `Input`, `Alert`, `Button` | — |
+| Editor de documento (WordCraft Workspace, Issue #137) | `/app/processos/[id]/documentos/[documentoId]/editar` | WC-1 | 🟡 | `AppShell workspace`, `DocumentWorkspace` (novo), `Badge`, `Button`, `IconButton`, `Menu`, `DataList`, `Dialog`, `Alert`, `EmptyState`, `Spinner` | **Não há tela de editor no export do Claude Design** (Etapa A da issue não entregue): desenho feito a partir do brief da issue e do design system. Ver seção abaixo. |
 
 ## Auditoria global (entrega 5)
 
@@ -81,3 +82,25 @@ Ainda aberto:
 | GovBot | API v1 sem endpoint de conversa | P1 |
 | Dispersão e estatísticas da pesquisa | conta em dinheiro só no servidor; falta endpoint de estatística por item | P2 |
 | Filtro de processos por situação | situação é derivada em Python; filtrar exigiria ler a base inteira | P3 |
+
+## WordCraft Workspace — diferenças em relação ao brief (30/10)
+
+A Etapa A da Issue #137 pedia um "Editor Workspace" no Claude Design (1440×900,
+1920×1080, 768×1024, 390×844, todos os estados). **Ele não está no repositório**
+(`design-system/referencia/` não tem tela de editor). A implementação seguiu o
+brief textual da issue e as peças existentes; quando o desenho chegar, esta
+seção vira a matriz de comparação. Capturas da pilha de CI:
+`e2e/resultados/paridade/editor-*.png` (artefato `web-e2e-telas`).
+
+| Pedido no brief | Como ficou | Divergência / motivo |
+|---|---|---|
+| Logo oficial, "Voltar ao processo", nome/tipo documental | Logo na barra lateral recolhida; barra do documento com voltar, sigla (sobretítulo) e título | Logo não se repete na barra do documento: a casca já o mostra. |
+| Estado real de salvamento e revisão | Selo de situação + "Revisão N"; indicador anunciado (`role=status`): abrindo, revisão aberta, alterações não salvas, salvando, salvo · revisão N (só com ACK da API), falha, gravação indisponível, conflito, bloqueado, sessão encerrada | "Exportando" não tem estado próprio: o download é do navegador. |
+| Ações somente funcionais | Histórico, Revisão, Exportar (DOCX/PDF da revisão salva), Modo foco | Sem GovBot, evidências, auditoria, pareceres e templates: a API v1 não os expõe ainda (continuam no Streamlit). |
+| Área central ampla, sem cartão em volta do canvas | Área ocupa toda a altura/largura útil; sem cartão | — |
+| Sidebar recolhida ao entrar | Recolhida (68 px) ao entrar; a pessoa pode abrir | — |
+| Painéis colapsáveis (Estrutura, Revisão/GovBot/Evidências/Histórico) | Revisão e aprovação; Histórico de revisões; um por vez, à direita (≤ 768 px: folha inferior) | Estrutura e Evidências ficam para quando houver endpoint. |
+| Modo foco | Cobre a tela (casca e painel somem), Esc ou botão para sair; a área não é recriada | — |
+| Não duplicar a toolbar nativa | Nenhuma barra de formatação no Next; formatação é do WordCraft | — |
+| Estados: abertura, ACK, editando, salvando, erro, conflito, somente leitura/aprovado, congelando, exportando | Todos menos "exportando" (ver acima); "somente leitura" aparece quando a gravação não está liberada no ambiente | Editar um documento já aprovado: o canvas não trava sozinho; o que o banco faz com o novo checkpoint (CAS/status) não foi verificado nesta entrega — conferir no canário. |
+| 390×844 | Leitura segura (aviso + exportação), sem montar o editor | Edição por toque não comprovada (issue: "mobile de edição só se usabilidade nativa for comprovada"). |

@@ -71,6 +71,10 @@ CONTAS = (
     ("admin_visual", "A", "A1", "admin", True),
     # Só da auditoria global de telas (auditoria.spec.ts), pelo mesmo limite.
     ("admin_auditoria", "A", "A1", "admin", True),
+    # Só do E2E do editor de documentos (editor-documento.spec.ts): o tenant A
+    # está no canário `wordcraft_editor`; o B não.
+    ("editor_a", "A", "A1", "usuario", True),
+    ("editor_b", "B", "B1", "usuario", True),
     ("b1", "B", "B1", "usuario", True),
     ("a1_revogado", "A", "A1", "usuario", False),
 )
@@ -444,6 +448,38 @@ def gravar_demandas_e2e(pasta: Path) -> list[str]:
     return caminhos
 
 
+def semear_editor(pilha: Pilha, dono: str = "editor_a") -> dict:
+    """Canário do editor de documentos para o tenant de `dono` e um processo
+    dele com DFD só no GovDocs (legado) e ETP já com cabeça nativa.
+
+    A cabeça nativa entra direto no banco (a pilha é superusuário): o E2E não
+    tem o runtime aprovado do WordCraft nem a credencial documental, e o que
+    ele prova é a trava de ativação, o modo de trabalho e a falha fechada."""
+    import hashlib
+
+    import psycopg
+    from psycopg.types.json import Jsonb
+
+    conta = pilha.contas[dono]
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        c.execute("insert into public.tenant_modulos (tenant_id, modulo, habilitado) values "
+                  "(%s, 'wordcraft_editor', true) on conflict (tenant_id, modulo) do update "
+                  "set habilitado = true", (conta.tenant_id,))
+        processo = str(c.execute(
+            "insert into public.processos (tenant_id, secretaria_id, auth_user_id, orgao, objeto, "
+            "etapa, dados, documentos, aprovados) values (%s,%s,%s,'Prefeitura','Editor E2E',2,%s,%s,"
+            "'{}') returning id",
+            (conta.tenant_id, conta.secretaria_id, conta.auth_user_id, Jsonb({"objeto": "Editor E2E"}),
+             Jsonb({"dfd": "## DFD\n\nTexto sintético."}))).fetchone()[0])
+        etp = str(uuid.uuid5(uuid.NAMESPACE_URL, f"govconnect-document:{processo}:etp"))
+        c.execute("insert into public.documentos_editor (id, processo_id, tenant_id, tipo, revision, "
+                  "content_hash, status, created_by) values (%s,%s,%s,'etp',1,%s,'rascunho',%s)",
+                  (etp, processo, conta.tenant_id, hashlib.sha256(b"etp-sintetico").hexdigest(),
+                   conta.auth_user_id))
+    return {"processo": processo, "etp": etp,
+            "dfd": str(uuid.uuid5(uuid.NAMESPACE_URL, f"govconnect-document:{processo}:dfd"))}
+
+
 def principal() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--estado", required=True, type=Path,
@@ -465,6 +501,7 @@ def principal() -> int:
                   "planilha": str(gravar_planilha_e2e(args.estado.parent)),
                   "aplicacao": semear_aplicacao(pilha, dono="admin_a"),
                   "demandas": gravar_demandas_e2e(args.estado.parent),
+                  "editor": semear_editor(pilha),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
         temporario = args.estado.with_suffix(".tmp")

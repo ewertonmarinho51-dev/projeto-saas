@@ -3,8 +3,15 @@ import { notFound } from "next/navigation";
 
 import { FormularioDeProcesso } from "@/components/form-processo";
 import { situacaoDoProcesso } from "@/components/situacao";
-import { Alert, Button, Card, DataList, PageHead, ProgressBar, StatusBadge } from "@/design-system";
-import { chamarApi, ErroDaApi, type Modulos, type Processo } from "@/lib/api";
+import { Alert, Badge, Button, Card, DataList, PageHead, ProgressBar, StatusBadge } from "@/design-system";
+import {
+  chamarApi,
+  documentosDoProcesso,
+  ErroDaApi,
+  type DocumentosDoProcesso,
+  type Modulos,
+  type Processo,
+} from "@/lib/api";
 
 import { editarProcesso } from "../acoes";
 
@@ -25,10 +32,13 @@ export default async function DetalheDoProcesso({
 
   let p: Processo;
   let modulos: Modulos = { consolidar_demandas: false };
+  let documentos: DocumentosDoProcesso | null = null;
   try {
     p = (await chamarApi<Processo>(`/processos/${id}`)).dados;
     // Módulos opcionais: falha aqui não derruba a página, só some o atalho.
     modulos = await chamarApi<Modulos>("/modulos").then((r) => r.dados).catch(() => modulos);
+    // Editor de documentos (WordCraft Workspace): só com o canário ligado para quem chama.
+    documentos = await documentosDoProcesso(id).catch(() => null);
   } catch (e) {
     // 404 também para processo de outro município: não confirma que existe.
     if (e instanceof ErroDaApi && e.status === 404) notFound();
@@ -91,6 +101,38 @@ export default async function DetalheDoProcesso({
           </>
         }
       />
+
+      {documentos && documentos.documentos.length > 0 && (
+        <Card title="Documentos" subtitle="Edite em tela ampla no editor nativo; o salvamento é confirmado pelo servidor." divided>
+          <ul className="grid gap-3" data-testid="documentos-do-processo">
+            {documentos.documentos.map((d) => (
+              <li key={d.id} className="flex flex-wrap items-center justify-between gap-3">
+                <span className="grid gap-0.5">
+                  <span className="font-medium">{d.rotulo}</span>
+                  <span className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                    {d.nativo ? (
+                      <>
+                        <Badge size="sm" variant={d.status === "aprovado" ? "success" : "neutral"}>
+                          {d.status === "aprovado" ? "Aprovado" : d.status === "emitido" ? "Emitido" : "Rascunho"}
+                        </Badge>
+                        Revisão {d.revisao}
+                      </>
+                    ) : (
+                      "Gerado no GovDocs; ainda não aberto no editor"
+                    )}
+                  </span>
+                </span>
+                {/* Sem revisão nativa, abrir importa o texto do GovDocs: é gravação. */}
+                {(d.nativo || documentos.escrita) && (
+                  <Button size="sm" variant="secondary" icon="pencil-simple" href={`/app/processos/${p.id}/documentos/${d.id}/editar`}>
+                    Abrir no editor
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card title="Dados do processo" divided>
         <div className="max-w-xl">

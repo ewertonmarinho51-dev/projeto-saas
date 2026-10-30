@@ -25,6 +25,9 @@ _SONDA = (
     # `contexto` importava o Streamlit direto até o P04d.
     "import govconect_api.fila, src.precos.emissao, src.export, src.contexto, "
     "src.precos.documento_cotacao, src.precos.relatorio_view, src.precos.cesta; "
+    # WordCraft Workspace: o dono documental e o que a aprovação importa.
+    "import govconect_api.documentos_nativos, src.documentos_editor, src.wordcraft_runtime, "
+    "src.qualidade, src.achados, src.consistencia, src.politicas, src.validacao; "
     "proibidos = [m for m in sys.modules "
     "             if m == 'streamlit' or m.startswith('streamlit.')]; "
     "print(','.join(proibidos) or 'limpo')"

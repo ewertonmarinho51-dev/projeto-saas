@@ -42,6 +42,9 @@ Decisões de desenho (ADR-001/004/007):
 | `GOVCONECT_GOVERNANCA_ESCRITA` | ausente (= desligada). Com ela, a interface nova também ESCREVE no Centro de Governança (RPCs da 0036). A flag `governance_center` do painel é a mesma do Streamlit; esta trava é só do ambiente |
 | `GOVCONECT_GOVBOT` | ausente (= desligado). Com ela, `POST /api/v1/govbot/perguntas` responde: só leitura, contexto do processo pelo RLS, citação só do trecho recuperado. Cada pergunta pode chamar o motor de IA (custo) e usa a mesma chave de IA da API |
 | `GOVCONECT_LIMITE_POR_MINUTO` | opcional (padrão 120) |
+| `GOVCONECT_WORDCRAFT_WORKSPACE` | ausente (= desligada). Ligada, o editor de documentos (Issue #137) existe SÓ para o tenant no canário `wordcraft_editor` (`tenant_modulos`); o resto vê 404. Desligar é o corte global |
+| `GOVCONECT_DOCUMENTOS_ESCRITA_KEY` | ausente até o operador criar a chave (ADR-011, aceita). Chave `sb_secret_…` PRÓPRIA (nunca a da Admin API); sem ela o editor abre e exporta, e salvar/aprovar respondem 503 |
+| `GOVDOCS_WORDCRAFT_NODE`, `GOVDOCS_WORDCRAFT_BUNDLE`, `GOVDOCS_WORDCRAFT_MANIFEST_SHA256`, `GOVDOCS_WORDCRAFT_ORIGIN` | as MESMAS do `/etc/govdocs/env` do Streamlit (gravadas por `instalar_wordcraft_runtime.sh`): `/usr/bin/node`, `/app/static/wordcraft`, o hash do manifesto aprovado e `https://govconect.com`. São configuração, não segredo |
 
 `/etc/govdocs/web.env`:
 

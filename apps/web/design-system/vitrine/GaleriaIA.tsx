@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   AiDraftBlock,
   AiProcessing,
+  Alert,
   AppShell,
   AuthLayout,
   Avatar,
@@ -18,6 +19,8 @@ import {
   Cite,
   ContextBar,
   ConversationList,
+  DataList,
+  DocumentWorkspace,
   ExclusionDialog,
   Field,
   Input,
@@ -382,7 +385,7 @@ export function GaleriaIA({ tema }: { tema: string }) {
         </Grade>
       </Secao>
 
-      <Secao id="templates" tema={tema} titulo="Templates" descricao="PageHead, AppShell, AuthLayout e LandingHero: composições de página recriadas dos ui_kits do export.">
+      <Secao id="templates" tema={tema} titulo="Templates" descricao="PageHead, AppShell, AuthLayout, LandingHero e DocumentWorkspace: composições de página.">
         <Exemplo rotulo="PageHead">
           <PageHead
             eyebrow={<Badge variant="brand">Proc. 2026/001234</Badge>}
@@ -418,6 +421,77 @@ export function GaleriaIA({ tema }: { tema: string }) {
               </AppShell>
             </div>
           </Palco>
+        </Exemplo>
+        <Exemplo rotulo="DocumentWorkspace: salvo, com painel de revisão" largo>
+          <Palco alto>
+            <div className="flex h-full flex-col">
+              <DocumentWorkspace
+                back={
+                  <Button size="sm" variant="ghost" icon="arrow-left">
+                    Voltar ao processo
+                  </Button>
+                }
+                kicker="DFD"
+                title="Documento de Formalização da Demanda"
+                meta={
+                  <>
+                    <Badge size="sm">Rascunho</Badge>
+                    <Badge size="sm">Revisão 4</Badge>
+                  </>
+                }
+                save={{ tone: "success", label: "Salvo · revisão 4" }}
+                actions={
+                  <Button size="sm" variant="subtle" icon="seal-check" aria-pressed>
+                    Revisão
+                  </Button>
+                }
+                panelTitle="Revisão e aprovação"
+                panel={
+                  <DataList
+                    items={[
+                      { label: "Situação", value: "Rascunho" },
+                      { label: "Revisão salva", value: 4, numeric: true },
+                    ]}
+                  />
+                }
+              >
+                <div className="grid h-full place-items-center text-sm text-[var(--text-tertiary)]">Área do editor nativo</div>
+              </DocumentWorkspace>
+            </div>
+          </Palco>
+        </Exemplo>
+        <Exemplo rotulo="DocumentWorkspace: salvando" largo>
+          <DocumentWorkspace
+            back={
+              <Button size="sm" variant="ghost" icon="arrow-left">
+                Voltar ao processo
+              </Button>
+            }
+            kicker="ETP"
+            title="Estudo Técnico Preliminar"
+            save={{ tone: "progress", label: "Salvando…" }}
+          >
+            <div className="h-16" />
+          </DocumentWorkspace>
+        </Exemplo>
+        <Exemplo rotulo="DocumentWorkspace: conflito" largo>
+          <DocumentWorkspace
+            back={
+              <Button size="sm" variant="ghost" icon="arrow-left">
+                Voltar ao processo
+              </Button>
+            }
+            kicker="TR"
+            title="Termo de Referência"
+            save={{ tone: "error", label: "Conflito de revisão" }}
+            notice={
+              <Alert variant="error" compact title="Outra sessão salvou este documento antes.">
+                Seu rascunho continua no editor e não foi gravado.
+              </Alert>
+            }
+          >
+            <div className="h-16" />
+          </DocumentWorkspace>
         </Exemplo>
         <Exemplo rotulo="LandingHero (contido)" largo>
           <Palco>

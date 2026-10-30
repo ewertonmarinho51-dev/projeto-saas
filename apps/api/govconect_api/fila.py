@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import random
 import time
+from dataclasses import replace
 
 from celery import Celery
 from celery.signals import worker_init
@@ -55,14 +56,16 @@ def _criar_celery(redis_url: str) -> Celery:
     return app
 
 
-_config = carregar()
+# ADR-010/011: o worker não guarda as chaves só da API nem na configuração.
+_config = replace(carregar(), auth_admin_chave="", documentos_escrita_chave="")
 celery = _criar_celery(_config.redis_url)
 
 
-# ADR-010: a chave da Admin API do Auth chega ao worker porque o compose
-# dá o mesmo `api.env` aos dois. O worker não a usa, e roda o LibreOffice
-# (que herdaria o ambiente) sobre texto de usuário e de fontes externas.
-CREDENCIAIS_SO_DA_API = ("GOVCONECT_AUTH_ADMIN_KEY",)
+# ADR-010 e ADR-011: as chaves da Admin API do Auth e do commit documental
+# chegam ao worker porque o compose dá o mesmo `api.env` aos dois. O worker
+# não as usa, e roda o LibreOffice (que herdaria o ambiente) sobre texto de
+# usuário e de fontes externas.
+CREDENCIAIS_SO_DA_API = ("GOVCONECT_AUTH_ADMIN_KEY", "GOVCONECT_DOCUMENTOS_ESCRITA_KEY")
 
 
 def sem_credencial_de_servidor() -> None:

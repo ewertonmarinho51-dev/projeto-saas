@@ -18,9 +18,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
-from . import (artefatos, base_conhecimento, cadastro_institucional, cesta, coleta, demandas, erros,
-               formulario, govbot, governanca_central, instituicao, precos, precos_escrita,
-               precos_estatisticas, precos_gestao, processos, relatorios, usuarios_admin)
+from . import (artefatos, base_conhecimento, cadastro_institucional, cesta, coleta, demandas,
+               documentos_nativos, erros, formulario, govbot, governanca_central, instituicao,
+               precos, precos_escrita, precos_estatisticas, precos_gestao, processos, relatorios,
+               usuarios_admin)
 from .admin_auth import AdminDoAuth
 from .observabilidade import METRICAS
 from .camadas import CamadaDeRequisicao
@@ -128,6 +129,7 @@ def _rotas_v1() -> APIRouter:
     rotas.include_router(coleta.rotas())
     rotas.include_router(relatorios.rotas())
     rotas.include_router(govbot.rotas())
+    rotas.include_router(documentos_nativos.rotas())
     return rotas
 
 
@@ -184,6 +186,10 @@ def criar_app(config: Configuracao | None = None,
         # ADR-010: a chave de servidor só existe dentro deste cliente.
         admin_auth = AdminDoAuth(config.supabase_url, config.auth_admin_chave)
     app.state.admin_auth = admin_auth
+    # WordCraft Workspace: pontes dos editores abertos (1 worker) e o motor,
+    # carregado na primeira abertura (testes injetam o seu).
+    app.state.sessoes_documentais = documentos_nativos.Sessoes()
+    app.state.motor_documental = None
 
     erros.instalar(app)
 

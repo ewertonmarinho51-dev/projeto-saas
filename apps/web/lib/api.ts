@@ -632,3 +632,40 @@ export type BaseDeConhecimento = {
 export type ReferenciaIndexada = { id: string; nome_arquivo: string; trechos: number; pendente_de_vetor: boolean };
 
 export type TrechoRecuperado = { titulo: string; categoria_rotulo: string; similaridade: number; conteudo: string };
+
+// ---------------------------------------------------------------------------
+// WordCraft Workspace (Issue #137). O editor nativo abre por estas rotas; a
+// ponte de cada canvas vive na API, e nada aqui confirma gravação.
+// ---------------------------------------------------------------------------
+export type DocumentoDoProcesso = {
+  id: string;
+  tipo: string;
+  sigla: string;
+  rotulo: string;
+  nativo: boolean;
+  legado: boolean;
+  revisao: number | null;
+  content_hash: string | null;
+  status: string | null;
+};
+
+export type DocumentosDoProcesso = { processo_id: string; escrita: boolean; documentos: DocumentoDoProcesso[] };
+
+export type RevisaoDoHistorico = {
+  revisao: number;
+  content_hash: string;
+  atual: boolean;
+  status: string;
+  modo: string;
+  restauravel: boolean;
+};
+
+/** Documentos que o editor abre, ou `null` quando o editor não está ligado para quem chama. */
+export async function documentosDoProcesso(processoId: string): Promise<DocumentosDoProcesso | null> {
+  try {
+    return (await chamarApi<DocumentosDoProcesso>(`/processos/${processoId}/documentos`)).dados;
+  } catch (e) {
+    if (e instanceof ErroDaApi && e.status === 404 && e.codigo === "MODULE_UNAVAILABLE") return null;
+    throw e;
+  }
+}

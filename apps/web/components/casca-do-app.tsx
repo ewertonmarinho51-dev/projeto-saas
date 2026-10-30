@@ -12,10 +12,11 @@ import {
   IconButton,
   Logo,
   UserCard,
-  type BreadcrumbItem,
   type NavItemProps,
   type SidebarGroup,
 } from "@/design-system";
+
+import { emEditor, trilha } from "./trilha";
 
 /**
  * Casca da área autenticada, sobre o `AppShell` do design system.
@@ -74,48 +75,12 @@ function grupos(acesso: Acesso, caminho: string): SidebarGroup[] {
     .filter((g) => g.items.length > 0);
 }
 
-/** Nome de cada trecho fixo da rota; trecho variável (id) vira o nome genérico do recurso. */
-const TRECHOS: Record<string, string> = {
-  processos: "Processos",
-  formulario: "Dados da demanda",
-  demandas: "Consolidar demandas",
-  precos: "Preços",
-  govbot: "GovBot",
-  nova: "Nova pesquisa",
-  itens: "Itens",
-  admin: "Administração",
-  instituicao: "Instituição",
-  "base-conhecimento": "Base de Conhecimento",
-  usuarios: "Usuários",
-  governanca: "Governança",
-  conta: "Conta",
-  senha: "Senha",
-};
-
-const RECURSO: Record<string, string> = { processos: "Processo", precos: "Pesquisa", itens: "Item" };
-
-/** Trilha a partir da rota. Sem link para trecho que não é página (Administração, Conta, Itens). */
-export function trilha(caminho: string): BreadcrumbItem[] {
-  const partes = caminho.replace(/^\/app\/?/, "").split("/").filter(Boolean);
-  if (partes.length === 0) return [{ label: "Início" }];
-  const itens: BreadcrumbItem[] = [];
-  let href = "/app";
-  partes.forEach((parte, i) => {
-    href += `/${parte}`;
-    const anterior = partes[i - 1];
-    const label = TRECHOS[parte] ?? (anterior && RECURSO[anterior]) ?? parte;
-    const pagina = !["admin", "conta", "itens"].includes(parte);
-    itens.push(pagina ? { label, href } : { label });
-  });
-  // "Itens" fica de fora: a trilha vai da pesquisa direto ao item.
-  return itens.filter((i) => i.label !== "Itens");
-}
-
 export function CascaDoApp({ acesso, children }: { acesso: Acesso; children: ReactNode }) {
   const caminho = usePathname() ?? "/app";
   const papel = acesso.papel === "admin" ? "Administrador" : acesso.papel ? "Servidor" : "Sem vínculo";
   return (
     <AppShell
+      workspace={emEditor(caminho)}
       brand={<Logo size={28} href="/app" />}
       groups={grupos(acesso, caminho)}
       footer={
