@@ -32,4 +32,24 @@ describe("site público", () => {
     }
     expect(() => metadados("/inexistente")).toThrow();
   });
+
+  it("mantém os títulos editoriais e inclui a entrada no sitemap público", async () => {
+    const { PAGINAS, metadados } = await import("../components/site");
+    const esperados = new Map([
+      ["/", "Gov Conect — IA para Licitações e Pesquisa de Preços"],
+      ["/entrar", "Entrar — Gov Conect"],
+      ["/solucoes", "Soluções — Gov Conect"],
+      ["/solucoes/documentos-ia", "Documentos com Inteligência Artificial"],
+      ["/solucoes/pesquisa-de-precos", "Pesquisa de Preços"],
+      ["/como-funciona", "Como Funciona"],
+      ["/sobre", "Sobre a Gov Conect"],
+      ["/contato", "Contato"],
+      ["/privacidade", "Privacidade"],
+    ]);
+    expect(new Map(PAGINAS.map((pagina) => [pagina.caminho, pagina.titulo]))).toEqual(esperados);
+    expect(metadados("/entrar").openGraph).toMatchObject({
+      url: "https://govconect.com/entrar",
+      title: "Entrar — Gov Conect",
+    });
+  });
 });

@@ -1,19 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { Alert, AuthLayout } from "@/design-system";
+import { metadados } from "@/components/site";
 import { destinoSeguro } from "@/lib/seguranca";
 import { supabaseConfigurado } from "@/lib/supabase/config";
 import { claimsVerificadas } from "@/lib/supabase/server";
 
 import { FormularioDeEntrada } from "./formulario";
 
-export const metadata: Metadata = {
-  title: "Entrar",
-  description: "Acesso ao Gov Conect com o e-mail institucional cadastrado pelo seu órgão.",
-  alternates: { canonical: "/entrar" },
-};
+export const metadata = metadados("/entrar");
 
 const AVISOS: Record<string, string> = {
   saiu: "Sessão encerrada.",
