@@ -100,6 +100,8 @@ class RespostaDoGovBot(BaseModel):
     base: Literal["dispensada", "recuperado", "suficiente", "sem_referencias", "falha"]
     # O motor de IA respondeu (True) ou valeu a orientação local (False).
     ia: bool
+    # O motor FOI chamado e falhou: não é o mesmo que nem ter precisado dele.
+    motor_falhou: bool
     pendencias: list[str]
 
 
@@ -172,6 +174,7 @@ def responder(contexto: nucleo.GovBotContext, pergunta: str, historico: list[dic
         resposta=texto[:4000], acao=acao,
         citacoes=_citacoes(intent.sources, contexto.referencias_rag),
         base=contexto.recuperacao_rag or "dispensada", ia=ia,
+        motor_falhou=bool(chamadas) and not ia,
         pendencias=list(contexto.pendencias_obrigatorias)[:30])
 
 

@@ -189,3 +189,16 @@ def test_intencao_mutavel_vira_explicacao_e_payload_nao_sai(monkeypatch):
     assert saida.acao == "explain_current"
     assert saida.resposta.endswith(rota.AVISO_SEM_ALTERACAO)
     assert "TEXTO-NOVO" not in saida.model_dump_json()
+
+
+def test_motor_chamado_que_falha_nao_se_passa_por_orientacao_local(api, emissor):
+    def chamar(*a, **k):
+        raise RuntimeError("provedor caiu")
+    corpo = api(chamar=chamar).post(URL, json={"pergunta": "O que é o ETP?"},
+                                    headers=_auth(emissor)).json()
+    assert corpo["motor_falhou"] is True and corpo["ia"] is False
+
+
+def test_orientacao_local_nao_conta_como_falha_do_motor(api, emissor):
+    corpo = api().post(URL, json={"pergunta": "O que está faltando?"}, headers=_auth(emissor)).json()
+    assert corpo["ia"] is False and corpo["motor_falhou"] is False
