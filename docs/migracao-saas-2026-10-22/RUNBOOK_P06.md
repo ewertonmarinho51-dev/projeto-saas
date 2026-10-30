@@ -264,9 +264,16 @@ cd /opt/govdocs/implantacao
 cp .env ".env.pre-corte-$(date +%Y%m%d%H%M%S)"
 sed -i '/^GOVCONECT_CADDYFILE=/d' .env
 echo 'GOVCONECT_CADDYFILE=Caddyfile.govconect' >> .env
-docker compose --profile govconect up -d web app
+set -a
+. /etc/govdocs/govconect-imagens.env
+set +a
+docker compose --profile govconect up -d --no-build web app
 docker compose up -d caddy
 ```
+
+O arquivo `govconect-imagens.env`, gravado por `promover_govconect.sh`, e o
+`--no-build` garantem que o corte preserve exatamente as imagens já promovidas;
+sem esse carregamento o compose pode selecionar as tags locais de fallback.
 
 Aceite técnico: TLS válido nos dois hosts; home, páginas públicas, autenticação
 e `_next` no domínio principal; Streamlit, WebSocket e assets do WordCraft no
