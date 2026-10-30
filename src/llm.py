@@ -505,7 +505,18 @@ def _obter_modelo_openrouter() -> str:
 
 
 def _modelos_openrouter() -> list[str]:
-    return _dedup([_obter_modelo_openrouter(), *OPENROUTER_MODELOS_FALLBACK])
+    """
+    Modelo pago escolhido NÃO desce para a reserva gratuita.
+
+    A reserva só existe para quem está no plano gratuito. Quem paga por um
+    modelo escolheu também onde o dado do processo trafega, e os endpoints
+    `:free` têm outra política de retenção: cair neles em silêncio trocaria
+    uma falha visível por um vazamento invisível.
+    """
+    principal = _obter_modelo_openrouter()
+    if not principal.endswith(":free"):
+        return [principal]
+    return _dedup([principal, *OPENROUTER_MODELOS_FALLBACK])
 
 
 def _e_erro_de_modelo(exc: Exception) -> bool:
