@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import random
 import time
+from dataclasses import replace
 
 from celery import Celery
 from celery.signals import worker_init
@@ -55,7 +56,8 @@ def _criar_celery(redis_url: str) -> Celery:
     return app
 
 
-_config = carregar()
+# ADR-010/011: o worker não guarda as chaves só da API nem na configuração.
+_config = replace(carregar(), auth_admin_chave="", documentos_escrita_chave="")
 celery = _criar_celery(_config.redis_url)
 
 

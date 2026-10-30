@@ -566,6 +566,7 @@ def test_cliente_documental_so_leva_as_rpcs_de_commit_ao_servidor():
     ("production", "chave-qualquer"),
     ("production", "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.x"),
     ("staging", "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.x"),
+    ("development", "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.x"),
 ])
 def test_credencial_documental_recusa_formato_errado_fora_da_pilha(ambiente, chave):
     base = {"APP_ENV": ambiente, "SUPABASE_URL": "https://x.supabase.co", "SUPABASE_KEY": "pub",

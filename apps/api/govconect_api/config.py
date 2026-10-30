@@ -224,9 +224,9 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
         raise ConfiguracaoInvalida(
             "GOVCONECT_DOCUMENTOS_ESCRITA_KEY não pode repetir GOVCONECT_AUTH_ADMIN_KEY.")
     if (documental and not documental.startswith("sb_secret_")
-            and not (nome_ambiente in ("development", "test")
-                     and _papel_de_chave_jwt(documental) == "service_role")):
-        # O JWT legado service_role só existe na pilha descartável do CI.
+            and not (nome_ambiente == "test" and _papel_de_chave_jwt(documental) == "service_role")):
+        # O JWT legado service_role só existe na pilha descartável do CI, com
+        # APP_ENV=test explícito: ambiente ausente vira development, e não vale.
         raise ConfiguracaoInvalida(
             "GOVCONECT_DOCUMENTOS_ESCRITA_KEY precisa ser uma chave sb_secret_.")
 

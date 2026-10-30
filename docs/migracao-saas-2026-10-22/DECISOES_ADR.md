@@ -405,6 +405,25 @@ a chave de servidor; a API, pela ADR-002, não tem.
   com o JWT do usuário (não ganha poder): a lista é de nomes de RPC.
 - Revisão pelo `revisor-de-banco-e-seguranca` antes de provisionar a chave.
 
+**Revisão de segurança (30/10/2026, `revisor-de-banco-e-seguranca`).**
+Sem bloqueador; pode provisionar. As RPCs não confiam cegamente em
+`p_claims`: `documento_editor_sessao_valida` reconfere vínculo, `ativo`,
+tenant, secretaria e papel contra `usuarios`, e checkpoint e aprovação
+conferem titularidade ou competência no banco. O `ContextVar` não vaza entre
+requisições (cópia de contexto do threadpool, `reset` em `finally`). Tratado
+antes do merge: o worker apaga a chave do ambiente e zera o campo na
+configuração; o JWT legado só vale com `APP_ENV=test` explícito.
+Riscos aceitos:
+- o `os.environ.pop` não limpa `/proc/<pid>/environ` do worker, que roda o
+  LibreOffice sobre texto externo: separar o `env_file` só para a `api` segue
+  sendo o endurecimento certo (o mesmo da ADR-010);
+- uma `sb_secret_` é `service_role` para o banco: a lista de três RPCs é
+  disciplina do código da API, não do Postgres. Suspeita de execução remota
+  na API = revogar a chave;
+- `document.frozen` é atestado pelo navegador: prova o fluxo da interface, não
+  a leitura humana. A competência continua sendo do banco, e o aprovador pode
+  ser o autor (não há separação de funções em `documento_editor_aprovar`).
+
 **Para ligar:** o operador cria a chave no painel do Supabase e a grava em
 `/etc/govdocs/api.env`; reinicia a `api`. Revogar a chave desliga a gravação
 na interface nova sem afetar o Streamlit nem a Admin API.
