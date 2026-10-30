@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { dataCurta, naCesta, rotuloEstadoItem, rotuloMetodo } from "@/components/precos";
+import { AnaliseDoItem } from "@/components/analise-item";
 import { AtoNoItem } from "@/components/ato-item";
 import { BuscaDoItem, DesfazerRetirada, EdicaoDoItem, ProgressoDaBusca } from "@/components/gestao-cotacao";
 import { situacaoDoItem } from "@/components/situacao";
@@ -12,6 +13,7 @@ import {
   ErroDaApi,
   precosHabilitado,
   type AlertaDePreco,
+  type EstatisticasDoItem,
   type PesquisaDePrecos,
   type ReferenciaDePreco,
 } from "@/lib/api";
@@ -44,16 +46,21 @@ export default async function Referencias({
   let refs: ReferenciaDePreco[];
   let pesquisa: PesquisaDePrecos;
   let alertas: AlertaDePreco[];
+  let analise: EstatisticasDoItem | null;
   try {
     // Duas leituras em paralelo: as referências e o item (revisão e preço
     // atuais). A revisão é a que vai no If-Match de cada botão da cesta.
-    [refs, pesquisa, alertas] = await Promise.all([
+    [refs, pesquisa, alertas, analise] = await Promise.all([
       chamarApi<ReferenciaDePreco[]>(`/precos/pesquisas/${id}/itens/${itemId}/referencias`).then((r) => r.dados),
       chamarApi<PesquisaDePrecos>(`/precos/pesquisas/${id}`).then((r) => r.dados),
       // Os alertas não derrubam a página: sem eles, a cesta segue igual.
       chamarApi<AlertaDePreco[]>(`/precos/pesquisas/${id}/itens/${itemId}/alertas`)
         .then((r) => r.dados)
         .catch(() => [] as AlertaDePreco[]),
+      // A análise também não: sem ela, some só o painel.
+      chamarApi<EstatisticasDoItem>(`/precos/pesquisas/${id}/itens/${itemId}/estatisticas`)
+        .then((r) => r.dados)
+        .catch(() => null),
     ]);
   } catch (e) {
     if (e instanceof ErroDaApi && e.status === 404) notFound();
@@ -124,6 +131,7 @@ export default async function Referencias({
           <h2>Triagem das referências</h2>
           {typeof busca === "string" && UUID.test(busca) && <ProgressoDaBusca jobId={busca} />}
           <TriagemDoItem pesquisa={id} item={item} referencias={refs} alertas={alertas} editavel={editavel} />
+          {analise && <AnaliseDoItem dados={analise} />}
           {editavel && item.estado !== "complete" && (
             // Chave nova a cada renderização: reenviar não põe duas buscas na fila.
             <BuscaDoItem

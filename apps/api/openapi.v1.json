@@ -978,6 +978,69 @@
         "title": "Escrita",
         "type": "object"
       },
+      "EstatisticasDoItem": {
+        "properties": {
+          "cesta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResumoDaSerie"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coletadas": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResumoDaSerie"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limite_dispersao": {
+            "$ref": "#/components/schemas/Percentual"
+          },
+          "pontos": {
+            "items": {
+              "$ref": "#/components/schemas/PontoDePreco"
+            },
+            "title": "Pontos",
+            "type": "array"
+          },
+          "por_fonte": {
+            "items": {
+              "$ref": "#/components/schemas/GrupoDePrecos"
+            },
+            "title": "Por Fonte",
+            "type": "array"
+          },
+          "por_uf": {
+            "items": {
+              "$ref": "#/components/schemas/GrupoDePrecos"
+            },
+            "title": "Por Uf",
+            "type": "array"
+          },
+          "sem_valor": {
+            "title": "Sem Valor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cesta",
+          "coletadas",
+          "por_fonte",
+          "por_uf",
+          "pontos",
+          "sem_valor",
+          "limite_dispersao"
+        ],
+        "title": "EstatisticasDoItem",
+        "type": "object"
+      },
       "Excluida": {
         "properties": {
           "id": {
@@ -989,6 +1052,23 @@
           "id"
         ],
         "title": "Excluida",
+        "type": "object"
+      },
+      "FaixaUsual": {
+        "description": "Q1 − 1,5·IQR (sem passar de zero) a Q3 + 1,5·IQR — o critério de Tukey.",
+        "properties": {
+          "maximo": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "minimo": {
+            "$ref": "#/components/schemas/Valor"
+          }
+        },
+        "required": [
+          "minimo",
+          "maximo"
+        ],
+        "title": "FaixaUsual",
         "type": "object"
       },
       "FiltrosDaBusca": {
@@ -1183,6 +1263,28 @@
           }
         },
         "title": "GravacaoDoFormulario",
+        "type": "object"
+      },
+      "GrupoDePrecos": {
+        "properties": {
+          "na_cesta": {
+            "title": "Na Cesta",
+            "type": "integer"
+          },
+          "resumo": {
+            "$ref": "#/components/schemas/ResumoDaSerie"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rotulo",
+          "na_cesta",
+          "resumo"
+        ],
+        "title": "GrupoDePrecos",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -2746,6 +2848,25 @@
         "title": "PendenciaDeItem",
         "type": "object"
       },
+      "Percentual": {
+        "description": "Fração exata (`\"0.1234\"`) e o que se mostra (`\"12,34%\"`).",
+        "properties": {
+          "exibicao": {
+            "title": "Exibicao",
+            "type": "string"
+          },
+          "valor": {
+            "title": "Valor",
+            "type": "string"
+          }
+        },
+        "required": [
+          "valor",
+          "exibicao"
+        ],
+        "title": "Percentual",
+        "type": "object"
+      },
       "Pesquisa": {
         "properties": {
           "atualizado_em": {
@@ -2942,6 +3063,58 @@
           "gravado"
         ],
         "title": "PlanoDeImportacao",
+        "type": "object"
+      },
+      "PontoDePreco": {
+        "properties": {
+          "fonte": {
+            "title": "Fonte",
+            "type": "string"
+          },
+          "fora_da_faixa": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fora Da Faixa",
+            "type": "array"
+          },
+          "na_cesta": {
+            "title": "Na Cesta",
+            "type": "boolean"
+          },
+          "referencia_id": {
+            "title": "Referencia Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "uf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uf"
+          },
+          "valor": {
+            "$ref": "#/components/schemas/Valor"
+          }
+        },
+        "required": [
+          "referencia_id",
+          "fonte",
+          "uf",
+          "status",
+          "valor",
+          "na_cesta",
+          "fora_da_faixa"
+        ],
+        "title": "PontoDePreco",
         "type": "object"
       },
       "Portaria": {
@@ -3480,6 +3653,76 @@
           "em_elaboracao"
         ],
         "title": "Resumo",
+        "type": "object"
+      },
+      "ResumoDaSerie": {
+        "properties": {
+          "amplitude": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "coeficiente_variacao": {
+            "$ref": "#/components/schemas/Percentual"
+          },
+          "desvio_padrao": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "dispersao": {
+            "enum": [
+              "homogenea",
+              "dispersa",
+              "insuficiente"
+            ],
+            "title": "Dispersao",
+            "type": "string"
+          },
+          "faixa_usual": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FaixaUsual"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maior": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "media": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "mediana": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "menor": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "q1": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "q3": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "quantidade": {
+            "title": "Quantidade",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "quantidade",
+          "menor",
+          "maior",
+          "media",
+          "mediana",
+          "q1",
+          "q3",
+          "amplitude",
+          "desvio_padrao",
+          "coeficiente_variacao",
+          "dispersao",
+          "faixa_usual"
+        ],
+        "title": "ResumoDaSerie",
         "type": "object"
       },
       "ResumoPesquisa": {
@@ -7124,6 +7367,63 @@
           }
         },
         "summary": "Concluir",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/itens/{item_id}/estatisticas": {
+      "get": {
+        "operationId": "estatisticas_api_v1_precos_pesquisas__pesquisa_id__itens__item_id__estatisticas_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstatisticasDoItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Estatisticas",
         "tags": [
           "v1",
           "precos"
