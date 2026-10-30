@@ -23,6 +23,8 @@ on:
       - "apps/api/**"
       - "src/**"
       - "implantacao/Dockerfile.api"
+      - "assets/wordcraft_editor/**"
+      - "docs/wordcraft/upstream.lock.json"
       - "implantacao/smoke_imagens.sh"
       - ".dockerignore"
       - ".github/workflows/govconect-imagens.yml"

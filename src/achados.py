@@ -523,7 +523,7 @@ def _lastro_da_sessao(documentos: dict[str, str]) -> dict[str, set]:
     rastro (gerado antes do P1, importado ou editado à mão) fica FORA do
     dicionário: a checagem de lastro não opina sobre ele.
     """
-    import streamlit as st
+    from .streamlit_opcional import st
 
     from . import rag
 
@@ -539,7 +539,7 @@ def _dados_da_sessao() -> dict | None:
     puros, jobs), devolve None e essas checagens não opinam.
     """
     try:
-        import streamlit as st
+        from .streamlit_opcional import st
 
         return st.session_state.get("dados") or None
     except Exception:

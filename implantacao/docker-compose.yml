@@ -140,7 +140,13 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=64m
-    mem_limit: 384m
+    # 384m → 768m: o editor de documentos valida e exporta com o motor
+    # nativo (Node + WASM) dentro da API; documento de 8 MB mais o índice
+    # não cabem no teto antigo. Medir no canário antes de baixar.
+    mem_limit: 768m
+    # Runtime aprovado do WordCraft: o MESMO artefato do Streamlit, só leitura.
+    volumes:
+      - /opt/govdocs-wordcraft/wordcraft:/app/static/wordcraft:ro
     stop_grace_period: 30s
     depends_on:
       redis:

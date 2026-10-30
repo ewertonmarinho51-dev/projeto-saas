@@ -22,6 +22,12 @@ export interface AppShellProps {
   aside?: ReactNode;
   /** Ocupa a área inteira, sem a coluna de 1200 px (GovBot em página cheia). */
   bleed?: boolean;
+  /**
+   * Modo de trabalho (editor de documento): área inteira na altura da tela,
+   * sem rolagem da página, e a barra lateral recolhida ao entrar (a pessoa
+   * pode abrir de novo). Implica `bleed`.
+   */
+  workspace?: boolean;
   /** Dentro de outra página (vitrine, prévia): sem `<main id="conteudo">`, que já existe lá. */
   embedded?: boolean;
   children: ReactNode;
@@ -36,8 +42,12 @@ export interface AppShellProps {
  * da barra superior abre, e fecham o fundo escuro, o Esc e a troca de
  * página. Recolher é só da tela larga — na gaveta o menu aparece inteiro.
  */
-export function AppShell({ brand, groups, footer, topStart, topEnd, aside, bleed = false, embedded = false, children }: AppShellProps) {
+export function AppShell({ brand, groups, footer, topStart, topEnd, aside, bleed = false, workspace = false, embedded = false, children }: AppShellProps) {
   const [recolhida, setRecolhida] = useState(false);
+  // No modo de trabalho a barra nasce recolhida; abrir vale só enquanto durar o modo.
+  const [abertaNoTrabalho, setAbertaNoTrabalho] = useState(false);
+  const fechada = workspace ? !abertaNoTrabalho : recolhida;
+  const cheio = bleed || workspace;
   // A gaveta lembra em que página abriu: navegou, ela fecha sozinha (o
   // link já levou aonde a pessoa queria), sem efeito para sincronizar.
   const caminho = usePathname() ?? "";
@@ -55,11 +65,11 @@ export function AppShell({ brand, groups, footer, topStart, topEnd, aside, bleed
   }, [gaveta]);
 
   return (
-    <div className={cx("gc-shell gc-base", gaveta && "gc-shell--drawer-open")}>
+    <div className={cx("gc-shell gc-base", gaveta && "gc-shell--drawer-open", workspace && "gc-shell--workspace")}>
       <div className="gc-shell__nav" id={navId}>
         <Sidebar
-          collapsed={recolhida && !gaveta}
-          onToggle={gaveta ? undefined : () => setRecolhida((r) => !r)}
+          collapsed={fechada && !gaveta}
+          onToggle={gaveta ? undefined : () => (workspace ? setAbertaNoTrabalho((a) => !a) : setRecolhida((r) => !r))}
           brand={brand}
           groups={groups}
           footer={footer}
@@ -87,9 +97,9 @@ export function AppShell({ brand, groups, footer, topStart, topEnd, aside, bleed
         />
         <div className="gc-shell__body">
           <Conteudo id={embedded ? undefined : "conteudo"} className="gc-shell__content">
-            {bleed ? children : <div className="gc-shell__page">{children}</div>}
+            {cheio ? children : <div className="gc-shell__page">{children}</div>}
           </Conteudo>
-          {!bleed && aside}
+          {!cheio && aside}
         </div>
       </div>
     </div>
