@@ -23,6 +23,9 @@ describe("site público", () => {
     vi.stubEnv("GOVCONECT_SITE_URL", "https://homologa.example/");
     const site = await import("../components/site");
     expect(site.SITE_URL).toBe("https://homologa.example");
+    expect(site.urlPublica("/entrar/recuperar?expirado=1").href).toBe(
+      "https://homologa.example/entrar/recuperar?expirado=1",
+    );
   });
 
   it("caminhos, títulos e descrições são únicos, e página fora do registro é erro", async () => {

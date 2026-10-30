@@ -11,6 +11,11 @@ import type { PublicFooterProps, PublicHeaderProps, PublicLink } from "@/design-
 /** Endereço público canônico. Em outro ambiente, `GOVCONECT_SITE_URL`. */
 export const SITE_URL = (process.env.GOVCONECT_SITE_URL ?? "https://govconect.com").replace(/\/+$/, "");
 
+/** Resolve um caminho interno sempre contra a origem pública configurada. */
+export function urlPublica(caminho: string): URL {
+  return new URL(caminho, SITE_URL);
+}
+
 export const NOME = "Gov Conect";
 
 export const DESCRICAO =

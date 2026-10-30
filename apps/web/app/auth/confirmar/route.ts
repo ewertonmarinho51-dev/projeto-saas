@@ -1,6 +1,7 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { urlPublica } from "@/components/site";
 import { destinoSeguro } from "@/lib/seguranca";
 import { criarClienteServidor } from "@/lib/supabase/server";
 
@@ -27,8 +28,10 @@ export async function GET(request: NextRequest) {
     ok = !(await supabase.auth.verifyOtp({ type: tipo, token_hash: tokenHash })).error;
   }
 
-  // `proximo` já é caminho interno validado; a origem é a da requisição.
-  const destino = new URL(ok ? proximo : "/entrar/recuperar?expirado=1", url.origin);
+  // `proximo` já é caminho interno validado. A origem precisa ser a pública
+  // configurada: atrás do Caddy, `request.nextUrl.origin` pode ser o endereço
+  // interno do contentor (`https://0.0.0.0:3000`).
+  const destino = urlPublica(ok ? proximo : "/entrar/recuperar?expirado=1");
   const resposta = NextResponse.redirect(destino);
   resposta.headers.set("Cache-Control", "private, no-store");
   return resposta;
