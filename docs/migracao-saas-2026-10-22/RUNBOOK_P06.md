@@ -226,15 +226,73 @@ docker compose up -d caddy
 
 ## 5. Corte e rollback
 
-Corte (com aceite): trocar o volume do Caddy de `./Caddyfile` para
-`./Caddyfile.govconect`, `docker compose --profile govconect up -d`,
-conferir TLS do domínio novo e o legado no domínio de rollback.
+O corte continua condicionado a aceite específico. Este PR apenas prepara e
+testa o arquivo; não altera DNS, TLS, VPS nem o valor montado pelo compose.
 
-Rollback: voltar o volume do Caddy para `./Caddyfile` e
-`docker compose up -d caddy`. Os serviços novos podem ficar de pé (não
-publicam porta) ou sair com `docker compose --profile govconect stop`.
-Nenhuma migração desta frente é destrutiva; rollback de código não pede
-rollback de banco.
+### 5.1 Preflight obrigatório
+
+1. Criar o registro DNS de `legado.govconect.com` apontando para a VPS e
+   aguardar a resolução pública. Não trocar o registro do domínio principal.
+2. Definir, sem versionar valores, em `/etc/govdocs/caddy.env`:
+   `GOVCONECT_DOMINIO=govconect.com, www.govconect.com` e
+   `GOVDOCS_DOMINIO_LEGADO=legado.govconect.com`.
+3. Manter `GOVCONECT_SITE_URL=https://govconect.com` em `web.env` e as URLs
+   de retorno do Supabase Auth no domínio principal. A API continua interna.
+4. Confirmar antes do corte que o runtime WordCraft servido pelo Streamlit
+   aceita a origem `https://legado.govconect.com`. O instalador usa
+   `GOVDOCS_WORDCRAFT_ORIGIN`; mudar o host sem regenerar/verificar esse
+   contrato pode carregar o HTML e recusar o editor. Não alterar o bundle no
+   momento do corte.
+5. Validar os dois arquivos no host, sem recarregar o proxy:
+   ```
+   docker compose --profile govconect config --quiet
+   docker run --rm --env-file /etc/govdocs/caddy.env \
+     -v "$PWD/Caddyfile.govconect:/etc/caddy/Caddyfile:ro" \
+     caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+   ```
+6. Registrar a referência da imagem atual e uma cópia de `.env`; comprovar
+   `web` e `app` saudáveis. Testar `/_stcore/stream`, `/_stcore/health` e
+   `/app/static/wordcraft/` no legado, além de `/`, `/entrar`, `/app`,
+   `/robots.txt` e `/sitemap.xml` no principal.
+
+### 5.2 Corte (somente após aceite)
+
+O compose já seleciona o arquivo por variável; não editar o volume à mão:
+
+```
+cd /opt/govdocs/implantacao
+cp .env ".env.pre-corte-$(date +%Y%m%d%H%M%S)"
+sed -i '/^GOVCONECT_CADDYFILE=/d' .env
+echo 'GOVCONECT_CADDYFILE=Caddyfile.govconect' >> .env
+set -a
+. /etc/govdocs/govconect-imagens.env
+set +a
+docker compose --profile govconect up -d --no-build web app
+docker compose up -d caddy
+```
+
+O arquivo `govconect-imagens.env`, gravado por `promover_govconect.sh`, e o
+`--no-build` garantem que o corte preserve exatamente as imagens já promovidas;
+sem esse carregamento o compose pode selecionar as tags locais de fallback.
+
+Aceite técnico: TLS válido nos dois hosts; home, páginas públicas, autenticação
+e `_next` no domínio principal; Streamlit, WebSocket e assets do WordCraft no
+legado; API e portas 3000/8000/8501 não expostas diretamente.
+
+### 5.3 Rollback
+
+O rollback volta ao estado anterior, em que todo `govconect.com` é Streamlit:
+
+```
+cd /opt/govdocs/implantacao
+sed -i '/^GOVCONECT_CADDYFILE=/d' .env
+docker compose up -d caddy
+```
+
+Confirmar `/`, `/_stcore/health`, `/_stcore/stream` e um download no domínio
+principal. Os serviços novos podem ficar de pé (não publicam porta) ou sair
+com `docker compose --profile govconect stop`. Nenhuma migração desta frente é
+destrutiva; rollback de código não pede rollback de banco.
 
 ## 6. Ainda não feito no P06 (próximas fatias)
 
