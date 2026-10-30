@@ -40,6 +40,7 @@ Decisões de desenho (ADR-001/004/007):
 | `REDIS_URL` | `redis://:<senha>@redis:6379/0` (sem senha, a API recusa subir em staging/produção) |
 | `PRICE_RESEARCH_ENABLED` | `0` até o corte do módulo; depois `1` |
 | `GOVCONECT_GOVERNANCA_ESCRITA` | ausente (= desligada). Com ela, a interface nova também ESCREVE no Centro de Governança (RPCs da 0036). A flag `governance_center` do painel é a mesma do Streamlit; esta trava é só do ambiente |
+| `GOVCONECT_GOVBOT` | ausente (= desligado). Com ela, `POST /api/v1/govbot/perguntas` responde: só leitura, contexto do processo pelo RLS, citação só do trecho recuperado. Cada pergunta pode chamar o motor de IA (custo) e usa a mesma chave de IA da API |
 | `GOVCONECT_LIMITE_POR_MINUTO` | opcional (padrão 120) |
 
 `/etc/govdocs/web.env`:
@@ -49,6 +50,7 @@ Decisões de desenho (ADR-001/004/007):
 | `GOVCONECT_API_URL` | `http://api:8000` |
 | `GOVCONECT_SITE_URL` | `https://<domínio novo>` |
 | `PRICE_RESEARCH_ENABLED` | igual ao da API |
+| `GOVCONECT_GOVBOT` | igual ao da API (só mostra o item no menu; quem decide é a API) |
 
 `/etc/govdocs/redis.env` (só o Redis):
 

@@ -448,6 +448,42 @@
         "title": "CienciaRegistrada",
         "type": "object"
       },
+      "Citacao": {
+        "properties": {
+          "categoria": {
+            "title": "Categoria",
+            "type": "string"
+          },
+          "dispositivos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dispositivos",
+            "type": "array"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          },
+          "titulo": {
+            "title": "Titulo",
+            "type": "string"
+          },
+          "trecho": {
+            "title": "Trecho",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "titulo",
+          "categoria",
+          "trecho",
+          "dispositivos"
+        ],
+        "title": "Citacao",
+        "type": "object"
+      },
       "ConfirmacaoDaAplicacao": {
         "additionalProperties": false,
         "properties": {
@@ -2867,6 +2903,54 @@
         "title": "Percentual",
         "type": "object"
       },
+      "Pergunta": {
+        "additionalProperties": false,
+        "properties": {
+          "documento": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z_]{2,30}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Documento"
+          },
+          "historico": {
+            "items": {
+              "$ref": "#/components/schemas/Turno"
+            },
+            "maxItems": 8,
+            "title": "Historico",
+            "type": "array"
+          },
+          "pergunta": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Pergunta",
+            "type": "string"
+          },
+          "processo_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processo Id"
+          }
+        },
+        "required": [
+          "pergunta"
+        ],
+        "title": "Pergunta",
+        "type": "object"
+      },
       "Pesquisa": {
         "properties": {
           "atualizado_em": {
@@ -3590,6 +3674,57 @@
         "title": "ReferenciaIndexada",
         "type": "object"
       },
+      "RespostaDoGovBot": {
+        "properties": {
+          "acao": {
+            "title": "Acao",
+            "type": "string"
+          },
+          "base": {
+            "enum": [
+              "dispensada",
+              "recuperado",
+              "suficiente",
+              "sem_referencias",
+              "falha"
+            ],
+            "title": "Base",
+            "type": "string"
+          },
+          "citacoes": {
+            "items": {
+              "$ref": "#/components/schemas/Citacao"
+            },
+            "title": "Citacoes",
+            "type": "array"
+          },
+          "ia": {
+            "title": "Ia",
+            "type": "boolean"
+          },
+          "pendencias": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pendencias",
+            "type": "array"
+          },
+          "resposta": {
+            "title": "Resposta",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resposta",
+          "acao",
+          "citacoes",
+          "base",
+          "ia",
+          "pendencias"
+        ],
+        "title": "RespostaDoGovBot",
+        "type": "object"
+      },
       "ResultadoDaCesta": {
         "properties": {
           "metodo": {
@@ -4041,6 +4176,31 @@
           "conteudo"
         ],
         "title": "Trecho",
+        "type": "object"
+      },
+      "Turno": {
+        "additionalProperties": false,
+        "properties": {
+          "papel": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Papel",
+            "type": "string"
+          },
+          "texto": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "papel",
+          "texto"
+        ],
+        "title": "Turno",
         "type": "object"
       },
       "UsuarioDoMunicipio": {
@@ -5896,6 +6056,44 @@
         "tags": [
           "v1",
           "administracao"
+        ]
+      }
+    },
+    "/api/v1/govbot/perguntas": {
+      "post": {
+        "operationId": "perguntar_api_v1_govbot_perguntas_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Pergunta"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespostaDoGovBot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "description": "Pergunta, histórico ou documento inválido"
+          }
+        },
+        "summary": "Perguntar",
+        "tags": [
+          "v1",
+          "govbot"
         ]
       }
     },

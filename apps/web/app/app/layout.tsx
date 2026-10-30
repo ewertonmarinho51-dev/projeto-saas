@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { CascaDoApp } from "@/components/casca-do-app";
 import { Alert } from "@/design-system";
-import { chamarApi, ErroDaApi, precosHabilitado, type Identidade } from "@/lib/api";
+import { chamarApi, ErroDaApi, govbotHabilitado, precosHabilitado, type Identidade } from "@/lib/api";
 import { claimsVerificadas } from "@/lib/supabase/server";
 
 // Área autenticada: fora do índice dos buscadores, mesmo se um link escapar.
@@ -39,6 +39,7 @@ export default async function LayoutDoApp({ children }: { children: React.ReactN
     papel: eu?.papel ?? null,
     governanca: Boolean(eu?.governanca),
     precos: Boolean(eu) && precosHabilitado(),
+    govbot: Boolean(eu) && govbotHabilitado(),
   };
 
   return (
