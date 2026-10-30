@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import os
 import uuid
 from types import SimpleNamespace
 
@@ -591,3 +592,11 @@ def test_processo_fora_do_acesso_e_404_antes_do_motor(emissor, banco, servico, c
     banco.responder("GET", "processos", 200, [])
     r = api.post(f"/api/v1/documentos/{DFD}/sessoes", headers=_auth(emissor), json={"processo_id": PROCESSO})
     assert r.status_code == 404 and r.json()["code"] == "NOT_FOUND"
+
+
+def test_worker_apaga_a_credencial_documental_ao_subir(monkeypatch):
+    from govconect_api import fila
+
+    monkeypatch.setenv("GOVCONECT_DOCUMENTOS_ESCRITA_KEY", CHAVE)
+    fila.sem_credencial_de_servidor()
+    assert "GOVCONECT_DOCUMENTOS_ESCRITA_KEY" not in os.environ
