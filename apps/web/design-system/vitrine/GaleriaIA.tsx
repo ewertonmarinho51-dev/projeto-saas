@@ -121,7 +121,7 @@ export function GaleriaIA({ tema }: { tema: string }) {
           </Exemplo>
           <Exemplo rotulo="ChatComposer — livre e ocupado">
             <div className="grid gap-3">
-              <ChatComposer onSend={() => undefined} />
+              <ChatComposer onSend={() => undefined} onAttach={() => undefined} onKnowledge={() => undefined} />
               <ChatComposer busy value="Explique o art. 23" onChange={() => undefined} />
             </div>
           </Exemplo>

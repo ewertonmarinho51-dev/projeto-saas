@@ -11,6 +11,7 @@ const TRECHOS: Record<string, string> = {
   formulario: "Dados da demanda",
   demandas: "Consolidar demandas",
   precos: "Preços",
+  govbot: "GovBot",
   nova: "Nova pesquisa",
   itens: "Itens",
   admin: "Administração",

@@ -23,6 +23,7 @@ const ROTAS = [
   ["processos", "/app/processos"],
   ["precos", "/app/precos"],
   ["precos-nova", "/app/precos/nova"],
+  ["govbot", "/app/govbot"],
   ["instituicao", "/app/admin/instituicao"],
   ["usuarios", "/app/admin/usuarios"],
   ["base-conhecimento", "/app/admin/base-conhecimento"],
