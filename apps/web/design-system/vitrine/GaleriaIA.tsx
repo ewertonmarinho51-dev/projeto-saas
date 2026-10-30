@@ -222,6 +222,22 @@ export function GaleriaIA({ tema }: { tema: string }) {
               ]}
             />
           </Exemplo>
+          <Exemplo rotulo="PriceDispersion — rótulos do servidor" largo>
+            <PriceDispersion
+              median={12}
+              band={[8, 16]}
+              labels={{ median: "R$ 12,00", band: ["R$ 8,00", "R$ 16,00"], scale: ["R$ 9,00", "R$ 50,00"] }}
+              values={[
+                { label: "Compras.gov · PA", value: 9, display: "R$ 9,00", state: "excluded" },
+                { label: "PNCP · PA", value: 10, display: "R$ 10,00" },
+                { label: "PNCP · PA", value: 11, display: "R$ 11,00" },
+                { label: "PNCP", value: 12, display: "R$ 12,00" },
+                { label: "Compras.gov · SP", value: 13, display: "R$ 13,00" },
+                { label: "Compras.gov · SP", value: 40, display: "R$ 40,00", state: "discrepant" },
+                { label: "PNCP · SP", value: 50, display: "R$ 50,00", state: "discrepant" },
+              ]}
+            />
+          </Exemplo>
           <Exemplo rotulo="PriceReferenceRow — todos os estados" largo>
             <div className="grid gap-2">
               <PriceReferenceRow

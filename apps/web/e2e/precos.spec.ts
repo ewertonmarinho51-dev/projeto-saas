@@ -53,6 +53,14 @@ test("dono vê a pesquisa com dinheiro exato e evidência verificável", async (
   const link = referencia.getByRole("link", { name: /PNCP/ });
   await expect(link).toHaveAttribute("href", "https://pncp.gov.br/app/editais/12345678000190/2025/123");
   await expect(link).toHaveAttribute("rel", /noopener/);
+
+  // Análise da série: números do servidor, um preço só não inventa dispersão.
+  const analise = page.locator(".gc-card").filter({ has: page.getByRole("heading", { name: "Análise da série" }) });
+  await expect(analise).toContainText("Poucos preços para medir");
+  await expect(analise).toContainText("R$ 2,35");
+  await expect(analise.locator(".gc-disp__plot")).toHaveAttribute("aria-label", /R\$ 2,35 — Na cesta/);
+  await expect(analise.getByRole("table", { name: "Preços por fonte" })).toContainText("PNCP");
+  await expect(analise.getByRole("table", { name: "Preços por UF" })).toBeVisible();
 });
 
 test("tirar e pôr de volta na cesta recalcula pela regra do domínio", async ({ page }) => {

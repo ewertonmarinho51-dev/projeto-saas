@@ -193,6 +193,43 @@ export type ReferenciaDePreco = {
   identificacao: string;
 };
 
+/** Série de preços resumida pelo servidor (`estatistica.calcular`); tudo já formatado. */
+export type ResumoDaSerie = {
+  quantidade: number;
+  menor: Valor;
+  maior: Valor;
+  media: Valor;
+  mediana: Valor;
+  q1: Valor;
+  q3: Valor;
+  amplitude: Valor;
+  desvio_padrao: Valor;
+  coeficiente_variacao: Valor;
+  dispersao: "homogenea" | "dispersa" | "insuficiente";
+  faixa_usual: { minimo: Valor; maximo: Valor } | null;
+};
+
+export type GrupoDePrecos = { rotulo: string; na_cesta: number; resumo: ResumoDaSerie };
+
+export type EstatisticasDoItem = {
+  cesta: ResumoDaSerie | null;
+  coletadas: ResumoDaSerie | null;
+  por_fonte: GrupoDePrecos[];
+  por_uf: GrupoDePrecos[];
+  pontos: {
+    referencia_id: string;
+    fonte: string;
+    uf: string | null;
+    status: string;
+    valor: Valor;
+    na_cesta: boolean;
+    /** Critérios ("IQR", "MAD") pelos quais o preço fica longe da cesta. */
+    fora_da_faixa: string[];
+  }[];
+  sem_valor: number;
+  limite_dispersao: Valor;
+};
+
 /** O módulo aparece no menu? A API decide de verdade (404 com a flag desligada). */
 export function precosHabilitado(): boolean {
   return flagLigada(process.env.PRICE_RESEARCH_ENABLED);

@@ -97,3 +97,25 @@ def test_referencias_de_outro_municipio_sao_404(api_precos, pilha, dados):
     r = api_precos.get(f"/api/v1/precos/pesquisas/{dados['pesquisa']}/itens/{dados['item']}/referencias",
                        headers=_h(pilha.contas["b1"]))
     assert r.status_code == 404
+
+
+@pytest.mark.parametrize("rotulo, esperado", [
+    ("a1", 200),          # dono
+    ("a2", 404),          # outra secretaria do mesmo município
+    ("b1", 404),          # outro município
+])
+def test_estatisticas_seguem_o_predicado_de_leitura(api_precos, pilha, dados, rotulo, esperado):
+    r = api_precos.get(f"/api/v1/precos/pesquisas/{dados['pesquisa']}/itens/{dados['item']}/estatisticas",
+                       headers=_h(pilha.contas[rotulo]))
+    assert r.status_code == esperado, r.text
+    if esperado == 200:
+        # O valor do banco atravessa sem float: 2,3456 em 4 casas.
+        (ponto,) = r.json()["pontos"]
+        assert ponto["valor"]["valor"] == "2.3456"
+        assert r.json()["coletadas"]["quantidade"] == 1
+
+
+def test_estatisticas_por_url_de_outra_pesquisa_sao_404(api_precos, pilha, dados):
+    r = api_precos.get(f"/api/v1/precos/pesquisas/{dados['vazia']}/itens/{dados['item']}/estatisticas",
+                       headers=_h(pilha.contas["a1"]))
+    assert r.status_code == 404
