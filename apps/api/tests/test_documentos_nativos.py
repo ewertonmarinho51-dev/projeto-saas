@@ -28,6 +28,7 @@ from govconect_api.escrita_documental import ClienteDocumental, RPCS
 from govconect_api.main import criar_app
 from govconect_api.verificador import VerificadorSupabase
 from src import db
+from src.config import sequencia_do_processo
 from src.documentos_editor import AcessoNegado, ConflitoDocumento, ErroDocumento
 
 from apoio_jwt import EMISSOR, TENANT_A, Emissor, PostgrestFalso
@@ -559,7 +560,7 @@ def test_cliente_documental_so_leva_as_rpcs_de_commit_ao_servidor():
     with pytest.raises(AttributeError):
         c.storage  # noqa: B018
     assert RPCS == {"documento_editor_checkpoint", "documento_editor_aprovar",
-                    "documento_editor_fontes_aprovacao"}
+                    "documento_editor_fontes_aprovacao", "documento_editor_emitir"}
 
 
 @pytest.mark.parametrize("ambiente,chave", [
@@ -697,3 +698,127 @@ def test_emissao_de_processo_fora_do_acesso_nao_chega_ao_motor(api, emissor, ban
     servico.emissao_atual = lambda pid: pytest.fail("o RLS decide antes do motor")
     banco.responder("GET", "processos", 200, [])
     assert api.get(f"/api/v1/processos/{PROCESSO}/emissao", headers=_auth(emissor)).status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Emissão oficial: conjunto do servidor, conferência humana, ato idempotente
+# ---------------------------------------------------------------------------
+SEQUENCIA = sequencia_do_processo({}, {})
+
+
+def _cabecas(status="aprovado"):
+    return [{"id": dn.id_do_documento(PROCESSO, t), "tipo": t, "revision": 2, "status": status,
+             "content_hash": _sha(t.encode())} for t in SEQUENCIA]
+
+
+def _conferidos():
+    return {"documentos": [{"tipo": t, "revisao": 2, "content_hash": _sha(t.encode())} for t in SEQUENCIA]}
+
+
+@pytest.fixture
+def emissor_oficial(servico):
+    chamadas = []
+
+    def emitir(pid, *, tipos, operation_id):
+        cliente = db._cliente()
+        assert isinstance(cliente, ClienteDocumental), "emissão fora da janela documental"
+        cliente.rpc("documento_editor_emitir", {}).execute()
+        chamadas.append((pid, tipos, operation_id))
+        return SimpleNamespace(id=str(uuid.uuid4()), event_id=str(uuid.uuid4()), replayed=False,
+                               docx_sha256="b" * 64, pdf_sha256="c" * 64,
+                               manifest={"documents": [{"tipo": t, "revision": 2, "source_sha256": _sha(t.encode())}
+                                                       for t in tipos]})
+
+    servico.emitir_aprovados = emitir
+    return chamadas
+
+
+def _emitir(api, emissor, corpo=None):
+    return api.post(f"/api/v1/processos/{PROCESSO}/emissao", headers=_auth(emissor), json=corpo or _conferidos())
+
+
+def test_prontidao_mostra_o_que_falta(api, emissor, banco):
+    cabecas = _cabecas()
+    cabecas[0]["status"] = "rascunho"
+    banco.responder("GET", "documentos_editor", 200, cabecas)
+    r = api.get(f"/api/v1/processos/{PROCESSO}/emissao/prontidao", headers=_auth(emissor))
+    assert r.status_code == 200, r.text
+    assert r.json()["pronto"] is False and [d["tipo"] for d in r.json()["documentos"]] == SEQUENCIA
+    assert [d["aprovado"] for d in r.json()["documentos"]] == [False] + [True] * (len(SEQUENCIA) - 1)
+
+
+def test_prontidao_exige_a_ata_quando_ha_registro_de_precos(api, emissor, banco):
+    banco.responder("GET", "processos", 200, [{"id": PROCESSO, "dados": {"modelo_execucao": "Sistema de Registro de Preços"}}])
+    banco.responder("GET", "documentos_editor", 200, _cabecas())
+    r = api.get(f"/api/v1/processos/{PROCESSO}/emissao/prontidao", headers=_auth(emissor)).json()
+    assert r["documentos"][-1]["tipo"] == "arp" and r["pronto"] is False
+
+
+def test_documento_fora_da_sequencia_barra_a_prontidao(api, emissor, banco):
+    banco.responder("GET", "documentos_editor", 200, _cabecas() + [
+        {"id": "x", "tipo": "arp", "revision": 1, "status": "aprovado", "content_hash": "d" * 64}])
+    r = api.get(f"/api/v1/processos/{PROCESSO}/emissao/prontidao", headers=_auth(emissor)).json()
+    assert r["pronto"] is False and r["fora_da_sequencia"] == ["arp"]
+
+
+def test_emitir_usa_o_conjunto_do_servidor_e_a_chave_do_streamlit(api, emissor, banco, clientes, emissor_oficial):
+    banco.responder("GET", "documentos_editor", 200, _cabecas())
+    r = _emitir(api, emissor)
+    assert r.status_code == 200, r.text
+    assert r.json()["replayed"] is False and [d["tipo"] for d in r.json()["documentos"]] == SEQUENCIA
+    pid, tipos, operacao = emissor_oficial[0]
+    assert (pid, tipos) == (PROCESSO, tuple(SEQUENCIA))
+    assert operacao == str(uuid.uuid5(uuid.NAMESPACE_URL, "govconnect-wordcraft-emission:" + PROCESSO + ":"
+                                      + ":".join(_sha(t.encode()) for t in SEQUENCIA)))
+    assert clientes.servidor.rpcs == ["documento_editor_emitir"]
+    assert db.CLIENTE_DOCUMENTAL.get() is None
+
+
+def test_conferencia_que_nao_bate_nao_emite(api, emissor, banco, emissor_oficial):
+    corpo = _conferidos()
+    corpo["documentos"][0]["revisao"] = 1
+    banco.responder("GET", "documentos_editor", 200, _cabecas())
+    r = _emitir(api, emissor, corpo)
+    assert r.status_code == 409 and r.json()["code"] == "DOCUMENT_CONFLICT"
+    corpo = _conferidos()
+    corpo["documentos"].pop()
+    banco.responder("GET", "documentos_editor", 200, _cabecas())
+    assert _emitir(api, emissor, corpo).status_code == 409
+    assert emissor_oficial == []
+
+
+def test_documento_a_mais_no_banco_nao_emite(api, emissor, banco, emissor_oficial):
+    banco.responder("GET", "documentos_editor", 200, _cabecas() + [
+        {"id": "x", "tipo": "arp", "revision": 1, "status": "aprovado", "content_hash": "d" * 64}])
+    assert _emitir(api, emissor).status_code == 409
+    assert emissor_oficial == []
+
+
+def test_documento_sem_aprovacao_nao_emite(api, emissor, banco, emissor_oficial):
+    banco.responder("GET", "documentos_editor", 200, _cabecas("rascunho"))
+    r = _emitir(api, emissor)
+    assert r.status_code == 422 and r.json()["code"] == "EMISSION_NOT_READY"
+    assert emissor_oficial == []
+
+
+def test_sem_credencial_a_emissao_nao_toca_o_banco(emissor, banco, servico, clientes, canario, emissor_oficial):
+    api = _montar(emissor, banco, servico, clientes, {**AMBIENTE, "GOVCONECT_DOCUMENTOS_ESCRITA_KEY": ""})
+    banco.responder("GET", "documentos_editor", 200, _cabecas())
+    r = _emitir(api, emissor)
+    assert r.status_code == 503 and r.json()["code"] == "DOCUMENT_WRITE_UNAVAILABLE"
+    assert emissor_oficial == [] and clientes.servidor.rpcs == []
+
+
+def test_papel_sem_competencia_recebe_403_e_nao_404(api, emissor, banco, servico):
+    def recusa(pid, *, tipos, operation_id):
+        raise AcessoNegado("Operação documental não autorizada.")
+
+    servico.emitir_aprovados = recusa
+    banco.responder("GET", "documentos_editor", 200, _cabecas())
+    r = _emitir(api, emissor)
+    assert r.status_code == 403 and r.json()["code"] == "FORBIDDEN"
+
+
+def test_corpo_nao_escolhe_processo_nem_tenant(api, emissor, banco):
+    corpo = {**_conferidos(), "tenant_id": TENANT_A}
+    assert _emitir(api, emissor, corpo).status_code == 422

@@ -1,9 +1,9 @@
 """
 Credencial documental do WordCraft Workspace (ADR-011).
 
-O commit de uma revisão nativa vai a RPCs que o banco concede SÓ a
-`service_role` (`documento_editor_checkpoint`, `_aprovar`,
-`_fontes_aprovacao`): elas confiam nas claims e no build do motor que o
+O commit de uma revisão nativa e a emissão oficial vão a RPCs que o banco
+concede SÓ a `service_role` (`documento_editor_checkpoint`, `_aprovar`,
+`_fontes_aprovacao`, `_emitir`): elas confiam nas claims e no build do motor que o
 servidor declara, e por isso não podem ser chamadas pelo navegador nem com
 o JWT do usuário. A ADR-002 tirou a chave de servidor da API; a ADR-010
 abriu a primeira exceção estreita. Esta é a segunda, aceita pelo operador, e
@@ -30,6 +30,7 @@ RPCS = frozenset({
     "documento_editor_checkpoint",
     "documento_editor_aprovar",
     "documento_editor_fontes_aprovacao",
+    "documento_editor_emitir",
 })
 
 

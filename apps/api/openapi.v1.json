@@ -650,6 +650,25 @@
         "title": "CienciaRegistrada",
         "type": "object"
       },
+      "ConferenciaDeEmissao": {
+        "additionalProperties": false,
+        "properties": {
+          "documentos": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentoConferido"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Documentos",
+            "type": "array"
+          }
+        },
+        "required": [
+          "documentos"
+        ],
+        "title": "ConferenciaDeEmissao",
+        "type": "object"
+      },
       "ConfirmacaoDaAplicacao": {
         "additionalProperties": false,
         "properties": {
@@ -962,6 +981,33 @@
         "title": "DadosDoItem",
         "type": "object"
       },
+      "DocumentoConferido": {
+        "additionalProperties": false,
+        "properties": {
+          "content_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "revisao": {
+            "minimum": 1.0,
+            "title": "Revisao",
+            "type": "integer"
+          },
+          "tipo": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}$",
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tipo",
+          "revisao",
+          "content_hash"
+        ],
+        "title": "DocumentoConferido",
+        "type": "object"
+      },
       "DocumentoDescartado": {
         "properties": {
           "chave": {
@@ -1072,6 +1118,67 @@
           "content_hash"
         ],
         "title": "DocumentoEmitido",
+        "type": "object"
+      },
+      "DocumentoParaEmissao": {
+        "properties": {
+          "aprovado": {
+            "title": "Aprovado",
+            "type": "boolean"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "revisao": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revisao"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          },
+          "sigla": {
+            "title": "Sigla",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tipo",
+          "sigla",
+          "rotulo",
+          "aprovado"
+        ],
+        "title": "DocumentoParaEmissao",
         "type": "object"
       },
       "DocumentosDoProcesso": {
@@ -1285,6 +1392,47 @@
           "documentos"
         ],
         "title": "EmissaoOficial",
+        "type": "object"
+      },
+      "EmissaoRegistrada": {
+        "properties": {
+          "documentos": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentoEmitido"
+            },
+            "title": "Documentos",
+            "type": "array"
+          },
+          "docx_sha256": {
+            "title": "Docx Sha256",
+            "type": "string"
+          },
+          "evento_id": {
+            "title": "Evento Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "pdf_sha256": {
+            "title": "Pdf Sha256",
+            "type": "string"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "docx_sha256",
+          "pdf_sha256",
+          "documentos",
+          "evento_id",
+          "replayed"
+        ],
+        "title": "EmissaoRegistrada",
         "type": "object"
       },
       "ErroDaPlanilha": {
@@ -4174,6 +4322,41 @@
           "total"
         ],
         "title": "Progresso",
+        "type": "object"
+      },
+      "ProntidaoDaEmissao": {
+        "description": "O conjunto que o processo exige, decidido no servidor.",
+        "properties": {
+          "documentos": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentoParaEmissao"
+            },
+            "title": "Documentos",
+            "type": "array"
+          },
+          "escrita": {
+            "title": "Escrita",
+            "type": "boolean"
+          },
+          "fora_da_sequencia": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fora Da Sequencia",
+            "type": "array"
+          },
+          "pronto": {
+            "title": "Pronto",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pronto",
+          "escrita",
+          "documentos",
+          "fora_da_sequencia"
+        ],
+        "title": "ProntidaoDaEmissao",
         "type": "object"
       },
       "Pronto": {
@@ -9896,6 +10079,61 @@
           "v1",
           "documentos"
         ]
+      },
+      "post": {
+        "description": "Ato oficial e imutável: os dois pacotes viram snapshot e a trilha registra.\n\nConjunto, revisões e competência saem do servidor e do banco. Repetir o\nmesmo pedido devolve a mesma emissão (`replayed`), com a chave do Streamlit.",
+        "operationId": "emitir_api_v1_processos__processo_id__emissao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConferenciaDeEmissao"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmissaoRegistrada"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Papel sem competência de publicação"
+          },
+          "409": {
+            "description": "O que foi conferido não é mais o que está no banco"
+          },
+          "422": {
+            "description": "Há documento sem aprovação nativa"
+          },
+          "503": {
+            "description": "Gravação indisponível"
+          }
+        },
+        "summary": "Emitir",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
       }
     },
     "/api/v1/processos/{processo_id}/emissao/pacote": {
@@ -9952,6 +10190,54 @@
           }
         },
         "summary": "Pacote Da Emissao",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/emissao/prontidao": {
+      "get": {
+        "description": "O que falta aprovar. Mostra as revisões e hashes que a pessoa confere antes de emitir.",
+        "operationId": "prontidao_da_emissao_api_v1_processos__processo_id__emissao_prontidao_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProntidaoDaEmissao"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso ou editor desligado"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Prontidao Da Emissao",
         "tags": [
           "v1",
           "documentos"
