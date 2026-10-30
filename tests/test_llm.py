@@ -381,6 +381,20 @@ def test_modelo_do_openrouter_e_configuravel(monkeypatch):
     assert llm._modelos_openrouter()[0] == "outro/modelo"
 
 
+def test_modelo_pago_do_openrouter_nao_cai_em_modelo_gratuito(monkeypatch):
+    """Falha visível, nunca dado de processo num endpoint `:free` sem aviso."""
+    monkeypatch.setattr(llm, "_obter_modelo_openrouter", lambda: "openai/gpt-5-mini")
+    assert llm._modelos_openrouter() == ["openai/gpt-5-mini"]
+
+
+def test_modelo_gratuito_escolhido_mantem_a_reserva_gratuita(monkeypatch):
+    monkeypatch.setattr(llm, "_obter_modelo_openrouter",
+                        lambda: "google/gemma-4-31b-it:free")
+    modelos = llm._modelos_openrouter()
+    assert modelos[0] == "google/gemma-4-31b-it:free" and len(modelos) > 1
+    assert all(m.endswith(":free") for m in modelos), modelos
+
+
 def test_openrouter_aponta_para_a_base_certa(monkeypatch):
     """
     A base é o que distingue OpenRouter de OpenAI — o SDK é o mesmo. Sem
