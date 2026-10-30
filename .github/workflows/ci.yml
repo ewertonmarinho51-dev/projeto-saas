@@ -633,3 +633,31 @@ jobs:
           curl -fs -D - -o /dev/null http://127.0.0.1:18080/app | tr -d '\r' | grep -ix 'x-frame-options: DENY'
           ! curl -fs -D - -o /dev/null http://127.0.0.1:18080/app | grep -i 'sameorigin'
           curl -fs -D - -o /dev/null http://127.0.0.1:18080/ | tr -d '\r' | grep -ix 'x-frame-options: SAMEORIGIN'
+
+      - name: Caddy do corte preserva Next no principal e Streamlit no legado
+        shell: bash
+        run: |
+          GOVCONECT_DOMINIO=govconect.example GOVDOCS_DOMINIO_LEGADO=legado.govconect.example \
+          ACME_EMAIL=ci@example.invalid docker run --rm \
+            -e GOVCONECT_DOMINIO -e GOVDOCS_DOMINIO_LEGADO -e ACME_EMAIL \
+            -v "$PWD/implantacao/Caddyfile.govconect:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+          sed \
+            -e 's/{$GOVCONECT_DOMINIO}/:8081/' \
+            -e 's/{$GOVDOCS_DOMINIO_LEGADO}/:8082/' \
+            implantacao/Caddyfile.govconect > "$RUNNER_TEMP/Caddyfile.corte"
+          grep -q '^:8081 {' "$RUNNER_TEMP/Caddyfile.corte"
+          grep -q '^:8082 {' "$RUNNER_TEMP/Caddyfile.corte"
+          docker run -d --network convivencia \
+            -p 127.0.0.1:18081:8081 -p 127.0.0.1:18082:8082 \
+            -e ACME_EMAIL=ci@example.invalid \
+            -v "$RUNNER_TEMP/Caddyfile.corte:/etc/caddy/Caddyfile:ro" caddy:2-alpine
+          for i in $(seq 1 30); do curl -fs -o /dev/null http://127.0.0.1:18081/ && break; sleep 1; done
+
+          [ "$(curl -fs http://127.0.0.1:18081/)" = next ]
+          [ "$(curl -fs http://127.0.0.1:18081/entrar)" = next ]
+          [ "$(curl -fs http://127.0.0.1:18081/app/static/wordcraft/runtime.js)" = next ]
+          [ "$(curl -fs http://127.0.0.1:18082/)" = streamlit ]
+          [ "$(curl -fs http://127.0.0.1:18082/_stcore/health)" = streamlit ]
+          [ "$(curl -fs http://127.0.0.1:18082/app/static/wordcraft/runtime.js)" = streamlit ]
