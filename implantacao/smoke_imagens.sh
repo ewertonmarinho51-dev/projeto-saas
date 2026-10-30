@@ -42,7 +42,9 @@ docker run --rm --entrypoint python "$API" -c \
   "import importlib.util, sys; sys.exit(importlib.util.find_spec('streamlit') is not None)" \
   || falhar "Streamlit instalado na imagem da api"
 # Editor de documentos: o dono documental valida com Node + validate.mjs.
-docker run --rm --entrypoint sh "$API" -c \n  'node --version && test -f /app/assets/wordcraft_editor/validate.mjs && test -f /app/assets/wordcraft_editor/host.mjs && test -f /app/docs/wordcraft/upstream.lock.json' \n  || falhar "api sem o validador nativo do WordCraft"
+docker run --rm --entrypoint sh "$API" -c \
+  'node --version && test -f /app/assets/wordcraft_editor/validate.mjs && test -f /app/assets/wordcraft_editor/host.mjs && test -f /app/docs/wordcraft/upstream.lock.json' \
+  || falhar "api sem o validador nativo do WordCraft"
 CONTENTORES+=("$(docker run -d --read-only --tmpfs /tmp -e APP_ENV=test -p 127.0.0.1:18000:8000 "$API")")
 esperar_http http://127.0.0.1:18000/health/live 200
 esperar_http http://127.0.0.1:18000/health/ready 503
