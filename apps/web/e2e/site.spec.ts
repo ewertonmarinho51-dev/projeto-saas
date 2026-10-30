@@ -17,6 +17,18 @@ const PAGINAS = [
   "/contato",
   "/privacidade",
 ];
+const TODAS_AS_PUBLICAS = ["/", "/entrar", ...PAGINAS.slice(1)];
+const TITULOS = new Map([
+  ["/", "Gov Conect — IA para Licitações e Pesquisa de Preços"],
+  ["/entrar", "Entrar — Gov Conect"],
+  ["/solucoes", "Soluções — Gov Conect"],
+  ["/solucoes/documentos-ia", "Documentos com Inteligência Artificial"],
+  ["/solucoes/pesquisa-de-precos", "Pesquisa de Preços"],
+  ["/como-funciona", "Como Funciona"],
+  ["/sobre", "Sobre a Gov Conect"],
+  ["/contato", "Contato"],
+  ["/privacidade", "Privacidade"],
+]);
 // Origem canônica: a do ambiente do web (GOVCONECT_SITE_URL; em produção
 // https://govconect.com, provado em tests/site.test.ts). A prova lê da home
 // e exige que todas as páginas, o sitemap e o JSON-LD usem a mesma.
@@ -48,7 +60,7 @@ test("cada página pública tem h1, título, descrição e canônica próprios",
 
     const titulo = await page.title();
     const descricao = (await page.locator('meta[name="description"]').getAttribute("content")) ?? "";
-    expect(titulo, caminho).toContain("Gov Conect");
+    expect(titulo, caminho).toBe(TITULOS.get(caminho));
     expect(descricao.length, `${caminho} sem descrição`).toBeGreaterThan(50);
     titulos.add(titulo);
     descricoes.add(descricao);
@@ -57,6 +69,7 @@ test("cada página pública tem h1, título, descrição e canônica próprios",
       `${SITE}${caminho === "/" ? "" : caminho}`,
     );
     await expect(page.locator('meta[property="og:title"]'), caminho).toHaveCount(1);
+    await expect(page.locator('meta[name="twitter:card"]'), caminho).toHaveAttribute("content", "summary");
 
     for (const href of await page.locator('a[href^="/"]').evaluateAll((as) => as.map((a) => a.getAttribute("href") ?? ""))) {
       internos.add(href.split("#")[0]);
@@ -83,6 +96,32 @@ test("cada página pública tem h1, título, descrição e canônica próprios",
   expect(erros).toEqual([]);
 });
 
+test("a entrada é pública, indexável e usa o título e a canônica institucionais", async ({ page }) => {
+  const site = await origem(page);
+  await page.goto("/");
+  await page.locator("header").getByRole("link", { name: "Entrar", exact: true }).click();
+  await expect(page).toHaveURL(/\/entrar$/);
+  await expect(page).toHaveTitle("Entrar — Gov Conect");
+  await expect(page.getByRole("heading", { level: 1, name: "Entrar" })).toHaveCount(1);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", `${site}/entrar`);
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "Entrar — Gov Conect");
+  await expect(page.locator('link[rel~="icon"]')).toHaveAttribute("href", /favicon-32\.png/);
+});
+
+test("a página inicial não transborda em celular, tablet ou desktop", async ({ page }) => {
+  await page.goto("/");
+  for (const viewport of [
+    { nome: "celular", width: 390, height: 844 },
+    { nome: "tablet", width: 768, height: 1024 },
+    { nome: "desktop", width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const dimensoes = await page.evaluate(() => ({ largura: document.documentElement.scrollWidth, janela: innerWidth }));
+    expect(dimensoes.largura, `home transborda em ${viewport.nome}`).toBeLessThanOrEqual(dimensoes.janela);
+    await page.screenshot({ path: `e2e/resultados/site/inicio-${viewport.width}.png`, fullPage: true });
+  }
+});
+
 test("a navegação marca a página atual e a trilha volta para Soluções", async ({ page }) => {
   await page.goto("/solucoes/pesquisa-de-precos");
   const nav = page.getByRole("navigation", { name: "Navegação pública" });
@@ -103,7 +142,7 @@ test("dados estruturados da organização na página inicial", async ({ page }) 
 test("sitemap lista as páginas públicas e robots deixa o sistema fora", async ({ page, request }) => {
   await origem(page);
   const mapa = await (await request.get("/sitemap.xml")).text();
-  for (const caminho of PAGINAS) {
+  for (const caminho of TODAS_AS_PUBLICAS) {
     expect(mapa).toContain(`<loc>${SITE}${caminho === "/" ? "" : caminho}</loc>`);
   }
   expect(mapa).not.toContain("/app");
