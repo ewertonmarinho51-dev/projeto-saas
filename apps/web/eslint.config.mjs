@@ -28,7 +28,9 @@ const VALOR_SOLTO = [
 const config = [
   ...next,
   {
-    ignores: [".next/**", "node_modules/**", "e2e/resultados/**", "next-env.d.ts", "design-system/referencia/**"],
+    ignores: [".next/**", "node_modules/**", "e2e/resultados/**", "next-env.d.ts", "design-system/referencia/**",
+      // Cópia gerada do host do Codex (assets/wordcraft_editor): não se edita aqui.
+      "public/app/wordcraft-host/**"],
   },
   {
     files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],

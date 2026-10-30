@@ -346,3 +346,64 @@ exceção). Também: "sem secretaria" envia `null` (o GoTrue mescla
 `app_metadata`), e 422 do Auth só vira "já existe" com o código certo.
 Risco aceito: o 409 do convite revela que um e-mail já tem conta no
 projeto (sonda limitada a 120/min por admin).
+
+## ADR-011 — Exceção estreita à ADR-002: commit documental nativo do WordCraft (Issue #137)
+
+**Status:** **PROPOSTA — aguarda decisão do operador.** Nada é ativado sem
+ela: o código fica no `main`, mas sem `GOVCONECT_DOCUMENTOS_ESCRITA_KEY` no
+`api.env` o editor da interface nova só lê e exporta, e salvar, importar,
+restaurar e aprovar respondem 503 `DOCUMENT_WRITE_UNAVAILABLE` sem tocar o
+banco.
+
+**Contexto.** O WordCraft Workspace leva o editor nativo para o Next.js. O
+dono documental é `src.documentos_editor.DocumentoService` (único; proibido
+duplicar), e ele grava pelas RPCs `documento_editor_checkpoint`,
+`documento_editor_aprovar` e `documento_editor_fontes_aprovacao`, que as
+migrações `20261015*`–`20261018*` concedem **só a `service_role`**. É de
+propósito: essas RPCs confiam nas claims verificadas e no build do motor
+que o chamador declara (`p_engine_build_sha256`,
+`validation_provenance = server_manifest_sha256`). Se o JWT do usuário
+pudesse chamá-las, o navegador poderia declarar um documento "validado pelo
+motor" sem ter passado por ele. No Streamlit isso funciona porque o app tem
+a chave de servidor; a API, pela ADR-002, não tem.
+
+**Alternativas consideradas.**
+1. *Conceder as RPCs a `authenticated`.* Recusada: quebra a prova de
+   proveniência acima e exige migração nas tabelas do Codex.
+2. *Serviço documental separado com a chave (sidecar).* Mais isolamento,
+   mais uma imagem, rede e deploy. Fica como endurecimento se a ADR-011
+   for aceita e o canário mostrar que vale.
+3. *Proxy para o Streamlit.* Recusada: "nada novo no Streamlit", e o
+   editor legado sai quando o novo provar.
+4. **Chave própria, só para estas três RPCs (proposta).**
+
+**Decisão proposta.**
+1. **Uma chave, um uso.** `GOVCONECT_DOCUMENTOS_ESCRITA_KEY` (`sb_secret_…`;
+   JWT legado só na pilha descartável de teste; igual à da Admin API é
+   recusada na subida). Fora do `repr` da configuração.
+2. **Janela por operação.** `escrita_documental` cria o cliente de servidor
+   só durante UM commit (checkpoint, importação, restauração, aprovação) e
+   o põe num `ContextVar` que `db._cliente()` lê **só na API**
+   (`CLIENTE_DOCUMENTAL`). Fora da janela, `_cliente()` segue a regra de
+   sempre (JWT do usuário).
+3. **Só três RPCs.** `ClienteDocumental` manda ao servidor apenas
+   `documento_editor_checkpoint`, `_aprovar` e `_fontes_aprovacao`; toda
+   outra RPC e todo `.table()` vão com o JWT do usuário (RLS). Não há
+   `storage`, `auth` nem PostgREST cru. Prova:
+   `test_cliente_documental_so_leva_as_rpcs_de_commit_ao_servidor`.
+4. **A chave não autoriza.** As RPCs continuam conferindo, com as claims
+   do `documento_editor_contexto` do PRÓPRIO usuário, vínculo, processo,
+   revisão (CAS) e competência de revisão/aprovação. Antes de qualquer
+   commit a API já verificou o JWT, a trava de ambiente, o canário do
+   tenant, a visibilidade do processo pelo RLS e o dono da sessão do editor.
+
+**Consequências e riscos.**
+- Mais uma chave de servidor no `api.env` (que o worker também carrega; o
+  worker não importa o módulo documental). Mitigação: chave separada da
+  Admin API, revogável sozinha, janela por operação, lista fechada de RPCs.
+- Um bug que chame `db._cliente()` dentro da janela para outra coisa vai
+  com o JWT do usuário (não ganha poder): a lista é de nomes de RPC.
+- Revisão pelo `revisor-de-banco-e-seguranca` antes de provisionar a chave.
+
+**Para aceitar:** o operador registra "aceito" aqui, cria a chave no painel
+do Supabase e a grava em `/etc/govdocs/api.env`; reinicia a `api`.

@@ -690,4 +690,48 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   /* Só link solto: <a> com classe do design system (botão, item de menu, aba, logo) tem cor própria, e esta regra viria depois dela no arquivo. */
   .gc-base :where(a:not([class*="gc-"])){color:var(--text-link);text-underline-offset:3px}
   .gc-base :where(a:not([class*="gc-"]):hover){color:var(--text-link-hover)}
+  /* ——— Espaço de trabalho de documento (editor nativo em tela ampla) ——— */
+  /* A casca em modo de trabalho: tela inteira, sem rolagem da página; quem rola é o editor. */
+  .gc-shell--workspace{height:100dvh;min-height:0;overflow:hidden}
+  .gc-shell--workspace .gc-shell__main{min-height:0;height:100dvh}
+  .gc-shell--workspace .gc-shell__content{overflow:hidden;display:flex;flex-direction:column}
+  .gc-workspace{display:flex;flex-direction:column;flex:1;min-height:0;height:100%;background:var(--surface-sunken)}
+  .gc-workspace--focus{position:fixed;inset:0;z-index:var(--z-overlay);height:100dvh}
+  .gc-workspace__bar{display:flex;align-items:center;gap:var(--space-3);min-height:var(--control-lg);padding:var(--space-2) var(--space-4);background:var(--surface-card);border-bottom:var(--border-width) solid var(--border-subtle);flex-wrap:wrap}
+  .gc-workspace__back{flex:none}
+  .gc-workspace__titles{display:grid;min-width:0;flex:0 1 auto}
+  .gc-workspace__kicker{font:var(--type-overline);letter-spacing:var(--gc-tracking-caps);text-transform:uppercase;color:var(--text-tertiary)}
+  .gc-workspace__title{margin:0;font:var(--type-h3);color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gc-workspace__meta{display:flex;align-items:center;gap:var(--space-1-5);flex-wrap:wrap}
+  .gc-workspace__spacer{flex:1}
+  .gc-workspace__actions{display:flex;align-items:center;gap:var(--space-1-5);flex-wrap:wrap}
+  .gc-workspace__save{display:inline-flex;align-items:center;gap:var(--space-1-5);font:var(--type-caption);color:var(--text-secondary);white-space:nowrap}
+  .gc-workspace__save::before{content:"";width:var(--space-2);height:var(--space-2);border-radius:var(--gc-radius-pill);background:var(--text-tertiary)}
+  .gc-workspace__save--progress::before{background:var(--info-solid);animation:gc-pulse var(--dur-slow) var(--gc-ease-standard) infinite alternate}
+  .gc-workspace__save--success::before{background:var(--success-solid)}
+  .gc-workspace__save--warning::before{background:var(--warning-solid)}
+  .gc-workspace__save--error{color:var(--error-fg)}
+  .gc-workspace__save--error::before{background:var(--error-solid)}
+  .gc-workspace__notice{padding:var(--space-2) var(--space-4) 0}
+  .gc-workspace__body{display:grid;grid-template-columns:minmax(0,1fr);flex:1 1 auto;min-height:0;min-width:0}
+  .gc-workspace--panel .gc-workspace__body{grid-template-columns:minmax(0,1fr) minmax(0,calc(var(--sidebar-width) + var(--space-16)))}
+  .gc-workspace__canvas{position:relative;min-width:0;min-height:0;overflow:hidden}
+  .gc-workspace__panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;background:var(--surface-card);border-left:var(--border-width) solid var(--border-subtle)}
+  .gc-workspace__panel-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);padding:var(--space-3) var(--space-4);border-bottom:var(--border-width) solid var(--border-subtle)}
+  .gc-workspace__panel-title{margin:0;font:var(--type-label);color:var(--text-primary)}
+  .gc-workspace__panel-body{overflow-y:auto;padding:var(--space-4);display:grid;align-content:start;gap:var(--space-4)}
+  /* O host nativo dentro da área: canvas ocupa tudo; status vai ao leitor de tela; retry só quando vale. */
+  .gc-workspace__canvas > .gc-wordcraft-editor{position:absolute;inset:0;display:block}
+  .gc-wordcraft-editor > p[role="status"]{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .gc-wordcraft-editor > canvas{display:block;outline:none}
+  .gc-wordcraft-editor > canvas:focus-visible{box-shadow:inset 0 0 0 var(--border-width-strong) var(--accent)}
+  .gc-wordcraft-editor > button{position:absolute;left:50%;bottom:var(--space-4);transform:translateX(-50%);height:var(--control-md);padding:0 var(--space-4);border:var(--border-width) solid var(--error-border);border-radius:var(--gc-radius-md);background:var(--surface-card);color:var(--error-fg);font:var(--type-label);cursor:pointer;box-shadow:var(--gc-shadow-md)}
+  .gc-wordcraft-editor > button:disabled{display:none}
+  @keyframes gc-pulse{from{opacity:1}to{opacity:.35}}
+  @media (max-width:768px){
+    .gc-workspace--panel .gc-workspace__body{grid-template-columns:minmax(0,1fr)}
+    .gc-workspace--panel .gc-workspace__panel{position:absolute;inset:auto 0 0 0;max-height:60%;border-left:0;border-top:var(--border-width) solid var(--border-subtle);box-shadow:var(--gc-shadow-lg);z-index:var(--z-dropdown)}
+    .gc-workspace__body{position:relative}
+  }
+  @media (prefers-reduced-motion:reduce){.gc-workspace__save--progress::before{animation:none}}
 }

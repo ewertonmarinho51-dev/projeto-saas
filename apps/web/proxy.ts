@@ -15,9 +15,12 @@ import { atualizarSessao } from "@/lib/supabase/proxy";
 export async function proxy(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID());
   const dev = process.env.NODE_ENV !== "production";
+  // Só a tela do editor compila WebAssembly (o motor nativo do WordCraft).
+  // `wasm-unsafe-eval` libera WebAssembly.instantiate e nada de eval de JS.
+  const editor = /^\/app\/processos\/[^/]+\/documentos\/[^/]+\/editar\/?$/.test(request.nextUrl.pathname);
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${editor ? " 'wasm-unsafe-eval'" : ""}${dev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",

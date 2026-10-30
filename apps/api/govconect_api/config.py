@@ -59,6 +59,15 @@ class Configuracao:
     # Streamlit e está ligada em produção; esta trava é do AMBIENTE (não do
     # painel), para a interface nova poder ler sem passar a escrever.
     governanca_escrita: bool = False
+    # WordCraft Workspace na interface nova (Issue #137). Trava do AMBIENTE,
+    # desligada por padrão: ligada, a rota ainda exige o tenant no canário
+    # `wordcraft_editor` (tenant_modulos). Desligar aqui é o corte global.
+    wordcraft_workspace: bool = False
+    # ADR-011 (PROPOSTA, aguarda o operador): credencial que só chama as RPCs
+    # de commit documental nativo, que o banco concede apenas a service_role.
+    # Vazia = o editor abre e lê, e salvar/aprovar respondem 503 sem tocar o
+    # banco. Nunca vai ao domínio fora de `escrita_documental`.
+    documentos_escrita_chave: str = field(default="", repr=False)
 
     @property
     def jwt_emissor(self) -> str:
@@ -209,6 +218,18 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
     if admin and not admin.startswith("sb_secret_"):
         raise ConfiguracaoInvalida("GOVCONECT_AUTH_ADMIN_KEY precisa ser uma chave sb_secret_.")
 
+    documental = _ler(env, "GOVCONECT_DOCUMENTOS_ESCRITA_KEY")
+    if documental and documental == admin:
+        # Uma chave, um uso (ADR-010): a da Admin API do Auth não serve aqui.
+        raise ConfiguracaoInvalida(
+            "GOVCONECT_DOCUMENTOS_ESCRITA_KEY não pode repetir GOVCONECT_AUTH_ADMIN_KEY.")
+    if (documental and not documental.startswith("sb_secret_")
+            and not (nome_ambiente in ("development", "test")
+                     and _papel_de_chave_jwt(documental) == "service_role")):
+        # O JWT legado service_role só existe na pilha descartável do CI.
+        raise ConfiguracaoInvalida(
+            "GOVCONECT_DOCUMENTOS_ESCRITA_KEY precisa ser uma chave sb_secret_.")
+
     return Configuracao(ambiente=nome_ambiente, supabase_url=supabase_url,
                         origens_cors=origens,
                         supabase_chave_publica=chave_publica,
@@ -217,4 +238,7 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
                         in _VERDADEIRO,
                         redis_url=redis_url, fontes_coleta=fontes, auth_admin_chave=admin,
                         governanca_escrita=_ler(env, "GOVCONECT_GOVERNANCA_ESCRITA").lower()
-                        in _VERDADEIRO)
+                        in _VERDADEIRO,
+                        wordcraft_workspace=_ler(env, "GOVCONECT_WORDCRAFT_WORKSPACE").lower()
+                        in _VERDADEIRO,
+                        documentos_escrita_chave=documental)

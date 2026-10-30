@@ -24,6 +24,147 @@
         "title": "Aba",
         "type": "object"
       },
+      "AberturaDoEditor": {
+        "properties": {
+          "ack": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ack"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bloqueado": {
+            "default": false,
+            "title": "Bloqueado",
+            "type": "boolean"
+          },
+          "checkpoint_base64": {
+            "title": "Checkpoint Base64",
+            "type": "string"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "control": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "escrita": {
+            "title": "Escrita",
+            "type": "boolean"
+          },
+          "estado": {
+            "title": "Estado",
+            "type": "string"
+          },
+          "event_ack": {
+            "title": "Event Ack",
+            "type": "integer"
+          },
+          "falha_controle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Falha Controle"
+          },
+          "instance_id": {
+            "title": "Instance Id",
+            "type": "string"
+          },
+          "module_url": {
+            "title": "Module Url",
+            "type": "string"
+          },
+          "nonce": {
+            "title": "Nonce",
+            "type": "string"
+          },
+          "processo_id": {
+            "title": "Processo Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          },
+          "save_error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FalhaDeGravacao"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "sigla": {
+            "title": "Sigla",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          },
+          "wasm_url": {
+            "title": "Wasm Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instance_id",
+          "session_id",
+          "document_id",
+          "nonce",
+          "event_ack",
+          "estado",
+          "revision",
+          "content_hash",
+          "status",
+          "escrita",
+          "processo_id",
+          "tipo",
+          "sigla",
+          "rotulo",
+          "checkpoint_base64",
+          "module_url",
+          "wasm_url"
+        ],
+        "title": "AberturaDoEditor",
+        "type": "object"
+      },
       "AcaoDoPlano": {
         "properties": {
           "codigo": {
@@ -73,6 +214,29 @@
           "refaz_busca"
         ],
         "title": "AcaoDoPlano",
+        "type": "object"
+      },
+      "Ack": {
+        "properties": {
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "request_id",
+          "revision",
+          "content_hash"
+        ],
+        "title": "Ack",
         "type": "object"
       },
       "AplicacaoDaDemanda": {
@@ -159,6 +323,44 @@
           "pesquisa_marcada"
         ],
         "title": "AplicacaoFeita",
+        "type": "object"
+      },
+      "AprovacaoRegistrada": {
+        "properties": {
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "boolean"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "document_id",
+          "revision",
+          "content_hash",
+          "status",
+          "replayed"
+        ],
+        "title": "AprovacaoRegistrada",
         "type": "object"
       },
       "ArquivoEnviado": {
@@ -758,6 +960,103 @@
         "title": "DocumentoDescartado",
         "type": "object"
       },
+      "DocumentoDoProcesso": {
+        "properties": {
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "legado": {
+            "title": "Legado",
+            "type": "boolean"
+          },
+          "nativo": {
+            "title": "Nativo",
+            "type": "boolean"
+          },
+          "revisao": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revisao"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          },
+          "sigla": {
+            "title": "Sigla",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tipo",
+          "sigla",
+          "rotulo",
+          "nativo",
+          "legado"
+        ],
+        "title": "DocumentoDoProcesso",
+        "type": "object"
+      },
+      "DocumentosDoProcesso": {
+        "properties": {
+          "documentos": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentoDoProcesso"
+            },
+            "title": "Documentos",
+            "type": "array"
+          },
+          "escrita": {
+            "title": "Escrita",
+            "type": "boolean"
+          },
+          "processo_id": {
+            "title": "Processo Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "processo_id",
+          "escrita",
+          "documentos"
+        ],
+        "title": "DocumentosDoProcesso",
+        "type": "object"
+      },
       "Edicao": {
         "additionalProperties": false,
         "properties": {
@@ -978,6 +1277,113 @@
         "title": "Escrita",
         "type": "object"
       },
+      "EstadoDoEditor": {
+        "description": "Tudo o que o host nativo lê a cada resposta. Vem só da ponte do servidor.",
+        "properties": {
+          "ack": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ack"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bloqueado": {
+            "default": false,
+            "title": "Bloqueado",
+            "type": "boolean"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "control": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "escrita": {
+            "title": "Escrita",
+            "type": "boolean"
+          },
+          "estado": {
+            "title": "Estado",
+            "type": "string"
+          },
+          "event_ack": {
+            "title": "Event Ack",
+            "type": "integer"
+          },
+          "falha_controle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Falha Controle"
+          },
+          "instance_id": {
+            "title": "Instance Id",
+            "type": "string"
+          },
+          "nonce": {
+            "title": "Nonce",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "save_error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FalhaDeGravacao"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instance_id",
+          "session_id",
+          "document_id",
+          "nonce",
+          "event_ack",
+          "estado",
+          "revision",
+          "content_hash",
+          "status",
+          "escrita"
+        ],
+        "title": "EstadoDoEditor",
+        "type": "object"
+      },
       "EstatisticasDoItem": {
         "properties": {
           "cesta": {
@@ -1069,6 +1475,24 @@
           "maximo"
         ],
         "title": "FaixaUsual",
+        "type": "object"
+      },
+      "FalhaDeGravacao": {
+        "properties": {
+          "conflict": {
+            "title": "Conflict",
+            "type": "boolean"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "conflict"
+        ],
+        "title": "FalhaDeGravacao",
         "type": "object"
       },
       "FiltrosDaBusca": {
@@ -1298,6 +1722,27 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Historico": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "revisoes": {
+            "items": {
+              "$ref": "#/components/schemas/RevisaoDoHistorico"
+            },
+            "title": "Revisoes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "document_id",
+          "revisoes"
+        ],
+        "title": "Historico",
         "type": "object"
       },
       "IdentidadePorImagem": {
@@ -1790,6 +2235,26 @@
           "explicacao"
         ],
         "title": "LinhaConsolidada",
+        "type": "object"
+      },
+      "LoteDeEventos": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 256,
+            "minItems": 1,
+            "title": "Events",
+            "type": "array"
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "title": "LoteDeEventos",
         "type": "object"
       },
       "Me": {
@@ -2809,6 +3274,27 @@
         "title": "PedidoDeRelatorio",
         "type": "object"
       },
+      "PedidoDeRestauracao": {
+        "additionalProperties": false,
+        "properties": {
+          "instance_id": {
+            "format": "uuid",
+            "title": "Instance Id",
+            "type": "string"
+          },
+          "revisao_origem": {
+            "minimum": 1.0,
+            "title": "Revisao Origem",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "instance_id",
+          "revisao_origem"
+        ],
+        "title": "PedidoDeRestauracao",
+        "type": "object"
+      },
       "PedidoDeRevisao": {
         "additionalProperties": false,
         "properties": {
@@ -2820,6 +3306,21 @@
           }
         },
         "title": "PedidoDeRevisao",
+        "type": "object"
+      },
+      "PedidoDeSessao": {
+        "additionalProperties": false,
+        "properties": {
+          "processo_id": {
+            "format": "uuid",
+            "title": "Processo Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "processo_id"
+        ],
+        "title": "PedidoDeSessao",
         "type": "object"
       },
       "PendenciaDeItem": {
@@ -3780,6 +4281,44 @@
           }
         },
         "title": "Retirada",
+        "type": "object"
+      },
+      "RevisaoDoHistorico": {
+        "properties": {
+          "atual": {
+            "title": "Atual",
+            "type": "boolean"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "modo": {
+            "title": "Modo",
+            "type": "string"
+          },
+          "restauravel": {
+            "title": "Restauravel",
+            "type": "boolean"
+          },
+          "revisao": {
+            "title": "Revisao",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revisao",
+          "content_hash",
+          "atual",
+          "status",
+          "modo",
+          "restauravel"
+        ],
+        "title": "RevisaoDoHistorico",
         "type": "object"
       },
       "Secretaria": {
@@ -5896,6 +6435,619 @@
         "tags": [
           "v1",
           "administracao"
+        ]
+      }
+    },
+    "/api/v1/documentos/{document_id}/exportacao": {
+      "get": {
+        "description": "Exporta a revisão PERSISTIDA exata (rascunho; não é emissão oficial).",
+        "operationId": "exportar_api_v1_documentos__document_id__exportacao_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "formato",
+            "required": true,
+            "schema": {
+              "enum": [
+                "docx",
+                "pdf"
+              ],
+              "title": "Formato",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "revisao",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Revisao",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "content_hash",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Content Hash",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/pdf": {},
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {}
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "A revisão pedida não é mais a corrente"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Exportar",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/documentos/{document_id}/historico": {
+      "get": {
+        "description": "Revisões imutáveis persistidas (as 50 mais recentes).",
+        "operationId": "historico_api_v1_documentos__document_id__historico_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Historico"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Documento fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Historico",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/documentos/{document_id}/restauracao": {
+      "post": {
+        "description": "Revisão antiga vira revisão NOVA (CAS). O canvas é reaberto do head novo.",
+        "operationId": "restaurar_api_v1_documentos__document_id__restauracao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeRestauracao"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AberturaDoEditor"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Edição local pendente ou revisão mudou"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Gravação indisponível"
+          }
+        },
+        "summary": "Restaurar",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/documentos/{document_id}/sessoes": {
+      "post": {
+        "description": "Abre um canvas: revisão persistida + ponte nova, só desta conta.",
+        "operationId": "abrir_api_v1_documentos__document_id__sessoes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeSessao"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AberturaDoEditor"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Documento fora do seu acesso ou editor desligado"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Motor ou gravação indisponível"
+          }
+        },
+        "summary": "Abrir",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/documentos/{document_id}/sessoes/{instance_id}": {
+      "delete": {
+        "operationId": "encerrar_api_v1_documentos__document_id__sessoes__instance_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "instance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Instance Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Encerrar",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      },
+      "get": {
+        "operationId": "estado_api_v1_documentos__document_id__sessoes__instance_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "instance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Instance Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstadoDoEditor"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Sessão encerrada"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Estado",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/documentos/{document_id}/sessoes/{instance_id}/aprovacao": {
+      "post": {
+        "description": "Aprova a revisão EXATA congelada no canvas. Competência: o banco decide.",
+        "operationId": "aprovar_api_v1_documentos__document_id__sessoes__instance_id__aprovacao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "instance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Instance Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AprovacaoRegistrada"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Sem canvas bloqueado na revisão corrente"
+          },
+          "422": {
+            "description": "O dono documental recusou (fatos, competência, gate)"
+          },
+          "503": {
+            "description": "Gravação indisponível"
+          }
+        },
+        "summary": "Aprovar",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/documentos/{document_id}/sessoes/{instance_id}/bloqueio": {
+      "post": {
+        "description": "Pede ao canvas o congelamento da revisão salva (prova para aprovar).",
+        "operationId": "bloquear_api_v1_documentos__document_id__sessoes__instance_id__bloqueio_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "instance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Instance Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstadoDoEditor"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Há edição não salva ou controle pendente"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bloquear",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/documentos/{document_id}/sessoes/{instance_id}/eventos": {
+      "post": {
+        "description": "Lote acumulado do host nativo. Checkpoint aceito → commit CAS → ACK.",
+        "operationId": "eventos_api_v1_documentos__document_id__sessoes__instance_id__eventos_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "instance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Instance Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoteDeEventos"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstadoDoEditor"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Sessão encerrada"
+          },
+          "409": {
+            "description": "Lote recusado pela ponte (replay, escopo, revisão)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Eventos",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/documentos/{document_id}/sessoes/{instance_id}/liberacao": {
+      "post": {
+        "operationId": "liberar_api_v1_documentos__document_id__sessoes__instance_id__liberacao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "instance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Instance Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstadoDoEditor"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "Canvas não está bloqueado"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Liberar",
+        "tags": [
+          "v1",
+          "documentos"
         ]
       }
     },
@@ -8500,6 +9652,54 @@
         "tags": [
           "v1",
           "demandas"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/documentos": {
+      "get": {
+        "description": "Documentos do processo que o editor abre: nativos e legados importáveis.",
+        "operationId": "listar_api_v1_processos__processo_id__documentos_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentosDoProcesso"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso ou editor desligado"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Listar",
+        "tags": [
+          "v1",
+          "documentos"
         ]
       }
     },

@@ -8,9 +8,10 @@
 #    docker build -f implantacao/Dockerfile.api --target worker -t govconect-worker .
 #
 #  O contexto é a RAIZ do repositório (o `.dockerignore` mora lá). Só
-#  entram `src/` (o domínio) e `apps/api/govconect_api`. Nada de
-#  Streamlit: a imagem nem tem o pacote (`GOVDOCS_SEM_STREAMLIT=1`, e o
-#  job `imagens` do CI prova).
+#  entram `src/` (o domínio) e `apps/api/govconect_api` — e, no alvo
+#  `api`, o validador do WordCraft (ver abaixo). Nada de Streamlit: a
+#  imagem nem tem o pacote (`GOVDOCS_SEM_STREAMLIT=1`, e o job
+#  `imagens` do CI prova).
 # ###########################################################
 
 FROM python:3.11-slim-bookworm AS base
@@ -45,6 +46,15 @@ ENV GOVCONECT_RELEASE=${GOVCONECT_RELEASE} \
 # reiniciar a API em cascata.
 # ---------------------------------------------------------------
 FROM base AS api
+# WordCraft Workspace (Issue #137): o dono documental valida e exporta com
+# o motor nativo pinado — Node + `validate.mjs` (que importa `host.mjs`) +
+# o pin upstream que `wordcraft_runtime.carregar` confere. O JS/WASM
+# aprovado NÃO entra na imagem: é o mesmo artefato de release do Streamlit,
+# montado só leitura em /app/static/wordcraft (compose). O mesmo `nodejs`
+# do Debian que a imagem do Streamlit usa.
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs \n    && rm -rf /var/lib/apt/lists/*
+COPY --chown=govconect:govconect assets/wordcraft_editor/validate.mjs assets/wordcraft_editor/host.mjs ./assets/wordcraft_editor/
+COPY --chown=govconect:govconect docs/wordcraft/upstream.lock.json ./docs/wordcraft/upstream.lock.json
 USER govconect
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=4s --start-period=20s --retries=3 \

@@ -417,7 +417,7 @@ jobs:
           set -euo pipefail
           APP_ENV=test SUPABASE_URL="$PILHA_URL" SUPABASE_KEY="$PILHA_ANON" PYTHONPATH=.:../.. \
             PRICE_RESEARCH_ENABLED=1 REDIS_URL=redis://127.0.0.1:6379/0 GOVCONECT_FONTES_COLETA=nenhuma \
-            GOVCONECT_GOVERNANCA_ESCRITA=1 \
+            GOVCONECT_GOVERNANCA_ESCRITA=1 GOVCONECT_WORDCRAFT_WORKSPACE=1 \
             nohup python -m uvicorn govconect_api.asgi:app --host 127.0.0.1 --port 8000 \
             > "$RUNNER_TEMP/api.log" 2>&1 < /dev/null &
           # Worker de verdade, sem fontes externas (só a pilha de teste aceita).

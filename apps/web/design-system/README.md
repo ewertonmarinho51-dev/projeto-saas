@@ -106,7 +106,8 @@ server component. Componente que recebe função (`render`, `trigger`,
 | price | `PriceMapTable` | mapa de preços | |
 | price | `ExclusionDialog` | retirar referência com motivo | sim |
 | templates | `PageHead` | cabeçalho de página | |
-| templates | `AppShell` | casca do app (barra lateral + superior) | sim |
+| templates | `AppShell` | casca do app (barra lateral + superior); `workspace` = modo de trabalho do editor (tela inteira, barra recolhida) | sim |
+| templates | `DocumentWorkspace` | espaço de trabalho do editor de documento: barra (voltar, sigla, título, selos, salvamento anunciado, ações), área do editor sem cartão e painel opcional; modo foco cobre a tela sem recriar a área | |
 | templates | `AuthLayout` | entrada dividida marca/formulário; sempre no tema claro (usado em `/entrar` e `/entrar/recuperar`) | |
 | templates | `LandingHero` | Hero da landing pública (`/`): cabeçalho de vidro, fluxo DFD → ETP → TR → Preços em SVG, painéis ilustrativos; CSS em `styles/landing.css`, sem JavaScript | |
 

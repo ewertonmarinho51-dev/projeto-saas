@@ -579,7 +579,7 @@ def verificar_para_processo(documentos: dict[str, str],
         except db.ErroBanco:
             lista_fatos = []
     if not lista_fatos:
-        import streamlit as st
+        from .streamlit_opcional import st
 
         from . import fatos as fatos_mod
 

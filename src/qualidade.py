@@ -27,9 +27,8 @@ exibir nada (calibração com processos reais); depois
 
 import logging
 
-import streamlit as st
-
 from . import achados, conhecimento, db, fatos as fatos_mod, governanca
+from .streamlit_opcional import st
 
 _log = logging.getLogger("govdocs.qualidade")
 

@@ -21,6 +21,7 @@ fallback para a chave publicável.
 
 import base64
 import binascii
+import contextvars
 import hashlib
 import json
 import logging
@@ -407,6 +408,12 @@ def disponivel() -> bool:
     return bool(url and chave)
 
 
+# Só a API (sem Streamlit) o preenche, e só durante uma escrita documental
+# nativa; fora dela é None e `_cliente()` segue a regra de sempre.
+CLIENTE_DOCUMENTAL: contextvars.ContextVar = contextvars.ContextVar(
+    "govdocs_cliente_documental", default=None)
+
+
 def _cliente():
     """
     Cliente de SERVIDOR. Carrega a credencial secreta e, portanto,
@@ -423,6 +430,12 @@ def _cliente():
     from .streamlit_opcional import sem_streamlit
 
     if sem_streamlit():
+        # ADR-011 (proposta): dentro de `escrita_documental` da API, um
+        # cliente que só leva à credencial documental as RPCs de commit
+        # nativo e manda todo o resto com o JWT do usuário.
+        documental = CLIENTE_DOCUMENTAL.get()
+        if documental is not None:
+            return documental
         cliente = cliente_do_usuario()
         if cliente is None:
             raise ErroBanco("sem sessão do usuário")
