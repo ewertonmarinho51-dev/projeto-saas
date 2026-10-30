@@ -63,7 +63,7 @@ class Configuracao:
     # desligada por padrão: ligada, a rota ainda exige o tenant no canário
     # `wordcraft_editor` (tenant_modulos). Desligar aqui é o corte global.
     wordcraft_workspace: bool = False
-    # ADR-011 (PROPOSTA, aguarda o operador): credencial que só chama as RPCs
+    # ADR-011: credencial que só chama as RPCs
     # de commit documental nativo, que o banco concede apenas a service_role.
     # Vazia = o editor abre e lê, e salvar/aprovar respondem 503 sem tocar o
     # banco. Nunca vai ao domínio fora de `escrita_documental`.

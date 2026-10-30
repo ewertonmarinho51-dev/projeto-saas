@@ -90,8 +90,9 @@ também largar os 720/800 px.
 
 ## O que falta para o canário (em ordem)
 
-1. **Decisão do operador na ADR-011** (credencial documental). Sem ela o
-   editor abre, lê e exporta; não salva.
+1. **Chave da ADR-011** (decisão aceita em 30/10; falta o operador criar a
+   chave e gravá-la no `api.env`). Sem ela o editor abre, lê e exporta; não
+   salva.
 2. **Imagem da API com Node** (feito no `Dockerfile.api`) e o volume do
    runtime aprovado (feito no compose) — promover pela esteira
    (`govconect-imagens.yml` → `promover_govconect.sh`).

@@ -349,11 +349,11 @@ projeto (sonda limitada a 120/min por admin).
 
 ## ADR-011 — Exceção estreita à ADR-002: commit documental nativo do WordCraft (Issue #137)
 
-**Status:** **PROPOSTA — aguarda decisão do operador.** Nada é ativado sem
-ela: o código fica no `main`, mas sem `GOVCONECT_DOCUMENTOS_ESCRITA_KEY` no
-`api.env` o editor da interface nova só lê e exporta, e salvar, importar,
+**Status:** Aceita em 30/10/2026, por decisão do operador ("Aprovar
+ADR-011"). Aceitar a decisão não liga nada: enquanto a chave não existir no
+`api.env`, o editor da interface nova só lê e exporta, e salvar, importar,
 restaurar e aprovar respondem 503 `DOCUMENT_WRITE_UNAVAILABLE` sem tocar o
-banco.
+banco. A chave é criada e gravada pelo operador; agente nenhum a manuseia.
 
 **Contexto.** O WordCraft Workspace leva o editor nativo para o Next.js. O
 dono documental é `src.documentos_editor.DocumentoService` (único; proibido
@@ -375,9 +375,9 @@ a chave de servidor; a API, pela ADR-002, não tem.
    for aceita e o canário mostrar que vale.
 3. *Proxy para o Streamlit.* Recusada: "nada novo no Streamlit", e o
    editor legado sai quando o novo provar.
-4. **Chave própria, só para estas três RPCs (proposta).**
+4. **Chave própria, só para estas três RPCs (escolhida).**
 
-**Decisão proposta.**
+**Decisão.**
 1. **Uma chave, um uso.** `GOVCONECT_DOCUMENTOS_ESCRITA_KEY` (`sb_secret_…`;
    JWT legado só na pilha descartável de teste; igual à da Admin API é
    recusada na subida). Fora do `repr` da configuração.
@@ -405,5 +405,6 @@ a chave de servidor; a API, pela ADR-002, não tem.
   com o JWT do usuário (não ganha poder): a lista é de nomes de RPC.
 - Revisão pelo `revisor-de-banco-e-seguranca` antes de provisionar a chave.
 
-**Para aceitar:** o operador registra "aceito" aqui, cria a chave no painel
-do Supabase e a grava em `/etc/govdocs/api.env`; reinicia a `api`.
+**Para ligar:** o operador cria a chave no painel do Supabase e a grava em
+`/etc/govdocs/api.env`; reinicia a `api`. Revogar a chave desliga a gravação
+na interface nova sem afetar o Streamlit nem a Admin API.

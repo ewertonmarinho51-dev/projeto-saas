@@ -430,7 +430,7 @@ def _cliente():
     from .streamlit_opcional import sem_streamlit
 
     if sem_streamlit():
-        # ADR-011 (proposta): dentro de `escrita_documental` da API, um
+        # ADR-011: dentro de `escrita_documental` da API, um
         # cliente que só leva à credencial documental as RPCs de commit
         # nativo e manda todo o resto com o JWT do usuário.
         documental = CLIENTE_DOCUMENTAL.get()

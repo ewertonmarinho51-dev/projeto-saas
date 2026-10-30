@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 /**
  * WordCraft Workspace (Issue #137) na pilha REAL: web + API + GoTrue +
  * PostgREST. A pilha não tem o runtime aprovado do WordCraft nem a
- * credencial documental (ADR-011 em proposta), então o que se prova aqui é
+ * credencial documental (ADR-011), então o que se prova aqui é
  * o que não depende deles:
  *
  * - trava de ativação: tenant A no canário vê os documentos e o editor; o

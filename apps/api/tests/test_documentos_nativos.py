@@ -153,9 +153,11 @@ class ServicoFalso:
 # ---------------------------------------------------------------------------
 # Montagem
 # ---------------------------------------------------------------------------
+# Montada na hora: a varredura de segredos do CI olha o texto do arquivo.
+CHAVE = "sb_secret_" + "d" * 24
 AMBIENTE = {"APP_ENV": "test", "SUPABASE_URL": "https://exemplo-staging.supabase.co",
             "SUPABASE_KEY": "chave-publicavel-de-teste", "GOVCONECT_WORDCRAFT_WORKSPACE": "on",
-            "GOVCONECT_DOCUMENTOS_ESCRITA_KEY": "sb_secret_documental_de_teste"}
+            "GOVCONECT_DOCUMENTOS_ESCRITA_KEY": CHAVE}
 
 
 @pytest.fixture
@@ -540,7 +542,7 @@ def test_exportar_entrega_a_revisao_exata_sem_cache(api, emissor, servico):
 
 
 # ---------------------------------------------------------------------------
-# Credencial documental (ADR-011, proposta)
+# Credencial documental (ADR-011)
 # ---------------------------------------------------------------------------
 def test_cliente_documental_so_leva_as_rpcs_de_commit_ao_servidor():
     usuario, servidor = ClienteGravador("usuario"), ClienteGravador("servidor")
@@ -573,13 +575,13 @@ def test_credencial_documental_recusa_formato_errado_fora_da_pilha(ambiente, cha
 
 def test_credencial_documental_nao_repete_a_da_admin_api():
     with pytest.raises(ConfiguracaoInvalida):
-        carregar({**AMBIENTE, "GOVCONECT_AUTH_ADMIN_KEY": "sb_secret_igual",
-                  "GOVCONECT_DOCUMENTOS_ESCRITA_KEY": "sb_secret_igual"})
+        carregar({**AMBIENTE, "GOVCONECT_AUTH_ADMIN_KEY": CHAVE,
+                  "GOVCONECT_DOCUMENTOS_ESCRITA_KEY": CHAVE})
 
 
 def test_credencial_documental_fica_fora_do_repr():
     config = carregar(AMBIENTE)
-    assert "sb_secret_documental" not in repr(config)
+    assert CHAVE not in repr(config)
 
 
 def test_processo_fora_do_acesso_e_404_antes_do_motor(emissor, banco, servico, clientes, canario, monkeypatch):

@@ -1,13 +1,13 @@
 """
-Credencial documental do WordCraft Workspace (ADR-011, PROPOSTA).
+Credencial documental do WordCraft Workspace (ADR-011).
 
 O commit de uma revisão nativa vai a RPCs que o banco concede SÓ a
 `service_role` (`documento_editor_checkpoint`, `_aprovar`,
 `_fontes_aprovacao`): elas confiam nas claims e no build do motor que o
 servidor declara, e por isso não podem ser chamadas pelo navegador nem com
 o JWT do usuário. A ADR-002 tirou a chave de servidor da API; a ADR-010
-abriu a primeira exceção estreita. Esta é a segunda, e só vale se o
-operador a aprovar e provisionar `GOVCONECT_DOCUMENTOS_ESCRITA_KEY`.
+abriu a primeira exceção estreita. Esta é a segunda, aceita pelo operador, e
+só vale com `GOVCONECT_DOCUMENTOS_ESCRITA_KEY` provisionada.
 
 Estreita quer dizer, mecanicamente:
 

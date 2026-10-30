@@ -52,7 +52,8 @@ FROM base AS api
 # aprovado NÃO entra na imagem: é o mesmo artefato de release do Streamlit,
 # montado só leitura em /app/static/wordcraft (compose). O mesmo `nodejs`
 # do Debian que a imagem do Streamlit usa.
-RUN apt-get update && apt-get install -y --no-install-recommends nodejs \n    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
 COPY --chown=govconect:govconect assets/wordcraft_editor/validate.mjs assets/wordcraft_editor/host.mjs ./assets/wordcraft_editor/
 COPY --chown=govconect:govconect docs/wordcraft/upstream.lock.json ./docs/wordcraft/upstream.lock.json
 USER govconect
