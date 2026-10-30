@@ -73,7 +73,7 @@ test("Hero: fluxo animado, âncoras com destino, menu do celular", async ({ page
   for (const id of new Set(ancoras)) {
     expect(await page.locator(`[id="${id}"]`).count(), `#${id} sem destino`).toBe(1);
   }
-  await expect(page.getByRole("link", { name: "Acessar sistema" }).first()).toHaveAttribute("href", "/entrar");
+  await expect(page.getByRole("link", { name: "Entrar", exact: true }).first()).toHaveAttribute("href", "/entrar");
 
   // Movimento reduzido: tudo visível e parado desde o início.
   await page.emulateMedia({ reducedMotion: "reduce" });
