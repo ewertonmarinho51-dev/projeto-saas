@@ -11,6 +11,9 @@ export interface ChatComposerProps {
   busy?: boolean;
   value?: string;
   onChange?: (valor: string) => void;
+  /** Sem a função, o botão não aparece: nada de botão que não faz nada. */
+  onAttach?: () => void;
+  onKnowledge?: () => void;
 }
 
 /** Caixa de pergunta ao GovBot: Enter envia, Shift+Enter quebra linha. */
@@ -21,6 +24,8 @@ export function ChatComposer({
   busy = false,
   value,
   onChange,
+  onAttach,
+  onKnowledge,
 }: ChatComposerProps) {
   const [interno, setInterno] = useState("");
   const atual = value ?? interno;
@@ -48,12 +53,16 @@ export function ChatComposer({
         }}
       />
       <div className="gc-composer__bar">
-        <button type="button" className="gc-iconbtn gc-iconbtn--sm" aria-label="Anexar documento">
-          <Icon name="paperclip" />
-        </button>
-        <button type="button" className="gc-iconbtn gc-iconbtn--sm" aria-label="Usar base de conhecimento">
-          <Icon name="books" />
-        </button>
+        {onAttach && (
+          <button type="button" className="gc-iconbtn gc-iconbtn--sm" aria-label="Anexar documento" onClick={onAttach}>
+            <Icon name="paperclip" />
+          </button>
+        )}
+        {onKnowledge && (
+          <button type="button" className="gc-iconbtn gc-iconbtn--sm" aria-label="Usar base de conhecimento" onClick={onKnowledge}>
+            <Icon name="books" />
+          </button>
+        )}
         <span className="gc-composer__hint">{hint}</span>
         <button
           type="button"

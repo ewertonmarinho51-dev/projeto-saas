@@ -235,6 +235,29 @@ export function precosHabilitado(): boolean {
   return flagLigada(process.env.PRICE_RESEARCH_ENABLED);
 }
 
+/** O GovBot aparece no menu? A API decide de verdade (404 com `GOVCONECT_GOVBOT` desligada). */
+export function govbotHabilitado(): boolean {
+  return flagLigada(process.env.GOVCONECT_GOVBOT);
+}
+
+export type CitacaoDoGovBot = {
+  source_id: string;
+  titulo: string;
+  categoria: string;
+  trecho: string;
+  dispositivos: string[];
+};
+
+/** Uma resposta do GovBot (`POST /govbot/perguntas`): só leitura, com o trecho de cada fonte. */
+export type RespostaDoGovBot = {
+  resposta: string;
+  acao: string;
+  citacoes: CitacaoDoGovBot[];
+  base: "dispensada" | "recuperado" | "suficiente" | "sem_referencias" | "falha";
+  ia: boolean;
+  pendencias: string[];
+};
+
 export type Job = {
   id: string;
   tipo: string;

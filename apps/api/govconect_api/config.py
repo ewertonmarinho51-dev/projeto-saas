@@ -59,6 +59,10 @@ class Configuracao:
     # Streamlit e está ligada em produção; esta trava é do AMBIENTE (não do
     # painel), para a interface nova poder ler sem passar a escrever.
     governanca_escrita: bool = False
+    # GovBot na interface nova (M4). DESLIGADO por padrão: cada pergunta
+    # pode chamar o motor de IA (custo) e a Base de Conhecimento. Ligar é
+    # ato explícito do operador, no AMBIENTE — nunca pelo painel.
+    govbot_habilitado: bool = False
     # WordCraft Workspace na interface nova (Issue #137). Trava do AMBIENTE,
     # desligada por padrão: ligada, a rota ainda exige o tenant no canário
     # `wordcraft_editor` (tenant_modulos). Desligar aqui é o corte global.
@@ -239,6 +243,7 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
                         redis_url=redis_url, fontes_coleta=fontes, auth_admin_chave=admin,
                         governanca_escrita=_ler(env, "GOVCONECT_GOVERNANCA_ESCRITA").lower()
                         in _VERDADEIRO,
+                        govbot_habilitado=_ler(env, "GOVCONECT_GOVBOT").lower() in _VERDADEIRO,
                         wordcraft_workspace=_ler(env, "GOVCONECT_WORDCRAFT_WORKSPACE").lower()
                         in _VERDADEIRO,
                         documentos_escrita_chave=documental)

@@ -31,6 +31,7 @@ export type Acesso = {
   papel: "admin" | "usuario" | null;
   governanca: boolean;
   precos: boolean;
+  govbot: boolean;
 };
 
 type Item = NavItemProps & { href: string };
@@ -52,6 +53,7 @@ function grupos(acesso: Acesso, caminho: string): SidebarGroup[] {
       label: "Preparação",
       items: [
         acesso.precos && { id: "precos", icon: "currency-circle-dollar", label: "Preços", href: "/app/precos" },
+        acesso.govbot && { id: "govbot", icon: "sparkle", label: "GovBot", href: "/app/govbot" },
         admin && { id: "conhecimento", icon: "books", label: "Base de Conhecimento", href: "/app/admin/base-conhecimento" },
       ],
     },
