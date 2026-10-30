@@ -662,6 +662,26 @@
         "title": "ConfirmacaoDaAplicacao",
         "type": "object"
       },
+      "ConfirmacaoDeFatos": {
+        "additionalProperties": false,
+        "properties": {
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "ConfirmacaoDeFatos",
+        "type": "object"
+      },
       "ConflitoDeUnidade": {
         "properties": {
           "aceito": {
@@ -1031,6 +1051,29 @@
         "title": "DocumentoDoProcesso",
         "type": "object"
       },
+      "DocumentoEmitido": {
+        "properties": {
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "revisao": {
+            "title": "Revisao",
+            "type": "integer"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tipo",
+          "revisao",
+          "content_hash"
+        ],
+        "title": "DocumentoEmitido",
+        "type": "object"
+      },
       "DocumentosDoProcesso": {
         "properties": {
           "documentos": {
@@ -1211,6 +1254,37 @@
           }
         },
         "title": "EdicaoDeServidor",
+        "type": "object"
+      },
+      "EmissaoOficial": {
+        "properties": {
+          "documentos": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentoEmitido"
+            },
+            "title": "Documentos",
+            "type": "array"
+          },
+          "docx_sha256": {
+            "title": "Docx Sha256",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "pdf_sha256": {
+            "title": "Pdf Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "docx_sha256",
+          "pdf_sha256",
+          "documentos"
+        ],
+        "title": "EmissaoOficial",
         "type": "object"
       },
       "ErroDaPlanilha": {
@@ -1493,6 +1567,79 @@
           "conflict"
         ],
         "title": "FalhaDeGravacao",
+        "type": "object"
+      },
+      "FatoPendente": {
+        "properties": {
+          "campo": {
+            "title": "Campo",
+            "type": "string"
+          },
+          "confianca": {
+            "title": "Confianca",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "inferido": {
+            "title": "Inferido",
+            "type": "boolean"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "valor": {
+            "title": "Valor"
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "campo",
+          "confianca",
+          "inferido"
+        ],
+        "title": "FatoPendente",
+        "type": "object"
+      },
+      "FatosDoProcesso": {
+        "description": "O que a aprovação exige: todo fato vigente confirmado por uma pessoa.",
+        "properties": {
+          "confirmados": {
+            "title": "Confirmados",
+            "type": "integer"
+          },
+          "invalidos": {
+            "title": "Invalidos",
+            "type": "integer"
+          },
+          "pendentes": {
+            "items": {
+              "$ref": "#/components/schemas/FatoPendente"
+            },
+            "title": "Pendentes",
+            "type": "array"
+          },
+          "pronto": {
+            "title": "Pronto",
+            "type": "boolean"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "confirmados",
+          "pendentes",
+          "invalidos",
+          "pronto"
+        ],
+        "title": "FatosDoProcesso",
         "type": "object"
       },
       "FiltrosDaBusca": {
@@ -9697,6 +9844,226 @@
           }
         },
         "summary": "Listar",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/emissao": {
+      "get": {
+        "description": "A emissão oficial persistida. Só lê: não reexporta nem emite.",
+        "operationId": "emissao_atual_api_v1_processos__processo_id__emissao_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmissaoOficial"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Sem emissão oficial, ou processo fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Emissao Atual",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/emissao/pacote": {
+      "get": {
+        "description": "O pacote exato gravado na emissão, sem passar pelo motor de novo.",
+        "operationId": "pacote_da_emissao_api_v1_processos__processo_id__emissao_pacote_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "formato",
+            "required": true,
+            "schema": {
+              "enum": [
+                "docx",
+                "pdf"
+              ],
+              "title": "Formato",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/zip": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Sem emissão oficial, ou processo fora do seu acesso"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pacote Da Emissao",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/fatos-canonicos/confirmacao": {
+      "post": {
+        "description": "Confirmação humana dos fatos extraídos. O autor vem do JWT, no banco.",
+        "operationId": "confirmar_fatos_api_v1_processos__processo_id__fatos_canonicos_confirmacao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmacaoDeFatos"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FatosDoProcesso"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Quem chama não é o titular nem admin"
+          },
+          "409": {
+            "description": "A lista não é mais a que a pessoa leu"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirmar Fatos",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/fatos-canonicos/sincronizacao": {
+      "post": {
+        "description": "Extrai do Formulário Matriz persistido, versiona e devolve o que falta confirmar.",
+        "operationId": "sincronizar_fatos_api_v1_processos__processo_id__fatos_canonicos_sincronizacao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FatosDoProcesso"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Há fatos a gravar e quem chama não é o titular nem admin"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso ou editor desligado"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sincronizar Fatos",
         "tags": [
           "v1",
           "documentos"

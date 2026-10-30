@@ -1,6 +1,6 @@
 "use server";
 
-import { chamarApi, ErroDaApi, type RevisaoDoHistorico } from "@/lib/api";
+import { chamarApi, ErroDaApi, type FatosDoProcesso, type RevisaoDoHistorico } from "@/lib/api";
 import type { AberturaDoEditor, EstadoDoEditor, Lote, Resposta } from "@/lib/wordcraft/transporte";
 
 /**
@@ -18,7 +18,7 @@ export type Falha = { ok: false; status: number; codigo: string; mensagem: strin
 function falha(e: unknown): Falha {
   if (e instanceof ErroDaApi) {
     // Mensagem só quando a API a escreveu para a pessoa (recusa do dono documental).
-    return { ok: false, status: e.status, codigo: e.codigo, mensagem: e.status === 422 || e.status === 409 ? e.mensagem : "" };
+    return { ok: false, status: e.status, codigo: e.codigo, mensagem: [403, 409, 422].includes(e.status) ? e.mensagem : "" };
   }
   return { ok: false, status: 503, codigo: "API_INDISPONIVEL", mensagem: "" };
 }
@@ -97,6 +97,39 @@ export async function aprovarRevisao(
       { metodo: "POST", tempoMs: LONGO },
     );
     return { ok: true, revisao: dados.revision, status: dados.status };
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function sincronizarFatos(processoId: string): Promise<{ ok: true; fatos: FatosDoProcesso } | Falha> {
+  const invalido = conferir(processoId);
+  if (invalido) return invalido;
+  try {
+    const { dados } = await chamarApi<FatosDoProcesso>(`/processos/${processoId}/fatos-canonicos/sincronizacao`, {
+      metodo: "POST",
+      tempoMs: LONGO,
+    });
+    return { ok: true, fatos: dados };
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+/** `ids` são os fatos que a pessoa leu: se a lista mudou, a API responde 409 e nada muda. */
+export async function confirmarFatos(
+  processoId: string,
+  ids: string[],
+): Promise<{ ok: true; fatos: FatosDoProcesso } | Falha> {
+  const invalido = conferir(processoId, ...ids);
+  if (invalido) return invalido;
+  try {
+    const { dados } = await chamarApi<FatosDoProcesso>(`/processos/${processoId}/fatos-canonicos/confirmacao`, {
+      metodo: "POST",
+      corpo: { ids },
+      tempoMs: LONGO,
+    });
+    return { ok: true, fatos: dados };
   } catch (e) {
     return falha(e);
   }

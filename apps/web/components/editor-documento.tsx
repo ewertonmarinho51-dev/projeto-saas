@@ -7,11 +7,13 @@ import {
   abrirSessao,
   aprovarRevisao,
   bloquearParaRevisao,
+  confirmarFatos,
   encerrarSessao,
   enviarEventos,
   lerHistorico,
   liberarEdicao,
   restaurarRevisao,
+  sincronizarFatos,
   type Falha,
 } from "@/app/app/processos/[id]/documentos/[documentoId]/editar/acoes";
 import {
@@ -27,7 +29,7 @@ import {
   Spinner,
   type SaveTone,
 } from "@/design-system";
-import type { DocumentoDoProcesso, RevisaoDoHistorico } from "@/lib/api";
+import type { DocumentoDoProcesso, FatosDoProcesso, RevisaoDoHistorico } from "@/lib/api";
 import { montarHost, type HostMontado } from "@/lib/wordcraft/host-nativo";
 import {
   dadosDoHost,
@@ -135,6 +137,8 @@ export function EditorDeDocumento({
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [historico, setHistorico] = useState<RevisaoDoHistorico[] | null>(null);
   const [sair, setSair] = useState(false);
+  const [fatos, setFatos] = useState<FatosDoProcesso | null>(null);
+  const [fatosFalharam, setFatosFalharam] = useState(false);
 
   // Uma vez, ao abrir: a largura decide edição ou leitura (o breakpoint é o
   // token `--bp-md`). Edição abre a sessão — ponte nova no servidor. Em
@@ -226,10 +230,35 @@ export function EditorDeDocumento({
     else setAviso({ variante: "error", texto: mensagemDeFalha(r) });
   }, [processo.id, documento.id]);
 
+  const carregarFatos = useCallback(async () => {
+    setFatos(null);
+    setFatosFalharam(false);
+    const r = await sincronizarFatos(processo.id);
+    if (r.ok) {
+      setFatos(r.fatos);
+    } else {
+      setFatosFalharam(true);
+      setAviso({ variante: "error", texto: mensagemDeFalha(r) });
+    }
+  }, [processo.id]);
+
   const alternarPainel = (qual: Exclude<Painel, null>) => {
     const proximo = painel === qual ? null : qual;
     setPainel(proximo);
     if (proximo === "historico") void carregarHistorico();
+    if (proximo === "revisao" && escrita) void carregarFatos();
+  };
+
+  const confirmar = async () => {
+    if (!fatos) return;
+    setOcupado("fatos");
+    const r = await confirmarFatos(processo.id, fatos.pendentes.map((f) => f.id));
+    setOcupado(null);
+    if (r.ok) setFatos(r.fatos);
+    else {
+      setAviso({ variante: "error", texto: mensagemDeFalha(r) });
+      void carregarFatos();
+    }
   };
 
   const bloquear = async () => {
@@ -403,10 +432,38 @@ export function EditorDeDocumento({
             Voltar a editar
           </Button>
         </div>
+      ) : fatosFalharam ? (
+        <Button variant="secondary" icon="arrows-clockwise" onClick={() => void carregarFatos()}>
+          Conferir os fatos de novo
+        </Button>
+      ) : fatos === null ? (
+        <Spinner label="Conferindo os fatos do processo" />
+      ) : !fatos.pronto ? (
+        <div className="grid gap-2" data-testid="fatos-pendentes">
+          {fatos.total === 0 && <Alert variant="warning" compact>O Formulário Matriz não produziu fatos. Revise os dados da demanda.</Alert>}
+          {fatos.invalidos > 0 && <Alert variant="warning" compact>Há fatos em disputa. Resolva-os antes de aprovar.</Alert>}
+          {fatos.pendentes.length > 0 && (
+            <>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Confira os {fatos.pendentes.length} fato(s) extraídos do formulário. A aprovação exige todos confirmados por uma pessoa.
+              </p>
+              <DataList
+                stacked
+                items={fatos.pendentes.map((f) => ({
+                  label: f.inferido ? `${f.path} (inferido)` : f.path,
+                  value: typeof f.valor === "string" ? f.valor : JSON.stringify(f.valor),
+                }))}
+              />
+              <Button icon="check" loading={ocupado === "fatos"} disabled={Boolean(ocupado)} onClick={confirmar}>
+                Confirmar {fatos.pendentes.length} fato(s)
+              </Button>
+            </>
+          )}
+        </div>
       ) : (
         <div className="grid gap-2">
           <p className="text-sm text-[var(--text-secondary)]">
-            Para aprovar, bloqueie a revisão salva: o editor congela o documento e o servidor confere que é a mesma revisão.
+            Fatos confirmados: {fatos.confirmados}. Para aprovar, bloqueie a revisão salva: o editor congela o documento e o servidor confere que é a mesma revisão.
           </p>
           <Button variant="secondary" icon="lock-simple" loading={ocupado === "bloqueio"} disabled={!limpo || Boolean(ocupado)} onClick={bloquear}>
             Bloquear revisão para análise

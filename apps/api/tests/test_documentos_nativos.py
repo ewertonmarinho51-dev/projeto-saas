@@ -601,3 +601,99 @@ def test_worker_apaga_a_credencial_documental_ao_subir(monkeypatch):
     monkeypatch.setenv("GOVCONECT_DOCUMENTOS_ESCRITA_KEY", CHAVE)
     fila.sem_credencial_de_servidor()
     assert "GOVCONECT_DOCUMENTOS_ESCRITA_KEY" not in os.environ
+
+
+# ---------------------------------------------------------------------------
+# Fatos canônicos: o que a aprovação exige (0037)
+# ---------------------------------------------------------------------------
+def _fato(status="extraido", path="objeto.descricao", fonte="formulario:objeto", **extra):
+    return {"id": str(uuid.uuid4()), "path": path, "status": status, "valor": "Canetas", "fonte": fonte,
+            "confianca": 0.9, "versao": 1, "tipo": "texto", **extra}
+
+
+@pytest.fixture
+def fatos_do_banco(monkeypatch):
+    estado = {"lidos": [], "salvos": []}
+    monkeypatch.setattr(dn.db, "listar_fatos", lambda pid, apenas_vigentes=True: estado["lidos"])
+    monkeypatch.setattr(dn.db, "salvar_fatos", lambda fatos: estado["salvos"].extend(fatos) or fatos)
+    return estado
+
+
+def test_sincronizar_lista_o_que_falta_confirmar(api, emissor, banco, fatos_do_banco):
+    banco.responder("GET", "processos", 200, [{"id": PROCESSO, "dados": {"objeto": "Canetas"}}])
+    fatos_do_banco["lidos"] = [_fato(), _fato("confirmado", path="orgao.nome", fonte="inferencia:orgao")]
+    r = api.post(f"/api/v1/processos/{PROCESSO}/fatos-canonicos/sincronizacao", headers=_auth(emissor))
+    assert r.status_code == 200, r.text
+    e = r.json()
+    assert (e["total"], e["confirmados"], e["pronto"], e["invalidos"]) == (2, 1, False, 0)
+    assert e["pendentes"][0]["campo"] == "objeto" and e["pendentes"][0]["inferido"] is False
+
+
+def test_sincronizar_grava_fato_novo_e_nao_chama_rpc_sem_substituicao(api, emissor, banco, fatos_do_banco):
+    banco.responder("GET", "processos", 200, [{"id": PROCESSO, "dados": {"objeto": "Canetas"}}])
+    api.post(f"/api/v1/processos/{PROCESSO}/fatos-canonicos/sincronizacao", headers=_auth(emissor))
+    assert "objeto.descricao" in [f["path"] for f in fatos_do_banco["salvos"]]
+    assert not [c for c in banco.chamadas if "/rpc/" in c.url.path]
+
+
+def test_pronto_so_com_fatos_e_todos_confirmados(api, emissor, banco, fatos_do_banco):
+    caminho = f"/api/v1/processos/{PROCESSO}/fatos-canonicos/sincronizacao"
+    assert api.post(caminho, headers=_auth(emissor)).json()["pronto"] is False, "sem fato não aprova"
+    fatos_do_banco["lidos"] = [_fato("confirmado", path="orgao.nome")]
+    assert api.post(caminho, headers=_auth(emissor)).json()["pronto"] is True
+    fatos_do_banco["lidos"].append(_fato("disputado", path="valor.total"))
+    e = api.post(caminho, headers=_auth(emissor)).json()
+    assert e["pronto"] is False and e["invalidos"] == 1
+
+
+def test_confirmar_vai_pela_rpc_com_os_ids_lidos(api, emissor, banco, fatos_do_banco):
+    fato = _fato()
+    banco.responder("POST", "fatos_canonicos_transicionar", 200, 1)
+    r = api.post(f"/api/v1/processos/{PROCESSO}/fatos-canonicos/confirmacao", headers=_auth(emissor),
+                 json={"ids": [fato["id"]]})
+    assert r.status_code == 200, r.text
+    corpo = banco.corpo(next(c for c in banco.chamadas if c.url.path.endswith("fatos_canonicos_transicionar")))
+    assert corpo == {"p_processo": PROCESSO, "p_substituir": [], "p_confirmar": [fato["id"]]}
+
+
+@pytest.mark.parametrize("pg,status,codigo", [("PT409", 409, "FACTS_CHANGED"), ("42501", 403, "FORBIDDEN")])
+def test_recusa_da_rpc_vira_erro_estavel(api, emissor, banco, fatos_do_banco, pg, status, codigo):
+    banco.responder("POST", "fatos_canonicos_transicionar", 400, {"code": pg, "message": "x"})
+    r = api.post(f"/api/v1/processos/{PROCESSO}/fatos-canonicos/confirmacao", headers=_auth(emissor),
+                 json={"ids": [str(uuid.uuid4())]})
+    assert r.status_code == status and r.json()["code"] == codigo
+
+
+# ---------------------------------------------------------------------------
+# Emissão: só leitura do que foi persistido
+# ---------------------------------------------------------------------------
+def _emissao():
+    pacote = lambda dados: SimpleNamespace(payload=dados, content_hash=_sha(dados))  # noqa: E731
+    return SimpleNamespace(id=str(uuid.uuid4()), docx_sha256=_sha(b"zip-docx"), pdf_sha256=_sha(b"zip-pdf"),
+                           manifest={"documents": [{"tipo": "dfd", "revision": 2, "source_sha256": "a" * 64}]},
+                           docx=pacote(b"zip-docx"), pdf=pacote(b"zip-pdf"))
+
+
+def test_emissao_le_o_que_foi_gravado_e_entrega_o_pacote_exato(api, emissor, servico):
+    emissao = _emissao()
+    servico.emissao_atual = lambda pid: emissao
+    r = api.get(f"/api/v1/processos/{PROCESSO}/emissao", headers=_auth(emissor))
+    assert r.status_code == 200, r.text
+    assert r.json()["documentos"] == [{"tipo": "dfd", "revisao": 2, "content_hash": "a" * 64}]
+    r = api.get(f"/api/v1/processos/{PROCESSO}/emissao/pacote", params={"formato": "pdf"}, headers=_auth(emissor))
+    assert r.status_code == 200 and r.content == b"zip-pdf"
+    assert r.headers["content-type"] == "application/zip"
+    assert r.headers["x-content-sha256"] == _sha(b"zip-pdf") and "no-store" in r.headers["cache-control"]
+
+
+def test_sem_emissao_e_404(api, emissor, servico):
+    servico.emissao_atual = lambda pid: None
+    for caminho in ("emissao", "emissao/pacote?formato=docx"):
+        r = api.get(f"/api/v1/processos/{PROCESSO}/{caminho}", headers=_auth(emissor))
+        assert r.status_code == 404, caminho
+
+
+def test_emissao_de_processo_fora_do_acesso_nao_chega_ao_motor(api, emissor, banco, servico):
+    servico.emissao_atual = lambda pid: pytest.fail("o RLS decide antes do motor")
+    banco.responder("GET", "processos", 200, [])
+    assert api.get(f"/api/v1/processos/{PROCESSO}/emissao", headers=_auth(emissor)).status_code == 404

@@ -174,6 +174,9 @@ SEQUENCIA_EM_ENSAIO = (
     # A 0036 cria RPCs que chamam a matriz da 0020 e conferem que
     # `authenticated` segue SEM escrita direta — o que só vale depois dela.
     "0036_governanca_escrita_por_rpc.sql",
+    # A 0037 chama funções da 0020 e confere que `authenticated` segue sem
+    # UPDATE em `fatos_canonicos`: só vale depois dela.
+    "0037_fatos_canonicos_transicao_por_rpc.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
