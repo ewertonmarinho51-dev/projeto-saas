@@ -58,7 +58,7 @@ test("dono vê a pesquisa com dinheiro exato e evidência verificável", async (
   const analise = page.locator(".gc-card").filter({ has: page.getByRole("heading", { name: "Análise da série" }) });
   await expect(analise).toContainText("Poucos preços para medir");
   await expect(analise).toContainText("R$ 2,35");
-  await expect(analise.getByRole("img")).toHaveAttribute("aria-label", /R\$ 2,35 — Na cesta/);
+  await expect(analise.locator(".gc-disp__plot")).toHaveAttribute("aria-label", /R\$ 2,35 — Na cesta/);
   await expect(analise.getByRole("table", { name: "Preços por fonte" })).toContainText("PNCP");
   await expect(analise.getByRole("table", { name: "Preços por UF" })).toBeVisible();
 });
