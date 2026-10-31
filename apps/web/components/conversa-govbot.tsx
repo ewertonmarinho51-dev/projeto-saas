@@ -28,6 +28,7 @@ const AVISO_BASE: Partial<Record<RespostaDoGovBot["base"], string>> = {
 };
 
 function aviso(d: RespostaDoGovBot): string {
+  if (d.motor_falhou) return "O motor de IA não respondeu agora. Tente de novo em instantes.";
   return (
     AVISO_BASE[d.base] ??
     (d.ia

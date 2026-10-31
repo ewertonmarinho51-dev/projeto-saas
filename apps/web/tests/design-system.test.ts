@@ -90,7 +90,8 @@ describe("DESIGN.md é a fonte da verdade dos tokens", () => {
   // Checkout no Windows pode trazer CRLF.
   const design = readFileSync(join(RAIZ, "DESIGN.md"), "utf8").replace(/\r\n/g, "\n");
   const frente = design.split("\n---\n")[0];
-  const tokens = (arquivo: string) => readFileSync(join(WEB, "design-system", "tokens", arquivo), "utf8");
+  const tokens = (arquivo: string) =>
+    readFileSync(join(WEB, "design-system", "tokens", arquivo), "utf8").replace(/\r\n/g, "\n");
   const cores = tokens("colors.css");
   const claro = variaveis(bloco(cores, ':root,\n[data-theme="light"] {'));
   const escuro = variaveis(bloco(cores, '[data-theme="dark"] {'));

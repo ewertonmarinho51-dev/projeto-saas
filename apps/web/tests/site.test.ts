@@ -23,6 +23,9 @@ describe("site público", () => {
     vi.stubEnv("GOVCONECT_SITE_URL", "https://homologa.example/");
     const site = await import("../components/site");
     expect(site.SITE_URL).toBe("https://homologa.example");
+    expect(site.urlPublica("/entrar/recuperar?expirado=1").href).toBe(
+      "https://homologa.example/entrar/recuperar?expirado=1",
+    );
   });
 
   it("caminhos, títulos e descrições são únicos, e página fora do registro é erro", async () => {
@@ -31,5 +34,25 @@ describe("site público", () => {
       expect(new Set(PAGINAS.map((p) => p[campo])).size).toBe(PAGINAS.length);
     }
     expect(() => metadados("/inexistente")).toThrow();
+  });
+
+  it("mantém os títulos editoriais e inclui a entrada no sitemap público", async () => {
+    const { PAGINAS, metadados } = await import("../components/site");
+    const esperados = new Map([
+      ["/", "Gov Conect — IA para Licitações e Pesquisa de Preços"],
+      ["/entrar", "Entrar — Gov Conect"],
+      ["/solucoes", "Soluções — Gov Conect"],
+      ["/solucoes/documentos-ia", "Documentos com Inteligência Artificial"],
+      ["/solucoes/pesquisa-de-precos", "Pesquisa de Preços"],
+      ["/como-funciona", "Como Funciona"],
+      ["/sobre", "Sobre a Gov Conect"],
+      ["/contato", "Contato"],
+      ["/privacidade", "Privacidade"],
+    ]);
+    expect(new Map(PAGINAS.map((pagina) => [pagina.caminho, pagina.titulo]))).toEqual(esperados);
+    expect(metadados("/entrar").openGraph).toMatchObject({
+      url: "https://govconect.com/entrar",
+      title: "Entrar — Gov Conect",
+    });
   });
 });

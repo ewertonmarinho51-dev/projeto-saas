@@ -11,6 +11,11 @@ import type { PublicFooterProps, PublicHeaderProps, PublicLink } from "@/design-
 /** Endereço público canônico. Em outro ambiente, `GOVCONECT_SITE_URL`. */
 export const SITE_URL = (process.env.GOVCONECT_SITE_URL ?? "https://govconect.com").replace(/\/+$/, "");
 
+/** Resolve um caminho interno sempre contra a origem pública configurada. */
+export function urlPublica(caminho: string): URL {
+  return new URL(caminho, SITE_URL);
+}
+
 export const NOME = "Gov Conect";
 
 export const DESCRICAO =
@@ -24,38 +29,49 @@ export type PaginaPublica = {
 };
 
 export const PAGINAS: PaginaPublica[] = [
-  { caminho: "/", titulo: `${NOME} — planejamento de contratações públicas`, descricao: DESCRICAO, prioridade: 1 },
+  {
+    caminho: "/",
+    titulo: "Gov Conect — IA para Licitações e Pesquisa de Preços",
+    descricao: DESCRICAO,
+    prioridade: 1,
+  },
+  {
+    caminho: "/entrar",
+    titulo: "Entrar — Gov Conect",
+    descricao: "Acesso ao Gov Conect com o e-mail institucional cadastrado pelo seu órgão.",
+    prioridade: 0.4,
+  },
   {
     caminho: "/solucoes",
-    titulo: "Soluções para a fase preparatória",
+    titulo: "Soluções — Gov Conect",
     descricao:
       "Documentos da fase preparatória com IA e revisão humana, pesquisa de preços rastreável, base de conhecimento do órgão e isolamento por município.",
     prioridade: 0.9,
   },
   {
     caminho: "/solucoes/documentos-ia",
-    titulo: "DFD, ETP e Termo de Referência com IA",
+    titulo: "Documentos com Inteligência Artificial",
     descricao:
       "Elabore DFD, ETP, Mapa de Riscos e Termo de Referência a partir dos dados do processo, com fundamentação na Lei nº 14.133/2021 e aprovação de um servidor.",
     prioridade: 0.8,
   },
   {
     caminho: "/solucoes/pesquisa-de-precos",
-    titulo: "Pesquisa de preços com fonte verificável",
+    titulo: "Pesquisa de Preços",
     descricao:
       "Pesquisa de preços em Compras.gov.br e PNCP, com triagem das referências, cesta justificada, estatísticas calculadas no servidor e relatório com a origem de cada valor.",
     prioridade: 0.8,
   },
   {
     caminho: "/como-funciona",
-    titulo: "Como funciona",
+    titulo: "Como Funciona",
     descricao:
       "Do cadastro da demanda ao Termo de Referência: as etapas da fase preparatória no Gov Conect, quem faz o quê e onde a revisão humana entra.",
     prioridade: 0.7,
   },
   {
     caminho: "/sobre",
-    titulo: "Sobre o Gov Conect",
+    titulo: "Sobre a Gov Conect",
     descricao:
       "Por que o Gov Conect existe e os princípios que orientam a plataforma: revisão humana, evidência em cada valor e isolamento entre órgãos.",
     prioridade: 0.5,
@@ -81,7 +97,7 @@ const NAV: PublicLink[] = [
   { label: "Contato", href: "/contato" },
 ];
 
-export const ENTRAR: PublicLink = { label: "Acessar sistema", href: "/entrar" };
+export const ENTRAR: PublicLink = { label: "Entrar", href: "/entrar" };
 
 export function cabecalho(caminho: string): PublicHeaderProps {
   return { nav: NAV, signIn: ENTRAR, secondary: { label: "Fale com a equipe", href: "/contato" }, current: caminho };
@@ -108,7 +124,7 @@ export const RODAPE: PublicFooterProps = {
     {
       title: "Acesso",
       links: [
-        { label: "Acessar sistema", href: "/entrar" },
+        { label: "Entrar", href: "/entrar" },
         { label: "Privacidade", href: "/privacidade" },
       ],
     },
@@ -122,8 +138,8 @@ export function metadados(caminho: string): Metadata {
   if (!pagina) throw new Error(`Página pública sem registro em PAGINAS: ${caminho}`);
   const url = `${SITE_URL}${caminho === "/" ? "" : caminho}`;
   return {
-    // A home usa o título inteiro; as outras entram no modelo "%s | Gov Conect".
-    title: caminho === "/" ? { absolute: pagina.titulo } : pagina.titulo,
+    // A tabela editorial define o título completo de cada rota, sem o modelo global.
+    title: { absolute: pagina.titulo },
     description: pagina.descricao,
     alternates: { canonical: url },
     openGraph: {

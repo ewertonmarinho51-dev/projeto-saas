@@ -4533,6 +4533,10 @@
             "title": "Ia",
             "type": "boolean"
           },
+          "motor_falhou": {
+            "title": "Motor Falhou",
+            "type": "boolean"
+          },
           "pendencias": {
             "items": {
               "type": "string"
@@ -4551,6 +4555,7 @@
           "citacoes",
           "base",
           "ia",
+          "motor_falhou",
           "pendencias"
         ],
         "title": "RespostaDoGovBot",
