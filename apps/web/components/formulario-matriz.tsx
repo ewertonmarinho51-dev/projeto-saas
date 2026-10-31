@@ -5,10 +5,12 @@ import { useActionState, useMemo, useRef, useState, useTransition, type ReactNod
 import {
   Alert,
   Button,
+  buttonClasses,
   Card,
   Checkbox,
   DataTable,
   Field,
+  Icon,
   IconButton,
   Input,
   ProgressBar,
@@ -271,9 +273,11 @@ export function FormularioMatriz({ processo, formulario, aviso }: { processo: st
           flush
           actions={
             <>
-              <Button href="/app/processos/modelo-planilha" variant="ghost" size="sm" icon="download-simple">
+              {/* Download, não navegação: a barra de progresso não deve prometer outra página. */}
+              <a href="/app/processos/modelo-planilha" download className={buttonClasses({ variant: "ghost", size: "sm" })}>
+                <Icon name="download-simple" />
                 Modelo (.xlsx)
-              </Button>
+              </a>
               <input
                 ref={entradaPlanilha}
                 type="file"
