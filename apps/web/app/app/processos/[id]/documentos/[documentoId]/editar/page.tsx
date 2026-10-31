@@ -33,5 +33,21 @@ export default async function EditarDocumento({ params }: { params: Promise<{ id
   const documento = lista?.documentos.find((d) => d.id === documentoId);
   if (!documento) notFound();
 
-  return <EditorDeDocumento processo={{ id, nome: processo.nome_exibido }} documento={documento} />;
+  // Sem o endereço, o editor só perde a pré-carga: o host baixa o motor sozinho.
+  const motor = await chamarApi<{ wasm_url: string }>("/documentos/motor")
+    .then((r) => r.dados.wasm_url)
+    .catch(() => null);
+
+  return (
+    <>
+      {/* O download começa com a página, e não depois da sessão, que leva ~7 s:
+          abrir custa o maior dos dois tempos, não a soma. Abaixo de `--bp-md` o
+          editor não monta, e 16 MB não são baixados à toa. */}
+      {motor && (
+        // eslint-disable-next-line no-restricted-syntax -- atributo `media` não lê `var()`
+        <link rel="preload" as="fetch" crossOrigin="anonymous" href={motor} media="(min-width: 768px)" />
+      )}
+      <EditorDeDocumento processo={{ id, nome: processo.nome_exibido }} documento={documento} />
+    </>
+  );
 }

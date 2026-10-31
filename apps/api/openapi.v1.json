@@ -2809,6 +2809,19 @@
         "title": "Motivo",
         "type": "object"
       },
+      "MotorDoEditor": {
+        "properties": {
+          "wasm_url": {
+            "title": "Wasm Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "wasm_url"
+        ],
+        "title": "MotorDoEditor",
+        "type": "object"
+      },
       "Mudanca": {
         "additionalProperties": false,
         "properties": {
@@ -6930,6 +6943,35 @@
         "tags": [
           "v1",
           "administracao"
+        ]
+      }
+    },
+    "/api/v1/documentos/motor": {
+      "get": {
+        "description": "Onde está o motor aprovado, para a página baixá-lo sem esperar a sessão.",
+        "operationId": "motor_do_editor_api_v1_documentos_motor_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotorDoEditor"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Editor desligado para quem chama"
+          },
+          "503": {
+            "description": "Motor indisponível"
+          }
+        },
+        "summary": "Motor Do Editor",
+        "tags": [
+          "v1",
+          "documentos"
         ]
       }
     },

@@ -81,6 +81,11 @@ CONTAS = (
     ("admin_desempenho", "A", "A1", "admin", True),
     ("b1", "B", "B1", "usuario", True),
     ("a1_revogado", "A", "A1", "usuario", False),
+    # Só do E2E de sessão (sessao.spec.ts): login e saída repetidos estourariam
+    # o limite de 5 entradas por IP + e-mail das contas das outras provas.
+    ("a1_sessao", "A", "A1", "usuario", True),
+    ("b1_sessao", "B", "B1", "usuario", True),
+    ("a1_sessao_revogada", "A", "A1", "usuario", False),
 )
 
 

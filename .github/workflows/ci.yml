@@ -662,6 +662,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/wordcraft"
           printf 'runtime-aprovado' > "$RUNNER_TEMP/wordcraft/runtime.js"
           printf 'wasm-aprovado' > "$RUNNER_TEMP/wordcraft/runtime_bg.wasm"
+          printf 'motor' > "$RUNNER_TEMP/wordcraft/wordcraft-web-abc123_bg.wasm"
+          printf '{}' > "$RUNNER_TEMP/wordcraft/qa-manifest.json"
           docker run -d --network convivencia \
             -p 127.0.0.1:18081:8081 -p 127.0.0.1:18082:8082 \
             -e ACME_EMAIL=ci@example.invalid \
@@ -683,6 +685,10 @@ jobs:
             echo "$2 -> $veio (esperado $1)"
             [ "$veio" = "$1" ]
           }
+          # Cache longo só no que tem hash no nome; o manifesto precisa poder mudar.
+          curl -fs -D - -o /dev/null http://127.0.0.1:18081/app/static/wordcraft/wordcraft-web-abc123_bg.wasm \
+            | tr -d '\r' | grep -ix 'cache-control: public, max-age=31536000, immutable'
+          ! curl -fs -D - -o /dev/null http://127.0.0.1:18081/app/static/wordcraft/qa-manifest.json | grep -i 'immutable'
           codigo 404 http://127.0.0.1:18081/app/static/wordcraft/nao-existe.js
           codigo 404 http://127.0.0.1:18081/app/static/wordcraft/
           codigo 404 http://127.0.0.1:18081/health
