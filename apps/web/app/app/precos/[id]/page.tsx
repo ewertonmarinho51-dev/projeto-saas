@@ -215,6 +215,7 @@ export default async function Pesquisa({
                       <td className="gc-mono text-secundario">{i.numero}</td>
                       <td className="max-w-[calc(var(--space-16)*7)]">
                         <Link
+                          prefetch={false}
                           href={`/app/precos/${p.id}/itens/${i.id}`}
                           className="font-[number:var(--weight-medium)] text-texto no-underline hover:underline"
                         >
