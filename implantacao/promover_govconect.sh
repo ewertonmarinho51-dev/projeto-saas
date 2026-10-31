@@ -3,6 +3,7 @@
 #  Promover o Gov Conect 2.0 (web, api, worker) por SHA, no VPS
 #
 #      sudo ./promover_govconect.sh sha-0123456789ab staging
+#      sudo ./promover_govconect.sh sha-0123456789ab production --voltar
 #      sudo ./promover_govconect.sh --atual
 #
 #  As imagens vêm PRONTAS do GHCR (workflow `govconect-imagens.yml`): o
@@ -10,11 +11,16 @@
 #  são tocados: este script só sobe `redis`, `api`, `worker` e `web`.
 #
 #  Ordem, e por quê:
-#    1. baixa as TRÊS imagens antes de mexer em qualquer coisa — tag
+#    1. recusa a versão que não contém a que está no ar: outra frente
+#       pode ter publicado, e promover por cima apaga o trabalho dela
+#       (aconteceu em 30/10/2026). Sem como comparar, também recusa;
+#       voltar de propósito é `--voltar`, que pula a comparação e fica
+#       no log. O histórico vem do clone do host, em `REPO_GIT`;
+#    2. baixa as TRÊS imagens antes de mexer em qualquer coisa — tag
 #       errada ou registro fora do ar param aqui, com o serviço intacto;
-#    2. grava as referências novas (guardando as anteriores);
-#    3. sobe e espera `api` e `web` ficarem healthy;
-#    4. não ficaram em 120 s: volta às referências anteriores e sai com
+#    3. grava as referências novas (guardando as anteriores);
+#    4. sobe e espera `api` e `web` ficarem healthy;
+#    5. não ficaram em 120 s: volta às referências anteriores e sai com
 #       erro. Rollback de código não pede rollback de banco (nenhuma
 #       migração desta frente é destrutiva).
 #
@@ -23,6 +29,7 @@
 # ###########################################################
 set -euo pipefail
 
+REPO_GIT="${REPO_GIT:-/opt/govdocs}"
 COMPOSE_DIR="${COMPOSE_DIR:-/opt/govdocs/implantacao}"
 ESTADO="${ESTADO:-/etc/govdocs/govconect-imagens.env}"
 REGISTRO="${REGISTRO:-ghcr.io/ewertonmarinho51-dev}"
@@ -41,10 +48,48 @@ fi
 
 TAG="${1:-}"
 AMBIENTE="${2:-}"
-if ! [[ "$TAG" =~ ^sha-[0-9a-f]{12}$ ]] || ! [[ "$AMBIENTE" =~ ^(staging|production)$ ]]; then
-  echo "uso: $0 sha-<12 hex> <staging|production>" >&2
+MODO="${3:-}"
+if ! [[ "$TAG" =~ ^sha-[0-9a-f]{12}$ ]] || ! [[ "$AMBIENTE" =~ ^(staging|production)$ ]] \
+   || ! [[ "$MODO" =~ ^(--voltar)?$ ]]; then
+  echo "uso: $0 sha-<12 hex> <staging|production> [--voltar]" >&2
   echo "     $0 --atual" >&2
   exit 2
+fi
+
+recusar() {
+  echo "PAROU: $1 Nada foi alterado." >&2
+  echo "para voltar de propósito: $0 $TAG $AMBIENTE --voltar" >&2
+  echo "$(date -u +%FT%TZ) $TAG $AMBIENTE RECUSADO: $1" >> "$LOG" || true
+  exit 1
+}
+
+conferir_historia() {
+  local atual novo perdidos
+  atual="$(sed -n 's/^GOVCONECT_IMAGEM_API=.*:sha-\([0-9a-f]\{12\}\)$/\1/p' "$ESTADO")"
+  [ -n "$atual" ] || recusar "não achei a versão no ar em $ESTADO."
+  novo="${TAG#sha-}"
+
+  # Falhar aqui não decide nada: história de commit não muda, e quem
+  # responde é a conferência abaixo. Sem o commit, ela recusa.
+  GIT_TERMINAL_PROMPT=0 timeout 30 git -C "$REPO_GIT" fetch -q origin main </dev/null || true
+  git -C "$REPO_GIT" rev-parse -q --verify "$atual^{commit}" >/dev/null \
+    || recusar "não achei sha-$atual, a versão no ar, no histórico de $REPO_GIT."
+  git -C "$REPO_GIT" rev-parse -q --verify "$novo^{commit}" >/dev/null \
+    || recusar "não achei $TAG no histórico de $REPO_GIT."
+
+  git -C "$REPO_GIT" merge-base --is-ancestor "$atual" "$novo" && return 0
+
+  perdidos="$(git -C "$REPO_GIT" rev-list --count "$novo..$atual")"
+  git -C "$REPO_GIT" log --oneline -5 "$novo..$atual" >&2
+  recusar "$TAG não contém sha-$atual, a versão no ar, e tiraria $perdidos commit(s) de produção."
+}
+
+if [ -f "$ESTADO" ]; then
+  if [ "$MODO" = --voltar ]; then
+    echo "$(date -u +%FT%TZ) $TAG $AMBIENTE VOLTA intencional: $(sed -n 's/^GOVCONECT_IMAGEM_API=.*://p' "$ESTADO")" >> "$LOG" || true
+  else
+    conferir_historia
+  fi
 fi
 
 API="$REGISTRO/govconect-api:$TAG"

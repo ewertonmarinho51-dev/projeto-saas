@@ -136,15 +136,38 @@ O host NÃO constrói imagem (1 vCPU). Elas vêm do GHCR, publicadas por
    de pacotes (PAT `read:packages`), se os pacotes forem privados.
 4. **Promover**:
    ```
-   cd /opt/govdocs/implantacao && git pull
+   cd /opt/govdocs/implantacao
    ./promover_govconect.sh sha-<12> staging
    ./promover_govconect.sh --atual
    ```
-   Baixa as três imagens antes de mexer em nada; sobe `redis`, `api`,
-   `worker`, `web` (o Streamlit e o Caddy não são tocados); espera `api`
-   e `web` healthy por 120 s; se não ficarem, volta sozinho às imagens
-   anteriores. Provado no CI (job `imagens`): versão boa sobe, versão
-   quebrada é recusada e a anterior volta healthy.
+   Confere se a versão nova contém a que está no ar; baixa as três
+   imagens antes de mexer em nada; sobe `redis`, `api`, `worker`, `web`
+   (o Streamlit e o Caddy não são tocados); espera `api` e `web` healthy
+   por 120 s; se não ficarem, volta sozinho às imagens anteriores.
+   Provado no CI (job `imagens`): versão boa sobe, versão quebrada é
+   recusada e a anterior volta healthy.
+
+   **Trava de regressão.** O script busca o `main` no clone de
+   `/opt/govdocs` e para, sem mudar nada, se o SHA novo não contiver o
+   que está no ar, mostrando os commits que sairiam de produção. Para
+   também se não conseguir comparar. Isso vale para quem promove em
+   paralelo: `PAROU` quer dizer "compare antes", não "tente de novo".
+   Voltar de propósito é outro comando, que não depende do Git e fica em
+   `/var/log/govconect-promocoes.log`:
+   ```
+   ./promover_govconect.sh sha-<12> production --voltar
+   ```
+   O rollback automático não passa pela trava. Provas em
+   `tests/test_promover_govconect.py`.
+
+   O script do host vem da tag do checkout (`promover.sh`), não do `main`:
+   uma mudança nele só chega com a próxima tag. Até lá, rode a versão do
+   `main` sem sujar o checkout:
+   ```
+   git -C /opt/govdocs fetch -q origin main
+   git -C /opt/govdocs show origin/main:implantacao/promover_govconect.sh > /tmp/promover_govconect.sh
+   bash /tmp/promover_govconect.sh sha-<12> production
+   ```
 
 Smoke manual: login, lista de processos, pesquisa de preços (com a
 flag), coleta (job até `succeeded`), emissão DOCX e PDF, download.
