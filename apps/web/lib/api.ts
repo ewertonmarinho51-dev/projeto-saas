@@ -255,6 +255,7 @@ export type RespostaDoGovBot = {
   citacoes: CitacaoDoGovBot[];
   base: "dispensada" | "recuperado" | "suficiente" | "sem_referencias" | "falha";
   ia: boolean;
+  motor_falhou: boolean;
   pendencias: string[];
 };
 

@@ -72,6 +72,13 @@ class _EstadoDaRequisicao:
     def pop(self, chave, *padrao):
         return self._dados().pop(chave, *padrao)
 
+    def setdefault(self, chave, padrao=None):
+        # Fora de uma requisição devolve o padrão sem guardar: `registrar_geracao`
+        # chama isto depois de a IA responder, e o registro não pode derrubar uma
+        # resposta já paga nem virar estado global entre usuários.
+        dados = _ESTADO.get()
+        return padrao if dados is None else dados.setdefault(chave, padrao)
+
     def __getattr__(self, chave):
         try:
             return self._dados()[chave]

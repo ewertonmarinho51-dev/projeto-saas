@@ -58,3 +58,31 @@ def test_a_sonda_pegaria_o_streamlit():
          "import streamlit, sys; print('streamlit' in sys.modules)"],
         capture_output=True, text=True, timeout=120)
     assert r.stdout.strip() == "True"
+
+
+# O caminho inteiro de uma chamada de IA, no substituto do Streamlit: o motor
+# responde e `registrar_geracao` guarda o registro na sessão da requisição.
+# Faltava `setdefault` no substituto, e a resposta já paga morria num
+# AttributeError depois de o provedor responder — só em produção, porque os
+# testes do GovBot injetam o motor por fora de `llm`.
+_SONDA_REGISTRO = (
+    "from src import db, llm; "
+    "from src.streamlit_opcional import sessao_da_requisicao, st; "
+    "llm.motores_disponiveis = lambda: [('openrouter', 'chave-falsa')]; "
+    "llm._chamar_motor = lambda *a, **k: 'RESPOSTA'; "
+    "db.obter_config = lambda chave: ''; "
+    "db.registrar_geracao_bd = lambda registro: None; "
+    "\nwith sessao_da_requisicao('token', 'tenant'):\n"
+    "    print(llm.chamar_ia_texto('s', 'u', finalidade='govbot'))\n"
+    "    print(len(st.session_state['registro_geracoes']))\n"
+    "print('fora', st.session_state.setdefault('x', 'padrao'), 'x' in st.session_state)\n"
+)
+
+
+def test_chamada_de_ia_registra_a_geracao_sem_o_streamlit():
+    ambiente = {**os.environ, "GOVDOCS_SEM_STREAMLIT": "1", "PYTHONPATH": os.pathsep.join(
+        [str(RAIZ_API), str(RAIZ_REPO), os.environ.get("PYTHONPATH", "")])}
+    r = subprocess.run([sys.executable, "-c", _SONDA_REGISTRO], cwd=RAIZ_API, env=ambiente,
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.split("\n")[:3] == ["RESPOSTA", "1", "fora padrao False"]
