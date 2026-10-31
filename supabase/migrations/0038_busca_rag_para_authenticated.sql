@@ -1,5 +1,30 @@
 -- ## 0038 — Base de Conhecimento: `authenticated` executa as funções de busca
--- ## ESTADO: aplicável. AINDA NÃO aplicada em produção.
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 30/10/2026 como
+-- ##   `m0038_busca_rag_para_authenticated`, por autorização expressa do dono
+-- ##   (mudança de permissão), depois do ensaio no projeto descartável
+-- ##   `govdocs-ensaio-descartavel` no mesmo dia.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (30/10/2026):
+--   * ANTES: 71 referências, 5595 trechos; 104 políticas em public; 95 grants
+--     de tabela a `authenticated`, 0 a `anon`; `authenticated` sem EXECUTE
+--     nas duas funções, ambas `security invoker`;
+--   * aplicação: conferência interna aprovada;
+--   * DEPOIS: 71 referências e 5595 trechos (dado intacto); 104 políticas e
+--     95 grants de tabela (nada mudou além das duas funções); `authenticated`
+--     com EXECUTE nas duas; `anon` sem; ambas seguem `security invoker`;
+--   * comportamento, num bloco desfeito, com dois órgãos e referências
+--     descartáveis criados e apagados na hora: o servidor via o trecho do
+--     órgão B (1); o usuário do órgão A achou o próprio (1) e, pedindo o
+--     tenant do órgão B, 0. Nenhum resíduo depois do bloco;
+--   * advisors de segurança: nenhum aviso sobre as funções de busca; os
+--     listados são anteriores.
+--
+-- REGISTRO DO ENSAIO (30/10/2026):
+--   * nível 1: PostgreSQL do CI, tests/test_migracao_0038.py, com as provas de
+--     banco executadas e cada ramo da conferência com mutação;
+--   * nível 2, descartável: antes, a mesma ACL de produção nas duas funções;
+--     conferência interna aprovada; comportamento idêntico ao registrado
+--     acima (1, 1 e 0), num bloco desfeito; nada ficou gravado.
 --
 -- O PROBLEMA (produção, 30/10/2026, log e catálogo)
 --   A API responde com o JWT do usuário e não tem credencial de servidor
