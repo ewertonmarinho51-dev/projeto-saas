@@ -174,6 +174,9 @@ SEQUENCIA_EM_ENSAIO = (
     # A 0036 cria RPCs que chamam a matriz da 0020 e conferem que
     # `authenticated` segue SEM escrita direta — o que só vale depois dela.
     "0036_governanca_escrita_por_rpc.sql",
+    # A 0038 confere o RLS das tabelas da Base e `anon` sem acesso, o que só
+    # vale depois da 0019/0020, e as RPCs documentais, que vêm das datadas.
+    "0038_busca_rag_para_authenticated.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
