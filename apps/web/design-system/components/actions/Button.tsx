@@ -16,6 +16,11 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   block?: boolean;
   /** Vira link (`next/link`) com a aparência de botão. */
   href?: string;
+  /**
+   * Com `href`: carrega a página inteira, sem a navegação interna do Next. Para
+   * rota cujos cabeçalhos de documento importam (a CSP só vale na carga da página).
+   */
+  reloadDocument?: boolean;
   children?: ReactNode;
 }
 
@@ -44,6 +49,7 @@ export function Button({
   block = false,
   disabled,
   href,
+  reloadDocument = false,
   type = "button",
   className,
   children,
@@ -57,6 +63,13 @@ export function Button({
       {iconRight && !loading ? <Icon name={iconRight} /> : null}
     </>
   );
+  if (href && reloadDocument) {
+    return (
+      <a href={href} className={classes} aria-disabled={disabled || undefined}>
+        {miolo}
+      </a>
+    );
+  }
   if (href) {
     return (
       <Link href={href} className={classes} aria-disabled={disabled || undefined}>
