@@ -176,6 +176,11 @@ test("casca e painel: menu por papel, trilha, recolher e gaveta", async ({ page 
   await expect(page.getByTestId("titulo-processo")).toBeVisible();
   await expect(page.getByRole("link", { name: "Preencher dados da demanda" })).toBeVisible();
   await capturar(page, "app-processo");
+
+  // Celular: as ações do cartão ficam inteiras na tela, sem esmagar o título.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("link", { name: "Preencher dados da demanda" })).toBeInViewport({ ratio: 1 });
+  await page.setViewportSize({ width: 1440, height: 900 });
   expect(erros).toEqual([]);
 });
 
@@ -226,5 +231,31 @@ test("pesquisa de preços: etapas, itens, triagem que filtra e cesta", async ({ 
   await verOrigem.click();
   await page.keyboard.press("Escape");
   await expect(dialogo).toHaveCount(0);
+  expect(erros).toEqual([]);
+});
+
+test("GovBot em página cheia: conversa, composer à vista e coluna de fontes", async ({ page }) => {
+  const erros = vigiarConsole(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/entrar");
+  await page.getByLabel("E-mail institucional").fill(conta.email);
+  await page.getByLabel("Senha", { exact: true }).fill(conta.senha);
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await page.waitForURL(/\/app$/);
+
+  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("link", { name: "GovBot", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "GovBot", level: 1 })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Fontes" })).toBeVisible();
+
+  const caixa = page.getByRole("textbox", { name: "Mensagem para o GovBot" });
+  await caixa.fill("O que está faltando?");
+  await caixa.press("Enter");
+  await expect(page.getByText(/Há \d+ pendência\(s\) neste contexto\./)).toBeVisible({ timeout: 30_000 });
+
+  // O composer não sai da tela, mesmo com a conversa crescendo.
+  await expect(caixa).toBeInViewport();
+  await capturar(page, "app-govbot");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(caixa).toBeInViewport();
   expect(erros).toEqual([]);
 });

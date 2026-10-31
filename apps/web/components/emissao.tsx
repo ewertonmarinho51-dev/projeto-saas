@@ -6,6 +6,7 @@ import { useActionState, useRef, useState } from "react";
 import { emitirRelatorio, type EstadoDaEmissao } from "@/app/app/precos/acoes";
 import { useJob } from "@/components/acompanhar-job";
 import { botaoPrimario, botaoSecundario } from "@/components/ui";
+import { Alert, ValidationSummary, type ValidationIssue } from "@/design-system";
 import type { OpcaoDeRelatorio, PreparoDaEmissao } from "@/lib/api";
 
 const FALHAS: Record<string, string> = {
@@ -44,39 +45,42 @@ export function PainelDeEmissao({
   const [escolhida, setEscolhida] = useState<OpcaoDeRelatorio | null>(null);
   const dialogo = useRef<HTMLDialogElement>(null);
 
-  if (!preparo.disponivel) {
-    return <p className="rounded-[var(--radius-ui)] bg-canvas px-4 py-3 text-sm text-secundario">{preparo.motivo}</p>;
-  }
-  if (preparo.bloqueio) {
-    return (
-      <p role="alert" className="rounded-[var(--radius-ui)] bg-erro-fundo px-4 py-3 text-sm text-erro">
-        {preparo.bloqueio}
-      </p>
-    );
-  }
+  if (!preparo.disponivel) return <Alert variant="neutral">{preparo.motivo}</Alert>;
+  if (preparo.bloqueio) return <Alert variant="error">{preparo.bloqueio}</Alert>;
 
   const precisaConfirmar = preparo.requer_ciencia && !preparo.ciencia;
   const semPermissao = precisaConfirmar && !preparo.pode_registrar_ciencia;
 
+  // Preço atípico e pendência avisam; quem impede a emissão é o `bloqueio`, acima.
+  const conferencia: ValidationIssue[] = [
+    ...(preparo.alertas.length > 0
+      ? [{
+          severity: "warning" as const,
+          title: `${preparo.alertas.length} preço(s) merecem conferência.`,
+          detail: "Você pode revisá-los antes ou emitir com a cesta atual. A emissão não é impedida.",
+        }]
+      : []),
+    ...(preparo.pendencias.length > 0
+      ? [{
+          severity: "warning" as const,
+          title: `${preparo.pendencias.length} item(ns) com pendência`,
+          detail: "Sairão listados no documento.",
+        }]
+      : []),
+    ...(preparo.ciencia
+      ? [{
+          severity: "info" as const,
+          title: "Confirmação registrada para esta versão da cesta.",
+          detail: "Se a cesta mudar, ela é pedida de novo.",
+        }]
+      : []),
+  ];
+
   return (
     <form action={acao} className="grid gap-4">
-      {(preparo.alertas.length > 0 || preparo.pendencias.length > 0) && (
-        <div className="grid gap-1 rounded-[var(--radius-ui)] bg-acento-claro px-4 py-3 text-sm" data-testid="aviso-emissao">
-          {preparo.alertas.length > 0 && (
-            <p>
-              <span className="font-medium">{preparo.alertas.length} preço(s) merecem conferência.</span> Você pode revisá-los
-              antes ou emitir com a cesta atual. A emissão não é impedida.
-            </p>
-          )}
-          {preparo.pendencias.length > 0 && (
-            <p>
-              <span className="font-medium">{preparo.pendencias.length} item(ns) com pendência</span> sairão listados no
-              documento.
-            </p>
-          )}
-          {preparo.ciencia && (
-            <p className="text-secundario">Confirmação registrada para esta versão da cesta. Se a cesta mudar, ela é pedida de novo.</p>
-          )}
+      {conferencia.length > 0 && (
+        <div data-testid="aviso-emissao">
+          <ValidationSummary issues={conferencia} />
         </div>
       )}
 
@@ -185,11 +189,7 @@ export function PainelDeEmissao({
           Pedindo o relatório...
         </p>
       )}
-      {estado.erro && (
-        <p role="alert" className="rounded-[var(--radius-ui)] bg-erro-fundo px-3 py-2 text-sm text-erro">
-          {estado.erro}
-        </p>
-      )}
+      {estado.erro && <Alert variant="error">{estado.erro}</Alert>}
     </form>
   );
 }
