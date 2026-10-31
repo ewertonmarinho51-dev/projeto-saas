@@ -122,9 +122,11 @@ export default async function DetalheDoProcesso({
                     )}
                   </span>
                 </span>
-                {/* Sem revisão nativa, abrir importa o texto do GovDocs: é gravação. */}
+                {/* Sem revisão nativa, abrir importa o texto do GovDocs: é gravação.
+                    Página inteira: o WebAssembly do motor depende da CSP da rota do
+                    editor, e a navegação interna manteria a CSP desta página. */}
                 {(d.nativo || documentos.escrita) && (
-                  <Button size="sm" variant="secondary" icon="pencil-simple" href={`/app/processos/${p.id}/documentos/${d.id}/editar`}>
+                  <Button size="sm" variant="secondary" icon="pencil-simple" reloadDocument href={`/app/processos/${p.id}/documentos/${d.id}/editar`}>
                     Abrir no editor
                   </Button>
                 )}

@@ -130,7 +130,7 @@ export function EditorDeDocumento({
   const [estado, setEstado] = useState<EstadoDoEditor | null>(null);
   const [fase, setFase] = useState<Fase>("abrindo");
   const [falhaDeAbertura, setFalhaDeAbertura] = useState<string | null>(null);
-  const [falhaDoHost, setFalhaDoHost] = useState(false);
+  const [falhaDoHost, setFalhaDoHost] = useState<string | null>(null);
   const [painel, setPainel] = useState<Painel>(null);
   const [foco, setFoco] = useState(false);
   const [aviso, setAviso] = useState<{ variante: "success" | "error" | "warning"; texto: string } | null>(null);
@@ -189,13 +189,13 @@ export function EditorDeDocumento({
       (f) => setFase((atual) => (atual === "bloqueado" ? atual : f)),
     );
     transporte.current = t;
-    setFalhaDoHost(false);
-    montarHost(raiz, dadosDoHost(abertura, abertura), t.setStateValue)
+    setFalhaDoHost(null);
+    montarHost(raiz, dadosDoHost(abertura, abertura), t.setStateValue, (m) => vivo && setFalhaDoHost(m))
       .then((h) => {
         if (vivo) host.current = h;
         else h.desmontar();
       })
-      .catch(() => vivo && setFalhaDoHost(true));
+      .catch(() => vivo && setFalhaDoHost("O módulo do editor não carregou."));
     return () => {
       vivo = false;
       t.parar();
@@ -205,6 +205,13 @@ export function EditorDeDocumento({
       void encerrarSessao(abertura.document_id, abertura.instance_id);
     };
   }, [abertura]);
+
+  // Rede de segurança: o motor pesa 40 MB, mas abrir não pode ficar mudo.
+  useEffect(() => {
+    if (!abertura || fase !== "abrindo") return;
+    const limite = setTimeout(() => setFalhaDoHost("O motor do editor não respondeu a tempo."), 120000);
+    return () => clearTimeout(limite);
+  }, [abertura, fase]);
 
   // Esc sai do foco. Teclas dentro do editor param no host e não chegam aqui.
   useEffect(() => {
@@ -542,7 +549,7 @@ export function EditorDeDocumento({
         kicker={documento.sigla}
         title={<span data-testid="titulo-documento">{documento.rotulo}</span>}
         meta={meta}
-        save={falhaDeAbertura ? undefined : salvamento(fase, estado)}
+        save={falhaDeAbertura || falhaDoHost ? undefined : salvamento(fase, estado)}
         notice={notice}
         focus={foco}
         panel={painel === "revisao" ? painelRevisao : painel === "historico" ? painelHistorico : null}
@@ -589,7 +596,7 @@ export function EditorDeDocumento({
             <EmptyState
               icon="warning-circle"
               title="O editor não carregou"
-              description="Nenhuma gravação foi feita. Recarregue a página; se persistir, avise o suporte."
+              description={`${falhaDoHost} Nenhuma gravação foi feita. Recarregue a página; se persistir, avise o suporte.`}
               actions={
                 <Button variant="secondary" icon="arrows-clockwise" onClick={() => window.location.reload()}>
                   Recarregar

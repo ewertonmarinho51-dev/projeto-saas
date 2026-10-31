@@ -57,7 +57,13 @@ test("canário: processo lista os documentos e abre o editor em modo de trabalho
   await expect(lista.getByRole("link", { name: "Abrir no editor" })).toHaveCount(1);
   await expect(page.locator(`a[href$="/documentos/${dfd}/editar"]`)).toHaveCount(0);
 
+  // Carga de página inteira, com a CSP que libera o WebAssembly do motor: pela
+  // navegação interna a página manteria a CSP do processo e o motor não abriria.
+  const documento = page.waitForResponse(
+    (r) => r.request().resourceType() === "document" && r.url().endsWith(`/documentos/${etp}/editar`),
+  );
   await lista.getByRole("link", { name: "Abrir no editor" }).click();
+  expect((await documento).headers()["content-security-policy"]).toContain("'wasm-unsafe-eval'");
   await page.waitForURL(new RegExp(`/documentos/${etp}/editar$`));
   await expect(page.getByTestId("titulo-documento")).toHaveText("Estudo Técnico Preliminar");
   await expect(page.locator(".gc-shell--workspace")).toHaveCount(1);
