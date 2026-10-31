@@ -587,12 +587,6 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
 .gc-pmap .gc-pmap__out{color:var(--text-tertiary);text-decoration:line-through}
 .gc-pmap tfoot td{padding:12px;border-top:1px solid var(--border-default);background:var(--surface-sunken);font-weight:500}
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .gc-skeleton:not([data-theme="light"] *){background:linear-gradient(90deg,var(--surface-hover) 0%,var(--border-subtle) 50%,var(--surface-hover) 100%);background-size:200% 100%}
-  :root:not([data-theme="light"]) .gc-aiproc:not([data-theme="light"] *){background:var(--info-bg)}
-  :root:not([data-theme="light"]) .gc-draft__head:not([data-theme="light"] *){background:var(--info-bg)}
-}
-
 /* ——— Adições do porte para React/TypeScript ———
    * No export, estes valores estavam em `style={{...}}` dentro dos
    * componentes. Aqui viram classe com token, para que nenhum componente

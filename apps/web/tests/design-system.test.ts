@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { createElement } from "react";
@@ -95,7 +95,6 @@ describe("DESIGN.md é a fonte da verdade dos tokens", () => {
   const cores = tokens("colors.css");
   const claro = variaveis(bloco(cores, ':root,\n[data-theme="light"] {'));
   const escuro = variaveis(bloco(cores, '[data-theme="dark"] {'));
-  const sistemaEscuro = variaveis(bloco(cores, ':root:not([data-theme="light"]) {'));
   const espaco = variaveis(tokens("spacing.css"));
   const tipo = variaveis(tokens("typography.css"));
 
@@ -115,10 +114,6 @@ describe("DESIGN.md é a fonte da verdade dos tokens", () => {
     for (const nome of escuro.keys()) expect(doDesign.has(`dark-${nome}`), `--${nome} escuro sem entrada`).toBe(true);
   });
 
-  it("o escuro por prefers-color-scheme é o mesmo do [data-theme=dark]", () => {
-    expect([...sistemaEscuro]).toEqual([...escuro]);
-  });
-
   it("raios e espaçamento batem", () => {
     for (const [nome, valor] of secao(frente, "rounded")) expect(espaco.get(`gc-radius-${nome}`), nome).toBe(valor);
     for (const [nome, valor] of secao(frente, "spacing")) {
@@ -132,6 +127,36 @@ describe("DESIGN.md é a fonte da verdade dos tokens", () => {
     const papeis = [...design.matchAll(/^ {4}fontSize: (\S+)$/gm)].map((m) => m[1]);
     expect(papeis.length).toBe(10);
     for (const t of papeis) expect(tamanhos.has(t), t).toBe(true);
+  });
+});
+
+describe("o claro é o padrão em qualquer aparelho", () => {
+  /** Todo .css do app e do design system, menos os HTMLs de referência. */
+  function folhas(pasta: string): string[] {
+    return readdirSync(pasta, { withFileTypes: true }).flatMap((f) => {
+      const caminho = join(pasta, f.name);
+      if (f.isDirectory()) return f.name === "referencia" ? [] : folhas(caminho);
+      return f.name.endsWith(".css") ? [caminho] : [];
+    });
+  }
+
+  it("nenhuma folha de estilo obedece ao tema do sistema operacional", () => {
+    const arquivos = [...folhas(join(WEB, "design-system")), ...folhas(join(WEB, "app"))];
+    expect(arquivos.length).toBeGreaterThan(5);
+    for (const arquivo of arquivos) {
+      expect(readFileSync(arquivo, "utf8"), arquivo).not.toContain("prefers-color-scheme");
+    }
+  });
+
+  it("o <html> nasce claro no servidor, sem depender de JavaScript", () => {
+    const layout = readFileSync(join(WEB, "app", "layout.tsx"), "utf8");
+    expect(layout).toMatch(/<html[^>]*data-theme="light"/);
+    expect(layout).toContain('colorScheme: "only light"');
+  });
+
+  it("o tema claro barra o escurecimento automático do navegador", () => {
+    const cores = readFileSync(join(WEB, "design-system", "tokens", "colors.css"), "utf8").replace(/\r\n/g, "\n");
+    expect(cores).toMatch(/\[data-theme="light"\] \{\n(?: {2}\/\*.*\*\/\n)? {2}color-scheme: only light;/);
   });
 });
 

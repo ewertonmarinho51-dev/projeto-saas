@@ -19,7 +19,7 @@
  * manda o logo.
  *
  * `inline`: o utilitário usa var(--token) direto, e por isso acompanha
- * [data-theme] e prefers-color-scheme sem bloco escuro próprio.
+ * [data-theme] sem bloco escuro próprio.
  */
 @theme inline {
   --font-sans: var(--gc-font-sans);
