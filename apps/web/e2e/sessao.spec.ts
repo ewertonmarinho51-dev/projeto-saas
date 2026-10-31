@@ -66,7 +66,7 @@ test("link profundo com sessão: /entrar preserva o destino validado", async ({ 
   await entrar(page, B);
   await page.waitForURL(/\/app$/);
 
-  await page.goto("/entrar?proximo=/app/processos");
+  await page.goto("/entrar?proximo=%2Fapp%2Fprocessos");
   await page.getByRole("link", { name: "Continuar no aplicativo" }).click();
   await expect(page).toHaveURL(/\/app\/processos$/);
 
@@ -76,11 +76,11 @@ test("link profundo com sessão: /entrar preserva o destino validado", async ({ 
 });
 
 test("sair e trocar de conta: sessão encerrada, nada privado volta", async ({ page }) => {
-  await page.goto("/entrar?proximo=/app/processos");
+  await page.goto("/entrar?proximo=%2Fapp%2Fprocessos");
   await entrar(page, A);
   await page.waitForURL(/\/app\/processos$/);
 
-  await page.goto("/entrar?proximo=/app/processos");
+  await page.goto("/entrar?proximo=%2Fapp%2Fprocessos");
   await page.getByRole("button", { name: "Sair / trocar de conta" }).click();
   await expect(page).toHaveURL(/\/entrar\?saiu=1&proximo=%2Fapp%2Fprocessos$/);
   await expect(page.getByText("Sessão encerrada.")).toBeVisible();
