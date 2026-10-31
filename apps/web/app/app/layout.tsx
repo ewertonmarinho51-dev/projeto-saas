@@ -27,7 +27,9 @@ export default async function LayoutDoApp({ children }: { children: React.ReactN
   try {
     eu = (await chamarApi<Identidade>("/me")).dados;
   } catch (e) {
-    if (e instanceof ErroDaApi && e.status === 401) redirect("/entrar");
+    // Assinatura boa aqui e recusada na API: `/entrar` explica e oferece a
+    // saída, senão a pessoa voltaria a esta mesma recusa.
+    if (e instanceof ErroDaApi && e.status === 401) redirect("/entrar?sessao=recusada");
     falha =
       e instanceof ErroDaApi && e.status === 403
         ? "Sua conta está sem vínculo ativo com um órgão. Procure o administrador."

@@ -34,6 +34,10 @@ export async function atualizarSessao(request: NextRequest, cabecalhos: Headers)
       },
       setAll(paraGravar, cabecalhosDeCache) {
         paraGravar.forEach(({ name, value }) => request.cookies.set(name, value));
+        // `cabecalhos` foi copiado antes da renovação. Sem isto, o servidor
+        // renderiza com o token vencido e tenta renovar de novo, com um
+        // refresh que acabou de ser gasto: a sessão cairia no meio do uso.
+        cabecalhos.set("cookie", request.cookies.toString());
         resposta = NextResponse.next({ request: { headers: cabecalhos } });
         paraGravar.forEach(({ name, value, options }) =>
           resposta.cookies.set(name, value, options),
