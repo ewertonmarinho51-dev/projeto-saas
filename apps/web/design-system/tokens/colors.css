@@ -1,5 +1,5 @@
 /* Gerado a partir do export do Claude Design (23/10/2026). Fonte da verdade: DESIGN.md na raiz. */
-/* Tema claro: padrão, e reafirmado em [data-theme="light"] para a vitrine mostrar os dois lado a lado. */
+/* Tema claro: o padrão em qualquer aparelho; reafirmado em [data-theme="light"] para a vitrine mostrar os dois lado a lado. */
 :root,
 [data-theme="light"] {
   /* Brand blue — calibrated against the official logo (#0040B0 → #0068F8) */
@@ -104,7 +104,7 @@
   --chart-track:var(--gc-gray-100);
 }
 
-/* Tema escuro: forçado por atributo, ou seguindo o sistema quando nada é forçado. */
+/* Tema escuro: só por atributo (opt-in). O tema do sistema operacional não decide nada aqui. */
 [data-theme="dark"] {
   --bg-app:#0E131C;
   --surface-card:#151B26;
@@ -146,59 +146,12 @@
   --neutral-border:#2C3647;
   --chart-track:#232C3B;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg-app:#0E131C;
-    --surface-card:#151B26;
-    --surface-raised:#1A2230;
-    --surface-sunken:#111722;
-    --surface-hover:#1C2433;
-    --surface-selected:#14233D;
-    --border-subtle:#232C3B;
-    --border-default:#2C3647;
-    --border-strong:#3A4559;
-    --border-field:#5A667A;
-    --text-primary:#E6EAF1;
-    --text-secondary:#9DA7B8;
-    --text-tertiary:#748095;
-    --text-disabled:#4A5568;
-    --accent:#3D8BFF;
-    --accent-hover:#6AA6FF;
-    --accent-active:#8DBBFF;
-    --accent-subtle:#14233D;
-    --accent-subtle-hover:#1A2D4E;
-    --accent-strong-text:#8DBBFF;
-    --text-link:#6AA6FF;
-    --text-link-hover:#8DBBFF;
-    --text-on-accent:#0B1220;
-    --success-fg:#6FD19C;
-    --success-bg:#10261B;
-    --success-border:#1E4A33;
-    --warning-fg:#F3C162;
-    --warning-bg:#2A2012;
-    --warning-border:#4D3A17;
-    --error-fg:#F58A8E;
-    --error-bg:#2B1517;
-    --error-border:#552328;
-    --info-fg:#8DBBFF;
-    --info-bg:#14233D;
-    --info-border:#22406E;
-    --neutral-fg:#B4BDCB;
-    --neutral-bg:#1A2230;
-    --neutral-border:#2C3647;
-    --chart-track:#232C3B;
-  }
-}
 
 :root,
 [data-theme="light"] {
-  color-scheme: light;
+  /* `only`: nem o escurecimento automático do navegador entra. */
+  color-scheme: only light;
 }
 [data-theme="dark"] {
   color-scheme: dark;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-  }
 }

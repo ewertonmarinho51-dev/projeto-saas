@@ -296,9 +296,10 @@ Brasília.
 - Estados (`success`, `warning`, `error`, `info`, `neutral`), cada um com
   `-fg`, `-bg`, `-border` e `-solid`. **Status sempre com ícone e rótulo,
   nunca só cor.**
-- Tema escuro por `[data-theme="dark"]`, ou seguindo o sistema
-  (`prefers-color-scheme`) quando nada é forçado; `[data-theme="light"]`
-  força o claro.
+- **O claro é o padrão de toda a Gov Conect, em qualquer aparelho**: o
+  `<html>` nasce com `data-theme="light"` e `color-scheme: only light`, e
+  o tema do sistema operacional não decide nada. O escuro existe só por
+  opt-in, com `[data-theme="dark"]` (hoje, um painel da vitrine).
 - Gráfico: `chart-1` a `chart-5`, sempre com rótulo ao lado.
 
 ## Typography

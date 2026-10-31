@@ -22,7 +22,7 @@ Regras:
 |---|---|
 | `index.ts` | ponto de entrada único (71 nomes do export + 4 templates) |
 | `styles.css` | entrada do CSS, importada por `app/globals.css` |
-| `tokens/` | `colors` (claro, escuro por atributo e por sistema), `typography`, `spacing`, `elevation`, `motion`, `layout` |
+| `tokens/` | `colors` (claro por padrão, escuro só por atributo), `typography`, `spacing`, `elevation`, `motion`, `layout` |
 | `styles/base.css` | foco, `.gc-num`, `.gc-mono`, `.gc-sr-only`, animações, movimento reduzido (camada `base`) |
 | `styles/components.css` | classes `gc-*` dos componentes (camada `components`: utilitário do Tailwind ainda vence) |
 | `components/<grupo>/` | componentes React + TypeScript |

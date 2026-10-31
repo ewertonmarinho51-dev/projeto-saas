@@ -71,6 +71,8 @@ CONTAS = (
     ("admin_visual", "A", "A1", "admin", True),
     # Só da auditoria global de telas (auditoria.spec.ts), pelo mesmo limite.
     ("admin_auditoria", "A", "A1", "admin", True),
+    # Só da prova do tema claro em aparelho no escuro (tema.spec.ts), idem.
+    ("admin_tema", "A", "A1", "admin", True),
     # Só do E2E do editor de documentos (editor-documento.spec.ts): o tenant A
     # está no canário `wordcraft_editor`; o B não.
     ("editor_a", "A", "A1", "usuario", True),
