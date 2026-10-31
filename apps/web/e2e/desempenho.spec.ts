@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 /**
  * Tempo de clique até o conteúdo, no build de produção (Issue #152, PR C).
@@ -19,13 +19,13 @@ const estado = JSON.parse(readFileSync(process.env.GOVCONECT_E2E_ESTADO ?? "", "
 };
 const conta = estado.contas.admin_desempenho;
 
-type Rota = { nome: string; url: RegExp; titulo: string | null; dados?: (page: Page) => Locator };
+type Rota = { nome: string; caminho: string; titulo: string | null; texto?: string; seletor?: string };
 const ROTAS: Rota[] = [
-  { nome: "Início", url: /\/app$/, titulo: "Início", dados: (p) => p.getByText("Processos recentes", { exact: true }) },
-  { nome: "Processos", url: /\/app\/processos$/, titulo: "Processos", dados: (p) => p.getByRole("table", { name: "Processos do órgão" }) },
-  { nome: "Preços", url: /\/app\/precos$/, titulo: "Pesquisas de preços" },
-  { nome: "Usuários", url: /\/app\/admin\/usuarios$/, titulo: "Usuários" },
-  { nome: "Instituição", url: /\/app\/admin\/instituicao/, titulo: null },
+  { nome: "Início", caminho: "/app", titulo: "Início", texto: "Processos recentes" },
+  { nome: "Processos", caminho: "/app/processos", titulo: "Processos", seletor: "main table" },
+  { nome: "Preços", caminho: "/app/precos", titulo: "Pesquisas de preços" },
+  { nome: "Usuários", caminho: "/app/admin/usuarios", titulo: "Usuários" },
+  { nome: "Instituição", caminho: "/app/admin/instituicao", titulo: null },
 ];
 const RODADAS = 6;
 const PASTA = "e2e/resultados/desempenho";
@@ -36,14 +36,38 @@ function percentil(valores: number[], q: number): number {
   return ordenados[Math.min(ordenados.length - 1, Math.floor(ordenados.length * q))];
 }
 
-// `waitFor`, não `expect`: o `expect` consulta a cada 100, 250, 500 ms e
-// arredondaria a medição para esses degraus.
-async function esperarTela(page: Page, rota: Rota) {
-  await page.waitForURL(rota.url);
-  const titulo = rota.titulo
-    ? page.getByRole("heading", { level: 1, name: rota.titulo, exact: true })
-    : page.getByRole("heading", { level: 1 });
-  await titulo.waitFor();
+/**
+ * Cronômetro dentro da página, quadro a quadro, a partir do clique. `expect` e
+ * `waitFor` consultam em degraus de até 500 ms e arredondariam a medição.
+ */
+function cronometrar(page: Page, rota: Rota) {
+  return page.evaluate(
+    (alvo) =>
+      new Promise<{ retorno: number; conteudo: number }>((fim) => {
+        let inicio = 0;
+        let retorno = 0;
+        const olhar = () => {
+          const h1 = document.querySelector("main h1")?.textContent?.trim() ?? "";
+          if (!retorno && location.pathname === alvo.caminho && h1 && (!alvo.titulo || h1 === alvo.titulo)) {
+            retorno = performance.now() - inicio;
+          }
+          const dados =
+            (!alvo.texto || document.querySelector("main")?.textContent?.includes(alvo.texto)) &&
+            (!alvo.seletor || document.querySelector(alvo.seletor));
+          if (retorno && dados) fim({ retorno, conteudo: performance.now() - inicio });
+          else requestAnimationFrame(olhar);
+        };
+        addEventListener(
+          "click",
+          () => {
+            inicio = performance.now();
+            olhar();
+          },
+          { capture: true, once: true },
+        );
+      }),
+    rota,
+  );
 }
 
 test("o clique responde na hora, mesmo com a página seguinte demorando", async ({ page }) => {
@@ -91,17 +115,14 @@ test("clique até o conteúdo nas telas principais", async ({ page }) => {
   const tempos = new Map<string, { retorno: number[]; conteudo: number[] }>();
   for (let rodada = 0; rodada < RODADAS; rodada++) {
     for (const rota of ROTAS) {
-      const inicio = Date.now();
+      const cronometro = cronometrar(page, rota);
       await menu.getByRole("link", { name: rota.nome, exact: true }).click();
-      await esperarTela(page, rota);
-      const retorno = Date.now() - inicio;
-      await rota.dados?.(page).first().waitFor();
-      const conteudo = Date.now() - inicio;
+      const { retorno, conteudo } = await cronometro;
       // A primeira rodada carrega código: fica fora, como o aquecimento.
       if (rodada === 0) continue;
       const linha = tempos.get(rota.nome) ?? { retorno: [], conteudo: [] };
-      linha.retorno.push(retorno);
-      linha.conteudo.push(conteudo);
+      linha.retorno.push(Math.round(retorno));
+      linha.conteudo.push(Math.round(conteudo));
       tempos.set(rota.nome, linha);
     }
   }
