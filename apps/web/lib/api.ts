@@ -661,6 +661,24 @@ export type RevisaoDoHistorico = {
   restauravel: boolean;
 };
 
+export type FatoPendente = {
+  id: string;
+  path: string;
+  valor: unknown;
+  campo: string;
+  confianca: number;
+  inferido: boolean;
+};
+
+/** O que a aprovação exige: todo fato vigente do processo confirmado por uma pessoa. */
+export type FatosDoProcesso = {
+  total: number;
+  confirmados: number;
+  pendentes: FatoPendente[];
+  invalidos: number;
+  pronto: boolean;
+};
+
 /** Documentos que o editor abre, ou `null` quando o editor não está ligado para quem chama. */
 export async function documentosDoProcesso(processoId: string): Promise<DocumentosDoProcesso | null> {
   try {

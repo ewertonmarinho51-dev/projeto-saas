@@ -93,3 +93,23 @@ def test_conta_revogada_nao_abre(api_editor, pilha, editor):
     r = api_editor.get(f"/api/v1/processos/{editor['processo']}/documentos",
                        headers=_h(pilha.contas["a1_revogado"]))
     assert r.status_code in (401, 403)
+
+
+def test_titular_confirma_os_fatos_e_o_colega_nao(api_editor, pilha, editor):
+    dono, colega = pilha.contas["a1"], pilha.contas["a1_colega"]
+    base = f"/api/v1/processos/{editor['processo']}/fatos-canonicos"
+    fatos = api_editor.post(f"{base}/sincronizacao", headers=_h(dono))
+    assert fatos.status_code == 200, fatos.text
+    pendentes = [f["id"] for f in fatos.json()["pendentes"]]
+    assert pendentes and fatos.json()["pronto"] is False
+
+    r = api_editor.post(f"{base}/confirmacao", headers=_h(colega), json={"ids": pendentes})
+    assert r.status_code in (403, 404), r.text
+
+    r = api_editor.post(f"{base}/confirmacao", headers=_h(dono), json={"ids": pendentes})
+    assert r.status_code == 200, r.text
+    assert r.json()["pronto"] is True and r.json()["pendentes"] == []
+
+    # A mesma lista de novo: já não está em `extraido`, e nada muda.
+    r = api_editor.post(f"{base}/confirmacao", headers=_h(dono), json={"ids": pendentes})
+    assert r.status_code == 409 and r.json()["code"] == "FACTS_CHANGED"

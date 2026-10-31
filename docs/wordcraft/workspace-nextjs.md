@@ -114,8 +114,9 @@ também largar os 720/800 px.
 - Sessão do editor em memória do processo da API (1 worker). Reinício da
   API = "Sessão encerrada, reabra"; o rascunho não confirmado fica no
   canvas, nada persistido se perde.
-- Emissão oficial (pacote dos aprovados) continua no Streamlit: é ato do
-  processo, não do documento, e depende do preflight de fatos canônicos.
+- Emissão oficial: a API já tem `GET /processos/{id}/emissao/prontidao`,
+  `POST /processos/{id}/emissao`, `GET …/emissao` e `…/emissao/pacote`. Ainda
+  não há tela nem BFF (frente M3): até lá ela segue no Streamlit.
 - Painéis de GovBot, auditoria contextual, pareceres, evidências e
   templates do Streamlit não foram trazidos: a API v1 não os expõe ainda, e
   a tela não mostra botão sem ação.

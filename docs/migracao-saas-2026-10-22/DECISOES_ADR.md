@@ -382,12 +382,13 @@ a chave de servidor; a API, pela ADR-002, não tem.
    JWT legado só na pilha descartável de teste; igual à da Admin API é
    recusada na subida). Fora do `repr` da configuração.
 2. **Janela por operação.** `escrita_documental` cria o cliente de servidor
-   só durante UM commit (checkpoint, importação, restauração, aprovação) e
+   só durante UM ato (checkpoint, importação, restauração, aprovação, emissão) e
    o põe num `ContextVar` que `db._cliente()` lê **só na API**
    (`CLIENTE_DOCUMENTAL`). Fora da janela, `_cliente()` segue a regra de
    sempre (JWT do usuário).
-3. **Só três RPCs.** `ClienteDocumental` manda ao servidor apenas
-   `documento_editor_checkpoint`, `_aprovar` e `_fontes_aprovacao`; toda
+3. **Só quatro RPCs.** `ClienteDocumental` manda ao servidor apenas
+   `documento_editor_checkpoint`, `_aprovar`, `_fontes_aprovacao` e `_emitir`
+   (esta acrescentada na ampliação abaixo); toda
    outra RPC e todo `.table()` vão com o JWT do usuário (RLS). Não há
    `storage`, `auth` nem PostgREST cru. Prova:
    `test_cliente_documental_so_leva_as_rpcs_de_commit_ao_servidor`.
@@ -405,8 +406,19 @@ a chave de servidor; a API, pela ADR-002, não tem.
   com o JWT do usuário (não ganha poder): a lista é de nomes de RPC.
 - Revisão pelo `revisor-de-banco-e-seguranca` antes de provisionar a chave.
 
+**Ampliação (30/10/2026, autorizada pelo operador: "Autorizo a 4ª RPC").**
+A lista passa a ter quatro RPCs: entra `documento_editor_emitir`, a emissão
+oficial do processo. É a mesma chave e a mesma janela por operação. A RPC
+reconfere sessão, papel `publicacao_registrada`, alcance no tenant e, sob
+trava, que cada fonte segue aprovada. O conjunto de tipos sai do servidor; o
+corpo do pedido só prova que a pessoa conferiu as revisões e os hashes atuais
+(divergiu, 409). `documento_editor_patch_lote`,
+`documento_editor_fontes_patch` e `documento_editor_aplicar_template` seguem
+fora: pelo JWT do usuário, falham.
+
 **Revisão de segurança (30/10/2026, `revisor-de-banco-e-seguranca`).**
-Sem bloqueador; pode provisionar. As RPCs não confiam cegamente em
+Feita sobre as três primeiras RPCs; a emissão foi lida depois, sem revisão
+própria do agente. Sem bloqueador; pode provisionar. As RPCs não confiam cegamente em
 `p_claims`: `documento_editor_sessao_valida` reconfere vínculo, `ativo`,
 tenant, secretaria e papel contra `usuarios`, e checkpoint e aprovação
 conferem titularidade ou competência no banco. O `ContextVar` não vaza entre

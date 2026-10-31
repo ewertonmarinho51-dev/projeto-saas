@@ -42,7 +42,8 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from src import contexto
+from src import contexto, db, fatos
+from src.config import adota_srp, sequencia_do_processo
 from src.streamlit_opcional import sessao_da_requisicao
 
 from .erros import ErroApi
@@ -252,6 +253,79 @@ class Historico(BaseModel):
     revisoes: list[RevisaoDoHistorico]
 
 
+class FatoPendente(BaseModel):
+    id: str
+    path: str
+    valor: Any = None
+    campo: str
+    confianca: float
+    inferido: bool
+
+
+class FatosDoProcesso(BaseModel):
+    """O que a aprovação exige: todo fato vigente confirmado por uma pessoa."""
+
+    total: int
+    confirmados: int
+    pendentes: list[FatoPendente]
+    invalidos: int
+    pronto: bool
+
+
+class ConfirmacaoDeFatos(_Entrada):
+    # A lista que a pessoa LEU: se entrou fato novo, a RPC responde conflito.
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=1000)
+
+
+class DocumentoEmitido(BaseModel):
+    tipo: str
+    revisao: int
+    content_hash: str
+
+
+class EmissaoOficial(BaseModel):
+    id: str
+    docx_sha256: str
+    pdf_sha256: str
+    documentos: list[DocumentoEmitido]
+
+
+class EmissaoRegistrada(EmissaoOficial):
+    evento_id: str
+    replayed: bool
+
+
+class DocumentoParaEmissao(BaseModel):
+    tipo: str
+    sigla: str
+    rotulo: str
+    aprovado: bool
+    status: str | None = None
+    revisao: int | None = None
+    content_hash: str | None = None
+
+
+class ProntidaoDaEmissao(BaseModel):
+    """O conjunto que o processo exige, decidido no servidor."""
+
+    pronto: bool
+    escrita: bool
+    documentos: list[DocumentoParaEmissao]
+    fora_da_sequencia: list[str]
+
+
+class DocumentoConferido(_Entrada):
+    tipo: str = Field(pattern=r"^[a-z][a-z0-9_]{0,31}$")
+    revisao: int = Field(ge=1)
+    content_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class ConferenciaDeEmissao(_Entrada):
+    # As revisões e os hashes que a pessoa viu. Não escolhem nada: só provam
+    # que o que vai ser emitido é o que ela conferiu.
+    documentos: list[DocumentoConferido] = Field(min_length=1, max_length=32)
+
+
 class AprovacaoRegistrada(BaseModel):
     id: str
     document_id: str
@@ -273,6 +347,20 @@ def _estado(sessao: Sessao, escrita: bool) -> dict[str, Any]:
                 ack=p.ack_persistido(), save_error=p.falha_pendente(),
                 control=p.controle_pendente(), bloqueado=p.canvas_bloqueado() is not None,
                 falha_controle=(falha or {}).get("reason"))
+
+
+def _resumo_dos_fatos(vigentes: list[dict]) -> FatosDoProcesso:
+    pendentes = [f for f in vigentes if f.get("status") == "extraido"]
+    invalidos = sum(1 for f in vigentes if f.get("status") not in {"extraido", "confirmado"})
+    confirmados = sum(1 for f in vigentes if f.get("status") == "confirmado")
+    return FatosDoProcesso(
+        total=len(vigentes), confirmados=confirmados, invalidos=invalidos,
+        pronto=bool(vigentes) and not pendentes and not invalidos,
+        pendentes=[FatoPendente(id=str(f["id"]), path=str(f.get("path") or ""), valor=f.get("valor"),
+                                campo=str(f.get("fonte") or "").split(":", 1)[-1],
+                                confianca=float(f.get("confianca") or 0),
+                                inferido=str(f.get("fonte") or "").startswith(fatos.PREFIXO_INFERENCIA))
+                   for f in pendentes])
 
 
 def rotas() -> APIRouter:
@@ -552,6 +640,57 @@ def rotas() -> APIRouter:
                                        revision=aprovacao.revision, content_hash=aprovacao.content_hash,
                                        status=aprovacao.status, replayed=aprovacao.replayed)
 
+    def _transicionar_fatos(request: Request, eu: Identidade, processo_id: str,
+                            substituir: list[str], confirmar: list[str]) -> None:
+        resposta = request.app.state.rest.requisitar(
+            eu.token, "POST", "rpc/fatos_canonicos_transicionar",
+            corpo={"p_processo": processo_id, "p_substituir": substituir, "p_confirmar": confirmar})
+        if resposta.status in (200, 204):
+            return
+        erros = {"42501": (403, "FORBIDDEN", "Só o titular do processo ou um administrador confirma fatos."),
+                 "PT409": (409, "FACTS_CHANGED", "Os fatos mudaram desde a sua leitura. Recarregue e confira."),
+                 "22023": (422, "VALIDATION_ERROR", "Lista de fatos inválida.")}
+        status, codigo, mensagem = erros.get(resposta.codigo_pg or "", (503, "DATABASE_UNAVAILABLE", "Banco indisponível"))
+        raise ErroApi(status, codigo, mensagem)
+
+    @r.post("/processos/{processo_id}/fatos-canonicos/sincronizacao", response_model=FatosDoProcesso,
+            responses={403: {"description": "Há fatos a gravar e quem chama não é o titular nem admin"},
+                       404: {"description": "Processo fora do seu acesso ou editor desligado"}})
+    def sincronizar_fatos(processo_id: uuid.UUID, request: Request, response: Response,
+                          eu: Identidade = Depends(exigir_identidade)) -> FatosDoProcesso:
+        """Extrai do Formulário Matriz persistido, versiona e devolve o que falta confirmar."""
+        _exigir_workspace(request, eu)
+        response.headers.update(SEM_CACHE)
+        pid = str(processo_id)
+        dados = _processo(request, eu, pid, "id,dados").get("dados") or {}
+        with _sessao_do_dominio(eu):
+            try:
+                inserir, substituir = fatos.planejar_versionamento(
+                    fatos.extrair_do_formulario(dados, pid), db.listar_fatos(pid, apenas_vigentes=False))
+                if inserir:
+                    db.salvar_fatos(inserir)
+            except db.ErroBanco:
+                # Sem política de INSERT é quem não é titular nem admin; quem decide é o RLS.
+                raise ErroApi(403, "FORBIDDEN",
+                              "Só o titular do processo ou um administrador sincroniza os fatos.") from None
+            if substituir:
+                _transicionar_fatos(request, eu, pid, substituir, [])
+            return _resumo_dos_fatos(db.listar_fatos(pid))
+
+    @r.post("/processos/{processo_id}/fatos-canonicos/confirmacao", response_model=FatosDoProcesso,
+            responses={403: {"description": "Quem chama não é o titular nem admin"},
+                       409: {"description": "A lista não é mais a que a pessoa leu"}})
+    def confirmar_fatos(processo_id: uuid.UUID, pedido: ConfirmacaoDeFatos, request: Request,
+                        response: Response, eu: Identidade = Depends(exigir_identidade)) -> FatosDoProcesso:
+        """Confirmação humana dos fatos extraídos. O autor vem do JWT, no banco."""
+        _exigir_workspace(request, eu)
+        response.headers.update(SEM_CACHE)
+        pid = str(processo_id)
+        _processo(request, eu, pid)
+        _transicionar_fatos(request, eu, pid, [], [str(i) for i in pedido.ids])
+        with _sessao_do_dominio(eu):
+            return _resumo_dos_fatos(db.listar_fatos(pid))
+
     @r.get("/documentos/{document_id}/historico", response_model=Historico,
            responses={404: {"description": "Documento fora do seu acesso"}})
     def historico(document_id: uuid.UUID, request: Request, response: Response,
@@ -645,6 +784,122 @@ def rotas() -> APIRouter:
         return Response(content=artefato.payload, media_type=MIME[formato], headers={
             **SEM_CACHE, "Content-Disposition": f'attachment; filename="{nome}"',
             "X-Content-SHA256": artefato.content_hash, "X-Content-Type-Options": "nosniff"})
+
+    def _conjunto_da_emissao(request: Request, eu: Identidade, pid: str) -> tuple[tuple[str, ...], dict]:
+        """Os tipos que o processo exige (a mesma conta de `emitir_aprovados`) e as cabeças."""
+        dados = _processo(request, eu, pid, "id,dados").get("dados") or {}
+        heads = request.app.state.rest.requisitar(eu.token, "GET", "documentos_editor", params={
+            "select": "id,tipo,revision,content_hash,status", "processo_id": f"eq.{pid}", "limit": "33"})
+        if heads.status != 200:
+            raise ErroApi(503, "DATABASE_UNAVAILABLE", "Banco indisponível")
+        por_tipo = {h["tipo"]: h for h in heads.dados or [] if isinstance(h, dict)}
+        tipos = sequencia_do_processo(dados, dict.fromkeys(por_tipo, True))
+        if adota_srp(dados):
+            tipos.append("arp")
+        return tuple(tipos), por_tipo
+
+    @r.get("/processos/{processo_id}/emissao/prontidao", response_model=ProntidaoDaEmissao,
+           responses={404: {"description": "Processo fora do seu acesso ou editor desligado"}})
+    def prontidao_da_emissao(processo_id: uuid.UUID, request: Request, response: Response,
+                             eu: Identidade = Depends(exigir_identidade)) -> ProntidaoDaEmissao:
+        """O que falta aprovar. Mostra as revisões e hashes que a pessoa confere antes de emitir."""
+        _exigir_workspace(request, eu)
+        response.headers.update(SEM_CACHE)
+        tipos, por_tipo = _conjunto_da_emissao(request, eu, str(processo_id))
+        documentos = []
+        for tipo in tipos:
+            head = por_tipo.get(tipo) or {}
+            documentos.append(DocumentoParaEmissao(
+                tipo=tipo, sigla=SIGLAS.get(tipo, tipo.upper()), rotulo=TIPOS.get(tipo, tipo),
+                aprovado=head.get("status") in {"aprovado", "emitido"}, status=head.get("status"),
+                revisao=head.get("revision"), content_hash=head.get("content_hash")))
+        fora = sorted(set(por_tipo) - set(tipos))
+        return ProntidaoDaEmissao(pronto=all(d.aprovado for d in documentos) and not fora,
+                                  escrita=_escrita(request), documentos=documentos, fora_da_sequencia=fora)
+
+    @r.post("/processos/{processo_id}/emissao", response_model=EmissaoRegistrada,
+            responses={403: {"description": "Papel sem competência de publicação"},
+                       409: {"description": "O que foi conferido não é mais o que está no banco"},
+                       422: {"description": "Há documento sem aprovação nativa"},
+                       503: {"description": "Gravação indisponível"}})
+    def emitir(processo_id: uuid.UUID, pedido: ConferenciaDeEmissao, request: Request, response: Response,
+               eu: Identidade = Depends(exigir_identidade)) -> EmissaoRegistrada:
+        """Ato oficial e imutável: os dois pacotes viram snapshot e a trilha registra.
+
+        Conjunto, revisões e competência saem do servidor e do banco. Repetir o
+        mesmo pedido devolve a mesma emissão (`replayed`), com a chave do Streamlit.
+        """
+        _exigir_workspace(request, eu)
+        response.headers.update(SEM_CACHE)
+        from src.documentos_editor import AcessoNegado
+
+        pid = str(processo_id)
+        tipos, por_tipo = _conjunto_da_emissao(request, eu, pid)
+        conferidos = {d.tipo: (d.revisao, d.content_hash) for d in pedido.documentos}
+        atuais = {t: ((por_tipo.get(t) or {}).get("revision"), (por_tipo.get(t) or {}).get("content_hash"))
+                  for t in tipos}
+        if conferidos != atuais or set(por_tipo) != set(tipos):
+            raise ErroApi(409, "DOCUMENT_CONFLICT",
+                          "Os documentos mudaram desde a sua conferência. Confira de novo antes de emitir.")
+        if any(por_tipo[t].get("status") not in {"aprovado", "emitido"} for t in tipos):
+            raise ErroApi(422, "EMISSION_NOT_READY", "Todos os documentos precisam estar aprovados.")
+        operacao = str(uuid.uuid5(NAMESPACE, "govconnect-wordcraft-emission:" + pid + ":"
+                                  + ":".join(por_tipo[t]["content_hash"] for t in tipos)))
+        try:
+            if not _escrita(request):
+                raise EscritaIndisponivel("credencial documental não provisionada")
+            motor = _motor(request)
+            with _sessao_do_dominio(eu), _gravar(request):
+                emissao = motor.servico.emitir_aprovados(pid, tipos=tipos, operation_id=operacao)
+        except AcessoNegado:
+            raise ErroApi(403, "FORBIDDEN", "Seu papel não permite registrar a emissão oficial.") from None
+        except Exception as erro:  # noqa: BLE001
+            raise _traduzir(erro) from None
+        return EmissaoRegistrada(id=emissao.id, docx_sha256=emissao.docx_sha256, pdf_sha256=emissao.pdf_sha256,
+                                 evento_id=emissao.event_id, replayed=emissao.replayed,
+                                 documentos=[DocumentoEmitido(tipo=d["tipo"], revisao=d["revision"],
+                                                              content_hash=d["source_sha256"])
+                                             for d in emissao.manifest["documents"]])
+
+    def _emissao(request: Request, eu: Identidade, pid: str):
+        _processo(request, eu, pid)
+        motor = _motor(request)
+        with _sessao_do_dominio(eu):
+            try:
+                return motor.servico.emissao_atual(pid)
+            except Exception as erro:  # noqa: BLE001
+                raise _traduzir(erro) from None
+
+    @r.get("/processos/{processo_id}/emissao", response_model=EmissaoOficial,
+           responses={404: {"description": "Sem emissão oficial, ou processo fora do seu acesso"}})
+    def emissao_atual(processo_id: uuid.UUID, request: Request, response: Response,
+                      eu: Identidade = Depends(exigir_identidade)) -> EmissaoOficial:
+        """A emissão oficial persistida. Só lê: não reexporta nem emite."""
+        _exigir_workspace(request, eu)
+        response.headers.update(SEM_CACHE)
+        emissao = _emissao(request, eu, str(processo_id))
+        if emissao is None:
+            raise ErroApi(404, "NOT_FOUND", "Este processo ainda não tem emissão oficial")
+        return EmissaoOficial(id=emissao.id, docx_sha256=emissao.docx_sha256, pdf_sha256=emissao.pdf_sha256,
+                              documentos=[DocumentoEmitido(tipo=d["tipo"], revisao=d["revision"],
+                                                           content_hash=d["source_sha256"])
+                                          for d in emissao.manifest["documents"]])
+
+    @r.get("/processos/{processo_id}/emissao/pacote",
+           responses={200: {"content": {"application/zip": {}}},
+                      404: {"description": "Sem emissão oficial, ou processo fora do seu acesso"}})
+    def pacote_da_emissao(processo_id: uuid.UUID, request: Request,
+                          formato: Literal["docx", "pdf"] = Query(...),
+                          eu: Identidade = Depends(exigir_identidade)) -> Response:
+        """O pacote exato gravado na emissão, sem passar pelo motor de novo."""
+        _exigir_workspace(request, eu)
+        emissao = _emissao(request, eu, str(processo_id))
+        if emissao is None:
+            raise ErroApi(404, "NOT_FOUND", "Este processo ainda não tem emissão oficial")
+        pacote = emissao.docx if formato == "docx" else emissao.pdf
+        return Response(content=pacote.payload, media_type="application/zip", headers={
+            **SEM_CACHE, "Content-Disposition": f'attachment; filename="emissao-{formato}.zip"',
+            "X-Content-SHA256": pacote.content_hash, "X-Content-Type-Options": "nosniff"})
 
     return r
 
