@@ -299,6 +299,29 @@ def test_sem_token_e_401(api):
 
 
 # ---------------------------------------------------------------------------
+# Motor: endereço para a pré-carga, sem abrir sessão
+# ---------------------------------------------------------------------------
+def test_motor_entrega_o_endereco_do_wasm(api, emissor):
+    r = api.get("/api/v1/documentos/motor", headers=_auth(emissor))
+    assert r.status_code == 200, r.text
+    assert r.json() == {"wasm_url": ORIGEM + "/app/static/wordcraft/gc_bg.wasm"}
+
+
+def test_motor_segue_as_travas_do_editor(api, emissor, canario):
+    canario["ligado"] = False
+    r = api.get("/api/v1/documentos/motor", headers=_auth(emissor))
+    assert r.status_code == 404 and r.json()["code"] == "MODULE_UNAVAILABLE"
+
+
+def test_motor_fora_do_ar_e_503(emissor, banco, servico, clientes, canario, monkeypatch):
+    api = _montar(emissor, banco, servico, clientes)
+    api.app.state.motor_documental = None
+    monkeypatch.setattr(dn, "carregar_motor", lambda: (_ for _ in ()).throw(RuntimeError("x")))
+    r = api.get("/api/v1/documentos/motor", headers=_auth(emissor))
+    assert r.status_code == 503 and r.json()["code"] == "WORDCRAFT_RUNTIME_UNAVAILABLE"
+
+
+# ---------------------------------------------------------------------------
 # Lista e abertura
 # ---------------------------------------------------------------------------
 def test_lista_nativos_e_legados_com_o_id_deterministico(api, emissor, banco):

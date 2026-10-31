@@ -185,6 +185,10 @@ class DocumentosDoProcesso(BaseModel):
     documentos: list[DocumentoDoProcesso]
 
 
+class MotorDoEditor(BaseModel):
+    wasm_url: str
+
+
 class PedidoDeSessao(_Entrada):
     processo_id: uuid.UUID
 
@@ -445,6 +449,14 @@ def rotas() -> APIRouter:
         if not resposta.dados:
             raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
         return resposta.dados[0]
+
+    @r.get("/documentos/motor", response_model=MotorDoEditor,
+           responses={404: {"description": "Editor desligado para quem chama"},
+                      503: {"description": "Motor indisponível"}})
+    def motor_do_editor(request: Request, eu: Identidade = Depends(exigir_identidade)) -> MotorDoEditor:
+        """Onde está o motor aprovado, para a página baixá-lo sem esperar a sessão."""
+        _exigir_workspace(request, eu)
+        return MotorDoEditor(wasm_url=_motor(request).wasm_url)
 
     @r.get("/processos/{processo_id}/documentos", response_model=DocumentosDoProcesso,
            responses={404: {"description": "Processo fora do seu acesso ou editor desligado"}})
