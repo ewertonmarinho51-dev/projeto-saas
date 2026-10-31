@@ -1,5 +1,25 @@
 -- ## 0037 — Fatos canônicos: substituir e confirmar por RPC (interface nova, Issue #138 M1)
--- ## ESTADO: APLICÁVEL. NÃO aplicada em produção.
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 31/10/2026 como
+-- ##   `m0037_fatos_canonicos_transicao_por_rpc` (registro 20261031142917), por
+-- ##   autorização expressa do dono, depois do ensaio no projeto descartável
+-- ##   `govdocs-ensaio-descartavel` no mesmo dia.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (31/10/2026):
+--   * ANTES: 864 confirmados, 306 extraídos, 1 substituído; 7 processos, 1
+--     documento nativo; 95 grants de tabela a `authenticated`, 0 a `anon`; 104
+--     políticas em public; `authenticated` com INSERT e SELECT em
+--     `fatos_canonicos`; 170 funções em public; função ausente;
+--   * aplicação: conferência interna aprovada;
+--   * DEPOIS: mesmos fatos (hash por id, status e autor idêntico), 7 processos,
+--     1 documento; 95 e 0 grants; 104 políticas; INSERT e SELECT; 171 funções.
+--     `authenticated` executa, `anon` não. Corpo com o mesmo md5 do descartável.
+--     Chamada sem identidade: 42501, sem tocar dado;
+--   * COMPORTAMENTO, no descartável, num bloco desfeito com tenants próprios:
+--     colega, admin de outro tenant, conta inativa, processo inexistente e
+--     `anon` = 42501; id de outro processo = PT409, sem mudar nada; confirmado e
+--     disputado = PT409; lista duplicada ou sobreposta = 22023; titular e admin
+--     passam, com `confirmado_por` do banco; UPDATE direto = 42501;
+--   * advisors: só um aviso novo, a própria RPC (authenticated, intencional).
 --
 -- O PROBLEMA (catálogo de produção, 30/10/2026)
 --   A aprovação nativa de documento exige que TODO fato vigente do processo
