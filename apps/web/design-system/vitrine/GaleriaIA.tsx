@@ -57,6 +57,16 @@ const FONTES = [
   { n: 2, title: "DFD — Material de expediente", meta: "Documento do processo", href: "#" },
 ];
 
+// Nome real de arquivo da Base: sem espaço, não tem onde quebrar a linha.
+const FONTE_DE_NOME_LONGO = [
+  {
+    n: 1,
+    title: "PARECER_JURIDICO_N_843_2025_fase_interna_EDITAL_AQUISICAO_DE_FERRAMENTAS_MAQUINAS_E_EQUIPAMENTOS_PARA_A_SECRETARIA_MUNICIPAL.pdf",
+    meta: "Outro · lei_14133_2021:18",
+    excerpt: "Estudo Técnico Preliminar, documento constitutivo da primeira etapa da fase preparatória da contratação pública.",
+  },
+];
+
 const MENU: SidebarGroup[] = [
   {
     items: [
@@ -118,6 +128,15 @@ export function GaleriaIA({ tema }: { tema: string }) {
                 de quantidades e o levantamento de mercado.
               </ChatMessage>
               <ChatMessage loading />
+            </div>
+          </Exemplo>
+          <Exemplo rotulo="Conversa com fonte de nome longo" largo>
+            <div className="grid gap-5" data-prova="conversa-nome-longo">
+              <ChatMessage role="user">Qual o fundamento legal do estudo técnico preliminar?</ChatMessage>
+              <ChatMessage sources={<SourceList compact items={FONTE_DE_NOME_LONGO} />}>
+                O texto da resposta tem de quebrar dentro da conversa, seja qual for o tamanho do nome da fonte citada.
+              </ChatMessage>
+              <SourceList items={FONTE_DE_NOME_LONGO} />
             </div>
           </Exemplo>
           <Exemplo rotulo="ChatComposer — livre e ocupado">

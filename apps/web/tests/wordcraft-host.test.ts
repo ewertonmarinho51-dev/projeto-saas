@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { emEditor, trilha } from "../components/trilha";
 import { HOST_SHA256, HOST_URL } from "../lib/wordcraft/host";
-import { alinharAoDispositivo } from "../lib/wordcraft/host-nativo";
+import { alinharAoDispositivo, falhaNoStatus } from "../lib/wordcraft/host-nativo";
 import {
   dadosDoHost,
   faseDaPonte,
@@ -179,6 +179,19 @@ describe("canvas e casca", () => {
     expect(alinharAoDispositivo(333.37, 1.5)).toBeCloseTo(1000 / 3, 5);
     expect(alinharAoDispositivo(-4, 2)).toBe(0);
     expect(alinharAoDispositivo(10, 0)).toBe(10);
+  });
+
+  it("falha do host não fica muda; status normal não é falha", () => {
+    expect(falhaNoStatus("Não foi possível abrir o editor (wasm). Nenhuma gravação foi confirmada.")).toContain("(wasm)");
+    expect(falhaNoStatus("Editor indisponível. Preserve o rascunho antes de recarregar.")).toContain("indisponível");
+    expect(falhaNoStatus("O contexto mudou. Abra novamente o documento autorizado.")).toContain("contexto");
+    expect(falhaNoStatus("Abrindo documento…")).toBeNull();
+    expect(falhaNoStatus("Falha ao salvar. O rascunho permanece neste editor.")).toBeNull();
+    expect(falhaNoStatus(undefined)).toBeNull();
+    // A cópia servida é a do host: a mensagem precisa continuar existindo lá.
+    const host = readFileSync(join(RAIZ, "assets", "wordcraft_editor", "host.mjs"), "utf8");
+    expect(host).toContain("Não foi possível abrir o editor (");
+    expect(host).toContain("Editor indisponível.");
   });
 
   it("modo de trabalho só na rota do editor", () => {

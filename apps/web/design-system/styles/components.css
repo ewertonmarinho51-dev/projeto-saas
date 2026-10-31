@@ -390,12 +390,12 @@
 .gc-msg__main{flex:1;min-width:0;display:grid;gap:10px}
 .gc-msg__head{display:flex;align-items:center;gap:8px;font:600 var(--gc-fs-sm)/1.2 var(--gc-font-sans)}
 .gc-msg__time{font:var(--type-caption);color:var(--text-tertiary);font-weight:400}
-.gc-msg__content{font:var(--type-body-lg);color:var(--text-primary);text-wrap:pretty}
+.gc-msg__content{font:var(--type-body-lg);color:var(--text-primary);text-wrap:pretty;overflow-wrap:anywhere}
 .gc-msg__content p+p{margin-top:8px}
 .gc-msg__content ul{margin:6px 0;padding-left:20px}
 .gc-msg__actions{display:flex;gap:4px;flex-wrap:wrap;margin-left:-8px}
 .gc-msg--user{justify-content:flex-end}
-.gc-msg--user .gc-msg__bubble{max-width:min(560px,85%);padding:10px 14px;border-radius:var(--gc-radius-lg) var(--gc-radius-lg) 4px var(--gc-radius-lg);background:var(--accent-subtle);color:var(--text-primary);font:var(--type-body-lg)}
+.gc-msg--user .gc-msg__bubble{max-width:min(560px,85%);padding:10px 14px;border-radius:var(--gc-radius-lg) var(--gc-radius-lg) 4px var(--gc-radius-lg);background:var(--accent-subtle);color:var(--text-primary);font:var(--type-body-lg);overflow-wrap:anywhere}
 .gc-cite{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;margin:0 2px;border-radius:4px;background:var(--accent-subtle);color:var(--accent-strong-text);font:600 11px/1 var(--gc-font-sans);vertical-align:2px;text-decoration:none}
 .gc-cite:hover{background:var(--accent-subtle-hover)}
 .gc-composer{display:grid;gap:8px;padding:10px;background:var(--surface-card);border:1px solid var(--border-field);border-radius:var(--gc-radius-lg);transition:border-color var(--dur-fast),box-shadow var(--dur-fast)}
@@ -430,9 +430,11 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
 .gc-source__icon{width:32px;height:32px;border-radius:var(--gc-radius-sm);display:grid;place-items:center;flex-shrink:0;background:var(--accent-subtle);color:var(--accent);font-size:16px}
 .gc-source__num{font:600 11px/1 var(--gc-font-sans);color:var(--accent-strong-text)}
 .gc-source__body{flex:1;min-width:0;display:grid;gap:3px}
-.gc-source__title{font:600 var(--gc-fs-sm)/1.35 var(--gc-font-sans)}
-.gc-source__meta{font:var(--type-caption);color:var(--text-secondary)}
-.gc-source__excerpt{font:400 var(--gc-fs-sm)/1.5 var(--gc-font-sans);color:var(--text-secondary);border-left:2px solid var(--border-default);padding-left:10px;margin-top:4px}
+/* Nome de arquivo da Base não tem espaço. `anywhere`, e não `break-word`, porque
+   só ele reduz a largura mínima que sobe pelas grades até alargar a conversa. */
+.gc-source__title{font:600 var(--gc-fs-sm)/1.35 var(--gc-font-sans);overflow-wrap:anywhere}
+.gc-source__meta{font:var(--type-caption);color:var(--text-secondary);overflow-wrap:anywhere}
+.gc-source__excerpt{font:400 var(--gc-fs-sm)/1.5 var(--gc-font-sans);color:var(--text-secondary);border-left:2px solid var(--border-default);padding-left:10px;margin-top:4px;overflow-wrap:anywhere}
 .gc-sources--compact .gc-source{padding:8px 10px;align-items:center}
 .gc-sources--compact .gc-source__icon{width:24px;height:24px;font-size:13px}
 

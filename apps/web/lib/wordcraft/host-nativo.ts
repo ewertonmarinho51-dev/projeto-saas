@@ -32,6 +32,25 @@ export function alinharAoDispositivo(px: number, dpr: number): number {
   return Math.max(0, Math.floor(px * escala) / escala);
 }
 
+/**
+ * O host escreve as falhas de abertura no próprio status. A tela esconde esse
+ * status, porque tem o seu, então sem isto a falha fica muda: "Abrindo…" para
+ * sempre. Devolve a mensagem quando o texto é de falha, ou `null`.
+ */
+export function falhaNoStatus(texto: string | null | undefined): string | null {
+  const t = (texto ?? "").trim();
+  return /^(Não foi possível abrir o editor|Editor indisponível|O contexto mudou)/.test(t) ? t : null;
+}
+
+function vigiarStatus(raiz: HTMLElement, aoFalhar: (mensagem: string) => void): () => void {
+  const vigia = new MutationObserver(() => {
+    const falha = falhaNoStatus(raiz.querySelector('p[role="status"]')?.textContent);
+    if (falha) aoFalhar(falha);
+  });
+  vigia.observe(raiz, { childList: true, subtree: true, characterData: true });
+  return () => vigia.disconnect();
+}
+
 function ajustarCanvas(raiz: HTMLElement): () => void {
   let canvas: HTMLCanvasElement | null = null;
   const medir = () => {
@@ -76,6 +95,7 @@ export async function montarHost(
   raiz: HTMLElement,
   dados: Record<string, unknown>,
   setStateValue: (chave: string, valor: unknown) => void,
+  aoFalhar: (mensagem: string) => void,
 ): Promise<HostMontado> {
   // Fora do bundle: o host roda como módulo nativo do navegador, e o import
   // dinâmico que ELE faz do JS/WASM aprovado fica fora do empacotador.
@@ -83,7 +103,8 @@ export async function montarHost(
   const secao = document.createElement("section");
   secao.className = "gc-wordcraft-editor";
   raiz.append(secao);
-  const soltar = ajustarCanvas(raiz);
+  const soltarCanvas = ajustarCanvas(raiz);
+  const soltarStatus = vigiarStatus(raiz, aoFalhar);
   const componente = (data: Record<string, unknown>) => ({ data, parentElement: raiz, setStateValue });
   const limpar = modulo.default(componente(dados));
   return {
@@ -91,7 +112,8 @@ export async function montarHost(
       modulo.default(componente(novos));
     },
     desmontar: () => {
-      soltar();
+      soltarCanvas();
+      soltarStatus();
       if (typeof limpar === "function") limpar();
       secao.remove();
     },
