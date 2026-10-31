@@ -42,11 +42,14 @@ export async function entrar(_anterior: EstadoDoLogin, form: FormData): Promise<
   redirect(proximo);
 }
 
-export async function sair() {
+export async function sair(form?: FormData) {
   const supabase = await criarClienteServidor();
   // Encerra a sessão no Auth (revoga o refresh) e limpa os cookies.
   await supabase.auth.signOut();
-  redirect("/entrar?saiu=1");
+  // Trocar de conta no meio de um link profundo: o destino sobrevive à
+  // saída, e passa pela mesma validação do login.
+  const proximo = destinoSeguro(form?.get("proximo"));
+  redirect(proximo === "/app" ? "/entrar?saiu=1" : `/entrar?saiu=1&proximo=${encodeURIComponent(proximo)}`);
 }
 
 export type EstadoDaRecuperacao = { enviado: boolean; erro: string | null };
