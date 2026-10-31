@@ -44,7 +44,8 @@ Decisões de desenho (ADR-001/004/007):
 | `GOVCONECT_LIMITE_POR_MINUTO` | opcional (padrão 120) |
 | `GOVCONECT_WORDCRAFT_WORKSPACE` | ausente (= desligada). Ligada, o editor de documentos (Issue #137) existe SÓ para o tenant no canário `wordcraft_editor` (`tenant_modulos`); o resto vê 404. Desligar é o corte global |
 | `GOVCONECT_DOCUMENTOS_ESCRITA_KEY` | ausente até o operador criar a chave (ADR-011, aceita). Chave `sb_secret_…` PRÓPRIA (nunca a da Admin API); sem ela o editor abre e exporta, e salvar/aprovar respondem 503 |
-| `GOVDOCS_WORDCRAFT_NODE`, `GOVDOCS_WORDCRAFT_BUNDLE`, `GOVDOCS_WORDCRAFT_MANIFEST_SHA256`, `GOVDOCS_WORDCRAFT_ORIGIN` | as MESMAS do `/etc/govdocs/env` do Streamlit (gravadas por `instalar_wordcraft_runtime.sh`): `/usr/bin/node`, `/app/static/wordcraft`, o hash do manifesto aprovado e `https://govconect.com`. São configuração, não segredo |
+| `GOVDOCS_WORDCRAFT_NODE`, `GOVDOCS_WORDCRAFT_BUNDLE`, `GOVDOCS_WORDCRAFT_MANIFEST_SHA256` | as MESMAS do `/etc/govdocs/env` do Streamlit (gravadas por `instalar_wordcraft_runtime.sh`): `/usr/bin/node`, `/app/static/wordcraft` e o hash do manifesto aprovado. São configuração, não segredo |
+| `GOVDOCS_WORDCRAFT_ORIGIN` | `https://govconect.com`, a origem de onde a PÁGINA do editor abre. Não copie do Streamlit: depois do corte ele é outro host, e o host nativo recusa JS/WASM de outra origem |
 
 `/etc/govdocs/web.env`:
 
@@ -279,6 +280,11 @@ testa o arquivo; não altera DNS, TLS, VPS nem o valor montado pelo compose.
    `/robots.txt` e `/sitemap.xml` no principal.
 
 ### 5.2 Corte (somente após aceite)
+
+O Caddy do corte serve `/app/static/wordcraft/*` no domínio principal direto
+de `/opt/govdocs-wordcraft/wordcraft`, montada só leitura (compose). Instalar
+outro bundle com `instalar_wordcraft_runtime.sh` troca o conteúdo sem mexer
+no Caddy. O legado continua servindo o mesmo bundle pelo Streamlit.
 
 O compose já seleciona o arquivo por variável; não editar o volume à mão:
 

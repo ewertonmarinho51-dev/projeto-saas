@@ -12,6 +12,11 @@
 #    * o Streamlit continua alcançável em `{$GOVDOCS_DOMINIO_LEGADO}`
 #      enquanto for o rollback (10_DEPLOY, passo 7), e some quando a
 #      migração terminar;
+#    * o runtime aprovado do WordCraft sai direto da pasta do release,
+#      montada só leitura: o host do editor exige o JS/WASM na MESMA
+#      origem da página e no caminho `/app/static/wordcraft/`, e servir
+#      daqui não depende do Streamlit que vai sair. Arquivo fora do bundle
+#      é 404 do Caddy, nunca o Next;
 #    * CSP fica no Next (nonce por requisição, P03); aqui só os
 #      cabeçalhos que não dependem da página.
 # ###########################################################
@@ -21,12 +26,26 @@
 }
 
 {$GOVCONECT_DOMINIO} {
-	reverse_proxy web:3000 {
-		header_up X-Forwarded-Proto {scheme}
-		header_up X-Forwarded-Host {host}
-		# O limite de login do web conta por IP: sem isto, todo mundo
-		# seria o IP do Caddy.
-		header_up X-Forwarded-For {remote_host}
+	# Saúde do web não é página de usuário: não sai do host. Dentro de
+	# `handle`, senão o `handle` abaixo, sem filtro, responderia antes.
+	@saude path /health /health/*
+	handle @saude {
+		respond 404
+	}
+
+	handle_path /app/static/wordcraft/* {
+		root * /srv/wordcraft
+		file_server
+	}
+
+	handle {
+		reverse_proxy web:3000 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+			# O limite de login do web conta por IP: sem isto, todo mundo
+			# seria o IP do Caddy.
+			header_up X-Forwarded-For {remote_host}
+		}
 	}
 
 	header {
@@ -35,10 +54,6 @@
 		Referrer-Policy "strict-origin-when-cross-origin"
 		-Server
 	}
-
-	# Saúde do web não é página de usuário: não sai do host.
-	@saude path /health /health/*
-	respond @saude 404
 
 	log {
 		output file /data/acesso-govconect.log {
