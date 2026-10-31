@@ -434,9 +434,10 @@ jobs:
         run: |
           set -euo pipefail
           npm ci --no-audit --no-fund
-          NEXT_PUBLIC_SUPABASE_URL="$PILHA_URL" NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PILHA_ANON" npm run build
+          # A vitrine é estática: a flag vale no build; no start, para a rota seguir aberta.
+          GOVCONECT_VITRINE=1 NEXT_PUBLIC_SUPABASE_URL="$PILHA_URL" NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PILHA_ANON" npm run build
           GOVCONECT_API_URL=http://127.0.0.1:8000 GOVCONECT_SITE_URL=http://localhost:3000 \
-            PRICE_RESEARCH_ENABLED=1 GOVCONECT_GOVBOT=1 \
+            PRICE_RESEARCH_ENABLED=1 GOVCONECT_GOVBOT=1 GOVCONECT_VITRINE=1 \
             nohup npx next start -p 3000 > "$RUNNER_TEMP/web.log" 2>&1 < /dev/null &
           for i in $(seq 1 60); do curl -fs -o /dev/null http://localhost:3000/ && break; sleep 1; done
           curl -fs -o /dev/null http://localhost:3000/
