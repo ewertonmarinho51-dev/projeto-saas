@@ -591,6 +591,14 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   :root:not([data-theme="light"]) .gc-draft__head:not([data-theme="light"] *){background:var(--info-bg)}
 }
 
+/* Barra de navegação: resposta ao clique. O atraso evita piscar em navegação rápida. */
+.gc-navprogress{position:fixed;inset:0 0 auto 0;z-index:var(--z-toast);height:var(--space-0-5);overflow:hidden;background:var(--accent-subtle);animation:gc-navprogress-entra var(--dur-fast) linear var(--dur-fast) both}
+.gc-navprogress::after{content:"";display:block;width:40%;height:100%;background:var(--accent);animation:gc-navprogress-corre 1.1s var(--gc-ease-standard) infinite}
+.gc-navprogress--embedded{position:relative;inset:auto}
+@keyframes gc-navprogress-entra{from{opacity:0}to{opacity:1}}
+@keyframes gc-navprogress-corre{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+@media (prefers-reduced-motion: reduce){.gc-navprogress::after{width:100%;animation:none}}
+
 /* ——— Adições do porte para React/TypeScript ———
    * No export, estes valores estavam em `style={{...}}` dentro dos
    * componentes. Aqui viram classe com token, para que nenhum componente

@@ -40,7 +40,7 @@ export function TabelaDeProcessos({ processos, consolidar }: { processos: Proces
             label: "Processo",
             render: (p) => (
               <>
-                <Link href={`/app/processos/${p.id}`} className="font-[number:var(--weight-medium)] text-texto no-underline hover:underline">
+                <Link prefetch={false} href={`/app/processos/${p.id}`} className="font-[number:var(--weight-medium)] text-texto no-underline hover:underline">
                   {p.nome_exibido}
                 </Link>
                 <span className="gc-table__sub">{p.orgao}</span>

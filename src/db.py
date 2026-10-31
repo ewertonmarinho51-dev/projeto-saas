@@ -474,6 +474,30 @@ _cliente.clear = _cliente_de_servidor.clear
 CHAVE_DA_SESSAO = "supabase_access_token"
 
 
+# O teto que o cliente do PostgREST usa quando monta o próprio `httpx.Client`.
+TEMPO_DA_CONSULTA_S = 120.0
+
+
+@st.cache_resource(show_spinner=False)
+def _transporte_do_supabase():
+    """
+    Conexões reaproveitadas até o Supabase, para todo cliente de usuário.
+
+    Sem isto, cada `create_client` monta um contexto TLS por subcliente e
+    cada consulta abre conexão nova: 1.100 ms contra 26 ms por consulta,
+    medido em 31/10/2026, quase tudo CPU da única vCPU da VPS. Toda
+    chamada de `_cliente()` na API pagava esse preço.
+
+    Só sockets moram aqui. Token e cabeçalhos ficam no cliente de cada
+    chamada e seguem em cada pedido; a prova do isolamento está em
+    `apps/api/tests/test_transporte_supabase.py`.
+    """
+    import httpx
+
+    return httpx.HTTPTransport(http2=True, limits=httpx.Limits(
+        max_connections=20, max_keepalive_connections=10, keepalive_expiry=120))
+
+
 def sessao_do_usuario() -> str | None:
     """Access token do Supabase Auth desta sessão, se houver."""
     token = st.session_state.get(CHAVE_DA_SESSAO)
@@ -501,9 +525,13 @@ def cliente_do_usuario():
     publica = _segredo(NOME_CHAVE_PUBLICA)
     if not (url and publica):
         return None
-    from supabase import create_client
+    import httpx
+    from supabase import ClientOptions, create_client
 
-    cliente = create_client(url, publica)
+    # O `httpx.Client` é deste chamador; compartilhados são só os sockets.
+    http = httpx.Client(transport=_transporte_do_supabase(), follow_redirects=True,
+                        timeout=httpx.Timeout(TEMPO_DA_CONSULTA_S, connect=10.0))
+    cliente = create_client(url, publica, options=ClientOptions(httpx_client=http))
     cliente.postgrest.auth(token)
     return cliente
 

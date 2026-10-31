@@ -17,7 +17,7 @@ import { Alert, Card, PageHead } from "@/design-system";
 import {
   chamarApi,
   ErroDaApi,
-  type Identidade,
+  minhaIdentidade,
   type IdentidadeVisual,
   type Instituicao,
   type ModuloInstitucional,
@@ -57,7 +57,7 @@ export default async function PaginaDaInstituicao({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const busca = await searchParams;
-  const eu = await dados<Identidade>("/me");
+  const eu = await minhaIdentidade();
   if (eu.papel !== "admin") notFound();
 
   let visao: Instituicao;

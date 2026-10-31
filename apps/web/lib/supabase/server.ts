@@ -2,6 +2,7 @@ import "server-only";
 
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 import { configSupabase, opcoesDeCookie } from "./config";
 
@@ -38,10 +39,14 @@ export async function criarClienteServidor() {
  * `getClaims()` confere a assinatura do JWT pelo JWKS do projeto. Nunca
  * `getSession().user`: aquilo é o que está no cookie, e cookie o
  * navegador escreve.
+ *
+ * `cache` do React dura uma renderização, nunca passa para outra requisição:
+ * layout e página conferem a mesma assinatura uma vez só. Fora de
+ * renderização (Server Action, rota) não memoriza nada.
  */
-export async function claimsVerificadas() {
+export const claimsVerificadas = cache(async () => {
   const supabase = await criarClienteServidor();
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims) return null;
   return data.claims;
-}
+});

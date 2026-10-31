@@ -19,6 +19,7 @@ export function ListaDeProcessos({ processos }: { processos: Processo[] }) {
       {processos.map((p) => (
         <li key={p.id}>
           <Link
+            prefetch={false}
             href={`/app/processos/${p.id}`}
             className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-3 px-5 py-3.5 text-texto no-underline transition-colors hover:bg-[var(--surface-hover)] hover:text-texto md:grid-cols-[minmax(0,1fr)_calc(var(--space-16)*2.75)_auto_var(--space-4)]"
           >

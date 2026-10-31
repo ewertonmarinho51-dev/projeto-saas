@@ -43,6 +43,30 @@ async function esperarTela(page: Page, rota: (typeof ROTAS)[number]) {
   await expect(titulo).toBeVisible();
 }
 
+test("o clique responde na hora, mesmo com a página seguinte demorando", async ({ page }) => {
+  await page.goto("/entrar");
+  await page.getByLabel("E-mail institucional").fill(conta.email);
+  await page.getByLabel("Senha", { exact: true }).fill(conta.senha);
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await page.waitForURL(/\/app$/);
+
+  // Atrasa a página seguinte: sem a barra, nada mudaria na tela neste tempo.
+  await page.route(/\/app\/admin\/usuarios/, async (rota) => {
+    await new Promise((r) => setTimeout(r, 1500));
+    await rota.continue();
+  });
+  const barra = page.getByRole("progressbar", { name: "Carregando a página" });
+  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("link", { name: "Usuários", exact: true }).click();
+  await expect(barra).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Usuários", exact: true })).toBeVisible();
+  await expect(barra).toHaveCount(0);
+
+  // Clicar na página em que já se está não promete navegação nenhuma.
+  await page.unroute(/\/app\/admin\/usuarios/);
+  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("link", { name: "Usuários", exact: true }).click();
+  await expect(barra).toHaveCount(0);
+});
+
 test("clique até o conteúdo nas telas principais", async ({ page }) => {
   test.setTimeout(240_000);
   await page.goto("/entrar");
