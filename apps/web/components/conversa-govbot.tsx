@@ -8,11 +8,11 @@ import {
   Alert,
   Badge,
   Button,
-  Card,
   ChatComposer,
   ChatMessage,
   ContextBar,
   EmptyState,
+  PageHead,
   PromptSuggestions,
   SourceList,
   type ContextItem,
@@ -92,11 +92,33 @@ export function ConversaDoGovBot({ processo }: { processo: { id: string; rotulo:
   const citadas = new Map<string, CitacaoDoGovBot>();
   for (const m of mensagens) if (m.papel === "assistant") for (const c of m.dados.citacoes) citadas.set(c.source_id, c);
 
+  const painelDeFontes = (
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <h2>Fontes desta conversa</h2>
+        <Badge size="sm">{citadas.size}</Badge>
+      </div>
+      {citadas.size > 0 ? (
+        <SourceList items={fontes([...citadas.values()], false)} />
+      ) : (
+        <p className="gc-help">Nenhuma fonte citada ainda.</p>
+      )}
+      <p className="gc-help">As fontes exibidas são só os trechos efetivamente citados nas respostas.</p>
+    </>
+  );
+
   return (
-    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_calc(var(--space-16)*5)]">
-      <Card className="min-w-0">
-        <div className="grid gap-4">
+    <div className="grid h-[calc(100dvh-var(--topbar-height))] min-h-0 xl:grid-cols-[minmax(0,1fr)_calc(var(--space-16)*5.25)]">
+      <section className="flex min-h-0 min-w-0 flex-col" aria-label="Conversa com o GovBot">
+        <div className="grid gap-3 border-b border-linha bg-superficie px-[var(--page-padding-x)] py-4">
+          <PageHead
+            title="GovBot"
+            desc="Pergunte sobre o processo e a legislação. Cada resposta indica as fontes da Base de Conhecimento que a sustentam."
+          />
           <ContextBar items={contexto} />
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--page-padding-x)] py-5">
           {mensagens.length === 0 ? (
             <div className="grid gap-4">
               <EmptyState
@@ -134,6 +156,11 @@ export function ConversaDoGovBot({ processo }: { processo: { id: string; rotulo:
             </div>
           )}
           {erro && <Alert variant="error" title={erro} />}
+          {/* Sem a coluna, as fontes acompanham a conversa. */}
+          {citadas.size > 0 && <div className="mt-5 grid gap-3 xl:hidden">{painelDeFontes}</div>}
+        </div>
+
+        <div className="border-t border-linha bg-superficie px-[var(--page-padding-x)] py-3">
           <ChatComposer
             value={rascunho}
             onChange={setRascunho}
@@ -143,19 +170,11 @@ export function ConversaDoGovBot({ processo }: { processo: { id: string; rotulo:
             hint="A conversa fica só nesta aba. Revise antes de usar em documentos oficiais."
           />
         </div>
-      </Card>
+      </section>
 
-      <Card
-        title="Fontes desta conversa"
-        actions={<Badge size="sm">{citadas.size}</Badge>}
-        subtitle="Só os trechos efetivamente citados nas respostas."
-      >
-        {citadas.size > 0 ? (
-          <SourceList items={fontes([...citadas.values()], false)} />
-        ) : (
-          <p className="gc-help">Nenhuma fonte citada ainda.</p>
-        )}
-      </Card>
+      <aside className="hidden min-h-0 content-start gap-3 overflow-y-auto border-l border-linha bg-superficie p-4 xl:grid" aria-label="Fontes">
+        {painelDeFontes}
+      </aside>
     </div>
   );
 }

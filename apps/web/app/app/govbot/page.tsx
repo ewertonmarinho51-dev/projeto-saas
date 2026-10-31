@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ConversaDoGovBot } from "@/components/conversa-govbot";
-import { PageHead } from "@/design-system";
 import { chamarApi, ErroDaApi, govbotHabilitado, type Processo } from "@/lib/api";
 
 export const metadata: Metadata = { title: "GovBot" };
@@ -30,13 +29,5 @@ export default async function GovBot({
     }
   }
 
-  return (
-    <>
-      <PageHead
-        title="GovBot"
-        desc="Pergunte sobre o processo e a legislação. Cada resposta indica as fontes da Base de Conhecimento que a sustentam."
-      />
-      <ConversaDoGovBot processo={processo} />
-    </>
-  );
+  return <ConversaDoGovBot processo={processo} />;
 }

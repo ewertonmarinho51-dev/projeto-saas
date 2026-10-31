@@ -81,6 +81,7 @@ export function CascaDoApp({ acesso, children }: { acesso: Acesso; children: Rea
   return (
     <AppShell
       workspace={emEditor(caminho)}
+      bleed={caminho === "/app/govbot"}
       brand={<Logo size={28} href="/app" />}
       groups={grupos(acesso, caminho)}
       footer={
