@@ -176,6 +176,11 @@ test("casca e painel: menu por papel, trilha, recolher e gaveta", async ({ page 
   await expect(page.getByTestId("titulo-processo")).toBeVisible();
   await expect(page.getByRole("link", { name: "Preencher dados da demanda" })).toBeVisible();
   await capturar(page, "app-processo");
+
+  // Celular: as ações do cartão ficam inteiras na tela, sem esmagar o título.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("link", { name: "Preencher dados da demanda" })).toBeInViewport({ ratio: 1 });
+  await page.setViewportSize({ width: 1440, height: 900 });
   expect(erros).toEqual([]);
 });
 

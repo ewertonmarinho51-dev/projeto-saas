@@ -648,6 +648,9 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
     .gc-shell--drawer-open .gc-shell__nav{transform:none;visibility:visible;box-shadow:var(--gc-shadow-lg);transition:transform var(--dur-slow) var(--gc-ease-out),visibility 0s}
     .gc-shell__scrim{display:block;position:fixed;inset:0;z-index:calc(var(--z-overlay) - 1);background:var(--surface-overlay);animation:gc-fade-in var(--dur-base) var(--gc-ease-out)}
     .gc-shell__menu{display:inline-flex}
+    /* Cartão com ações no celular: elas descem para a linha de baixo em vez de esmagar o título e sair da tela. */
+    .gc-card__header{flex-wrap:wrap}
+    .gc-card__actions{flex-wrap:wrap;flex-shrink:1;min-width:0}
     /* Trilha da barra superior no celular: só a página atual, cortada com reticências — a trilha inteira empurrava a barra para fora da tela. */
     .gc-topbar__start{flex:1 1 auto}
     .gc-topbar__start .gc-breadcrumbs{min-width:0;overflow:hidden}

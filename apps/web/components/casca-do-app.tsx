@@ -24,7 +24,7 @@ import { emEditor, trilha } from "./trilha";
  * O que aparece no menu vem do SERVIDOR (layout): papel e flags já
  * decididos por `/api/v1/me` e pelo ambiente. Aqui só se desenha — e a
  * API recusa de novo quem chegar pela URL. Item sem tela funcional
- * (GovBot, Parecer jurídico) não entra: menu não promete o que não há.
+ * (Parecer jurídico) não entra: menu não promete o que não há.
  */
 export type Acesso = {
   email: string;
