@@ -19,7 +19,72 @@ A captura é evidência; o que reprova é a afirmação de comportamento na
 spec (menu por papel, gaveta, recolher, âncora com destino, sem rolagem
 lateral, movimento reduzido, sem erro de console).
 
-## Matriz
+## Auditoria de 31/10/2026 (Issue #152, PR D)
+
+Esta seção substitui o que ficou desatualizado nas seções mais abaixo. Cada linha foi conferida contra o código, a referência e as capturas da pilha de CI, não contra o status de PR. Dados das capturas: sintéticos, da pilha descartável.
+
+**Situação da paridade:** parcial. Site, login, casca, início e administração estão alinhados. Processos, preços e GovBot têm o desenho certo e lacunas funcionais declaradas abaixo. **O editor WordCraft não pode ser aprovado**: não há referência dele no Claude Design.
+
+Legenda de fidelidade: ✅ alinhada · 🟡 parcial · ⛔ sem tela ou sem referência. Prioridade: P0 impede uso, P1 pede PR próprio, P2 melhoria, P3 opcional. `p95` é clique até o conteúdo na pilha de CI, sem a distância real: serve para comparar versões, não como promessa de produção.
+
+| Tela | Design | Rota | API | Ações reais | Gaps | E2E | p95 (CI) | Prior. |
+|---|---|---|---|---|---|---|---|---|
+| Hero | ✅ `ui_kits/landing` | `/` | nenhuma | links reais do site | Nenhum relevante; navegação adaptada às seções existentes | `paridade`, `site`, `sessao`, `tema` | não medido | — |
+| Site institucional | 🟡 sem tela própria na referência; segue `PublicSite` | `/solucoes`, `/como-funciona`, `/sobre`, `/contato`, `/privacidade` | nenhuma | links, contato por `GOVCONECT_CONTATO_EMAIL` | E-mail comercial depende de configuração | `site`, `tema` | não medido | P2 |
+| Login e sessão | ✅ `LoginScreen.jsx` | `/entrar`, `/entrar/recuperar` | Supabase Auth | entrar, recuperar, continuar, sair e trocar de conta | "Manter conectado" não entra: a sessão já persiste | `fluxo`, `sessao`, `paridade` | não medido | — |
+| Casca | 🟡 `Shell.jsx` | `/app/**` | `/me` | menu por papel, recolher, gaveta, sair | Sem sino, "Salvo" global e GovBot na barra superior: não há contrato. Trilha genérica para recurso | `paridade`, `auditoria` | — | P2 |
+| Início | 🟡 `HomeScreen.jsx` | `/app` | `/processos`, `/precos/pesquisas` | atalhos e listas | Conta sobre até 100 processos; sem saudação (`/me` sem nome); sem total em R$ (soma de dinheiro só no servidor). **Proposta:** `GET /painel` | `paridade`, `auditoria`, `desempenho` | casca 29, conteúdo 331 (antes 99) | P2 |
+| Processos | 🟡 `ProcessesScreen.jsx` | `/app/processos` | `GET/POST /processos` (`q`, cursor), `/modulos` | buscar, criar, abrir, dados da demanda, consolidar | Sem abas por situação, filtro de secretaria, ordenação, seleção e importação. Excluir e arquivar não existem na API e não podem ser simulados (a 0020 não dá DELETE). **Proposta:** `ordem` e `secretaria_id` em `GET /processos` | `paridade`, `fluxo`, `auditoria`, `desempenho` | casca 30, conteúdo 331 (antes 137) | P1 |
+| Processo e documentos | 🟡 `NewProcessScreen.jsx` | `/app/processos/[id]`, `/formulario`, `/demandas` | `/processos/{id}`, formulário, demandas, `/documentos` | editar, preencher matriz, consolidar, abrir no editor (canário) | **Geração de DFD, ETP, Mapa de Riscos e TR não existe na interface nova** (M2/M3). Stepper de documentos e `AiProcessing` dependem disso | `formulario`, `demandas`, `fluxo`, `editor-documento` | não medido | P1 |
+| WordCraft | ⛔ **sem referência** | `/app/processos/[id]/documentos/[documentoId]/editar` | `documentos_nativos` | abrir, salvar por ACK, histórico, revisão, exportar | Referência própria no Claude Design é pré-requisito da aprovação. CI sem WASM aprovado: ponta a ponta só no canário de produção. Painéis de GovBot e evidências sem endpoint | `editor-documento` (sem motor real) | não medido | P1 |
+| Pesquisa de preços: lista e detalhe | 🟡 `PriceResearchScreen.jsx` | `/app/precos`, `/app/precos/nova`, `/app/precos/[id]` | `/precos/pesquisas` e filhas | criar, importar, coletar, concluir, revisar, duplicar, arquivar | `Stepper` indica etapa, não navega. Sem `PriceMapTable`: falta o mapa por fonte na API | `precos`, `precos-escrita`, `precos-gestao`, `coleta`, `auditoria`, `desempenho` | 96 (antes 96) | P1 |
+| Preços: item e triagem | 🟡 `PriceResearchScreen.jsx` | `/app/precos/[id]/itens/[itemId]` | referências, estatísticas, alertas, cesta | triar, pôr e tirar da cesta, ver origem, concluir | `PriceDispersion`, estatísticas e cesta já existem. Sem busca de item, abas Fontes e Comparativo e `BarChart`: gráfico exigiria posições vindas do servidor. Sem `SourcePicker`: a coleta não escolhe fonte | `paridade`, `precos`, `coleta` | não medido | P2 |
+| Preços: relatório e emissão | 🟡 `PriceStages.jsx` | seção em `/app/precos/[id]` | `/emissao`, `/ciencia`, `/relatorios`, `/jobs` | conferir, dar ciência, emitir, baixar, aplicar ao processo | **`ValidationSummary` entrou nesta entrega.** Faltam seleção de conteúdo e assinatura do kit, sem contrato na API. Diálogo de ciência ainda é `<dialog>` próprio porque envia o formulário | `emissao` | não medido | P2 |
+| GovBot | 🟡 `GovBotScreen.jsx` | `/app/govbot` | `POST /govbot/perguntas` | perguntar, copiar, fontes citadas | **Página cheia, composer fixo e coluna de fontes entraram nesta entrega.** Falta histórico: a conversa some no refresh porque o servidor não grava nada, e guardar pede tabela e RLS novas. `AiDraftBlock` e "Inserir no documento" dependem de M9. Sem painel na barra superior | `govbot`, `paridade`, `auditoria` | não medido | P1 |
+| Governança | ✅ sem tela na referência; segue o design system | `/app/governanca` | `/governanca/*` | ler; escrita atrás de `GOVCONECT_GOVERNANCA_ESCRITA` | Escrita desligada em produção por decisão do dono | `governanca`, `tema` | não medido | — |
+| Administração | ✅ sem tela na referência | `/app/admin/instituicao`, `/app/admin/usuarios` | `/admin/*` | cadastro, usuários, papéis | Sem divergência funcional | `instituicao`, `cadastro-institucional`, `usuarios`, `auditoria`, `desempenho` | Usuários 214 (antes 203), Instituição 178 (antes 195) | — |
+| Base de Conhecimento | ✅ sem tela na referência | `/app/admin/base-conhecimento` | `/admin/base-conhecimento` | indexar, listar, excluir, buscar | Busca textual em produção até decidir embeddings | `base-conhecimento`, `auditoria` | não medido | P2 |
+| Conta | ✅ sem tela na referência | `/app/conta/senha` | Supabase Auth | trocar a senha, com saída global | — | `auditoria` | não medido | — |
+| Parecer jurídico | ⛔ item de menu sem tela na referência | sem rota | sem API | continua no legado | M5, depende de M2. Não entra no menu até existir | sem prova | — | P1 |
+| Telas legadas em migração | ⛔ | `legado.govconect.com` | Streamlit | geração, parecer, exportação de documentos | Dependem de M2, M3, M5 e M9. O Streamlit fica até haver substituto | suíte do Streamlit | — | P1 |
+
+### Correções desta auditoria
+
+- **GovBot não está sem tela:** a linha antiga dizia "sem tela/sem API". Tela e API existem e estão em produção.
+- **Dispersão não está ausente:** `PriceDispersion` e `precos_estatisticas.py` estão em uso. A lacuna real é a dos gráficos por fonte.
+- **`/` já é a Hero em produção**, e o legado responde em `legado.govconect.com`.
+- **Ainda fogem do design system:** `acao-cesta`, `aplicar-processo`, `ato-item`, `coleta`, `emissao` e `importar-planilha` usam `components/ui.ts`. Funcionam com tokens, mas devem migrar para os componentes.
+
+### Defeitos encontrados e corrigidos
+
+| Defeito | Onde | Correção |
+|---|---|---|
+| 404 preta em aparelho no escuro | página padrão do Next | PR A, páginas próprias |
+| Ações do cartão fora da tela e título esmagado em 390 px | detalhe do processo | PR D, cabeçalho do cartão quebra linha, com prova |
+| Token renovado não chegava ao servidor | `lib/supabase/proxy.ts` | PR B |
+
+### Em aberto
+
+- Numa captura de 1440 px feita depois da gaveta do celular, o rodapé da barra lateral apareceu só com o avatar. Não foi reproduzido em uso normal. P3.
+- A navegação por `PriceItemNav` usa `router.push`, então não aciona a barra de progresso. P3.
+
+### Capturas comparativas
+
+`docs/migracao-saas-2026-10-22/capturas-paridade/`: referência ao lado da tela real, em 1440×900, 768×1024 e 390×844, para Hero, login, início, processos, processo, item de preços e GovBot. Para refazer, rode `scripts/capturar-referencia.mjs` e depois `scripts/montar-comparativo.mjs`, com a pasta `paridade/` do artefato `web-e2e-telas`.
+
+| Tela | 1440×900 | 768×1024 | 390×844 |
+|---|---|---|---|
+| Hero | [ver](capturas-paridade/hero-1440.jpg) | [ver](capturas-paridade/hero-768.jpg) | [ver](capturas-paridade/hero-390.jpg) |
+| Login | [ver](capturas-paridade/login-1440.jpg) | [ver](capturas-paridade/login-768.jpg) | [ver](capturas-paridade/login-390.jpg) |
+| Início | [ver](capturas-paridade/inicio-1440.jpg) | [ver](capturas-paridade/inicio-768.jpg) | [ver](capturas-paridade/inicio-390.jpg) |
+| Processos | [ver](capturas-paridade/processos-1440.jpg) | [ver](capturas-paridade/processos-768.jpg) | [ver](capturas-paridade/processos-390.jpg) |
+| Processo | [ver](capturas-paridade/processo-1440.jpg) | [ver](capturas-paridade/processo-768.jpg) | [ver](capturas-paridade/processo-390.jpg) |
+| Preços: item | [ver](capturas-paridade/precos-item-1440.jpg) | [ver](capturas-paridade/precos-item-768.jpg) | [ver](capturas-paridade/precos-item-390.jpg) |
+| GovBot | [ver](capturas-paridade/govbot-1440.jpg) | [ver](capturas-paridade/govbot-768.jpg) | [ver](capturas-paridade/govbot-390.jpg) |
+
+## Matriz histórica (entregas 1 a 5, até 29/10)
+
+Registro do que cada entrega fez. Onde divergir da auditoria acima, vale a auditoria.
 
 Legenda: ✅ alinhada · 🟡 parcial (estrutura no design system, falta
 fidelidade de tela) · ⛔ sem tela/sem API — **não simulada**.
@@ -64,7 +129,7 @@ e 3; as de IA esperam a API do GovBot.
 - `LandingHero` (template novo) + `styles/landing.css`, só com tokens
   (as transparências do export viraram `color-mix` sobre o token).
 
-## Ciclo de 29/10 (depois do merge das entregas 1–5)
+## Ciclo de 29/10 (histórico; pendências atualizadas na auditoria de 31/10)
 
 Resolvido:
 
@@ -83,7 +148,7 @@ Ainda aberto:
 | Dispersão e estatísticas da pesquisa | conta em dinheiro só no servidor; falta endpoint de estatística por item | P2 |
 | Filtro de processos por situação | situação é derivada em Python; filtrar exigiria ler a base inteira | P3 |
 
-## WordCraft Workspace — diferenças em relação ao brief (30/10)
+## WordCraft Workspace: diferenças em relação ao brief (30/10)
 
 A Etapa A da Issue #137 pedia um "Editor Workspace" no Claude Design (1440×900,
 1920×1080, 768×1024, 390×844, todos os estados). **Ele não está no repositório**
