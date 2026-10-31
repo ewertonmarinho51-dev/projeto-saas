@@ -537,13 +537,21 @@ jobs:
       - name: Promoção por SHA e rollback automático
         # `promover_govconect.sh` de verdade, contra um registro local: a
         # versão boa sobe healthy; a quebrada (web que nunca fica healthy)
-        # é recusada e o script VOLTA SOZINHO para a anterior. Senhas e
-        # valores de TESTE, gerados aqui.
+        # é recusada e o script VOLTA SOZINHO para a anterior. Os dois SHAs
+        # são commits de um repositório descartável, porque o script confere
+        # que a versão nova contém a que está no ar. Senhas e valores de
+        # TESTE, gerados aqui.
         shell: bash
         run: |
           docker run -d -p 127.0.0.1:5000:5000 --name registro registry:2.8.3
           R=localhost:5000/govconect
-          boa=sha-aaaaaaaaaaaa; ruim=sha-bbbbbbbbbbbb
+          export REPO_GIT="$RUNNER_TEMP/historia"
+          git init -q -b main "$REPO_GIT"
+          commit() {
+            git -C "$REPO_GIT" -c user.name=ci -c user.email=ci@exemplo.test commit -q --allow-empty -m "$1"
+            git -C "$REPO_GIT" rev-parse --short=12 HEAD
+          }
+          boa="sha-$(commit boa)"; ruim="sha-$(commit ruim)"
           for v in "$boa" "$ruim"; do
             for n in api worker; do docker tag "govconect-$n:ci" "$R/govconect-$n:$v"; docker push -q "$R/govconect-$n:$v"; done
           done
