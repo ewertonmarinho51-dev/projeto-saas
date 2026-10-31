@@ -29,6 +29,11 @@ _log = logging.getLogger("govconect_api")
 # segura a thread, e trinta delas param a API inteira.
 TIMEOUT = httpx.Timeout(5.0, connect=3.0)
 
+# A conexão fica aberta entre cliques: o padrão do httpx a fecha em 5 s, e cada
+# clique depois disso pagaria o aperto de mão TLS até o Supabase de novo.
+LIMITES = httpx.Limits(max_connections=100, max_keepalive_connections=20,
+                       keepalive_expiry=120)
+
 
 @dataclass
 class RespostaRest:
@@ -45,7 +50,7 @@ class ClienteRest:
     def __init__(self, supabase_url: str, chave_publica: str,
                  transporte: httpx.BaseTransport | None = None) -> None:
         self._base = f"{supabase_url}/rest/v1"
-        self._http = httpx.Client(timeout=TIMEOUT, transport=transporte,
+        self._http = httpx.Client(timeout=TIMEOUT, transport=transporte, limits=LIMITES,
                                   follow_redirects=False)
         self._chave_publica = chave_publica
 

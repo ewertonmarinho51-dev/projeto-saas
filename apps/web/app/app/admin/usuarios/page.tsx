@@ -3,12 +3,12 @@ import { notFound } from "next/navigation";
 
 import { GestaoDeUsuariosTela } from "@/components/admin-usuarios";
 import { PageHead } from "@/design-system";
-import { chamarApi, ErroDaApi, type GestaoDeUsuarios, type Identidade } from "@/lib/api";
+import { chamarApi, ErroDaApi, minhaIdentidade, type GestaoDeUsuarios } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Usuários" };
 
 export default async function PaginaDeUsuarios() {
-  const eu = (await chamarApi<Identidade>("/me")).dados;
+  const eu = await minhaIdentidade();
   if (eu.papel !== "admin") notFound();
 
   let dados: GestaoDeUsuarios;

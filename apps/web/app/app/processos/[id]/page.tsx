@@ -34,11 +34,13 @@ export default async function DetalheDoProcesso({
   let modulos: Modulos = { consolidar_demandas: false };
   let documentos: DocumentosDoProcesso | null = null;
   try {
-    p = (await chamarApi<Processo>(`/processos/${id}`)).dados;
-    // Módulos opcionais: falha aqui não derruba a página, só some o atalho.
-    modulos = await chamarApi<Modulos>("/modulos").then((r) => r.dados).catch(() => modulos);
-    // Editor de documentos (WordCraft Workspace): só com o canário ligado para quem chama.
-    documentos = await documentosDoProcesso(id).catch(() => null);
+    [p, modulos, documentos] = await Promise.all([
+      chamarApi<Processo>(`/processos/${id}`).then((r) => r.dados),
+      // Módulos opcionais: falha aqui não derruba a página, só some o atalho.
+      chamarApi<Modulos>("/modulos").then((r) => r.dados).catch(() => modulos),
+      // Editor de documentos (WordCraft Workspace): só com o canário ligado para quem chama.
+      documentosDoProcesso(id).catch(() => null),
+    ]);
   } catch (e) {
     // 404 também para processo de outro município: não confirma que existe.
     if (e instanceof ErroDaApi && e.status === 404) notFound();

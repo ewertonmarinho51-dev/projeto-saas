@@ -3,12 +3,12 @@ import { notFound } from "next/navigation";
 
 import { BaseDeConhecimentoTela } from "@/components/base-conhecimento";
 import { PageHead } from "@/design-system";
-import { chamarApi, ErroDaApi, type BaseDeConhecimento, type Identidade } from "@/lib/api";
+import { chamarApi, ErroDaApi, minhaIdentidade, type BaseDeConhecimento } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Base de Conhecimento" };
 
 export default async function PaginaDaBaseDeConhecimento() {
-  const eu = (await chamarApi<Identidade>("/me")).dados;
+  const eu = await minhaIdentidade();
   if (eu.papel !== "admin") notFound();
 
   let base: BaseDeConhecimento;

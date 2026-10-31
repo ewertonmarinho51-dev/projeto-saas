@@ -1,7 +1,7 @@
-import Link from "next/link";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { cx } from "../../lib/cx";
+import { LinkPorIntencao } from "../../lib/LinkPorIntencao";
 import { Icon, type IconName } from "../core/Icon";
 
 export type ButtonVariant = "primary" | "secondary" | "subtle" | "ghost" | "link" | "danger" | "danger-subtle";
@@ -59,9 +59,9 @@ export function Button({
   );
   if (href) {
     return (
-      <Link href={href} className={classes} aria-disabled={disabled || undefined}>
+      <LinkPorIntencao href={href} className={classes} aria-disabled={disabled || undefined}>
         {miolo}
-      </Link>
+      </LinkPorIntencao>
     );
   }
   return (

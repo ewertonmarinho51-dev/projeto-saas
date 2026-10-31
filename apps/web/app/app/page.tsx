@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 
+import { EsqueletoDoPainel } from "@/components/esqueletos";
 import { ListaDeProcessos } from "@/components/lista-processos";
 import { rotuloEstadoPesquisa } from "@/components/precos";
 import { situacaoDaPesquisa, STATUS } from "@/components/situacao";
@@ -30,7 +32,34 @@ async function pesquisasRecentes(): Promise<{ itens: ResumoPesquisa[] } | { falh
  * monetário é somado aqui — o que aparece de dinheiro é a `exibicao` da
  * API, como veio.
  */
-export default async function Inicio() {
+export default function Inicio() {
+  const comPrecos = precosHabilitado();
+  return (
+    <>
+      <PageHead
+        title="Início"
+        desc="O andamento dos processos do seu órgão e o que está esperando por você."
+        actions={
+          <>
+            {comPrecos && (
+              <Button variant="secondary" icon="currency-circle-dollar" href="/app/precos/nova">
+                Nova pesquisa de preços
+              </Button>
+            )}
+            <Button icon="plus" href="/app/processos#novo">
+              Novo processo
+            </Button>
+          </>
+        }
+      />
+      <Suspense fallback={<EsqueletoDoPainel />}>
+        <Painel />
+      </Suspense>
+    </>
+  );
+}
+
+async function Painel() {
   const [{ dados }, pesquisas] = await Promise.all([
     chamarApi<Pagina<Processo>>(`/processos?limit=${AMOSTRA}`),
     pesquisasRecentes(),
@@ -50,23 +79,6 @@ export default async function Inicio() {
 
   return (
     <>
-      <PageHead
-        title="Início"
-        desc="O andamento dos processos do seu órgão e o que está esperando por você."
-        actions={
-          <>
-            {comPrecos && (
-              <Button variant="secondary" icon="currency-circle-dollar" href="/app/precos/nova">
-                Nova pesquisa de preços
-              </Button>
-            )}
-            <Button icon="plus" href="/app/processos#novo">
-              Novo processo
-            </Button>
-          </>
-        }
-      />
-
       {processos.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard label="Processos em andamento" value={andamento} icon="folder-open" footnote={escopo} />
@@ -160,6 +172,7 @@ export default async function Inicio() {
               {pesquisas.itens.map((q) => (
                 <li key={q.id}>
                   <Link
+                    prefetch={false}
                     href={`/app/precos/${q.id}`}
                     className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-2 px-5 py-3.5 text-texto no-underline transition-colors hover:bg-[var(--surface-hover)] hover:text-texto md:grid-cols-[minmax(0,1fr)_auto_auto_var(--space-4)]"
                   >
