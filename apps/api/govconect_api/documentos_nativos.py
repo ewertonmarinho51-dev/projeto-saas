@@ -18,8 +18,9 @@ fazia com `st.session_state` e o que HTTP exige a mais:
   (`canvas_bloqueado`), na revisão e hash correntes. Nenhum valor do corpo
   vira vínculo de aprovação.
 
-Trava dupla de ativação: `GOVCONECT_WORDCRAFT_WORKSPACE` no ambiente (corte
-global) E o tenant no canário `wordcraft_editor` (tenant_modulos). Falhou
+Três travas de ativação: `GOVCONECT_WORDCRAFT_WORKSPACE` no ambiente (corte
+global), a conta em `GOVCONECT_WORDCRAFT_WORKSPACE_CONTAS`, quando a lista
+existir, E o tenant no canário `wordcraft_editor` (tenant_modulos). Falhou
 uma, a rota não existe (404).
 
 A API roda com UM worker (Dockerfile.api): a sessão em memória é deste
@@ -375,7 +376,8 @@ def rotas() -> APIRouter:
             "secretaria_id": eu.secretaria_id, "nome": ""})
 
     def _exigir_workspace(request: Request, eu: Identidade) -> None:
-        if not _config(request).wordcraft_workspace:
+        cfg = _config(request)
+        if not cfg.wordcraft_workspace or (cfg.wordcraft_contas and eu.auth_user_id not in cfg.wordcraft_contas):
             raise ErroApi(404, "MODULE_UNAVAILABLE", "Editor de documentos indisponível")
         with _sessao_do_dominio(eu):
             if not contexto.modulo_em_rollout_aqui(FLAG_CANARIO):

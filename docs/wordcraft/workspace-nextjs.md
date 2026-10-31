@@ -60,8 +60,11 @@ host.mjs (do Codex)  ──lote──▶ server action enviarEventos ──▶ P
 | `POST /documentos/{id}/restauracao` | revisão antiga vira revisão nova (CAS) e o canvas reabre |
 | `GET /documentos/{id}/exportacao` | DOCX/PDF do motor, da revisão persistida pedida (409 se mudou) |
 
-Ativação: `GOVCONECT_WORDCRAFT_WORKSPACE` (ambiente da API, corte global) **e**
-o tenant no canário `wordcraft_editor` (`tenant_modulos`). Fora disso, 404.
+Ativação: `GOVCONECT_WORDCRAFT_WORKSPACE` (ambiente da API, corte global),
+`GOVCONECT_WORDCRAFT_WORKSPACE_CONTAS` (canário por conta, quando preenchida)
+**e** o tenant em `wordcraft_editor`. Fora disso, 404. Abrir documento que só
+existe no GovDocs importa e GRAVA revisão nativa: no canário, só em processo
+sintético.
 
 Segurança: JWT verificado; tenant, processo, revisão e status só do
 servidor; a ponte de cada canvas é do par (auth_user_id, tenant) que a

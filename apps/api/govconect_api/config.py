@@ -14,6 +14,7 @@ ninguém lê às três da manhã.
 from __future__ import annotations
 
 import os
+import uuid
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
@@ -67,6 +68,10 @@ class Configuracao:
     # desligada por padrão: ligada, a rota ainda exige o tenant no canário
     # `wordcraft_editor` (tenant_modulos). Desligar aqui é o corte global.
     wordcraft_workspace: bool = False
+    # Canário por conta: com a lista preenchida, só estes `auth_user_id` veem o
+    # editor. O canário de tenant não basta quando a prefeitura é uma só e a
+    # flag é global. Vazia = todas as contas que passam pelas outras travas.
+    wordcraft_contas: frozenset[str] = frozenset()
     # ADR-011: credencial que só chama as RPCs
     # de commit documental nativo, que o banco concede apenas a service_role.
     # Vazia = o editor abre e lê, e salvar/aprovar respondem 503 sem tocar o
@@ -234,6 +239,15 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
         raise ConfiguracaoInvalida(
             "GOVCONECT_DOCUMENTOS_ESCRITA_KEY precisa ser uma chave sb_secret_.")
 
+    contas = [c.strip().lower() for c in _ler(env, "GOVCONECT_WORDCRAFT_WORKSPACE_CONTAS").split(",") if c.strip()]
+    for conta in contas:
+        try:
+            uuid.UUID(conta)
+        except ValueError:
+            # Id digitado errado abriria um canário sem ninguém dentro, em silêncio.
+            raise ConfiguracaoInvalida(
+                "GOVCONECT_WORDCRAFT_WORKSPACE_CONTAS: use auth_user_id (UUID) separados por vírgula.") from None
+
     return Configuracao(ambiente=nome_ambiente, supabase_url=supabase_url,
                         origens_cors=origens,
                         supabase_chave_publica=chave_publica,
@@ -246,4 +260,5 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
                         govbot_habilitado=_ler(env, "GOVCONECT_GOVBOT").lower() in _VERDADEIRO,
                         wordcraft_workspace=_ler(env, "GOVCONECT_WORDCRAFT_WORKSPACE").lower()
                         in _VERDADEIRO,
+                        wordcraft_contas=frozenset(contas),
                         documentos_escrita_chave=documental)

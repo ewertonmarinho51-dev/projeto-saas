@@ -31,7 +31,7 @@ from src import db
 from src.config import sequencia_do_processo
 from src.documentos_editor import AcessoNegado, ConflitoDocumento, ErroDocumento
 
-from apoio_jwt import EMISSOR, TENANT_A, Emissor, PostgrestFalso
+from apoio_jwt import EMISSOR, TENANT_A, USUARIO_A, Emissor, PostgrestFalso
 
 PROCESSO = "cccccccc-0000-4000-8000-0000000000d1"
 DFD = dn.id_do_documento(PROCESSO, "dfd")
@@ -822,3 +822,43 @@ def test_papel_sem_competencia_recebe_403_e_nao_404(api, emissor, banco, servico
 def test_corpo_nao_escolhe_processo_nem_tenant(api, emissor, banco):
     corpo = {**_conferidos(), "tenant_id": TENANT_A}
     assert _emitir(api, emissor, corpo).status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Canário por conta
+# ---------------------------------------------------------------------------
+def test_lista_de_contas_deixa_entrar_so_quem_esta_nela(emissor, banco, servico, clientes, canario):
+    api = _montar(emissor, banco, servico, clientes,
+                  {**AMBIENTE, "GOVCONECT_WORDCRAFT_WORKSPACE_CONTAS": f" {USUARIO_A.upper()} , {uuid.uuid4()}"})
+    servico.semear()
+    r = api.post(f"/api/v1/documentos/{DFD}/sessoes", headers=_auth(emissor), json={"processo_id": PROCESSO})
+    assert r.status_code == 200, r.text
+    for chamada in (lambda h: api.get(f"/api/v1/processos/{PROCESSO}/documentos", headers=h),
+                    lambda h: api.post(f"/api/v1/documentos/{DFD}/sessoes", headers=h, json={"processo_id": PROCESSO}),
+                    lambda h: api.post(f"/api/v1/processos/{PROCESSO}/emissao", headers=h, json=_conferidos())):
+        r = chamada(_auth(emissor, sub=OUTRO_USUARIO))
+        assert r.status_code in (403, 404), r.text
+        if r.status_code == 404:
+            assert r.json()["code"] == "MODULE_UNAVAILABLE"
+
+
+def test_conta_fora_da_lista_nao_chega_ao_banco(emissor, banco, servico, clientes, canario):
+    # Prova sem depender do vínculo do verificador: a conta do token é a de A,
+    # e a lista só tem outra.
+    api = _montar(emissor, banco, servico, clientes,
+                  {**AMBIENTE, "GOVCONECT_WORDCRAFT_WORKSPACE_CONTAS": OUTRO_USUARIO})
+    servico.semear()
+    antes = len(banco.chamadas)
+    r = api.get(f"/api/v1/processos/{PROCESSO}/documentos", headers=_auth(emissor))
+    assert r.status_code == 404 and r.json()["code"] == "MODULE_UNAVAILABLE"
+    assert not [c for c in banco.chamadas[antes:] if c.url.path.endswith(("/processos", "/documentos_editor"))]
+
+
+def test_lista_vazia_nao_restringe(api, emissor, servico):
+    servico.semear()
+    assert _abrir(api, emissor)["document_id"] == DFD
+
+
+def test_id_invalido_na_lista_recusa_a_subida():
+    with pytest.raises(ConfiguracaoInvalida):
+        carregar({**AMBIENTE, "GOVCONECT_WORDCRAFT_WORKSPACE_CONTAS": "ewerton@exemplo.test"})
