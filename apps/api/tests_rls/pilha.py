@@ -75,6 +75,8 @@ CONTAS = (
     # está no canário `wordcraft_editor`; o B não.
     ("editor_a", "A", "A1", "usuario", True),
     ("editor_b", "B", "B1", "usuario", True),
+    # Só da medição de navegação (desempenho.spec.ts), idem: admin, menu inteiro.
+    ("admin_desempenho", "A", "A1", "admin", True),
     ("b1", "B", "B1", "usuario", True),
     ("a1_revogado", "A", "A1", "usuario", False),
 )
