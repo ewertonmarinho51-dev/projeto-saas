@@ -593,7 +593,6 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
 @keyframes gc-navprogress-corre{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
 @media (prefers-reduced-motion: reduce){.gc-navprogress::after{width:100%;animation:none}}
 
-=======
 /* ——— Adições do porte para React/TypeScript ———
    * No export, estes valores estavam em `style={{...}}` dentro dos
    * componentes. Aqui viram classe com token, para que nenhum componente
