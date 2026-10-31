@@ -70,6 +70,9 @@ services:
       - ./${GOVCONECT_CADDYFILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy_data:/data       # certificados — PRECISA persistir
       - caddy_config:/config
+      # Runtime aprovado do WordCraft, servido no domínio principal depois do
+      # corte (Caddyfile.govconect). Só leitura: o proxy não muda JS/WASM.
+      - /opt/govdocs-wordcraft/wordcraft:/srv/wordcraft:ro
     depends_on:
       app:
         condition: service_healthy

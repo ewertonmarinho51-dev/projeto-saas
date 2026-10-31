@@ -33,9 +33,10 @@ host.mjs (do Codex)  ──lote──▶ server action enviarEventos ──▶ P
   (`public/app/wordcraft-host/host.<sha16>.mjs`), cópia exata de
   `assets/wordcraft_editor/host.mjs` — `tests/wordcraft-host.test.ts`
   reprova se divergir; `node scripts/sincronizar-wordcraft-host.mjs`
-  regenera. O JS/WASM aprovado continua saindo de `/app/static/wordcraft/`
-  (mesmo artefato e manifesto do Streamlit, same-origin pelo Caddy de
-  convivência); o host recusa qualquer outro caminho.
+  regenera. O JS/WASM aprovado sai de `/app/static/wordcraft/` (mesmo
+  artefato e manifesto do Streamlit), na mesma origem da página: depois do
+  corte do `/`, o `Caddyfile.govconect` serve direto da pasta do release, sem
+  passar pelo Streamlit. O host recusa qualquer outro caminho ou origem.
 - **Tamanho dinâmico**: `lib/wordcraft/host-nativo.ts` mede a área com
   `ResizeObserver` e grava largura/altura do canvas em px CSS alinhados ao
   `devicePixelRatio` (e reage a mudança de DPR, como zoom do navegador).

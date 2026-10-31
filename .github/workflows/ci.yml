@@ -657,15 +657,30 @@ jobs:
             implantacao/Caddyfile.govconect > "$RUNNER_TEMP/Caddyfile.corte"
           grep -q '^:8081 {' "$RUNNER_TEMP/Caddyfile.corte"
           grep -q '^:8082 {' "$RUNNER_TEMP/Caddyfile.corte"
+          # Bundle de teste no lugar do runtime aprovado: o que se prova é o roteamento.
+          mkdir -p "$RUNNER_TEMP/wordcraft"
+          printf 'runtime-aprovado' > "$RUNNER_TEMP/wordcraft/runtime.js"
+          printf 'wasm-aprovado' > "$RUNNER_TEMP/wordcraft/runtime_bg.wasm"
           docker run -d --network convivencia \
             -p 127.0.0.1:18081:8081 -p 127.0.0.1:18082:8082 \
             -e ACME_EMAIL=ci@example.invalid \
+            -v "$RUNNER_TEMP/wordcraft:/srv/wordcraft:ro" \
             -v "$RUNNER_TEMP/Caddyfile.corte:/etc/caddy/Caddyfile:ro" caddy:2-alpine
           for i in $(seq 1 30); do curl -fs -o /dev/null http://127.0.0.1:18081/ && break; sleep 1; done
 
           [ "$(curl -fs http://127.0.0.1:18081/)" = next ]
           [ "$(curl -fs http://127.0.0.1:18081/entrar)" = next ]
-          [ "$(curl -fs http://127.0.0.1:18081/app/static/wordcraft/runtime.js)" = next ]
+          # O runtime sai da pasta do release na MESMA origem da página, com o
+          # tipo que o WebAssembly exige, e nada fora do bundle cai no Next.
+          [ "$(curl -fs http://127.0.0.1:18081/app/static/wordcraft/runtime.js)" = runtime-aprovado ]
+          [ "$(curl -fs http://127.0.0.1:18081/app/static/wordcraft/runtime_bg.wasm)" = wasm-aprovado ]
+          curl -fs -D - -o /dev/null http://127.0.0.1:18081/app/static/wordcraft/runtime_bg.wasm \
+            | tr -d '\r' | grep -ix 'content-type: application/wasm'
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18081/app/static/wordcraft/nao-existe.js)" = 404 ]
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18081/app/static/wordcraft/)" = 404 ]
+          [ "$(curl -s -o /dev/null -w '%{http_code}' --path-as-is http://127.0.0.1:18081/app/static/wordcraft/../../../etc/passwd)" != 200 ]
+          [ "$(curl -fs http://127.0.0.1:18081/app/static/outra-coisa)" = next ]
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18081/health)" = 404 ]
           [ "$(curl -fs http://127.0.0.1:18082/)" = streamlit ]
           [ "$(curl -fs http://127.0.0.1:18082/_stcore/health)" = streamlit ]
           [ "$(curl -fs http://127.0.0.1:18082/app/static/wordcraft/runtime.js)" = streamlit ]
