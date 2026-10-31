@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 /**
  * Tempo de clique até o conteúdo, no build de produção (Issue #152, PR C).
@@ -19,12 +19,13 @@ const estado = JSON.parse(readFileSync(process.env.GOVCONECT_E2E_ESTADO ?? "", "
 };
 const conta = estado.contas.admin_desempenho;
 
-const ROTAS = [
-  { nome: "Início", menu: "Início", url: /\/app$/, titulo: "Início", dados: "Processos recentes" },
-  { nome: "Processos", menu: "Processos", url: /\/app\/processos$/, titulo: "Processos", dados: "Buscar processos" },
-  { nome: "Preços", menu: "Preços", url: /\/app\/precos$/, titulo: "Pesquisas de preços", dados: null },
-  { nome: "Usuários", menu: "Usuários", url: /\/app\/admin\/usuarios$/, titulo: "Usuários", dados: null },
-  { nome: "Instituição", menu: "Instituição", url: /\/app\/admin\/instituicao/, titulo: null, dados: null },
+type Rota = { nome: string; url: RegExp; titulo: string | null; dados?: (page: Page) => Locator };
+const ROTAS: Rota[] = [
+  { nome: "Início", url: /\/app$/, titulo: "Início", dados: (p) => p.getByText("Processos recentes", { exact: true }) },
+  { nome: "Processos", url: /\/app\/processos$/, titulo: "Processos", dados: (p) => p.getByRole("table", { name: "Processos do órgão" }) },
+  { nome: "Preços", url: /\/app\/precos$/, titulo: "Pesquisas de preços" },
+  { nome: "Usuários", url: /\/app\/admin\/usuarios$/, titulo: "Usuários" },
+  { nome: "Instituição", url: /\/app\/admin\/instituicao/, titulo: null },
 ];
 const RODADAS = 6;
 const PASTA = "e2e/resultados/desempenho";
@@ -35,12 +36,14 @@ function percentil(valores: number[], q: number): number {
   return ordenados[Math.min(ordenados.length - 1, Math.floor(ordenados.length * q))];
 }
 
-async function esperarTela(page: Page, rota: (typeof ROTAS)[number]) {
+// `waitFor`, não `expect`: o `expect` consulta a cada 100, 250, 500 ms e
+// arredondaria a medição para esses degraus.
+async function esperarTela(page: Page, rota: Rota) {
   await page.waitForURL(rota.url);
   const titulo = rota.titulo
     ? page.getByRole("heading", { level: 1, name: rota.titulo, exact: true })
     : page.getByRole("heading", { level: 1 });
-  await expect(titulo).toBeVisible();
+  await titulo.waitFor();
 }
 
 test("o clique responde na hora, mesmo com a página seguinte demorando", async ({ page }) => {
@@ -89,10 +92,10 @@ test("clique até o conteúdo nas telas principais", async ({ page }) => {
   for (let rodada = 0; rodada < RODADAS; rodada++) {
     for (const rota of ROTAS) {
       const inicio = Date.now();
-      await menu.getByRole("link", { name: rota.menu, exact: true }).click();
+      await menu.getByRole("link", { name: rota.nome, exact: true }).click();
       await esperarTela(page, rota);
       const retorno = Date.now() - inicio;
-      if (rota.dados) await expect(page.getByText(rota.dados, { exact: true }).first()).toBeVisible();
+      await rota.dados?.(page).first().waitFor();
       const conteudo = Date.now() - inicio;
       // A primeira rodada carrega código: fica fora, como o aquecimento.
       if (rodada === 0) continue;
