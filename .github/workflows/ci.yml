@@ -676,11 +676,19 @@ jobs:
           [ "$(curl -fs http://127.0.0.1:18081/app/static/wordcraft/runtime_bg.wasm)" = wasm-aprovado ]
           curl -fs -D - -o /dev/null http://127.0.0.1:18081/app/static/wordcraft/runtime_bg.wasm \
             | tr -d '\r' | grep -ix 'content-type: application/wasm'
-          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18081/app/static/wordcraft/nao-existe.js)" = 404 ]
-          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18081/app/static/wordcraft/)" = 404 ]
-          [ "$(curl -s -o /dev/null -w '%{http_code}' --path-as-is http://127.0.0.1:18081/app/static/wordcraft/../../../etc/passwd)" != 200 ]
+          codigo() {  # esperado url: diz o que veio, para a falha ter nome no log
+            local veio
+            veio="$(curl -s -o /dev/null -w '%{http_code}' "$2")"
+            echo "$2 -> $veio (esperado $1)"
+            [ "$veio" = "$1" ]
+          }
+          codigo 404 http://127.0.0.1:18081/app/static/wordcraft/nao-existe.js
+          codigo 404 http://127.0.0.1:18081/app/static/wordcraft/
+          codigo 404 http://127.0.0.1:18081/health
           [ "$(curl -fs http://127.0.0.1:18081/app/static/outra-coisa)" = next ]
-          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18081/health)" = 404 ]
+          # O Caddy normaliza `..` antes de rotear: quem responde é o Next, e
+          # nada de fora do bundle sai pelo file_server.
+          [ "$(curl -s --path-as-is http://127.0.0.1:18081/app/static/wordcraft/../../../etc/passwd)" = next ]
           [ "$(curl -fs http://127.0.0.1:18082/)" = streamlit ]
           [ "$(curl -fs http://127.0.0.1:18082/_stcore/health)" = streamlit ]
           [ "$(curl -fs http://127.0.0.1:18082/app/static/wordcraft/runtime.js)" = streamlit ]
