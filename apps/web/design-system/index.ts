@@ -116,6 +116,7 @@ export { DocumentWorkspace, type DocumentWorkspaceProps, type SaveTone } from ".
 export { LandingHero, type LandingHeroProps, type LandingLink } from "./templates/LandingHero";
 export { NavigationProgress, type NavigationProgressProps } from "./templates/NavigationProgress";
 export { PageHead, type PageHeadProps } from "./templates/PageHead";
+export { PageSkeleton, type PageSkeletonProps } from "./templates/PageSkeleton";
 export {
   PublicFeature,
   PublicFooter,

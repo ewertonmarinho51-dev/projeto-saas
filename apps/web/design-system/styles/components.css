@@ -639,6 +639,13 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
 @keyframes gc-navprogress-entra{from{opacity:0}to{opacity:1}}
 @keyframes gc-navprogress-corre{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
 @media (prefers-reduced-motion: reduce){.gc-navprogress::after{width:100%;animation:none}}
+/* Esqueleto de página: fica escondido na casca e entra, sem pedir nada ao servidor, enquanto a próxima tela não chega. */
+.gc-pageskeleton{display:grid;gap:var(--space-6)}
+.gc-pageskeleton__head{display:grid;gap:var(--space-3)}
+.gc-pageskeleton__body{display:grid;gap:var(--space-6);padding:var(--space-5);background:var(--surface-card);border:var(--border-width) solid var(--border-subtle);border-radius:var(--gc-radius-lg)}
+.gc-shell__pending{display:none}
+:root[data-navegando] .gc-shell__page>:not(.gc-shell__pending){display:none}
+:root[data-navegando] .gc-shell__pending{display:grid}
 
 /* ——— Adições do porte para React/TypeScript ———
    * No export, estes valores estavam em `style={{...}}` dentro dos

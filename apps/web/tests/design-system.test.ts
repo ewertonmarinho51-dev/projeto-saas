@@ -41,6 +41,7 @@ const TEMPLATES = [
   "LandingHero",
   "NavigationProgress",
   "PageHead",
+  "PageSkeleton",
   "PublicFeature",
   "PublicFooter",
   "PublicGrid",
@@ -55,7 +56,7 @@ describe("inventário do design system", () => {
     expect(new Set(DO_EXPORT).size).toBe(71);
   });
 
-  it("o índice exporta exatamente os 71 do export + os acréscimos + 13 templates", () => {
+  it("o índice exporta exatamente o export, os acréscimos e os templates", () => {
     // Componente e constante (PascalCase ou CAIXA_ALTA); helper em camelCase fica de fora.
     const publicos = Object.keys(ds).filter((n) => /^[A-Z]/.test(n));
     expect(publicos.sort()).toEqual([...DO_EXPORT, ...ACRESCIMOS, ...TEMPLATES].sort());
