@@ -237,7 +237,7 @@ function Referencias({ referencias }: { referencias: ReferenciaDaBase[] }) {
       ) : (
         <TableContainer>
           <div data-testid="lista-referencias">
-            <DataTable compact caption="Referências da Base de Conhecimento" minWidth="40rem" columns={colunas} rows={referencias} />
+            <DataTable stack compact caption="Referências da Base de Conhecimento" minWidth="40rem" columns={colunas} rows={referencias} />
           </div>
         </TableContainer>
       )}

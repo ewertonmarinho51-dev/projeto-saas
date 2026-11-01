@@ -321,9 +321,10 @@ Base de 4 px com meios passos de 2, 6 e 10 — a mesma do Tailwind
 (`p-4` = 16 px = `--space-4`). Página com 32 px de margem (16 no
 celular), cartão com 20, célula de tabela 10 × 12 (6 compacta). Casca:
 barra lateral de 248 px (68 recolhida) + barra superior de 64 px com a
-trilha; conteúdo até 1200 px. Abaixo de 768 px a barra lateral vira
-navegação horizontal. Tabela de preço rola na horizontal no celular,
-nunca vira cartão.
+trilha; conteúdo até 1200 px, ou 1440 px a partir de 1536 px de tela, para
+não sobrar margem à toa no monitor grande. Abaixo de 768 px a barra lateral
+vira navegação horizontal. Tabela de preço rola na horizontal no celular,
+nunca vira cartão; as demais podem empilhar (`stack`) até 640 px.
 
 ## Elevation & Depth
 

@@ -37,13 +37,18 @@ export interface DataTableProps<T> {
   empty?: ReactNode;
   onRowClick?: (row: T) => void;
   minWidth?: number | string;
+  /** Até 640 px cada linha vira cartão, com o rótulo ao lado do valor. Nunca em tabela de preço. */
+  stack?: boolean;
 }
 
 /**
- * Tabela densa, ordenável e selecionável. Dentro de TableContainer (borda
- * e rolagem horizontal no celular) ou de Card flush. Número à direita,
- * tabular. Linha com `_muted: true` fica apagada (referência fora do
- * cálculo). Tabela de preço não vira cartão no celular: rola.
+ * Tabela densa, ordenável e selecionável. Dentro de TableContainer (borda)
+ * ou de Card flush; a rolagem horizontal é dela mesma, então tabela larga
+ * nunca alarga a página. Número à direita, tabular. Linha com `_muted: true`
+ * fica apagada (referência fora do cálculo). Tabela de preço não vira cartão
+ * no celular: rola. As demais podem empilhar (`stack`): a primeira coluna é o
+ * título do cartão, e coluna sem rótulo de texto, a última, vira ação no canto.
+ * Empilhada, a tabela perde a semântica nativa: os `role` a devolvem.
  *
  * Cliente: `render` é função, então a tabela é montada dentro de um
  * componente cliente.
@@ -62,6 +67,7 @@ export function DataTable<T extends object>({
   empty = "Nenhum registro encontrado.",
   onRowClick,
   minWidth,
+  stack = false,
 }: DataTableProps<T>) {
   const chaveDe = (r: T): RowKey => (r as Record<string, unknown>)[rowKey ?? "id"] as RowKey;
   const todas = rows.length > 0 && selected.length === rows.length;
@@ -71,91 +77,108 @@ export function DataTable<T extends object>({
     if (cabecalho.current) cabecalho.current.indeterminate = algumas;
   }, [algumas]);
   const alternar = (k: RowKey) => onSelect?.(selected.includes(k) ? selected.filter((x) => x !== k) : [...selected, k]);
-  const estilo: CSSProperties | undefined = minWidth ? { minWidth } : undefined;
+  const estilo = minWidth
+    ? ({ "--gc-table-min": typeof minWidth === "number" ? `${minWidth}px` : minWidth } as CSSProperties)
+    : undefined;
+  const papel = (nome: string) => (stack ? { role: nome } : {});
 
   return (
-    <table className={cx("gc-table", compact && "gc-table--compact")} style={estilo}>
-      {caption && <caption className="gc-sr-only">{caption}</caption>}
-      <thead>
-        <tr>
-          {selectable && (
-            <th className="gc-table__check">
-              <span className="gc-check">
-                <input
-                  ref={cabecalho}
-                  type="checkbox"
-                  aria-label="Selecionar todos"
-                  checked={todas}
-                  onChange={() => onSelect?.(todas ? [] : rows.map(chaveDe))}
-                />
-              </span>
-            </th>
-          )}
-          {columns.map((c) => {
-            const ativa = sort?.key === c.key;
-            return (
-              <th
-                key={c.key}
-                scope="col"
-                data-align={c.align}
-                style={c.width ? { width: c.width } : undefined}
-                aria-sort={ativa ? (sort?.dir === "asc" ? "ascending" : "descending") : undefined}
-              >
-                {c.sortable ? (
-                  <button
-                    type="button"
-                    className="gc-table__sort"
-                    data-active={ativa || undefined}
-                    onClick={() => onSort?.({ key: c.key, dir: ativa && sort?.dir === "asc" ? "desc" : "asc" })}
-                  >
-                    {c.label}
-                    <Icon name={ativa ? (sort?.dir === "asc" ? "caret-up" : "caret-down") : "caret-up-down"} />
-                  </button>
-                ) : (
-                  c.label
-                )}
+    <div className="gc-table-scroll">
+      <table
+        className={cx("gc-table", compact && "gc-table--compact", stack && "gc-table--stack")}
+        style={estilo}
+        aria-label={stack ? caption : undefined}
+        {...papel("table")}
+      >
+        {caption && <caption className="gc-sr-only">{caption}</caption>}
+        <thead {...papel("rowgroup")}>
+          <tr {...papel("row")}>
+            {selectable && (
+              <th className="gc-table__check">
+                <span className="gc-check">
+                  <input
+                    ref={cabecalho}
+                    type="checkbox"
+                    aria-label="Selecionar todos"
+                    checked={todas}
+                    onChange={() => onSelect?.(todas ? [] : rows.map(chaveDe))}
+                  />
+                </span>
               </th>
+            )}
+            {columns.map((c) => {
+              const ativa = sort?.key === c.key;
+              return (
+                <th
+                  key={c.key}
+                  scope="col"
+                  data-align={c.align}
+                  style={c.width ? { width: c.width } : undefined}
+                  aria-sort={ativa ? (sort?.dir === "asc" ? "ascending" : "descending") : undefined}
+                  {...papel("columnheader")}
+                >
+                  {c.sortable ? (
+                    <button
+                      type="button"
+                      className="gc-table__sort"
+                      data-active={ativa || undefined}
+                      onClick={() => onSort?.({ key: c.key, dir: ativa && sort?.dir === "asc" ? "desc" : "asc" })}
+                    >
+                      {c.label}
+                      <Icon name={ativa ? (sort?.dir === "asc" ? "caret-up" : "caret-down") : "caret-up-down"} />
+                    </button>
+                  ) : (
+                    c.label
+                  )}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody {...papel("rowgroup")}>
+          {rows.length === 0 && (
+            <tr {...papel("row")}>
+              <td className="gc-table__empty" colSpan={columns.length + (selectable ? 1 : 0)} {...papel("cell")}>
+                {empty}
+              </td>
+            </tr>
+          )}
+          {rows.map((r) => {
+            const k = chaveDe(r);
+            const marcada = selected.includes(k);
+            const apagada = (r as { _muted?: boolean })._muted;
+            return (
+              <tr
+                key={k}
+                aria-selected={selectable ? marcada : undefined}
+                data-muted={apagada || undefined}
+                data-clickable={onRowClick ? true : undefined}
+                onClick={onRowClick ? () => onRowClick(r) : undefined}
+                {...papel("row")}
+              >
+                {selectable && (
+                  <td className="gc-table__check" onClick={(e) => e.stopPropagation()} {...papel("cell")}>
+                    <span className="gc-check">
+                      <input type="checkbox" aria-label={`Selecionar linha ${k}`} checked={marcada} onChange={() => alternar(k)} />
+                    </span>
+                  </td>
+                )}
+                {columns.map((c, i) => (
+                  <td
+                    key={c.key}
+                    data-align={c.align}
+                    data-label={stack && i > 0 && typeof c.label === "string" ? c.label : undefined}
+                    {...papel("cell")}
+                  >
+                    {c.render ? c.render(r) : ((r as Record<string, unknown>)[c.key] as ReactNode)}
+                  </td>
+                ))}
+              </tr>
             );
           })}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.length === 0 && (
-          <tr>
-            <td className="gc-table__empty" colSpan={columns.length + (selectable ? 1 : 0)}>
-              {empty}
-            </td>
-          </tr>
-        )}
-        {rows.map((r) => {
-          const k = chaveDe(r);
-          const marcada = selected.includes(k);
-          const apagada = (r as { _muted?: boolean })._muted;
-          return (
-            <tr
-              key={k}
-              aria-selected={selectable ? marcada : undefined}
-              data-muted={apagada || undefined}
-              data-clickable={onRowClick ? true : undefined}
-              onClick={onRowClick ? () => onRowClick(r) : undefined}
-            >
-              {selectable && (
-                <td className="gc-table__check" onClick={(e) => e.stopPropagation()}>
-                  <span className="gc-check">
-                    <input type="checkbox" aria-label={`Selecionar linha ${k}`} checked={marcada} onChange={() => alternar(k)} />
-                  </span>
-                </td>
-              )}
-              {columns.map((c) => (
-                <td key={c.key} data-align={c.align}>
-                  {c.render ? c.render(r) : ((r as Record<string, unknown>)[c.key] as ReactNode)}
-                </td>
-              ))}
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+        </tbody>
+      </table>
+    </div>
   );
 }
 

@@ -35,7 +35,7 @@ const LARGURAS = [
 const PASTA = "e2e/resultados/responsividade";
 mkdirSync(PASTA, { recursive: true });
 
-const ROLAGEM_INTERNA = ".gc-table-wrap, .gc-stepper, .gc-tabs, .gc-shell__nav, .gc-sidebar";
+const ROLAGEM_INTERNA = ".gc-table-wrap, .gc-table-scroll, .gc-stepper, .gc-tabs, .gc-shell__nav, .gc-sidebar";
 
 const PUBLICAS = [
   ["landing", "/"],
@@ -85,7 +85,15 @@ function varrer(rolagemInterna: string) {
   const interativo = 'a[href],button,input:not([type=hidden]):not([type=file]),select,textarea,[role=button],[role=tab],[role=menuitem]';
 
   const raiz = document.documentElement;
-  if (raiz.scrollWidth > janela) achou.push({ tipo: "rolagem-do-documento", alvo: "html", detalhe: `${raiz.scrollWidth} > ${janela}` });
+  if (raiz.scrollWidth > janela) {
+    // Quem alarga o documento, sem nenhum filtro: pode ser o que a varredura abaixo pula.
+    const largos = [...document.body.querySelectorAll("*")]
+      .filter((el) => el.getBoundingClientRect().right > janela + 1)
+      .sort((a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right)
+      .slice(0, 3)
+      .map(nome);
+    achou.push({ tipo: "rolagem-do-documento", alvo: "html", detalhe: `${raiz.scrollWidth} > ${janela}: ${largos.join(" | ")}` });
+  }
   for (const conteudo of document.querySelectorAll(".gc-shell__content")) {
     if (conteudo.scrollWidth > conteudo.clientWidth + 1) {
       achou.push({ tipo: "rolagem-do-main", alvo: nome(conteudo), detalhe: `${conteudo.scrollWidth} > ${conteudo.clientWidth}` });
@@ -156,13 +164,10 @@ async function examinar(page: Page, rota: string, largura: number) {
   await page.screenshot({ path: `${PASTA}/${rota}-${largura}.png`, fullPage: true });
 }
 
-function publicarRelatorio() {
-  writeFileSync(`${PASTA}/relatorio.json`, JSON.stringify({ achados, ocupacao }, null, 2));
-}
-
+/** Um arquivo por prova: depois de uma falha o Playwright troca de processo e a lista recomeça. */
 function reprovarSeAchou(prefixos: readonly string[]) {
-  publicarRelatorio();
   const meus = achados.filter((a) => prefixos.includes(a.rota));
+  writeFileSync(`${PASTA}/relatorio-${prefixos[0]}.json`, JSON.stringify({ achados: meus, ocupacao }, null, 2));
   if (meus.length) console.log("RESPONSIVIDADE", JSON.stringify(meus));
   expect(meus.map((a) => `${a.rota}@${a.largura} ${a.tipo}: ${a.alvo} (${a.detalhe ?? ""})`)).toEqual([]);
 }
@@ -207,6 +212,9 @@ test("área autenticada nas 4 larguras", async ({ page }) => {
     await aguardarConteudo(page);
     for (const { largura, altura } of LARGURAS) {
       await page.setViewportSize({ width: largura, height: altura });
+      // A navegação essencial segue ao alcance: barra na tela larga, botão da gaveta na estreita.
+      if (largura > 768) await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeVisible();
+      else await expect(page.getByRole("button", { name: "Abrir menu" })).toBeVisible();
       await examinar(page, nome, largura);
     }
   }
@@ -237,8 +245,17 @@ test("gaveta, menu de linha e diálogo cabem no celular com os controles alcanç
   await expect(page).toHaveURL(/\/app\/processos$/);
   await aguardarConteudo(page);
 
-  const acoes = page.getByRole("table", { name: "Processos do órgão" }).getByRole("button", { name: /^Mais ações/ }).first();
+  // Tabela sem preço vira cartão: nada de rolar de lado para achar a ação.
+  const tabela = page.getByRole("table", { name: "Processos do órgão" });
+  await expect(tabela).toBeVisible();
+  const sobra = await tabela.evaluate((t) => {
+    const area = t.closest(".gc-table-scroll");
+    return area ? area.scrollWidth - area.clientWidth : -1;
+  });
+  expect(sobra, "a tabela de processos ainda rola de lado no celular").toBe(0);
+  const acoes = tabela.getByRole("button", { name: /^Mais ações/ }).first();
   await acoes.scrollIntoViewIfNeeded();
+  await expect(acoes).toBeInViewport({ ratio: 1 });
   await acoes.click();
   const opcao = page.getByRole("menuitem").first();
   await expect(opcao).toBeInViewport({ ratio: 1 });

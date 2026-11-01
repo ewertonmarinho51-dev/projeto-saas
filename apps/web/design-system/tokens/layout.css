@@ -10,6 +10,7 @@
   --sidebar-width-collapsed:68px;
   --topbar-height:64px;
   --content-max:1200px;
+  --content-max-wide:1440px;
   --content-max-narrow:880px;
   --prose-max:70ch;
   --grid-columns:12;

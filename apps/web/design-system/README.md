@@ -82,7 +82,7 @@ server component. Componente que recebe função (`render`, `trigger`,
 | feedback | `Spinner` | carregando sem total | |
 | feedback | `ProgressBar` | progresso linear | |
 | data | `KpiCard` | indicador com tendência | |
-| data | `DataTable`, `TableContainer` | tabela ordenável e selecionável | sim |
+| data | `DataTable`, `TableContainer` | tabela ordenável e selecionável, com rolagem horizontal própria; `stack` vira cartão até 640 px (nunca em tabela de preço) | sim |
 | data | `Pagination` | paginação | |
 | data | `BarChart` | barras horizontais rotuladas | |
 | ai | `ChatMessage`, `Cite` | turno do GovBot, citação numerada | |
