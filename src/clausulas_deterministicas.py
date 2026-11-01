@@ -78,7 +78,7 @@ def _portaria_do_processo() -> dict | None:
     quem trata a ausência é `texto_da_equipe`, com o marcador de
     pendência.
     """
-    import streamlit as st
+    from .streamlit_opcional import st
 
     from . import contexto, emissao, portarias
 

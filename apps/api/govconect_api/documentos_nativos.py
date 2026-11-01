@@ -368,39 +368,46 @@ def _resumo_dos_fatos(vigentes: list[dict]) -> FatosDoProcesso:
                    for f in pendentes])
 
 
+def sessao_do_dominio(eu: Identidade):
+    return sessao_da_requisicao(eu.token, eu.tenant_id, {
+        "id": eu.usuario_id, "auth_user_id": eu.auth_user_id,
+        "secretaria_id": eu.secretaria_id, "nome": ""})
+
+
+def exigir_workspace(request: Request, eu: Identidade) -> None:
+    cfg = request.app.state.config
+    if not cfg.wordcraft_workspace or (cfg.wordcraft_contas and eu.auth_user_id not in cfg.wordcraft_contas):
+        raise ErroApi(404, "MODULE_UNAVAILABLE", "Editor de documentos indisponível")
+    with sessao_do_dominio(eu):
+        if not contexto.modulo_em_rollout_aqui(FLAG_CANARIO):
+            raise ErroApi(404, "MODULE_UNAVAILABLE", "Editor de documentos indisponível")
+
+
+def motor_da_api(request: Request) -> Motor:
+    motor = getattr(request.app.state, "motor_documental", None)
+    if motor is None:
+        with _trava_motor:
+            motor = getattr(request.app.state, "motor_documental", None)
+            if motor is None:
+                try:
+                    motor = carregar_motor()
+                except Exception:  # noqa: BLE001 — runtime não admitido
+                    _log.warning("wordcraft_runtime_indisponivel")
+                    raise ErroApi(503, "WORDCRAFT_RUNTIME_UNAVAILABLE",
+                                  "O motor do editor não está disponível neste ambiente.") from None
+                request.app.state.motor_documental = motor
+    return motor
+
+
 def rotas() -> APIRouter:
     r = APIRouter(tags=["documentos"])
 
     def _config(request: Request):
         return request.app.state.config
 
-    def _sessao_do_dominio(eu: Identidade):
-        return sessao_da_requisicao(eu.token, eu.tenant_id, {
-            "id": eu.usuario_id, "auth_user_id": eu.auth_user_id,
-            "secretaria_id": eu.secretaria_id, "nome": ""})
-
-    def _exigir_workspace(request: Request, eu: Identidade) -> None:
-        cfg = _config(request)
-        if not cfg.wordcraft_workspace or (cfg.wordcraft_contas and eu.auth_user_id not in cfg.wordcraft_contas):
-            raise ErroApi(404, "MODULE_UNAVAILABLE", "Editor de documentos indisponível")
-        with _sessao_do_dominio(eu):
-            if not contexto.modulo_em_rollout_aqui(FLAG_CANARIO):
-                raise ErroApi(404, "MODULE_UNAVAILABLE", "Editor de documentos indisponível")
-
-    def _motor(request: Request) -> Motor:
-        motor = getattr(request.app.state, "motor_documental", None)
-        if motor is None:
-            with _trava_motor:
-                motor = getattr(request.app.state, "motor_documental", None)
-                if motor is None:
-                    try:
-                        motor = carregar_motor()
-                    except Exception:  # noqa: BLE001 — runtime não admitido
-                        _log.warning("wordcraft_runtime_indisponivel")
-                        raise ErroApi(503, "WORDCRAFT_RUNTIME_UNAVAILABLE",
-                                      "O motor do editor não está disponível neste ambiente.") from None
-                    request.app.state.motor_documental = motor
-        return motor
+    _sessao_do_dominio = sessao_do_dominio
+    _exigir_workspace = exigir_workspace
+    _motor = motor_da_api
 
     def _sessoes(request: Request) -> Sessoes:
         return request.app.state.sessoes_documentais

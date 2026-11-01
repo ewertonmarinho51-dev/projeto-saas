@@ -24,7 +24,7 @@ estrutura da família na geração e a fazer a pergunta quando ambígua.
 
 import logging
 
-import streamlit as st
+from .streamlit_opcional import st
 
 from . import catalogo, conhecimento, db, fatos as fatos_mod, governanca
 

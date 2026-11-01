@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from . import (artefatos, base_conhecimento, cadastro_institucional, cesta, coleta, demandas,
-               documentos_nativos, erros, formulario, govbot, governanca_central, instituicao,
+               documentos_nativos, elaboracao, erros, formulario, govbot, governanca_central, instituicao,
                precos, precos_escrita, precos_estatisticas, precos_gestao, processos, relatorios,
                usuarios_admin)
 from .admin_auth import AdminDoAuth
@@ -130,6 +130,7 @@ def _rotas_v1() -> APIRouter:
     rotas.include_router(relatorios.rotas())
     rotas.include_router(govbot.rotas())
     rotas.include_router(documentos_nativos.rotas())
+    rotas.include_router(elaboracao.rotas())
     return rotas
 
 

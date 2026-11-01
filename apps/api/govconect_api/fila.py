@@ -34,7 +34,9 @@ _log = logging.getLogger("govconect_api")
 
 NOME_TAREFA = "govconect.coletar_precos"
 NOME_TAREFA_RELATORIO = "govconect.emitir_relatorio"
-TAREFAS = {"coleta": NOME_TAREFA, "relatorio": NOME_TAREFA_RELATORIO}
+NOME_TAREFA_ELABORACAO = "govconect.elaborar_documento"
+TAREFAS = {"coleta": NOME_TAREFA, "relatorio": NOME_TAREFA_RELATORIO,
+           "elaboracao": NOME_TAREFA_ELABORACAO}
 MAX_TENTATIVAS = 3
 
 
@@ -109,7 +111,7 @@ class FilaCelery:
         expira = expiracao_do_token(token)
         validade = max(1, int(expira - time.time())) if expira else 600
         args = [job_id, token, tenant_id, auth_user_id, secretaria_id]
-        if tarefa == "relatorio":
+        if tarefa in ("relatorio", "elaboracao"):
             args.append(usuario_id)
         self._app.send_task(
             TAREFAS[tarefa], args=args,
@@ -179,6 +181,44 @@ def emitir_relatorio(self, job_id: str, token: str, tenant_id: str, auth_user_id
                                        auth_user_id=auth_user_id, secretaria_id=secretaria_id,
                                        usuario_id=usuario_id, rest=rest,
                                        deposito=DepositoRedis(config.redis_url)))
+    except (ErroTransitorio, ErroApi) as exc:
+        if isinstance(exc, ErroApi) and exc.status == 401:
+            _log.warning("job_token_vencido job=%s", job_id)
+            return fim("failed")
+        if self.request.retries >= MAX_TENTATIVAS:
+            try:
+                atualizar_job(rest, token, job_id, estado="failed",
+                              erro_codigo="DATABASE_UNAVAILABLE", concluido_em=_agora_iso())
+            except Exception:  # noqa: BLE001
+                _log.error("job_sem_registro_de_falha job=%s", job_id)
+            return fim("failed")
+        fim("retry")
+        raise self.retry(exc=exc, countdown=_espera(self.request.retries)) from None
+    finally:
+        rest.fechar()
+
+
+@celery.task(name=NOME_TAREFA_ELABORACAO, bind=True, max_retries=MAX_TENTATIVAS)
+def elaborar_documento(self, job_id: str, token: str, tenant_id: str, auth_user_id: str,
+                       secretaria_id: str | None, usuario_id: str = "") -> str:
+    """Gera um documento do processo por IA. O token é o do dono: o worker
+    continua sem credencial de servidor, e quem autoriza a gravação é o RLS."""
+    from src.streamlit_opcional import configurar_supabase
+
+    from .elaboracao import processar_elaboracao
+
+    config = carregar()
+    configurar_supabase(config.supabase_url, config.supabase_chave_publica)
+    rest = ClienteRest(config.supabase_url, config.supabase_chave_publica)
+    inicio, tentativa = time.monotonic(), self.request.retries + 1
+
+    def fim(estado: str) -> str:
+        return _registrar_fim("elaboracao_documento", job_id, tenant_id, estado, inicio, tentativa)
+
+    try:
+        return fim(processar_elaboracao(job_id=job_id, token=token, tenant_id=tenant_id,
+                                        auth_user_id=auth_user_id, secretaria_id=secretaria_id,
+                                        usuario_id=usuario_id, rest=rest))
     except (ErroTransitorio, ErroApi) as exc:
         if isinstance(exc, ErroApi) and exc.status == 401:
             _log.warning("job_token_vencido job=%s", job_id)
