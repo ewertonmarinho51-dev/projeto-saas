@@ -14,8 +14,8 @@ import {
   Badge,
   Button,
   Card,
-  DataList,
   EmptyState,
+  KpiCard,
   PageHead,
   StatusBadge,
   Stepper,
@@ -97,6 +97,10 @@ export default async function Pesquisa({
                     ? "Preços aplicados ao processo. Os documentos descartados precisam ser gerados novamente."
                     : null;
   const concluidos = p.itens.filter((i) => i.estado === "complete").length;
+  const faltam = p.itens.length - concluidos;
+  const comPreco = p.itens.filter((i) => i.preco_estimado).length;
+  const pendentes = p.itens.filter((i) => i.estado !== "complete" && !i.preco_estimado).length;
+  const comErro = p.itens.filter((i) => i.estado === "error" || i.estado === "incomplete").length;
 
   return (
     <>
@@ -116,22 +120,39 @@ export default async function Pesquisa({
         desc={p.objeto || undefined}
       />
 
-      <Card>
-        <DataList
-          stacked
-          items={[
-            { label: "Itens", value: p.itens.length, numeric: true },
-            { label: "Itens concluídos", value: `${concluidos} de ${p.itens.length}`, numeric: true },
-            {
-              label: "Valor global",
-              value: <span data-testid="valor-global">{p.valor_global?.exibicao ?? "Não calculado"}</span>,
-              numeric: true,
-            },
-            { label: "Data-base", value: dataCurta(p.data_base) || "Não informada" },
-            { label: "Responsável", value: p.responsavel || "Não informado" },
-          ]}
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4" data-testid="indicadores-da-pesquisa">
+        <KpiCard
+          compact
+          label="Valor global"
+          icon="currency-circle-dollar"
+          value={<span data-testid="valor-global">{p.valor_global?.exibicao ?? "Não calculado"}</span>}
+          footnote={`${comPreco} de ${p.itens.length} itens com preço`}
         />
-      </Card>
+        <KpiCard
+          compact
+          label="Itens concluídos"
+          icon="check-circle"
+          value={concluidos}
+          unit={`de ${p.itens.length}`}
+          footnote={faltam === 0 ? "nenhum item em aberto" : `faltam ${faltam}`}
+        />
+        <KpiCard
+          compact
+          label="Itens com pendência"
+          icon="warning-circle"
+          value={pendentes}
+          delta={comErro > 0 ? (comErro === 1 ? "1 com erro ou incompleto" : `${comErro} com erro ou incompletos`) : undefined}
+          deltaTone="warning"
+          footnote="sem preço concluído"
+        />
+        <KpiCard
+          compact
+          label="Data-base"
+          icon="calendar-blank"
+          value={dataCurta(p.data_base) || "Não informada"}
+          footnote={p.responsavel || "Responsável não informado"}
+        />
+      </div>
 
       <Card>
         <Stepper ariaLabel="Etapas da pesquisa de preços" steps={etapas(p.estado, p.itens.length, concluidos)} />
@@ -143,7 +164,7 @@ export default async function Pesquisa({
         pesquisa={p.id}
         estado={p.estado}
         itens={p.itens.length}
-        faltam={p.itens.length - concluidos}
+        faltam={faltam}
       />
       {jobId && <ProgressoDaColeta jobId={jobId} />}
       {!IMUTAVEIS.has(p.estado) && (
