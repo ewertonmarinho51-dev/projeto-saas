@@ -114,6 +114,7 @@ export { AppShell, type AppShellProps } from "./templates/AppShell";
 export { AuthLayout, type AuthLayoutProps } from "./templates/AuthLayout";
 export { DocumentWorkspace, type DocumentWorkspaceProps, type SaveTone } from "./templates/DocumentWorkspace";
 export { LandingHero, type LandingHeroProps, type LandingLink } from "./templates/LandingHero";
+export { NavigationProgress, type NavigationProgressProps } from "./templates/NavigationProgress";
 export { PageHead, type PageHeadProps } from "./templates/PageHead";
 export {
   PublicFeature,

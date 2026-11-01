@@ -1,7 +1,9 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { flagLigada } from "@/lib/seguranca";
-import { criarClienteServidor } from "@/lib/supabase/server";
+import { claimsVerificadas, criarClienteServidor } from "@/lib/supabase/server";
 
 /**
  * BFF: o servidor do web chama a API do Gov Conect com o token da sessão.
@@ -12,7 +14,8 @@ import { criarClienteServidor } from "@/lib/supabase/server";
  * vínculo, tenant); este arquivo não decide autorização nenhuma.
  *
  * `cache: "no-store"` em tudo: resposta de um município nunca vira cache
- * compartilhado.
+ * compartilhado. O `cache` do React aqui é outra coisa: dura uma renderização
+ * e evita repetir a mesma leitura entre layout e página da mesma requisição.
  */
 
 export type Identidade = {
@@ -59,16 +62,15 @@ function baseDaApi(): string {
   return base.replace(/\/$/, "");
 }
 
-async function tokenDaSessao(): Promise<string> {
+const tokenDaSessao = cache(async (): Promise<string> => {
+  // Assinatura primeiro: só repassa token que conferiu aqui.
+  if (!(await claimsVerificadas())) throw new ErroDaApi(401, "UNAUTHENTICATED", "");
   const supabase = await criarClienteServidor();
-  // getClaims() primeiro: só repassa token cuja assinatura conferiu aqui.
-  const { data: verificado } = await supabase.auth.getClaims();
-  if (!verificado?.claims) throw new ErroDaApi(401, "UNAUTHENTICATED", "");
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new ErroDaApi(401, "UNAUTHENTICATED", "");
   return token;
-}
+});
 
 export async function chamarApi<T>(
   caminho: string,
@@ -115,6 +117,9 @@ export async function chamarApi<T>(
   }
   return { dados: (await resposta.json()) as T, cabecalhos: resposta.headers };
 }
+
+/** Quem chama, segundo a API. Uma leitura por renderização: o layout e a página admin. */
+export const minhaIdentidade = cache(async (): Promise<Identidade> => (await chamarApi<Identidade>("/me")).dados);
 
 // ---------------------------------------------------------------------------
 // Pesquisa de preços (P04a, leitura). Dinheiro chega como STRING já

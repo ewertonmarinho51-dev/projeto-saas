@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 /**
  * Navegação no cliente não recarrega a página: o ponto de partida do Tab
@@ -15,7 +15,9 @@ export function FocoDeRota() {
   const caminho = usePathname();
   const anterior = useRef(caminho);
   const topo = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+  // Layout, não efeito comum: no mesmo commit da troca de rota. Depois da pintura,
+  // um Tab rápido cairia na página antiga, antes de o foco voltar ao topo.
+  useLayoutEffect(() => {
     if (anterior.current === caminho) return;
     anterior.current = caminho;
     topo.current?.focus({ preventScroll: true });

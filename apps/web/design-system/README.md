@@ -110,6 +110,7 @@ server component. Componente que recebe função (`render`, `trigger`,
 | templates | `AppShell` | casca do app (barra lateral + superior); `workspace` = modo de trabalho do editor (tela inteira, barra recolhida) | sim |
 | templates | `DocumentWorkspace` | espaço de trabalho do editor de documento: barra (voltar, sigla, título, selos, salvamento anunciado, ações), área do editor sem cartão e painel opcional; modo foco cobre a tela sem recriar a área | |
 | templates | `AuthLayout` | entrada dividida marca/formulário; sempre no tema claro (usado em `/entrar` e `/entrar/recuperar`) | |
+| templates | `NavigationProgress` | barra fina no topo enquanto a próxima página não chega; quem decide quando mostrar é o app (`components/progresso-de-navegacao.tsx`) | |
 | templates | `LandingHero` | Hero da landing pública (`/`): cabeçalho de vidro, fluxo DFD → ETP → TR → Preços em SVG, painéis ilustrativos; CSS em `styles/landing.css`, sem JavaScript | |
 
 ## Integração com o resto do app

@@ -60,23 +60,15 @@ export default async function Pesquisa({
   }
   // Aplicar ao processo: a prévia só faz sentido com a pesquisa concluída
   // (ou já aplicada, para dizer isso). Erro na prévia não derruba a página.
-  let previa: PreviaDaAplicacao | null = null;
-  if (p.estado === "completed" || p.estado === "applied") {
-    try {
-      previa = (await chamarApi<PreviaDaAplicacao>(`/precos/pesquisas/${id}/aplicacao`)).dados;
-    } catch {
-      previa = null;
-    }
-  }
-  // A emissão não derruba a página: sem preparo, a seção diz que não deu.
-  let preparo: PreparoDaEmissao | null = null;
-  if (p.itens.length > 0) {
-    try {
-      preparo = (await chamarApi<PreparoDaEmissao>(`/precos/pesquisas/${id}/emissao`)).dados;
-    } catch {
-      preparo = null;
-    }
-  }
+  // A emissão também não derruba: sem preparo, a seção diz que não deu.
+  const [previa, preparo] = await Promise.all([
+    p.estado === "completed" || p.estado === "applied"
+      ? chamarApi<PreviaDaAplicacao>(`/precos/pesquisas/${id}/aplicacao`).then((r) => r.dados).catch(() => null)
+      : null,
+    p.itens.length > 0
+      ? chamarApi<PreparoDaEmissao>(`/precos/pesquisas/${id}/emissao`).then((r) => r.dados).catch(() => null)
+      : null,
+  ]);
 
   const aviso =
     criada === "1"
@@ -244,6 +236,7 @@ export default async function Pesquisa({
                       <td className="gc-mono text-secundario">{i.numero}</td>
                       <td className="max-w-[calc(var(--space-16)*7)]">
                         <Link
+                          prefetch={false}
                           href={`/app/precos/${p.id}/itens/${i.id}`}
                           className="font-[number:var(--weight-medium)] text-texto no-underline hover:underline"
                         >

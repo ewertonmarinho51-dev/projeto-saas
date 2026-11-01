@@ -8,6 +8,7 @@ import {
   Alert,
   AppShell,
   AuthLayout,
+  NavigationProgress,
   Avatar,
   Badge,
   Breadcrumbs,
@@ -605,6 +606,9 @@ export function GaleriaIA({ tema }: { tema: string }) {
             ]}
             note="Linha final do rodapé."
           />
+        </Exemplo>
+        <Exemplo rotulo="NavigationProgress (contida)">
+          <NavigationProgress embedded />
         </Exemplo>
         <Exemplo rotulo="AuthLayout (contido)">
           <Palco alto>
