@@ -67,7 +67,7 @@ export function Vitrine() {
             aria-label={t.nome}
             className="gc-base mt-8 border-t border-linha bg-canvas py-10"
           >
-            <div className="mx-auto grid max-w-[var(--content-max)] gap-14 px-[var(--page-padding-x)]">
+            <div className="mx-auto grid grid-cols-[minmax(0,1fr)] max-w-[var(--content-max)] gap-14 px-[var(--page-padding-x)]">
               <p className="font-[number:var(--weight-semibold)] text-[length:var(--gc-fs-2xs)] uppercase tracking-[var(--gc-tracking-caps)] text-[color:var(--accent-strong-text)]">
                 {t.nome}
               </p>

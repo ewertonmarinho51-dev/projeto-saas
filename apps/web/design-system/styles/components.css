@@ -618,8 +618,11 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
     .gc-table--stack tbody{display:block}
     .gc-table--stack tbody tr{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2);padding:var(--space-3) var(--space-4);border-bottom:var(--border-width) solid var(--border-subtle)}
     .gc-table--stack tbody tr:last-child{border-bottom:0}
-    .gc-table--stack td,.gc-table--stack tbody tr:last-child td{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:var(--space-2);align-items:center;padding:0;border:0;text-align:left}
+    .gc-table--stack td,.gc-table--stack tbody tr:last-child td{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:0 var(--space-2);align-items:center;justify-items:start;padding:0;border:0;text-align:left}
     .gc-table--stack td::before{content:attr(data-label);font:var(--type-caption);color:var(--text-secondary)}
+    .gc-table--stack td>.gc-select{width:100%}
+    .gc-table--stack td[data-label] .gc-table__sub{grid-column:2;margin-top:0}
+    .gc-table--stack .gc-num{text-align:left}
     .gc-table--stack td:not([data-label]),.gc-table--stack tbody tr:last-child td:not([data-label]){grid-template-columns:minmax(0,1fr)}
     .gc-table--stack td:not([data-label])::before{content:none}
     .gc-table--stack tr:has(>td:last-child:not([data-label])) td:first-child{padding-right:var(--space-10)}
