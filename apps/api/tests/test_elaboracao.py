@@ -363,6 +363,12 @@ def test_sem_leitura_das_cabecas_o_progresso_fica_como_estava(api, emissor, banc
     assert corpo["progresso"]["feitos"] == 1
 
 
+def test_sessao_recusada_na_leitura_das_cabecas_continua_401(api, emissor, banco):
+    # Tolerar a indisponibilidade não pode esconder token vencido.
+    banco.responder("GET", "documentos_editor", 401, {"code": "PGRST301"})
+    assert api.get(f"/api/v1/processos/{PROCESSO}", headers=_h(emissor)).status_code == 401
+
+
 # ---------------------------------------------------------------------------
 # Worker
 # ---------------------------------------------------------------------------
