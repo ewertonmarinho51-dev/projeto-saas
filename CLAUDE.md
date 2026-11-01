@@ -50,7 +50,7 @@ App Streamlit que gera documentos da fase preparatória de licitações
   `--tracking-*`, `--ease-*`, `--font-*`: são nomes do tema do Tailwind v4
   e mudariam cada utilitário do app. O design system usa `--gc-fs-*`,
   `--gc-radius-*` etc. (há prova disso).
-- Mapa da biblioteca (70 componentes + `PROCESS_STATUS` + 3 templates):
+- Mapa da biblioteca (71 componentes + `PROCESS_STATUS` + 3 templates):
   `apps/web/design-system/README.md`. HTMLs originais do Claude Design, só
   para comparação: `apps/web/design-system/referencia/`.
 

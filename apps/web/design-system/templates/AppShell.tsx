@@ -7,6 +7,7 @@ import { Icon } from "../components/core/Icon";
 import { Sidebar, type SidebarGroup } from "../components/navigation/Sidebar";
 import { Topbar } from "../components/navigation/Topbar";
 import { cx } from "../lib/cx";
+import { PageSkeleton } from "./PageSkeleton";
 
 export interface AppShellProps {
   /** Logo. Recolhida, o CSS esconde o nome. */
@@ -97,7 +98,14 @@ export function AppShell({ brand, groups, footer, topStart, topEnd, aside, bleed
         />
         <div className="gc-shell__body">
           <Conteudo id={embedded ? undefined : "conteudo"} className="gc-shell__content">
-            {cheio ? children : <div className="gc-shell__page">{children}</div>}
+            {cheio ? (
+              children
+            ) : (
+              <div className="gc-shell__page">
+                {!embedded && <PageSkeleton className="gc-shell__pending" />}
+                {children}
+              </div>
+            )}
           </Conteudo>
           {!cheio && aside}
         </div>

@@ -55,12 +55,19 @@ test("dono vê a pesquisa com dinheiro exato e evidência verificável", async (
   await expect(link).toHaveAttribute("rel", /noopener/);
 
   // Análise da série: números do servidor, um preço só não inventa dispersão.
-  const analise = page.locator(".gc-card").filter({ has: page.getByRole("heading", { name: "Análise da série" }) });
+  await page.getByRole("tab", { name: "Análise da série" }).click();
+  await expect(page).toHaveURL(/aba=analise/);
+  const analise = page.getByTestId("analise-da-serie");
   await expect(analise).toContainText("Poucos preços para medir");
   await expect(analise).toContainText("R$ 2,35");
   await expect(analise.locator(".gc-disp__plot")).toHaveAttribute("aria-label", /R\$ 2,35 — Na cesta/);
+  await expect(analise.locator(".gc-disp__ticks > span").first()).toContainText("R$");
+  await expect(analise.getByRole("img", { name: /Preços por fonte/ })).toContainText("PNCP");
+  await analise.getByText("Números por fonte").click();
   await expect(analise.getByRole("table", { name: "Preços por fonte" })).toContainText("PNCP");
+  await analise.getByText("Números por UF").click();
   await expect(analise.getByRole("table", { name: "Preços por UF" })).toBeVisible();
+  await page.getByRole("tab", { name: /Triagem/ }).click();
 });
 
 test("tirar e pôr de volta na cesta recalcula pela regra do domínio", async ({ page }) => {

@@ -9,6 +9,7 @@ import {
   AppShell,
   AuthLayout,
   NavigationProgress,
+  PageSkeleton,
   Avatar,
   Badge,
   Breadcrumbs,
@@ -30,6 +31,7 @@ import {
   MessageFeedback,
   PageHead,
   PriceBasket,
+  PriceCompare,
   PriceDispersion,
   PriceItemNav,
   PriceMapTable,
@@ -76,6 +78,12 @@ const MENU: SidebarGroup[] = [
     ],
   },
 ];
+
+const EIXO_DE_PRECOS = {
+  min: 0,
+  max: 50,
+  ticks: [0, 10, 20, 30, 40, 50].map((v) => ({ value: v, label: `R$ ${v},00` })),
+};
 
 export function GaleriaIA({ tema }: { tema: string }) {
   const [rascunho, setRascunho] = useState<"pending" | "accepted" | "rejected">("pending");
@@ -258,6 +266,51 @@ export function GaleriaIA({ tema }: { tema: string }) {
                 { label: "Compras.gov · SP", value: 13, display: "R$ 13,00" },
                 { label: "Compras.gov · SP", value: 40, display: "R$ 40,00", state: "discrepant" },
                 { label: "PNCP · SP", value: 50, display: "R$ 50,00", state: "discrepant" },
+              ]}
+            />
+          </Exemplo>
+          <Exemplo rotulo="PriceDispersion — eixo do servidor, extremo nomeado" largo>
+            <PriceDispersion
+              median={12}
+              mean={17.2}
+              band={[8, 16]}
+              scale={EIXO_DE_PRECOS}
+              labels={{ median: "R$ 12,00", mean: "R$ 17,20", band: ["R$ 8,00", "R$ 16,00"], scale: ["R$ 9,00 · Compras.gov · PA", "R$ 50,00 · PNCP · SP"] }}
+              values={[
+                { label: "Compras.gov · PA", value: 9, display: "R$ 9,00", state: "excluded", extreme: "low", note: "-25,00% sobre a mediana" },
+                { label: "PNCP · PA", value: 10, display: "R$ 10,00" },
+                { label: "PNCP · PA", value: 10.2, display: "R$ 10,20" },
+                { label: "PNCP · PA", value: 11, display: "R$ 11,00" },
+                { label: "PNCP", value: 12, display: "R$ 12,00" },
+                { label: "PNCP", value: 12, display: "R$ 12,00" },
+                { label: "Compras.gov · SP", value: 13, display: "R$ 13,00" },
+                { label: "Compras.gov · SP", value: 40, display: "R$ 40,00", state: "discrepant" },
+                { label: "PNCP · SP", value: 50, display: "R$ 50,00", state: "discrepant", extreme: "high", note: "+316,67% sobre a mediana" },
+              ]}
+            />
+          </Exemplo>
+          <Exemplo rotulo="PriceCompare — grupos no mesmo eixo" largo>
+            <PriceCompare
+              ariaLabel="Preços por fonte"
+              scale={EIXO_DE_PRECOS}
+              rows={[
+                {
+                  label: "PNCP",
+                  meta: "5 preços · 4 na cesta",
+                  min: 10,
+                  max: 50,
+                  median: 11.5,
+                  labels: { min: "R$ 10,00", max: "R$ 50,00", median: "R$ 11,50", cv: "96,31%" },
+                },
+                {
+                  label: "Compras.gov.br",
+                  meta: "3 preços · 2 na cesta",
+                  min: 9,
+                  max: 40,
+                  median: 13,
+                  labels: { min: "R$ 9,00", max: "R$ 40,00", median: "R$ 13,00", cv: "86,12%" },
+                },
+                { label: "Painel de Preços", meta: "1 preço · 0 na cesta", min: 21, max: 21, median: 21, labels: { min: "R$ 21,00", max: "R$ 21,00", median: "R$ 21,00" } },
               ]}
             />
           </Exemplo>
@@ -557,6 +610,9 @@ export function GaleriaIA({ tema }: { tema: string }) {
         </Exemplo>
         <Exemplo rotulo="NavigationProgress (contida)">
           <NavigationProgress embedded />
+        </Exemplo>
+        <Exemplo rotulo="PageSkeleton">
+          <PageSkeleton />
         </Exemplo>
         <Exemplo rotulo="AuthLayout (contido)">
           <Palco alto>

@@ -230,10 +230,22 @@ export type EstatisticasDoItem = {
     na_cesta: boolean;
     /** Critérios ("IQR", "MAD") pelos quais o preço fica longe da cesta. */
     fora_da_faixa: string[];
+    /** Menor ou maior de todas as coletadas. */
+    extremo: "menor" | "maior" | null;
+    /** Distância até a mediana da cesta, com sinal. */
+    sobre_a_mediana: Valor | null;
   }[];
   sem_valor: number;
   limite_dispersao: Valor;
+  /** Eixo linear de todos os gráficos do item; as marcas já vêm escritas. */
+  escala: EscalaDoGrafico | null;
+  /** Eixo ampliado na faixa central, quando um extremo achata o resto. */
+  recorte: { escala: EscalaDoGrafico; abaixo: number; acima: number } | null;
+  /** Preços da cesta por data de compra. Vazio com menos de 3 datados. */
+  tendencia: Valor[];
 };
+
+export type EscalaDoGrafico = { minimo: Valor; maximo: Valor; marcas: Valor[] };
 
 /** O módulo aparece no menu? A API decide de verdade (404 com a flag desligada). */
 export function precosHabilitado(): boolean {
