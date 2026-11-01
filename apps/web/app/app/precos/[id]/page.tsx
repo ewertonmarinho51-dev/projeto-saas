@@ -117,6 +117,7 @@ export default async function Pesquisa({
           compact
           label="Valor global"
           icon="currency-circle-dollar"
+          dense={(p.valor_global?.exibicao.length ?? 0) > 14}
           value={<span data-testid="valor-global">{p.valor_global?.exibicao ?? "Não calculado"}</span>}
           footnote={`${comPreco} de ${p.itens.length} itens com preço`}
         />

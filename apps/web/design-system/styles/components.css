@@ -343,6 +343,7 @@
 .gc-kpi--compact{padding:16px;gap:6px}
 .gc-kpi--compact{container-type:inline-size}
 .gc-kpi--compact .gc-kpi__value{font-size:clamp(var(--gc-fs-lg),13cqi,var(--gc-fs-3xl));overflow-wrap:anywhere}
+.gc-kpi--dense .gc-kpi__value{font-size:clamp(var(--gc-fs-sm),8cqi,var(--gc-fs-xl));letter-spacing:var(--gc-tracking-tight)}
 .gc-table-wrap{background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--gc-radius-lg);overflow:auto;min-width:0}
 .gc-table{width:100%;border-collapse:separate;border-spacing:0;font:400 var(--gc-fs-sm)/1.45 var(--gc-font-sans);color:var(--text-primary)}
 .gc-table th{position:sticky;top:0;z-index:1;height:40px;padding:0 12px;text-align:left;font:500 var(--gc-fs-xs)/1.2 var(--gc-font-sans);color:var(--text-secondary);background:var(--surface-sunken);border-bottom:1px solid var(--border-subtle);white-space:nowrap}

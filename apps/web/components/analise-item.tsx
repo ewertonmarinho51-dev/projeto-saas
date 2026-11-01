@@ -1,6 +1,6 @@
 import { Accordion, Alert, Card, DataTable, KpiCard, PriceCompare, PriceDispersion, type DispersionValue } from "@/design-system";
 import { rotuloMetodo } from "@/components/precos";
-import type { EscalaDoGrafico, EstatisticasDoItem, GrupoDePrecos, ResumoDaSerie } from "@/lib/api";
+import type { EscalaDoGrafico, EstatisticasDoItem, GrupoDePrecos, ResumoDaSerie, Valor } from "@/lib/api";
 
 type Ponto = EstatisticasDoItem["pontos"][number];
 
@@ -174,26 +174,30 @@ function Indicadores({ dados, metodo }: { dados: EstatisticasDoItem; metodo: str
   const noTopo = (qual: "menor" | "maior") => dados.pontos.filter((p) => p.extremo === qual && p.na_cesta)[0];
   const maior = noTopo("maior");
   const sinalDoMaior = maior?.sobre_a_mediana?.exibicao;
+  const longo = (v: Valor) => v.exibicao.length > 14;
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6" data-testid="indicadores-da-serie">
       <KpiCard compact label="Na cesta" value={cesta.quantidade} unit={`de ${coletadas.quantidade}`} footnote="preços com valor" />
       <KpiCard
         compact
+        dense={longo(cesta.menor)}
         label="Menor da cesta"
         value={cesta.menor.exibicao}
         footnote={cesta.menor.valor === coletadas.menor.valor ? noTopo("menor")?.fonte : `Coletadas: ${coletadas.menor.exibicao}`}
       />
       <KpiCard
         compact
+        dense={longo(cesta.media)}
         label="Média"
         value={cesta.media.exibicao}
         trend={dados.tendencia.length > 0 ? dados.tendencia.map((v) => Number(v.valor)) : undefined}
         footnote={dados.tendencia.length > 0 ? "preços da cesta por data de compra" : `Desvio padrão ${cesta.desvio_padrao.exibicao}`}
         {...adotado("media")}
       />
-      <KpiCard compact label="Mediana" value={cesta.mediana.exibicao} footnote="metade dos preços abaixo, metade acima" {...adotado("mediana")} />
+      <KpiCard compact dense={longo(cesta.mediana)} label="Mediana" value={cesta.mediana.exibicao} footnote="metade dos preços abaixo, metade acima" {...adotado("mediana")} />
       <KpiCard
         compact
+        dense={longo(cesta.maior)}
         label="Maior da cesta"
         value={cesta.maior.exibicao}
         delta={sinalDoMaior ? `${sinalDoMaior} sobre a mediana` : undefined}
