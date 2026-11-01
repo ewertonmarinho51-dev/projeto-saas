@@ -13,6 +13,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
+import httpx
 import jwt
 import pytest
 
@@ -244,3 +245,48 @@ def test_busca_acha_pelo_banco_e_nao_atravessa_municipio(api, pilha):
     # Sintaxe do PostgREST e curinga do LIKE na busca viram espaço.
     r = api.get("/api/v1/processos", params={"q": '%),or(id.not.is.null'}, headers=_h(a1))
     assert r.status_code == 200
+
+
+def test_lista_leve_no_postgrest_real_da_a_mesma_resposta_sem_trazer_o_texto(api, pilha):
+    """O recorte só existe no PostgREST: alias de caminho JSON e campo calculado."""
+    import psycopg
+    from psycopg.types.json import Jsonb
+
+    from govconect_api.processos import _COLUNAS_DO_RESUMO, _para_contrato
+    from src.config import CHAVE_FLUXO_MAPA
+
+    a1, b1 = pilha.contas["a1"], pilha.contas["b1"]
+    marca = f"sigiloso-{uuid.uuid4().hex[:8]}"
+    dados = {CHAVE_FLUXO_MAPA: True, "modelo_execucao": "Registro de Preços",
+             "itens": [{"descricao": marca}]}
+    documentos = {"dfd": marca, "etp": marca}
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        pid = str(c.execute(
+            "insert into public.processos (tenant_id, secretaria_id, auth_user_id, orgao, objeto, "
+            "etapa, dados, documentos, aprovados) values (%s,%s,%s,'Saúde',%s,2,%s,%s,'{dfd}') "
+            "returning id", (a1.tenant_id, a1.secretaria_id, a1.auth_user_id, marca,
+                             Jsonb(dados), Jsonb(documentos))).fetchone()[0])
+
+    leve = httpx.get(f"{pilha.url}/rest/v1/processos",
+                     params={"select": _COLUNAS_DO_RESUMO, "id": f"eq.{pid}"},
+                     headers={"apikey": pilha.anon, "Authorization": f"Bearer {a1.token}"})
+    assert leve.status_code == 200, leve.text
+    linha = leve.json()[0]
+    assert linha["documentos_gerados"] == ["dfd", "etp"]
+    assert linha["fluxo_com_mapa"] is True
+    assert linha["modelo_execucao"] == "Registro de Preços"
+    assert "dados" not in linha and "documentos" not in linha
+    assert leve.text.count(marca) == 2  # objeto e o primeiro item, nunca o texto dos documentos
+
+    inteira = httpx.get(f"{pilha.url}/rest/v1/processos",
+                        params={"select": "*", "id": f"eq.{pid}"},
+                        headers={"apikey": pilha.anon, "Authorization": f"Bearer {a1.token}"}).json()[0]
+    assert _para_contrato(linha) == _para_contrato(inteira)
+
+    # Pela API: a tela de lista e o detalhe respondem com o andamento certo.
+    r = api.get(f"/api/v1/processos?q={marca}", headers=_h(a1))
+    assert r.status_code == 200, r.text
+    assert r.json()["itens"][0]["etapa"] == _para_contrato(inteira).etapa
+    assert api.get(f"/api/v1/processos/{pid}", headers=_h(a1)).json()["progresso"] == {"feitos": 1, "total": 6}
+    # Outro município: nem a linha, nem os nomes.
+    assert api.get(f"/api/v1/processos/{pid}", headers=_h(b1)).status_code == 404
