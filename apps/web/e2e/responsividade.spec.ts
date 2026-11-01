@@ -86,12 +86,21 @@ function varrer(rolagemInterna: string) {
 
   const raiz = document.documentElement;
   if (raiz.scrollWidth > janela) {
-    // Quem alarga o documento, sem nenhum filtro: pode ser o que a varredura abaixo pula.
+    // Quem alarga o documento: o que passa da janela e tem o próprio corte. O que
+    // mora dentro de área com rolagem não conta, salvo se escapa dela por `position`.
+    const escapa = (el: Element) => {
+      const absoluto = getComputedStyle(el).position === "absolute";
+      for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+        const estilo = getComputedStyle(p);
+        if (estilo.overflowX !== "visible" && (!absoluto || estilo.position !== "static")) return false;
+      }
+      return true;
+    };
     const largos = [...document.body.querySelectorAll("*")]
-      .filter((el) => el.getBoundingClientRect().right > janela + 1)
+      .filter((el) => el.getBoundingClientRect().right > janela + 1 && escapa(el))
       .sort((a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right)
-      .slice(0, 3)
-      .map(nome);
+      .slice(0, 4)
+      .map((el) => `${nome(el)} [${getComputedStyle(el).position}, até ${Math.round(el.getBoundingClientRect().right)}]`);
     achou.push({ tipo: "rolagem-do-documento", alvo: "html", detalhe: `${raiz.scrollWidth} > ${janela}: ${largos.join(" | ")}` });
   }
   for (const conteudo of document.querySelectorAll(".gc-shell__content:not([data-palco] *)")) {
