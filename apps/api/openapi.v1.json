@@ -663,6 +663,17 @@
             "title": "Dispositivos",
             "type": "array"
           },
+          "localizacao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Localizacao"
+          },
           "source_id": {
             "title": "Source Id",
             "type": "string"
@@ -3839,6 +3850,19 @@
       "Pergunta": {
         "additionalProperties": false,
         "properties": {
+          "bloco": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bloco"
+          },
           "documento": {
             "anyOf": [
               {
@@ -4601,6 +4625,53 @@
         "title": "Pronto",
         "type": "object"
       },
+      "PropostaDeTexto": {
+        "description": "Sugestão para UM trecho. Nada foi gravado: quem decide é a pessoa.",
+        "properties": {
+          "alvo": {
+            "title": "Alvo",
+            "type": "string"
+          },
+          "antes": {
+            "title": "Antes",
+            "type": "string"
+          },
+          "documento": {
+            "title": "Documento",
+            "type": "string"
+          },
+          "fontes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fontes",
+            "type": "array"
+          },
+          "motivo": {
+            "title": "Motivo",
+            "type": "string"
+          },
+          "palavras": {
+            "title": "Palavras",
+            "type": "integer"
+          },
+          "texto": {
+            "title": "Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "documento",
+          "alvo",
+          "antes",
+          "texto",
+          "motivo",
+          "fontes",
+          "palavras"
+        ],
+        "title": "PropostaDeTexto",
+        "type": "object"
+      },
       "ProximoPasso": {
         "properties": {
           "acao": {
@@ -4715,6 +4786,16 @@
             },
             "title": "Pendencias",
             "type": "array"
+          },
+          "proposta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PropostaDeTexto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "resposta": {
             "title": "Resposta",
@@ -5222,6 +5303,36 @@
           "conteudo"
         ],
         "title": "Trecho",
+        "type": "object"
+      },
+      "TrechoDoDocumento": {
+        "properties": {
+          "clausula": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clausula"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "texto": {
+            "title": "Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "clausula",
+          "texto"
+        ],
+        "title": "TrechoDoDocumento",
         "type": "object"
       },
       "Turno": {
@@ -7779,6 +7890,60 @@
           }
         },
         "summary": "Perguntar",
+        "tags": [
+          "v1",
+          "govbot"
+        ]
+      }
+    },
+    "/api/v1/govbot/processos/{processo_id}/documentos/{documento}/trechos": {
+      "get": {
+        "description": "Parágrafos do documento, para a pessoa escolher sobre qual o GovBot propõe.",
+        "operationId": "trechos_api_v1_govbot_processos__processo_id__documentos__documento__trechos_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "documento",
+            "required": true,
+            "schema": {
+              "title": "Documento",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrechoDoDocumento"
+                  },
+                  "title": "Response Trechos Api V1 Govbot Processos  Processo Id  Documentos  Documento  Trechos Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso"
+          },
+          "422": {
+            "description": "Documento que o GovBot não edita"
+          }
+        },
+        "summary": "Trechos",
         "tags": [
           "v1",
           "govbot"

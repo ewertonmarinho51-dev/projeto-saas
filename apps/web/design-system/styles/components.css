@@ -427,6 +427,7 @@
 .gc-sources{display:grid;gap:8px}
 .gc-source{display:flex;align-items:flex-start;gap:12px;padding:12px;border:1px solid var(--border-subtle);border-radius:var(--gc-radius-md);background:var(--surface-card);text-decoration:none;color:inherit;transition:border-color var(--dur-fast)}
 a.gc-source:hover{border-color:var(--info-border);color:inherit}
+.gc-source:target{border-color:var(--accent);box-shadow:0 0 0 var(--border-width) var(--accent)}
 .gc-source__icon{width:32px;height:32px;border-radius:var(--gc-radius-sm);display:grid;place-items:center;flex-shrink:0;background:var(--accent-subtle);color:var(--accent);font-size:16px}
 .gc-source__num{font:600 11px/1 var(--gc-font-sans);color:var(--accent-strong-text)}
 .gc-source__body{flex:1;min-width:0;display:grid;gap:3px}

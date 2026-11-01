@@ -251,13 +251,30 @@ export type CitacaoDoGovBot = {
   categoria: string;
   trecho: string;
   dispositivos: string[];
+  /** Posição na referência indexada ("trecho 7"). */
+  localizacao: string | null;
 };
+
+/** Texto sugerido para um trecho. Nada foi gravado: quem decide é a pessoa. */
+export type PropostaDoGovBot = {
+  documento: string;
+  alvo: string;
+  antes: string;
+  texto: string;
+  motivo: string;
+  fontes: string[];
+  palavras: number;
+};
+
+/** Parágrafo de um documento, para escolher sobre qual o GovBot propõe. */
+export type TrechoDoDocumento = { path: string; clausula: number | null; texto: string };
 
 /** Uma resposta do GovBot (`POST /govbot/perguntas`): só leitura, com o trecho de cada fonte. */
 export type RespostaDoGovBot = {
   resposta: string;
   acao: string;
   citacoes: CitacaoDoGovBot[];
+  proposta: PropostaDoGovBot | null;
   base: "dispensada" | "recuperado" | "suficiente" | "sem_referencias" | "falha";
   ia: boolean;
   motor_falhou: boolean;

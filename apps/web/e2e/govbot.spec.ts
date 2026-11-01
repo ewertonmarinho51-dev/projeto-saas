@@ -40,6 +40,9 @@ test("perguntar ao GovBot pelo menu, receber a resposta e não abrir processo al
   await expect(page.getByText(/Há \d+ pendência\(s\) neste contexto\./)).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("Resposta da orientação do sistema, sem consulta ao motor de IA.")).toBeVisible();
   await expect(caixa).toHaveValue("");
+  // Sem endpoint de avaliação, a resposta não mostra polegares que não gravam nada.
+  await expect(page.getByRole("button", { name: "Boa resposta" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Gerar novamente" })).toBeVisible();
 
   await page.screenshot({ path: "e2e/resultados/telas/govbot-1440.png", fullPage: true });
 
