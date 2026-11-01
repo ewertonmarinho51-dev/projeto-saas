@@ -118,9 +118,15 @@ def _com_aprovacao_nativa(rest: ClienteRest, token: str, linhas: list[dict]) -> 
     if not linhas:
         return linhas
     ids = ",".join(str(l["id"]) for l in linhas)
-    r = rest.requisitar(token, "GET", "documentos_editor", params={
-        "select": "processo_id,tipo", "processo_id": f"in.({ids})",
-        "status": "in.(aprovado,emitido)", "limit": "1000"})
+    try:
+        r = rest.requisitar(token, "GET", "documentos_editor", params={
+            "select": "processo_id,tipo", "processo_id": f"in.({ids})",
+            "status": "in.(aprovado,emitido)", "limit": "1000"})
+    except ErroApi as erro:
+        # Sessão inválida segue sendo 401; só a indisponibilidade é tolerada.
+        if erro.status != 503:
+            raise
+        return linhas
     if r.status != 200 or not r.dados:
         return linhas
     por_processo: dict[str, set[str]] = {}
