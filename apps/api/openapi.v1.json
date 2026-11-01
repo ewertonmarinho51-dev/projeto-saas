@@ -1622,6 +1622,31 @@
         "title": "ErroDeArquivo",
         "type": "object"
       },
+      "EscalaDoGrafico": {
+        "description": "Eixo linear: `minimo` e `maximo` posicionam; `marcas` já vêm escritas.",
+        "properties": {
+          "marcas": {
+            "items": {
+              "$ref": "#/components/schemas/Valor"
+            },
+            "title": "Marcas",
+            "type": "array"
+          },
+          "maximo": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "minimo": {
+            "$ref": "#/components/schemas/Valor"
+          }
+        },
+        "required": [
+          "minimo",
+          "maximo",
+          "marcas"
+        ],
+        "title": "EscalaDoGrafico",
+        "type": "object"
+      },
       "Escrita": {
         "properties": {
           "status": {
@@ -1769,6 +1794,16 @@
               }
             ]
           },
+          "escala": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EscalaDoGrafico"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "limite_dispersao": {
             "$ref": "#/components/schemas/Percentual"
           },
@@ -1793,9 +1828,27 @@
             "title": "Por Uf",
             "type": "array"
           },
+          "recorte": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecorteCentral"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "sem_valor": {
             "title": "Sem Valor",
             "type": "integer"
+          },
+          "tendencia": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Valor"
+            },
+            "title": "Tendencia",
+            "type": "array"
           }
         },
         "required": [
@@ -4084,6 +4137,21 @@
       },
       "PontoDePreco": {
         "properties": {
+          "extremo": {
+            "anyOf": [
+              {
+                "enum": [
+                  "menor",
+                  "maior"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extremo"
+          },
           "fonte": {
             "title": "Fonte",
             "type": "string"
@@ -4102,6 +4170,16 @@
           "referencia_id": {
             "title": "Referencia Id",
             "type": "string"
+          },
+          "sobre_a_mediana": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Percentual"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "title": "Status",
@@ -4634,6 +4712,29 @@
           "acao"
         ],
         "title": "ProximoPasso",
+        "type": "object"
+      },
+      "RecorteCentral": {
+        "description": "Eixo ampliado na faixa central, sempre ao lado do eixo completo.",
+        "properties": {
+          "abaixo": {
+            "title": "Abaixo",
+            "type": "integer"
+          },
+          "acima": {
+            "title": "Acima",
+            "type": "integer"
+          },
+          "escala": {
+            "$ref": "#/components/schemas/EscalaDoGrafico"
+          }
+        },
+        "required": [
+          "escala",
+          "abaixo",
+          "acima"
+        ],
+        "title": "RecorteCentral",
         "type": "object"
       },
       "ReferenciaExcluida": {

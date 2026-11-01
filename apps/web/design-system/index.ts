@@ -92,7 +92,14 @@ export { SourceList, type SourceItem, type SourceListProps } from "./components/
 // price (pesquisa de preços)
 export { ExclusionDialog, type ExclusionDialogProps } from "./components/price/ExclusionDialog";
 export { PriceBasket, type PriceBasketItem, type PriceBasketProps } from "./components/price/PriceBasket";
-export { PriceDispersion, type DispersionLabels, type DispersionValue, type PriceDispersionProps } from "./components/price/PriceDispersion";
+export { PriceCompare, type PriceCompareProps, type PriceCompareRow } from "./components/price/PriceCompare";
+export {
+  PriceDispersion,
+  type DispersionLabels,
+  type DispersionScale,
+  type DispersionValue,
+  type PriceDispersionProps,
+} from "./components/price/PriceDispersion";
 export { PriceItemNav, type PriceItem, type PriceItemNavProps } from "./components/price/PriceItemNav";
 export { PriceMapTable, type PriceMapRow, type PriceMapTableProps } from "./components/price/PriceMapTable";
 export { PriceReferenceRow, type PriceReferenceRowProps, type ReferenceStatus } from "./components/price/PriceReferenceRow";
