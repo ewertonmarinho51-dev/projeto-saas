@@ -180,6 +180,9 @@ SEQUENCIA_EM_ENSAIO = (
     # A 0038 confere o RLS das tabelas da Base e `anon` sem acesso, o que só
     # vale depois da 0019/0020, e as RPCs documentais, que vêm das datadas.
     "0038_busca_rag_para_authenticated.sql",
+    # A 0039 confere o RLS de `api_jobs` e `anon` sem acesso, o que só vale
+    # depois das migrações de contenção.
+    "0039_api_jobs_elaboracao.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

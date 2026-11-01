@@ -53,7 +53,7 @@ from __future__ import annotations
 import hashlib
 import logging
 
-import streamlit as st
+from .streamlit_opcional import st
 
 from . import db
 

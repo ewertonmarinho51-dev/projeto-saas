@@ -113,6 +113,29 @@ também largar os 720/800 px.
    Rollback: `GOVCONECT_WORDCRAFT_WORKSPACE` vazio (rota some) ou imagem
    anterior por SHA. O editor do Streamlit continua até o corte.
 
+## Elaboração automática
+
+`GET`/`POST /processos/{id}/elaboracao` (`apps/api/govconect_api/elaboracao.py`,
+domínio em `src/elaboracao.py`, migração 0039). A sequência é a jornada da
+página do processo: criar, preencher o Formulário Matriz, iniciar a elaboração,
+acompanhar, revisar no WordCraft, aprovar e seguir ao próximo documento.
+
+- O `POST` confere o próximo documento, monta o contexto só com o que já foi
+  aprovado e grava o job. Quem gera é o worker, com `llm.gerar_documento`; edital
+  e Ata continuam vindo do catálogo, sem IA.
+- O texto gerado vai para `processos.documentos` com o token do dono e CAS em
+  `atualizado_em`. A primeira abertura no editor importa esse texto como revisão
+  1, e nada aprova sozinho. O worker não tem a credencial documental nem o motor.
+- Vale a mesma trava do editor: fora do canário a rota não existe e a página
+  mostra só o resumo.
+- Nada guarda estado na sessão: recarregar lê processo, cabeças nativas e job.
+  Job sem atualização há 30 min é encerrado como `ABANDONED`, e dois cliques
+  recebem o mesmo job (índice da 0039).
+
+Limites: documento com cabeça nativa não é gerado de novo, porque a importação
+acontece uma vez; corrige-se no editor. Mudar o Formulário Matriz descarta o
+texto legado, mas não toca a cabeça nativa, que precisa ser revista à mão.
+
 ## Limites conhecidos
 
 - Sessão do editor em memória do processo da API (1 worker). Reinício da

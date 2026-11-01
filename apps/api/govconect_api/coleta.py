@@ -107,7 +107,7 @@ def job_do_banco(linha: dict) -> Job:
 
 _CAMPOS_DO_RESULTADO = {"nome": str, "mimetype": str, "tamanho": int, "sha256": str,
                         "hash_decisorio": str, "registrado": bool, "expira_em": str,
-                        "mensagem": str}
+                        "mensagem": str, "documento": str, "bloqueios": int, "avisos": int}
 
 
 def _resultado_exibivel(bruto) -> dict:
