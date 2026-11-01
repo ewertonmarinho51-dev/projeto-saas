@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { ElaboracaoAutomatica } from "@/components/elaboracao-automatica";
 import { FormularioDeProcesso } from "@/components/form-processo";
 import { situacaoDoProcesso } from "@/components/situacao";
-import { Alert, Badge, Button, Card, DataList, PageHead, ProgressBar, StatusBadge } from "@/design-system";
-import {
-  chamarApi,
-  documentosDoProcesso,
-  ErroDaApi,
-  type DocumentosDoProcesso,
-  type Modulos,
-  type Processo,
-} from "@/lib/api";
+import { Alert, Button, Card, DataList, PageHead, ProgressBar, StatusBadge } from "@/design-system";
+import { chamarApi, elaboracaoDoProcesso, ErroDaApi, type Elaboracao, type Modulos, type Processo } from "@/lib/api";
 
 import { editarProcesso } from "../acoes";
 
@@ -32,14 +26,14 @@ export default async function DetalheDoProcesso({
 
   let p: Processo;
   let modulos: Modulos = { consolidar_demandas: false };
-  let documentos: DocumentosDoProcesso | null = null;
+  let elaboracao: Elaboracao | null = null;
   try {
-    [p, modulos, documentos] = await Promise.all([
+    [p, modulos, elaboracao] = await Promise.all([
       chamarApi<Processo>(`/processos/${id}`).then((r) => r.dados),
       // Módulos opcionais: falha aqui não derruba a página, só some o atalho.
       chamarApi<Modulos>("/modulos").then((r) => r.dados).catch(() => modulos),
-      // Editor de documentos (WordCraft Workspace): só com o canário ligado para quem chama.
-      documentosDoProcesso(id).catch(() => null),
+      // Elaboração e revisão (WordCraft Workspace): só com o canário ligado para quem chama.
+      elaboracaoDoProcesso(id).catch(() => null),
     ]);
   } catch (e) {
     // 404 também para processo de outro município: não confirma que existe.
@@ -52,101 +46,99 @@ export default async function DetalheDoProcesso({
     : avisos.salvo
       ? "Alterações salvas."
       : avisos.iniciado
-        ? "Dados da demanda completos. A geração dos documentos ainda é feita no GovDocs, até a próxima etapa da migração."
+        ? elaboracao
+          ? "Dados da demanda completos. Inicie a elaboração automática."
+          : "Dados da demanda completos. A geração dos documentos ainda é feita no GovDocs, até a próxima etapa da migração."
         : null;
+  const editando = avisos.editar === "1";
 
   return (
     <>
       <PageHead
-        eyebrow={<StatusBadge status={situacaoDoProcesso(p.status)} label={p.status} />}
+        eyebrow={
+          <span className="justify-self-start">
+            <StatusBadge status={situacaoDoProcesso(p.status)} label={p.status} />
+          </span>
+        }
         title={<span data-testid="titulo-processo">{p.nome_exibido}</span>}
         desc={`Atualizado em ${p.atualizado_em ? DATA.format(new Date(p.atualizado_em)) : "data indisponível"}.`}
       />
 
       {aviso && <Alert variant="success" title={aviso} />}
 
-      <Card>
-        <DataList
-          stacked
-          items={[
-            { label: "Situação", value: p.status },
-            { label: "Etapa", value: p.etapa },
-            {
-              label: "Documentos aprovados",
-              value: (
-                <ProgressBar
-                  size="sm"
-                  value={p.progresso.feitos}
-                  max={Math.max(p.progresso.total, 1)}
-                  showValue={false}
-                  hint={`${p.progresso.feitos} de ${p.progresso.total}`}
-                />
-              ),
-            },
-          ]}
-        />
-      </Card>
-
-      <Card
-        title="Dados da demanda"
-        subtitle="Formulário Matriz: objeto, justificativa, planilha de itens e o restante que os documentos usam."
-        actions={
-          <>
-            {modulos.consolidar_demandas && (
-              <Button href={`/app/processos/${p.id}/demandas`} variant="secondary" icon="tray">
-                Consolidar demandas
-              </Button>
-            )}
-            <Button href={`/app/processos/${p.id}/formulario`} icon="pencil-simple">
-              Preencher dados da demanda
-            </Button>
-          </>
-        }
-      />
-
-      {documentos && documentos.documentos.length > 0 && (
-        <Card title="Documentos" subtitle="Edite em tela ampla no editor nativo; o salvamento é confirmado pelo servidor." divided>
-          <ul className="grid gap-3" data-testid="documentos-do-processo">
-            {documentos.documentos.map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center justify-between gap-3">
-                <span className="grid gap-0.5">
-                  <span className="font-medium">{d.rotulo}</span>
-                  <span className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                    {d.nativo ? (
-                      <>
-                        <Badge size="sm" variant={d.status === "aprovado" ? "success" : "neutral"}>
-                          {d.status === "aprovado" ? "Aprovado" : d.status === "emitido" ? "Emitido" : "Rascunho"}
-                        </Badge>
-                        Revisão {d.revisao}
-                      </>
-                    ) : (
-                      "Gerado no GovDocs; ainda não aberto no editor"
-                    )}
-                  </span>
-                </span>
-                {/* Sem revisão nativa, abrir importa o texto do GovDocs: é gravação.
-                    Página inteira: o WebAssembly do motor depende da CSP da rota do
-                    editor, e a navegação interna manteria a CSP desta página. */}
-                {(d.nativo || documentos.escrita) && (
-                  <Button size="sm" variant="secondary" icon="pencil-simple" reloadDocument href={`/app/processos/${p.id}/documentos/${d.id}/editar`}>
-                    Abrir no editor
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
+      {elaboracao ? (
+        <ElaboracaoAutomatica processoId={p.id} inicial={elaboracao} />
+      ) : (
+        <Card>
+          <DataList
+            stacked
+            items={[
+              { label: "Situação", value: p.status },
+              { label: "Etapa", value: p.etapa },
+              {
+                label: "Documentos aprovados",
+                value: (
+                  <ProgressBar
+                    size="sm"
+                    value={p.progresso.feitos}
+                    max={Math.max(p.progresso.total, 1)}
+                    showValue={false}
+                    hint={`${p.progresso.feitos} de ${p.progresso.total}`}
+                  />
+                ),
+              },
+            ]}
+          />
         </Card>
       )}
 
-      <Card title="Dados do processo" divided>
-        <div className="max-w-xl">
-          <FormularioDeProcesso
-            acao={editarProcesso}
-            rotuloDoBotao="Salvar alterações"
-            ocultos={{ id: p.id, versao: p.versao }}
-            inicial={{ nome: p.nome, orgao: p.orgao, objeto: p.objeto }}
+      <Card
+        title="Dados do processo"
+        subtitle={editando ? undefined : "Nome, órgão e objeto. O Formulário Matriz traz o restante que os documentos usam."}
+        divided
+        actions={
+          editando ? (
+            <Button href={`/app/processos/${p.id}`} variant="subtle">
+              Cancelar
+            </Button>
+          ) : (
+            <>
+              {modulos.consolidar_demandas && (
+                <Button href={`/app/processos/${p.id}/demandas`} variant="secondary" icon="tray">
+                  Consolidar demandas
+                </Button>
+              )}
+              {/* Com a elaboração, faltar dado já é a próxima ação lá em cima. */}
+              {elaboracao?.proximo.acao !== "formulario" && (
+                <Button href={`/app/processos/${p.id}/formulario`} variant={elaboracao ? "secondary" : "primary"} icon="file-text">
+                  {elaboracao ? "Dados da demanda" : "Preencher dados da demanda"}
+                </Button>
+              )}
+              <Button href={`/app/processos/${p.id}?editar=1`} variant="secondary" icon="pencil-simple">
+                Editar dados do processo
+              </Button>
+            </>
+          )
+        }
+      >
+        {editando ? (
+          <div className="max-w-xl">
+            <FormularioDeProcesso
+              acao={editarProcesso}
+              rotuloDoBotao="Salvar alterações"
+              ocultos={{ id: p.id, versao: p.versao }}
+              inicial={{ nome: p.nome, orgao: p.orgao, objeto: p.objeto }}
+            />
+          </div>
+        ) : (
+          <DataList
+            items={[
+              ...(p.nome ? [{ label: "Nome", value: p.nome }] : []),
+              { label: "Órgão ou secretaria", value: p.orgao },
+              { label: "Objeto da contratação", value: p.objeto },
+            ]}
           />
-        </div>
+        )}
       </Card>
     </>
   );

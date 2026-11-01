@@ -107,7 +107,7 @@ def job_do_banco(linha: dict) -> Job:
 
 _CAMPOS_DO_RESULTADO = {"nome": str, "mimetype": str, "tamanho": int, "sha256": str,
                         "hash_decisorio": str, "registrado": bool, "expira_em": str,
-                        "mensagem": str}
+                        "mensagem": str, "documento": str, "bloqueios": int, "avisos": int}
 
 
 def _resultado_exibivel(bruto) -> dict:
@@ -120,6 +120,9 @@ def _resultado_exibivel(bruto) -> dict:
         valor = bruto.get(chave)
         if isinstance(valor, tipo) and not (tipo is int and isinstance(valor, bool)):
             saida[chave] = valor[:500] if isinstance(valor, str) else valor
+    pendencias = bruto.get("pendencias")
+    if isinstance(pendencias, list):
+        saida["pendencias"] = [p[:200] for p in pendencias[:20] if isinstance(p, str)]
     return saida
 
 

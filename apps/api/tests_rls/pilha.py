@@ -79,6 +79,9 @@ CONTAS = (
     ("editor_b", "B", "B1", "usuario", True),
     # Só da medição de navegação (desempenho.spec.ts), idem: admin, menu inteiro.
     ("admin_desempenho", "A", "A1", "admin", True),
+    # Só do E2E da elaboração automática (elaboracao.spec.ts), no canário do
+    # tenant A: o limite de 5 entradas por e-mail também vale aqui.
+    ("elaborador_a", "A", "A1", "usuario", True),
     ("b1", "B", "B1", "usuario", True),
     ("a1_revogado", "A", "A1", "usuario", False),
     # Só do E2E de sessão (sessao.spec.ts): login e saída repetidos estourariam
@@ -489,6 +492,30 @@ def semear_editor(pilha: Pilha, dono: str = "editor_a") -> dict:
             "dfd": str(uuid.uuid5(uuid.NAMESPACE_URL, f"govconnect-document:{processo}:dfd"))}
 
 
+def semear_elaboracao(pilha: Pilha, dono: str = "elaborador_a") -> dict:
+    """Dois processos com o Formulário Matriz completo e nenhum documento. O
+    objeto do segundo faz o motor falso recusar a primeira chamada."""
+    import psycopg
+    from psycopg.types.json import Jsonb
+
+    conta = pilha.contas[dono]
+
+    def inserir(c, objeto: str) -> str:
+        dados = {"orgao": "Secretaria de Administração", "objeto": objeto,
+                 "justificativa": "Reposição do estoque das unidades administrativas.",
+                 "modelo_execucao": "Compra direta com entrega única",
+                 "itens": [{"descricao": "Papel A4", "unidade": "resma", "quantidade": 10, "valor_unitario": 30}]}
+        return str(c.execute(
+            "insert into public.processos (tenant_id, secretaria_id, auth_user_id, orgao, objeto, "
+            "etapa, dados, documentos, aprovados) values (%s,%s,%s,%s,%s,1,%s,'{}','{}') returning id",
+            (conta.tenant_id, conta.secretaria_id, conta.auth_user_id, dados["orgao"], objeto,
+             Jsonb(dados))).fetchone()[0])
+
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        return {"pronto": inserir(c, "Papel A4 para as unidades administrativas"),
+                "falha": inserir(c, "Papel A4 FALHA-MOTOR-E2E")}
+
+
 def principal() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--estado", required=True, type=Path,
@@ -511,6 +538,7 @@ def principal() -> int:
                   "aplicacao": semear_aplicacao(pilha, dono="admin_a"),
                   "demandas": gravar_demandas_e2e(args.estado.parent),
                   "editor": semear_editor(pilha),
+                  "elaboracao": semear_elaboracao(pilha),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
         temporario = args.estado.with_suffix(".tmp")

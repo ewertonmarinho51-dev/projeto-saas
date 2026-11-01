@@ -97,9 +97,14 @@ test("criar, reabrir, editar e conflito de versão", async ({ browser }) => {
   await capturar(page, "processo");
 
   // Duas abas na versão atual; a segunda salva primeiro.
+  // O formulário só aparece quando pedido; o normal é o resumo.
+  await expect(page.getByLabel("Objeto da contratação")).toHaveCount(0);
+  await page.getByRole("link", { name: "Editar dados do processo" }).click();
+  await expect(page.getByLabel("Objeto da contratação")).toBeVisible();
+  const urlDeEdicao = page.url();
   const aba2 = await contexto.newPage();
-  await aba2.goto(urlDoProcesso);
-  await page.goto(urlDoProcesso);
+  await aba2.goto(urlDeEdicao);
+  await page.goto(urlDeEdicao);
   await aba2.getByLabel("Objeto da contratação").fill(`${objeto} (revisado)`);
   await aba2.getByRole("button", { name: "Salvar alterações" }).click();
   await expect(aba2.getByText("Alterações salvas.")).toBeVisible();
@@ -111,7 +116,7 @@ test("criar, reabrir, editar e conflito de versão", async ({ browser }) => {
   // Reabrir em sessão nova traz o que foi salvo, não o rascunho perdido.
   await page.goto("/app");
   await capturar(page, "app");
-  await page.goto(urlDoProcesso);
+  await page.goto(urlDeEdicao);
   await expect(page.getByLabel("Objeto da contratação")).toHaveValue(`${objeto} (revisado)`);
 
   // Outro município não vê pelo id.

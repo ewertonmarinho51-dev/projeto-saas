@@ -284,6 +284,10 @@ export type Job = {
     expira_em?: string;
     registrado?: boolean;
     mensagem?: string;
+    // Elaboração automática: o documento do job e o que a revisão automática achou.
+    documento?: string;
+    bloqueios?: number;
+    avisos?: number;
   };
 };
 
@@ -683,6 +687,40 @@ export type FatosDoProcesso = {
   invalidos: number;
   pronto: boolean;
 };
+
+export type SituacaoDoDocumento = "pendente" | "gerado" | "em_revisao" | "aprovado" | "emitido";
+
+export type DocumentoDaElaboracao = {
+  id: string;
+  tipo: string;
+  sigla: string;
+  rotulo: string;
+  situacao: SituacaoDoDocumento;
+  revisao: number | null;
+};
+
+/** Em que pé está cada documento e o que fazer agora. Decidido na API, a cada leitura. */
+export type Elaboracao = {
+  processo_id: string;
+  escrita: boolean;
+  faltantes: string[];
+  documentos: DocumentoDaElaboracao[];
+  proximo: { acao: "formulario" | "elaborar" | "revisar" | "concluido"; tipo: string | null; sigla: string | null };
+  job: Job | null;
+  // O que impede aprovar o texto gerado. Só até a primeira edição salva.
+  bloqueios: number;
+  pendencias: string[];
+};
+
+/** Sem o editor ligado para quem chama, não há onde revisar: `null`, e a tela segue sem a elaboração. */
+export async function elaboracaoDoProcesso(processoId: string): Promise<Elaboracao | null> {
+  try {
+    return (await chamarApi<Elaboracao>(`/processos/${processoId}/elaboracao`)).dados;
+  } catch (e) {
+    if (e instanceof ErroDaApi && e.status === 404 && e.codigo === "MODULE_UNAVAILABLE") return null;
+    throw e;
+  }
+}
 
 /** Documentos que o editor abre, ou `null` quando o editor não está ligado para quem chama. */
 export async function documentosDoProcesso(processoId: string): Promise<DocumentosDoProcesso | null> {

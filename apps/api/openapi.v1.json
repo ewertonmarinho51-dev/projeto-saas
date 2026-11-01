@@ -1044,6 +1044,50 @@
         "title": "DocumentoConferido",
         "type": "object"
       },
+      "DocumentoDaElaboracao": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "revisao": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revisao"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          },
+          "sigla": {
+            "title": "Sigla",
+            "type": "string"
+          },
+          "situacao": {
+            "title": "Situacao",
+            "type": "string"
+          },
+          "tipo": {
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tipo",
+          "sigla",
+          "rotulo",
+          "situacao"
+        ],
+        "title": "DocumentoDaElaboracao",
+        "type": "object"
+      },
       "DocumentoDescartado": {
         "properties": {
           "chave": {
@@ -1397,6 +1441,67 @@
           }
         },
         "title": "EdicaoDeServidor",
+        "type": "object"
+      },
+      "Elaboracao": {
+        "properties": {
+          "bloqueios": {
+            "default": 0,
+            "title": "Bloqueios",
+            "type": "integer"
+          },
+          "documentos": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentoDaElaboracao"
+            },
+            "title": "Documentos",
+            "type": "array"
+          },
+          "escrita": {
+            "title": "Escrita",
+            "type": "boolean"
+          },
+          "faltantes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Faltantes",
+            "type": "array"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Job"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pendencias": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Pendencias",
+            "type": "array"
+          },
+          "processo_id": {
+            "title": "Processo Id",
+            "type": "string"
+          },
+          "proximo": {
+            "$ref": "#/components/schemas/ProximoPasso"
+          }
+        },
+        "required": [
+          "processo_id",
+          "escrita",
+          "faltantes",
+          "documentos",
+          "proximo"
+        ],
+        "title": "Elaboracao",
         "type": "object"
       },
       "EmissaoOficial": {
@@ -3580,6 +3685,25 @@
         "title": "PedidoDeConsolidacao",
         "type": "object"
       },
+      "PedidoDeElaboracao": {
+        "additionalProperties": false,
+        "properties": {
+          "tipo": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,31}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo"
+          }
+        },
+        "title": "PedidoDeElaboracao",
+        "type": "object"
+      },
       "PedidoDeRelatorio": {
         "additionalProperties": false,
         "properties": {
@@ -4475,6 +4599,41 @@
           "checks"
         ],
         "title": "Pronto",
+        "type": "object"
+      },
+      "ProximoPasso": {
+        "properties": {
+          "acao": {
+            "title": "Acao",
+            "type": "string"
+          },
+          "sigla": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sigla"
+          },
+          "tipo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo"
+          }
+        },
+        "required": [
+          "acao"
+        ],
+        "title": "ProximoPasso",
         "type": "object"
       },
       "ReferenciaExcluida": {
@@ -10275,6 +10434,130 @@
         "tags": [
           "v1",
           "documentos"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/elaboracao": {
+      "get": {
+        "description": "Em que pé está cada documento, e o que fazer agora.",
+        "operationId": "consultar_api_v1_processos__processo_id__elaboracao_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Elaboracao"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso ou editor desligado"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consultar",
+        "tags": [
+          "v1",
+          "elaboracao"
+        ]
+      },
+      "post": {
+        "description": "Põe na fila o próximo documento. Quem escolhe qual é o servidor.",
+        "operationId": "iniciar_api_v1_processos__processo_id__elaboracao_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeElaboracao"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Já havia elaboração em curso: é o mesmo job"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o titular do processo ou um administrador"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso ou editor desligado"
+          },
+          "409": {
+            "description": "Não há documento a elaborar agora, ou o próximo mudou"
+          },
+          "422": {
+            "description": "Faltam dados obrigatórios do formulário"
+          },
+          "503": {
+            "description": "Fila indisponível"
+          }
+        },
+        "summary": "Iniciar",
+        "tags": [
+          "v1",
+          "elaboracao"
         ]
       }
     },
