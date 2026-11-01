@@ -1,6 +1,8 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { distribuirLinhas } from "../design-system/components/price/PriceDispersion";
+import { distribuirLinhas, PriceDispersion } from "../design-system/components/price/PriceDispersion";
 
 const VIZINHANCA = 16;
 const MAX_LADO = 5;
@@ -48,5 +50,25 @@ describe("empilhamento do gráfico de dispersão", () => {
     expect(posicoes).toEqual(copia);
     expect(Math.max(...estreita.map(Math.abs))).toBeGreaterThan(0);
     expect(larga).toEqual([0, 0, 0, 0, 0]);
+  });
+});
+
+describe("pontas do gráfico de dispersão", () => {
+  const scale = { min: 18, max: 26, ticks: [18, 22, 26].map((v) => ({ value: v, label: `R$ ${v},00` })) };
+  const values = [{ value: 20, display: "R$ 20,00" }];
+
+  it("limite do eixo ampliado não vira menor nem maior preço", () => {
+    const html = renderToStaticMarkup(createElement(PriceDispersion, { values, scale }));
+    expect(html).not.toContain("gc-disp__scale");
+    expect(html).not.toMatch(/Menor|Maior/);
+    expect(html).toContain("R$ 26,00");
+  });
+
+  it("extremo informado pelo servidor continua nomeado", () => {
+    const html = renderToStaticMarkup(
+      createElement(PriceDispersion, { values, scale, labels: { scale: ["R$ 4,60 · PNCP", "R$ 371,00 · PNCP"] } }),
+    );
+    expect(html).toContain("Menor R$ 4,60 · PNCP");
+    expect(html).toContain("Maior R$ 371,00 · PNCP");
   });
 });
