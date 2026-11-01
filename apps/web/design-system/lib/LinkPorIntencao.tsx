@@ -5,11 +5,11 @@ import { useState, type ComponentProps } from "react";
 
 /**
  * Link que só faz prefetch quando a pessoa mostra que vai clicar (ponteiro em
- * cima ou foco), nunca por aparecer na tela. O padrão do Next dispararia um
+ * cima, foco ou toque), nunca por aparecer na tela. O padrão do Next dispararia um
  * pedido por link visível: uma lista de 20 processos mais o menu viraria 30
  * pedidos autenticados por tela, na VPS de 1 vCPU.
  */
-export function LinkPorIntencao({ onMouseEnter, onFocus, ...props }: ComponentProps<typeof Link>) {
+export function LinkPorIntencao({ onMouseEnter, onFocus, onTouchStart, ...props }: ComponentProps<typeof Link>) {
   const [intencao, setIntencao] = useState(false);
   return (
     <Link
@@ -22,6 +22,10 @@ export function LinkPorIntencao({ onMouseEnter, onFocus, ...props }: ComponentPr
       onFocus={(e) => {
         setIntencao(true);
         onFocus?.(e);
+      }}
+      onTouchStart={(e) => {
+        setIntencao(true);
+        onTouchStart?.(e);
       }}
     />
   );
