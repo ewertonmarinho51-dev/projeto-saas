@@ -53,7 +53,11 @@ export default async function DetalheDoProcesso({
   return (
     <>
       <PageHead
-        eyebrow={<StatusBadge status={situacaoDoProcesso(p.status)} label={p.status} />}
+        eyebrow={
+          <span className="justify-self-start">
+            <StatusBadge status={situacaoDoProcesso(p.status)} label={p.status} />
+          </span>
+        }
         title={<span data-testid="titulo-processo">{p.nome_exibido}</span>}
         desc={`Atualizado em ${p.atualizado_em ? DATA.format(new Date(p.atualizado_em)) : "data indisponível"}.`}
       />
