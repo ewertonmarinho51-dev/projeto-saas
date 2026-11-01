@@ -11,6 +11,8 @@ export interface SourceItem {
   /** Número da citação — substitui o ícone. */
   n?: number;
   href?: string;
+  /** Âncora do item: é para onde a citação em linha (`Cite`) aponta. */
+  id?: string;
   badge?: ReactNode;
 }
 
@@ -42,11 +44,11 @@ export function SourceList({ items, compact = false }: SourceListProps) {
           </>
         );
         return s.href ? (
-          <a key={i} className="gc-source" href={s.href} target="_blank" rel="noreferrer">
+          <a key={i} id={s.id} className="gc-source" href={s.href} target="_blank" rel="noreferrer">
             {miolo}
           </a>
         ) : (
-          <div key={i} className="gc-source">
+          <div key={i} id={s.id} className="gc-source">
             {miolo}
           </div>
         );
