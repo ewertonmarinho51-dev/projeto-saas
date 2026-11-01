@@ -92,7 +92,9 @@ test("iniciar, acompanhar, recarregar no meio e receber o documento", async ({ p
 
 test("GovBot propõe redação para um trecho e nada é gravado sem a pessoa", async ({ page }) => {
   await entrar(page);
-  await page.goto(`/app/govbot?processo=${estado.elaboracao.pronto}`);
+  await page.goto(`/app/processos/${estado.elaboracao.pronto}`);
+  await page.getByRole("link", { name: "Perguntar ao GovBot" }).click();
+  await expect(page).toHaveURL(/\/app\/govbot\?processo=/);
   await page.getByText("Trabalhar em um trecho do documento").click();
   await page.getByLabel("Documento").selectOption("dfd");
   const trecho = page.getByLabel("Trecho");
