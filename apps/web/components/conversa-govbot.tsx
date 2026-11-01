@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { lerTrechos, perguntarAoGovBot, type Turno } from "@/app/app/govbot/acoes";
 import {
@@ -152,6 +152,12 @@ export function ConversaDoGovBot({
   const [documento, setDocumento] = useState("");
   const [trechos, setTrechos] = useState<TrechoDoDocumento[] | null>(null);
   const [bloco, setBloco] = useState("");
+  const ultimaMensagem = useRef<HTMLDivElement>(null);
+
+  // A resposta nova abre pelo começo: uma proposta longa não pode nascer cortada.
+  useEffect(() => {
+    ultimaMensagem.current?.scrollIntoView({ block: "start" });
+  }, [mensagens.length, ocupado]);
 
   useEffect(() => {
     if (!processo || !documento) return;
@@ -235,6 +241,7 @@ export function ConversaDoGovBot({
   });
 
   const ultima = mensagens.reduce((fim, m, i) => (m.papel === "assistant" ? i : fim), -1);
+  const perguntas = mensagens.filter((m) => m.papel === "user").length;
 
   const painelDeFontes = (
     <>
@@ -255,19 +262,26 @@ export function ConversaDoGovBot({
     <div className="grid h-[calc(100dvh-var(--topbar-height))] min-h-0 xl:grid-cols-[minmax(0,1fr)_calc(var(--space-16)*5.25)]">
       <section className="flex min-h-0 min-w-0 flex-col" aria-label="Conversa com o GovBot">
         <div className="grid gap-3 border-b border-linha bg-superficie px-[var(--page-padding-x)] py-4">
+          {/* Com a conversa em curso, o espaço é das mensagens. */}
           <PageHead
             title="GovBot"
-            desc="Pergunte sobre o processo e a legislação. Cada resposta indica as fontes da Base de Conhecimento que a sustentam."
+            desc={
+              mensagens.length === 0
+                ? "Pergunte sobre o processo e a legislação. Cada resposta indica as fontes da Base de Conhecimento que a sustentam."
+                : undefined
+            }
           />
           <ContextBar items={contexto} />
           {processo && (
+            // A chave recolhe a escolha ao perguntar; o trecho segue na barra de contexto.
             <Accordion
+              key={perguntas}
               items={[
                 {
                   title: "Trabalhar em um trecho do documento",
                   meta: trechoEscolhido ? "1 trecho" : undefined,
                   content: (
-                    <div className="grid gap-3 md:grid-cols-[minmax(0,calc(var(--space-16)*3))_minmax(0,1fr)]">
+                    <div className="grid items-start gap-3 md:grid-cols-[minmax(0,calc(var(--space-16)*3))_minmax(0,1fr)]">
                       <Field label="Documento" htmlFor="govbot-documento">
                         <Select
                           id="govbot-documento"
@@ -317,14 +331,14 @@ export function ConversaDoGovBot({
             </div>
           ) : (
             <div className="grid gap-4" aria-live="polite">
-              {mensagens.map((m, i) =>
-                m.papel === "user" ? (
-                  <ChatMessage key={i} role="user" name="Você">
+              {mensagens.map((m, i) => (
+                <div key={i} ref={i === mensagens.length - 1 ? ultimaMensagem : undefined} className="min-w-0">
+                {m.papel === "user" ? (
+                  <ChatMessage role="user" name="Você">
                     <p>{m.texto}</p>
                   </ChatMessage>
                 ) : (
                   <ChatMessage
-                    key={i}
                     time={m.hora}
                     notice={aviso(m.dados)}
                     sources={
@@ -362,8 +376,9 @@ export function ConversaDoGovBot({
                       </div>
                     )}
                   </ChatMessage>
-                ),
-              )}
+                )}
+                </div>
+              ))}
               {ocupado && <ChatMessage loading />}
             </div>
           )}

@@ -107,6 +107,8 @@ test("GovBot propõe redação para um trecho e nada é gravado sem a pessoa", a
 
   const proposta = page.locator(".gc-draft");
   await expect(proposta).toContainText("Redação proposta pelo motor falso.", { timeout: 30_000 });
+  // A resposta aparece sem a pessoa rolar: o cabeçalho encolhe e a conversa desce até ela.
+  await expect(proposta).toBeInViewport();
   await expect(proposta).toContainText("DFD · Cláusula 1");
   await expect(proposta).toContainText("Aguardando revisão");
   // Sem as RPCs de patch na API, não existe botão de inserir: nada de simular.
@@ -129,6 +131,8 @@ test("GovBot propõe redação para um trecho e nada é gravado sem a pessoa", a
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(proposta).toBeVisible();
+  // A gaveta do menu ainda desliza depois de a janela encolher.
+  await expect(page.getByRole("navigation", { name: "Navegação principal" })).not.toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: `${PASTA}/govbot-proposta-390.png`, fullPage: true });
 
@@ -137,6 +141,7 @@ test("GovBot propõe redação para um trecho e nada é gravado sem a pessoa", a
   await page.reload();
   await page.getByText("Trabalhar em um trecho do documento").click();
   await page.getByLabel("Documento").selectOption("dfd");
+  await expect(page.getByLabel("Trecho")).toBeEnabled();
   await expect(page.getByLabel("Trecho").locator("option", { hasText: "Texto redigido pelo motor falso do E2E." })).toHaveCount(1);
   await expect(page.locator(".gc-draft")).toHaveCount(0);
 });
