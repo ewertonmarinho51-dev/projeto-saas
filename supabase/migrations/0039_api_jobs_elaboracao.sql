@@ -1,6 +1,25 @@
 -- ## 0039 — Jobs da API: elaboração automática de documentos
--- ## ESTADO: aplicável; AINDA NÃO aplicada em produção.
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 01/11/2026 como
+-- ##   `m0039_api_jobs_elaboracao` (registro 20261101152437), depois do ensaio
+-- ##   no projeto descartável `govdocs-ensaio-descartavel` no mesmo dia.
 -- ##   Só a API nova e o worker usam a tabela; o Streamlit não a conhece.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (01/11/2026, catálogo, só SELECT):
+--   * ANTES: 48 tabelas; `api_jobs` com 2 linhas, nenhuma ativa; tipos
+--     `coleta_precos` e `relatorio_precos`; processos 8; última migração
+--     20261031142917;
+--   * aplicação: conferência interna aprovada (nenhuma exceção);
+--   * DEPOIS: 48 tabelas; `api_jobs` com 2 linhas e processos 8 (inalterados);
+--     tipo novo no check; índice único parcial criado; RLS ligada e forçada,
+--     3 políticas; grants iguais aos de antes (authenticated INSERT/SELECT/
+--     UPDATE, service_role sem DELETE e TRUNCATE, anon nenhum);
+--   * comportamento NÃO exercido em produção: foi provado no PostgreSQL do
+--     CI (tests/test_migracao_0039.py) e na pilha real do E2E.
+--
+-- REGISTRO DO ENSAIO (01/11/2026):
+--   * nível 1: PostgreSQL do CI, tests/test_migracao_0039.py verde;
+--   * nível 2, descartável: 48 tabelas, índice criado, RLS forçada, 3
+--     políticas, grants iguais aos de produção; conferência interna aprovada.
 --
 -- O QUE FAZ
 --   * `api_jobs.tipo` passa a aceitar `elaboracao_documento`, além de
