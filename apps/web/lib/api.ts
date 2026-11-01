@@ -164,6 +164,8 @@ export type AlertaDePreco = {
 };
 
 export type PesquisaDePrecos = ResumoPesquisa & {
+  /** Soma dos totais estimados. `valor_global` só existe depois de aplicar ao processo. */
+  soma_dos_itens: Valor | null;
   data_base: string | null;
   responsavel: string;
   local_referencia: string;
