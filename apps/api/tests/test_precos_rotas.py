@@ -147,3 +147,29 @@ def test_float_no_caminho_do_dinheiro_falha_alto():
 
     with pytest.raises(TypeError):
         valor_monetario(0.1)
+
+
+def _pesquisa_com_totais(banco, *totais):
+    banco.respostas[("GET", "pesquisas_preco")] = [_bruto(
+        '[{"id": "%s", "nome": "x", "objeto": "", "estado": "review", "valor_global": null,'
+        ' "data_base": null, "responsavel": "", "local_referencia": "", "processo_id": null,'
+        ' "versao": 1, "criado_em": "x", "atualizado_em": "x"}]' % PESQUISA)]
+    linhas = ",".join(
+        '{"id": "item-%d", "numero": %d, "descricao": "x", "unidade": "UN", "quantidade": 1,'
+        ' "estado": "review", "preco_total": %s, "justificativa": ""}' % (n, n, t)
+        for n, t in enumerate(totais, start=1))
+    banco.respostas[("GET", "pesquisa_preco_itens")] = [_bruto(f"[{linhas}]")]
+
+
+def test_soma_dos_itens_e_exata_e_ignora_item_sem_preco(api, emissor, banco):
+    # Em float, 0.1 + 0.2 daria 0.30000000000000004.
+    _pesquisa_com_totais(banco, "0.1000", "0.2000", "null", "11165.0000")
+    corpo = api().get(f"/api/v1/precos/pesquisas/{PESQUISA}", headers=_auth(emissor)).json()
+    assert corpo["valor_global"] is None
+    assert corpo["soma_dos_itens"] == {"valor": "11165.3000", "exibicao": "R$ 11.165,30"}
+
+
+def test_sem_item_com_preco_nao_afirma_soma_zero(api, emissor, banco):
+    _pesquisa_com_totais(banco, "null", "null")
+    corpo = api().get(f"/api/v1/precos/pesquisas/{PESQUISA}", headers=_auth(emissor)).json()
+    assert corpo["soma_dos_itens"] is None

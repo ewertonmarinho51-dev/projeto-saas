@@ -4024,6 +4024,16 @@
             "title": "Responsavel",
             "type": "string"
           },
+          "soma_dos_itens": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "valor_global": {
             "anyOf": [
               {

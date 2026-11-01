@@ -191,10 +191,14 @@ export function PriceDispersion({
           ))}
         </div>
       )}
-      <div className="gc-disp__scale">
-        <span>{labels?.scale ? `Menor ${labels.scale[0]}` : format(min)}</span>
-        <span>{labels?.scale ? `Maior ${labels.scale[1]}` : format(max)}</span>
-      </div>
+      {/* Com eixo próprio e sem extremos informados, as marcas já dizem tudo:
+          os limites do eixo não são preços e não podem ser lidos como "menor" e "maior". */}
+      {(labels?.scale || !scale) && (
+        <div className="gc-disp__scale">
+          <span>{labels?.scale ? `Menor ${labels.scale[0]}` : format(min)}</span>
+          <span>{labels?.scale ? `Maior ${labels.scale[1]}` : format(max)}</span>
+        </div>
+      )}
       {legend && (
         <figcaption className="gc-disp__legend">
           {ORDEM.filter((s) => values.some((v) => (v.state ?? "valid") === s)).map((s) => (
