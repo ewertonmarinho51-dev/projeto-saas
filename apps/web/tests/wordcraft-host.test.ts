@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { emEditor, trilha } from "../components/trilha";
 import { HOST_SHA256, HOST_URL } from "../lib/wordcraft/host";
-import { alinharAoDispositivo, falhaNoStatus } from "../lib/wordcraft/host-nativo";
+import { alinharAoDispositivo, falhaNoStatus, medirCanvas } from "../lib/wordcraft/host-nativo";
 import {
   dadosDoHost,
   faseDaPonte,
@@ -37,6 +37,7 @@ describe("host nativo servido pelo web", () => {
   it("o host só importa JS/WASM do namespace aprovado do WordCraft", () => {
     expect(original).toContain("pathname.startsWith('/app/static/wordcraft/')");
   });
+
 });
 
 function estado(extra: Partial<EstadoDoEditor> = {}): EstadoDoEditor {
@@ -179,6 +180,15 @@ describe("canvas e casca", () => {
     expect(alinharAoDispositivo(333.37, 1.5)).toBeCloseTo(1000 / 3, 5);
     expect(alinharAoDispositivo(-4, 2)).toBe(0);
     expect(alinharAoDispositivo(10, 0)).toBe(10);
+  });
+
+  it("ignora os 720 px herdados do host e usa a área real do workspace", () => {
+    const raiz = { clientWidth: 1468, clientHeight: 532 };
+    const canvas = { style: { display: "", width: "1468px", height: "720px" } };
+
+    medirCanvas(raiz, canvas as unknown as Pick<HTMLCanvasElement, "style">, 1.25);
+
+    expect(canvas.style).toEqual({ display: "block", width: "1468px", height: "532px" });
   });
 
   it("falha do host não fica muda; status normal não é falha", () => {

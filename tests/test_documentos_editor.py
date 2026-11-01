@@ -117,6 +117,23 @@ def test_open_rechecks_native_bytes_and_hash(setup):
     assert state["native_calls"] == [checkpoint.content]
 
 
+def test_reopen_reuses_only_native_validation_for_the_same_manifest_and_bytes(setup):
+    service, state, checkpoint = setup
+
+    first = service.abrir(state["head"]["id"])
+    second = service.abrir(state["head"]["id"])
+
+    assert first.payload == second.payload == checkpoint.content
+    assert state["native_calls"] == [checkpoint.content]
+
+    changed = checkpoint.content + b" "
+    state["head"]["content_hash"] = hashlib.sha256(changed).hexdigest()
+    state["row"]["payload"] = "\\x" + changed.hex()
+    state["row"]["content_hash"] = state["head"]["content_hash"]
+    service.abrir(state["head"]["id"])
+    assert state["native_calls"] == [checkpoint.content, changed]
+
+
 def test_listar_processo_reusa_sessao_e_revisao_autorizadas(setup):
     service, state, checkpoint = setup
     documents = service.listar_processo(state["head"]["processo_id"])

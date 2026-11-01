@@ -118,9 +118,17 @@ def _com_aprovacao_nativa(rest: ClienteRest, token: str, linhas: list[dict]) -> 
     if not linhas:
         return linhas
     ids = ",".join(str(l["id"]) for l in linhas)
-    r = rest.requisitar(token, "GET", "documentos_editor", params={
-        "select": "processo_id,tipo", "processo_id": f"in.({ids})",
-        "status": "in.(aprovado,emitido)", "limit": "1000"})
+    try:
+        r = rest.requisitar(token, "GET", "documentos_editor", params={
+            "select": "processo_id,tipo", "processo_id": f"in.({ids})",
+            "status": "in.(aprovado,emitido)", "limit": "1000"})
+    except ErroApi as exc:
+        # Esta consulta apenas enriquece o progresso legado. Se o banco não
+        # conseguiu ler as cabeças nativas, preserve o resumo já autorizado;
+        # erros de sessão ou permissão continuam chegando ao cliente.
+        if exc.status != 503:
+            raise
+        return linhas
     if r.status != 200 or not r.dados:
         return linhas
     por_processo: dict[str, set[str]] = {}
