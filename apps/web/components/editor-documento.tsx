@@ -296,7 +296,10 @@ export function EditorDeDocumento({
       setAviso({ variante: "success", texto: `Revisão ${r.revisao} aprovada.` });
       router.refresh();
     } else {
-      setAviso({ variante: "error", texto: mensagemDeFalha(r) });
+      // A recusa mais comum é campo em falta, e o motivo do dono documental não diz qual.
+      const dica =
+        r.codigo === "DOCUMENT_REJECTED" ? " Confira se ainda há campos [PREENCHER] no texto, preencha e salve antes de aprovar." : "";
+      setAviso({ variante: "error", texto: mensagemDeFalha(r) + dica });
     }
   };
 

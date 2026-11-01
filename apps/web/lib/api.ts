@@ -702,6 +702,9 @@ export type Elaboracao = {
   documentos: DocumentoDaElaboracao[];
   proximo: { acao: "formulario" | "elaborar" | "revisar" | "concluido"; tipo: string | null; sigla: string | null };
   job: Job | null;
+  // O que impede aprovar o texto gerado. Só até a primeira edição salva.
+  bloqueios: number;
+  pendencias: string[];
 };
 
 /** Sem o editor ligado para quem chama, não há onde revisar: `null`, e a tela segue sem a elaboração. */

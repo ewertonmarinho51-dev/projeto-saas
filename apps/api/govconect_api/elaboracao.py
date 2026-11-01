@@ -92,6 +92,10 @@ class Elaboracao(BaseModel):
     # O job em curso, ou a falha do próximo documento. Geração concluída não
     # fica aqui: o resultado é o documento na lista.
     job: Job | None = None
+    # O que a revisão automática achou no texto gerado e impede a aprovação.
+    # Vale até a primeira edição salva: depois, o texto já é outro.
+    bloqueios: int = 0
+    pendencias: list[str] = []
 
 
 class PedidoDeElaboracao(BaseModel):
@@ -280,7 +284,8 @@ def processar_elaboracao(*, job_id: str, token: str, tenant_id: str, auth_user_i
     if not gravado.dados:
         return falhar("CONTEXT_CHANGED", "O processo foi alterado durante a elaboração. Confira e tente de novo.")
     atualizar_job(rest, token, job_id, estado="succeeded", feitos=total, concluido_em=_agora_iso(),
-                  resultado={"documento": tipo, "bloqueios": elaborado.bloqueios, "avisos": elaborado.avisos})
+                  resultado={"documento": tipo, "bloqueios": elaborado.bloqueios, "avisos": elaborado.avisos,
+                             "pendencias": list(elaborado.pendencias)})
     _log.info("elaboracao_concluida job=%s documento=%s", job_id, tipo)
     return "succeeded"
 
@@ -298,6 +303,18 @@ def _exibivel(linha: dict | None, proximo: dominio.Proximo) -> Job | None:
     if linha.get("estado") == "failed" and documento == proximo.tipo and proximo.acao == dominio.ELABORAR:
         return job_do_banco(linha)
     return None
+
+
+def _achados(linha: dict | None, documentos: list[dominio.SituacaoDoDocumento],
+             proximo: dominio.Proximo) -> tuple[int, list[str]]:
+    """Bloqueios do último job, enquanto o documento dele for o texto gerado."""
+    if linha is None or proximo.acao != dominio.REVISAR or linha.get("estado") != "succeeded":
+        return 0, []
+    resultado = job_do_banco(linha).resultado
+    atual = next((d for d in documentos if d.tipo == proximo.tipo), None)
+    if resultado.get("documento") != proximo.tipo or atual is None or (atual.revisao or 1) > 1:
+        return 0, []
+    return int(resultado.get("bloqueios") or 0), list(resultado.get("pendencias") or [])
 
 
 def rotas() -> APIRouter:
@@ -330,6 +347,8 @@ def rotas() -> APIRouter:
         linha = _processo(rest, eu, pid)
         _, _, documentos, proximo, faltantes = _panorama(rest, eu, linha)
         cfg = request.app.state.config
+        recente = _job_recente(rest, eu, pid)
+        bloqueios, pendencias = _achados(recente, documentos, proximo)
         return Elaboracao(
             processo_id=pid, escrita=bool(cfg.documentos_escrita_chave and cfg.supabase_url), faltantes=faltantes,
             documentos=[DocumentoDaElaboracao(id=id_do_documento(pid, d.tipo), tipo=d.tipo, sigla=SIGLAS[d.tipo],
@@ -337,7 +356,7 @@ def rotas() -> APIRouter:
                         for d in documentos],
             proximo=ProximoPasso(acao=proximo.acao, tipo=proximo.tipo,
                                  sigla=SIGLAS.get(proximo.tipo or "")),
-            job=_exibivel(_job_recente(rest, eu, pid), proximo))
+            job=_exibivel(recente, proximo), bloqueios=bloqueios, pendencias=pendencias)
 
     @r.post("/{processo_id}/elaboracao", status_code=202, response_model=Job,
             responses={200: {"model": Job, "description": "Já havia elaboração em curso: é o mesmo job"},

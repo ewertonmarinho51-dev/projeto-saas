@@ -39,6 +39,10 @@ APROVADO = "aprovado"
 EMITIDO = "emitido"
 _CONCLUIDAS = {APROVADO, EMITIDO}
 
+# `api_jobs.resultado` guarda até 4 KB (0032).
+MAX_PENDENCIAS = 10
+TAMANHO_DA_PENDENCIA = 160
+
 FORMULARIO = "formulario"
 ELABORAR = "elaborar"
 REVISAR = "revisar"
@@ -67,6 +71,9 @@ class Elaborado:
     documentos: dict[str, str]
     bloqueios: int
     avisos: int
+    # O que impede a aprovação, em texto para a pessoa. Bloqueio aqui é o mesmo
+    # que `DocumentoService.aprovar` recusa depois, sem dizer qual foi.
+    pendencias: tuple[str, ...] = ()
 
 
 def com_fluxo(dados: Mapping | None, documentos: Mapping | None, mapa_ligado: bool) -> dict:
@@ -137,6 +144,12 @@ def _bloco_da_familia(doc_key: str, dados: dict, processo_id: str) -> str:
     return familias.bloco_para_prompt(resolucao["payload"]) if resolucao["situacao"] == "unica" else ""
 
 
+def _pendencia(achado: Mapping) -> str:
+    """O campo que falta, quando é um [PREENCHER]; senão, a mensagem do validador."""
+    campo = (achado.get("pendencia") or {}).get("campo")
+    return str(f"Preencher: {campo}" if campo else achado.get("mensagem") or "")[:TAMANHO_DA_PENDENCIA]
+
+
 def elaborar(doc_key: str, dados: dict, contexto: str | None, processo_id: str,
              etapa: Callable[[str], None]) -> Elaborado:
     """Gera o candidato e a Ata que sai com o edital. Não grava nada: quem
@@ -150,4 +163,6 @@ def elaborar(doc_key: str, dados: dict, contexto: str | None, processo_id: str,
         candidatos["arp"] = llm.gerar_documento("arp", copy.deepcopy(dados), contexto)
     etapa("REVISANDO")
     relatorio = validacao.validar_todos(candidatos, dados=dados)
-    return Elaborado(candidatos, len(validacao.bloqueios(relatorio)), len(validacao.avisos(relatorio)))
+    bloqueios = validacao.bloqueios(relatorio)
+    return Elaborado(candidatos, len(bloqueios), len(validacao.avisos(relatorio)),
+                     tuple(_pendencia(b) for b in bloqueios[:MAX_PENDENCIAS]))

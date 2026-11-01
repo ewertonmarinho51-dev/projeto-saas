@@ -213,6 +213,25 @@ export function ElaboracaoAutomatica({ processoId, inicial }: { processoId: stri
                   ? `${sigla} pronto para revisão. Confira o texto no WordCraft e aprove para seguir ao próximo documento.`
                   : `${sigla} em revisão (revisão ${atual.revisao}). Aprove no WordCraft para seguir ao próximo documento.`}
               </p>
+              {estado.bloqueios > 0 && (
+                <Alert
+                  variant="warning"
+                  title={
+                    estado.bloqueios === 1
+                      ? "1 pendência impede a aprovação"
+                      : `${estado.bloqueios} pendências impedem a aprovação`
+                  }
+                >
+                  {estado.pendencias.length > 0 && (
+                    <ul className="list-disc pl-5">
+                      {estado.pendencias.map((p) => (
+                        <li key={p}>{p}</li>
+                      ))}
+                    </ul>
+                  )}
+                  Resolva no WordCraft, onde os campos em falta aparecem como [PREENCHER], e salve antes de aprovar.
+                </Alert>
+              )}
               {atual.revisao != null || estado.escrita ? (
                 <div>
                   <Button size="lg" icon="pencil-simple" reloadDocument href={editor(processoId, atual.id)}>

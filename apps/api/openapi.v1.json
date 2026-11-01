@@ -1445,6 +1445,11 @@
       },
       "Elaboracao": {
         "properties": {
+          "bloqueios": {
+            "default": 0,
+            "title": "Bloqueios",
+            "type": "integer"
+          },
           "documentos": {
             "items": {
               "$ref": "#/components/schemas/DocumentoDaElaboracao"
@@ -1472,6 +1477,14 @@
                 "type": "null"
               }
             ]
+          },
+          "pendencias": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Pendencias",
+            "type": "array"
           },
           "processo_id": {
             "title": "Processo Id",

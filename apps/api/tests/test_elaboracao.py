@@ -364,6 +364,34 @@ def test_gera_de_verdade_e_entrega_para_revisao(api, emissor, banco, fila, motor
     assert banco.processo["aprovados"] == []
 
 
+def test_campo_a_preencher_aparece_antes_da_aprovacao(api, emissor, banco, motor, monkeypatch):
+    # O que `DocumentoService.aprovar` recusaria sem dizer qual foi.
+    def com_marcador(*a, **k):
+        return TEXTO_DA_IA + "\n1.2. Responsável: [PREENCHER: matrícula do responsável].\n"
+
+    monkeypatch.setattr(llm, "_chamar_motor", com_marcador)
+    api.post(URL, headers=_h(emissor))
+    _rodar(banco, banco.jobs[0]["id"], emissor)
+    corpo = api.get(URL, headers=_h(emissor)).json()
+    assert corpo["bloqueios"] >= 1
+    assert any("matrícula do responsável" in p for p in corpo["pendencias"])
+
+    # Revisão salva: o texto já é outro, e a lista antiga mentiria.
+    banco.cabecas = [{"id": dn.id_do_documento(PROCESSO, "dfd"), "tipo": "dfd", "revision": 2, "status": "rascunho"}]
+    corpo = api.get(URL, headers=_h(emissor)).json()
+    assert corpo["bloqueios"] == 0 and corpo["pendencias"] == []
+
+
+def test_job_antigo_sem_lista_ainda_informa_a_contagem(api, emissor, banco):
+    banco.processo["documentos"] = {"dfd": "texto"}
+    banco.jobs.append({"id": str(uuid.uuid4()), "tipo": el.TIPO_JOB, "recurso_id": PROCESSO, "estado": "succeeded",
+                       "auth_user_id": USUARIO_A, "feitos": 5, "total": 5, "erro_codigo": "",
+                       "resultado": {"documento": "dfd", "bloqueios": 3, "avisos": 0},
+                       "criado_em": _agora(), "atualizado_em": _agora(), "iniciado_em": None, "concluido_em": None})
+    corpo = api.get(URL, headers=_h(emissor)).json()
+    assert corpo["bloqueios"] == 3 and corpo["pendencias"] == []
+
+
 def test_edital_sai_do_catalogo_sem_ia_e_leva_a_ata(api, emissor, banco, motor):
     banco.processo["dados"] = {**_completos(), "modelo_execucao": "Sistema de Registro de Preços"}
     banco.processo["documentos"] = {"dfd": "a", "etp": "b", "tr": "c"}
@@ -462,8 +490,15 @@ def test_token_no_fim_nao_comeca(api, emissor, banco, motor, monkeypatch):
 
 
 def test_resultado_expoe_so_o_que_a_tela_usa():
-    saida = coleta._resultado_exibivel({"documento": "dfd", "bloqueios": 1, "avisos": 2, "contexto": "x"})
-    assert saida == {"documento": "dfd", "bloqueios": 1, "avisos": 2}
+    saida = coleta._resultado_exibivel({"documento": "dfd", "bloqueios": 1, "avisos": 2, "contexto": "x",
+                                        "pendencias": ["campo", 7]})
+    assert saida == {"documento": "dfd", "bloqueios": 1, "avisos": 2, "pendencias": ["campo"]}
+
+
+def test_lista_de_pendencias_cabe_no_limite_do_job():
+    achados = [{"pendencia": {"campo": "x" * 500}} for _ in range(dominio.MAX_PENDENCIAS)]
+    lista = [dominio._pendencia(a) for a in achados]
+    assert len(json.dumps(lista, ensure_ascii=False).encode()) < 3500
 
 
 def test_a_fila_leva_o_usuario_e_esconde_o_token():
