@@ -28,6 +28,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src import processos as dominio
+from src.config import CHAVE_FLUXO_MAPA
 
 from .erros import ErroApi
 from .seguranca import Identidade, exigir_identidade
@@ -37,6 +38,16 @@ _log = logging.getLogger("govconect_api")
 
 _COLUNAS = ("id,nome,orgao,objeto,etapa,dados,documentos,aprovados,"
             "criado_em,atualizado_em,secretaria_id,auth_user_id,idempotency_key")
+# Leitura que vira só `Processo`: exatamente o que `dominio.resumo` usa. Inteiros,
+# `dados` e `documentos` são a planilha e o texto de cada DFD, ETP e TR: 1,22 MB
+# por listagem com 8 processos (produção, 01/11/2026). Campo novo lido pelo resumo
+# entra aqui e em `_para_o_resumo`; `test_lista_leve.py` prova a equivalência.
+_COLUNAS_DO_RESUMO = ("id,nome,orgao,objeto,etapa,aprovados,criado_em,atualizado_em,"
+                      "documentos_gerados,"
+                      f"fluxo_com_mapa:dados->{CHAVE_FLUXO_MAPA},"
+                      "modelo_execucao:dados->>modelo_execucao,"
+                      "pesquisa_preco_id:dados->>pesquisa_preco_id,"
+                      "primeiro_item:dados->itens->0")
 _CHAVE_IDEMPOTENCIA = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
 
 
@@ -96,8 +107,21 @@ class PaginaDeProcessos(BaseModel):
 # ---------------------------------------------------------------------------
 # Tradução linha → contrato
 # ---------------------------------------------------------------------------
+def _para_o_resumo(linha: dict) -> dict:
+    """Linha de `_COLUNAS_DO_RESUMO` no formato que `dominio.resumo` lê."""
+    if "documentos_gerados" not in linha:
+        return linha
+    primeiro = linha.get("primeiro_item")
+    return {**linha,
+            "documentos": dict.fromkeys(linha["documentos_gerados"] or [], ""),
+            "dados": {CHAVE_FLUXO_MAPA: linha.get("fluxo_com_mapa"),
+                      "modelo_execucao": linha.get("modelo_execucao"),
+                      "pesquisa_preco_id": linha.get("pesquisa_preco_id"),
+                      "itens": [] if primeiro is None else [primeiro]}}
+
+
 def _para_contrato(linha: dict) -> Processo:
-    resumo = dominio.resumo(linha)
+    resumo = dominio.resumo(_para_o_resumo(linha))
     feitos, total = resumo["progresso"]
     return Processo(
         id=str(linha["id"]), nome=resumo["nome_proprio"],
@@ -174,9 +198,10 @@ def rotas() -> APIRouter:
                           "Autenticação indisponível neste ambiente")
         return rest
 
-    def _obter(rest: ClienteRest, eu: Identidade, processo_id: str) -> dict | None:
+    def _obter(rest: ClienteRest, eu: Identidade, processo_id: str,
+               colunas: str = _COLUNAS) -> dict | None:
         resposta = rest.requisitar(eu.token, "GET", "processos", params={
-            "select": _COLUNAS, "id": f"eq.{processo_id}",
+            "select": colunas, "id": f"eq.{processo_id}",
             "tenant_id": f"eq.{eu.tenant_id}", "limit": "1"})
         if resposta.status != 200:
             raise _falha(resposta)
@@ -192,7 +217,7 @@ def rotas() -> APIRouter:
                    "precisa aparecer em algum dos três campos.")),
                eu: Identidade = Depends(exigir_identidade)) -> PaginaDeProcessos:
         params: list[tuple[str, str]] = [
-            ("select", _COLUNAS), ("tenant_id", f"eq.{eu.tenant_id}"),
+            ("select", _COLUNAS_DO_RESUMO), ("tenant_id", f"eq.{eu.tenant_id}"),
             ("order", "atualizado_em.desc,id.desc"), ("limit", str(limit + 1))]
         busca = _filtro_de_busca(q)
         if busca:
@@ -270,7 +295,7 @@ def rotas() -> APIRouter:
            responses={404: {"description": "Inexistente ou fora do seu acesso"}})
     def consultar(processo_id: uuid.UUID, request: Request, response: Response,
                   eu: Identidade = Depends(exigir_identidade)) -> Processo:
-        linha = _obter(_rest(request), eu, str(processo_id))
+        linha = _obter(_rest(request), eu, str(processo_id), _COLUNAS_DO_RESUMO)
         if linha is None:
             # 404 também para o processo de OUTRO município: 403 confirmaria
             # que o id existe, e o id vira oráculo.
