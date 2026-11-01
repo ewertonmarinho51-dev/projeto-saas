@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 
 import { lerTrechos, perguntarAoGovBot, type Turno } from "@/app/app/govbot/acoes";
 import {
@@ -77,6 +77,7 @@ function Paragrafos({ texto }: { texto: string }) {
 function CartaoDaProposta({ proposta, editorHref }: { proposta: PropostaDoGovBot; editorHref?: string }) {
   const [estado, setEstado] = useState<EstadoDaProposta>("pendente");
   const [texto, setTexto] = useState(proposta.texto);
+  const campo = useId();
   const editado = texto !== proposta.texto;
   const fontes = proposta.fontes.length === 1 ? "1 fonte" : `${proposta.fontes.length} fontes`;
   return (
@@ -92,8 +93,8 @@ function CartaoDaProposta({ proposta, editorHref }: { proposta: PropostaDoGovBot
       >
         {estado === "editando" ? (
           <div className="grid gap-2">
-            <Field label="Texto da proposta">
-              <Textarea rows={6} value={texto} onChange={(e) => setTexto(e.target.value)} />
+            <Field label="Texto da proposta" htmlFor={campo}>
+              <Textarea id={campo} rows={6} value={texto} onChange={(e) => setTexto(e.target.value)} />
             </Field>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={() => setEstado("pendente")}>
@@ -267,8 +268,9 @@ export function ConversaDoGovBot({
                   meta: trechoEscolhido ? "1 trecho" : undefined,
                   content: (
                     <div className="grid gap-3 md:grid-cols-[minmax(0,calc(var(--space-16)*3))_minmax(0,1fr)]">
-                      <Field label="Documento">
+                      <Field label="Documento" htmlFor="govbot-documento">
                         <Select
+                          id="govbot-documento"
                           size="sm"
                           placeholder="Escolha"
                           options={DOCUMENTOS}
@@ -278,6 +280,7 @@ export function ConversaDoGovBot({
                       </Field>
                       <Field
                         label="Trecho"
+                        htmlFor="govbot-trecho"
                         help={
                           documento && trechos?.length === 0
                             ? "Este documento ainda não tem texto."
@@ -285,6 +288,7 @@ export function ConversaDoGovBot({
                         }
                       >
                         <Select
+                          id="govbot-trecho"
                           size="sm"
                           placeholder={documento ? "Escolha" : "Escolha o documento primeiro"}
                           disabled={!trechos?.length}
