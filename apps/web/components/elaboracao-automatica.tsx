@@ -202,7 +202,7 @@ export function ElaboracaoAutomatica({ processoId, inicial }: { processoId: stri
                     ? "Tentar novamente"
                     : primeiro
                       ? "Iniciar elaboração automática"
-                      : `Elaborar ${sigla}`}
+                      : `Gerar próximo documento: ${sigla}`}
                 </Button>
               </div>
             </>
@@ -263,8 +263,9 @@ export function ElaboracaoAutomatica({ processoId, inicial }: { processoId: stri
                   {d.revisao != null && `Revisão ${d.revisao}`}
                 </span>
               </span>
-              {/* Sem revisão nativa, abrir importa o texto gerado: é gravação. */}
-              {d.situacao !== "pendente" && (d.revisao != null || estado.escrita) && (
+              {/* Sem revisão nativa, abrir importa o texto gerado: é gravação. O
+                  documento da próxima ação já tem o botão dele lá em cima. */}
+              {d.situacao !== "pendente" && d.tipo !== proximo.tipo && (d.revisao != null || estado.escrita) && (
                 <Button
                   size="sm"
                   variant="secondary"

@@ -109,6 +109,27 @@ def _para_contrato(linha: dict) -> Processo:
         versao=str(linha.get("atualizado_em") or ""))
 
 
+def _com_aprovacao_nativa(rest: ClienteRest, token: str, linhas: list[dict]) -> list[dict]:
+    """Soma às aprovações as do editor nativo, que moram em `documentos_editor`.
+
+    O dono documental não toca em `processos.aprovados`, e sem isto a lista
+    diria "0 de 5" para um processo com tudo aprovado. Falhar a leitura só
+    deixa o progresso como estava: é informação, não decisão."""
+    if not linhas:
+        return linhas
+    ids = ",".join(str(l["id"]) for l in linhas)
+    r = rest.requisitar(token, "GET", "documentos_editor", params={
+        "select": "processo_id,tipo", "processo_id": f"in.({ids})",
+        "status": "in.(aprovado,emitido)", "limit": "1000"})
+    if r.status != 200 or not r.dados:
+        return linhas
+    por_processo: dict[str, set[str]] = {}
+    for cabeca in r.dados:
+        por_processo.setdefault(str(cabeca.get("processo_id")), set()).add(str(cabeca.get("tipo")))
+    return [{**l, "aprovados": sorted(set(l.get("aprovados") or []) | por_processo.get(str(l["id"]), set()))}
+            for l in linhas]
+
+
 def _etag(linha: dict) -> str:
     return f'"{linha.get("atualizado_em") or ""}"'
 
@@ -210,7 +231,7 @@ def rotas() -> APIRouter:
         linhas = resposta.dados or []
         proximo = _cursor(linhas[limit - 1]) if len(linhas) > limit else None
         return PaginaDeProcessos(
-            itens=[_para_contrato(l) for l in linhas[:limit]],
+            itens=[_para_contrato(l) for l in _com_aprovacao_nativa(_rest(request), eu.token, linhas[:limit])],
             proximo_cursor=proximo)
 
     @r.post("", status_code=201, response_model=Processo,
@@ -276,7 +297,7 @@ def rotas() -> APIRouter:
             # que o id existe, e o id vira oráculo.
             raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
         response.headers["ETag"] = _etag(linha)
-        return _para_contrato(linha)
+        return _para_contrato(_com_aprovacao_nativa(_rest(request), eu.token, [linha])[0])
 
     @r.patch("/{processo_id}", response_model=Processo,
              responses={404: {"description": "Inexistente ou fora do seu acesso"},
