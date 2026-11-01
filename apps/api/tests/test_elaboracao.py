@@ -346,6 +346,23 @@ def test_contexto_vem_da_revisao_aprovada_no_editor(api, emissor, banco):
     assert banco.jobs[0]["parametros"]["tipo"] == "etp"
 
 
+def test_lista_e_detalhe_contam_a_aprovacao_do_editor(api, emissor, banco):
+    banco.processo["documentos"] = {"dfd": "texto"}
+    banco.responder("GET", "documentos_editor", 200, [{"processo_id": PROCESSO, "tipo": "dfd"}])
+    corpo = api.get(f"/api/v1/processos/{PROCESSO}", headers=_h(emissor)).json()
+    assert corpo["progresso"]["feitos"] == 1
+    # A linha gravada não muda: o dono documental não toca em `aprovados`.
+    assert banco.processo["aprovados"] == []
+
+
+def test_sem_leitura_das_cabecas_o_progresso_fica_como_estava(api, emissor, banco):
+    banco.processo["aprovados"] = ["dfd"]
+    banco.processo["documentos"] = {"dfd": "texto"}
+    banco.responder("GET", "documentos_editor", 500, {"code": "XX000"})
+    corpo = api.get(f"/api/v1/processos/{PROCESSO}", headers=_h(emissor)).json()
+    assert corpo["progresso"]["feitos"] == 1
+
+
 # ---------------------------------------------------------------------------
 # Worker
 # ---------------------------------------------------------------------------
