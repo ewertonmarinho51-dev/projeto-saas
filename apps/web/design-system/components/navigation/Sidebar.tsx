@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { Fragment, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 
 import { cx } from "../../lib/cx";
+import { LinkPorIntencao } from "../../lib/LinkPorIntencao";
 import { Icon, type IconName } from "../core/Icon";
 
 export interface NavItemProps {
@@ -17,11 +17,11 @@ export interface NavItemProps {
 /** Link de módulo. Ativo: ícone fill, fundo azul-50 e barra de 3 px à esquerda. */
 export function NavItem({ icon, label, href = "#", active, badge, onClick }: NavItemProps) {
   return (
-    <Link href={href} className="gc-navitem" aria-current={active ? "page" : undefined} title={label} onClick={onClick}>
+    <LinkPorIntencao href={href} className="gc-navitem" aria-current={active ? "page" : undefined} title={label} onClick={onClick}>
       {icon && <Icon name={icon} weight={active ? "fill" : "bold"} />}
       <span className="gc-navitem__label">{label}</span>
       {badge != null && <span className="gc-navitem__badge">{badge}</span>}
-    </Link>
+    </LinkPorIntencao>
   );
 }
 

@@ -2,8 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import { headers } from "next/headers";
+import { Suspense } from "react";
 
 import { FocoDeRota } from "@/components/foco-de-rota";
+import { ProgressoDeNavegacao } from "@/components/progresso-de-navegacao";
 import { SITE_URL } from "@/components/site";
 
 import "./globals.css";
@@ -30,6 +32,9 @@ export default async function LayoutRaiz({ children }: { children: React.ReactNo
     <html lang="pt-BR" data-theme="light" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className="min-h-[100dvh]">
         <FocoDeRota />
+        <Suspense>
+          <ProgressoDeNavegacao />
+        </Suspense>
         <a
           href="#conteudo"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-[var(--radius-ui)] focus:bg-superficie focus:px-4 focus:py-2"

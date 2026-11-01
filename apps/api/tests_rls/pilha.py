@@ -77,6 +77,8 @@ CONTAS = (
     # está no canário `wordcraft_editor`; o B não.
     ("editor_a", "A", "A1", "usuario", True),
     ("editor_b", "B", "B1", "usuario", True),
+    # Só da medição de navegação (desempenho.spec.ts), idem: admin, menu inteiro.
+    ("admin_desempenho", "A", "A1", "admin", True),
     # Só do E2E da elaboração automática (elaboracao.spec.ts), no canário do
     # tenant A: o limite de 5 entradas por e-mail também vale aqui.
     ("elaborador_a", "A", "A1", "usuario", True),
