@@ -85,13 +85,37 @@ test("o clique responde na hora, mesmo com a página seguinte demorando", async 
   const barra = page.getByRole("progressbar", { name: "Carregando a página" });
   await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("link", { name: "Usuários", exact: true }).click();
   await expect(barra).toBeVisible();
+  // O esqueleto toma o lugar da tela antiga, sem esperar nada do servidor...
+  const esqueleto = page.getByTestId("esqueleto-de-pagina");
+  await expect(esqueleto).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Início" })).toBeHidden();
   await expect(page.getByRole("heading", { level: 1, name: "Usuários", exact: true })).toBeVisible();
   await expect(barra).toHaveCount(0);
+  // ...e sai sozinho quando ela chega.
+  await expect(esqueleto).toBeHidden();
+  await expect(page.locator("html")).not.toHaveAttribute("data-navegando");
 
   // Clicar na página em que já se está não promete navegação nenhuma.
   await page.unroute(/\/app\/admin\/usuarios/);
   await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("link", { name: "Usuários", exact: true }).click();
   await expect(barra).toHaveCount(0);
+
+  // Mudar a tela volta ao topo, mesmo com o esqueleto no caminho: a tela nova
+  // não pode estar escondida na hora em que o Next mede para rolar.
+  await page.setViewportSize({ width: 1280, height: 360 });
+  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("link", { name: "Processos", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Processos", exact: true })).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await page.route(/\/app\/admin\/usuarios/, async (rota) => {
+    await new Promise((r) => setTimeout(r, 600));
+    await rota.continue();
+  });
+  await page.getByRole("navigation", { name: "Navegação principal" }).getByRole("link", { name: "Usuários", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Usuários", exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.unroute(/\/app\/admin\/usuarios/);
 });
 
 test("clique até o conteúdo nas telas principais", async ({ page }) => {

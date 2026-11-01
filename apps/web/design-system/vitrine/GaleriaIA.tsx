@@ -9,6 +9,7 @@ import {
   AppShell,
   AuthLayout,
   NavigationProgress,
+  PageSkeleton,
   Avatar,
   Badge,
   Breadcrumbs,
@@ -557,6 +558,9 @@ export function GaleriaIA({ tema }: { tema: string }) {
         </Exemplo>
         <Exemplo rotulo="NavigationProgress (contida)">
           <NavigationProgress embedded />
+        </Exemplo>
+        <Exemplo rotulo="PageSkeleton">
+          <PageSkeleton />
         </Exemplo>
         <Exemplo rotulo="AuthLayout (contido)">
           <Palco alto>
