@@ -134,6 +134,34 @@ def test_reopen_reuses_only_native_validation_for_the_same_manifest_and_bytes(se
     assert state["native_calls"] == [checkpoint.content, changed]
 
 
+def test_reopen_reuses_native_index_projection_only_for_identical_sidecar(setup, monkeypatch):
+    service, state, checkpoint = setup
+    manifest = "a" * 64
+    index = owner.blocos.IndiceNativo(state["head"]["id"], 1, checkpoint.content_hash,
+                                      manifest, ())
+    encoded = owner.blocos.serializar_indice(index)
+    state["row"].update(engine_build_sha256=manifest,
+                        validation_provenance="server_manifest_sha256",
+                        block_index="\\x" + encoded.hex(),
+                        block_index_sha256=hashlib.sha256(encoded).hexdigest(),
+                        index_mode="initial")
+    projections = []
+    monkeypatch.setattr(owner.blocos, "validar_indice",
+                        lambda value, payload, **kwargs: projections.append((value, payload)))
+
+    service.abrir(state["head"]["id"])
+    service.abrir(state["head"]["id"])
+
+    assert projections == [(index, checkpoint.content)]
+
+    changed_index = replace(index, areas_nao_enderecaveis=("header",))
+    changed_encoded = owner.blocos.serializar_indice(changed_index)
+    state["row"]["block_index"] = "\\x" + changed_encoded.hex()
+    state["row"]["block_index_sha256"] = hashlib.sha256(changed_encoded).hexdigest()
+    service.abrir(state["head"]["id"])
+    assert projections == [(index, checkpoint.content), (changed_index, checkpoint.content)]
+
+
 def test_listar_processo_reusa_sessao_e_revisao_autorizadas(setup):
     service, state, checkpoint = setup
     documents = service.listar_processo(state["head"]["processo_id"])

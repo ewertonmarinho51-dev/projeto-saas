@@ -374,6 +374,7 @@ class DocumentoService:
         # manifesto aprovado e aos bytes exatos; qualquer mudança de conteúdo
         # ou build força validação nova. O limite evita crescimento sem teto.
         self._validacoes: OrderedDict[tuple[str, str], None] = OrderedDict()
+        self._validacoes_indices: OrderedDict[tuple[str, str, str], None] = OrderedDict()
         self._trava_validacoes = threading.Lock()
 
     def _fontes_patch(self, processo_id, user, claims):
@@ -1487,6 +1488,23 @@ class DocumentoService:
             while len(self._validacoes) > 64:
                 self._validacoes.popitem(last=False)
 
+    def _validate_index(self, index, payload: bytes, index_sha256: str) -> None:
+        """Reutiliza somente a projeção nativa do mesmo sidecar imutável.
+
+        A leitura continua desserializando o índice, conferindo seu SHA-256 e
+        comparando documento, revisão, conteúdo e manifesto antes de chegar
+        aqui. O cache evita repetir o segundo processo Node/WASM da abertura.
+        """
+        key = (self._native["manifest_sha256"], hashlib.sha256(payload).hexdigest(), index_sha256)
+        with self._trava_validacoes:
+            if key in self._validacoes_indices:
+                self._validacoes_indices.move_to_end(key)
+                return
+            blocos.validar_indice(index, payload, **self._native)
+            self._validacoes_indices[key] = None
+            while len(self._validacoes_indices) > 64:
+                self._validacoes_indices.popitem(last=False)
+
     def abrir(self, document_id: str) -> Documento:
         user, _ = self._session()
         head = self._head(user, document_id)
@@ -1676,7 +1694,7 @@ class DocumentoService:
                                         "operational_patch", "template_application"}):
                     raise ValueError()
                 if engine_build == self._native["manifest_sha256"]:
-                    blocos.validar_indice(index, payload, **self._native)
+                    self._validate_index(index, payload, row["block_index_sha256"])
             except Exception:
                 raise ErroDocumento("Índice documental divergente.") from None
         document = Documento(head["id"], head["processo_id"], head["tipo"], revision,
