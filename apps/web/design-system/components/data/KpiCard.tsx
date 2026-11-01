@@ -38,15 +38,17 @@ export interface KpiCardProps {
   /** Série da linha de tendência. */
   trend?: number[];
   compact?: boolean;
+  /** Valor longo (dinheiro de muitos dígitos): corpo menor, para o número não partir. */
+  dense?: boolean;
   /** No lugar do ícone, no canto. */
   action?: ReactNode;
 }
 
 /** Indicador: rótulo, valor grande tabular, tendência opcional, variação e nota. */
-export function KpiCard({ label, value, unit, icon, delta, deltaTone = "success", footnote, trend, compact, action }: KpiCardProps) {
+export function KpiCard({ label, value, unit, icon, delta, deltaTone = "success", footnote, trend, compact, dense, action }: KpiCardProps) {
   return (
     <section className="gc-card">
-      <div className={cx("gc-kpi", compact && "gc-kpi--compact")}>
+      <div className={cx("gc-kpi", compact && "gc-kpi--compact", dense && "gc-kpi--dense")}>
         <div className="gc-kpi__top">
           <span className="gc-kpi__label">{label}</span>
           {icon ? (

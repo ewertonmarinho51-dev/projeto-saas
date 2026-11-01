@@ -663,6 +663,17 @@
             "title": "Dispositivos",
             "type": "array"
           },
+          "localizacao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Localizacao"
+          },
           "source_id": {
             "title": "Source Id",
             "type": "string"
@@ -1622,6 +1633,31 @@
         "title": "ErroDeArquivo",
         "type": "object"
       },
+      "EscalaDoGrafico": {
+        "description": "Eixo linear: `minimo` e `maximo` posicionam; `marcas` já vêm escritas.",
+        "properties": {
+          "marcas": {
+            "items": {
+              "$ref": "#/components/schemas/Valor"
+            },
+            "title": "Marcas",
+            "type": "array"
+          },
+          "maximo": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "minimo": {
+            "$ref": "#/components/schemas/Valor"
+          }
+        },
+        "required": [
+          "minimo",
+          "maximo",
+          "marcas"
+        ],
+        "title": "EscalaDoGrafico",
+        "type": "object"
+      },
       "Escrita": {
         "properties": {
           "status": {
@@ -1769,6 +1805,16 @@
               }
             ]
           },
+          "escala": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EscalaDoGrafico"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "limite_dispersao": {
             "$ref": "#/components/schemas/Percentual"
           },
@@ -1793,9 +1839,27 @@
             "title": "Por Uf",
             "type": "array"
           },
+          "recorte": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecorteCentral"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "sem_valor": {
             "title": "Sem Valor",
             "type": "integer"
+          },
+          "tendencia": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Valor"
+            },
+            "title": "Tendencia",
+            "type": "array"
           }
         },
         "required": [
@@ -3839,6 +3903,19 @@
       "Pergunta": {
         "additionalProperties": false,
         "properties": {
+          "bloco": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bloco"
+          },
           "documento": {
             "anyOf": [
               {
@@ -4084,6 +4161,21 @@
       },
       "PontoDePreco": {
         "properties": {
+          "extremo": {
+            "anyOf": [
+              {
+                "enum": [
+                  "menor",
+                  "maior"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extremo"
+          },
           "fonte": {
             "title": "Fonte",
             "type": "string"
@@ -4102,6 +4194,16 @@
           "referencia_id": {
             "title": "Referencia Id",
             "type": "string"
+          },
+          "sobre_a_mediana": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Percentual"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "title": "Status",
@@ -4601,6 +4703,53 @@
         "title": "Pronto",
         "type": "object"
       },
+      "PropostaDeTexto": {
+        "description": "Sugestão para UM trecho. Nada foi gravado: quem decide é a pessoa.",
+        "properties": {
+          "alvo": {
+            "title": "Alvo",
+            "type": "string"
+          },
+          "antes": {
+            "title": "Antes",
+            "type": "string"
+          },
+          "documento": {
+            "title": "Documento",
+            "type": "string"
+          },
+          "fontes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fontes",
+            "type": "array"
+          },
+          "motivo": {
+            "title": "Motivo",
+            "type": "string"
+          },
+          "palavras": {
+            "title": "Palavras",
+            "type": "integer"
+          },
+          "texto": {
+            "title": "Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "documento",
+          "alvo",
+          "antes",
+          "texto",
+          "motivo",
+          "fontes",
+          "palavras"
+        ],
+        "title": "PropostaDeTexto",
+        "type": "object"
+      },
       "ProximoPasso": {
         "properties": {
           "acao": {
@@ -4634,6 +4783,29 @@
           "acao"
         ],
         "title": "ProximoPasso",
+        "type": "object"
+      },
+      "RecorteCentral": {
+        "description": "Eixo ampliado na faixa central, sempre ao lado do eixo completo.",
+        "properties": {
+          "abaixo": {
+            "title": "Abaixo",
+            "type": "integer"
+          },
+          "acima": {
+            "title": "Acima",
+            "type": "integer"
+          },
+          "escala": {
+            "$ref": "#/components/schemas/EscalaDoGrafico"
+          }
+        },
+        "required": [
+          "escala",
+          "abaixo",
+          "acima"
+        ],
+        "title": "RecorteCentral",
         "type": "object"
       },
       "ReferenciaExcluida": {
@@ -4715,6 +4887,16 @@
             },
             "title": "Pendencias",
             "type": "array"
+          },
+          "proposta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PropostaDeTexto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "resposta": {
             "title": "Resposta",
@@ -5222,6 +5404,36 @@
           "conteudo"
         ],
         "title": "Trecho",
+        "type": "object"
+      },
+      "TrechoDoDocumento": {
+        "properties": {
+          "clausula": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clausula"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "texto": {
+            "title": "Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "clausula",
+          "texto"
+        ],
+        "title": "TrechoDoDocumento",
         "type": "object"
       },
       "Turno": {
@@ -7779,6 +7991,60 @@
           }
         },
         "summary": "Perguntar",
+        "tags": [
+          "v1",
+          "govbot"
+        ]
+      }
+    },
+    "/api/v1/govbot/processos/{processo_id}/documentos/{documento}/trechos": {
+      "get": {
+        "description": "Parágrafos do documento, para a pessoa escolher sobre qual o GovBot propõe.",
+        "operationId": "trechos_api_v1_govbot_processos__processo_id__documentos__documento__trechos_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "documento",
+            "required": true,
+            "schema": {
+              "title": "Documento",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrechoDoDocumento"
+                  },
+                  "title": "Response Trechos Api V1 Govbot Processos  Processo Id  Documentos  Documento  Trechos Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Processo fora do seu acesso"
+          },
+          "422": {
+            "description": "Documento que o GovBot não edita"
+          }
+        },
+        "summary": "Trechos",
         "tags": [
           "v1",
           "govbot"

@@ -230,10 +230,22 @@ export type EstatisticasDoItem = {
     na_cesta: boolean;
     /** Critérios ("IQR", "MAD") pelos quais o preço fica longe da cesta. */
     fora_da_faixa: string[];
+    /** Menor ou maior de todas as coletadas. */
+    extremo: "menor" | "maior" | null;
+    /** Distância até a mediana da cesta, com sinal. */
+    sobre_a_mediana: Valor | null;
   }[];
   sem_valor: number;
   limite_dispersao: Valor;
+  /** Eixo linear de todos os gráficos do item; as marcas já vêm escritas. */
+  escala: EscalaDoGrafico | null;
+  /** Eixo ampliado na faixa central, quando um extremo achata o resto. */
+  recorte: { escala: EscalaDoGrafico; abaixo: number; acima: number } | null;
+  /** Preços da cesta por data de compra. Vazio com menos de 3 datados. */
+  tendencia: Valor[];
 };
+
+export type EscalaDoGrafico = { minimo: Valor; maximo: Valor; marcas: Valor[] };
 
 /** O módulo aparece no menu? A API decide de verdade (404 com a flag desligada). */
 export function precosHabilitado(): boolean {
@@ -251,13 +263,30 @@ export type CitacaoDoGovBot = {
   categoria: string;
   trecho: string;
   dispositivos: string[];
+  /** Posição na referência indexada ("trecho 7"). */
+  localizacao: string | null;
 };
+
+/** Texto sugerido para um trecho. Nada foi gravado: quem decide é a pessoa. */
+export type PropostaDoGovBot = {
+  documento: string;
+  alvo: string;
+  antes: string;
+  texto: string;
+  motivo: string;
+  fontes: string[];
+  palavras: number;
+};
+
+/** Parágrafo de um documento, para escolher sobre qual o GovBot propõe. */
+export type TrechoDoDocumento = { path: string; clausula: number | null; texto: string };
 
 /** Uma resposta do GovBot (`POST /govbot/perguntas`): só leitura, com o trecho de cada fonte. */
 export type RespostaDoGovBot = {
   resposta: string;
   acao: string;
   citacoes: CitacaoDoGovBot[];
+  proposta: PropostaDoGovBot | null;
   base: "dispensada" | "recuperado" | "suficiente" | "sem_referencias" | "falha";
   ia: boolean;
   motor_falhou: boolean;

@@ -8,21 +8,33 @@ O worker do CI chega aqui pela URL de gateway que o produto já tem
 prompt, fila, gravação e RLS rodam de verdade, e só a resposta do modelo é
 fixa. Demora um pouco de propósito, para o E2E ver o progresso e recarregar a
 página com a geração em curso. Prompt com `FALHA-MOTOR-E2E` recebe 400 na
-primeira vez e resposta na segunda: é a prova de "Tentar novamente".
+primeira vez e resposta na segunda: é a prova de "Tentar novamente". Prompt com
+`PROPOSTA-MOTOR-E2E` recebe o JSON do GovBot, propondo redação para o trecho em
+foco.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MARCA_DE_FALHA = "FALHA-MOTOR-E2E"
+MARCA_DE_PROPOSTA = "PROPOSTA-MOTOR-E2E"
 TEXTO = ("# Documento de Formalização da Demanda\n\n"
          "## 1. Necessidade\n\nTexto redigido pelo motor falso do E2E.\n\n"
          "Responsável: [PREENCHER: matrícula do responsável].\n\n[[TABELA_ITENS]]\n")
 _ja_falhou = {"sim": False}
+
+
+def _proposta(prompt: str) -> str:
+    alvo = re.search(r"(?:dfd|etp|mapa_riscos|tr)/(?:clausula/[\d.]+|preambulo)/\d+", prompt)
+    return json.dumps({"intent": "suggest_section_patch", "response": "Sugiro esta redação para o trecho.",
+                       "target": alvo.group(0) if alvo else None, "sources": [],
+                       "payload": {"new_value": "Redação proposta pelo motor falso.",
+                                   "reason": "Linguagem mais objetiva."}})
 
 
 class Motor(BaseHTTPRequestHandler):
@@ -42,11 +54,12 @@ class Motor(BaseHTTPRequestHandler):
             self._responder(400, {"error": {"message": "pedido recusado", "type": "invalid_request_error"}})
             return
         time.sleep(4)
+        conteudo = _proposta(prompt) if MARCA_DE_PROPOSTA in prompt else TEXTO
         self._responder(200, {
             "id": "resp-falsa", "object": "chat.completion", "created": int(time.time()),
             "model": pedido.get("model") or "modelo-falso",
             "choices": [{"index": 0, "finish_reason": "stop",
-                         "message": {"role": "assistant", "content": TEXTO}}],
+                         "message": {"role": "assistant", "content": conteudo}}],
             "usage": {"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20}})
 
     def log_message(self, *_args) -> None:

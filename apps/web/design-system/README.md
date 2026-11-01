@@ -100,7 +100,8 @@ server component. Componente que recebe função (`render`, `trigger`,
 | price | `TraceabilityPanel` | origem da referência | |
 | price | `SourcePicker` | fontes consultadas | |
 | price | `PriceItemNav` | navegador de itens | |
-| price | `PriceDispersion` | dispersão no eixo de preço | |
+| price | `PriceDispersion` | dispersão no eixo linear de preço, com média, mediana e extremos | |
+| price | `PriceCompare` | grupos de preços no mesmo eixo: menor, maior e mediana | peça nova do porte |
 | price | `ScreeningSummary` | contadores/filtros da triagem | |
 | price | `ValidationSummary` | conferência antes da emissão | |
 | price | `PriceMapTable` | mapa de preços | |

@@ -215,6 +215,16 @@ test("pesquisa de preços: etapas, itens, triagem que filtra e cesta", async ({ 
   await resumo.getByRole("button", { name: /Fora do cálculo/ }).click();
   await capturar(page, "app-item");
 
+  // Análise da série: larga, sem rolagem lateral, nas quatro larguras da entrega.
+  await page.getByRole("tab", { name: "Análise da série" }).click();
+  await expect(page.getByTestId("analise-da-serie")).toBeVisible();
+  await capturar(page, "app-item-analise");
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await semRolagemLateral(page);
+  await page.screenshot({ path: `${PASTA}/app-item-analise-1920-inteira.png`, fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("tab", { name: /Triagem/ }).click();
+
   // Origem: diálogo com o que a coleta registrou.
   await page.getByTestId("referencia").first().getByRole("button", { name: "Ver origem" }).click();
   await expect(page.getByRole("dialog")).toContainText("Rastreabilidade da referência");

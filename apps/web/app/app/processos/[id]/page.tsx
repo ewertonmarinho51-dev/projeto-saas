@@ -5,7 +5,7 @@ import { ElaboracaoAutomatica } from "@/components/elaboracao-automatica";
 import { FormularioDeProcesso } from "@/components/form-processo";
 import { situacaoDoProcesso } from "@/components/situacao";
 import { Alert, Button, Card, DataList, PageHead, ProgressBar, StatusBadge } from "@/design-system";
-import { chamarApi, elaboracaoDoProcesso, ErroDaApi, type Elaboracao, type Modulos, type Processo } from "@/lib/api";
+import { chamarApi, elaboracaoDoProcesso, ErroDaApi, govbotHabilitado, type Elaboracao, type Modulos, type Processo } from "@/lib/api";
 
 import { editarProcesso } from "../acoes";
 
@@ -62,6 +62,13 @@ export default async function DetalheDoProcesso({
         }
         title={<span data-testid="titulo-processo">{p.nome_exibido}</span>}
         desc={`Atualizado em ${p.atualizado_em ? DATA.format(new Date(p.atualizado_em)) : "data indisponível"}.`}
+        actions={
+          govbotHabilitado() && (
+            <Button href={`/app/govbot?processo=${p.id}`} variant="secondary" icon="sparkle">
+              Perguntar ao GovBot
+            </Button>
+          )
+        }
       />
 
       {aviso && <Alert variant="success" title={aviso} />}

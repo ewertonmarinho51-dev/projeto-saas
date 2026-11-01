@@ -202,3 +202,138 @@ def test_motor_chamado_que_falha_nao_se_passa_por_orientacao_local(api, emissor)
 def test_orientacao_local_nao_conta_como_falha_do_motor(api, emissor):
     corpo = api().post(URL, json={"pergunta": "O que está faltando?"}, headers=_auth(emissor)).json()
     assert corpo["ia"] is False and corpo["motor_falhou"] is False
+
+
+# ---------------------------------------------------------------------------
+# Proposta de texto: sugestão validada, nunca escrita
+# ---------------------------------------------------------------------------
+TEXTO_ETP = "# 1. Necessidade\n\nAquisição de 40 computadores para as unidades.\n\nSegundo parágrafo sem número."
+BLOCO = "etp/clausula/1/1"
+
+
+def _proposta_do_modelo(novo, alvo=BLOCO, sources=(), intent="suggest_section_patch"):
+    return json.dumps({"intent": intent, "response": "Sugiro esta redação.", "target": alvo,
+                       "payload": {"new_value": novo, "reason": "Mais objetivo."},
+                       "sources": list(sources)})
+
+
+def _pergunta_de_proposta(api, emissor, banco, modelo, **corpo):
+    banco.respostas[("GET", "processos")] = [_processo(documentos={"etp": TEXTO_ETP})]
+    return api(chamar=lambda *a, **k: modelo).post(URL, json={
+        "pergunta": "Reescreva o parágrafo", "processo_id": PROCESSO, "documento": "etp",
+        "bloco": BLOCO, **corpo}, headers=_auth(emissor))
+
+
+def test_proposta_volta_validada_e_nao_grava_nada(api, emissor, banco):
+    r = _pergunta_de_proposta(api, emissor, banco, _proposta_do_modelo(
+        "A aquisição de 40 computadores atende às unidades."))
+    assert r.status_code == 200, r.text
+    corpo = r.json()
+    assert corpo["acao"] == "suggest_section_patch"
+    assert corpo["proposta"] == {
+        "documento": "etp", "alvo": BLOCO, "antes": "Aquisição de 40 computadores para as unidades.",
+        "texto": "A aquisição de 40 computadores atende às unidades.", "motivo": "Mais objetivo.",
+        "fontes": [], "palavras": 8}
+    assert all(c.method == "GET" for c in banco.chamadas)
+
+
+def test_apply_now_do_modelo_nao_aplica_nada(api, emissor, banco):
+    modelo = json.loads(_proposta_do_modelo("A aquisição de 40 computadores é necessária.",
+                                            intent="apply_section_patch"))
+    modelo["payload"]["apply_now"] = True
+    corpo = _pergunta_de_proposta(api, emissor, banco, json.dumps(modelo)).json()
+    assert corpo["acao"] == "suggest_section_patch" and corpo["proposta"]
+    assert all(c.method == "GET" for c in banco.chamadas)
+
+
+def test_numero_sem_lastro_derruba_a_proposta(api, emissor, banco):
+    corpo = _pergunta_de_proposta(api, emissor, banco, _proposta_do_modelo(
+        "A aquisição de 400 computadores atende às unidades.")).json()
+    assert corpo["proposta"] is None and corpo["acao"] == "explain_current"
+    assert corpo["resposta"] == rota.AVISO_PROPOSTA_RECUSADA
+    assert "400" not in json.dumps(corpo)
+
+
+def test_proposta_sem_mudanca_nao_e_proposta(api, emissor, banco):
+    corpo = _pergunta_de_proposta(api, emissor, banco, _proposta_do_modelo(
+        "Aquisição de 40 computadores para as unidades.")).json()
+    assert corpo["proposta"] is None and corpo["resposta"] == rota.AVISO_PROPOSTA_RECUSADA
+
+
+def test_alvo_que_o_modelo_inventa_nao_vira_proposta(api, emissor, banco):
+    corpo = _pergunta_de_proposta(api, emissor, banco, _proposta_do_modelo(
+        "Texto novo sem número.", alvo="etp/clausula/1/2")).json()
+    assert corpo["proposta"] is None
+    assert "Texto novo" not in json.dumps(corpo)
+
+
+def test_trecho_de_outro_documento_ou_sem_processo_e_422(api, emissor, banco):
+    banco.respostas[("GET", "processos")] = [_processo(documentos={"etp": TEXTO_ETP})]
+    c = api()
+    for corpo in ({"documento": "tr", "processo_id": PROCESSO}, {"documento": "etp"},
+                  {"processo_id": PROCESSO}):
+        r = c.post(URL, json={"pergunta": "x", "bloco": BLOCO, **corpo}, headers=_auth(emissor))
+        assert r.status_code == 422, corpo
+
+
+def test_trecho_inexistente_e_422(api, emissor, banco):
+    banco.respostas[("GET", "processos")] = [_processo(documentos={"etp": TEXTO_ETP})]
+    r = api().post(URL, json={"pergunta": "x", "processo_id": PROCESSO, "documento": "etp",
+                              "bloco": "etp/clausula/9/0"}, headers=_auth(emissor))
+    assert r.status_code == 422
+
+
+def test_trechos_lista_so_paragrafos_do_documento(api, emissor, banco):
+    banco.respostas[("GET", "processos")] = [_processo(documentos={"etp": TEXTO_ETP})]
+    r = api().get(f"/api/v1/govbot/processos/{PROCESSO}/documentos/etp/trechos", headers=_auth(emissor))
+    assert r.status_code == 200, r.text
+    assert [t["path"] for t in r.json()] == ["etp/clausula/1/1", "etp/clausula/1/2"]
+    assert r.json()[0]["texto"].startswith("Aquisição") and r.json()[0]["clausula"] == 1
+
+
+def test_trechos_recusa_edital_e_processo_alheio(api, emissor, banco):
+    assert api().get(f"/api/v1/govbot/processos/{PROCESSO}/documentos/edital/trechos",
+                     headers=_auth(emissor)).status_code == 422
+    banco.respostas[("GET", "processos")] = [httpx.Response(200, json=[])]
+    assert api().get(f"/api/v1/govbot/processos/{PROCESSO}/documentos/etp/trechos",
+                     headers=_auth(emissor)).status_code == 404
+
+
+def test_citacao_diz_onde_conferir(api, emissor):
+    corpo = api(chamar=lambda *a, **k: _modelo(sources=["rag:doc1:3"]),
+                buscar=lambda *a, **k: [{**REFERENCIA, "ordem": 3}]).post(
+        URL, json={"pergunta": "Qual o fundamento legal do ETP?"}, headers=_auth(emissor)).json()
+    assert corpo["citacoes"][0]["localizacao"] == "trecho 4"
+
+
+def _contexto_com_trecho(documento="etp"):
+    return nucleo.montar_contexto_minimo(
+        processo_id=PROCESSO, dados={}, documentos={documento: TEXTO_ETP.replace("etp", documento)},
+        documento=documento, foco=f"{documento}/clausula/1/1")
+
+
+def test_alvo_divergente_e_recusado_mesmo_que_o_parser_deixasse_passar(monkeypatch):
+    # Segunda barreira: o guarda da rota não depende da allowlist do parser.
+    monkeypatch.setattr(nucleo, "consultar_ia", lambda *a, **k: nucleo.GovBotIntent(
+        "suggest_section_patch", "Sugestão.", "etp/clausula/1/2", {"new_value": "Texto novo."}, ()))
+    saida = rota.responder(_contexto_com_trecho(), "reescreva", [], objeto="",
+                           buscar=lambda *a, **k: [], chamar=None)
+    assert saida.proposta is None and saida.resposta == rota.AVISO_PROPOSTA_RECUSADA
+
+
+def test_mutacao_sem_trecho_em_foco_nao_e_recusa_e_segue_sem_alteracao(monkeypatch):
+    monkeypatch.setattr(nucleo, "consultar_ia", lambda *a, **k: nucleo.GovBotIntent(
+        "suggest_section_patch", "Sugestão.", "etp/clausula/1/1", {"new_value": "Texto novo."}, ()))
+    saida = rota.responder(nucleo.montar_contexto_minimo(), "reescreva", [], objeto="",
+                           buscar=lambda *a, **k: [], chamar=None)
+    assert saida.proposta is None and saida.resposta.endswith(rota.AVISO_SEM_ALTERACAO)
+    assert "Texto novo" not in saida.model_dump_json()
+
+
+@pytest.mark.parametrize("documento", ["edital", "arp"])
+def test_edital_e_arp_nao_entram_em_foco(api, emissor, banco, documento):
+    # Determinísticos: corrigem-se na origem. Sem foco não há proposta.
+    banco.respostas[("GET", "processos")] = [_processo(documentos={documento: TEXTO_ETP})]
+    r = api().post(URL, json={"pergunta": "reescreva", "processo_id": PROCESSO, "documento": documento,
+                              "bloco": f"{documento}/clausula/1/1"}, headers=_auth(emissor))
+    assert r.status_code == 422

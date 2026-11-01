@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { dataCurta, naCesta, rotuloEstadoItem, rotuloMetodo } from "@/components/precos";
-import { AnaliseDoItem } from "@/components/analise-item";
+import { AbasDoItem } from "@/components/abas-do-item";
+import { AnaliseDoItem, GraficoDaSerie } from "@/components/analise-item";
 import { AtoNoItem } from "@/components/ato-item";
 import { BuscaDoItem, DesfazerRetirada, EdicaoDoItem, ProgressoDaBusca } from "@/components/gestao-cotacao";
 import { situacaoDoItem } from "@/components/situacao";
@@ -40,7 +41,7 @@ export default async function Referencias({
 }) {
   if (!precosHabilitado()) notFound();
   const { id, itemId } = await params;
-  const { cesta, item: atoNoItem, ref, busca } = await searchParams;
+  const { cesta, item: atoNoItem, ref, busca, aba } = await searchParams;
   if (!UUID.test(id) || !UUID.test(itemId)) notFound();
 
   let refs: ReferenciaDePreco[];
@@ -120,7 +121,21 @@ export default async function Referencias({
       {desfazivel && <DesfazerRetirada pesquisa={id} item={itemId} referencia={desfazivel} revisao={item.revisao} />}
       {aviso && <Alert variant="success" title={aviso} />}
 
-      <div className="grid items-start gap-5 xl:grid-cols-[calc(var(--space-16)*4)_minmax(0,1fr)_calc(var(--space-16)*4.75)]">
+      {/* A análise pede a largura da página: fica fora da grade de três colunas. */}
+      <AbasDoItem
+        inicial={aba === "analise" ? "analise" : "triagem"}
+        referencias={refs.length}
+        analise={
+          analise ? (
+            <AnaliseDoItem dados={analise} metodo={item.metodo} />
+          ) : (
+            <Alert variant="neutral" compact>
+              Não foi possível montar a análise agora. Recarregue a página em instantes.
+            </Alert>
+          )
+        }
+        triagem={
+          <div className="grid items-start gap-5 xl:grid-cols-[calc(var(--space-16)*4)_minmax(0,1fr)_calc(var(--space-16)*4.75)]">
         <Card title="Itens" flush actions={<Badge size="sm">{pesquisa.itens.length}</Badge>} className="hidden xl:block">
           <div className="px-2 pb-3">
             <NavegadorDeItens pesquisa={id} itens={pesquisa.itens} atual={item.id} />
@@ -130,8 +145,12 @@ export default async function Referencias({
         <div className="grid min-w-0 gap-4">
           <h2>Triagem das referências</h2>
           {typeof busca === "string" && UUID.test(busca) && <ProgressoDaBusca jobId={busca} />}
+          {analise?.coletadas && (
+            <Card title="Dispersão das referências" actions={<Badge variant="warning" caps size="sm">Avaliação preliminar</Badge>}>
+              <GraficoDaSerie dados={analise} />
+            </Card>
+          )}
           <TriagemDoItem pesquisa={id} item={item} referencias={refs} alertas={alertas} editavel={editavel} />
-          {analise && <AnaliseDoItem dados={analise} />}
           {editavel && item.estado !== "complete" && (
             // Chave nova a cada renderização: reenviar não põe duas buscas na fila.
             <BuscaDoItem
@@ -181,7 +200,9 @@ export default async function Referencias({
               componente novo nasce com a ação certa e sem o erro anterior. */}
           <AtoNoItem key={item.estado} pesquisa={id} item={item.id} revisao={item.revisao} estado={item.estado} />
         </div>
-      </div>
+          </div>
+        }
+      />
     </>
   );
 }

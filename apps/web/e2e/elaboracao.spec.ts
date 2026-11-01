@@ -90,6 +90,62 @@ test("iniciar, acompanhar, recarregar no meio e receber o documento", async ({ p
   await expect(page.getByRole("button", { name: "Iniciar elaboração automática" })).toHaveCount(0);
 });
 
+test("GovBot propõe redação para um trecho e nada é gravado sem a pessoa", async ({ page }) => {
+  await entrar(page);
+  await page.goto(`/app/processos/${estado.elaboracao.pronto}`);
+  await page.getByRole("link", { name: "Perguntar ao GovBot" }).click();
+  await expect(page).toHaveURL(/\/app\/govbot\?processo=/);
+  await page.getByText("Trabalhar em um trecho do documento").click();
+  await page.getByLabel("Documento").selectOption("dfd");
+  const trecho = page.getByLabel("Trecho");
+  await expect(trecho).toBeEnabled();
+  await trecho.selectOption({ label: "Cláusula 1 · Texto redigido pelo motor falso do E2E." });
+
+  const caixa = page.getByRole("textbox", { name: "Mensagem para o GovBot" });
+  await caixa.fill("PROPOSTA-MOTOR-E2E: reescreva com linguagem mais objetiva.");
+  await caixa.press("Enter");
+
+  const proposta = page.locator(".gc-draft");
+  await expect(proposta).toContainText("Redação proposta pelo motor falso.", { timeout: 30_000 });
+  // A resposta aparece sem a pessoa rolar: o cabeçalho encolhe e a conversa desce até ela.
+  await expect(proposta).toBeInViewport();
+  await expect(proposta).toContainText("DFD · Cláusula 1");
+  await expect(proposta).toContainText("Aguardando revisão");
+  // Sem as RPCs de patch na API, não existe botão de inserir: nada de simular.
+  await expect(page.getByRole("button", { name: "Inserir no documento" })).toHaveCount(0);
+  await page.screenshot({ path: `${PASTA}/govbot-proposta-1440.png`, fullPage: true });
+
+  await page.getByText("Ver o texto atual do documento").click();
+  await expect(page.getByText("Texto redigido pelo motor falso do E2E.", { exact: true })).toBeVisible();
+
+  await proposta.getByRole("button", { name: "Editar" }).click();
+  await page.getByLabel("Texto da proposta").fill("Redação ajustada pela pessoa.");
+  await page.getByRole("button", { name: "Concluir edição" }).click();
+  await expect(proposta).toContainText("Redação ajustada pela pessoa.");
+  await expect(proposta).toContainText("editada por você");
+
+  await proposta.getByRole("button", { name: "Descartar" }).click();
+  await expect(proposta).toContainText("Proposta descartada");
+  await proposta.getByRole("button", { name: "Restaurar" }).click();
+  await expect(proposta).toContainText("Redação ajustada pela pessoa.");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(proposta).toBeVisible();
+  // A gaveta do menu ainda desliza depois de a janela encolher.
+  await expect(page.getByRole("navigation", { name: "Navegação principal" })).not.toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: `${PASTA}/govbot-proposta-390.png`, fullPage: true });
+
+  // O texto do processo não mudou: a proposta não gravou nada.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.reload();
+  await page.getByText("Trabalhar em um trecho do documento").click();
+  await page.getByLabel("Documento").selectOption("dfd");
+  await expect(page.getByLabel("Trecho")).toBeEnabled();
+  await expect(page.getByLabel("Trecho").locator("option", { hasText: "Texto redigido pelo motor falso do E2E." })).toHaveCount(1);
+  await expect(page.locator(".gc-draft")).toHaveCount(0);
+});
+
 test("motor recusou: a tela explica, preserva o processo e tenta de novo", async ({ page }) => {
   await entrar(page);
   await page.goto(`/app/processos/${estado.elaboracao.falha}`);
