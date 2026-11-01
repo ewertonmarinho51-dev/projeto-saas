@@ -76,6 +76,9 @@ test("iniciar, acompanhar, recarregar no meio e receber o documento", async ({ p
   await expect(acao.getByText("DFD pronto para revisão.", { exact: false })).toBeVisible({ timeout: 60000 });
   const lista = page.getByTestId("documentos-do-processo");
   await expect(lista.getByText("Aguardando revisão")).toHaveCount(1);
+  // O que impediria a aprovação aparece antes de a pessoa tentar aprovar.
+  await expect(acao.getByText(/impedem? a aprovação/)).toBeVisible();
+  await expect(acao.getByText(/matrícula do responsável/)).toBeVisible();
   await page.screenshot({
     path: `${PASTA}/elaboracao-concluida.png`,
     fullPage: true,

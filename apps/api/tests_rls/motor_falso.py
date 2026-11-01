@@ -20,7 +20,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MARCA_DE_FALHA = "FALHA-MOTOR-E2E"
 TEXTO = ("# Documento de Formalização da Demanda\n\n"
-         "## 1. Necessidade\n\nTexto redigido pelo motor falso do E2E.\n\n[[TABELA_ITENS]]\n")
+         "## 1. Necessidade\n\nTexto redigido pelo motor falso do E2E.\n\n"
+         "Responsável: [PREENCHER: matrícula do responsável].\n\n[[TABELA_ITENS]]\n")
 _ja_falhou = {"sim": False}
 
 
