@@ -15,7 +15,7 @@ export function Secao({
   children: ReactNode;
 }) {
   return (
-    <section id={`${tema}-${id}`} aria-labelledby={`${tema}-${id}-t`} className="grid grid-cols-[minmax(0,1fr)] scroll-mt-20 gap-5">
+    <section id={`${tema}-${id}`} aria-labelledby={`${tema}-${id}-t`} className="grid scroll-mt-20 gap-5">
       <div className="grid gap-1">
         <h2 id={`${tema}-${id}-t`}>{titulo}</h2>
         {descricao && <p className="max-w-[70ch] text-[length:var(--gc-fs-sm)] text-secundario">{descricao}</p>}
@@ -28,7 +28,7 @@ export function Secao({
 /** Um exemplo rotulado (o nome do componente ou da variante). */
 export function Exemplo({ rotulo, children, largo = false }: { rotulo: string; children: ReactNode; largo?: boolean }) {
   return (
-    <div className={largo ? "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 md:col-span-2" : "grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-2"}>
+    <div className={largo ? "grid gap-2 md:col-span-2" : "grid min-w-0 content-start gap-2"}>
       <p className="font-[number:var(--weight-semibold)] text-[length:var(--gc-fs-2xs)] uppercase tracking-[var(--gc-tracking-caps)] text-[color:var(--text-tertiary)]">
         {rotulo}
       </p>
@@ -39,7 +39,7 @@ export function Exemplo({ rotulo, children, largo = false }: { rotulo: string; c
 
 /** Grade de exemplos. */
 export function Grade({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-[minmax(0,1fr)] gap-6 md:grid-cols-2">{children}</div>;
+  return <div className="grid gap-6 md:grid-cols-2">{children}</div>;
 }
 
 /** Linha de itens que quebra. */
@@ -51,6 +51,7 @@ export function Linha({ children }: { children: ReactNode }) {
 export function Palco({ children, alto = false }: { children: ReactNode; alto?: boolean }) {
   return (
     <div
+      data-palco
       className={`relative overflow-hidden rounded-[var(--gc-radius-lg)] border border-linha bg-[var(--surface-sunken)] ${
         alto ? "h-[calc(var(--space-16)*10)]" : "min-h-[calc(var(--space-16)*5)]"
       }`}

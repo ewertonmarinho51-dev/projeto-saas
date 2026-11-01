@@ -33,7 +33,7 @@ const TEMAS = [
  */
 export function Vitrine() {
   return (
-    <div className="gc-base min-h-[100dvh] bg-canvas">
+    <div className="gc-base gc-vitrine min-h-[100dvh] bg-canvas">
       <header className="sticky top-0 z-[var(--z-sticky)] border-b border-linha bg-superficie">
         <div className="mx-auto flex max-w-[var(--content-max)] flex-wrap items-center gap-x-6 gap-y-2 px-[var(--page-padding-x)] py-3">
           <Logo size={28} />
@@ -67,7 +67,7 @@ export function Vitrine() {
             aria-label={t.nome}
             className="gc-base mt-8 border-t border-linha bg-canvas py-10"
           >
-            <div className="mx-auto grid grid-cols-[minmax(0,1fr)] max-w-[var(--content-max)] gap-14 px-[var(--page-padding-x)]">
+            <div className="mx-auto grid max-w-[var(--content-max)] gap-14 px-[var(--page-padding-x)]">
               <p className="font-[number:var(--weight-semibold)] text-[length:var(--gc-fs-2xs)] uppercase tracking-[var(--gc-tracking-caps)] text-[color:var(--accent-strong-text)]">
                 {t.nome}
               </p>

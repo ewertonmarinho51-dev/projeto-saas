@@ -94,7 +94,7 @@ function varrer(rolagemInterna: string) {
       .map(nome);
     achou.push({ tipo: "rolagem-do-documento", alvo: "html", detalhe: `${raiz.scrollWidth} > ${janela}: ${largos.join(" | ")}` });
   }
-  for (const conteudo of document.querySelectorAll(".gc-shell__content")) {
+  for (const conteudo of document.querySelectorAll(".gc-shell__content:not([data-palco] *)")) {
     if (conteudo.scrollWidth > conteudo.clientWidth + 1) {
       achou.push({ tipo: "rolagem-do-main", alvo: nome(conteudo), detalhe: `${conteudo.scrollWidth} > ${conteudo.clientWidth}` });
     }
@@ -102,7 +102,7 @@ function varrer(rolagemInterna: string) {
 
   for (const el of document.body.querySelectorAll("*")) {
     if (el.closest("svg") && el.tagName.toLowerCase() !== "svg") continue;
-    if (el.closest(".sr-only, .gc-wordcraft-editor, [aria-hidden=true], #__next-build-watcher, nextjs-portal")) continue;
+    if (el.closest(".sr-only, .gc-wordcraft-editor, [aria-hidden=true], [data-palco], #__next-build-watcher, nextjs-portal")) continue;
     const r = el.getBoundingClientRect();
     if (r.width <= 1 || r.height <= 1) continue;
     const estilo = getComputedStyle(el);

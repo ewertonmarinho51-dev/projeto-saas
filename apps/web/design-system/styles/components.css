@@ -673,7 +673,7 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   .gc-shell__content{flex:1;min-width:0;overflow-y:auto}
   /* Coluna com teto `minmax(0,1fr)`: a grade implícita cresceria até a maior palavra ou tabela, e nada mais conteria o conteúdo. */
   .gc-shell__page{max-width:var(--content-max);margin:0 auto;padding:var(--space-8) var(--page-padding-x) var(--space-12);display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-6)}
-  .gc-shell__page :where(.grid){grid-template-columns:minmax(0,1fr)}
+  .gc-shell__page :where(.grid),.gc-vitrine :where(.grid){grid-template-columns:minmax(0,1fr)}
   @media (min-width:1536px){.gc-shell__page{max-width:var(--content-max-wide)}}
   /* Barra lateral presa à altura da tela; o conteúdo rola sozinho. */
   .gc-shell__nav{position:sticky;top:0;height:100dvh;z-index:var(--z-sticky)}
