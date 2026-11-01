@@ -82,6 +82,10 @@ CONTAS = (
     # Só do E2E da elaboração automática (elaboracao.spec.ts), no canário do
     # tenant A: o limite de 5 entradas por e-mail também vale aqui.
     ("elaborador_a", "A", "A1", "usuario", True),
+    # Só da prova de responsividade (responsividade.spec.ts), idem: percorre
+    # todas as rotas. A do tenant B é a tela de Consolidar Demandas.
+    ("admin_larguras", "A", "A1", "admin", True),
+    ("larguras_b", "B", "B1", "usuario", True),
     ("b1", "B", "B1", "usuario", True),
     ("a1_revogado", "A", "A1", "usuario", False),
     # Só do E2E de sessão (sessao.spec.ts): login e saída repetidos estourariam
@@ -516,6 +520,63 @@ def semear_elaboracao(pilha: Pilha, dono: str = "elaborador_a") -> dict:
                 "falha": inserir(c, "Papel A4 FALHA-MOTOR-E2E")}
 
 
+def semear_larguras(pilha: Pilha, dono: str = "admin_larguras", dono_b: str = "larguras_b") -> dict:
+    """O pior caso para a prova de responsividade: nomes compridos, palavra
+    sem espaço, valor alto e tabela extensa. Layout que só funciona com o
+    texto curto da demonstração reprova aqui."""
+    import psycopg
+    from psycopg.types.json import Jsonb
+
+    conta = pilha.contas[dono]
+    conta_b = pilha.contas[dono_b]
+    orgao = "Secretaria Municipal de Planejamento, Orçamento, Gestão e Desenvolvimento Institucional"
+    objeto = ("Contratação de empresa especializada no fornecimento continuado de "
+              "material-de-expediente-para-todas-as-unidades-administrativas-do-município")
+    descricao = ("Papel sulfite A4 75 g/m², alcalino, pacote com 500 folhas, certificação "
+                 "ambiental FSC ou equivalente, conforme especificação do item {n}")
+    itens = [{"codigo": f"4512{n:02d}", "descricao": descricao.format(n=n), "unidade": "RESMA",
+              "quantidade": 12500 + n, "valor_unitario": 1234567.89} for n in range(1, 41)]
+
+    def processo(c, dona, nome_do_objeto) -> str:
+        return str(c.execute(
+            "insert into public.processos (tenant_id, secretaria_id, auth_user_id, orgao, objeto, "
+            "etapa, dados, documentos, aprovados) values (%s,%s,%s,%s,%s,2,%s,%s,'{dfd}') returning id",
+            (dona.tenant_id, dona.secretaria_id, dona.auth_user_id, orgao, nome_do_objeto,
+             Jsonb({"orgao": orgao, "objeto": nome_do_objeto, "valor_estimado": 49382715600.0,
+                    "justificativa": objeto, "itens": itens}),
+             Jsonb({"dfd": "## DFD", "etp": "## ETP"}))).fetchone()[0])
+
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        pid = processo(c, conta, objeto)
+        pesquisa = str(c.execute(
+            "insert into public.pesquisas_preco (tenant_id, secretaria_id, auth_user_id, nome, "
+            "objeto, estado, valor_global, processo_id, idempotency_key) values (%s,%s,%s,%s,%s,"
+            "'review',12345678901234.5678,%s,%s) returning id",
+            (conta.tenant_id, conta.secretaria_id, conta.auth_user_id, f"Pesquisa de {objeto}",
+             objeto, pid, uuid.uuid4().hex)).fetchone()[0])
+        primeiro = None
+        for i, dado in enumerate(itens, start=1):
+            item = str(c.execute(
+                "insert into public.pesquisa_preco_itens (pesquisa_id, tenant_id, numero, codigo, "
+                "tipo_catalogo, descricao, unidade, quantidade, estado, metodo, preco_estimado, "
+                "preco_total) values (%s,%s,%s,%s,'CATMAT',%s,'RESMA',%s,'review','mediana',"
+                "1234567.8900,15432098.6250) returning id",
+                (pesquisa, conta.tenant_id, i, dado["codigo"], dado["descricao"],
+                 dado["quantidade"])).fetchone()[0])
+            primeiro = primeiro or item
+        for n in range(1, 7):
+            c.execute(
+                "insert into public.pesquisa_preco_referencias (item_id, tenant_id, fonte_id, "
+                "fonte_nome, fonte_tipo, id_externo, raw_hash, descricao_original, "
+                "valor_unitario_original, valor_unitario_normalizado, natureza_valor, status, bruto) "
+                "values (%s,%s,'pncp','Portal Nacional de Contratações Públicas','sistema_oficial',"
+                "%s,%s,%s,1234567.8900,1234567.8900,'homologado','selected',%s)",
+                (primeiro, conta.tenant_id, f"ext-l{n}", f"hl{n}", descricao.format(n=n),
+                 Jsonb({"numeroControlePNCP": f"12345678000190-1-{n:06d}/2025"})))
+        return {"processo": pid, "pesquisa": pesquisa, "item": primeiro,
+                "processo_b": processo(c, conta_b, objeto)}
+
+
 def principal() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--estado", required=True, type=Path,
@@ -539,6 +600,7 @@ def principal() -> int:
                   "demandas": gravar_demandas_e2e(args.estado.parent),
                   "editor": semear_editor(pilha),
                   "elaboracao": semear_elaboracao(pilha),
+                  "larguras": semear_larguras(pilha),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
         temporario = args.estado.with_suffix(".tmp")

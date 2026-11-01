@@ -51,6 +51,7 @@ export function Linha({ children }: { children: ReactNode }) {
 export function Palco({ children, alto = false }: { children: ReactNode; alto?: boolean }) {
   return (
     <div
+      data-palco
       className={`relative overflow-hidden rounded-[var(--gc-radius-lg)] border border-linha bg-[var(--surface-sunken)] ${
         alto ? "h-[calc(var(--space-16)*10)]" : "min-h-[calc(var(--space-16)*5)]"
       }`}

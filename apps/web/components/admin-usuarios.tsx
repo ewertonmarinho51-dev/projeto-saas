@@ -149,7 +149,7 @@ export function GestaoDeUsuariosTela({ dados }: { dados: GestaoDeUsuarios }) {
       <Card title={`${dados.usuarios.length} usuário(s)`} subtitle="Você não altera o próprio papel nem se desativa, e o último administrador ativo não sai." divided flush>
         <TableContainer>
           <div data-testid="lista-usuarios">
-            <DataTable compact caption="Usuários do município" minWidth="48rem" columns={colunas} rows={dados.usuarios} />
+            <DataTable stack compact caption="Usuários do município" minWidth="48rem" columns={colunas} rows={dados.usuarios} />
           </div>
         </TableContainer>
       </Card>

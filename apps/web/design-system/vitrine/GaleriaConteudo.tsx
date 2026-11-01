@@ -362,6 +362,11 @@ export function GaleriaConteudo({ tema }: { tema: string }) {
               <DataTable columns={COLUNAS.slice(0, 3)} rows={[] as LinhaItem[]} caption="Sem itens" />
             </TableContainer>
           </Exemplo>
+          <Exemplo rotulo="DataTable — stack (cartão até 640 px; nunca em tabela de preço)">
+            <TableContainer>
+              <DataTable stack compact columns={COLUNAS.slice(0, 3)} rows={LINHAS.slice(0, 2)} caption="Itens (empilhada)" />
+            </TableContainer>
+          </Exemplo>
           <Exemplo rotulo="Pagination">
             <Pagination page={pagina} pageSize={10} total={48} onChange={setPagina} />
           </Exemplo>

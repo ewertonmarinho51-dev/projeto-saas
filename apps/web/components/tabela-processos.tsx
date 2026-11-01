@@ -32,6 +32,7 @@ export function TabelaDeProcessos({ processos, consolidar }: { processos: Proces
     <TableContainer>
       <DataTable
         caption="Processos do órgão"
+        stack
         minWidth="calc(var(--space-16) * 12)"
         rows={processos}
         columns={[

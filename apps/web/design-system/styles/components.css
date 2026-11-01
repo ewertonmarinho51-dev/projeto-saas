@@ -27,7 +27,7 @@
 .gc-btn--subtle:hover:not(:disabled){background:var(--accent-subtle-hover);color:var(--accent-strong-text)}
 .gc-btn--ghost{background:transparent;color:var(--text-secondary)}
 .gc-btn--ghost:hover:not(:disabled){background:var(--surface-hover);color:var(--text-primary)}
-.gc-btn--link{background:transparent;color:var(--text-link);padding:0 4px;height:auto}
+.gc-btn--link{background:transparent;color:var(--text-link);padding:0 4px;height:auto;white-space:normal;text-align:left}
 .gc-btn--link:hover:not(:disabled){color:var(--text-link-hover);text-decoration:underline}
 .gc-btn--danger{background:var(--error-solid);color:var(--gc-gray-0)}
 .gc-btn--danger:hover:not(:disabled){background:var(--gc-red-700);color:var(--gc-gray-0)}
@@ -344,8 +344,10 @@
 .gc-kpi--compact{container-type:inline-size}
 .gc-kpi--compact .gc-kpi__value{font-size:clamp(var(--gc-fs-lg),13cqi,var(--gc-fs-3xl));overflow-wrap:anywhere}
 .gc-kpi--dense .gc-kpi__value{font-size:clamp(var(--gc-fs-sm),8cqi,var(--gc-fs-xl));letter-spacing:var(--gc-tracking-tight)}
-.gc-table-wrap{background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--gc-radius-lg);overflow:auto;min-width:0}
-.gc-table{width:100%;border-collapse:separate;border-spacing:0;font:400 var(--gc-fs-sm)/1.45 var(--gc-font-sans);color:var(--text-primary)}
+.gc-table-wrap{position:relative;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--gc-radius-lg);overflow:auto;min-width:0}
+/* `relative`: texto só para leitor de tela é `absolute` e, sem isto, escapa da rolagem e alarga a página inteira. */
+.gc-table-scroll{position:relative;overflow-x:auto;min-width:0}
+.gc-table{width:100%;min-width:var(--gc-table-min,0);border-collapse:separate;border-spacing:0;font:400 var(--gc-fs-sm)/1.45 var(--gc-font-sans);color:var(--text-primary)}
 .gc-table th{position:sticky;top:0;z-index:1;height:40px;padding:0 12px;text-align:left;font:500 var(--gc-fs-xs)/1.2 var(--gc-font-sans);color:var(--text-secondary);background:var(--surface-sunken);border-bottom:1px solid var(--border-subtle);white-space:nowrap}
 .gc-table td{padding:10px 12px;border-bottom:1px solid var(--border-subtle);vertical-align:middle}
 .gc-table tbody tr:last-child td{border-bottom:0}
@@ -658,6 +660,30 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   .gc-card__body--solo{padding-top:var(--space-5)}
   .gc-field-stack{display:grid;gap:var(--space-4)}
   .gc-tooltip__bubble--wrap{max-width:260px}
+  /* Balão fechado sai do layout: invisível, ele ainda alargaria a rolagem da página. No celular, abre preso à base da tela. */
+  .gc-tooltip__bubble{display:none}
+  .gc-tooltip:hover .gc-tooltip__bubble,.gc-tooltip:focus-within .gc-tooltip__bubble,.gc-tooltip__bubble[data-open="true"]{display:block}
+  @media (max-width:768px){
+    .gc-tooltip__bubble,.gc-tooltip__bubble--wrap,.gc-tooltip:hover .gc-tooltip__bubble,.gc-tooltip:focus-within .gc-tooltip__bubble,.gc-tooltip__bubble[data-open="true"]{position:fixed;top:auto;right:var(--page-padding-x);bottom:var(--page-padding-y);left:var(--page-padding-x);width:auto;max-width:none;white-space:normal;transform:none}
+  }
+  /* Tabela sem preço no celular: cada linha vira cartão, com o rótulo da coluna ao lado do valor e a ação no canto. */
+  @media (max-width:640px){
+    .gc-table--stack{display:block;min-width:0}
+    .gc-table--stack thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+    .gc-table--stack tbody{display:block}
+    .gc-table--stack tbody tr{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2);padding:var(--space-3) var(--space-4);border-bottom:var(--border-width) solid var(--border-subtle)}
+    .gc-table--stack tbody tr:last-child{border-bottom:0}
+    .gc-table--stack td,.gc-table--stack tbody tr:last-child td{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:0 var(--space-2);align-items:center;justify-items:start;padding:0;border:0;text-align:left}
+    .gc-table--stack td::before{content:attr(data-label);font:var(--type-caption);color:var(--text-secondary)}
+    .gc-table--stack td>.gc-select{width:100%}
+    .gc-table--stack td[data-label] .gc-table__sub{grid-column:2;margin-top:0}
+    .gc-table--stack .gc-num{text-align:left}
+    .gc-table--stack td:not([data-label]),.gc-table--stack tbody tr:last-child td:not([data-label]){grid-template-columns:minmax(0,1fr)}
+    .gc-table--stack td:not([data-label])::before{content:none}
+    .gc-table--stack tr:has(>td:last-child:not([data-label])) td:first-child{padding-right:var(--space-10)}
+    .gc-table--stack td:last-child:not([data-label]){position:absolute;top:var(--space-2);right:var(--space-2);width:auto}
+    .gc-table--stack td.gc-table__empty{grid-template-columns:minmax(0,1fr);position:static;padding:var(--space-8) var(--space-3);text-align:center}
+  }
   .gc-daterange{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2)}
   .gc-choice-group__legend{margin-bottom:var(--space-2)}
   .gc-dialog__close{margin-top:calc(var(--space-1) * -1);margin-right:calc(var(--space-2) * -1)}
@@ -693,7 +719,10 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   figure.gc-disp{margin:0}
   .gc-shell__body{display:flex;flex:1;min-height:0;position:relative}
   .gc-shell__content{flex:1;min-width:0;overflow-y:auto}
-  .gc-shell__page{max-width:var(--content-max);margin:0 auto;padding:var(--space-8) var(--page-padding-x) var(--space-12);display:grid;gap:var(--space-6)}
+  /* Coluna com teto `minmax(0,1fr)`: a grade implícita cresceria até a maior palavra ou tabela, e nada mais conteria o conteúdo. */
+  .gc-shell__page{max-width:var(--content-max);margin:0 auto;padding:var(--space-8) var(--page-padding-x) var(--space-12);display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-6)}
+  .gc-shell__page :where(.grid),.gc-vitrine :where(.grid){grid-template-columns:minmax(0,1fr)}
+  @media (min-width:1536px){.gc-shell__page{max-width:var(--content-max-wide)}}
   /* Barra lateral presa à altura da tela; o conteúdo rola sozinho. */
   .gc-shell__nav{position:sticky;top:0;height:100dvh;z-index:var(--z-sticky)}
   .gc-shell__menu,.gc-shell__scrim{display:none}
@@ -744,7 +773,7 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   /* Tipografia de elemento do design system, só dentro de .gc-base:
    * aplicar no corpo inteiro mudaria o tamanho do texto de todas as
    * páginas que ainda não migraram (16px → 14px). */
-  .gc-base{font:var(--type-body);color:var(--text-primary)}
+  .gc-base{font:var(--type-body);color:var(--text-primary);overflow-wrap:break-word}
   .gc-base :where(h1){font:var(--type-h1);letter-spacing:var(--gc-tracking-tight)}
   .gc-base :where(h2){font:var(--type-h2);letter-spacing:var(--gc-tracking-tight)}
   .gc-base :where(h3){font:var(--type-h3)}

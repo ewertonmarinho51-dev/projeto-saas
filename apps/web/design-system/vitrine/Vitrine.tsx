@@ -33,7 +33,7 @@ const TEMAS = [
  */
 export function Vitrine() {
   return (
-    <div className="gc-base min-h-[100dvh] bg-canvas">
+    <div className="gc-base gc-vitrine min-h-[100dvh] bg-canvas">
       <header className="sticky top-0 z-[var(--z-sticky)] border-b border-linha bg-superficie">
         <div className="mx-auto flex max-w-[var(--content-max)] flex-wrap items-center gap-x-6 gap-y-2 px-[var(--page-padding-x)] py-3">
           <Logo size={28} />
