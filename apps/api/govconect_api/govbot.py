@@ -72,6 +72,7 @@ AVISO_PROPOSTA_RECUSADA = (
     "ou decisão sem lastro no pedido, no trecho atual ou nas fontes citadas."
 )
 LIMITE_TRECHOS = 200
+LIMITE_DETALHE = 300
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +137,10 @@ class RespostaDoGovBot(BaseModel):
     ia: bool
     # O motor FOI chamado e falhou: não é o mesmo que nem ter precisado dele.
     motor_falhou: bool
+    # Por quê: o provedor não respondeu, ou respondeu e a validação recusou.
+    falha: Literal["motor", "resposta_recusada"] | None = None
+    # O motivo técnico, para quem perguntou: tipo do erro ou a regra recusada.
+    detalhe_tecnico: str | None = None
     pendencias: list[str]
 
 
@@ -206,21 +211,28 @@ def responder(contexto: nucleo.GovBotContext, pergunta: str, historico: list[dic
         except Exception:  # noqa: BLE001 — erro do provedor nunca vaza consulta nem chave
             contexto = replace(contexto, recuperacao_rag="falha")
 
-    chamadas: list[bool] = []
+    # Cada chamada ao motor: o texto que voltou, ou o tipo do erro do provedor.
+    chamadas: list[tuple[str, str]] = []
 
     def motor(*args, **kwargs) -> str:
-        # Conta se o motor foi chamado: com a orientação local ou com a Base
-        # fora do ar, `consultar_ia` responde sem chamá-lo.
-        chamadas.append(True)
-        if chamar is not None:
-            return chamar(*args, **kwargs)
-        from src import llm
+        # Com a orientação local ou com a Base fora do ar, `consultar_ia`
+        # responde sem chamar o motor; por isso cada chamada é registrada.
+        try:
+            if chamar is not None:
+                bruto = chamar(*args, **kwargs)
+            else:
+                from src import llm
 
-        return llm.chamar_ia_texto(*args, **kwargs)
+                bruto = llm.chamar_ia_texto(*args, **kwargs)
+        except Exception as erro:
+            chamadas.append(("erro", type(erro).__name__))
+            raise
+        chamadas.append(("ok", str(bruto)))
+        return bruto
 
-    intent = nucleo.consultar_ia(
-        contexto, pergunta, motor, historico=historico,
-        fontes_permitidas=nucleo.fontes_validadas_do_contexto(contexto))
+    fontes = nucleo.fontes_validadas_do_contexto(contexto)
+    intent = nucleo.consultar_ia(contexto, pergunta, motor, historico=historico,
+                                 fontes_permitidas=fontes)
     texto, acao = intent.response, intent.action
     proposta = None
     if acao in ACOES_DE_PROPOSTA and contexto.bloco_em_foco:
@@ -235,12 +247,36 @@ def responder(contexto: nucleo.GovBotContext, pergunta: str, historico: list[dic
         acao = "explain_current"
     # Motor chamado e resposta que não é a da queda (`responder_offline`).
     ia = bool(chamadas) and intent.response != nucleo.responder_offline(contexto, pergunta).response
+    falha, detalhe = _diagnostico(chamadas, contexto, pergunta, fontes) if chamadas and not ia else (None, None)
+    if falha:
+        # Só a categoria e o tipo do erro vão ao log: o detalhe pode citar o processo.
+        _log.warning("govbot_falha tipo=%s erro=%s", falha,
+                     detalhe if falha == "motor" else (detalhe or "").split(":", 1)[0])
     return RespostaDoGovBot(
         resposta=texto[:4000], acao=acao,
         citacoes=_citacoes(intent.sources, contexto.referencias_rag), proposta=proposta,
         base=contexto.recuperacao_rag or "dispensada", ia=ia,
-        motor_falhou=bool(chamadas) and not ia,
+        motor_falhou=bool(chamadas) and not ia, falha=falha, detalhe_tecnico=detalhe,
         pendencias=list(contexto.pendencias_obrigatorias)[:30])
+
+
+def _diagnostico(chamadas: list[tuple[str, str]], contexto: nucleo.GovBotContext,
+                 pergunta: str, fontes: tuple[str, ...]) -> tuple[str, str]:
+    """Por que o motor não deu resposta: o provedor falhou ou a validação recusou.
+
+    O núcleo engole o erro e cai para a queda, de propósito. Aqui a última
+    resposta passa de novo pelas MESMAS regras, só para dizer qual recusou."""
+    erros = [d for estado, d in chamadas if estado == "erro"]
+    if erros:
+        return "motor", erros[-1]
+    try:
+        intent = nucleo.parsear_resposta_modelo(
+            chamadas[-1][1], alvos_permitidos=nucleo._alvos_do_contexto(contexto),
+            fontes_permitidas=fontes)
+        nucleo._validar_resposta_fundamentada(intent, contexto, pergunta)
+    except Exception as erro:  # noqa: BLE001 — é exatamente o que se quer descrever
+        return "resposta_recusada", f"{type(erro).__name__}: {erro}"[:LIMITE_DETALHE]
+    return "resposta_recusada", "a resposta passou nesta conferência; a recusa foi anterior"
 
 
 # ---------------------------------------------------------------------------
