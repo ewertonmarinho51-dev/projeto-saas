@@ -71,13 +71,22 @@ begin
   if (select provolatile from pg_proc where oid = funcao) <> 's' then
     faltou := faltou || ' nao_estavel';
   end if;
+  -- Sem caminho de busca: um `create or replace` futuro que o perca passaria a
+  -- resolver nomes pelo `search_path` de quem chama.
+  if not coalesce((select proconfig from pg_proc where oid = funcao) @> array['search_path=""'], false) then
+    faltou := faltou || ' sem_search_path_vazio';
+  end if;
   if not has_function_privilege('authenticated', funcao, 'execute') then
     faltou := faltou || ' authenticated_sem_execute';
+  end if;
+  if not has_function_privilege('service_role', funcao, 'execute') then
+    faltou := faltou || ' service_role_sem_execute';
   end if;
   if has_function_privilege('anon', funcao, 'execute') then
     faltou := faltou || ' anon_executa';
   end if;
-  if has_table_privilege('anon', 'public.processos', 'select') then
+  -- Por coluna também: um grant de coluna a `anon` não aparece em `has_table_privilege`.
+  if has_any_column_privilege('anon', 'public.processos', 'select') then
     faltou := faltou || ' anon_le_tabela';
   end if;
   if not (select relrowsecurity from pg_class where oid = 'public.processos'::regclass) then

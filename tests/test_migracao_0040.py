@@ -138,7 +138,10 @@ def test_anon_nao_executa(banco, cenario):
 FUNCAO = "public.documentos_gerados(public.processos)"
 MUTACOES = [
     (f"revoke execute on function {FUNCAO} from authenticated", "authenticated_sem_execute"),
+    (f"revoke execute on function {FUNCAO} from service_role", "service_role_sem_execute"),
+    (f"alter function {FUNCAO} reset search_path", "sem_search_path_vazio"),
     (f"grant execute on function {FUNCAO} to anon", "anon_executa"),
+    ("grant select (id) on public.processos to anon", "anon_le_tabela"),
     (f"alter function {FUNCAO} security definer", "security_definer"),
     (f"alter function {FUNCAO} volatile", "nao_estavel"),
     ("grant select on public.processos to anon", "anon_le_tabela"),
