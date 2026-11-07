@@ -29,7 +29,7 @@ _SONDA = (
     "import govconect_api.documentos_nativos, src.documentos_editor, src.wordcraft_runtime, "
     "src.qualidade, src.achados, src.consistencia, src.politicas, src.validacao; "
     # Elaboração automática: o caminho inteiro da geração, no worker.
-    "import govconect_api.elaboracao, src.elaboracao, src.llm, src.rag, src.conhecimento, "
+    "import govconect_api.elaboracao, govconect_api.analise_documental, src.elaboracao, src.llm, src.rag, src.conhecimento, "
     "src.cache_geracao, src.familias, src.clausulas_deterministicas, src.templates_gov, "
     "src.mapa_riscos, src.resumo_processo, src.emissao, src.portarias; "
     "proibidos = [m for m in sys.modules "

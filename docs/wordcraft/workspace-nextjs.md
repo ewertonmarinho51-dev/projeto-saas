@@ -136,6 +136,24 @@ Limites: documento com cabeça nativa não é gerado de novo, porque a importaç
 acontece uma vez; corrige-se no editor. Mudar o Formulário Matriz descarta o
 texto legado, mas não toca a cabeça nativa, que precisa ser revista à mão.
 
+## Antes de aprovar: análise e decisões
+
+A aprovação (`DocumentoService.aprovar`) recusa com uma frase só. O painel
+Revisão chama `GET /processos/{id}/documentos/{doc}/analise`, que roda em leitura
+as mesmas verificações sobre a revisão salva e lista cada motivo. O gate não é
+afrouxado: a prévia só explica.
+
+O motor de conhecimento trata dado ausente como pendência, e pendência recusa.
+Cinco dados que as regras-base leem não estão no Formulário Matriz: natureza,
+categoria, amostra, garantia e dedicação de mão de obra. O painel pergunta, e
+`POST /processos/{id}/decisoes` grava a resposta como fato confirmado
+(`decisao:revisao`). A sincronização com o formulário não sobrescreve essa
+decisão.
+
+Os painéis Estrutura (títulos da projeção nativa) e Evidências (fatos e fontes da
+geração) leem a revisão salva. Saltar até uma seção dentro do canvas depende de
+um comando do motor que ainda não existe.
+
 ## Limites conhecidos
 
 - Sessão do editor em memória do processo da API (1 worker). Reinício da

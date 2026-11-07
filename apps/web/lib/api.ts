@@ -719,6 +719,23 @@ export type FatosDoProcesso = {
   pronto: boolean;
 };
 
+/** O que a aprovação da revisão salva recusaria hoje, motivo a motivo. Prévia: quem decide é a aprovação. */
+export type AnaliseDaRevisao = {
+  revisao: number;
+  content_hash: string;
+  pode_aprovar: boolean;
+  motivos: string[];
+  decisoes: { path: string; rotulo: string; ajuda: string; opcoes: { valor: boolean | string; rotulo: string }[] }[];
+  estrutura: string[];
+  score: number | null;
+};
+
+export type Evidencias = {
+  fatos: { path: string; valor: unknown; origem: string; confirmado: boolean }[];
+  itens: number;
+  fontes: { titulo: string; categoria: string; trecho: string }[];
+};
+
 export type SituacaoDoDocumento = "pendente" | "gerado" | "em_revisao" | "aprovado" | "emitido";
 
 export type DocumentoDaElaboracao = {

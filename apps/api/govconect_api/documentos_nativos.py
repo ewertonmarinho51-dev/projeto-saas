@@ -399,6 +399,30 @@ def motor_da_api(request: Request) -> Motor:
     return motor
 
 
+def transicionar_fatos(request: Request, eu: Identidade, processo_id: str,
+                       substituir: list[str], confirmar: list[str]) -> None:
+    resposta = request.app.state.rest.requisitar(
+        eu.token, "POST", "rpc/fatos_canonicos_transicionar",
+        corpo={"p_processo": processo_id, "p_substituir": substituir, "p_confirmar": confirmar})
+    if resposta.status in (200, 204):
+        return
+    erros = {"42501": (403, "FORBIDDEN", "Só o titular do processo ou um administrador confirma fatos."),
+             "PT409": (409, "FACTS_CHANGED", "Os fatos mudaram desde a sua leitura. Recarregue e confira."),
+             "22023": (422, "VALIDATION_ERROR", "Lista de fatos inválida.")}
+    status, codigo, mensagem = erros.get(resposta.codigo_pg or "", (503, "DATABASE_UNAVAILABLE", "Banco indisponível"))
+    raise ErroApi(status, codigo, mensagem)
+
+
+def extraidos_sem_decisao(dados: dict, processo_id: str, existentes: list[dict]) -> list[dict]:
+    """Os fatos do formulário, menos os caminhos que uma pessoa já decidiu.
+
+    A decisão registrada na revisão (`analise_documental`) não pode ser trocada
+    em silêncio por uma inferência do formulário na próxima sincronização."""
+    decididos = {f.get("path") for f in existentes
+                 if f.get("status") != "substituido" and str(f.get("fonte") or "").startswith("decisao:")}
+    return [f for f in fatos.extrair_do_formulario(dados, processo_id) if f["path"] not in decididos]
+
+
 def rotas() -> APIRouter:
     r = APIRouter(tags=["documentos"])
 
@@ -661,18 +685,7 @@ def rotas() -> APIRouter:
                                        revision=aprovacao.revision, content_hash=aprovacao.content_hash,
                                        status=aprovacao.status, replayed=aprovacao.replayed)
 
-    def _transicionar_fatos(request: Request, eu: Identidade, processo_id: str,
-                            substituir: list[str], confirmar: list[str]) -> None:
-        resposta = request.app.state.rest.requisitar(
-            eu.token, "POST", "rpc/fatos_canonicos_transicionar",
-            corpo={"p_processo": processo_id, "p_substituir": substituir, "p_confirmar": confirmar})
-        if resposta.status in (200, 204):
-            return
-        erros = {"42501": (403, "FORBIDDEN", "Só o titular do processo ou um administrador confirma fatos."),
-                 "PT409": (409, "FACTS_CHANGED", "Os fatos mudaram desde a sua leitura. Recarregue e confira."),
-                 "22023": (422, "VALIDATION_ERROR", "Lista de fatos inválida.")}
-        status, codigo, mensagem = erros.get(resposta.codigo_pg or "", (503, "DATABASE_UNAVAILABLE", "Banco indisponível"))
-        raise ErroApi(status, codigo, mensagem)
+    _transicionar_fatos = transicionar_fatos
 
     @r.post("/processos/{processo_id}/fatos-canonicos/sincronizacao", response_model=FatosDoProcesso,
             responses={403: {"description": "Há fatos a gravar e quem chama não é o titular nem admin"},
@@ -686,8 +699,9 @@ def rotas() -> APIRouter:
         dados = _processo(request, eu, pid, "id,dados").get("dados") or {}
         with _sessao_do_dominio(eu):
             try:
+                existentes = db.listar_fatos(pid, apenas_vigentes=False)
                 inserir, substituir = fatos.planejar_versionamento(
-                    fatos.extrair_do_formulario(dados, pid), db.listar_fatos(pid, apenas_vigentes=False))
+                    extraidos_sem_decisao(dados, pid, existentes), existentes)
                 if inserir:
                     db.salvar_fatos(inserir)
             except db.ErroBanco:
