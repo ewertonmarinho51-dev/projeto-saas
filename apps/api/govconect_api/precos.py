@@ -96,6 +96,9 @@ class Item(BaseModel):
 
 
 class Pesquisa(ResumoPesquisa):
+    # Soma dos totais estimados dos itens. `valor_global` só nasce ao aplicar ao
+    # processo: até lá, é este número que diz quanto a cotação já soma.
+    soma_dos_itens: Valor | None = None
     data_base: str | None
     responsavel: str
     local_referencia: str
@@ -176,6 +179,11 @@ def _resumo(linha: dict) -> ResumoPesquisa:
         objeto=linha.get("objeto") or "", estado=linha.get("estado") or "",
         valor_global=valor_monetario(linha.get("valor_global")),
         atualizado_em=str(linha.get("atualizado_em") or ""))
+
+
+def _soma_dos_itens(itens: list[dict]) -> Valor | None:
+    totais = [t for t in (_decimal(i.get("preco_total")) for i in itens) if t is not None]
+    return valor_monetario(sum(totais, Decimal(0))) if totais else None
 
 
 def _item(linha: dict) -> Item:
@@ -318,7 +326,7 @@ def rotas() -> APIRouter:
             processo_id=_texto(linha.get("processo_id")),
             versao=int(linha.get("versao") or 1),
             criado_em=str(linha.get("criado_em") or ""),
-            itens=[_item(i) for i in itens])
+            soma_dos_itens=_soma_dos_itens(itens), itens=[_item(i) for i in itens])
 
     @r.get("/pesquisas/{pesquisa_id}/itens/{item_id}/referencias",
            response_model=list[Referencia],

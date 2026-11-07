@@ -134,6 +134,7 @@ export function EditorDeDocumento({
   const [painel, setPainel] = useState<Painel>(null);
   const [foco, setFoco] = useState(false);
   const [aviso, setAviso] = useState<{ variante: "success" | "error" | "warning"; texto: string } | null>(null);
+  const [aprovado, setAprovado] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [historico, setHistorico] = useState<RevisaoDoHistorico[] | null>(null);
   const [sair, setSair] = useState(false);
@@ -293,6 +294,7 @@ export function EditorDeDocumento({
     setOcupado(null);
     if (r.ok) {
       setEstado((e) => (e ? { ...e, status: r.status } : e));
+      setAprovado(true);
       setAviso({ variante: "success", texto: `Revisão ${r.revisao} aprovada.` });
       router.refresh();
     } else {
@@ -365,7 +367,18 @@ export function EditorDeDocumento({
   const notice = (() => {
     if (aviso) {
       return (
-        <Alert variant={aviso.variante} compact onClose={() => setAviso(null)}>
+        <Alert
+          variant={aviso.variante}
+          compact
+          onClose={() => setAviso(null)}
+          actions={
+            aprovado && aviso.variante === "success" ? (
+              <Button size="sm" iconRight="arrow-right" href={voltarHref}>
+                Gerar próximo documento
+              </Button>
+            ) : undefined
+          }
+        >
           {aviso.texto}
         </Alert>
       );

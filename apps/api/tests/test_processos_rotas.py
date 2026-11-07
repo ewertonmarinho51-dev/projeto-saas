@@ -89,7 +89,7 @@ def test_listar_usa_token_do_usuario_e_pagina_por_cursor(api, emissor, banco):
     assert corpo["proximo_cursor"]
     assert corpo["itens"][0]["status"] and corpo["itens"][0]["progresso"]["total"] >= 1
 
-    chamada = banco.chamadas[-1]
+    chamada = [c for c in banco.chamadas if c.url.path.endswith("/processos")][-1]
     assert chamada.headers["authorization"] == cabecalhos["Authorization"]
     assert chamada.url.params["tenant_id"] == f"eq.{TENANT_A}"
     assert chamada.url.params["limit"] == "3"

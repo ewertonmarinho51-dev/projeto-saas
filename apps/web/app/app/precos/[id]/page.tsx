@@ -91,7 +91,8 @@ export default async function Pesquisa({
   const concluidos = p.itens.filter((i) => i.estado === "complete").length;
   const faltam = p.itens.length - concluidos;
   const comPreco = p.itens.filter((i) => i.preco_estimado).length;
-  const pendentes = p.itens.filter((i) => i.estado !== "complete" && !i.preco_estimado).length;
+  const semPreco = p.itens.length - comPreco;
+  const valorGlobal = p.valor_global ?? p.soma_dos_itens;
   const comErro = p.itens.filter((i) => i.estado === "error" || i.estado === "incomplete").length;
 
   return (
@@ -117,9 +118,9 @@ export default async function Pesquisa({
           compact
           label="Valor global"
           icon="currency-circle-dollar"
-          dense={(p.valor_global?.exibicao.length ?? 0) > 14}
-          value={<span data-testid="valor-global">{p.valor_global?.exibicao ?? "Não calculado"}</span>}
-          footnote={`${comPreco} de ${p.itens.length} itens com preço`}
+          dense={(valorGlobal?.exibicao.length ?? 0) > 14}
+          value={<span data-testid="valor-global">{valorGlobal?.exibicao ?? "Não calculado"}</span>}
+          footnote={`${p.valor_global ? "aplicado ao processo" : "soma dos itens"} · ${comPreco} de ${p.itens.length} com preço`}
         />
         <KpiCard
           compact
@@ -127,16 +128,16 @@ export default async function Pesquisa({
           icon="check-circle"
           value={concluidos}
           unit={`de ${p.itens.length}`}
-          footnote={faltam === 0 ? "nenhum item em aberto" : `faltam ${faltam}`}
+          footnote={faltam === 0 ? "nenhum item em aberto" : "com preço revisado"}
         />
         <KpiCard
           compact
           label="Itens com pendência"
           icon="warning-circle"
-          value={pendentes}
+          value={faltam}
           delta={comErro > 0 ? (comErro === 1 ? "1 com erro ou incompleto" : `${comErro} com erro ou incompletos`) : undefined}
           deltaTone="warning"
-          footnote="sem preço concluído"
+          footnote={semPreco > 0 ? `${semPreco} ainda sem preço` : "em revisão, todos com preço"}
         />
         <KpiCard
           compact

@@ -6,6 +6,7 @@ emit documents, and the native path never overwrites legacy process content.
 """
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
+from collections import OrderedDict
 import hashlib
 import hmac
 import io
@@ -13,6 +14,7 @@ import json
 from pathlib import Path
 import re
 import secrets
+import threading
 from uuid import NAMESPACE_URL, uuid5
 from weakref import WeakValueDictionary
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
@@ -367,6 +369,13 @@ class DocumentoService:
         self._preparacoes: WeakValueDictionary[str, PreparacaoPatches] = WeakValueDictionary()
         self._patch_pendentes: dict[str, PreparacaoPatches] = {}
         self._template_pendentes: dict[str, PreparacaoTemplate] = {}
+        # A revisão continua sendo lida e hasheada em toda abertura. Só o
+        # resultado determinístico do worker nativo é reutilizado, ligado ao
+        # manifesto aprovado e aos bytes exatos; qualquer mudança de conteúdo
+        # ou build força validação nova. O limite evita crescimento sem teto.
+        self._validacoes: OrderedDict[tuple[str, str], None] = OrderedDict()
+        self._validacoes_indices: OrderedDict[tuple[str, str, str], None] = OrderedDict()
+        self._trava_validacoes = threading.Lock()
 
     def _fontes_patch(self, processo_id, user, claims):
         context = _execute(db._cliente().rpc("documento_editor_fontes_patch",
@@ -1464,10 +1473,37 @@ class DocumentoService:
     def _validate(self, payload):
         if not isinstance(payload, bytes) or not 0 < len(payload) <= MAX_BYTES:
             raise ErroDocumento("Checkpoint vazio ou excessivo.")
-        try:
-            validar(payload, **self._native)
-        except Exception:
-            raise ErroDocumento("O motor não confirmou a validade do documento.") from None
+        chave = (self._native["manifest_sha256"], hashlib.sha256(payload).hexdigest())
+        # A trava também impede dois pedidos simultâneos de inicializarem o
+        # mesmo worker caro. Não guardamos payload, tenant, sessão ou documento.
+        with self._trava_validacoes:
+            if chave in self._validacoes:
+                self._validacoes.move_to_end(chave)
+                return
+            try:
+                validar(payload, **self._native)
+            except Exception:
+                raise ErroDocumento("O motor não confirmou a validade do documento.") from None
+            self._validacoes[chave] = None
+            while len(self._validacoes) > 64:
+                self._validacoes.popitem(last=False)
+
+    def _validate_index(self, index, payload: bytes, index_sha256: str) -> None:
+        """Reutiliza somente a projeção nativa do mesmo sidecar imutável.
+
+        A leitura continua desserializando o índice, conferindo seu SHA-256 e
+        comparando documento, revisão, conteúdo e manifesto antes de chegar
+        aqui. O cache evita repetir o segundo processo Node/WASM da abertura.
+        """
+        key = (self._native["manifest_sha256"], hashlib.sha256(payload).hexdigest(), index_sha256)
+        with self._trava_validacoes:
+            if key in self._validacoes_indices:
+                self._validacoes_indices.move_to_end(key)
+                return
+            blocos.validar_indice(index, payload, **self._native)
+            self._validacoes_indices[key] = None
+            while len(self._validacoes_indices) > 64:
+                self._validacoes_indices.popitem(last=False)
 
     def abrir(self, document_id: str) -> Documento:
         user, _ = self._session()
@@ -1658,7 +1694,7 @@ class DocumentoService:
                                         "operational_patch", "template_application"}):
                     raise ValueError()
                 if engine_build == self._native["manifest_sha256"]:
-                    blocos.validar_indice(index, payload, **self._native)
+                    self._validate_index(index, payload, row["block_index_sha256"])
             except Exception:
                 raise ErroDocumento("Índice documental divergente.") from None
         document = Documento(head["id"], head["processo_id"], head["tipo"], revision,

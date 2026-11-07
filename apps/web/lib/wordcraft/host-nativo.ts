@@ -33,6 +33,26 @@ export function alinharAoDispositivo(px: number, dpr: number): number {
 }
 
 /**
+ * Dimensiona pelo espaço que o workspace concedeu, nunca pelo pai imediato do
+ * canvas. O host legado grava 720 px no canvas e, se essa própria altura for
+ * usada como referência, ele expande a seção e passa a confirmar o tamanho
+ * incorreto em um ciclo fechado.
+ */
+export function medirCanvas(
+  raiz: Pick<HTMLElement, "clientWidth" | "clientHeight">,
+  canvas: Pick<HTMLCanvasElement, "style">,
+  dpr: number,
+): void {
+  const largura = alinharAoDispositivo(raiz.clientWidth, dpr);
+  const altura = alinharAoDispositivo(raiz.clientHeight, dpr);
+  const larguraCss = `${largura}px`;
+  const alturaCss = `${altura}px`;
+  if (canvas.style.display !== "block") canvas.style.display = "block";
+  if (canvas.style.width !== larguraCss) canvas.style.width = larguraCss;
+  if (canvas.style.height !== alturaCss) canvas.style.height = alturaCss;
+}
+
+/**
  * O host escreve as falhas de abertura no próprio status. A tela esconde esse
  * status, porque tem o seu, então sem isto a falha fica muda: "Abrindo…" para
  * sempre. Devolve a mensagem quando o texto é de falha, ou `null`.
@@ -55,20 +75,20 @@ function ajustarCanvas(raiz: HTMLElement): () => void {
   let canvas: HTMLCanvasElement | null = null;
   const medir = () => {
     if (!canvas) return;
-    const area = canvas.parentElement ?? raiz;
-    const dpr = window.devicePixelRatio || 1;
-    const largura = alinharAoDispositivo(area.clientWidth, dpr);
-    const altura = alinharAoDispositivo(area.clientHeight, dpr);
-    canvas.style.display = "block";
-    canvas.style.width = `${largura}px`;
-    canvas.style.height = `${altura}px`;
+    medirCanvas(raiz, canvas, window.devicePixelRatio || 1);
   };
   const tamanho = new ResizeObserver(medir);
   tamanho.observe(raiz);
+  // O host pode reaplicar a altura fixa depois de uma atualização de estado.
+  // Reaja à origem da regressão; a comparação em `medirCanvas` impede loop
+  // quando esta integração escreve o valor correto de volta.
+  const estiloDoCanvas = new MutationObserver(medir);
   const filhos = new MutationObserver(() => {
     const achado = raiz.querySelector("canvas");
     if (achado && achado !== canvas) {
+      estiloDoCanvas.disconnect();
       canvas = achado;
+      estiloDoCanvas.observe(canvas, { attributes: true, attributeFilter: ["style"] });
       medir();
     }
   });
@@ -87,6 +107,7 @@ function ajustarCanvas(raiz: HTMLElement): () => void {
   return () => {
     tamanho.disconnect();
     filhos.disconnect();
+    estiloDoCanvas.disconnect();
     consulta?.removeEventListener("change", aoMudarDpr);
   };
 }

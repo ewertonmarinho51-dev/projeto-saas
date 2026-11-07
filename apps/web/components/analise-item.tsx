@@ -141,11 +141,7 @@ function DetalheDaFaixaCentral({ dados }: { dados: EstatisticasDoItem }) {
         mean={noRecorte(cesta.media.valor) ? Number(cesta.media.valor) : undefined}
         scale={escala}
         legend={false}
-        labels={{
-          median: cesta.mediana.exibicao,
-          mean: cesta.media.exibicao,
-          scale: [recorte.escala.minimo.exibicao, recorte.escala.maximo.exibicao],
-        }}
+        labels={{ median: cesta.mediana.exibicao, mean: cesta.media.exibicao }}
       />
     </section>
   );
