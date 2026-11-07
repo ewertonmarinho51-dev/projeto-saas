@@ -5,13 +5,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   abrirSessao,
+  analisarRevisao,
   aprovarRevisao,
   bloquearParaRevisao,
   confirmarFatos,
   encerrarSessao,
   enviarEventos,
+  lerEvidencias,
   lerHistorico,
   liberarEdicao,
+  registrarDecisoes,
   restaurarRevisao,
   sincronizarFatos,
   type Falha,
@@ -24,12 +27,14 @@ import {
   Dialog,
   DocumentWorkspace,
   EmptyState,
+  Field,
   IconButton,
   Menu,
+  Select,
   Spinner,
   type SaveTone,
 } from "@/design-system";
-import type { DocumentoDoProcesso, FatosDoProcesso, RevisaoDoHistorico } from "@/lib/api";
+import type { AnaliseDaRevisao, DocumentoDoProcesso, Evidencias, FatosDoProcesso, RevisaoDoHistorico } from "@/lib/api";
 import { montarHost, type HostMontado } from "@/lib/wordcraft/host-nativo";
 import {
   dadosDoHost,
@@ -55,7 +60,14 @@ import {
  * vez, ao abrir, para um redimensionamento não derrubar a sessão.
  */
 
-type Painel = "revisao" | "historico" | null;
+type Painel = "revisao" | "historico" | "estrutura" | "evidencias" | null;
+
+const TITULO_DO_PAINEL: Record<Exclude<Painel, null>, string> = {
+  revisao: "Revisão e aprovação",
+  historico: "Histórico de revisões",
+  estrutura: "Estrutura do documento",
+  evidencias: "Evidências e fontes",
+};
 type Modo = "edicao" | "leitura";
 
 const STATUS: Record<string, { rotulo: string; variante: "neutral" | "info" | "success" | "brand" }> = {
@@ -76,7 +88,8 @@ function salvamento(fase: Fase, estado: EstadoDoEditor | null): { tone: SaveTone
   const revisao = estado?.revision ?? 0;
   switch (fase) {
     case "abrindo":
-      return { tone: "progress", label: "Abrindo documento…" };
+      // Com a sessão aberta, o que falta é o motor do editor no navegador.
+      return { tone: "progress", label: estado ? "Carregando o motor do editor…" : "Abrindo documento…" };
     case "pronto":
       return { tone: "neutral", label: `Revisão ${revisao} aberta` };
     case "editando":
@@ -133,13 +146,17 @@ export function EditorDeDocumento({
   const [falhaDoHost, setFalhaDoHost] = useState<string | null>(null);
   const [painel, setPainel] = useState<Painel>(null);
   const [foco, setFoco] = useState(false);
-  const [aviso, setAviso] = useState<{ variante: "success" | "error" | "warning"; texto: string } | null>(null);
+  const [aviso, setAviso] = useState<{ variante: "success" | "error" | "warning" | "info"; texto: string } | null>(null);
   const [aprovado, setAprovado] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [historico, setHistorico] = useState<RevisaoDoHistorico[] | null>(null);
   const [sair, setSair] = useState(false);
   const [fatos, setFatos] = useState<FatosDoProcesso | null>(null);
   const [fatosFalharam, setFatosFalharam] = useState(false);
+  const [analise, setAnalise] = useState<AnaliseDaRevisao | null>(null);
+  const [analisando, setAnalisando] = useState(false);
+  const [respostas, setRespostas] = useState<Record<string, string>>({});
+  const [evidencias, setEvidencias] = useState<Evidencias | null>(null);
 
   // Uma vez, ao abrir: a largura decide edição ou leitura (o breakpoint é o
   // token `--bp-md`). Edição abre a sessão — ponte nova no servidor. Em
@@ -250,11 +267,51 @@ export function EditorDeDocumento({
     }
   }, [processo.id]);
 
+  const carregarAnalise = useCallback(async () => {
+    setAnalisando(true);
+    const r = await analisarRevisao(processo.id, documento.id);
+    setAnalisando(false);
+    if (r.ok) setAnalise(r.analise);
+    else setAviso({ variante: "error", texto: mensagemDeFalha(r) });
+  }, [processo.id, documento.id]);
+
+  const carregarEvidencias = useCallback(async () => {
+    setEvidencias(null);
+    const r = await lerEvidencias(processo.id, documento.id);
+    if (r.ok) setEvidencias(r.evidencias);
+    else setAviso({ variante: "error", texto: mensagemDeFalha(r) });
+  }, [processo.id, documento.id]);
+
   const alternarPainel = (qual: Exclude<Painel, null>) => {
     const proximo = painel === qual ? null : qual;
     setPainel(proximo);
     if (proximo === "historico") void carregarHistorico();
-    if (proximo === "revisao" && escrita) void carregarFatos();
+    if (proximo === "revisao" && escrita) {
+      void carregarFatos();
+      void carregarAnalise();
+    }
+    if (proximo === "estrutura") void carregarAnalise();
+    if (proximo === "evidencias") void carregarEvidencias();
+  };
+
+  const decidir = async () => {
+    if (!analise) return;
+    const corpo: Record<string, boolean | string> = {};
+    for (const d of analise.decisoes) {
+      const escolhida = d.opcoes.find((o) => String(o.valor) === respostas[d.path]);
+      if (escolhida) corpo[d.path] = escolhida.valor;
+    }
+    if (!Object.keys(corpo).length) return;
+    setOcupado("decisoes");
+    const r = await registrarDecisoes(processo.id, corpo);
+    setOcupado(null);
+    if (!r.ok) {
+      setAviso({ variante: "error", texto: mensagemDeFalha(r) });
+      return;
+    }
+    setRespostas({});
+    await carregarFatos();
+    await carregarAnalise();
   };
 
   const confirmar = async () => {
@@ -343,12 +400,18 @@ export function EditorDeDocumento({
           {
             label: "Word (DOCX)",
             icon: "file-text",
-            onSelect: () => window.location.assign(linkDeExportacao(processo.id, documento.id, "docx", revisaoSalva, hashSalvo)),
+            onSelect: () => {
+              setAviso({ variante: "info", texto: `Exportando a revisão ${revisaoSalva} em DOCX. O download começa quando o arquivo estiver pronto.` });
+              window.location.assign(linkDeExportacao(processo.id, documento.id, "docx", revisaoSalva, hashSalvo));
+            },
           },
           {
             label: "PDF",
             icon: "file-pdf",
-            onSelect: () => window.location.assign(linkDeExportacao(processo.id, documento.id, "pdf", revisaoSalva, hashSalvo)),
+            onSelect: () => {
+              setAviso({ variante: "info", texto: `Exportando a revisão ${revisaoSalva} em PDF. O download começa quando o arquivo estiver pronto.` });
+              window.location.assign(linkDeExportacao(processo.id, documento.id, "pdf", revisaoSalva, hashSalvo));
+            },
           },
         ]}
       />
@@ -484,11 +547,68 @@ export function EditorDeDocumento({
           )}
         </div>
       ) : (
-        <div className="grid gap-2">
+        <div className="grid gap-3">
+          <p className="text-sm text-[var(--text-secondary)]">Fatos confirmados: {fatos.confirmados}.</p>
+          {analise === null ? (
+            <Spinner label="Analisando a revisão salva" />
+          ) : (
+            <>
+              {analise.decisoes.length > 0 && (
+                <div className="grid gap-3" data-testid="decisoes-pendentes">
+                  <p className="text-sm font-medium">Decisões da contratação que faltam</p>
+                  {analise.decisoes.map((d) => (
+                    <Field key={d.path} label={d.rotulo} htmlFor={`decisao-${d.path}`} help={d.ajuda}>
+                      <Select
+                        id={`decisao-${d.path}`}
+                        size="sm"
+                        placeholder="Selecione"
+                        value={respostas[d.path] ?? ""}
+                        onChange={(e) => setRespostas((atual) => ({ ...atual, [d.path]: e.target.value }))}
+                        options={d.opcoes.map((o) => ({ value: String(o.valor), label: o.rotulo }))}
+                      />
+                    </Field>
+                  ))}
+                  <Button
+                    icon="check"
+                    loading={ocupado === "decisoes"}
+                    disabled={Boolean(ocupado) || !analise.decisoes.some((d) => respostas[d.path])}
+                    onClick={decidir}
+                  >
+                    Registrar decisões
+                  </Button>
+                </div>
+              )}
+              {analise.pode_aprovar ? (
+                <Alert variant="success" compact>
+                  Nada impede a aprovação da revisão {analise.revisao}.
+                </Alert>
+              ) : (
+                <Alert variant="warning" compact title="O que ainda impede a aprovação">
+                  <ul className="list-disc pl-5">
+                    {analise.motivos.map((m) => (
+                      <li key={m}>{m}</li>
+                    ))}
+                  </ul>
+                </Alert>
+              )}
+              {revisaoSalva !== analise.revisao && (
+                <p className="text-xs text-[var(--text-tertiary)]">A análise é da revisão {analise.revisao}; a salva agora é a {revisaoSalva}.</p>
+              )}
+              <Button variant="ghost" size="sm" icon="arrows-clockwise" loading={analisando} disabled={analisando} onClick={() => void carregarAnalise()}>
+                Analisar de novo
+              </Button>
+            </>
+          )}
           <p className="text-sm text-[var(--text-secondary)]">
-            Fatos confirmados: {fatos.confirmados}. Para aprovar, bloqueie a revisão salva: o editor congela o documento e o servidor confere que é a mesma revisão.
+            Para aprovar, bloqueie a revisão salva: o editor congela o documento e o servidor confere que é a mesma revisão.
           </p>
-          <Button variant="secondary" icon="lock-simple" loading={ocupado === "bloqueio"} disabled={!limpo || Boolean(ocupado)} onClick={bloquear}>
+          <Button
+            variant="secondary"
+            icon="lock-simple"
+            loading={ocupado === "bloqueio"}
+            disabled={!limpo || Boolean(ocupado) || (analise !== null && !analise.pode_aprovar && revisaoSalva === analise.revisao)}
+            onClick={bloquear}
+          >
             Bloquear revisão para análise
           </Button>
           {!limpo && <p className="text-xs text-[var(--text-tertiary)]">Aguarde o salvamento da última alteração.</p>}
@@ -527,6 +647,61 @@ export function EditorDeDocumento({
           </li>
         ))}
       </ol>
+    );
+
+  const painelEstrutura =
+    analise === null ? (
+      <Spinner label="Lendo a estrutura da revisão salva" />
+    ) : analise.estrutura.length === 0 ? (
+      <p className="text-sm text-[var(--text-secondary)]">Nenhum título reconhecido na revisão {analise.revisao}.</p>
+    ) : (
+      <div className="grid gap-2">
+        <p className="text-xs text-[var(--text-tertiary)]">Seções da revisão {analise.revisao} salva, na ordem do documento.</p>
+        <ol className="grid gap-1" data-testid="estrutura-do-documento">
+          {analise.estrutura.map((t, i) => (
+            <li key={`${i}-${t}`} className="text-sm">
+              {t}
+            </li>
+          ))}
+        </ol>
+      </div>
+    );
+
+  const painelEvidencias =
+    evidencias === null ? (
+      <Spinner label="Carregando evidências" />
+    ) : (
+      <div className="grid gap-4">
+        <div className="grid gap-2">
+          <p className="text-sm font-medium">Fatos do processo</p>
+          <DataList
+            stacked
+            items={[
+              ...evidencias.fatos.map((f) => ({
+                label: `${f.path}${f.confirmado ? "" : " (a confirmar)"} · ${f.origem}`,
+                value: typeof f.valor === "string" ? f.valor : JSON.stringify(f.valor),
+              })),
+              ...(evidencias.itens ? [{ label: "Planilha de itens", value: `${evidencias.itens} itens` }] : []),
+            ]}
+          />
+        </div>
+        <div className="grid gap-2">
+          <p className="text-sm font-medium">Fontes consultadas na geração</p>
+          {evidencias.fontes.length === 0 ? (
+            <p className="text-sm text-[var(--text-secondary)]">Nenhuma fonte da Base de Conhecimento foi usada na geração deste documento.</p>
+          ) : (
+            <ul className="grid gap-2">
+              {evidencias.fontes.map((f, i) => (
+                <li key={`${i}-${f.titulo}`} className="grid gap-0.5 text-sm">
+                  <span className="font-medium">{f.titulo}</span>
+                  {f.categoria && <span className="text-xs text-[var(--text-tertiary)]">{f.categoria}</span>}
+                  {f.trecho && <span className="text-[var(--text-secondary)]">{f.trecho}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     );
 
   const meta = (
@@ -568,12 +743,28 @@ export function EditorDeDocumento({
         save={falhaDeAbertura || falhaDoHost ? undefined : salvamento(fase, estado)}
         notice={notice}
         focus={foco}
-        panel={painel === "revisao" ? painelRevisao : painel === "historico" ? painelHistorico : null}
-        panelTitle={painel === "revisao" ? "Revisão e aprovação" : "Histórico de revisões"}
+        panel={
+          painel === "revisao"
+            ? painelRevisao
+            : painel === "historico"
+              ? painelHistorico
+              : painel === "estrutura"
+                ? painelEstrutura
+                : painel === "evidencias"
+                  ? painelEvidencias
+                  : null
+        }
+        panelTitle={painel ? TITULO_DO_PAINEL[painel] : undefined}
         onClosePanel={() => setPainel(null)}
         actions={
           abertura ? (
             <>
+              <Button size="sm" variant={painel === "estrutura" ? "subtle" : "ghost"} icon="clipboard-text" aria-pressed={painel === "estrutura"} onClick={() => alternarPainel("estrutura")}>
+                Estrutura
+              </Button>
+              <Button size="sm" variant={painel === "evidencias" ? "subtle" : "ghost"} icon="book-open" aria-pressed={painel === "evidencias"} onClick={() => alternarPainel("evidencias")}>
+                Evidências
+              </Button>
               <Button size="sm" variant={painel === "historico" ? "subtle" : "ghost"} icon="clock" aria-pressed={painel === "historico"} onClick={() => alternarPainel("historico")}>
                 Histórico
               </Button>

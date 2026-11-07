@@ -1,6 +1,13 @@
 "use server";
 
-import { chamarApi, ErroDaApi, type FatosDoProcesso, type RevisaoDoHistorico } from "@/lib/api";
+import {
+  chamarApi,
+  ErroDaApi,
+  type AnaliseDaRevisao,
+  type Evidencias,
+  type FatosDoProcesso,
+  type RevisaoDoHistorico,
+} from "@/lib/api";
 import type { AberturaDoEditor, EstadoDoEditor, Lote, Resposta } from "@/lib/wordcraft/transporte";
 
 /**
@@ -130,6 +137,54 @@ export async function confirmarFatos(
       tempoMs: LONGO,
     });
     return { ok: true, fatos: dados };
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+/** Prévia do que a aprovação da revisão salva recusaria hoje. Quem decide continua sendo a aprovação. */
+export async function analisarRevisao(
+  processoId: string,
+  documentoId: string,
+): Promise<{ ok: true; analise: AnaliseDaRevisao } | Falha> {
+  const invalido = conferir(processoId, documentoId);
+  if (invalido) return invalido;
+  try {
+    const { dados } = await chamarApi<AnaliseDaRevisao>(`/processos/${processoId}/documentos/${documentoId}/analise`, {
+      tempoMs: LONGO,
+    });
+    return { ok: true, analise: dados };
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function lerEvidencias(
+  processoId: string,
+  documentoId: string,
+): Promise<{ ok: true; evidencias: Evidencias } | Falha> {
+  const invalido = conferir(processoId, documentoId);
+  if (invalido) return invalido;
+  try {
+    const { dados } = await chamarApi<Evidencias>(`/processos/${processoId}/documentos/${documentoId}/evidencias`, {
+      tempoMs: LONGO,
+    });
+    return { ok: true, evidencias: dados };
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+/** Decisões da contratação que o motor de regras exige. A API recusa caminho ou valor fora do vocabulário. */
+export async function registrarDecisoes(
+  processoId: string,
+  respostas: Record<string, boolean | string>,
+): Promise<{ ok: true } | Falha> {
+  const invalido = conferir(processoId);
+  if (invalido) return invalido;
+  try {
+    await chamarApi(`/processos/${processoId}/decisoes`, { metodo: "POST", corpo: { respostas }, tempoMs: LONGO });
+    return { ok: true };
   } catch (e) {
     return falha(e);
   }

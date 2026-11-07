@@ -239,6 +239,64 @@
         "title": "Ack",
         "type": "object"
       },
+      "AnaliseDaRevisao": {
+        "properties": {
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "decisoes": {
+            "items": {
+              "$ref": "#/components/schemas/DecisaoPendente"
+            },
+            "title": "Decisoes",
+            "type": "array"
+          },
+          "estrutura": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Estrutura",
+            "type": "array"
+          },
+          "motivos": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Motivos",
+            "type": "array"
+          },
+          "pode_aprovar": {
+            "title": "Pode Aprovar",
+            "type": "boolean"
+          },
+          "revisao": {
+            "title": "Revisao",
+            "type": "integer"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          }
+        },
+        "required": [
+          "revisao",
+          "content_hash",
+          "pode_aprovar",
+          "motivos",
+          "decisoes",
+          "estrutura"
+        ],
+        "title": "AnaliseDaRevisao",
+        "type": "object"
+      },
       "AplicacaoDaDemanda": {
         "properties": {
           "descartados": {
@@ -1026,6 +1084,37 @@
           "quantidade"
         ],
         "title": "DadosDoItem",
+        "type": "object"
+      },
+      "DecisaoPendente": {
+        "properties": {
+          "ajuda": {
+            "title": "Ajuda",
+            "type": "string"
+          },
+          "opcoes": {
+            "items": {
+              "$ref": "#/components/schemas/OpcaoDeDecisao"
+            },
+            "title": "Opcoes",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "rotulo",
+          "ajuda",
+          "opcoes"
+        ],
+        "title": "DecisaoPendente",
         "type": "object"
       },
       "DocumentoConferido": {
@@ -1874,6 +1963,35 @@
         "title": "EstatisticasDoItem",
         "type": "object"
       },
+      "Evidencias": {
+        "properties": {
+          "fatos": {
+            "items": {
+              "$ref": "#/components/schemas/FatoDaEvidencia"
+            },
+            "title": "Fatos",
+            "type": "array"
+          },
+          "fontes": {
+            "items": {
+              "$ref": "#/components/schemas/FonteDaGeracao"
+            },
+            "title": "Fontes",
+            "type": "array"
+          },
+          "itens": {
+            "title": "Itens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fatos",
+          "itens",
+          "fontes"
+        ],
+        "title": "Evidencias",
+        "type": "object"
+      },
       "Excluida": {
         "properties": {
           "id": {
@@ -1920,6 +2038,32 @@
           "conflict"
         ],
         "title": "FalhaDeGravacao",
+        "type": "object"
+      },
+      "FatoDaEvidencia": {
+        "properties": {
+          "confirmado": {
+            "title": "Confirmado",
+            "type": "boolean"
+          },
+          "origem": {
+            "title": "Origem",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "valor": {
+            "title": "Valor"
+          }
+        },
+        "required": [
+          "path",
+          "origem",
+          "confirmado"
+        ],
+        "title": "FatoDaEvidencia",
         "type": "object"
       },
       "FatoPendente": {
@@ -2014,6 +2158,29 @@
           }
         },
         "title": "FiltrosDaBusca",
+        "type": "object"
+      },
+      "FonteDaGeracao": {
+        "properties": {
+          "categoria": {
+            "title": "Categoria",
+            "type": "string"
+          },
+          "titulo": {
+            "title": "Titulo",
+            "type": "string"
+          },
+          "trecho": {
+            "title": "Trecho",
+            "type": "string"
+          }
+        },
+        "required": [
+          "titulo",
+          "categoria",
+          "trecho"
+        ],
+        "title": "FonteDaGeracao",
         "type": "object"
       },
       "Formulario": {
@@ -3523,6 +3690,31 @@
         "title": "Opcao",
         "type": "object"
       },
+      "OpcaoDeDecisao": {
+        "properties": {
+          "rotulo": {
+            "title": "Rotulo",
+            "type": "string"
+          },
+          "valor": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Valor"
+          }
+        },
+        "required": [
+          "valor",
+          "rotulo"
+        ],
+        "title": "OpcaoDeDecisao",
+        "type": "object"
+      },
       "OpcaoDeRelatorio": {
         "properties": {
           "formato": {
@@ -4857,6 +5049,32 @@
           "pendente_de_vetor"
         ],
         "title": "ReferenciaIndexada",
+        "type": "object"
+      },
+      "RegistroDeDecisoes": {
+        "additionalProperties": false,
+        "properties": {
+          "respostas": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "maxProperties": 5,
+            "minProperties": 1,
+            "title": "Respostas",
+            "type": "object"
+          }
+        },
+        "required": [
+          "respostas"
+        ],
+        "title": "RegistroDeDecisoes",
         "type": "object"
       },
       "RespostaDoGovBot": {
@@ -10477,6 +10695,50 @@
         ]
       }
     },
+    "/api/v1/processos/{processo_id}/decisoes": {
+      "post": {
+        "description": "Registra a resposta humana como fato confirmado. Substitui a anterior, nunca a apaga.",
+        "operationId": "registrar_api_v1_processos__processo_id__decisoes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistroDeDecisoes"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o titular do processo ou um administrador"
+          },
+          "422": {
+            "description": "Decisão desconhecida ou valor fora das opções"
+          }
+        },
+        "summary": "Registrar",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
     "/api/v1/processos/{processo_id}/demandas/aplicacao": {
       "put": {
         "operationId": "aplicar_api_v1_processos__processo_id__demandas_aplicacao_put",
@@ -10707,6 +10969,125 @@
           }
         },
         "summary": "Listar",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/documentos/{document_id}/analise": {
+      "get": {
+        "description": "O que a aprovação desta revisão salva recusaria hoje, motivo a motivo.",
+        "operationId": "analise_api_v1_processos__processo_id__documentos__document_id__analise_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnaliseDaRevisao"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Documento fora do seu acesso ou editor desligado"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Motor indisponível"
+          }
+        },
+        "summary": "Analise",
+        "tags": [
+          "v1",
+          "documentos"
+        ]
+      }
+    },
+    "/api/v1/processos/{processo_id}/documentos/{document_id}/evidencias": {
+      "get": {
+        "description": "Os fatos do processo e as fontes que a geração deste documento consultou.",
+        "operationId": "evidencias_api_v1_processos__processo_id__documentos__document_id__evidencias_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "processo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Processo Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evidencias"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Documento fora do seu acesso ou editor desligado"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evidencias",
         "tags": [
           "v1",
           "documentos"
