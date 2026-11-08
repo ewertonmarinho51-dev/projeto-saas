@@ -292,6 +292,10 @@ export type RespostaDoGovBot = {
   base: "dispensada" | "recuperado" | "suficiente" | "sem_referencias" | "falha";
   ia: boolean;
   motor_falhou: boolean;
+  /** Por quê: o provedor não respondeu, ou respondeu e a validação recusou. */
+  falha: "motor" | "resposta_recusada" | null;
+  /** Motivo técnico (tipo do erro ou regra recusada), para quem perguntou. */
+  detalhe_tecnico: string | null;
   pendencias: string[];
 };
 

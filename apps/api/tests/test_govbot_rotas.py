@@ -337,3 +337,47 @@ def test_edital_e_arp_nao_entram_em_foco(api, emissor, banco, documento):
     r = api().post(URL, json={"pergunta": "reescreva", "processo_id": PROCESSO, "documento": documento,
                               "bloco": f"{documento}/clausula/1/1"}, headers=_auth(emissor))
     assert r.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Diagnóstico: quando o motor não dá resposta, a pessoa sabe por quê
+# ---------------------------------------------------------------------------
+def test_provedor_fora_do_ar_e_falha_de_motor_com_o_tipo_do_erro(api, emissor):
+    def chamar(*a, **k):
+        raise TimeoutError("sem resposta")
+    corpo = api(chamar=chamar).post(URL, json={"pergunta": "O que é o ETP?"}, headers=_auth(emissor)).json()
+    assert (corpo["falha"], corpo["detalhe_tecnico"]) == ("motor", "TimeoutError")
+
+
+def test_resposta_que_nao_e_json_e_recusada_e_diz_a_regra(api, emissor):
+    corpo = api(chamar=lambda *a, **k: "Claro! Aqui vai a resposta.").post(
+        URL, json={"pergunta": "O que é o ETP?"}, headers=_auth(emissor)).json()
+    assert corpo["motor_falhou"] is True and corpo["falha"] == "resposta_recusada"
+    assert corpo["detalhe_tecnico"].startswith("ErroRespostaModelo")
+
+
+def test_proposta_com_chave_que_o_contrato_nao_tem_e_recusada_e_nomeada(api, emissor, banco):
+    modelo = json.loads(_proposta_do_modelo("Redação nova sem número."))
+    modelo["payload"]["apply_now"] = False     # só `apply_section_patch` aceita
+    corpo = _pergunta_de_proposta(api, emissor, banco, json.dumps(modelo)).json()
+    assert corpo["proposta"] is None and corpo["falha"] == "resposta_recusada"
+    assert "apply_now" in corpo["detalhe_tecnico"]
+
+
+def test_resposta_valida_nao_traz_diagnostico(api, emissor):
+    corpo = api().post(URL, json={"pergunta": "O que é o ETP?"}, headers=_auth(emissor)).json()
+    assert corpo["ia"] is True and corpo["falha"] is None and corpo["detalhe_tecnico"] is None
+
+
+def test_orientacao_local_nao_e_falha(api, emissor, banco):
+    banco.respostas[("GET", "processos")] = [_processo()]
+    corpo = api().post(URL, json={"pergunta": "O que está faltando?", "processo_id": PROCESSO},
+                       headers=_auth(emissor)).json()
+    assert corpo["motor_falhou"] is False and corpo["falha"] is None
+
+
+def test_resposta_sobre_a_base_sem_fonte_citada_e_recusada_por_isso(api, emissor):
+    corpo = api(chamar=lambda *a, **k: _modelo(), buscar=lambda *a, **k: [REFERENCIA]).post(
+        URL, json={"pergunta": "Qual o fundamento legal do ETP?"}, headers=_auth(emissor)).json()
+    assert corpo["base"] == "recuperado" and corpo["falha"] == "resposta_recusada"
+    assert "fonte recuperada" in corpo["detalhe_tecnico"]

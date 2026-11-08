@@ -5101,6 +5101,32 @@
             "title": "Citacoes",
             "type": "array"
           },
+          "detalhe_tecnico": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detalhe Tecnico"
+          },
+          "falha": {
+            "anyOf": [
+              {
+                "enum": [
+                  "motor",
+                  "resposta_recusada"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Falha"
+          },
           "ia": {
             "title": "Ia",
             "type": "boolean"

@@ -47,6 +47,8 @@ const AVISO_BASE: Partial<Record<RespostaDoGovBot["base"], string>> = {
 };
 
 function aviso(d: RespostaDoGovBot): string {
+  if (d.falha === "resposta_recusada")
+    return "O GovBot respondeu, mas a resposta não passou na conferência de segurança e foi descartada. Tente reformular o pedido.";
   if (d.motor_falhou) return "O motor de IA não respondeu agora. Tente de novo em instantes.";
   if (d.proposta) return "Proposta gerada a partir do contexto listado. Nada foi gravado: confira as fontes e ajuste antes de usar.";
   return (
@@ -369,6 +371,13 @@ export function ConversaDoGovBot({
                           <Cite key={c.source_id} n={numero(c)} href={`#${ancora(numero(c))}`} />
                         ))}
                       </p>
+                    )}
+                    {m.dados.detalhe_tecnico && (
+                      <div className="mt-3">
+                        <Accordion
+                          items={[{ title: "Detalhe técnico", content: <p className="gc-help gc-mono">{m.dados.detalhe_tecnico}</p> }]}
+                        />
+                      </div>
                     )}
                     {m.dados.proposta && (
                       <div className="mt-3">
