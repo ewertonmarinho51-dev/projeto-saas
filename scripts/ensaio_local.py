@@ -183,6 +183,8 @@ SEQUENCIA_EM_ENSAIO = (
     # A 0039 confere o RLS de `api_jobs` e `anon` sem acesso, o que só vale
     # depois das migrações de contenção.
     "0039_api_jobs_elaboracao.sql",
+    # A 0040 confere o RLS de `processos` e `anon` sem leitura: mesma razão.
+    "0040_documentos_gerados.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
