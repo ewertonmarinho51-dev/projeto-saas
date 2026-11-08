@@ -1,5 +1,27 @@
 -- ## 0040 — Lista de processos: quais documentos existem, sem trazer o texto
--- ## ESTADO: APLICÁVEL. NÃO aplicada em produção.
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 08/11/2026 como `m0040_documentos_gerados`,
+-- ##   por autorização expressa do dono, depois do ensaio nos dois níveis.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (08/11/2026):
+--   * ANTES: 8 processos; 104 políticas em public; 95 grants de tabela a
+--     `authenticated`, 0 a `anon`; função inexistente; RLS de `processos` ligado;
+--     `dados` + `documentos` somavam 1.221.545 bytes de texto;
+--   * aplicação: conferência interna aprovada;
+--   * DEPOIS: 8 processos, 104 políticas, 95 e 0 grants (nada mudou além da
+--     função); ACL `{postgres, service_role, authenticated}`, `security invoker`,
+--     `search_path=""`; os nomes dos documentos dos 8 processos somam 107 bytes;
+--   * comportamento, num bloco desfeito, com dois órgãos sintéticos criados e
+--     apagados na hora: o próprio órgão viu `{dfd,etp}` sem texto, o outro órgão
+--     0 linhas, `anon` recusado (42501). Nenhum resíduo depois do bloco;
+--   * advisors de segurança: nada sobre a função; os listados são anteriores.
+--
+-- REGISTRO DO ENSAIO (01/11/2026):
+--   * nível 1: PostgreSQL do CI (`tests/test_migracao_0040.py`, ensaio
+--     obrigatório), com cada ramo da conferência sob mutação;
+--   * nível 2, descartável: ACL igual à de produção depois da aplicação;
+--     comportamento idêntico ao registrado acima, num bloco desfeito;
+--   * revisão do `revisor-de-banco-e-seguranca`: segura; os três reforços que
+--     sugeriu (service_role, search_path, grant por coluna) entraram.
 --
 -- O PROBLEMA (produção, 01/11/2026, medido)
 --   `GET /processos` lia `dados` e `documentos` inteiros de cada linha para
