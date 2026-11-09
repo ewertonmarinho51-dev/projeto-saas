@@ -200,8 +200,14 @@ test("pesquisa de preços: etapas, itens, triagem que filtra e cesta", async ({ 
   await capturar(page, "app-precos");
   await page.getByRole("listitem").filter({ hasText: "Luvas E2E" }).first().getByRole("link").click();
   await expect(page.getByTestId("titulo-pesquisa")).toBeVisible();
-  await expect(page.getByRole("list", { name: "Etapas da pesquisa de preços" })).toBeVisible();
+  const fluxo = page.getByRole("list", { name: "Etapas da pesquisa de preços" });
+  await expect(fluxo).toBeVisible();
   await capturar(page, "app-pesquisa");
+
+  // Etapa passada é link de volta à seção dela; a atual não é link.
+  await expect(fluxo.locator("[aria-current=step] a")).toHaveCount(0);
+  await fluxo.getByRole("link", { name: /Definir itens/ }).click();
+  await expect(page).toHaveURL(/#(importar-itens|itens)$/);
 
   await page.locator("section[aria-labelledby=titulo-itens] tbody a").first().click();
   await expect(page.getByTestId("preco-do-item")).toBeVisible();

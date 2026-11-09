@@ -66,7 +66,7 @@ server component. Componente que recebe função (`render`, `trigger`,
 | navigation | `Topbar` | barra superior de 64 px | |
 | navigation | `Breadcrumbs` | trilha | |
 | navigation | `Tabs` | abas linha ou segmentadas; setas do teclado | sim |
-| navigation | `Stepper` | etapas (fase preparatória, pesquisa) | |
+| navigation | `Stepper` | etapas (fase preparatória, pesquisa); etapa concluída com `href` vira link de volta (servidor, sem JS), com `onStepClick` vira botão | |
 | content | `Card` | superfície base | |
 | content | `DataList` | chave–valor | |
 | content | `Accordion` | detalhe que abre/fecha | |

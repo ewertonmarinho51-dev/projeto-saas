@@ -201,7 +201,12 @@
 .gc-step__label{font:500 var(--gc-fs-xs)/1.3 var(--gc-font-sans);color:var(--text-secondary);padding:0 4px;max-width:100%;overflow-wrap:anywhere}
 .gc-step[data-state="current"] .gc-step__label{color:var(--text-primary);font-weight:600}
 .gc-step__meta{font:var(--type-caption);color:var(--text-tertiary);margin-top:-4px}
-.gc-step__btn{all:unset;display:contents;cursor:pointer}
+/* Corpo da etapa (ponto + rótulo). Na etapa passada é o link ou botão de voltar: caixa de verdade, para o anel de foco aparecer, e rótulo sublinhado, para não depender só da cor. */
+.gc-step__corpo{display:grid;justify-items:center;gap:var(--space-2);max-width:100%}
+.gc-step__btn{all:unset;display:grid;justify-items:center;gap:var(--space-2);max-width:100%;cursor:pointer;border-radius:var(--gc-radius-sm)}
+.gc-step__btn:focus-visible{outline:var(--space-0-5) solid var(--focus-ring-color);outline-offset:var(--space-0-5)}
+.gc-step__btn .gc-step__label{color:var(--accent-strong-text);text-decoration:underline;text-underline-offset:var(--space-0-5)}
+.gc-step__btn:hover .gc-step__label{text-decoration-thickness:var(--space-0-5)}
 
 /* ——— Content ——— */
 .gc-card{background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:var(--gc-radius-lg);min-width:0}
