@@ -65,6 +65,9 @@ TIMEOUT_S = 30
 # dias de "papel para impressão formatado" = 1.173 compras; de "clipe",
 # 1.498).
 PDMS_POR_ITEM = 2
+# Textos que inferem grupo do catálogo numa busca: o termo digitado (e
+# sinônimos, se houver) mais a descrição. Teto para o custo não crescer.
+MAX_TEXTOS_DE_BUSCA = 3
 
 
 def _sem_acento(texto: str) -> str:
@@ -199,18 +202,52 @@ class ComprasGovAdapter(FontePesquisaPreco):
 
         Código informado que não traz preço (número da planilha, código
         interno do município) cai também para a descrição.
+
+        Termo digitado pelo servidor (`termos_alternativos`) AMPLIA a
+        consulta: o grupo do catálogo passa a ser procurado pelo termo e
+        pela descrição, e o código não encerra a busca. Antes o termo só
+        era lido por `_por_descricao`, que não roda mais — e a busca saía
+        sempre pela descrição do item (produção, 09/11/2026).
         """
         resultado = ResultadoBusca(fonte=self.fonte)
         if consulta.tem_codigo:
             self._por_codigo(consulta, resultado, avisar_vazio=False)
             resultado.codigo_confirmado = bool(resultado.referencias)
-            if resultado.referencias or resultado.houve_falha:
+            if resultado.houve_falha or (
+                    resultado.referencias and not consulta.termos_alternativos):
                 return resultado
-            resultado.registrar(
-                f"o código {consulta.codigo_catalogo} não trouxe preço "
-                "praticado na janela; a busca seguiu pela descrição")
+            if not resultado.referencias:
+                resultado.registrar(
+                    f"o código {consulta.codigo_catalogo} não trouxe preço "
+                    "praticado na janela; a busca seguiu pela descrição")
         self._por_descricao_via_catalogo(consulta, resultado)
         return resultado
+
+    def _pdms_da_consulta(self, catalogo, consulta: Consulta) -> list[dict]:
+        """
+        Os grupos do catálogo da consulta: primeiro os do termo digitado,
+        depois os da descrição, sem repetir — no máximo `PDMS_POR_ITEM`
+        por texto e `PDMS_POR_ITEM * MAX_TEXTOS_DE_BUSCA` no total, para
+        o custo da busca não crescer com cada sinônimo.
+        """
+        def limpo(texto) -> str:
+            return " ".join(str(texto or "").split())
+
+        descricao = limpo(consulta.descricao)
+        textos: list[str] = []
+        for texto in map(limpo, consulta.termos_alternativos):
+            if texto and texto.casefold() not in {t.casefold() for t in (*textos, descricao)}:
+                textos.append(texto)
+        # a descrição entra SEMPRE (o termo amplia, não substitui)
+        textos = textos[:MAX_TEXTOS_DE_BUSCA - 1] + ([descricao] if descricao else [])
+        pdms: list[dict] = []
+        vistos: set[str] = set()
+        for texto in textos:
+            for pdm in catalogo.pdms_para(texto, PDMS_POR_ITEM):
+                if str(pdm["codigo"]) not in vistos:
+                    vistos.add(str(pdm["codigo"]))
+                    pdms.append(pdm)
+        return pdms
 
     def _por_descricao_via_catalogo(self, consulta: Consulta,
                                     resultado: ResultadoBusca) -> None:
@@ -228,16 +265,16 @@ class ComprasGovAdapter(FontePesquisaPreco):
 
         catalogo = self._catalogo or padrao()
         try:
-            pdms = catalogo.pdms_para(consulta.descricao, PDMS_POR_ITEM)
+            pdms = self._pdms_da_consulta(catalogo, consulta)
         except ErroCatalogo as erro:
             resultado.falhar(f"{self.fonte.nome}: {erro}")
             return
         if not pdms:
             resultado.registrar(
-                "a descrição não correspondeu a nenhum grupo do catálogo "
-                "oficial (o primeiro termo deve nomear o material, ex.: "
-                "\"CANETA esferográfica…\"); ajuste a descrição ou informe "
-                "o CATMAT/CATSER do item")
+                "nem a descrição nem o termo da busca corresponderam a um "
+                "grupo do catálogo oficial (o primeiro termo deve nomear o "
+                "material, ex.: \"CANETA esferográfica…\", \"ANALISADOR "
+                "químico…\"); ajuste o termo ou informe o CATMAT/CATSER do item")
             return
         resultado.registrar(
             "busca pela descrição: grupo(s) do catálogo oficial — "

@@ -41,7 +41,7 @@ export default async function Referencias({
 }) {
   if (!precosHabilitado()) notFound();
   const { id, itemId } = await params;
-  const { cesta, item: atoNoItem, ref, busca, aba } = await searchParams;
+  const { cesta, item: atoNoItem, ref, busca, aba, termo } = await searchParams;
   if (!UUID.test(id) || !UUID.test(itemId)) notFound();
 
   let refs: ReferenciaDePreco[];
@@ -151,7 +151,7 @@ export default async function Referencias({
             <BuscaDoItem
               pesquisa={id}
               item={item.id}
-              termo={item.descricao}
+              termo={typeof termo === "string" && termo.trim() ? termo.trim().slice(0, 300) : item.descricao}
               uf={item.uf ?? ""}
               chave={`web-busca-${crypto.randomUUID()}`}
             />

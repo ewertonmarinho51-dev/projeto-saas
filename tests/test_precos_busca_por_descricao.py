@@ -91,6 +91,48 @@ def test_sem_codigo_pesquisa_os_precos_do_grupo_pela_descricao():
     assert any("grupo(s) do catálogo" in o for o in resultado.ocorrencias)
 
 
+def test_termo_digitado_leva_ao_grupo_que_a_descricao_nao_alcanca():
+    """Produção, 09/11/2026: o termo chegava e a busca saía só pela descrição."""
+    urls: list[str] = []
+    compras = {"27": [_compra(27, 30.0, "GRAMPEADOR, MATERIAL: METAL")]}
+    resultado = ComprasGovAdapter(abrir_url=_api(compras, urls)).pesquisar(
+        Consulta(descricao="EQUIPAMENTO DE ESCRITÓRIO PARA PAPÉIS",
+                 termos_alternativos=("GRAMPEADOR de mesa",)))
+    assert len(resultado.referencias) == 1
+    assert resultado.pdms_inferidos[0] == "27"
+    assert any("tipo=codigoPdm" in u and "codigo=27" in u for u in urls)
+
+
+def test_termo_amplia_e_a_descricao_continua_na_busca():
+    urls: list[str] = []
+    compras = {"27": [_compra(27, 30.0, "GRAMPEADOR")],
+               "11": [_compra(11, 2.10, "CLIPE, TAMANHO: 2/0")]}
+    resultado = ComprasGovAdapter(abrir_url=_api(compras, urls)).pesquisar(
+        Consulta(descricao="CLIPES METÁLICOS Nº 2/0",
+                 termos_alternativos=("GRAMPEADOR",)))
+    assert resultado.pdms_inferidos == ["27", "11"]
+    assert len(resultado.referencias) == 2
+
+
+def test_com_codigo_que_traz_preco_o_termo_ainda_amplia():
+    urls: list[str] = []
+    abrir = _api({"27": [_compra(27, 30.0, "GRAMPEADOR")]}, urls)
+
+    def com_codigo(url):
+        if "tipo=codigoItemCatalogo" in url:
+            urls.append(url)
+            return json.dumps({"resultado": [_compra(11, 2.10, "CLIPE 2/0")], "totalRegistros": 1})
+        return abrir(url)
+
+    sem_termo = ComprasGovAdapter(abrir_url=com_codigo).pesquisar(
+        Consulta(descricao="CLIPES METÁLICOS Nº 2/0", codigo_catalogo="123"))
+    assert len(sem_termo.referencias) == 1 and not sem_termo.pdms_inferidos
+    com_termo = ComprasGovAdapter(abrir_url=com_codigo).pesquisar(
+        Consulta(descricao="CLIPES METÁLICOS Nº 2/0", codigo_catalogo="123",
+                 termos_alternativos=("GRAMPEADOR",)))
+    assert len(com_termo.referencias) == 2 and "27" in com_termo.pdms_inferidos
+
+
 def test_descricao_sem_grupo_no_catalogo_orienta_sem_falhar():
     resultado = ComprasGovAdapter(abrir_url=_api({}, [])).pesquisar(
         Consulta(descricao="SERVIÇO DE CONSULTORIA ESPECIALIZADA"))
