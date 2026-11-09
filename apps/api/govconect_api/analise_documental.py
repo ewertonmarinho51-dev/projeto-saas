@@ -118,6 +118,10 @@ class Evidencias(BaseModel):
     fontes: list[FonteDaGeracao]
 
 
+class DecisoesRegistradas(BaseModel):
+    registradas: int
+
+
 class RegistroDeDecisoes(BaseModel):
     model_config = ConfigDict(extra="forbid")
     respostas: dict[str, bool | str] = Field(min_length=1, max_length=len(DECISOES))
@@ -289,11 +293,13 @@ def rotas() -> APIRouter:
                   for ref in (trace.get("referencias") or []) if isinstance(ref, dict)][:20]
         return Evidencias(fatos=lista, itens=itens, fontes=fontes)
 
-    @r.post("/{processo_id}/decisoes", status_code=204, response_class=Response,
+    # 200 com corpo, não 204: o BFF lê JSON de toda resposta de sucesso, e um
+    # corpo vazio virava "falha" na tela depois de a decisão já estar gravada.
+    @r.post("/{processo_id}/decisoes", response_model=DecisoesRegistradas,
             responses={403: {"description": "Só o titular do processo ou um administrador"},
                        422: {"description": "Decisão desconhecida ou valor fora das opções"}})
     def registrar(processo_id: uuid.UUID, pedido: RegistroDeDecisoes, request: Request,
-                  eu: Identidade = Depends(exigir_identidade)) -> Response:
+                  response: Response, eu: Identidade = Depends(exigir_identidade)) -> DecisoesRegistradas:
         """Registra a resposta humana como fato confirmado. Substitui a anterior, nunca a apaga."""
         exigir_workspace(request, eu)
         pid = str(processo_id)
@@ -317,6 +323,7 @@ def rotas() -> APIRouter:
                 raise ErroApi(403, "FORBIDDEN", "Só o titular do processo ou um administrador registra decisões.") from None
         if substituir or confirmar:
             transicionar_fatos(request, eu, pid, substituir, confirmar)
-        return Response(status_code=204, headers=SEM_CACHE)
+        response.headers.update(SEM_CACHE)
+        return DecisoesRegistradas(registradas=len(pedido.respostas))
 
     return r
