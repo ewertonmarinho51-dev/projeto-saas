@@ -86,6 +86,20 @@ for _canonica, (_nome, _siglas) in _CANONICAS.items():
     for _s in _siglas:
         _POR_SIGLA[_s] = _nome
 
+# A mesma sigla SEM espaço nenhum, para a célula que veio de PDF com a
+# palavra quebrada ("METRO\nQUADRAD\nO", planilha real de 09/11/2026).
+# Só entra a chave que leva a UMA unidade: colar espaços nunca pode
+# transformar uma unidade em outra.
+_POR_SIGLA_COLADA: dict[str, str] = {}
+_AMBIGUAS: set[str] = set()
+for _s, _nome in _POR_SIGLA.items():
+    _colada = _s.replace(" ", "")
+    if _POR_SIGLA_COLADA.get(_colada, _nome) != _nome:
+        _AMBIGUAS.add(_colada)
+    _POR_SIGLA_COLADA[_colada] = _nome
+for _colada in _AMBIGUAS:
+    _POR_SIGLA_COLADA.pop(_colada, None)
+
 # Unidades que EMBALAM outras: só elas admitem fator de embalagem. Não faz
 # sentido perguntar quantas unidades há dentro de um quilograma.
 EMBALAGENS = {"CAIXA", "PACOTE", "RESMA", "EMBALAGEM", "ROLO", "JOGO",
@@ -257,8 +271,9 @@ def canonizar(sigla: str | None) -> str | None:
         return None
     texto = unicodedata.normalize("NFKD", str(sigla).strip().upper())
     texto = "".join(c for c in texto if not unicodedata.combining(c))
-    texto = texto.rstrip(".")
-    return _POR_SIGLA.get(texto)
+    # quebra de linha, tabulação e espaço duplo da planilha viram um espaço
+    texto = " ".join(texto.split()).rstrip(".").strip()
+    return _POR_SIGLA.get(texto) or _POR_SIGLA_COLADA.get(texto.replace(" ", ""))
 
 
 def conteudo_declarado(descricao: str | None) -> Decimal | None:
