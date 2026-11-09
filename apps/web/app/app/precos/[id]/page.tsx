@@ -6,6 +6,7 @@ import { BotaoDeColeta, ProgressoDaColeta } from "@/components/coleta";
 import { PainelDeEmissao, ProgressoDoRelatorio } from "@/components/emissao";
 import { AplicarAoProcesso } from "@/components/aplicar-processo";
 import { DestinatarioDaPesquisa } from "@/components/destinatario";
+import { etapasDaPesquisa, SECAO } from "@/components/etapas-da-pesquisa";
 import { FechamentoDaPesquisa, GestaoDaPesquisa, NovoItem } from "@/components/gestao-cotacao";
 import { ImportarPlanilha } from "@/components/importar-planilha";
 import { dataCurta, rotuloEstadoItem, rotuloEstadoPesquisa, rotuloMetodo } from "@/components/precos";
@@ -21,7 +22,6 @@ import {
   StatusBadge,
   Stepper,
   TableContainer,
-  type StepItem,
 } from "@/design-system";
 import {
   chamarApi,
@@ -38,6 +38,10 @@ export const metadata: Metadata = { title: "Pesquisa de preços" };
 const UUID = /^[0-9a-f-]{36}$/i;
 
 const IMUTAVEIS = new Set(["applied", "archived"]);
+
+// Destino de etapa do fluxo: a barra do topo é fixa, e a seção não pode
+// parar embaixo dela ao rolar.
+const ALVO = "scroll-mt-[calc(var(--topbar-height)+var(--space-4))]";
 
 export default async function Pesquisa({
   params,
@@ -154,7 +158,10 @@ export default async function Pesquisa({
       </div>
 
       <Card>
-        <Stepper ariaLabel="Etapas da pesquisa de preços" steps={etapas(p.estado, p.itens.length, concluidos)} />
+        <Stepper
+          ariaLabel="Etapas da pesquisa de preços"
+          steps={etapasDaPesquisa(p.estado, p.itens.length, concluidos, !IMUTAVEIS.has(p.estado))}
+        />
       </Card>
 
       {aviso && <Alert variant="success" title={aviso} />}
@@ -170,11 +177,13 @@ export default async function Pesquisa({
         // Chave nova a cada renderização: um clique (ou o reenvio do
         // formulário) não põe duas coletas na fila — a API devolve o
         // mesmo job para a mesma chave.
-        <BotaoDeColeta pesquisa={p.id} chave={`web-coleta-${crypto.randomUUID()}`} />
+        <div id={SECAO.coleta} className={ALVO}>
+          <BotaoDeColeta pesquisa={p.id} chave={`web-coleta-${crypto.randomUUID()}`} />
+        </div>
       )}
 
       {!IMUTAVEIS.has(p.estado) && (
-        <section aria-labelledby="titulo-importar" className="gc-card">
+        <section id={SECAO.importar} aria-labelledby="titulo-importar" className={`gc-card ${ALVO}`}>
           <div className="gc-card__header gc-card__header--divided">
             <div className="gc-card__titles">
               <h2 id="titulo-importar" className="gc-card__title">
@@ -197,7 +206,7 @@ export default async function Pesquisa({
         </section>
       )}
 
-      <section aria-labelledby="titulo-itens" className="gc-card">
+      <section id={SECAO.itens} aria-labelledby="titulo-itens" className={`gc-card ${ALVO}`}>
         <div className="gc-card__header">
           <div className="gc-card__titles">
             <h2 id="titulo-itens" className="gc-card__title">
@@ -279,7 +288,7 @@ export default async function Pesquisa({
       </section>
 
       {p.itens.length > 0 && (
-        <section aria-labelledby="titulo-emissao" className="gc-card" data-testid="secao-emissao">
+        <section id={SECAO.relatorios} aria-labelledby="titulo-emissao" className={`gc-card ${ALVO}`} data-testid="secao-emissao">
           <div className="gc-card__header gc-card__header--divided">
             <div className="gc-card__titles">
               <h2 id="titulo-emissao" className="gc-card__title">
@@ -333,20 +342,4 @@ export default async function Pesquisa({
       )}
     </>
   );
-}
-
-/**
- * As etapas da referência (Definir itens → Coletar → Triagem → Mapa →
- * Relatório), lidas do estado que a API devolve — indicador, não
- * navegação: cada etapa é uma seção desta página.
- */
-function etapas(estado: string, itens: number, concluidos: number): StepItem[] {
-  const atual =
-    itens === 0 ? 0 : estado === "queued" || estado === "running" ? 1 : concluidos < itens ? 2 : estado === "completed" ? 4 : estado === "applied" ? 5 : 3;
-  const nomes = ["Definir itens", "Coletar preços", "Triagem", "Mapa de preços", "Relatório final"];
-  return nomes.map((label, i) => ({
-    label,
-    state: estado === "failed" && i === 1 ? "error" : i < atual ? "done" : i === atual ? "current" : "todo",
-    meta: i === 2 && itens > 0 ? `${concluidos} de ${itens} itens` : undefined,
-  }));
 }

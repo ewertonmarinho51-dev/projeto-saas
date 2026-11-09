@@ -399,6 +399,18 @@ export function GaleriaBase({ tema }: { tema: string }) {
               ]}
             />
           </Exemplo>
+          <Exemplo rotulo="Stepper — concluídas como link (href, sem JavaScript)" largo>
+            <Stepper
+              ariaLabel="Etapas da pesquisa de preços (links)"
+              steps={[
+                { label: "Definir itens", state: "done", href: `#${tema}-navigation` },
+                { label: "Coletar preços", state: "done", href: `#${tema}-navigation` },
+                { label: "Triagem", state: "current", meta: "3 de 7 itens", href: `#${tema}-navigation` },
+                { label: "Mapa de preços", state: "todo", href: `#${tema}-navigation` },
+                { label: "Relatório final", state: "todo" },
+              ]}
+            />
+          </Exemplo>
           <Exemplo rotulo="Stepper — com pendência" largo>
             <Stepper
               ariaLabel="Fase preparatória"
