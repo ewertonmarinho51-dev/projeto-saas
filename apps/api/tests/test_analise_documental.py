@@ -199,7 +199,7 @@ def test_decisao_vira_fato_confirmado_com_fonte_humana(emissor, estado, projecao
     api, banco = _api(emissor, projecao)
     r = api.post(DECISOES, headers=_h(emissor),
                  json={"respostas": {"contratacao.garantia_exigida": False, "objeto.natureza": "BENS"}})
-    assert r.status_code == 204, r.text
+    assert r.status_code == 200 and r.json() == {"registradas": 2}, r.text
     assert {f["path"] for f in estado.salvos} == {"contratacao.garantia_exigida", "objeto.natureza"}
     assert all(f["fonte"] == ad.FONTE_DA_DECISAO and f["confianca"] == 1.0 for f in estado.salvos)
     # Confirmação pela RPC da 0037, com o JWT de quem decidiu.

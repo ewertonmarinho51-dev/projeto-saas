@@ -1117,6 +1117,19 @@
         "title": "DecisaoPendente",
         "type": "object"
       },
+      "DecisoesRegistradas": {
+        "properties": {
+          "registradas": {
+            "title": "Registradas",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "registradas"
+        ],
+        "title": "DecisoesRegistradas",
+        "type": "object"
+      },
       "DocumentoConferido": {
         "additionalProperties": false,
         "properties": {
@@ -10748,7 +10761,14 @@
           "required": true
         },
         "responses": {
-          "204": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisoesRegistradas"
+                }
+              }
+            },
             "description": "Successful Response"
           },
           "403": {
