@@ -136,7 +136,7 @@ def test_timbrado_vem_do_resolvedor_das_exportacoes(monkeypatch, orgaos,
     monkeypatch.setattr(db, "disponivel", lambda: True)
     monkeypatch.setattr(contexto, "identidade_para_exportacao", lambda: None)
     monkeypatch.setattr(db, "listar_orgaos", lambda: orgaos)
-    marca = precos_ui._branding_da_emissao()
+    marca = precos_ui._branding_da_emissao({})
     assert (marca or {}).get("orgao") == esperado
 
 
@@ -149,4 +149,4 @@ def test_timbrado_do_vinculo_tem_precedencia(monkeypatch):
                         lambda: ({"orgao": "SECRETARIA X"}, "secretaria"))
     monkeypatch.setattr(db, "listar_orgaos",
                         lambda: pytest.fail("não deveria listar órgãos"))
-    assert precos_ui._branding_da_emissao() == {"orgao": "SECRETARIA X"}
+    assert precos_ui._branding_da_emissao({}) == {"orgao": "SECRETARIA X"}

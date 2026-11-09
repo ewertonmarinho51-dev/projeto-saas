@@ -66,6 +66,9 @@ def marca_resolvida() -> dict | None:
     O timbrado do tenant/secretaria pelo MESMO resolvedor das exportações
     do processo: vínculo do usuário, e não escolha de tela. Sem resolução,
     o órgão padrão do município; sem órgão, nenhum.
+
+    Só para pesquisa SEM destinatário (anterior à 0041) — quem tem um passa
+    por `marca_do_relatorio`.
     """
     from .. import contexto, db
 
@@ -77,6 +80,66 @@ def marca_resolvida() -> dict | None:
     except db.ErroBanco:
         return None
     return orgaos[0] if orgaos else None
+
+
+# Quem recebe o relatório (0041). As duas colunas vazias: pesquisa anterior
+# à 0041, que segue o vínculo de quem emite (decisão do dono, 09/11/2026).
+def destinatario(pesquisa: dict) -> tuple[str, str]:
+    """('secretaria', id) | ('externo', nome) | ('legado', '')."""
+    secretaria = str(pesquisa.get("destinatario_secretaria_id") or "").strip()
+    if secretaria:
+        return "secretaria", secretaria
+    externo = " ".join(str(pesquisa.get("destinatario_externo") or "").split())
+    if externo:
+        return "externo", externo
+    return "legado", ""
+
+
+def timbrado_da_secretaria(secretarias: list[dict],
+                           secretaria_id: str) -> dict | None:
+    """
+    O timbrado de uma secretaria do município: o dela; sem um próprio, o do
+    município (a secretaria `padrao`). Secretaria que não está na lista — de
+    outro município, ou apagada — dá NENHUM timbrado, nunca o do município:
+    cair no padrão foi exatamente o defeito que a 0041 corrige.
+    """
+    from .. import contexto
+
+    escolhida = next((s for s in secretarias
+                      if str(s.get("id")) == str(secretaria_id)), None)
+    if escolhida is None:
+        return None
+    if contexto.tem_identidade_propria(escolhida):
+        return escolhida
+    padrao = next((s for s in secretarias
+                   if s.get("padrao") and s.get("ativo", True)), None)
+    return padrao if contexto.tem_identidade_propria(padrao) else None
+
+
+def marca_do_relatorio(pesquisa: dict) -> dict | None:
+    """
+    O timbrado do relatório pelo DESTINATÁRIO da pesquisa:
+
+    * Prefeitura de Paragominas ou secretaria dela (uma secretaria
+      cadastrada do município) → o timbrado dela, herdando o do município;
+    * outro órgão → sem timbrado. Não há cadastro de timbrado de órgão
+      externo; quando houver, ele entra aqui;
+    * sem destinatário (pesquisa anterior à 0041) → `marca_resolvida()`.
+    """
+    from .. import db
+
+    tipo, valor = destinatario(pesquisa)
+    if tipo == "externo":
+        return None
+    if tipo == "legado":
+        return marca_resolvida()
+    try:
+        # Inativas também: a secretaria escolhida pode ter sido desativada
+        # depois; o timbrado dela continua sendo o do relatório.
+        secretarias = db.listar_secretarias(incluir_inativas=True)
+    except db.ErroBanco:
+        return None
+    return timbrado_da_secretaria(secretarias, valor)
 
 
 def total_de_referencias(referencias: dict[str, list[dict]]) -> int:

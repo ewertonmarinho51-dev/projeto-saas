@@ -731,6 +731,7 @@ def _render_nova() -> None:
             help=("Nenhum processo aberto nesta sessão."
                   if not processo_atual else
                   "A pesquisa pode nascer autônoma e ser vinculada depois."))
+        destino, erro_destino = campo_destinatario("precos_nova")
         enviado = st.form_submit_button("Criar pesquisa", type="primary")
 
     st.caption(
@@ -742,9 +743,21 @@ def _render_nova() -> None:
         if not nome.strip():
             st.error("A pesquisa precisa de um nome.")
             return
+        if erro_destino:
+            st.error(erro_destino)
+            return
+        from ..precos import cotacoes
+
+        try:
+            destino_sec, destino_ext = cotacoes.destinatario_validado(destino)
+        except cotacoes.ErroCotacao as exc:
+            st.error(f"Destinatário: {exc}.")
+            return
         criada = repo.criar_pesquisa(
             nome.strip(), auth_user_id=auth_user_id,
             secretaria_id=secretaria_id,
+            destinatario_secretaria_id=destino_sec,
+            destinatario_externo=destino_ext,
             processo_id=processo_atual if vincular else None,
             objeto=objeto.strip(), responsavel=responsavel.strip(),
             local_referencia=local.strip(), data_base=data_base,
@@ -2234,6 +2247,9 @@ def _render_relatorios(pesquisa: dict) -> None:
         return
 
     if _relatorio_visual():
+        # O destinatário só decide o timbrado do padrão novo; o gerador
+        # antigo usa o `branding` da tela, e lá a escolha não teria efeito.
+        _render_destinatario(pesquisa)
         _render_relatorios_visuais(pesquisa, itens, referencias,
                                    identificador)
         _render_previa_e_conferencia(pesquisa, itens, referencias,
@@ -2460,10 +2476,10 @@ def _relatorio_visual() -> bool:
 LIMITE_DO_ANALITICO = emissao.LIMITE_DO_ANALITICO
 
 
-def _branding_da_emissao() -> dict | None:
+def _branding_da_emissao(pesquisa: dict) -> dict | None:
     """
-    O timbrado do tenant/secretaria pelo MESMO resolvedor das exportações
-    do processo (`steps`): vínculo do usuário, e não escolha de tela.
+    O timbrado pelo DESTINATÁRIO da pesquisa (`emissao.marca_do_relatorio`,
+    o mesmo da API); sem destinatário, pelo vínculo do usuário.
 
     O caminho anterior lia `st.session_state["branding"]`, que nenhuma
     tela grava — os relatórios de preços saíam sem timbrado. Fica assim
@@ -2472,7 +2488,121 @@ def _branding_da_emissao() -> dict | None:
     """
     if not db.disponivel():
         return st.session_state.get("branding") or None
-    return emissao.marca_resolvida()
+    return emissao.marca_do_relatorio(pesquisa)
+
+
+# ---------------------------------------------------------------------------
+# Destinatário do relatório (0041) — é ele que decide o timbrado
+# ---------------------------------------------------------------------------
+_OUTRO_ORGAO = "__outro_orgao__"
+_NAO_INFORMADO = "__nao_informado__"
+
+
+def _orgaos_do_municipio() -> list[dict]:
+    try:
+        return db.listar_secretarias() if db.disponivel() else []
+    except db.ErroBanco:
+        return []
+
+
+def campo_destinatario(chave: str, *, atual: dict | None = None
+                       ) -> tuple[dict, str]:
+    """
+    A escolha do órgão a que o relatório se destina, para formulário.
+    Devolve (campos a gravar, erro). `atual` é a pesquisa já gravada;
+    sem ela, é criação, e o padrão é a secretaria do vínculo.
+
+    "Outro órgão" sem nome é ERRO, não "não informado": cairia no vínculo,
+    e o vínculo dá o timbrado de Paragominas — o defeito que a 0041 corrige.
+    """
+    orgaos = _orgaos_do_municipio()
+    nomes = {str(o["id"]): str(o.get("nome") or "") for o in orgaos}
+    tipo, valor = emissao.destinatario(atual or {})
+    opcoes = list(nomes)
+    if tipo == "secretaria" and valor not in nomes:
+        nomes[valor] = "Secretaria inativa ou não encontrada (sai sem timbrado)"
+        opcoes.insert(0, valor)
+    if tipo == "legado" and (atual is not None or not opcoes):
+        opcoes.append(_NAO_INFORMADO)
+    opcoes.append(_OUTRO_ORGAO)
+    if tipo == "secretaria":
+        indice = opcoes.index(valor)
+    elif tipo == "externo":
+        indice = opcoes.index(_OUTRO_ORGAO)
+    elif _NAO_INFORMADO in opcoes:
+        indice = opcoes.index(_NAO_INFORMADO)
+    else:
+        vinculo = str(_identidade()[1] or "")
+        indice = opcoes.index(vinculo) if vinculo in nomes else 0
+    rotulos = {_OUTRO_ORGAO: "Outro órgão — sai sem timbrado",
+               _NAO_INFORMADO: "Não informado — segue o timbrado do seu vínculo"}
+    escolha = st.selectbox(
+        "Órgão destinatário do relatório", opcoes, index=indice,
+        format_func=lambda o: rotulos.get(o) or nomes.get(o, o),
+        key=f"{chave}_destinatario",
+        help="A prefeitura ou uma secretaria dela: o relatório sai com o "
+             "timbrado dela. Outro órgão: sai sem timbrado.")
+    externo = st.text_input(
+        "Nome do outro órgão", value=valor if tipo == "externo" else "",
+        max_chars=200, key=f"{chave}_destinatario_externo",
+        placeholder="Prefeitura Municipal de …",
+        help="Só vale com «Outro órgão». Vai no relatório como o órgão "
+             "destinatário.")
+    if escolha == _OUTRO_ORGAO:
+        nome = " ".join(externo.split())
+        if not nome:
+            return {}, "Informe o nome do outro órgão."
+        return {"destinatario_secretaria_id": None,
+                "destinatario_externo": nome}, ""
+    if escolha == _NAO_INFORMADO:
+        return {"destinatario_secretaria_id": None,
+                "destinatario_externo": ""}, ""
+    return {"destinatario_secretaria_id": escolha,
+            "destinatario_externo": ""}, ""
+
+
+def _rotulo_do_timbrado(pesquisa: dict) -> str:
+    tipo, valor = emissao.destinatario(pesquisa)
+    if tipo == "externo":
+        return f"Destinado a **{html.escape(valor)}**: sai sem timbrado."
+    marca = emissao.marca_do_relatorio(pesquisa)
+    nome = html.escape(str((marca or {}).get("nome")
+                           or (marca or {}).get("orgao") or ""))
+    if tipo == "legado":
+        return ("Destinatário não informado: sai com o timbrado do seu "
+                f"vínculo{f' (**{nome}**)' if nome else ' (nenhum cadastrado)'}.")
+    return (f"Sai com o timbrado de **{nome}**." if marca else
+            "A secretaria escolhida não tem timbrado, nem o município: sai "
+            "sem timbrado.")
+
+
+def _render_destinatario(pesquisa: dict) -> None:
+    """Quem recebe o relatório, editável — vale para as próximas emissões."""
+    with st.expander("Destinatário e timbrado do relatório"):
+        st.markdown(_rotulo_do_timbrado(pesquisa))
+        with st.form(f"destinatario_{pesquisa['id']}"):
+            dados, erro = campo_destinatario(f"dest_{pesquisa['id']}",
+                                             atual=pesquisa)
+            salvar = st.form_submit_button("Salvar destinatário")
+        if not salvar:
+            return
+        if erro:
+            st.error(erro)
+            return
+        from ..precos import cotacoes
+
+        try:
+            cotacoes.definir_destinatario(
+                cotacoes.Contexto(auth_user_id=_identidade()[0]),
+                str(pesquisa["id"]), dados)
+        except cotacoes.ErroCotacao as exc:
+            st.error(f"Não foi possível salvar: {exc}.")
+            return
+        except db.ErroBanco:
+            st.error("Não foi possível salvar o destinatário. Só quem criou "
+                     "a pesquisa (ou o administrador) pode alterá-lo.")
+            return
+        st.rerun()
 
 
 def _render_relatorios_visuais(pesquisa: dict, itens: list[dict],
@@ -2602,7 +2732,7 @@ def _conteudo_do_relatorio(pesquisa: dict, itens: list[dict],
         # a conferência do SERVIDOR: botão, pacote ou outra aba, todos
         # passam aqui (pacote Jev, RF-03 — sem bypass da ciência)
         ciencia_doc = _verificar_ciencia(pesquisa, itens, referencias)
-    marca = (_branding_da_emissao()
+    marca = (_branding_da_emissao(pesquisa)
              if emissao.precisa_de_marca(formato=formato, tipo=tipo) else None)
     return emissao.renderizar(
         pesquisa, itens, referencias, formato=formato, tipo=tipo,

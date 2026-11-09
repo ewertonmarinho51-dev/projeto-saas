@@ -27,6 +27,7 @@ import json
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
@@ -42,7 +43,8 @@ TABELA_ITENS = "pesquisa_preco_itens"
 TABELA_REFERENCIAS = "pesquisa_preco_referencias"
 
 _COLUNAS_PESQUISA = ("id,nome,objeto,estado,valor_global,data_base,responsavel,"
-                     "local_referencia,processo_id,versao,criado_em,atualizado_em")
+                     "local_referencia,processo_id,versao,criado_em,atualizado_em,"
+                     "destinatario_secretaria_id,destinatario_externo")
 _COLUNAS_ITEM = ("id,numero,codigo,tipo_catalogo,descricao,unidade,quantidade,"
                  "estado,metodo,preco_estimado,preco_total,justificativa,"
                  "lote,uf,revisao")
@@ -95,6 +97,27 @@ class Item(BaseModel):
     revisao: int
 
 
+class Destinatario(BaseModel):
+    """A quem o relatório se destina (0041) — é o que decide o timbrado.
+
+    `secretaria`: uma secretaria do município (sai com o timbrado dela, ou o
+    do município); `externo`: outro órgão (sai sem timbrado); `nenhum`:
+    pesquisa anterior à escolha (segue o vínculo de quem emite)."""
+
+    tipo: Literal["secretaria", "externo", "nenhum"]
+    secretaria_id: str | None = None
+    nome: str = ""
+
+
+class OrgaoDoMunicipio(BaseModel):
+    id: str
+    nome: str
+    # A prefeitura (identidade padrão do município).
+    padrao: bool
+    # A secretaria de quem pergunta — o destinatário sugerido na criação.
+    vinculo: bool
+
+
 class Pesquisa(ResumoPesquisa):
     # Soma dos totais estimados dos itens. `valor_global` só nasce ao aplicar ao
     # processo: até lá, é este número que diz quanto a cotação já soma.
@@ -105,6 +128,7 @@ class Pesquisa(ResumoPesquisa):
     processo_id: str | None
     versao: int
     criado_em: str
+    destinatario: Destinatario = Destinatario(tipo="nenhum")
     itens: list[Item]
 
 
@@ -227,6 +251,16 @@ def _referencia(linha: dict) -> Referencia:
         identificacao=vinculos.identificacao)
 
 
+def destinatario_da_linha(linha: dict) -> Destinatario:
+    secretaria = _texto(linha.get("destinatario_secretaria_id"))
+    if secretaria:
+        return Destinatario(tipo="secretaria", secretaria_id=secretaria)
+    externo = " ".join(str(linha.get("destinatario_externo") or "").split())
+    if externo:
+        return Destinatario(tipo="externo", nome=externo)
+    return Destinatario(tipo="nenhum")
+
+
 def _texto(valor) -> str | None:
     return None if valor in (None, "") else str(valor)
 
@@ -304,6 +338,21 @@ def rotas() -> APIRouter:
         return PaginaDePesquisas(itens=[_resumo(l) for l in linhas[:limit]],
                                  proximo_cursor=proximo)
 
+    @r.get("/orgaos-destinatarios", response_model=list[OrgaoDoMunicipio])
+    def orgaos_destinatarios(request: Request,
+                             eu: Identidade = Depends(exigir_identidade)
+                             ) -> list[OrgaoDoMunicipio]:
+        """A prefeitura e as secretarias do município, para escolher a quem o
+        relatório se destina. Só id e nome: o timbrado (base64) não viaja."""
+        linhas = _ok(_rest(request).requisitar(eu.token, "GET", "secretarias", params={
+            "select": "id,nome,padrao", "tenant_id": f"eq.{eu.tenant_id}",
+            "ativo": "is.true", "order": "padrao.desc,nome.asc", "limit": "200"}))
+        return [OrgaoDoMunicipio(id=str(l["id"]), nome=str(l.get("nome") or ""),
+                                 padrao=bool(l.get("padrao")),
+                                 vinculo=bool(eu.secretaria_id)
+                                 and str(l["id"]) == str(eu.secretaria_id))
+                for l in linhas]
+
     @r.get("/pesquisas/{pesquisa_id}", response_model=Pesquisa,
            responses={404: {"description": "Inexistente ou fora do seu acesso"}})
     def consultar(pesquisa_id: uuid.UUID, request: Request,
@@ -326,6 +375,7 @@ def rotas() -> APIRouter:
             processo_id=_texto(linha.get("processo_id")),
             versao=int(linha.get("versao") or 1),
             criado_em=str(linha.get("criado_em") or ""),
+            destinatario=destinatario_da_linha(linha),
             soma_dos_itens=_soma_dos_itens(itens), itens=[_item(i) for i in itens])
 
     @r.get("/pesquisas/{pesquisa_id}/itens/{item_id}/referencias",

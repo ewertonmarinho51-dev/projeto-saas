@@ -300,6 +300,7 @@ def _render_nova() -> None:
         vincular = st.checkbox(
             "Vincular ao processo aberto nesta sessão", value=bool(processo),
             disabled=not processo)
+        destino, erro_destino = precos_ui.campo_destinatario("cot_nova")
         with st.expander("Critério percentual de análise crítica (opcional)"):
             st.caption("Sinaliza — sem excluir — preço acima de X% da média "
                        "dos demais ou abaixo de Y% dela. É parâmetro desta "
@@ -314,11 +315,15 @@ def _render_nova() -> None:
         st.rerun()
     if not criar:
         return
+    if erro_destino:
+        st.error(erro_destino)
+        return
     cotacao = cotacoes.criar_cotacao(ctx, {
         "nome": nome, "objeto": objeto, "responsavel": responsavel,
         "local_referencia": local, "data_base": data_base,
         "perfil_normativo": perfil_id,
         "processo_id": processo if vincular else None,
+        **destino,
         "criterio_percentual": {"elevado": elevado, "inexequivel": inexequivel}
         if usar else None}, idempotency_key=f"cotacao:{chave}")
     st.session_state.pop("_cot_nova_chave", None)

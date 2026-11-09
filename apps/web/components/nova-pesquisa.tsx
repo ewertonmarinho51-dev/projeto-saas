@@ -3,10 +3,12 @@
 import { useActionState } from "react";
 
 import { criarPesquisa, type EstadoDaCriacao } from "@/app/app/precos/acoes";
+import { CampoDestinatario } from "@/components/destinatario";
 import { Alert, Button, Field, Input, Textarea } from "@/design-system";
+import type { OrgaoDoMunicipio } from "@/lib/api";
 
 /** Nova pesquisa: o nome primeiro; os itens vêm depois, pela planilha. */
-export function NovaPesquisa({ chave }: { chave: string }) {
+export function NovaPesquisa({ chave, orgaos }: { chave: string; orgaos: OrgaoDoMunicipio[] }) {
   const [estado, acao, enviando] = useActionState<EstadoDaCriacao, FormData>(criarPesquisa, { erro: null });
   return (
     <form action={acao} className="grid max-w-2xl gap-5">
@@ -28,6 +30,7 @@ export function NovaPesquisa({ chave }: { chave: string }) {
       <Field label="Local de referência" htmlFor="local_referencia" optional>
         <Input id="local_referencia" name="local_referencia" maxLength={200} placeholder="Ex.: Paragominas/PA" />
       </Field>
+      <CampoDestinatario orgaos={orgaos} />
       <div aria-live="assertive">{estado.erro && <Alert variant="error" title={estado.erro} />}</div>
       <div>
         <Button type="submit" size="lg" icon="plus" loading={enviando}>
