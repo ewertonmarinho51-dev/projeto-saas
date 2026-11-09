@@ -97,9 +97,14 @@ def test_10_itens_manual_e_automatico_na_mesma_cotacao(monkeypatch):
     assert len(cliente.tabelas["pesquisas_preco"]) == 1
     estados = {i["estado"] for i in repo.listar_itens(cid)}
     assert "pending" not in estados
-    # o item manual não teve a cesta montada pela máquina ANTES do lote,
-    # e o lote não o refez (já tinha sido pesquisado)
-    assert repo.obter_item(str(primeiro["id"]))["estado"] == "incomplete"
+    # O item buscado à mão ficou de cesta vazia, e a Cotação automática da
+    # pesquisa a MONTA (decisão do dono em 09/11/2026: antes o lote o
+    # pulava e a tela dizia "0 de 0 itens").
+    assert cesta.na_cesta_do_item(repo.obter_item(str(primeiro["id"]))) or 0
+    # Rodar de novo não refaz: a última busca dele já foi automática.
+    chamadas = fonte.chamadas
+    _rodar_lote(cid, fonte)
+    assert fonte.chamadas == chamadas
 
 
 def test_1_item_tres_precos_com_um_excluido_fica_dois_de_tres(monkeypatch):

@@ -954,15 +954,19 @@ def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
     O checkpoint é o estado de cada item no banco — fechar a aba não perde
     nada; 1 e 210 itens usam o mesmo contrato (pacote, 04 §Operação).
     """
-    from .execucao import A_PROCESSAR
+    from .execucao import modo_da_ultima_busca, precisa_de_busca
 
     ja_tentados = ja_tentados if ja_tentados is not None else set()
     itens = ativos(repo.listar_itens(cotacao_id))
     if item_ids is not None:
         alvo = set(map(str, item_ids))
         itens = [i for i in itens if str(i["id"]) in alvo]
+    # A automática olha a trilha: item buscado por último à mão e sem cesta
+    # entra no lote (ver `precisa_de_busca`).
+    ultimas = (modo_da_ultima_busca(repo.buscas_da_pesquisa(cotacao_id))
+               if modo == "automatico" else {})
     fila = [i for i in itens
-            if str(i.get("estado") or "pending") in A_PROCESSAR
+            if precisa_de_busca(i, modo, ultimas.get(str(i["id"])))
             and str(i["id"]) not in ja_tentados]
     resultados = []
     cotacao = repo.obter_pesquisa(cotacao_id)
