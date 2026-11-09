@@ -71,6 +71,8 @@ _CONFLITO_REFERENCIA = "item_id,fonte_id,id_externo"
 CAMPOS_EDITAVEIS = frozenset({
     "nome", "objeto", "responsavel", "local_referencia", "data_base",
     "processo_id",
+    # A quem o relatório se destina (0041): dá o timbrado, não o valor.
+    "destinatario_secretaria_id", "destinatario_externo",
 })
 
 
@@ -205,9 +207,14 @@ def criar_pesquisa(nome: str, *, auth_user_id: str,
                    perfil_normativo: str = "lei_14133",
                    filtros: dict | None = None,
                    versao_algoritmo: str = "", versao_regras: str = "",
-                   idempotency_key: str = "") -> dict:
+                   idempotency_key: str = "",
+                   destinatario_secretaria_id: str | None = None,
+                   destinatario_externo: str = "") -> dict:
     """
     Cria a pesquisa em RASCUNHO e devolve a linha.
+
+    O destinatário (0041) só vai no corpo quando informado: sem ele, a
+    criação continua valendo num banco em que a 0041 ainda não entrou.
 
     Com `idempotency_key`, reexecutar devolve a pesquisa que já existe
     em vez de criar a segunda — inclusive na corrida entre duas abas,
@@ -235,6 +242,10 @@ def criar_pesquisa(nome: str, *, auth_user_id: str,
         "versao_regras": versao_regras,
         "idempotency_key": idempotency_key,
     }
+    if destinatario_secretaria_id:
+        registro["destinatario_secretaria_id"] = destinatario_secretaria_id
+    if destinatario_externo:
+        registro["destinatario_externo"] = destinatario_externo
     try:
         resposta = _cliente().table(TABELA_PESQUISAS).insert(
             registro).execute()

@@ -241,7 +241,7 @@ def processar_relatorio(*, job_id: str, token: str, tenant_id: str, auth_user_id
 
             def gerar(f: str, t: str) -> tuple[bytes, str, str]:
                 if emissao.precisa_de_marca(formato=f, tipo=t) and "m" not in marca_cache:
-                    marca_cache["m"] = emissao.marca_resolvida()
+                    marca_cache["m"] = emissao.marca_do_relatorio(pesquisa)
                 return emissao.renderizar(pesquisa, itens, referencias, formato=f, tipo=t,
                                           ciencia_doc=ciencia_doc, marca=marca_cache.get("m"))
 

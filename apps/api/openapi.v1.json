@@ -1130,6 +1130,41 @@
         "title": "DecisoesRegistradas",
         "type": "object"
       },
+      "Destinatario": {
+        "description": "A quem o relatório se destina (0041) — é o que decide o timbrado.\n\n`secretaria`: uma secretaria do município (sai com o timbrado dela, ou o\ndo município); `externo`: outro órgão (sai sem timbrado); `nenhum`:\npesquisa anterior à escolha (segue o vínculo de quem emite).",
+        "properties": {
+          "nome": {
+            "default": "",
+            "title": "Nome",
+            "type": "string"
+          },
+          "secretaria_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secretaria Id"
+          },
+          "tipo": {
+            "enum": [
+              "secretaria",
+              "externo",
+              "nenhum"
+            ],
+            "title": "Tipo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tipo"
+        ],
+        "title": "Destinatario",
+        "type": "object"
+      },
       "DocumentoConferido": {
         "additionalProperties": false,
         "properties": {
@@ -3317,6 +3352,24 @@
             ],
             "title": "Data Base"
           },
+          "destinatario_externo": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Destinatario Externo",
+            "type": "string"
+          },
+          "destinatario_secretaria_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destinatario Secretaria Id"
+          },
           "local_referencia": {
             "default": "",
             "maxLength": 200,
@@ -3769,6 +3822,34 @@
         "title": "OpcaoDeSecretaria",
         "type": "object"
       },
+      "OrgaoDoMunicipio": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "padrao": {
+            "title": "Padrao",
+            "type": "boolean"
+          },
+          "vinculo": {
+            "title": "Vinculo",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "nome",
+          "padrao",
+          "vinculo"
+        ],
+        "title": "OrgaoDoMunicipio",
+        "type": "object"
+      },
       "PaginaDePesquisas": {
         "properties": {
           "itens": {
@@ -3952,6 +4033,32 @@
           "arquivos"
         ],
         "title": "PedidoDeConsolidacao",
+        "type": "object"
+      },
+      "PedidoDeDestinatario": {
+        "additionalProperties": false,
+        "description": "Secretaria do município (timbrado dela) OU outro órgão (sem timbrado).\nOs dois vazios voltam a pesquisa a seguir o vínculo de quem emite.",
+        "properties": {
+          "externo": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Externo",
+            "type": "string"
+          },
+          "secretaria_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secretaria Id"
+          }
+        },
+        "title": "PedidoDeDestinatario",
         "type": "object"
       },
       "PedidoDeElaboracao": {
@@ -4186,6 +4293,13 @@
               }
             ],
             "title": "Data Base"
+          },
+          "destinatario": {
+            "$ref": "#/components/schemas/Destinatario",
+            "default": {
+              "nome": "",
+              "tipo": "nenhum"
+            }
           },
           "estado": {
             "title": "Estado",
@@ -8780,6 +8894,33 @@
         ]
       }
     },
+    "/api/v1/precos/orgaos-destinatarios": {
+      "get": {
+        "description": "A prefeitura e as secretarias do município, para escolher a quem o\nrelatório se destina. Só id e nome: o timbrado (base64) não viaja.",
+        "operationId": "orgaos_destinatarios_api_v1_precos_orgaos_destinatarios_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrgaoDoMunicipio"
+                  },
+                  "title": "Response Orgaos Destinatarios Api V1 Precos Orgaos Destinatarios Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Orgaos Destinatarios",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
     "/api/v1/precos/pesquisas": {
       "get": {
         "operationId": "listar_api_v1_precos_pesquisas_get",
@@ -9311,6 +9452,59 @@
           }
         },
         "summary": "Concluir",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/destinatario": {
+      "put": {
+        "operationId": "definir_destinatario_api_v1_precos_pesquisas__pesquisa_id__destinatario_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PedidoDeDestinatario"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Destinatario"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Só o dono ou o administrador"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "description": "Os dois preenchidos, ou secretaria de outro município"
+          }
+        },
+        "summary": "Definir Destinatario",
         "tags": [
           "v1",
           "precos"

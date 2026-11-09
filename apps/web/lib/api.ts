@@ -172,8 +172,23 @@ export type PesquisaDePrecos = ResumoPesquisa & {
   processo_id: string | null;
   versao: number;
   criado_em: string;
+  destinatario: DestinatarioDoRelatorio;
   itens: ItemDePesquisa[];
 };
+
+/**
+ * A quem o relatório se destina (0041) — é o que decide o timbrado.
+ * `secretaria`: timbrado dela (ou do município); `externo`: sem timbrado;
+ * `nenhum`: pesquisa antiga, segue o vínculo de quem emite.
+ */
+export type DestinatarioDoRelatorio = {
+  tipo: "secretaria" | "externo" | "nenhum";
+  secretaria_id: string | null;
+  nome: string;
+};
+
+/** A prefeitura e as secretarias do município, para escolher o destinatário. */
+export type OrgaoDoMunicipio = { id: string; nome: string; padrao: boolean; vinculo: boolean };
 
 export type ReferenciaDePreco = {
   id: string;

@@ -48,7 +48,8 @@ from src.streamlit_opcional import sessao_da_requisicao
 
 from .cesta import _revisao
 from .erros import ErroApi
-from .precos import (TABELA_ITENS, TABELA_PESQUISAS, Valor, exigir_precos_habilitado,
+from .precos import (TABELA_ITENS, TABELA_PESQUISAS, Destinatario, Valor,
+                     destinatario_da_linha, exigir_precos_habilitado,
                      valor_monetario)
 from .seguranca import Identidade, exigir_identidade
 from .supabase_rest import ClienteRest
@@ -72,6 +73,19 @@ class NovaPesquisa(BaseModel):
     perfil_normativo: str = "lei_14133"
     processo_id: uuid.UUID | None = None
     uf: str | None = Field(default=None, min_length=2, max_length=2)
+    # A quem o relatório se destina (0041) — decide o timbrado. No máximo um.
+    destinatario_secretaria_id: uuid.UUID | None = None
+    destinatario_externo: str = Field(default="", max_length=200)
+
+
+class PedidoDeDestinatario(BaseModel):
+    """Secretaria do município (timbrado dela) OU outro órgão (sem timbrado).
+    Os dois vazios voltam a pesquisa a seguir o vínculo de quem emite."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    secretaria_id: uuid.UUID | None = None
+    externo: str = Field(default="", max_length=200)
 
 
 class PesquisaCriada(BaseModel):
@@ -291,6 +305,25 @@ def rotas() -> APIRouter:
         response.headers["Location"] = f"/api/v1/precos/pesquisas/{linha['id']}"
         return PesquisaCriada(id=str(linha["id"]), nome=str(linha.get("nome") or ""),
                               estado=str(linha.get("estado") or ""))
+
+    # -- destinatário (timbrado do relatório) -----------------------------
+    @r.put("/pesquisas/{pesquisa_id}/destinatario", response_model=Destinatario,
+           responses={403: {"description": "Só o dono ou o administrador"},
+                      404: {"description": "Inexistente ou fora do seu acesso"},
+                      422: {"description": "Os dois preenchidos, ou secretaria de outro município"}})
+    def definir_destinatario(pesquisa_id: uuid.UUID, pedido: PedidoDeDestinatario,
+                             request: Request,
+                             eu: Identidade = Depends(exigir_identidade)) -> Destinatario:
+        _exigir_dono(_rest(request), eu, pesquisa_id)
+        dados = {"destinatario_secretaria_id": (str(pedido.secretaria_id)
+                                                if pedido.secretaria_id else None),
+                 "destinatario_externo": pedido.externo}
+        try:
+            with sessao_da_requisicao(eu.token, eu.tenant_id):
+                linha = cotacoes.definir_destinatario(_ctx(eu), str(pesquisa_id), dados)
+        except _TRADUZIVEIS as exc:
+            raise _traduzir(exc) from None
+        return destinatario_da_linha(linha)
 
     # -- importar a planilha ------------------------------------------------
     @r.post("/pesquisas/{pesquisa_id}/importacao", response_model=PlanoDeImportacao,
