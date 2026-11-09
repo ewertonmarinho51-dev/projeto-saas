@@ -629,8 +629,11 @@ def projetar(pesquisa: dict, itens: list[dict],
     regras = str(pesquisa.get("versao_regras") or "")
     processo = processo or {}
     branding = branding or None
+    # Destinatário externo (0041): o relatório sai sem timbrado, mas diz a
+    # que órgão se dirige — no lugar do nome do processo, que é de quem fez.
+    externo = " ".join(str(pesquisa.get("destinatario_externo") or "").split())
     orgao = (str((branding or {}).get("orgao") or (branding or {}).get("nome")
-                 or processo.get("orgao") or "").strip())
+                 or externo or processo.get("orgao") or "").strip())
     return CotacaoReportView(
         pesquisa_id=str(pesquisa.get("id") or ""),
         nome=_texto(pesquisa.get("nome")),

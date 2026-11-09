@@ -41,6 +41,7 @@ from .perfil import PERFIS
 from .perfil import obter as obter_perfil
 
 MAXIMO_NOME = 255
+MAXIMO_DESTINATARIO = 200
 MODOS = ("manual", "automatico")
 # Situações que só mudam por ato do revisor (ou já formaram a cesta).
 DECIDIDAS = frozenset({"selected", "rejected", "warning"})
@@ -101,8 +102,11 @@ def criar_cotacao(ctx: Contexto, dados: dict, *,
         filtros["criterio_percentual"] = {
             "elevado": str(criterio["elevado"]),
             "inexequivel": str(criterio["inexequivel"])}
+    destino_secretaria, destino_externo = destinatario_validado(dados)
     cotacao = repo.criar_pesquisa(
         nome, auth_user_id=ctx.auth_user_id, secretaria_id=ctx.secretaria_id,
+        destinatario_secretaria_id=destino_secretaria,
+        destinatario_externo=destino_externo,
         processo_id=dados.get("processo_id") or None,
         objeto=str(dados.get("objeto") or "").strip(),
         responsavel=str(dados.get("responsavel") or "").strip(),
@@ -116,6 +120,44 @@ def criar_cotacao(ctx: Contexto, dados: dict, *,
         descricao=nome, payload={"origem": "cotacoes"},
         idempotency_key=f"criada:{idempotency_key}" if idempotency_key else "")
     return cotacao
+
+
+def destinatario_validado(dados: dict, secretarias: list[dict] | None = None
+                          ) -> tuple[str | None, str]:
+    """
+    (secretaria do município, nome de outro órgão) a gravar — no máximo um
+    dos dois (0041). A secretaria tem de ser DESTE município: o gatilho da
+    0041 recusa a de outro, e aqui a recusa vem com a frase certa. As duas
+    vazias são válidas: o timbrado segue o vínculo de quem emite.
+    """
+    secretaria = str(dados.get("destinatario_secretaria_id") or "").strip() or None
+    externo = " ".join(str(dados.get("destinatario_externo") or "").split())
+    if secretaria and externo:
+        raise ErroCotacao("escolha uma secretaria do município ou informe "
+                          "outro órgão — não os dois")
+    if len(externo) > MAXIMO_DESTINATARIO:
+        raise ErroCotacao(f"o nome do órgão tem {len(externo)} caracteres; "
+                          f"o limite é {MAXIMO_DESTINATARIO}")
+    if secretaria:
+        lista = (secretarias if secretarias is not None
+                 else db.listar_secretarias(incluir_inativas=True))
+        if not any(str(s.get("id")) == secretaria for s in lista):
+            raise ErroCotacao("a secretaria escolhida não é deste município")
+    return secretaria, externo
+
+
+def definir_destinatario(ctx: Contexto, cotacao_id: str, dados: dict) -> dict:
+    """
+    Troca o órgão a que o relatório se destina. Não versiona: muda o
+    timbrado das próximas emissões, não o valor — e vale também para
+    cotação aplicada, porque corrigir o destinatário não muda o processo.
+    """
+    if not repo.obter_pesquisa(cotacao_id):
+        raise ErroCotacao("cotação não encontrada ou fora do seu acesso")
+    secretaria, externo = destinatario_validado(dados)
+    return repo.atualizar_pesquisa(cotacao_id,
+                                   destinatario_secretaria_id=secretaria,
+                                   destinatario_externo=externo)
 
 
 def _exigir_editavel(cotacao: dict | None) -> dict:
@@ -235,6 +277,8 @@ def duplicar(ctx: Contexto, cotacao_id: str) -> dict:
     copia = repo.criar_pesquisa(
         f"{origem.get('nome') or 'Cotação'} (cópia)"[:MAXIMO_NOME],
         auth_user_id=ctx.auth_user_id, secretaria_id=ctx.secretaria_id,
+        destinatario_secretaria_id=origem.get("destinatario_secretaria_id") or None,
+        destinatario_externo=str(origem.get("destinatario_externo") or ""),
         objeto=str(origem.get("objeto") or ""),
         responsavel=str(origem.get("responsavel") or ""),
         local_referencia=str(origem.get("local_referencia") or ""),

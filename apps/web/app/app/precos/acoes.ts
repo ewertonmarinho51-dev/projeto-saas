@@ -148,6 +148,8 @@ export async function criarPesquisa(_: EstadoDaCriacao, form: FormData): Promise
   if (!/^[A-Za-z0-9._:-]{8,128}$/.test(chave) || (dataBase && !DATA.test(dataBase))) {
     return { erro: "Requisição inválida." };
   }
+  const destino = destinatarioDoFormulario(form);
+  if ("erro" in destino) return { erro: destino.erro };
   let id: string;
   try {
     const { dados } = await chamarApi<{ id: string }>("/precos/pesquisas", {
@@ -158,6 +160,8 @@ export async function criarPesquisa(_: EstadoDaCriacao, form: FormData): Promise
         responsavel: texto("responsavel", 200),
         local_referencia: texto("local_referencia", 200),
         ...(dataBase ? { data_base: dataBase } : {}),
+        ...(destino.secretaria_id ? { destinatario_secretaria_id: destino.secretaria_id } : {}),
+        ...(destino.externo ? { destinatario_externo: destino.externo } : {}),
       },
       cabecalhos: { "Idempotency-Key": chave },
     });
@@ -168,6 +172,52 @@ export async function criarPesquisa(_: EstadoDaCriacao, form: FormData): Promise
   }
   revalidatePath("/app/precos");
   redirect(`/app/precos/${id}?criada=1`);
+}
+
+// ---------------------------------------------------------------------------
+// Destinatário do relatório (0041): decide o timbrado.
+// ---------------------------------------------------------------------------
+type Destino = { secretaria_id: string | null; externo: string } | { erro: string };
+
+/**
+ * `destinatario` = id de secretaria do município | "outro" | "nenhum".
+ * "Outro" sem nome é ERRO, nunca "não informado": cairia no vínculo, e o
+ * vínculo dá o timbrado de Paragominas — o defeito que a 0041 corrige.
+ */
+function destinatarioDoFormulario(form: FormData): Destino {
+  const escolha = String(form.get("destinatario") ?? "nenhum");
+  if (escolha === "nenhum" || escolha === "") return { secretaria_id: null, externo: "" };
+  if (escolha === "outro") {
+    const externo = String(form.get("destinatario_externo") ?? "").replace(/\s+/g, " ").trim();
+    if (!externo) return { erro: "Informe o nome do outro órgão." };
+    if (externo.length > 200) return { erro: "O nome do órgão passa de 200 caracteres." };
+    return { secretaria_id: null, externo };
+  }
+  if (!UUID.test(escolha)) return { erro: "Requisição inválida." };
+  return { secretaria_id: escolha, externo: "" };
+}
+
+export type EstadoDoDestinatario = { erro: string | null; ok: string | null };
+
+export async function definirDestinatario(_: EstadoDoDestinatario, form: FormData): Promise<EstadoDoDestinatario> {
+  const pesquisa = String(form.get("pesquisa") ?? "");
+  if (!UUID.test(pesquisa)) return { erro: "Requisição inválida.", ok: null };
+  const destino = destinatarioDoFormulario(form);
+  if ("erro" in destino) return { erro: destino.erro, ok: null };
+  try {
+    await chamarApi(`/precos/pesquisas/${pesquisa}/destinatario`, { metodo: "PUT", corpo: destino });
+  } catch (e) {
+    if (e instanceof ErroDaApi && e.status === 422) return { erro: e.mensagem || "Confira o destinatário.", ok: null };
+    if (e instanceof ErroDaApi && e.status === 403) {
+      return { erro: "Só quem criou a pesquisa (ou o administrador) pode trocar o destinatário.", ok: null };
+    }
+    return {
+      erro: e instanceof ErroDaApi ? (MENSAGENS[e.status] ?? "Não foi possível salvar agora.") : "Não foi possível salvar agora.",
+      ok: null,
+    };
+  }
+  revalidatePath(`/app/precos/${pesquisa}`);
+  return { erro: null, ok: "Destinatário salvo. Vale para os próximos relatórios." };
 }
 
 export type EstadoDaImportacao = { erro: string | null; plano: PlanoDeImportacao | null };

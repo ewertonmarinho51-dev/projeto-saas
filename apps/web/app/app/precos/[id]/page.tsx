@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { BotaoDeColeta, ProgressoDaColeta } from "@/components/coleta";
 import { PainelDeEmissao, ProgressoDoRelatorio } from "@/components/emissao";
 import { AplicarAoProcesso } from "@/components/aplicar-processo";
+import { DestinatarioDaPesquisa } from "@/components/destinatario";
 import { FechamentoDaPesquisa, GestaoDaPesquisa, NovoItem } from "@/components/gestao-cotacao";
 import { ImportarPlanilha } from "@/components/importar-planilha";
 import { dataCurta, rotuloEstadoItem, rotuloEstadoPesquisa, rotuloMetodo } from "@/components/precos";
@@ -26,6 +27,7 @@ import {
   chamarApi,
   ErroDaApi,
   precosHabilitado,
+  type OrgaoDoMunicipio,
   type PesquisaDePrecos,
   type PreparoDaEmissao,
   type PreviaDaAplicacao,
@@ -61,13 +63,16 @@ export default async function Pesquisa({
   // Aplicar ao processo: a prévia só faz sentido com a pesquisa concluída
   // (ou já aplicada, para dizer isso). Erro na prévia não derruba a página.
   // A emissão também não derruba: sem preparo, a seção diz que não deu.
-  const [previa, preparo] = await Promise.all([
+  const [previa, preparo, orgaos] = await Promise.all([
     p.estado === "completed" || p.estado === "applied"
       ? chamarApi<PreviaDaAplicacao>(`/precos/pesquisas/${id}/aplicacao`).then((r) => r.dados).catch(() => null)
       : null,
     p.itens.length > 0
       ? chamarApi<PreparoDaEmissao>(`/precos/pesquisas/${id}/emissao`).then((r) => r.dados).catch(() => null)
       : null,
+    p.itens.length > 0
+      ? chamarApi<OrgaoDoMunicipio[]>("/precos/orgaos-destinatarios").then((r) => r.dados).catch(() => [])
+      : [],
   ]);
 
   const aviso =
@@ -290,6 +295,7 @@ export default async function Pesquisa({
             </div>
           </div>
           <div className="gc-card__body grid gap-3">
+            <DestinatarioDaPesquisa pesquisa={p.id} orgaos={orgaos} atual={p.destinatario} />
             {relatorioId && <ProgressoDoRelatorio jobId={relatorioId} />}
             {preparo ? (
               <PainelDeEmissao pesquisa={p.id} preparo={preparo} chave={`web-rel-${crypto.randomUUID()}`} />

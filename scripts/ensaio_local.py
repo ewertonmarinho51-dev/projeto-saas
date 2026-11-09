@@ -185,6 +185,9 @@ SEQUENCIA_EM_ENSAIO = (
     "0039_api_jobs_elaboracao.sql",
     # A 0040 confere o RLS de `processos` e `anon` sem leitura: mesma razão.
     "0040_documentos_gerados.sql",
+    # A 0041 altera `pesquisas_preco` (0021) e redefine a revisão da 0029;
+    # pelo glob rodaria antes das duas.
+    "0041_pesquisa_destinatario.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

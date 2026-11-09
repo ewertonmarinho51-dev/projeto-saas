@@ -89,7 +89,7 @@ def dominio(monkeypatch, flags):
     monkeypatch.setattr(emissao, "conferir_cestas", conferir)
     monkeypatch.setattr(emissao, "renderizar", renderizar)
     monkeypatch.setattr(emissao, "registrar", registrar)
-    monkeypatch.setattr(emissao, "marca_resolvida", lambda: None)
+    monkeypatch.setattr(emissao, "marca_do_relatorio", lambda pesquisa: None)
     return estado
 
 
