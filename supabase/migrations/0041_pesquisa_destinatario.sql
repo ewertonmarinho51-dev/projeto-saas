@@ -1,5 +1,32 @@
 -- ## 0041 — Pesquisa de preços: o órgão a que o relatório se destina
--- ## ESTADO: aplicável. NÃO aplicada em produção (aplica-se só a pedido do dono).
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 09/11/2026 como `m0041_pesquisa_destinatario`
+-- ##   (registro 20261109181541), a pedido expresso do dono, depois do ensaio nos
+-- ##   dois níveis.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (09/11/2026):
+--   * ANTES: 104 políticas em public; 95 grants de tabela a `authenticated`, 0 a
+--     `anon`; 5 pesquisas, 230 itens, 2 secretarias; 1 gatilho de usuário em
+--     `pesquisas_preco`; nenhuma coluna `destinatario*`; ACL da revisão
+--     `{postgres, service_role, authenticated}`; RLS ligado;
+--   * aplicação: conferência interna aprovada;
+--   * DEPOIS: 104 políticas, 95 e 0 grants, 5 pesquisas, 230 itens, 2
+--     secretarias (nada mudou além do objeto da migração); 2 gatilhos; as duas
+--     colunas, todas as linhas vazias (pesquisas antigas seguem o vínculo); ACL
+--     da revisão igual; gatilho `{postgres, service_role}`; RLS ligado;
+--   * comportamento, num bloco desfeito, com município, secretaria e pesquisa
+--     sintéticos criados e apagados na hora: prefeitura do mesmo município
+--     aceita; secretaria de outro município 42501; as duas juntas 23514; a
+--     revisão (v2) copiou o órgão externo. Nenhum resíduo depois do bloco;
+--   * advisors de segurança: nada novo (a `revisar_pesquisa_preco` já existia).
+--
+-- REGISTRO DO ENSAIO (09/11/2026):
+--   * nível 1: PostgreSQL do CI (`tests/test_migracao_0041.py`, ensaio
+--     obrigatório), com cada ramo da conferência sob mutação;
+--   * nível 2, descartável (`m0041_pesquisa_destinatario_ensaio`): conferência
+--     aprovada; comportamento idêntico ao de produção, num bloco desfeito;
+--   * revisão do `revisor-de-banco-e-seguranca`: sem bloqueador; os reforços que
+--     sugeriu (tipo e corpo do gatilho, search_path e service_role da revisão,
+--     insert por coluna) entraram na conferência.
 --
 -- O PROBLEMA (09/11/2026, relatado pelo dono)
 --   Todo Relatório de Cotação saía com o timbrado de Paragominas. O timbrado

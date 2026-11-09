@@ -58,8 +58,8 @@ def test_recarrega_o_esquema_do_postgrest():
     assert "notify pgrst, 'reload schema'" in SQL
 
 
-def test_cabecalho_diz_que_nao_foi_aplicada():
-    assert "NÃO aplicada em produção" in TEXTO.splitlines()[1]
+def test_cabecalho_registra_a_aplicacao():
+    assert "APLICADA EM PRODUÇÃO" in TEXTO.splitlines()[1]
 
 
 def test_esta_na_sequencia_do_ensaio_depois_da_0029_e_antes_da_0027():
