@@ -148,6 +148,26 @@ def test_dicionario_de_unidades(sigla, esperado):
     assert canonizar(sigla) == esperado
 
 
+# Planilha real de 09/11/2026 (texto colado de PDF): a palavra vem
+# quebrada dentro da célula, e a importação recusava 8 linhas.
+@pytest.mark.parametrize("sigla,esperado", [
+    ("METRO\nQUADRAD\nO", "METRO QUADRADO"), ("METRO\nCUBICO", "METRO CUBICO"),
+    ("METRO  CÚBICO", "METRO CUBICO"), ("METRO QUADRADO", "METRO QUADRADO"),
+    ("M²", "METRO QUADRADO"), ("m³", "METRO CUBICO"), (" UNID. ", "UNIDADE"),
+    ("CAI XA", "CAIXA"), ("BA NANA", None),
+])
+def test_unidade_com_quebra_de_linha_ou_espaco_da_planilha(sigla, esperado):
+    assert canonizar(sigla) == esperado
+
+
+def test_colar_espacos_nunca_troca_uma_unidade_por_outra():
+    from src.precos import unidades
+
+    for sigla, nome in unidades._POR_SIGLA.items():  # noqa: SLF001
+        colada = unidades._POR_SIGLA_COLADA.get(sigla.replace(" ", ""))  # noqa: SLF001
+        assert colada in (None, nome), sigla
+
+
 # ---------------------------------------------------------------------------
 # 2. CATMAT aceito, nunca exigido
 # ---------------------------------------------------------------------------
