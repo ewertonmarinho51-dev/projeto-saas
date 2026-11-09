@@ -210,5 +210,8 @@ export async function buscarItem(
     if (e instanceof ErroDaApi && e.status === 422) return { erro: "Confira a janela (30 a 180 dias) e a UF.", ok: null };
     return { erro: mensagem(e), ok: null };
   }
-  redirect(`/app/precos/${pesquisa}/itens/${item}?busca=${jobId}`);
+  // O termo volta na URL: o campo mostra o que foi pesquisado, não a
+  // descrição de novo (parecia que o termo tinha sido ignorado).
+  const termo = texto(form, "termo", 300);
+  redirect(`/app/precos/${pesquisa}/itens/${item}?busca=${jobId}${termo ? `&termo=${encodeURIComponent(termo)}` : ""}`);
 }

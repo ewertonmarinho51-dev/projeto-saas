@@ -52,9 +52,12 @@ test("incluir, editar, pesquisar e retirar item; duplicar, revisar e arquivar", 
   const caixaDaTriagem = await page.getByRole("heading", { name: "Triagem das referências" }).boundingBox();
   expect(caixaDaBusca && caixaDaTriagem && caixaDaBusca.y < caixaDaTriagem.y).toBe(true);
 
-  // Pesquisar preços só deste item: vai pelo worker e a página acompanha.
+  // Pesquisar preços só deste item, com outro termo: vai pelo worker, a
+  // página acompanha e o campo continua com o termo usado.
+  await page.getByTestId("busca-item").getByLabel("Termo da busca").fill("Termo diferente E2E");
   await page.getByTestId("busca-item").getByRole("button", { name: "Pesquisar preços" }).click();
-  await expect(page).toHaveURL(/\?busca=[0-9a-f-]{36}$/);
+  await expect(page).toHaveURL(/\?busca=[0-9a-f-]{36}&termo=Termo%20diferente%20E2E$/);
+  await expect(page.getByTestId("busca-item").getByLabel("Termo da busca")).toHaveValue("Termo diferente E2E");
   await expect(page.getByText("Busca concluída")).toBeVisible({ timeout: 30_000 });
 
   // Retirar (sem motivo: a auditoria é automática).
