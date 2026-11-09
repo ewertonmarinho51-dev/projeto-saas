@@ -523,6 +523,35 @@ def _bloco_modelo(root: dict, caminho: CaminhoNativo) -> dict:
     return block
 
 
+def _texto_da_celula(blocks: list) -> str:
+    """O texto visível de uma célula, com tabelas aninhadas achatadas em linha."""
+    partes = []
+    for block in blocks:
+        if block.get("kind") == "para":
+            partes.append(block.get("text") or "")
+        elif block.get("kind") == "table":
+            partes += [_texto_da_celula(cell.get("blocks") or [])
+                       for row in block.get("rows") or [] for cell in row.get("cells") or []]
+    return " ".join(" ".join(p.split()) for p in partes if p and p.strip())
+
+
+def _tabela_em_markdown(table: dict) -> str:
+    """A tabela como a análise documental a lê: Markdown, uma linha por linha.
+
+    `validacao` confere a tabela de itens contra a planilha do processo
+    (`planilha.conferir_tabela`) procurando linhas `| ... |`. Sem esta forma, o
+    texto das células chegava solto, a tabela nunca era encontrada e todo
+    documento com planilha era recusado na aprovação."""
+    linhas = []
+    for row in table.get("rows") or []:
+        cells = [_texto_da_celula(cell.get("blocks") or []).replace("|", "\\|")
+                 for cell in row.get("cells") or []]
+        linhas.append("| " + " | ".join(cells) + " |")
+        if len(linhas) == 1:
+            linhas.append("|" + "---|" * len(cells))
+    return "\n".join(linhas)
+
+
 def _texto_inline(text: str) -> bool:
     # Matches the native command's explicit prohibition of controls/separators.
     return (isinstance(text, str) and not any(ord(c) < 32 or 127 <= ord(c) <= 159
@@ -570,9 +599,16 @@ def projetar_documento(doc_key: str, content: bytes, *, indice: IndiceNativo,
     settings = root["document"].get("settings", {})
     if settings.get("trackChanges") or settings.get("protection") is not None:
         impediments.append("documento_protegido_ou_tracking")
+    analysis: list[str] = []
     for anchor in indice.blocos:
+        in_body_table = anchor.story_kind == "body" and len(anchor.caminho.indices) > 1
         if anchor.tipo != "para":
-            continue  # Table geometry remains in the native model/index.
+            # Table geometry remains in the native model/index. For analysis, a
+            # top-level body table becomes Markdown where it stands; its cell
+            # paragraphs stay governed blocks but do not repeat in the text.
+            if anchor.story_kind == "body" and len(anchor.caminho.indices) == 1:
+                analysis.append(_tabela_em_markdown(_bloco_modelo(root, anchor.caminho)))
+            continue
         block = _bloco_modelo(root, anchor.caminho)
         text, style = block["text"], block.get("props", {}).get("style")
         if not isinstance(text, str):
@@ -616,6 +652,8 @@ def projetar_documento(doc_key: str, content: bytes, *, indice: IndiceNativo,
         result.append(BlocoGovernado(f"{doc_key}/{block_section}/{anchor.block_id}",
                     "titulo" if heading and body else "paragrafo", block_clause, view_text,
                     hash_texto(view_text), anchor, reason))
+        if not in_body_table:
+            analysis.append(view_text)
     fixed = perfis.clausulas_fixas(doc_key)
     if fixed and not set(fixed).issubset(occurrences):
         # Partial numbering must not disguise a later fixed/signature region as
@@ -630,7 +668,7 @@ def projetar_documento(doc_key: str, content: bytes, *, indice: IndiceNativo,
     result = tuple(BlocoGovernado(b.path, b.tipo, b.clausula, b.conteudo, b.hash, b.ancora,
                    "clausula_bloqueada" if b.path in blocked else b.bloqueio) for b in result)
     return ProjecaoNativa(doc_key, indice.document_id, indice.revision, indice.content_hash,
-            indice.engine_manifest_sha256, result, "\n\n".join(b.conteudo for b in result),
+            indice.engine_manifest_sha256, result, "\n\n".join(analysis),
             tuple(sorted(set(gaps))), tuple(sorted(set(impediments))))
 
 
