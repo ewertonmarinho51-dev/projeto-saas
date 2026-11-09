@@ -391,3 +391,45 @@ def test_index_codec_rejects_forged_ambiguous_or_unaddressable_sidecars(native, 
         value["invalidacoes"] = [{"block_id": value["blocos"][0]["block_id"], "motivo": "ambigua"}]
     with pytest.raises(anchors.ErroAncora, match="serializado"):
         anchors.desserializar_indice(json.dumps(value).encode())
+
+
+def _projetar(content, native, doc_key="dfd"):
+    return anchors.projetar_documento(doc_key, content, indice=build(content, native), **native[0])
+
+
+def test_body_table_enters_the_analysis_as_markdown_where_it_stands(native):
+    content = snapshot([paragraph("Antes"),
+                        table(([paragraph("Código")], [paragraph("Descrição")]),
+                              ([paragraph("1")], [paragraph("Café | moído")])),
+                        paragraph("Depois")])
+    view = _projetar(content, native)
+    assert view.texto_analise == ("Antes\n\n| Código | Descrição |\n|---|---|\n"
+                                  "| 1 | Café \\| moído |\n\nDepois")
+    # The cells remain governed blocks (patch anchors); only the text changes.
+    assert {"Código", "Café | moído"} <= {b.conteudo for b in view.blocos}
+
+
+def test_projected_items_table_matches_the_process_spreadsheet(native):
+    from src import planilha
+
+    itens = [{"codigo": "1", "descricao": "Café torrado", "unidade": "Pacote", "quantidade": 240,
+              "valor_unitario": 12.5},
+             {"codigo": "2", "descricao": "Açúcar cristal", "unidade": "Pacote", "quantidade": 300,
+              "valor_unitario": 4}]
+    markdown = planilha.injetar_tabela("Texto\n\n" + planilha.MARCADOR_TABELA, itens)
+    linhas = [ln for ln in markdown.splitlines()
+              if ln.startswith("|") and not planilha._RE_SEPARADOR.match(ln)]
+    # The import turns `**bold**` into a run property: the cell keeps only text.
+    rows = [tuple([paragraph(c.strip("*"))] for c in planilha._celulas(ln)) for ln in linhas]
+    view = _projetar(snapshot([paragraph("Texto"), table(*rows)]), native)
+    assert planilha.conferir_tabela(view.texto_analise, itens) == []
+    # Teeth: the former analysis text (loose cell lines) never had a table.
+    antigo = "\n\n".join(b.conteudo for b in view.blocos)
+    assert "tabela de itens ausente" in " ".join(planilha.conferir_tabela(antigo, itens))
+
+
+def test_header_table_keeps_its_former_analysis_text(native):
+    parts = {"1": {"kind": "header", "blocks": [table(([paragraph("Prefeitura")], [paragraph("Brasão")]))]}}
+    view = _projetar(snapshot([paragraph("Corpo")], parts=parts), native)
+    assert "|" not in view.texto_analise
+    assert "Prefeitura" in view.texto_analise and "Corpo" in view.texto_analise
