@@ -238,6 +238,31 @@ def test_lote_reentrante_1_e_10_itens_mesmo_contrato(monkeypatch):
     assert resultados == [] and restantes == 0
 
 
+def test_automatica_em_lote_monta_a_cesta_do_item_buscado_a_mao(monkeypatch):
+    # Produção, 09/11/2026: "Pesquisar" e depois "Cotação automática" na
+    # pesquisa terminava em "0 de 0 itens" e a cesta ficava vazia.
+    _, cid, iid = _nova(monkeypatch)
+    sem_mercado = str(cotacoes.salvar_item(CTX, cid, {**ITEM, "descricao": "CANETA AZUL"})["id"])
+    cotacoes.pesquisar_item(CTX, cid, iid, modo="manual", fontes=[_fonte()])
+    cotacoes.pesquisar_item(CTX, cid, sem_mercado, modo="automatico", fontes=[_fonte(valores=())])
+    item = repo.obter_item(iid)
+    # a manual grava tudo como candidata: cesta vazia não fecha o mínimo
+    assert item["estado"] == EstadoItem.INCOMPLETO.value
+    assert item.get("preco_estimado") in (None, "")
+    assert repo.obter_item(sem_mercado)["estado"] == EstadoItem.INCOMPLETO.value
+    # a manual em lote não refaz o que já foi buscado à mão
+    resultados, _ = cotacoes.pesquisar_em_lote(CTX, cid, modo="manual", tamanho=5, fontes=[_fonte()])
+    assert resultados == []
+    resultados, restantes = cotacoes.pesquisar_em_lote(
+        CTX, cid, modo="automatico", tamanho=5, fontes=[_fonte()])
+    assert [r.item_id for r in resultados] == [iid] and restantes == 0
+    assert resultados[0].consideradas > 0
+    assert repo.obter_item(iid).get("preco_estimado") not in (None, "")
+    # com a cesta montada, a automática de novo não refaz o item
+    resultados, _ = cotacoes.pesquisar_em_lote(CTX, cid, modo="automatico", tamanho=5, fontes=[_fonte()])
+    assert resultados == []
+
+
 def test_estado_da_cotacao_segue_os_itens(monkeypatch):
     _, cid, iid = _nova(monkeypatch)
     assert repo.obter_pesquisa(cid)["estado"] == "draft"

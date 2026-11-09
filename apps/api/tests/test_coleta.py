@@ -247,6 +247,31 @@ def _banco_do_item(estado="in_review", existe=True):
     return b
 
 
+@pytest.mark.parametrize("modo, total", [("automatico", 2), ("manual", 1)])
+def test_total_do_lote_conta_o_buscado_a_mao_sem_cesta_so_na_automatica(emissor, banco, modo, total):
+    # Produção, 09/11/2026: "Pesquisar" e depois "Cotação automática" na
+    # pesquisa dava "0 de 0 itens" — o item buscado à mão fica em revisão.
+    banco.respostas[("GET", "pesquisa_preco_itens")] = []
+    # a busca manual pôs tudo como candidata: i2 ficou incompleto, cesta vazia
+    banco.responder("GET", "pesquisa_preco_itens", 200, [
+        {"id": "i1", "estado": "pending", "preco_estimado": None},
+        {"id": "i2", "estado": "incomplete", "preco_estimado": None, "estatisticas": {"consideradas": 0}},
+        {"id": "i3", "estado": "review", "preco_estimado": "4279.10", "estatisticas": {"consideradas": 14}},
+        # a automática já rodou sobre i4 e não achou comparável: não refaz
+        {"id": "i4", "estado": "incomplete", "preco_estimado": None, "estatisticas": {"consideradas": 0}},
+    ])
+    banco.responder("GET", "pesquisa_preco_eventos", 200, [
+        {"item_id": "i4", "criado_em": "2026-11-09T19:43:00+00:00", "modo": "automatico"},
+        {"item_id": "i2", "criado_em": "2026-11-09T12:35:00+00:00", "modo": "manual"},
+        {"item_id": "i3", "criado_em": "2026-11-09T12:35:00+00:00", "modo": "manual"},
+        {"item_id": "i4", "criado_em": "2026-11-09T12:35:00+00:00", "modo": "manual"},
+    ])
+    banco.responder("POST", "api_jobs", 201, [_job(total=total)])
+    r = _api(emissor, banco, FilaFalsa()).post(URL, headers=_h(emissor), json={"modo": modo})
+    assert r.status_code == 202, r.text
+    assert banco.corpo(next(c for c in banco.chamadas if c.method == "POST"))["total"] == total
+
+
 def test_pedido_de_um_item_grava_termo_e_filtros_e_total_1(emissor):
     banco = _banco_do_item()
     banco.responder("POST", "api_jobs", 201, [_job(total=1)])

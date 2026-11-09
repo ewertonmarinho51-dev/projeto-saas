@@ -1013,6 +1013,21 @@ def listar_eventos(pesquisa_id: str, limite: int = 200) -> list[dict]:
         raise db._traduzir_erro(exc) from exc  # noqa: SLF001
 
 
+def buscas_da_pesquisa(pesquisa_id: str, limite: int = 5000) -> list[dict]:
+    """As buscas da trilha (item, data, modo), da mais nova para a mais velha."""
+    try:
+        resposta = (_cliente().table(TABELA_EVENTOS)
+                    .select("item_id,criado_em,modo:payload->>modo")
+                    .eq("pesquisa_id", pesquisa_id)
+                    .in_("tipo", ["busca_concluida", "busca_falhou"])
+                    .order("criado_em", desc=True).limit(limite).execute())
+        return resposta.data or []
+    except SemSessao:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise db._traduzir_erro(exc) from exc  # noqa: SLF001
+
+
 def contexto_decisao(pesquisa_id: str, item_id: str, referencia_id: str) -> tuple:
     """Releitura autorizada por JWT + tenant + cadeia de vínculos completa."""
     tenant = db.tenant_atual()

@@ -38,7 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from src import db
 from src.precos import cotacoes
 from src.precos import repositorio as repo
-from src.precos.execucao import A_PROCESSAR, JANELA_MAXIMA_DIAS
+from src.precos.execucao import JANELA_MAXIMA_DIAS, modo_da_ultima_busca, precisa_de_busca
 from src.streamlit_opcional import sessao_da_requisicao
 
 from .erros import ErroApi
@@ -49,6 +49,7 @@ from .supabase_rest import ClienteRest
 _log = logging.getLogger("govconect_api")
 
 TABELA_JOBS = "api_jobs"
+TABELA_EVENTOS = "pesquisa_preco_eventos"
 _CHAVE = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
 # Margem antes do `exp`: não começar um item que o token não vai terminar.
 MARGEM_DO_TOKEN_S = 90
@@ -276,10 +277,20 @@ def rotas() -> APIRouter:
                                "filtros": (pedido.filtros or FiltrosDaBusca()).model_dump()})
             total = 1
         else:
+            # O mesmo critério do worker (`execucao.precisa_de_busca`), para a
+            # barra não dizer "0 de 0" de um lote que vai trabalhar.
             itens = rest.requisitar(eu.token, "GET", TABELA_ITENS, params={
-                "select": "id", "pesquisa_id": f"eq.{pesquisa_id}", "removido_em": "is.null",
-                "estado": f"in.({','.join(sorted(A_PROCESSAR))})", "limit": "5000"})
-            total = len(itens.dados or []) if itens.status == 200 else 0
+                "select": "id,estado,preco_estimado,estatisticas", "pesquisa_id": f"eq.{pesquisa_id}",
+                "removido_em": "is.null", "limit": "5000"})
+            ultimas: dict[str, str] = {}
+            if pedido.modo == "automatico":
+                buscas = rest.requisitar(eu.token, "GET", TABELA_EVENTOS, params={
+                    "select": "item_id,criado_em,modo:payload->>modo", "pesquisa_id": f"eq.{pesquisa_id}",
+                    "tipo": "in.(busca_concluida,busca_falhou)", "order": "criado_em.desc", "limit": "5000"})
+                ultimas = modo_da_ultima_busca(buscas.dados or []) if buscas.status == 200 else {}
+            total = (sum(1 for i in itens.dados or []
+                         if precisa_de_busca(i, pedido.modo, ultimas.get(str(i.get("id")))))
+                     if itens.status == 200 else 0)
 
         criado = rest.requisitar(eu.token, "POST", TABELA_JOBS, prefer="return=representation",
                                  corpo={"tenant_id": eu.tenant_id, "auth_user_id": eu.auth_user_id,

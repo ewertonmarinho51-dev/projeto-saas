@@ -47,6 +47,11 @@ test("incluir, editar, pesquisar e retirar item; duplicar, revisar e arquivar", 
   await edicao.getByRole("button", { name: "Salvar item" }).click();
   await expect(page.getByText("Item salvo.")).toBeVisible();
 
+  // A busca do item fica no topo, acima da triagem (como no Banco de Preços).
+  const caixaDaBusca = await page.getByTestId("busca-item").boundingBox();
+  const caixaDaTriagem = await page.getByRole("heading", { name: "Triagem das referências" }).boundingBox();
+  expect(caixaDaBusca && caixaDaTriagem && caixaDaBusca.y < caixaDaTriagem.y).toBe(true);
+
   // Pesquisar preços só deste item: vai pelo worker e a página acompanha.
   await page.getByTestId("busca-item").getByRole("button", { name: "Pesquisar preços" }).click();
   await expect(page).toHaveURL(/\?busca=[0-9a-f-]{36}$/);

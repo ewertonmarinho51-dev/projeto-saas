@@ -167,6 +167,57 @@ A_PROCESSAR = frozenset({
 })
 
 
+MODOS_DE_BUSCA = ("manual", "automatico")
+
+
+def modo_da_ultima_busca(eventos: list[dict]) -> dict[str, str]:
+    """
+    item_id → modo ("manual" | "automatico") da busca mais recente.
+
+    `eventos` são linhas da trilha (`busca_concluida`/`busca_falhou`) com
+    `item_id`, `criado_em` e `modo`. Vale o `criado_em` maior; empate (ou
+    linha sem data) fica com a que veio depois na lista.
+    """
+    ultimo: dict[str, tuple[tuple[str, int], str]] = {}
+    for posicao, linha in enumerate(eventos):
+        item, modo = linha.get("item_id"), linha.get("modo")
+        if not item or modo not in MODOS_DE_BUSCA:
+            continue
+        chave = (str(linha.get("criado_em") or ""), posicao)
+        if str(item) not in ultimo or chave > ultimo[str(item)][0]:
+            ultimo[str(item)] = (chave, str(modo))
+    return {item: modo for item, (_, modo) in ultimo.items()}
+
+
+def precisa_de_busca(item: dict, modo: str = "manual",
+                     ultima_busca: str | None = None) -> bool:
+    """
+    O item entra no lote desta execução?
+
+    Além de `A_PROCESSAR`, a Cotação AUTOMÁTICA pega o item cuja última
+    busca foi MANUAL e que ficou sem cesta (nenhuma referência
+    considerada, sem preço). A busca manual grava tudo como candidata, e o
+    item cai em `incomplete` (cesta vazia não fecha o mínimo) — que o lote
+    pulava. "Pesquisar" seguido de "Cotação automática" terminava em
+    "0 de 0 itens" com a cesta vazia (produção, 09/11/2026).
+
+    Se a última busca já foi automática, o item fica de fora, como diz
+    `A_PROCESSAR`: a regra da cesta já rodou sobre ele e refazer chegaria
+    ao mesmo lugar. Item com cesta não é refeito, e a decisão de pessoa
+    sobre qualquer referência é preservada pela própria `pesquisar_item`.
+    """
+    estado = str(item.get("estado") or EstadoItem.PENDENTE.value)
+    if estado in A_PROCESSAR:
+        return True
+    if modo != "automatico" or ultima_busca != "manual" \
+            or estado not in (EstadoItem.EM_REVISAO.value, EstadoItem.INCOMPLETO.value):
+        return False
+    if item.get("preco_estimado") not in (None, ""):
+        return False
+    gravado = item.get("estatisticas") or {}
+    return int(gravado.get("consideradas") or gravado.get("selecionadas") or 0) == 0
+
+
 # Prioridade na fila: o que o processo largou no meio, depois o que nunca
 # rodou, e a falha técnica POR ÚLTIMO. Antes o `error` entrava pela ordem
 # da planilha, à frente dos pendentes: com os itens 1–5 sempre falhando,

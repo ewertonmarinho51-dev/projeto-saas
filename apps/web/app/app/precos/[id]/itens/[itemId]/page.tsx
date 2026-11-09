@@ -143,14 +143,9 @@ export default async function Referencias({
         </Card>
 
         <div className="grid min-w-0 gap-4">
-          <h2>Triagem das referências</h2>
-          {typeof busca === "string" && UUID.test(busca) && <ProgressoDaBusca jobId={busca} />}
-          {analise?.coletadas && (
-            <Card title="Dispersão das referências" actions={<Badge variant="warning" caps size="sm">Avaliação preliminar</Badge>}>
-              <GraficoDaSerie dados={analise} />
-            </Card>
-          )}
-          <TriagemDoItem pesquisa={id} item={item} referencias={refs} alertas={alertas} editavel={editavel} />
+          {/* A busca vem PRIMEIRO, como no Banco de Preços: o servidor escolhe
+              o termo, pesquisa e só então tria o que voltou. Embaixo da
+              triagem ela parecia um passo esquecido. */}
           {editavel && item.estado !== "complete" && (
             // Chave nova a cada renderização: reenviar não põe duas buscas na fila.
             <BuscaDoItem
@@ -161,6 +156,14 @@ export default async function Referencias({
               chave={`web-busca-${crypto.randomUUID()}`}
             />
           )}
+          {typeof busca === "string" && UUID.test(busca) && <ProgressoDaBusca jobId={busca} />}
+          <h2>Triagem das referências</h2>
+          {analise?.coletadas && (
+            <Card title="Dispersão das referências" actions={<Badge variant="warning" caps size="sm">Avaliação preliminar</Badge>}>
+              <GraficoDaSerie dados={analise} />
+            </Card>
+          )}
+          <TriagemDoItem pesquisa={id} item={item} referencias={refs} alertas={alertas} editavel={editavel} />
           {editavel && <EdicaoDoItem key={item.revisao} pesquisa={id} item={item} />}
         </div>
 
