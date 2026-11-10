@@ -188,6 +188,26 @@ services:
     networks:
       - interna
 
+  # Índice do PNCP (0042): descoberta e coleta FORA da busca do usuário,
+  # uma rodada por UF a cada INDEXADOR_INTERVALO_S (padrão 6 h). Perfil
+  # PRÓPRIO: `--profile govconect` não o sobe. Credencial de servidor só
+  # neste env_file (SUPABASE_URL, SUPABASE_SERVICE_KEY, INDEXADOR_UFS) —
+  # a API e o worker continuam sem ela. Parar = `docker compose stop
+  # indexador-pncp`; o índice retoma do cursor ao voltar.
+  indexador-pncp:
+    profiles: ["indexador"]
+    image: ${GOVCONECT_IMAGEM_WORKER:-govconect-worker:local}
+    restart: unless-stopped
+    command: ["python", "scripts/indexar_pncp.py", "ciclo", "--banco"]
+    env_file:
+      - /etc/govdocs/indexador.env
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    mem_limit: 256m
+    networks:
+      - interna
+
   redis:
     profiles: ["govconect"]
     # A mesma linha do CI (jobs api-rls e web-e2e).

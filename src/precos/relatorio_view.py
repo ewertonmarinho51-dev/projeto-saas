@@ -93,6 +93,9 @@ class ReferenciaView:
     modalidade: str = ""
     fornecedor_cnpj: str = ""
     marca: str = ""
+    # "Origem Licitanet · Coleta via PNCP" (`portais.atribuir`): o portal
+    # em que a compra aconteceu e o canal por onde o preço foi lido
+    origem_canal: str = ""
     item_da_compra: str = ""
     # como a referência saiu da cesta, dito com a autoria certa
     autoria_da_saida: str = ""
@@ -424,7 +427,19 @@ def _referencia(linha: dict, considerada: bool) -> ReferenciaView:
         item_da_compra=str(numero_item) if numero_item not in (None, "", 0)
         else "",
         autoria_da_saida=autoria_da_saida(linha),
+        origem_canal=_origem_canal(linha),
     )
+
+
+def _origem_canal(linha: dict) -> str:
+    """Só quando a origem DIFERE do nome da fonte: "Compras.gov · Coleta
+    via Compras.gov" repetiria a mesma coisa duas vezes na célula."""
+    from . import portais
+
+    atribuicao = portais.atribuir(linha.get("fonte_id"), linha.get("bruto"))
+    if atribuicao is None or atribuicao.canal_id == portais.CANAL_COMPRAS_GOV:
+        return ""
+    return atribuicao.rotulo
 
 
 def representativas(consideradas: tuple[ReferenciaView, ...],

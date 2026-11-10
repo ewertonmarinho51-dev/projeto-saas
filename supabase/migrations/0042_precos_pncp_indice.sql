@@ -36,6 +36,9 @@
 --   * a busca roda como quem chama (`security invoker`), com `search_path`
 --     vazio. O texto de busca vem pronto do coletor (sem acento, minúsculas),
 --     para não depender da extensão `unaccent`;
+--   * correção ou cancelamento publicado DEPOIS da coleta não apaga nada:
+--     a revisita marca a linha antiga `vigente = false`, com motivo, e a
+--     busca deixa de devolvê-la (o histórico do que foi lido fica);
 --   * a tabela NÃO decide se a fonte está ligada: isso é a flag
 --     `price_source_pncp_indice` (`governanca.FLAG_PNCP_INDICE`), desligada.
 --
@@ -104,6 +107,13 @@ create table if not exists public.precos_pncp_resultados (
   hash_linha text not null,
   versao_coletor text not null,
   coletado_em timestamptz not null default now(),
+  -- Correção e cancelamento TARDIOS: quando a revisita da contratação não
+  -- encontra mais este resultado como homologado conferível, a linha não
+  -- é apagada (DELETE é revogado de todos) — fica `vigente = false`, com o
+  -- motivo, e sai da busca. Se voltar a valer, o upsert a reativa.
+  vigente boolean not null default true,
+  invalidado_em timestamptz,
+  invalidado_motivo text not null default '',
   busca tsvector generated always as
     (to_tsvector('portuguese'::regconfig, descricao_busca)) stored
 );
@@ -113,7 +123,7 @@ create index if not exists precos_pncp_resultados_busca_idx
 create index if not exists precos_pncp_resultados_data_idx
   on public.precos_pncp_resultados (uf, data_resultado desc);
 create index if not exists precos_pncp_resultados_contratacao_idx
-  on public.precos_pncp_resultados (numero_controle);
+  on public.precos_pncp_resultados (numero_controle, numero_item);
 
 alter table public.precos_pncp_cursores     enable row level security;
 alter table public.precos_pncp_contratacoes enable row level security;
@@ -157,6 +167,7 @@ as $$
   select r.*
     from public.precos_pncp_resultados r, consulta c
    where r.busca @@ c.q
+     and r.vigente
      and (p_uf is null or r.uf = upper(p_uf))
      and (p_desde is null or r.data_resultado >= p_desde)
      and (p_ate is null or r.data_resultado <= p_ate)

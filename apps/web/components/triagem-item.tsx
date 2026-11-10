@@ -49,6 +49,8 @@ function VerOrigem({ r }: { r: ReferenciaDePreco }) {
   const [aberto, setAberto] = useState(false);
   const campos: DataListItem[] = [
     { label: "Fonte consultada", value: r.fonte },
+    ...(r.origem ? [{ label: "Origem da compra", value: r.origem }] : []),
+    ...(r.canal ? [{ label: "Canal da coleta", value: r.canal }] : []),
     { label: "Natureza do valor", value: rotuloNatureza(r.natureza_valor) },
     { label: "Identificador do registro", value: r.identificacao ? <span className="gc-mono">{r.identificacao}</span> : "Não informado" },
     { label: "Órgão", value: r.orgao || "Não informado" },
@@ -166,6 +168,7 @@ export function TriagemDoItem({
                   {rotuloNatureza(r.natureza_valor)}
                   {r.identificacao && <span className="gc-mono"> · {r.identificacao}</span>}
                 </span>
+                {r.rotulo_origem && <span data-testid="origem-canal">{r.rotulo_origem}</span>}
                 {alertaDe.has(r.id) && (
                   <AlertaDoPreco
                     pesquisa={pesquisa}

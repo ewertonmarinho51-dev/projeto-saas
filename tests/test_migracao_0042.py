@@ -115,6 +115,15 @@ def cenario(banco):
                 "on conflict (id_externo) do update set valor_unitario = excluded.valor_unitario",
                 (f"{CONTROLE}#{n}#1", CONTROLE, n, descricao.upper(), descricao, valor, data,
                  uf, Jsonb({})))
+        # cancelado depois da coleta: guardado, fora da busca
+        c.execute(
+            "insert into public.precos_pncp_resultados (id_externo, numero_controle, "
+            "numero_item, descricao, descricao_busca, unidade, quantidade, valor_unitario, "
+            "data_resultado, uf, bruto, hash_linha, versao_coletor, vigente, "
+            "invalidado_motivo) values (%s, %s, 4, 'CIMENTO CP 4', 'cimento cp 4', 'UN', 10, "
+            "40, '2026-10-01', 'PA', %s, 'h', 'v', false, 'revisita') "
+            "on conflict (id_externo) do nothing",
+            (f"{CONTROLE}#4#1", CONTROLE, Jsonb({})))
         voltar_a_ser_servidor(c)
     banco.commit()
     return {}
