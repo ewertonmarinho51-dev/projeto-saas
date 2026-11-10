@@ -60,7 +60,7 @@ class Consulta:
     # Compras.gov. O manual pede o máximo da API (500 por grupo, até 2
     # grupos); a cotação automática pede menos (`PoliticaAmostraAutomatica`)
     # — medido em produção em 17/10/2026: 500 a 611 registros brutos e
-    # ~30 s por item para uma cesta de no máximo 15.
+    # ~30 s por item para uma cesta de até 15 à época.
     limite_grupo: int = 500
 
     # Sinônimos propostos pela camada semântica (§8), já validados pelo
