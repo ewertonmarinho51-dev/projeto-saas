@@ -60,7 +60,10 @@ CONTROLE_PNCP = re.compile(r"^(\d{14})-\d+-(\d{1,6})/(\d{4})$")
 # Hosts aceitos em qualquer link impresso: só os oficiais acima.
 HOSTS_PERMITIDOS = frozenset({
     "cnetmobile.estaleiro.serpro.gov.br", "pncp.gov.br", "www.gov.br",
-    "dadosabertos.compras.gov.br"})
+    "dadosabertos.compras.gov.br",
+    # Portal de Dados Abertos de Curitiba (canal direto): a página do
+    # conjunto e o servidor de arquivos dele
+    "dadosabertos.curitiba.pr.gov.br", "mid-dadosabertos.curitiba.pr.gov.br"})
 
 NAO_DISPONIVEL = "Não disponível na fonte"
 
@@ -196,6 +199,18 @@ def resolver(linha: dict) -> Links:
             contratacao_rotulo="Contratação no PNCP" if url else "",
             identificacao=str(bruto.get("numeroControlePNCP") or "")
             if url else "")
+    if fid == "curitiba_itens":
+        from . import curitiba
+
+        direta = bruto.get("origem_direta") or {}
+        return Links(
+            fonte_url=seguro(curitiba.URL_CONJUNTO),
+            fonte_rotulo="Portal de Dados Abertos de Curitiba",
+            contratacao_url=seguro(direta.get("url")),
+            contratacao_rotulo="Recurso oficial (Itens Processo)"
+            if seguro(direta.get("url")) else "",
+            identificacao=str(linha.get("referencia_externa") or ""),
+            unidade_compradora=str(linha.get("orgao") or ""))
     return Links()
 
 

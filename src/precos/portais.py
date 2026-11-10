@@ -164,10 +164,12 @@ REGISTRO: dict[str, Portal] = {p.id: p for p in (
     Portal("curitiba", "Portal de Dados Abertos de Curitiba", (),
            ("dadosabertos.curitiba.pr.gov.br", "curitiba.pr.gov.br"),
            Situacao.AGUARDANDO_ACESSO,
-           "primeiro canal direto de compras gerais — aguarda a validação "
-           "da amostra real (Itens Processo × Dados Básicos)",
-           pendencia_direta="conferir a amostra de 01/11/2026 contra o "
-                            "dicionário oficial e o contrato vigente"),
+           "primeiro canal direto de compras gerais: normalizador, índice e "
+           "adaptador prontos (`curitiba.py`), desligados; o portal "
+           "respondeu HTTP 503 em 10/11/2026 e a amostra real não foi lida",
+           pendencia_direta="baixar Itens Processo (01/11/2026) e Dados "
+                            "Básicos, conferir o mapa de colunas contra o "
+                            "dicionário oficial e validar um caso elegível"),
     Portal("tcm_pa", "TCM-PA — Mural de Licitações", (),
            ("tcm.pa.gov.br",), Situacao.EVIDENCIA_MANUAL,
            "documentos municipais anexados na revisão; sem base estruturada "

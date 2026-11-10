@@ -359,6 +359,9 @@ FONTES_REGISTRADAS: dict[str, str] = {
     # cotação registrada pelo servidor (art. 23, § 1º, IV): não é sistema
     # oficial e não ganha prioridade de um — ver `cotacao.py`
     "cotacao_direta": "outro",
+    # canal direto de Curitiba (Dados Abertos): valor CONTRATADO por outro
+    # ente — contratação similar (art. 23, § 1º, II), não sistema oficial
+    "curitiba_itens": "contratacao_similar",
 }
 
 TIPO_NAO_REGISTRADO = "outro"
