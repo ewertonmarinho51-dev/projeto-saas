@@ -48,6 +48,9 @@ _COLUNAS_PESQUISA = ("id,nome,objeto,estado,valor_global,data_base,responsavel,"
 _COLUNAS_ITEM = ("id,numero,codigo,tipo_catalogo,descricao,unidade,quantidade,"
                  "estado,metodo,preco_estimado,preco_total,justificativa,"
                  "lote,uf,revisao")
+# Só o pedaço de `estatisticas` que a tela usa (PostgREST lê dentro do JSON):
+# a memória inteira de cada um dos 210 itens não viaja na consulta.
+_COLUNAS_ITEM_COM_CV = _COLUNAS_ITEM + ",barreira_cv:estatisticas->barreira_cv"
 _COLUNAS_REFERENCIA = (
     "id,fonte_id,fonte_nome,fonte_tipo,id_externo,referencia_externa,"
     "descricao_original,unidade_original,valor_unitario_original,"
@@ -78,6 +81,18 @@ class ResumoPesquisa(BaseModel):
     atualizado_em: str
 
 
+class RevisaoPorCV(BaseModel):
+    """Barreira do CV da cotação automática (`estatistica.BarreiraCV`)."""
+
+    motivo: str                 # "cv_acima_do_limite" | "cv_indisponivel"
+    # "31,25%"; `None` quando a série proposta tem menos de 2 preços.
+    cv: str | None
+    limite: str                 # "25%"
+    quantidade: int             # preços da série proposta
+    sugeridas: int              # referências que aguardam revisão
+    texto: str
+
+
 class Item(BaseModel):
     id: str
     numero: int
@@ -95,6 +110,9 @@ class Item(BaseModel):
     uf: str | None
     # Controle otimista do item (0029); a fatia de escrita o exige de volta.
     revisao: int
+    # A última cotação automática segurou sugestões fora da cesta pela regra
+    # do coeficiente de variação; `None` quando não há o que revisar.
+    revisao_cv: RevisaoPorCV | None = None
 
 
 class Destinatario(BaseModel):
@@ -221,7 +239,24 @@ def _item(linha: dict) -> Item:
         preco_total=valor_monetario(linha.get("preco_total")),
         justificativa=linha.get("justificativa") or "",
         lote=linha.get("lote"), uf=linha.get("uf"),
-        revisao=int(linha.get("revisao") or 1))
+        revisao=int(linha.get("revisao") or 1),
+        revisao_cv=_revisao_cv(linha.get("barreira_cv")))
+
+
+def _revisao_cv(gravado) -> RevisaoPorCV | None:
+    """`estatisticas.barreira_cv` do item → contrato; só quando REPROVADA."""
+    if not isinstance(gravado, dict) or gravado.get("aprovada", True):
+        return None
+    try:
+        return RevisaoPorCV(
+            motivo=str(gravado.get("motivo") or ""),
+            cv=_texto(gravado.get("cv_exibicao")),
+            limite=estatistica.pct(estatistica.CV_DISPERSAO, 0),
+            quantidade=int(gravado.get("quantidade") or 0),
+            sugeridas=int(gravado.get("novas") or 0),
+            texto=str(gravado.get("texto") or "")[:500])
+    except (TypeError, ValueError):
+        return None
 
 
 def _referencia(linha: dict) -> Referencia:
@@ -360,7 +395,7 @@ def rotas() -> APIRouter:
         rest = _rest(request)
         linha = _obter_pesquisa(rest, eu, str(pesquisa_id))
         itens = _ok(rest.requisitar(eu.token, "GET", TABELA_ITENS, decimal=True, params={
-            "select": _COLUNAS_ITEM, "pesquisa_id": f"eq.{pesquisa_id}",
+            "select": _COLUNAS_ITEM_COM_CV, "pesquisa_id": f"eq.{pesquisa_id}",
             "tenant_id": f"eq.{eu.tenant_id}", "order": "numero.asc",
             # Item retirado da cotação (0029) não some do banco — a 0021
             # não concede DELETE — mas sai da leitura, como no domínio

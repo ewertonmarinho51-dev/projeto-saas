@@ -351,6 +351,10 @@ class Cesta:
     # avaliação), e o que a reavaliação da cesta formada decidiu.
     sinalizar: dict = field(default_factory=dict)
     recomposicao: object | None = None
+    # Sugeridas pela automática que a barreira do CV (`aplicar_barreira_cv`)
+    # segurou FORA da cesta: candidatas, gravadas com o motivo, à espera
+    # da revisão do servidor.
+    em_revisao_cv: list[Referencia] = field(default_factory=list)
 
     @property
     def valores(self) -> list[Decimal]:
@@ -399,16 +403,129 @@ class PoliticaAmostraAutomatica:
     # seleções ANTERIORES da automática reavaliadas sob o teto.
     # .3 (21/10/2026): todas as fontes consultadas e cesta repartida entre
     # elas — a .2 parava no primeiro portal com amostra "suficiente".
-    versao: str = "2026-10-21.teto-15.3"
-    teto: int = 15
+    # .4 (10/11/2026): teto de 5 e barreira do coeficiente de variação
+    # antes de gravar (`aplicar_barreira_cv`). O teto recai sobre a SELEÇÃO:
+    # a coleta e a reserva do revisor não encolheram.
+    versao: str = "2026-11-10.teto-5.4"
+    teto: int = 5
     limite_por_fonte: int = 50
     # registros por grupo do catálogo (PDM) no caminho por descrição do
     # Compras.gov; o manual continua pedindo 500
     limite_por_grupo: int = 100
     reserva: int = 10
+    # Maior teto que uma versão desta política já teve. A EMISSÃO e o
+    # aviso de integridade perguntam por ele, não pelo teto de hoje: cesta
+    # de 6 a 15 formada sob a .3 é histórico legítimo e continua emitível;
+    # acima disso, só as formadas antes de existir teto (auditoria C-4).
+    teto_de_emissao: int = 15
 
 
 POLITICA_AUTOMATICA = PoliticaAmostraAutomatica()
+
+
+# ---------------------------------------------------------------------------
+# Barreira do coeficiente de variação — antes de gravar a cesta automática
+#
+# A automação só põe referência na cesta se a série que RESULTARIA dela
+# (escolhas de pessoa preservadas + novas elegíveis, já normalizadas,
+# deduplicadas, triadas e sob o teto) tiver CV ≤ `CV_DISPERSAO`. O CV é o
+# de `calcular` — desvio-padrão AMOSTRAL em `Decimal` — comparado antes de
+# qualquer arredondamento: 25% exatos passam (75, 100 e 125 → 25/100).
+# Reprovada, nada some: as novas ficam candidatas, gravadas com o motivo,
+# o CV e a quantidade, e o item fica pendente de revisão. Série proposta
+# com menos de dois preços não tem CV — também vai para revisão.
+# ---------------------------------------------------------------------------
+VERSAO_BARREIRA_CV = "2026-11-10.cv-25"
+CV_ACIMA_DO_LIMITE = "cv_acima_do_limite"
+CV_INDISPONIVEL = "cv_indisponivel"
+
+
+@dataclass(frozen=True)
+class BarreiraCV:
+    aprovada: bool
+    motivo: str               # "" | CV_ACIMA_DO_LIMITE | CV_INDISPONIVEL
+    cv: Decimal | None        # exato; None = série sem CV (menos de 2 preços)
+    quantidade: int           # preços da série proposta
+    preservadas: int          # escolhas de pessoa que já estavam na cesta
+    novas: int                # sugeridas pela automação nesta rodada
+
+    def texto(self) -> str:
+        if self.motivo == CV_INDISPONIVEL:
+            return (f"{self.novas} referência(s) sugerida(s) pela cotação "
+                    "automática aguardam revisão: coeficiente de variação "
+                    f"indisponível (série proposta com {self.quantidade} "
+                    "preço válido; são necessários ao menos 2)")
+        if self.motivo == CV_ACIMA_DO_LIMITE:
+            return (f"{self.novas} referência(s) sugerida(s) pela cotação "
+                    "automática aguardam revisão: coeficiente de variação "
+                    f"da série proposta {pct(self.cv)} acima de "
+                    f"{pct(CV_DISPERSAO, 0)} ({self.quantidade} preços)")
+        return ""
+
+    def para_registro(self) -> dict:
+        return {"versao": VERSAO_BARREIRA_CV, "aprovada": self.aprovada,
+                "motivo": self.motivo,
+                "cv": None if self.cv is None else format(self.cv, "f"),
+                "cv_exibicao": None if self.cv is None else pct(self.cv),
+                "limite": format(CV_DISPERSAO, "f"),
+                "quantidade": self.quantidade,
+                "preservadas": self.preservadas, "novas": self.novas,
+                "texto": self.texto()}
+
+
+def avaliar_barreira_cv(preservados: list[Decimal],
+                        novos: list[Decimal]) -> BarreiraCV:
+    """A série proposta (preservados + novos) passa pela regra do CV?"""
+    serie = [v for v in [*preservados, *novos] if v is not None]
+    resumo = calcular(serie) if len(serie) >= 2 else None
+    cv = resumo.coeficiente_variacao if resumo is not None else None
+    base = dict(cv=cv, quantidade=len(serie), preservadas=len(preservados),
+                novas=len(novos))
+    if not novos:
+        # nada a acrescentar: a automação não mexe na cesta de pessoa
+        return BarreiraCV(aprovada=True, motivo="", **base)
+    if cv is None:
+        return BarreiraCV(aprovada=False, motivo=CV_INDISPONIVEL, **base)
+    if cv > CV_DISPERSAO:
+        return BarreiraCV(aprovada=False, motivo=CV_ACIMA_DO_LIMITE, **base)
+    return BarreiraCV(aprovada=True, motivo="", **base)
+
+
+def aplicar_barreira_cv(cesta: "Cesta",
+                        preservados: list[Decimal] | None = None
+                        ) -> BarreiraCV:
+    """
+    Avalia a cesta que a automação montou e, reprovada, devolve as
+    selecionadas a CANDIDATAS (`cesta.em_revisao_cv`), com o motivo. A
+    cesta fica só com o que já era de pessoa — vazia, se não havia nada.
+    """
+    barreira = avaliar_barreira_cv(list(preservados or []), cesta.valores)
+    if barreira.aprovada:
+        return barreira
+    for referencia in cesta.selecionadas:
+        referencia.status = StatusReferencia.CANDIDATA
+        referencia.com_motivo(
+            "sugerida pela cotação automática, fora da cesta até revisão: "
+            + ("coeficiente de variação indisponível (menos de 2 preços "
+               "na série proposta)" if barreira.motivo == CV_INDISPONIVEL
+               else f"coeficiente de variação da série proposta "
+                    f"{pct(barreira.cv)} acima de {pct(CV_DISPERSAO, 0)}"))
+    cesta.em_revisao_cv = list(cesta.selecionadas)
+    cesta.selecionadas = []
+    cesta.motivos.append(barreira.texto())
+    return barreira
+
+
+def registrar_barreira(estimativa: "Estimativa",
+                       barreira: dict | None) -> None:
+    """Leva a barreira reprovada para a memória e as pendências do item."""
+    if not barreira or barreira.get("aprovada", True):
+        return
+    estimativa.barreira_cv = dict(barreira)
+    texto = str(barreira.get("texto") or "")
+    if texto:
+        estimativa.memoria.append(texto)
+        estimativa.pendencias.append(texto)
 
 
 def selecionar_cesta(
@@ -708,6 +825,10 @@ class Estimativa:
     # (valor pelo método, valor adotado) quando o teto da mediana do
     # perfil mudou o preço — o relatório mostra os dois (Revisão 02, D15).
     ajuste_teto: tuple[Decimal, Decimal] | None = None
+    # Barreira do CV reprovada na última cotação automática
+    # (`BarreiraCV.para_registro`); some no primeiro recálculo por decisão
+    # de pessoa — a revisão é exatamente essa decisão.
+    barreira_cv: dict | None = None
 
     @property
     def concluida(self) -> bool:
@@ -726,6 +847,7 @@ class Estimativa:
 
     def para_relatorio(self) -> dict:
         return {
+            **({"barreira_cv": self.barreira_cv} if self.barreira_cv else {}),
             "valor_unitario": None if self.valor_unitario is None
             else format(self.valor_unitario, "f"),
             "metodo": self.metodo,

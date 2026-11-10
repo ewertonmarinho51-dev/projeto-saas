@@ -160,7 +160,10 @@ def conferir_cestas(pesquisa: dict, itens: list[dict],
     politica = cotacoes.politica_automatica()
     pesquisa_id = str(pesquisa.get("id") or "")
     acima = cesta_mod.itens_acima_do_teto(
-        itens, referencias, politica.teto if politica is not None else None,
+        # o maior teto que já valeu: cesta de 6 a 15 formada sob a política
+        # anterior é histórico e segue emitível
+        itens, referencias,
+        politica.teto_de_emissao if politica is not None else None,
         decididas_por_humano=lambda item_id: repo.referencias_decididas_por_humano(
             pesquisa_id, item_id))
     if acima:

@@ -580,7 +580,7 @@ def _item(item: dict, linhas: list[dict], perfil,
         mantidas=mantidas,
         ajuste_teto=_ajuste_teto(gravado, str(item.get("justificativa") or "")),
         integridade=tuple(cesta_mod.integridade_do_item(
-            item, linhas, teto=POLITICA_AUTOMATICA.teto)),
+            item, linhas, teto=POLITICA_AUTOMATICA.teto_de_emissao)),
         nao_usadas=len(linhas) - len(consideradas),
     )
 

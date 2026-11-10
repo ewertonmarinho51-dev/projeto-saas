@@ -173,3 +173,37 @@ def test_sem_item_com_preco_nao_afirma_soma_zero(api, emissor, banco):
     _pesquisa_com_totais(banco, "null", "null")
     corpo = api().get(f"/api/v1/precos/pesquisas/{PESQUISA}", headers=_auth(emissor)).json()
     assert corpo["soma_dos_itens"] is None
+
+
+# ---------------------------------------------------------------------------
+# Barreira do CV da cotação automática no item (10/11/2026)
+# ---------------------------------------------------------------------------
+_PESQUISA_MINIMA = ('[{"id": "%s", "nome": "x", "objeto": "", "estado": "review", "valor_global": null,'
+                    ' "data_base": null, "responsavel": "", "local_referencia": "", "processo_id": null,'
+                    ' "versao": 1, "criado_em": "x", "atualizado_em": "x"}]' % PESQUISA)
+_ITEM_MINIMO = ('{"id": "%s", "numero": 1, "codigo": null, "tipo_catalogo": null, "descricao": "Luva",'
+                ' "unidade": "CX", "quantidade": 1, "estado": "incomplete", "metodo": null,'
+                ' "preco_estimado": null, "preco_total": null, "justificativa": "", "barreira_cv": %s}')
+
+
+@pytest.mark.parametrize("gravado, esperado", [
+    ('{"aprovada": false, "motivo": "cv_acima_do_limite", "cv": "0.3", "cv_exibicao": "30,00%",'
+     ' "quantidade": 3, "novas": 3, "texto": "3 referência(s) aguardam revisão"}',
+     {"motivo": "cv_acima_do_limite", "cv": "30,00%", "limite": "25%", "quantidade": 3,
+      "sugeridas": 3, "texto": "3 referência(s) aguardam revisão"}),
+    ('{"aprovada": false, "motivo": "cv_indisponivel", "cv": null, "cv_exibicao": null,'
+     ' "quantidade": 1, "novas": 1, "texto": "t"}',
+     {"motivo": "cv_indisponivel", "cv": None, "limite": "25%", "quantidade": 1, "sugeridas": 1,
+      "texto": "t"}),
+    ('{"aprovada": true, "motivo": "", "cv": "0.1"}', None),
+    ("null", None),
+    ('"lixo"', None),
+])
+def test_item_diz_quando_a_automatica_segurou_sugestoes_pelo_cv(api, emissor, banco, gravado, esperado):
+    banco.respostas[("GET", "pesquisas_preco")] = [_bruto(_PESQUISA_MINIMA)]
+    banco.respostas[("GET", "pesquisa_preco_itens")] = [_bruto("[" + _ITEM_MINIMO % (ITEM, gravado) + "]")]
+    r = api().get(f"/api/v1/precos/pesquisas/{PESQUISA}", headers=_auth(emissor))
+    assert r.status_code == 200, r.text
+    assert r.json()["itens"][0]["revisao_cv"] == esperado
+    # só o pedaço da memória que a tela usa viaja na consulta
+    assert "barreira_cv:estatisticas->barreira_cv" in banco.chamadas[-1].url.params["select"]

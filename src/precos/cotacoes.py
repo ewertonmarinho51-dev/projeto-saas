@@ -583,9 +583,14 @@ class ResultadoPesquisa:
     # triagem pré-cesta (flag de saneamento): contagem, série e as retidas
     # com fundamento; vazio = sem saneamento, o comportamento anterior
     saneamento: dict = field(default_factory=dict)
+    # barreira do CV da cotação automática (`estatistica.BarreiraCV`):
+    # aprovada ou não, com o CV exato e a quantidade — vai para a trilha
+    barreira_cv: dict = field(default_factory=dict)
 
     @property
     def mensagem(self) -> str:
+        if self.barreira_cv and not self.barreira_cv.get("aprovada", True):
+            return str(self.barreira_cv.get("texto") or "")
         return DIAGNOSTICOS.get(self.diagnostico, "")
 
 
@@ -613,13 +618,19 @@ def politica_automatica() -> estatistica.PoliticaAmostraAutomatica | None:
     """
     A política da cotação automática, se a flag estiver ligada. Um lugar
     só decide: a rota unificada e a legada perguntam aqui.
+
+    Flag LIDA e desligada continua sendo o rollback (sem teto, como
+    antes). Flag que NÃO PÔDE ser lida não é rollback: na API a leitura
+    levanta quando o banco não responde, e tratar isso como "desligada"
+    gravaria uma cesta sem teto nem barreira do CV. Falha de leitura
+    aplica a política (10/11/2026).
     """
     from .. import governanca
 
     try:
         ligada = db.flag_ativa(governanca.FLAG_TETO_AUTOMATICO)
-    except Exception:  # noqa: BLE001 — sem banco, sem flag: comportamento anterior
-        ligada = False
+    except Exception:  # noqa: BLE001 — leitura falhou: os limites valem
+        ligada = True
     return estatistica.POLITICA_AUTOMATICA if ligada else None
 
 
@@ -766,19 +777,28 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
             manter.add(id(referencia))
         else:
             novas.append((referencia, comparabilidade))
+    barreira = None
     if modo == "automatico" and novas:
         teto = None
+        de_pessoa_na_cesta: list[dict] = []
         if politica is not None:
-            # o teto é da CESTA do item: as escolhidas por PESSOA contam,
-            # e a reconsulta nunca põe a 16ª
-            ja = len(cesta.consideradas([l for l in existentes.values()
-                                         if de_pessoa(l)]))
-            teto = max(0, politica.teto - ja)
+            # o teto é da CESTA do item: as escolhidas por PESSOA contam
+            # (mesmo que já passem do teto — aí não sobra vaga), e a
+            # reconsulta nunca põe uma além dele
+            de_pessoa_na_cesta = cesta.consideradas(
+                [l for l in existentes.values() if de_pessoa(l)])
+            teto = max(0, politica.teto - len(de_pessoa_na_cesta))
         escolha = estatistica.selecionar_cesta(
             novas, perfil, teto=teto, saneamento=politica_triagem,
             texto_item=str(item.get("descricao") or ""))
         if politica is not None:
+            # CV da cesta que RESULTARIA (de pessoa + novas), antes de
+            # gravar: reprovada, as novas ficam candidatas para revisão
+            barreira = estatistica.aplicar_barreira_cv(
+                escolha, [Decimal(str(l["valor_unitario_normalizado"]))
+                          for l in de_pessoa_na_cesta])
             manter |= {id(r) for r in escolha.selecionadas}
+            manter |= {id(r) for r in escolha.em_revisao_cv}
             manter |= {id(r) for r in escolha.excedentes[:politica.reserva]}
         # as retidas pela triagem são GRAVADAS, com o fundamento: é o que
         # permite revisar e reincluir (nunca descarte silencioso)
@@ -859,8 +879,11 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
             "politica": politica_triagem.para_registro(),
             "pos_jev": pos_jev,
             "resumo": saneamento.resumo_do_item(linhas, coleta.unicas)}
+    if barreira is not None:
+        resultado.barreira_cv = barreira.para_registro()
     resultado.estimativa = cesta.recalcular_e_gravar(
-        cotacao, item, repo, perfil=perfil, linhas=linhas)
+        cotacao, item, repo, perfil=perfil, linhas=linhas,
+        barreira_cv=resultado.barreira_cv or None)
     resultado.consideradas = len(cesta.consideradas(linhas))
     resultado.diagnostico = diagnostico_da_coleta(
         coleta, resultado.consideradas, perfil.minimo_referencias,
@@ -938,6 +961,8 @@ def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
                  "rebaixadas": resultado.rebaixadas,
                  **({"saneamento": resultado.saneamento}
                     if resultado.saneamento else {}),
+                 **({"barreira_cv": resultado.barreira_cv}
+                    if resultado.barreira_cv else {}),
                  "diagnostico": resultado.diagnostico,
                  "duracao_s": round(resultado.duracao_s, 3),
                  "em": datetime.now(timezone.utc).isoformat(

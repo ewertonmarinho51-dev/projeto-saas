@@ -1,5 +1,7 @@
 """
-G1 (pacote de 17/10/2026) — teto de 15 referências na cotação automática.
+G1 (pacote de 17/10/2026) — teto de referências na cotação automática
+(15 até a política .3; 5 desde a .4, de 10/11/2026 — as provas leem
+`POL.teto`).
 
 Medido antes: 301 candidatas por fonte → 602 referências gravadas e 452
 CONSIDERADAS por item. O que estas provas guardam:
@@ -67,11 +69,11 @@ def _ranqueadas(n: int, *, tipo="sistema_oficial",
 # ---------------------------------------------------------------------------
 # Unidade — a regra da cesta
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("n", [0, 1, 2, 3, 5, 15, 16, 100, 300])
-def test_teto_nunca_passa_de_15_e_nao_infla(n):
+@pytest.mark.parametrize("n", [0, 1, 2, 3, 5, 6, 15, 16, 100, 300])
+def test_teto_nunca_passa_do_limite_e_nao_infla(n):
     cesta_ = estatistica.selecionar_cesta(_ranqueadas(n), teto=POL.teto)
-    assert len(cesta_.selecionadas) == min(n, 15)
-    assert len(cesta_.excedentes) == max(0, n - 15)
+    assert len(cesta_.selecionadas) == min(n, POL.teto)
+    assert len(cesta_.excedentes) == max(0, n - POL.teto)
     for ref in cesta_.excedentes:
         assert ref.status.value == "candidate"
         assert any("teto" in m for m in ref.motivos)
@@ -162,20 +164,20 @@ def _nova(monkeypatch, *, teto=True):
     return str(c["id"]), str(item["id"])
 
 
-def test_301_por_fonte_vira_no_maximo_15_de_todas_as_fontes(monkeypatch):
+def test_301_por_fonte_vira_no_maximo_o_teto_de_todas_as_fontes(monkeypatch):
     cid, iid = _nova(monkeypatch)
     fontes = _fontes(301)
     r = cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                                 fontes=fontes)
     linhas = repo.listar_referencias(iid)
     dentro = cesta.consideradas(linhas)
-    assert r.consideradas == len(dentro) == 15
+    assert r.consideradas == len(dentro) == POL.teto == 5
     assert len(linhas) <= POL.teto + POL.reserva
     assert r.nao_gravadas > 200 and r.brutas == 602
     # amostra farta na primeira NÃO dispensa a segunda
     assert fontes[0].chamadas == 1 and fontes[1].chamadas == 1
     por_fonte = Counter(l["fonte_id"] for l in dentro)
-    assert sorted(por_fonte.values()) == [7, 8], por_fonte
+    assert sorted(por_fonte.values()) == [2, 3], por_fonte
     assert r.politica == POL.versao
     [evento] = [e for e in repo.listar_eventos(cid)
                 if e["tipo"] == "busca_concluida"]
@@ -202,12 +204,12 @@ def test_fonte_principal_fora_consulta_a_seguinte(monkeypatch):
     reserva.registrar({**ITEM, "numero": 1, "valor_unitario": 28.7})
     r = cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                                 fontes=[fora, reserva])
-    assert reserva.chamadas == 1 and r.consideradas == 15
+    assert reserva.chamadas == 1 and r.consideradas == POL.teto
     assert r.diagnostico == "ok"
 
 
-@pytest.mark.parametrize("ja_na_cesta", [14, 15])
-def test_reconsulta_nunca_poe_a_16a(monkeypatch, ja_na_cesta):
+@pytest.mark.parametrize("ja_na_cesta", [POL.teto - 1, POL.teto])
+def test_reconsulta_nunca_passa_do_teto(monkeypatch, ja_na_cesta):
     cid, iid = _nova(monkeypatch)
     cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                             fontes=_fontes(301))
@@ -222,9 +224,9 @@ def test_reconsulta_nunca_poe_a_16a(monkeypatch, ja_na_cesta):
     r = cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                                 fontes=_fontes(301))
     final = repo.listar_referencias(iid)
-    assert len(cesta.consideradas(final)) <= 15 and r.consideradas <= 15
+    assert len(cesta.consideradas(final)) <= POL.teto and r.consideradas <= POL.teto
     rejeitadas = {l["id_externo"] for l in final if l["status"] == "rejected"}
-    assert len(rejeitadas) == 15 - ja_na_cesta     # desconsiderada não volta
+    assert len(rejeitadas) == POL.teto - ja_na_cesta     # desconsiderada não volta
 
 
 def test_modo_manual_nao_tem_teto(monkeypatch):
@@ -264,7 +266,7 @@ def test_rota_legada_respeita_o_mesmo_teto():
     sem = execucao.pesquisar_item(item, _fontes(301))
     com = execucao.pesquisar_item(item, fontes, politica=POL)
     assert len(sem.estimativa.cesta.selecionadas) == 452
-    assert len(com.estimativa.cesta.selecionadas) == 15
+    assert len(com.estimativa.cesta.selecionadas) == POL.teto
     assert len(com.referencias) <= POL.teto + POL.reserva
     assert fontes[1].chamadas == 1
     assert {r.fonte.id for r in com.estimativa.cesta.selecionadas} == {
@@ -294,11 +296,11 @@ def test_rodada_com_teto_reavalia_selecoes_antigas_da_maquina(monkeypatch):
     r = cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                                 fontes=_fontes(301))
     linhas = repo.listar_referencias(iid)
-    assert len(cesta.consideradas(linhas)) == r.consideradas == 15
+    assert len(cesta.consideradas(linhas)) == r.consideradas == POL.teto
     assert len(linhas) == antes                # nada apagado
     # as seleções antigas saem da cesta: em lote (`rebaixadas`) ou pelo
     # upsert da reserva do revisor
-    assert r.rebaixadas >= 452 - 15 - POL.reserva
+    assert r.rebaixadas >= 452 - POL.teto - POL.reserva
     [evento] = [e for e in repo.listar_eventos(cid)
                 if e["tipo"] == "busca_concluida"
                 and (e["payload"] or {}).get("politica")]
@@ -324,7 +326,7 @@ def test_decisao_de_pessoa_sobrevive_a_reavaliacao(monkeypatch):
     final = {l["id"]: l for l in repo.listar_referencias(iid)}
     assert final[excluida["id"]]["status"] == "rejected"
     assert final[escolhida["id"]]["status"] == "selected"
-    assert len(cesta.consideradas(list(final.values()))) <= 15
+    assert len(cesta.consideradas(list(final.values()))) <= POL.teto
 
 
 def test_ia_ve_so_o_que_decide_o_item(monkeypatch):
