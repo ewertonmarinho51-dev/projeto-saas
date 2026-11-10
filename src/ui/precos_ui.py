@@ -2576,8 +2576,22 @@ def _rotulo_do_timbrado(pesquisa: dict) -> str:
             "sem timbrado.")
 
 
+def _pode_alterar_pesquisa(pesquisa: dict) -> bool:
+    """Autor da pesquisa ou administrador — o mesmo que o RLS deixa escrever
+    (`pode_escrever_pesquisa_preco`, 0021). Só decide o que a tela oferece."""
+    if auth.eh_admin():
+        return True
+    autor = str(pesquisa.get("auth_user_id") or "")
+    return bool(autor) and autor == _identidade()[0]
+
+
 def _render_destinatario(pesquisa: dict) -> None:
-    """Quem recebe o relatório, editável — vale para as próximas emissões."""
+    """Quem recebe o relatório — vale para as próximas emissões. Editável só
+    para quem consegue salvar; os demais leem qual timbrado sai, sem um botão
+    que só daria erro."""
+    if not _pode_alterar_pesquisa(pesquisa):
+        st.caption(_rotulo_do_timbrado(pesquisa))
+        return
     with st.expander("Destinatário e timbrado do relatório"):
         st.markdown(_rotulo_do_timbrado(pesquisa))
         with st.form(f"destinatario_{pesquisa['id']}"):

@@ -161,6 +161,37 @@ def test_leitura_traz_o_destinatario(emissor):
     assert "destinatario_secretaria_id" in select and "destinatario_externo" in select
 
 
+def _ler(emissor, autor, **token):
+    banco = PostgrestFalso()
+    banco.responder("GET", "pesquisas_preco", 200, [{
+        "id": P, "nome": "N", "objeto": "", "estado": "draft", "valor_global": None,
+        "data_base": None, "responsavel": "", "local_referencia": "", "processo_id": None,
+        "versao": 1, "criado_em": "", "atualizado_em": "", "auth_user_id": autor,
+        "destinatario_secretaria_id": None, "destinatario_externo": ""}])
+    banco.responder("GET", "pesquisa_preco_itens", 200, [])
+    r = _api(emissor, banco).get(f"/api/v1/precos/pesquisas/{P}",
+                                 headers={"Authorization": f"Bearer {emissor.token(**token)}"})
+    assert r.status_code == 200, r.text
+    assert "auth_user_id" in banco.chamadas[-2].url.params["select"]
+    return r.json()
+
+
+@pytest.mark.parametrize("autor, papel, esperado", [
+    (USUARIO_A, "usuario", True),     # o autor
+    (DE_OUTRO, "admin", True),        # o administrador, mesmo sem ser o autor
+    (DE_OUTRO, "usuario", False),     # colega do município: lê, não altera
+    (None, "usuario", False),         # pesquisa sem autor gravado
+])
+def test_leitura_diz_se_quem_pergunta_pode_alterar(emissor, autor, papel, esperado):
+    # É o que decide se a tela oferece a troca de destinatário; a escrita
+    # continua recusada pela API (403) e pelo RLS para quem não pode.
+    assert _ler(emissor, autor, papel=papel)["pode_alterar"] is esperado
+
+
+def test_resposta_da_leitura_nao_expoe_o_autor(emissor):
+    assert "auth_user_id" not in _ler(emissor, USUARIO_A)
+
+
 def test_orgaos_do_municipio_sem_timbrado_na_resposta(emissor):
     banco = PostgrestFalso()
     banco.responder("GET", "secretarias", 200, [dict(s) for s in SECRETARIAS])
