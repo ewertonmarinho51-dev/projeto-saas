@@ -42,7 +42,8 @@ def test_cabecalho_diz_o_estado():
 def test_cada_tabela_nasce_fechada(tabela):
     assert re.search(rf"alter table public\.{tabela}\s+enable row level security", SQL)
     assert re.search(rf"revoke all on public\.{tabela}\s+from anon, authenticated, public", SQL)
-    assert re.search(rf"revoke delete, truncate on public\.{tabela}\s+from service_role", SQL)
+    assert re.search(rf"revoke delete, truncate, references, trigger on public\.{tabela}\s+"
+                     r"from service_role", SQL)
 
 
 def test_leitura_so_dos_resultados_e_so_para_authenticated():
@@ -161,6 +162,17 @@ def test_filtros_de_uf_e_janela(banco, cenario):
 
 
 @requer_pg
+def test_busca_tem_teto_de_termos(banco, cenario):
+    # 24 termos no máximo: o 25º não alcança a busca (custo da RPC exposta)
+    vinte_e_quatro = [f"inexistente{n}" for n in range(24)]
+    assert _como(banco, BUSCA, (vinte_e_quatro + ["cimento"], None, None, None, 10)) == (None, [])
+    erro, linhas = _como(banco, BUSCA, (vinte_e_quatro[:23] + ["cimento"], None, None, None, 10))
+    assert erro is None and len(linhas) == 2
+    erro, linhas = _como(banco, BUSCA, (["x" * 5000], None, None, None, 10))
+    assert erro is None and linhas == []
+
+
+@requer_pg
 def test_anon_nao_le_nem_executa(banco, cenario):
     assert _como(banco, BUSCA, (["cimento"], None, None, None, 10), papel="anon", jwt="{}")[0] == "42501"
     for tabela in TABELAS:
@@ -200,6 +212,8 @@ MUTACOES = [
     ("grant truncate on public.precos_pncp_cursores to service_role", "service_role_apaga"),
     ("grant delete on public.precos_pncp_resultados to service_role", "service_role_apaga"),
     ("revoke insert on public.precos_pncp_resultados from service_role", "service_role_sem_escrita"),
+    ("grant trigger on public.precos_pncp_resultados to service_role", "service_role_gatilho_ou_fk"),
+    ("grant references on public.precos_pncp_contratacoes to service_role", "service_role_gatilho_ou_fk"),
     ("create policy p on public.precos_pncp_contratacoes for select to authenticated using (true)",
      "politica_fora_do_previsto"),
     ("drop policy precos_pncp_resultados_leitura on public.precos_pncp_resultados",

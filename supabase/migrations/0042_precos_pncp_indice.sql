@@ -140,9 +140,11 @@ revoke all on public.precos_pncp_resultados   from anon, authenticated, public;
 grant select, insert, update on public.precos_pncp_cursores     to service_role;
 grant select, insert, update on public.precos_pncp_contratacoes to service_role;
 grant select, insert, update on public.precos_pncp_resultados   to service_role;
-revoke delete, truncate on public.precos_pncp_cursores     from service_role;
-revoke delete, truncate on public.precos_pncp_contratacoes from service_role;
-revoke delete, truncate on public.precos_pncp_resultados   from service_role;
+-- o default do Supabase dá `arwdDxtm`: além de apagar, o servidor não cria
+-- gatilho nem chave estrangeira apontando para cá (revisão de 10/11/2026)
+revoke delete, truncate, references, trigger on public.precos_pncp_cursores     from service_role;
+revoke delete, truncate, references, trigger on public.precos_pncp_contratacoes from service_role;
+revoke delete, truncate, references, trigger on public.precos_pncp_resultados   from service_role;
 
 grant select on public.precos_pncp_resultados to authenticated;
 drop policy if exists "precos_pncp_resultados_leitura" on public.precos_pncp_resultados;
@@ -165,8 +167,15 @@ as $$
     -- `websearch_to_tsquery` não levanta erro de sintaxe com texto livre; o
     -- "or" entre os termos é o OU dele. Sem termo, a consulta é vazia e não
     -- casa com nada.
+    -- Teto de custo (revisão de 10/11/2026): a RPC é alcançável direto pelo
+    -- PostgREST por qualquer conta autenticada. Só os 24 primeiros termos,
+    -- cada um cortado em 60 caracteres — o coletor manda no máximo 12 por
+    -- variante; o resto seria só OU a mais sobre o GIN e o `ts_rank`.
     select websearch_to_tsquery('portuguese'::regconfig,
-             array_to_string(coalesce(p_termos, '{}'::text[]), ' or ')) as q
+             coalesce((select string_agg(left(t, 60), ' or ')
+                         from unnest(coalesce(p_termos, '{}'::text[]))
+                              with ordinality as u(t, n)
+                        where n <= 24), '')) as q
   )
   select r.*
     from public.precos_pncp_resultados r, consulta c
@@ -223,6 +232,10 @@ begin
     if has_table_privilege('service_role', 'public.' || tabela,
                            'delete, truncate') then
       faltou := faltou || ' service_role_apaga:' || tabela;
+    end if;
+    if has_table_privilege('service_role', 'public.' || tabela,
+                           'references, trigger') then
+      faltou := faltou || ' service_role_gatilho_ou_fk:' || tabela;
     end if;
     -- com lista, `has_table_privilege` responde "algum": cada um é conferido
     if not (has_table_privilege('service_role', 'public.' || tabela, 'select')
