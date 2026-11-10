@@ -618,7 +618,7 @@ def _metodo(d: Documento, view: CotacaoReportView) -> None:
         "Preços praticados em contratações públicas, na unidade do item, "
         "escolhidos por prioridade da fonte e comparabilidade com a "
         "especificação — nunca pelo menor preço. Na cotação automática, até "
-        "15 preços por item."])
+        "5 preços por item (exceto inclusões humanas e pesquisas anteriores)."])
     if view.triagem_versoes:
         linhas.append([
             "Triagem antes da cesta",
