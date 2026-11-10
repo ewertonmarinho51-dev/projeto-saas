@@ -22,3 +22,23 @@ describe("rótulo de equivalência da referência", () => {
     expect(comparativoDaEquivalencia(undefined)).toBe("");
   });
 });
+
+describe("itens pendentes do lote", () => {
+  it("o mesmo critério do Reprocessar pendentes no servidor", async () => {
+    const { itemPendente } = await import("@/components/precos");
+    const preco = { valor: "10", exibicao: "R$ 10,00" };
+    expect(itemPendente({ estado: "pending", preco_estimado: null })).toBe(true);
+    expect(itemPendente({ estado: "error", preco_estimado: null })).toBe(true);
+    expect(itemPendente({ estado: "incomplete", preco_estimado: preco })).toBe(true);
+    expect(itemPendente({ estado: "review", preco_estimado: null })).toBe(true);
+    expect(itemPendente({ estado: "review", preco_estimado: preco })).toBe(false);
+    expect(
+      itemPendente({
+        estado: "review",
+        preco_estimado: preco,
+        revisao_cv: { motivo: "cv_acima_do_limite", cv: "30%", limite: "25%", quantidade: 3, sugeridas: 3, texto: "" },
+      }),
+    ).toBe(true);
+    expect(itemPendente({ estado: "complete", preco_estimado: null })).toBe(false);
+  });
+});

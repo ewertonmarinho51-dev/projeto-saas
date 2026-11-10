@@ -218,6 +218,25 @@ def precisa_de_busca(item: dict, modo: str = "manual",
     return int(gravado.get("consideradas") or gravado.get("selecionadas") or 0) == 0
 
 
+def precisa_de_reprocesso(item: dict) -> bool:
+    """
+    "Reprocessar pendentes": o item ainda NÃO tem preço proposto
+    defensável — nunca rodou, falhou, ficou incompleto, ou está em revisão
+    sem preço ou com o CV reprovado. Item concluído (aceito pelo servidor)
+    nunca é reprocessado. O que já tem preço proposto fica como está: o
+    servidor reabre ou busca o item à mão se quiser mudar.
+    """
+    estado = str(item.get("estado") or EstadoItem.PENDENTE.value)
+    if estado == EstadoItem.COMPLETO.value:
+        return False
+    if estado in A_PROCESSAR or estado == EstadoItem.INCOMPLETO.value:
+        return True
+    if item.get("preco_estimado") in (None, ""):
+        return True
+    barreira = (item.get("estatisticas") or {}).get("barreira_cv") or {}
+    return isinstance(barreira, dict) and barreira.get("aprovada") is False
+
+
 # Prioridade na fila: o que o processo largou no meio, depois o que nunca
 # rodou, e a falha técnica POR ÚLTIMO. Antes o `error` entrava pela ordem
 # da planilha, à frente dos pendentes: com os itens 1–5 sempre falhando,

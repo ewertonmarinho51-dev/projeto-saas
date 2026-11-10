@@ -598,6 +598,57 @@ class ResultadoPesquisa:
             return str(self.barreira_cv.get("texto") or "")
         return DIAGNOSTICOS.get(self.diagnostico, "")
 
+    @property
+    def desfecho(self) -> str:
+        """O motivo PRINCIPAL do item depois da busca (`DESFECHOS`) — um só,
+        para o resumo do lote contar cada item uma vez."""
+        return desfecho_do_resultado(self)[0]
+
+    @property
+    def motivos_extras(self) -> list[str]:
+        return desfecho_do_resultado(self)[1]
+
+
+# Desfecho de cada item no lote: o que o servidor precisa fazer a seguir.
+# Indisponibilidade de fonte NÃO se confunde com pesquisa concluída sem
+# preço: só a primeira justifica "Reprocessar pendentes" sem mudar nada.
+DESFECHOS = {
+    "pronto_para_revisao": "Pronto para revisão",
+    "revisar_similaridade": "Revisar similaridade",
+    "revisar_cv": "Revisar CV",
+    "amostra_insuficiente": "Amostra insuficiente",
+    "sem_referencia_compativel": "Sem referência compatível",
+    "consulta_parcial": "Consulta parcial",
+    "falha_tecnica": "Falha técnica",
+}
+PENDENTES = frozenset(DESFECHOS) - {"pronto_para_revisao"}
+
+
+def desfecho_do_resultado(r: "ResultadoPesquisa") -> tuple[str, list[str]]:
+    """(motivo principal, motivos adicionais) — distinguíveis e acionáveis."""
+    from .fontes import Desfecho
+
+    similares = int((r.equivalencias or {}).get("similar") or 0)
+    falhou_alguma = any(d == Desfecho.FALHA.value
+                        for d in (r.desfechos or {}).values())
+    if r.diagnostico == "fonte_indisponivel":
+        return "falha_tecnica", []
+    if r.barreira_cv and not r.barreira_cv.get("aprovada", True):
+        principal = "revisar_cv"
+    elif r.diagnostico in ("zero_resultados", "sem_comparaveis"):
+        principal = ("revisar_similaridade" if similares
+                     else "sem_referencia_compativel")
+    elif r.diagnostico == "amostra_insuficiente":
+        principal = "revisar_similaridade" if similares else "amostra_insuficiente"
+    else:
+        principal = "pronto_para_revisao"
+    extras = []
+    if falhou_alguma:
+        extras.append("consulta_parcial")
+    if similares and principal != "revisar_similaridade":
+        extras.append("revisar_similaridade")
+    return principal, extras
+
 
 def diagnostico_da_coleta(coleta: busca.Coleta, consideradas: int,
                           minimo: int, piso: Decimal) -> str:
@@ -1007,6 +1058,8 @@ def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
                  **({"barreira_cv": resultado.barreira_cv}
                     if resultado.barreira_cv else {}),
                  "diagnostico": resultado.diagnostico,
+                 "desfecho": resultado.desfecho,
+                 "motivos_extras": resultado.motivos_extras,
                  "duracao_s": round(resultado.duracao_s, 3),
                  "em": datetime.now(timezone.utc).isoformat(
                      timespec="seconds")})
@@ -1014,15 +1067,26 @@ def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
 
 def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
                       item_ids: list[str] | None = None, tamanho: int = 1,
-                      ja_tentados: set[str] | None = None, **opcoes
+                      ja_tentados: set[str] | None = None,
+                      reprocessar: bool = False, **opcoes
                       ) -> tuple[list[ResultadoPesquisa], int]:
     """
     Um passo da pesquisa em lote, REENTRANTE: processa até `tamanho`
     itens que ainda precisam de busca e devolve (resultados, restantes).
     O checkpoint é o estado de cada item no banco — fechar a aba não perde
     nada; 1 e 210 itens usam o mesmo contrato (pacote, 04 §Operação).
+
+    `reprocessar` ("Reprocessar pendentes"): além do que nunca rodou, o item
+    que terminou sem preço proposto, com falha ou com o CV para revisar —
+    depois de fontes novas, termos novos, alteração do item ou falha
+    técnica. Item concluído (aceito pelo servidor) nunca entra, e a decisão
+    de pessoa sobre referência é preservada por `pesquisar_item`.
+
+    A falha de UM item não fica só no retorno: vai para a trilha
+    (`busca_falhou`, desfecho `falha_tecnica`), com o motivo.
     """
-    from .execucao import modo_da_ultima_busca, precisa_de_busca
+    from .execucao import (modo_da_ultima_busca, precisa_de_busca,
+                           precisa_de_reprocesso)
 
     ja_tentados = ja_tentados if ja_tentados is not None else set()
     itens = ativos(repo.listar_itens(cotacao_id))
@@ -1041,7 +1105,8 @@ def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
     cache.carregar_da_trilha(buscas)
     opcoes.setdefault("cache_de_termos", cache)
     fila = [i for i in itens
-            if precisa_de_busca(i, modo, ultimas.get(str(i["id"])))
+            if (precisa_de_reprocesso(i) if reprocessar
+                else precisa_de_busca(i, modo, ultimas.get(str(i["id"]))))
             and str(i["id"]) not in ja_tentados]
     resultados = []
     cotacao = repo.obter_pesquisa(cotacao_id)
@@ -1053,10 +1118,23 @@ def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
                                              modo=modo, sincronizar=False,
                                              cotacao=cotacao, **opcoes))
         except (ErroCotacao, db.ErroBanco, estados.TransicaoInvalida) as exc:
-            resultados.append(ResultadoPesquisa(
+            falha = ResultadoPesquisa(
                 item_id=str(item["id"]), modo=modo,
                 diagnostico="fonte_indisponivel",
-                ocorrencias=[f"item não processado: {exc}"]))
+                ocorrencias=[f"item não processado: {exc}"])
+            resultados.append(falha)
+            try:
+                repo.registrar_evento(
+                    cotacao_id, "busca_falhou", ator=ctx.auth_user_id,
+                    item_id=str(item["id"]),
+                    descricao=f"{modo}: item não processado no lote",
+                    payload={"modo": modo, "diagnostico": falha.diagnostico,
+                             "desfecho": "falha_tecnica",
+                             "erro": f"{type(exc).__name__}: {exc}"[:300],
+                             "em": datetime.now(timezone.utc).isoformat(
+                                 timespec="seconds")})
+            except Exception:  # noqa: BLE001 — o retorno ainda leva a falha
+                pass
     if resultados:
         sincronizar_estado(cotacao_id)
     restantes = len([i for i in fila if str(i["id"]) not in ja_tentados])

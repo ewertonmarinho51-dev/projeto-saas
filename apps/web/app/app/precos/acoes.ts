@@ -61,15 +61,18 @@ const ERROS_DA_COLETA: Record<string, string> = {
 /** Põe a coleta na fila e volta à pesquisa acompanhando o job. */
 export async function iniciarColeta(_: EstadoDaColeta, form: FormData): Promise<EstadoDaColeta> {
   const pesquisa = String(form.get("pesquisa") ?? "");
-  const modo = form.get("modo") === "automatico" ? "automatico" : "manual";
-  // Uma chave por modo: os dois botões da mesma tela não colidem.
-  const chave = `${String(form.get("chave") ?? "")}-${modo}`;
+  // "Reprocessar pendentes" é a cotação automática sobre o que ainda não
+  // tem preço proposto (`execucao.precisa_de_reprocesso` no servidor).
+  const reprocessar = form.get("acao") === "reprocessar";
+  const modo = reprocessar || form.get("modo") === "automatico" ? "automatico" : "manual";
+  // Uma chave por botão: os três da mesma tela não colidem.
+  const chave = `${String(form.get("chave") ?? "")}-${reprocessar ? "reprocessar" : modo}`;
   if (!UUID.test(pesquisa) || !/^[A-Za-z0-9._:-]{8,128}$/.test(chave)) return { erro: "Requisição inválida." };
   let jobId: string;
   try {
     const { dados } = await chamarApi<{ id: string }>(`/precos/pesquisas/${pesquisa}/coleta`, {
       metodo: "POST",
-      corpo: { modo },
+      corpo: { modo, ...(reprocessar ? { reprocessar: true } : {}) },
       cabecalhos: { "Idempotency-Key": chave },
     });
     jobId = dados.id;

@@ -9,7 +9,7 @@ import { DestinatarioDaPesquisa } from "@/components/destinatario";
 import { etapasDaPesquisa, SECAO } from "@/components/etapas-da-pesquisa";
 import { FechamentoDaPesquisa, GestaoDaPesquisa, NovoItem } from "@/components/gestao-cotacao";
 import { ImportarPlanilha } from "@/components/importar-planilha";
-import { dataCurta, rotuloEstadoItem, rotuloEstadoPesquisa, rotuloMetodo } from "@/components/precos";
+import { dataCurta, itemPendente, rotuloEstadoItem, rotuloEstadoPesquisa, rotuloMetodo } from "@/components/precos";
 import { situacaoDaPesquisa, situacaoDoItem } from "@/components/situacao";
 import {
   Alert,
@@ -52,7 +52,9 @@ export default async function Pesquisa({
 }) {
   if (!precosHabilitado()) notFound();
   const { id } = await params;
-  const { job, relatorio, criada, importada, aplicada, duplicada, arquivada, item_retirado, concluida, revisao } = await searchParams;
+  const { job, relatorio, criada, importada, aplicada, duplicada, arquivada, item_retirado, concluida, revisao, pendentes } =
+    await searchParams;
+  const soPendentes = pendentes === "1";
   const jobId = typeof job === "string" && UUID.test(job) ? job : null;
   const relatorioId = typeof relatorio === "string" && UUID.test(relatorio) ? relatorio : null;
   if (!UUID.test(id)) notFound();
@@ -64,6 +66,7 @@ export default async function Pesquisa({
     if (e instanceof ErroDaApi && e.status === 404) notFound();
     throw e;
   }
+  const listados = soPendentes ? p.itens.filter(itemPendente) : p.itens;
   // Aplicar ao processo: a prévia só faz sentido com a pesquisa concluída
   // (ou já aplicada, para dizer isso). Erro na prévia não derruba a página.
   // A emissão também não derruba: sem preparo, a seção diz que não deu.
@@ -172,7 +175,7 @@ export default async function Pesquisa({
         itens={p.itens.length}
         faltam={faltam}
       />
-      {jobId && <ProgressoDaColeta jobId={jobId} />}
+      {jobId && <ProgressoDaColeta jobId={jobId} pesquisa={p.id} />}
       {!IMUTAVEIS.has(p.estado) && (
         // Chave nova a cada renderização: um clique (ou o reenvio do
         // formulário) não põe duas coletas na fila — a API devolve o
@@ -212,7 +215,21 @@ export default async function Pesquisa({
             <h2 id="titulo-itens" className="gc-card__title">
               Itens <Badge size="sm">{p.itens.length}</Badge>
             </h2>
-            <p className="gc-card__subtitle">Abra um item para ver as referências, a cesta e a origem de cada preço.</p>
+            <p className="gc-card__subtitle">
+              {soPendentes
+                ? `Mostrando os ${listados.length} item(ns) ainda sem preço proposto, com falha ou com o CV para revisar.`
+                : "Abra um item para ver as referências, a cesta e a origem de cada preço."}
+            </p>
+          </div>
+          <div className="gc-card__actions">
+            <Link
+              prefetch={false}
+              href={soPendentes ? `/app/precos/${p.id}#itens` : `/app/precos/${p.id}?pendentes=1#itens`}
+              className="text-[length:var(--gc-fs-sm)] text-acento"
+              data-testid="filtro-pendentes"
+            >
+              {soPendentes ? "Ver todos os itens" : `Ver pendentes (${p.itens.filter(itemPendente).length})`}
+            </Link>
           </div>
         </div>
         <div className="gc-card__body gc-card__body--flush">
@@ -247,7 +264,7 @@ export default async function Pesquisa({
                   </tr>
                 </thead>
                 <tbody>
-                  {p.itens.map((i) => (
+                  {listados.map((i) => (
                     <tr key={i.id}>
                       <td className="gc-mono text-secundario">{i.numero}</td>
                       <td className="max-w-[calc(var(--space-16)*7)]">

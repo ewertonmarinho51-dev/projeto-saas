@@ -1,3 +1,5 @@
+import type { DesfechoDoLote, ItemDePesquisa } from "@/lib/api";
+
 /**
  * Rótulos dos códigos que a API devolve (os mesmos CHECKs da 0021).
  * Código desconhecido aparece como veio: esconder seria pior que mostrar.
@@ -76,6 +78,29 @@ export function varianteDaEquivalencia(rotulo: string | undefined): "success" | 
   if (rotulo === "similar para revisão") return "warning";
   if (rotulo === "incompatível") return "error";
   return "neutral";
+}
+
+/** Rótulos do desfecho do lote (`cotacoes.DESFECHOS`), na ordem do resumo. */
+export const DESFECHOS_DO_LOTE: [DesfechoDoLote, string][] = [
+  ["pronto_para_revisao", "Pronto para revisão"],
+  ["revisar_similaridade", "Revisar similaridade"],
+  ["revisar_cv", "Revisar CV"],
+  ["amostra_insuficiente", "Amostra insuficiente"],
+  ["sem_referencia_compativel", "Sem referência compatível"],
+  ["consulta_parcial", "Consulta parcial"],
+  ["falha_tecnica", "Falha técnica"],
+  ["ja_resolvido", "Já resolvido"],
+];
+
+/**
+ * Pendente = ainda sem preço proposto defensável: o mesmo critério do
+ * "Reprocessar pendentes" no servidor (`execucao.precisa_de_reprocesso`).
+ * Concluído nunca é pendente.
+ */
+export function itemPendente(item: Pick<ItemDePesquisa, "estado" | "preco_estimado" | "revisao_cv">): boolean {
+  if (item.estado === "complete") return false;
+  if (["pending", "searching", "matching", "error", "incomplete"].includes(item.estado)) return true;
+  return !item.preco_estimado || !!item.revisao_cv;
 }
 
 /** O comparativo depois do rótulo ("conferido: …; diverge: …"), ou "". */
