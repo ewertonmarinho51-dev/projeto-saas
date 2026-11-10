@@ -4344,6 +4344,11 @@
             "title": "Objeto",
             "type": "string"
           },
+          "pode_alterar": {
+            "default": false,
+            "title": "Pode Alterar",
+            "type": "boolean"
+          },
           "processo_id": {
             "anyOf": [
               {
