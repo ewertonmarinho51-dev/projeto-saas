@@ -38,7 +38,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from src import db
 from src.precos import cotacoes, pncp
 from src.precos import repositorio as repo
-from src.precos.execucao import JANELA_MAXIMA_DIAS, modo_da_ultima_busca, precisa_de_busca
+from src.precos.execucao import (JANELA_MAXIMA_DIAS, modo_da_ultima_busca, precisa_de_busca,
+                                 precisa_de_reprocesso)
 from src.streamlit_opcional import sessao_da_requisicao
 
 from .erros import ErroApi
@@ -96,6 +97,10 @@ class PedidoDeColeta(BaseModel):
     # `item_id`. O que viaja para a fila é o endereço REMONTADO a partir dos
     # dígitos (`contratacao_canonica`), nunca o texto digitado.
     contratacao_pncp: str = Field(default="", max_length=300)
+    # "Reprocessar pendentes" (lote): além do que nunca rodou, o item sem
+    # preço proposto, com falha técnica ou com o CV para revisar
+    # (`execucao.precisa_de_reprocesso`). Item concluído nunca entra.
+    reprocessar: bool = False
 
 
 def contratacao_canonica(entrada: str) -> str | None:
@@ -144,7 +149,23 @@ def job_do_banco(linha: dict) -> Job:
 
 _CAMPOS_DO_RESULTADO = {"nome": str, "mimetype": str, "tamanho": int, "sha256": str,
                         "hash_decisorio": str, "registrado": bool, "expira_em": str,
-                        "mensagem": str, "documento": str, "bloqueios": int, "avisos": int}
+                        "mensagem": str, "documento": str, "bloqueios": int, "avisos": int,
+                        "processados": int, "pendentes": int}
+# Desfecho por item no lote (`cotacoes.DESFECHOS`) e o item do recorte que
+# já estava resolvido quando a vez dele chegou.
+JA_RESOLVIDO = "ja_resolvido"
+DESFECHOS_DO_LOTE = frozenset(cotacoes.DESFECHOS) | {JA_RESOLVIDO}
+
+
+def registro_do_lote(desfechos: dict[str, str]) -> dict:
+    """O que o job do lote grava: o desfecho de CADA item (ponto de
+    retomada) e o resumo que conta cada item uma vez."""
+    resumo: dict[str, int] = {}
+    for motivo in desfechos.values():
+        resumo[motivo] = resumo.get(motivo, 0) + 1
+    return {"itens": dict(desfechos), "resumo": resumo,
+            "processados": len(desfechos),
+            "pendentes": sum(1 for m in desfechos.values() if m in cotacoes.PENDENTES)}
 
 
 def _resultado_exibivel(bruto) -> dict:
@@ -160,6 +181,11 @@ def _resultado_exibivel(bruto) -> dict:
     pendencias = bruto.get("pendencias")
     if isinstance(pendencias, list):
         saida["pendencias"] = [p[:200] for p in pendencias[:20] if isinstance(p, str)]
+    resumo = bruto.get("resumo")
+    if isinstance(resumo, dict):
+        saida["resumo"] = {k: v for k, v in resumo.items()
+                           if k in DESFECHOS_DO_LOTE and isinstance(v, int)
+                           and not isinstance(v, bool) and v >= 0}
     return saida
 
 
@@ -202,7 +228,8 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
                   agora: Callable[[], float] = time.time) -> str:
     """Executa (ou retoma) um job. Devolve o estado final gravado."""
     r = rest.requisitar(token, "GET", TABELA_JOBS, params={
-        "select": "id,estado,recurso_id,parametros,tentativas,total", "id": f"eq.{job_id}"})
+        "select": "id,estado,recurso_id,parametros,tentativas,total,resultado",
+        "id": f"eq.{job_id}"})
     if r.status != 200 or not r.dados:
         # Token vencido no caminho ou job invisível: nada a fazer, e nada
         # a gravar (sem token válido não há como escrever).
@@ -222,6 +249,7 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
 
     ctx = cotacoes.Contexto(auth_user_id=auth_user_id, secretaria_id=secretaria_id)
     tentados: set[str] = set()
+    desfechos: dict[str, str] = {}
     opcoes = {} if fontes is None else {"fontes": fontes}
     try:
         with sessao_da_requisicao(token, tenant_id):
@@ -259,17 +287,37 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
                 atualizar_job(rest, token, job_id, estado="succeeded", concluido_em=_agora_iso(),
                               feitos=1, resultado={"mensagem": str(resultado.mensagem)[:500]})
                 return "succeeded"
+            # O RECORTE do lote foi fixado na criação do job (`item_ids`): item
+            # importado depois não entra nesta rodada. O desfecho de cada item
+            # mora no próprio job (`resultado.itens`) — reentrega da fila ou
+            # worker que caiu retoma sem refazer o que já tem desfecho.
+            item_ids = parametros.get("item_ids")
+            item_ids = [str(i) for i in item_ids] if isinstance(item_ids, list) else None
+            reprocessar = bool(parametros.get("reprocessar"))
+            anteriores = (job.get("resultado") or {}).get("itens") or {}
+            desfechos = {str(k): str(v) for k, v in anteriores.items()
+                         if str(v) in DESFECHOS_DO_LOTE} if isinstance(anteriores, dict) else {}
+            tentados |= set(desfechos)
             while True:
                 if expira is not None and expira - agora() < MARGEM_DO_TOKEN_S:
                     atualizar_job(rest, token, job_id, estado="failed",
-                                  erro_codigo="SESSION_EXPIRED", concluido_em=_agora_iso())
+                                  erro_codigo="SESSION_EXPIRED", concluido_em=_agora_iso(),
+                                  resultado=registro_do_lote(desfechos))
                     return "failed"
-                _, restantes = cotacoes.pesquisar_em_lote(
-                    ctx, pesquisa_id, modo=modo, tamanho=1, ja_tentados=tentados, **opcoes)
-                feitos = min(len(tentados), total) if total else len(tentados)
-                atualizar_job(rest, token, job_id, feitos=feitos)
+                resultados, restantes = cotacoes.pesquisar_em_lote(
+                    ctx, pesquisa_id, modo=modo, tamanho=1, ja_tentados=tentados,
+                    item_ids=item_ids, reprocessar=reprocessar, **opcoes)
+                for resultado in resultados:
+                    desfechos[str(resultado.item_id)] = resultado.desfecho
+                feitos = min(len(desfechos), total) if total else len(desfechos)
+                atualizar_job(rest, token, job_id, feitos=feitos,
+                              resultado=registro_do_lote(desfechos))
                 if restantes == 0:
                     break
+            # item do recorte que já não precisava de busca quando a vez dele
+            # chegou (concluído pelo servidor no meio do lote): conta uma vez
+            for item_id in item_ids or []:
+                desfechos.setdefault(item_id, JA_RESOLVIDO)
     except cotacoes.CotacaoImutavel:
         atualizar_job(rest, token, job_id, estado="failed", erro_codigo="IMMUTABLE",
                       concluido_em=_agora_iso())
@@ -281,7 +329,8 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
     except db.ErroBanco as exc:
         raise ErroTransitorio("banco") from exc
     atualizar_job(rest, token, job_id, estado="succeeded", concluido_em=_agora_iso(),
-                  feitos=total if total else len(tentados))
+                  feitos=total if total else len(tentados),
+                  resultado=registro_do_lote(desfechos))
     return "succeeded"
 
 
@@ -355,9 +404,15 @@ def rotas() -> APIRouter:
                     "select": "item_id,criado_em,modo:payload->>modo", "pesquisa_id": f"eq.{pesquisa_id}",
                     "tipo": "in.(busca_concluida,busca_falhou)", "order": "criado_em.desc", "limit": "5000"})
                 ultimas = modo_da_ultima_busca(buscas.dados or []) if buscas.status == 200 else {}
-            total = (sum(1 for i in itens.dados or []
-                         if precisa_de_busca(i, pedido.modo, ultimas.get(str(i.get("id")))))
-                     if itens.status == 200 else 0)
+            # O RECORTE fixado aqui é o que o worker processa (`item_ids`), com
+            # o mesmo critério: a barra conta exatamente os itens da rodada.
+            recorte = [str(i.get("id")) for i in (itens.dados or []) if itens.status == 200
+                       and (precisa_de_reprocesso(i) if pedido.reprocessar
+                            else precisa_de_busca(i, pedido.modo, ultimas.get(str(i.get("id")))))]
+            parametros["item_ids"] = recorte
+            if pedido.reprocessar:
+                parametros["reprocessar"] = True
+            total = len(recorte)
 
         criado = rest.requisitar(eu.token, "POST", TABELA_JOBS, prefer="return=representation",
                                  corpo={"tenant_id": eu.tenant_id, "auth_user_id": eu.auth_user_id,

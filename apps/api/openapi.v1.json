@@ -4007,6 +4007,11 @@
             "title": "Modo",
             "type": "string"
           },
+          "reprocessar": {
+            "default": false,
+            "title": "Reprocessar",
+            "type": "boolean"
+          },
           "termo": {
             "default": "",
             "maxLength": 300,

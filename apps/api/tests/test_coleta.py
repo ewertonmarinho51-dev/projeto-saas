@@ -154,15 +154,22 @@ def _token(exp_em: float) -> str:
 
 @pytest.fixture
 def dominio(monkeypatch):
-    estado = {"restantes": [2, 1, 0], "chamadas": 0, "erro": None}
+    estado = {"restantes": [2, 1, 0], "chamadas": 0, "erro": None, "vistos": [],
+              "desfechos": ["pronto_para_revisao", "revisar_cv", "falha_tecnica"]}
 
-    def passo(ctx, pesquisa_id, *, modo, tamanho, ja_tentados, **opcoes):
+    def passo(ctx, pesquisa_id, *, modo, tamanho, ja_tentados, item_ids=None,
+              reprocessar=False, **opcoes):
         estado["chamadas"] += 1
         estado["opcoes"] = opcoes
+        estado["item_ids"], estado["reprocessar"] = item_ids, reprocessar
+        estado["vistos"].append(set(ja_tentados))
         if estado["erro"]:
             raise estado["erro"]
-        ja_tentados.add(f"i{estado['chamadas']}")
-        return [], estado["restantes"].pop(0)
+        item = f"i{estado['chamadas']}"
+        ja_tentados.add(item)
+        desfecho = estado["desfechos"][(estado["chamadas"] - 1) % 3]
+        return ([type("R", (), {"item_id": item, "desfecho": desfecho})()],
+                estado["restantes"].pop(0))
 
     monkeypatch.setattr(cotacoes, "pesquisar_em_lote", passo)
     monkeypatch.setattr(repo, "obter_pesquisa", lambda pid: {"id": pid, "estado": "review"})
@@ -398,3 +405,91 @@ def test_contratacao_canonica_le_so_digitos():
     assert coleta.contratacao_canonica("abc") is None
     fonte = coleta._fonte_da_contratacao(LINK_PNCP)
     assert fonte._controle == ("07954480000179", "2026", "15836")
+
+
+# ---------------------------------------------------------------------------
+# Lote: recorte fixo, desfecho por item, retomada e "Reprocessar pendentes"
+# ---------------------------------------------------------------------------
+def test_lote_grava_o_desfecho_de_cada_item_e_o_resumo(banco, dominio):
+    banco.responder("GET", "api_jobs", 200, [_job(parametros={
+        "modo": "automatico", "item_ids": ["i1", "i2", "i3"]})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    final = _patches(banco)[-1]["resultado"]
+    assert final["itens"] == {"i1": "pronto_para_revisao", "i2": "revisar_cv",
+                              "i3": "falha_tecnica"}
+    assert final["resumo"] == {"pronto_para_revisao": 1, "revisar_cv": 1, "falha_tecnica": 1}
+    # cada item contado uma vez: processados = soma do resumo = total do recorte
+    assert final["processados"] == sum(final["resumo"].values()) == 3
+    assert final["pendentes"] == 2
+    assert dominio["item_ids"] == ["i1", "i2", "i3"] and dominio["reprocessar"] is False
+
+
+def test_reentrega_retoma_sem_refazer_o_que_tem_desfecho(banco, dominio):
+    dominio["restantes"] = [0]
+    banco.responder("GET", "api_jobs", 200, [_job(estado="running", feitos=2, parametros={
+        "modo": "automatico", "item_ids": ["a", "b", "i1"]},
+        resultado={"itens": {"a": "pronto_para_revisao", "b": "amostra_insuficiente",
+                             "x": "<script>"}})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    # o que já tinha desfecho chega ao domínio como já tentado
+    assert {"a", "b"} <= dominio["vistos"][0] and "x" not in dominio["vistos"][0]
+    final = _patches(banco)[-1]["resultado"]
+    assert final["itens"] == {"a": "pronto_para_revisao", "b": "amostra_insuficiente",
+                              "i1": "pronto_para_revisao"}
+    assert final["processados"] == 3
+
+
+def test_item_do_recorte_resolvido_no_meio_conta_uma_vez(banco, dominio):
+    dominio["restantes"] = [0]
+    banco.responder("GET", "api_jobs", 200, [_job(parametros={
+        "modo": "automatico", "item_ids": ["i1", "aceito"]})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    final = _patches(banco)[-1]["resultado"]
+    assert final["itens"]["aceito"] == coleta.JA_RESOLVIDO
+    assert final["processados"] == 2 and final["pendentes"] == 0
+
+
+def test_job_antigo_sem_recorte_segue_a_pesquisa_inteira(banco, dominio):
+    banco.responder("GET", "api_jobs", 200, [_job(parametros={"modo": "automatico"})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    assert dominio["item_ids"] is None
+
+
+def test_resumo_exibivel_so_com_motivos_conhecidos():
+    exibido = coleta._resultado_exibivel({  # noqa: SLF001
+        "resumo": {"revisar_cv": 2, "inventado": 9, "falha_tecnica": True,
+                   "pronto_para_revisao": -1},
+        "processados": 2, "pendentes": 2, "itens": {"i1": "revisar_cv"}})
+    assert exibido == {"resumo": {"revisar_cv": 2}, "processados": 2, "pendentes": 2}
+
+
+def _itens_do_reprocesso(banco):
+    banco.respostas[("GET", "pesquisa_preco_itens")] = []
+    banco.responder("GET", "pesquisa_preco_itens", 200, [
+        {"id": "i1", "estado": "pending", "preco_estimado": None},
+        {"id": "i2", "estado": "incomplete", "preco_estimado": None},
+        {"id": "i3", "estado": "review", "preco_estimado": "10.00",
+         "estatisticas": {"barreira_cv": {"aprovada": False}}},
+        {"id": "i4", "estado": "review", "preco_estimado": "12.00",
+         "estatisticas": {"barreira_cv": {"aprovada": True}}},
+        {"id": "i5", "estado": "complete", "preco_estimado": None},
+        {"id": "i6", "estado": "error", "preco_estimado": None},
+    ])
+    banco.responder("GET", "pesquisa_preco_eventos", 200, [
+        {"item_id": "i2", "criado_em": "2026-11-09T19:43:00+00:00", "modo": "automatico"}])
+
+
+@pytest.mark.parametrize("reprocessar, recorte", [
+    (False, ["i1", "i6"]),
+    # pendentes: sem preço, incompleto, falha, CV reprovado — nunca o concluído
+    (True, ["i1", "i2", "i3", "i6"]),
+])
+def test_recorte_do_lote_e_fixado_na_criacao(emissor, banco, reprocessar, recorte):
+    _itens_do_reprocesso(banco)
+    banco.responder("POST", "api_jobs", 201, [_job(total=len(recorte))])
+    r = _api(emissor, banco, FilaFalsa()).post(
+        URL, headers=_h(emissor), json={"modo": "automatico", "reprocessar": reprocessar})
+    assert r.status_code == 202, r.text
+    corpo = banco.corpo(next(c for c in banco.chamadas if c.method == "POST"))
+    assert corpo["parametros"]["item_ids"] == recorte and corpo["total"] == len(recorte)
+    assert corpo["parametros"].get("reprocessar", False) is reprocessar

@@ -361,8 +361,22 @@ export type Job = {
     documento?: string;
     bloqueios?: number;
     avisos?: number;
+    // Lote de cotação: cada item contado uma vez, pelo desfecho principal.
+    resumo?: Partial<Record<DesfechoDoLote, number>>;
+    processados?: number;
+    pendentes?: number;
   };
 };
+
+export type DesfechoDoLote =
+  | "pronto_para_revisao"
+  | "revisar_similaridade"
+  | "revisar_cv"
+  | "amostra_insuficiente"
+  | "sem_referencia_compativel"
+  | "consulta_parcial"
+  | "falha_tecnica"
+  | "ja_resolvido";
 
 // ---------------------------------------------------------------------------
 // Importação da planilha (P04e). O plano vem do SERVIDOR, com o hash que a

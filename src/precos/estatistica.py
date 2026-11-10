@@ -655,7 +655,9 @@ def selecionar_cesta(
             "da cotação automática — disponível para inclusão manual")
         cesta.excedentes.append(referencia)
 
-    if not cesta.selecionadas and not cesta.excedentes:
+    # retidas pela triagem (atributo, conversão, saneamento) não são "abaixo
+    # da comparabilidade": o motivo delas já está nelas (vem do #184)
+    if not cesta.selecionadas and not cesta.excedentes and not cesta.retidas:
         cesta.motivos.append(
             "nenhuma referência atingiu a comparabilidade mínima")
     return cesta

@@ -5,6 +5,7 @@ import { useActionState } from "react";
 
 import { iniciarColeta, type EstadoDaColeta } from "@/app/app/precos/acoes";
 import { useJob } from "@/components/acompanhar-job";
+import { DESFECHOS_DO_LOTE } from "@/components/precos";
 import { botaoPrimario, botaoSecundario } from "@/components/ui";
 
 const FALHAS: Record<string, string> = {
@@ -24,10 +25,15 @@ export function BotaoDeColeta({ pesquisa, chave }: { pesquisa: string; chave: st
         <button type="submit" name="modo" value="manual" className={botaoPrimario} disabled={enviando}>
           {enviando ? "Iniciando..." : "Coletar preços"}
         </button>
-        {/* Automática: a cesta é formada pela regra determinística (teto e
-            triagem); o revisor confere e conclui depois. */}
+        {/* Automática: a cesta é formada pela regra determinística (teto,
+            equivalência e CV); o revisor confere e conclui depois. */}
         <button type="submit" name="modo" value="automatico" className={botaoSecundario} disabled={enviando}>
-          Cotação automática
+          Cotar todos os itens
+        </button>
+        {/* Depois de fontes novas, termos, alteração do item ou falha
+            técnica: só o que ainda não tem preço proposto. Concluído não entra. */}
+        <button type="submit" name="acao" value="reprocessar" className={botaoSecundario} disabled={enviando}>
+          Reprocessar pendentes
         </button>
       </div>
       {estado.erro && (
@@ -43,7 +49,7 @@ export function BotaoDeColeta({ pesquisa, chave }: { pesquisa: string; chave: st
  * Acompanha a coleta (`useJob`) e, no fim, recarrega os dados da página
  * (itens e preços).
  */
-export function ProgressoDaColeta({ jobId }: { jobId: string }) {
+export function ProgressoDaColeta({ jobId, pesquisa }: { jobId: string; pesquisa?: string }) {
   const router = useRouter();
   const { job, erro } = useJob(jobId, () => router.refresh());
 
@@ -69,7 +75,36 @@ export function ProgressoDaColeta({ jobId }: { jobId: string }) {
       {(job.estado === "running" || job.estado === "queued") && job.total > 0 && (
         <progress className="h-1.5 w-full max-w-sm accent-[var(--color-acento)]" max={100} value={job.progresso} aria-label="Progresso da coleta" />
       )}
+      {job.resultado?.resumo && Object.keys(job.resultado.resumo).length > 0 && (
+        <ResumoDoLote job={job} pesquisa={pesquisa} />
+      )}
       {erro && <span className="text-xs text-secundario">{erro}</span>}
+    </div>
+  );
+}
+
+/** Cada item contado uma vez, pelo desfecho principal; acesso aos pendentes. */
+function ResumoDoLote({ job, pesquisa }: { job: NonNullable<ReturnType<typeof useJob>["job"]>; pesquisa?: string }) {
+  const resumo = job.resultado.resumo ?? {};
+  const pendentes = job.resultado.pendentes ?? 0;
+  return (
+    <div className="grid gap-1" data-testid="resumo-do-lote">
+      <span>
+        {job.resultado.processados ?? job.feitos} de {job.total} itens processados
+        {pendentes > 0 ? ` · ${pendentes} pendente(s)` : ""}
+      </span>
+      <ul className="flex flex-wrap gap-x-4 gap-y-1">
+        {DESFECHOS_DO_LOTE.filter(([chave]) => (resumo[chave] ?? 0) > 0).map(([chave, rotulo]) => (
+          <li key={chave}>
+            {rotulo}: <strong>{resumo[chave]}</strong>
+          </li>
+        ))}
+      </ul>
+      {pendentes > 0 && pesquisa && (
+        <a href={`/app/precos/${pesquisa}?pendentes=1#itens`} className="text-acento underline">
+          Ver os itens pendentes
+        </a>
+      )}
     </div>
   );
 }
