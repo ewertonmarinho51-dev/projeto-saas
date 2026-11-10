@@ -203,7 +203,6 @@ export async function buscarItem(
         filtros: {
           janela_dias: Number.isFinite(janela) ? janela : 180,
           uf: texto(form, "uf", 2),
-          literal: form.get("literal") === "1",
         },
         ...(contratacao ? { contratacao_pncp: contratacao } : {}),
       },

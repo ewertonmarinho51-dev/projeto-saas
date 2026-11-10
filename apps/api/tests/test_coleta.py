@@ -283,7 +283,7 @@ def test_pedido_de_um_item_grava_termo_e_filtros_e_total_1(emissor):
     gravado = banco.corpo(next(c for c in banco.chamadas if c.method == "POST"))
     assert gravado["total"] == 1
     assert gravado["parametros"] == {"modo": "automatico", "item_id": ITEM, "termo": "caneta azul",
-                                     "filtros": {"janela_dias": 90, "uf": "pa", "literal": False}}
+                                     "filtros": {"janela_dias": 90, "uf": "pa"}}
 
 
 @pytest.mark.parametrize("estado, existe, status", [("complete", True, 409), ("in_review", False, 404)])
@@ -302,7 +302,30 @@ def test_filtros_fora_da_regra_sao_422(emissor, filtros):
     assert r.status_code == 422
 
 
-def test_worker_busca_so_o_item_pedido_com_a_estrategia_comum_e_guarda_a_mensagem(banco, dominio, monkeypatch):
+@pytest.mark.parametrize("modo, literal", [("manual", True), ("automatico", False)])
+def test_o_modo_decide_a_ampliacao_da_busca_do_item(banco, dominio, monkeypatch, modo, literal):
+    recebido = {}
+
+    def pesquisar_item(ctx, pesquisa_id, item_id, *, modo, termo, filtros, **opcoes):
+        recebido.update(filtros=filtros)
+        return type("R", (), {"mensagem": ""})()
+
+    monkeypatch.setattr(cotacoes, "pesquisar_item", pesquisar_item)
+    banco.responder("GET", "api_jobs", 200, [_job(total=1, parametros={
+        "modo": modo, "item_id": ITEM, "termo": "caneta",
+        # pedido antigo com `literal` gravado não decide mais nada
+        "filtros": {"janela_dias": 90, "uf": "", "literal": not literal}})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    assert recebido["filtros"]["literal"] is literal
+
+
+def test_pedido_com_literal_e_recusado(emissor):
+    r = _api(emissor, _banco_do_item(), FilaFalsa()).post(
+        URL, headers=_h(emissor), json={"item_id": ITEM, "filtros": {"literal": True}})
+    assert r.status_code == 422
+
+
+def test_worker_busca_manual_e_do_termo_do_servidor_e_guarda_a_mensagem(banco, dominio, monkeypatch):
     recebido = {}
 
     def pesquisar_item(ctx, pesquisa_id, item_id, *, modo, termo, filtros, **opcoes):
@@ -314,7 +337,7 @@ def test_worker_busca_so_o_item_pedido_com_a_estrategia_comum_e_guarda_a_mensage
         "modo": "manual", "item_id": ITEM, "termo": "caneta", "filtros": {"janela_dias": 90, "uf": "pa"}})])
     assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
     assert recebido == {"item": ITEM, "modo": "manual", "termo": "caneta",
-                        "filtros": {"janela_dias": 90, "uf": "PA", "literal": False}, "opcoes": {"fontes": []}}
+                        "filtros": {"janela_dias": 90, "uf": "PA", "literal": True}, "opcoes": {"fontes": []}}
     assert dominio["chamadas"] == 0, "o lote não pode rodar junto"
     final = _patches(banco)[-1]
     assert final["estado"] == "succeeded" and final["feitos"] == 1

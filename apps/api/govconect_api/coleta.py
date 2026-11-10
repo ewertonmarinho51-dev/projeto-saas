@@ -80,10 +80,6 @@ class FiltrosDaBusca(BaseModel):
     # Dentro da janela que a busca consulta de fato (`execucao.JANELA_MAXIMA_DIAS`).
     janela_dias: int = Field(default=180, ge=30, le=JANELA_MAXIMA_DIAS)
     uf: str = Field(default="", max_length=2)
-    # "Apenas o meu termo": só a descrição e o termo digitado, sem variantes
-    # locais nem IA (`expansao.Plano`). Desmarcado, a busca do item usa a
-    # MESMA estratégia de expansão do lote.
-    literal: bool = False
 
 
 class PedidoDeColeta(BaseModel):
@@ -234,14 +230,20 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
             # só entra com a flag e motor disponível (`_motor_de_termos`).
             motor = _motor_de_termos()
             if motor is not None:
+                from src.precos import expansao
+
                 opcoes["motor_semantico"] = motor
+                # um orçamento de IA para a execução inteira do job
+                opcoes["orcamento_ia"] = expansao.Orcamento(expansao.ORCAMENTO_IA_POR_LOTE)
             if parametros.get("item_id"):
-                # UM item, a pedido: termo e filtros do servidor. O termo
-                # digitado vai sempre na frente; "apenas o meu termo"
-                # (`literal`) desliga as variantes e a IA.
+                # UM item, a pedido. O MODO decide a ampliação: a busca
+                # manual ("Pesquisar preços") é do servidor — descrição e o
+                # termo dele, nada além; a automática gera as variantes
+                # sozinha (`expansao.Plano`).
                 filtros = dict(parametros.get("filtros") or {})
+                filtros.pop("literal", None)
                 filtros["uf"] = (filtros.get("uf") or "").upper() or None
-                filtros["literal"] = bool(filtros.get("literal"))
+                filtros["literal"] = modo == "manual"
                 opcoes_do_item = dict(opcoes)
                 contratacao = str(parametros.get("contratacao_pncp") or "")
                 if contratacao:

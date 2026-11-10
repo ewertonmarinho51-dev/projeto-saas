@@ -2198,11 +2198,6 @@
             "title": "Janela Dias",
             "type": "integer"
           },
-          "literal": {
-            "default": false,
-            "title": "Literal",
-            "type": "boolean"
-          },
           "uf": {
             "default": "",
             "maxLength": 2,

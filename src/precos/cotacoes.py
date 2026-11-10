@@ -684,7 +684,8 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
                    termo: str = "", fontes=None, motor_semantico=None,
                    seletor=None, sincronizar: bool = True,
                    cotacao: dict | None = None,
-                   triagem=None, cache_de_termos=None) -> ResultadoPesquisa:
+                   triagem=None, cache_de_termos=None,
+                   orcamento_ia=None) -> ResultadoPesquisa:
     """
     Busca preços para UM item e grava as candidatas no próprio item.
 
@@ -723,7 +724,8 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
 
     plano = expansao.Plano(
         item, termo=termo, literal=bool(filtros_efetivos.get("literal")),
-        motor=motor_semantico, cache=cache_de_termos or expansao.CACHE)
+        motor=motor_semantico, cache=cache_de_termos or expansao.CACHE,
+        orcamento=orcamento_ia or expansao.Orcamento(1))
     termos = plano.fase_inicial()
 
     estado = EstadoItem(str(item.get("estado") or "pending"))
@@ -1040,6 +1042,9 @@ def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
     cache = expansao.CacheDeTermos()
     cache.carregar_da_trilha(buscas)
     opcoes.setdefault("cache_de_termos", cache)
+    # o orçamento de IA vale para a EXECUÇÃO (o worker passa o mesmo objeto
+    # a cada passo); sem ele, um por chamada
+    opcoes.setdefault("orcamento_ia", expansao.Orcamento(expansao.ORCAMENTO_IA_POR_LOTE))
     fila = [i for i in itens
             if precisa_de_busca(i, modo, ultimas.get(str(i["id"])))
             and str(i["id"]) not in ja_tentados]

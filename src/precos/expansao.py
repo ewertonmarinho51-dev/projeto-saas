@@ -36,6 +36,24 @@ VERSAO = "2026-11-10.expansao.1"
 MAX_VARIANTES_LOCAIS = 4
 MAX_TERMOS_IA = 4
 FASES_MAXIMAS = 3          # inicial + locais + IA
+# Orçamento de IA: pedidos NOVOS ao motor (cache não conta). Por item, um;
+# por execução do lote, este teto — o piloto liga a IA só com a flag
+# `precos_ia_termos` e mede o ganho (`ganho_ia` na trilha) antes de subir.
+ORCAMENTO_IA_POR_LOTE = 20
+
+
+class Orcamento:
+    """Quantos pedidos novos à IA ainda cabem nesta execução."""
+
+    def __init__(self, limite: int) -> None:
+        self.limite = max(0, int(limite))
+        self.usados = 0
+
+    def consumir(self) -> bool:
+        if self.usados >= self.limite:
+            return False
+        self.usados += 1
+        return True
 
 DESCRICAO = "descricao"
 MANUAL = "manual"
@@ -202,6 +220,8 @@ class Plano:
     chave_ia: str = ""
     termos_ia: tuple[str, ...] = ()
     ia_do_cache: bool = False
+    orcamento: Orcamento = field(default_factory=lambda: Orcamento(1))
+    ia_sem_orcamento: bool = False
 
     def __post_init__(self) -> None:
         termo = (self.termo or "").strip()
@@ -251,6 +271,9 @@ class Plano:
             self.ia_do_cache = True
             self.termos_ia = tuple(guardados)
             return self.termos_ia
+        if not self.orcamento.consumir():
+            self.ia_sem_orcamento = True
+            return ()
         termos = [" ".join(str(t).split())[:80] for t in
                   semantica.sugerir_termos(self.motor, self.item,
                                            limite=MAX_TERMOS_IA)
@@ -263,8 +286,19 @@ class Plano:
         if self.fases:
             self.fases[-1].update(elegiveis=elegiveis, unicas=unicas)
 
+    @property
+    def ganho_ia(self) -> int | None:
+        """Elegíveis que a fase de IA acrescentou (None: não houve fase)."""
+        fases = {f["fase"]: f for f in self.fases}
+        if IA not in fases or "elegiveis" not in fases[IA]:
+            return None
+        anterior = [f for f in self.fases if f["fase"] != IA and "elegiveis" in f]
+        base = max((f["elegiveis"] for f in anterior), default=0)
+        return int(fases[IA]["elegiveis"]) - int(base)
+
     def para_registro(self) -> dict:
         return {"versao": VERSAO, "literal": self.literal,
+                "ganho_ia": self.ganho_ia, "ia_sem_orcamento": self.ia_sem_orcamento,
                 "termos": [{"texto": t, "origem": o} for t, o in self._termos],
                 "fases": self.fases,
                 "ia": bool(self.termos_ia), "ia_do_cache": self.ia_do_cache,
