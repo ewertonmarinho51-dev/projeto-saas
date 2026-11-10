@@ -66,3 +66,20 @@ export function dataCurta(valor: string | null | undefined): string {
 
 /** O que já está na cesta, pela regra do domínio: selecionada ou mantida com atenção. */
 export const naCesta = (r: { status: string }) => r.status === "selected" || r.status === "warning";
+
+/**
+ * Cor do rótulo de equivalência (`src/precos/equivalencia.py`): só o que
+ * entra sozinho na cesta é verde; similar pede o servidor; incompatível é erro.
+ */
+export function varianteDaEquivalencia(rotulo: string | undefined): "success" | "warning" | "error" | "neutral" {
+  if (rotulo === "mesmo item" || rotulo === "equivalente comprovado") return "success";
+  if (rotulo === "similar para revisão") return "warning";
+  if (rotulo === "incompatível") return "error";
+  return "neutral";
+}
+
+/** O comparativo depois do rótulo ("conferido: …; diverge: …"), ou "". */
+export function comparativoDaEquivalencia(detalhe: string | undefined): string {
+  const partes = (detalhe ?? "").split(" — ");
+  return partes.length > 1 ? partes.slice(1).join(" · ") : "";
+}

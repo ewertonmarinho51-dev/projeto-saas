@@ -56,7 +56,7 @@ _COLUNAS_REFERENCIA = (
     "descricao_original,unidade_original,valor_unitario_original,"
     "unidade_normalizada,valor_unitario_normalizado,natureza_valor,orgao,uf,"
     "municipio,fornecedor,data_compra,data_resultado,coletado_em,status,"
-    "motivos,bruto")
+    "motivos,bruto,fatores")
 LIMITE_ITENS = 2000          # a planilha real tem 210; folga sem ser infinita
 LIMITE_REFERENCIAS = 500
 
@@ -183,6 +183,12 @@ class Referencia(BaseModel):
     origem: str = ""
     canal: str = ""
     rotulo_origem: str = ""
+    # Classe de equivalência com o item (`src.precos.equivalencia`): "mesmo
+    # item", "equivalente comprovado", "similar para revisão" ou
+    # "incompatível", com o comparativo dos atributos essenciais. Vazios
+    # quando o item não tem atributo quantificável a comprovar.
+    equivalencia: str = ""
+    equivalencia_detalhe: str = ""
 
 
 class PaginaDePesquisas(BaseModel):
@@ -273,7 +279,9 @@ def _referencia(linha: dict) -> Referencia:
     vinculos = links.resolver(linha)
     motivos = linha.get("motivos") or []
     atribuicao = portais.atribuir(linha.get("fonte_id"), linha.get("bruto"))
+    rotulo_eq, detalhe_eq = _equivalencia(linha.get("fatores"))
     return Referencia(
+        equivalencia=rotulo_eq, equivalencia_detalhe=detalhe_eq,
         origem=atribuicao.origem if atribuicao else "",
         canal=atribuicao.canal if atribuicao else "",
         rotulo_origem=atribuicao.rotulo if atribuicao else "",
@@ -298,6 +306,21 @@ def _referencia(linha: dict) -> Referencia:
         rotulo_contratacao=vinculos.contratacao_rotulo,
         link_fonte=links.seguro(vinculos.fonte_url),
         identificacao=vinculos.identificacao)
+
+
+def _equivalencia(fatores) -> tuple[str, str]:
+    """O fator `equivalencia` gravado pelo matching → (rótulo, detalhe)."""
+    from src.precos import equivalencia
+
+    if not isinstance(fatores, list):
+        return "", ""
+    for fator in fatores:
+        if isinstance(fator, dict) and fator.get("nome") == "equivalencia":
+            texto = str(fator.get("explicacao") or "")[:500]
+            rotulo = texto.split(" — ", 1)[0]
+            if rotulo in equivalencia.ROTULO.values():
+                return rotulo, texto
+    return "", ""
 
 
 def pode_alterar(eu: Identidade, linha: dict) -> bool:

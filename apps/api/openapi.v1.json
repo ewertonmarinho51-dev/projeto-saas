@@ -2198,6 +2198,11 @@
             "title": "Janela Dias",
             "type": "integer"
           },
+          "literal": {
+            "default": false,
+            "title": "Literal",
+            "type": "boolean"
+          },
           "uf": {
             "default": "",
             "maxLength": 2,
@@ -6224,6 +6229,16 @@
           },
           "descricao_original": {
             "title": "Descricao Original",
+            "type": "string"
+          },
+          "equivalencia": {
+            "default": "",
+            "title": "Equivalencia",
+            "type": "string"
+          },
+          "equivalencia_detalhe": {
+            "default": "",
+            "title": "Equivalencia Detalhe",
             "type": "string"
           },
           "fonte": {

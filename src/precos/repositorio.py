@@ -1034,7 +1034,8 @@ def buscas_da_pesquisa(pesquisa_id: str, limite: int = 5000) -> list[dict]:
     """As buscas da trilha (item, data, modo), da mais nova para a mais velha."""
     try:
         resposta = (_cliente().table(TABELA_EVENTOS)
-                    .select("item_id,criado_em,modo:payload->>modo")
+                    .select("item_id,criado_em,modo:payload->>modo,"
+                            "expansao:payload->expansao")
                     .eq("pesquisa_id", pesquisa_id)
                     .in_("tipo", ["busca_concluida", "busca_falhou"])
                     .order("criado_em", desc=True).limit(limite).execute())

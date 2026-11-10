@@ -586,6 +586,11 @@ class ResultadoPesquisa:
     # barreira do CV da cotação automática (`estatistica.BarreiraCV`):
     # aprovada ou não, com o CV exato e a quantidade — vai para a trilha
     barreira_cv: dict = field(default_factory=dict)
+    # estratégia de expansão (`expansao.Plano.para_registro`): termos por
+    # origem, fases e o que cada uma rendeu; e os candidatos por classe de
+    # equivalência — ganho de cobertura, não só mais candidatos
+    expansao: dict = field(default_factory=dict)
+    equivalencias: dict = field(default_factory=dict)
 
     @property
     def mensagem(self) -> str:
@@ -679,7 +684,7 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
                    termo: str = "", fontes=None, motor_semantico=None,
                    seletor=None, sincronizar: bool = True,
                    cotacao: dict | None = None,
-                   triagem=None) -> ResultadoPesquisa:
+                   triagem=None, cache_de_termos=None) -> ResultadoPesquisa:
     """
     Busca preços para UM item e grava as candidatas no próprio item.
 
@@ -709,17 +714,17 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
     filtros_efetivos = {**(cotacao.get("filtros") or {}), **(filtros or {}),
                         "data_base": cotacao.get("data_base")
                         or date.today().isoformat()}
-    termos: tuple[str, ...] = ()
-    if termo.strip() and termo.strip().casefold() != \
-            str(item.get("descricao") or "").strip().casefold():
-        termos = (termo.strip(),)
-    # Ampliação semântica só quando o servidor DESMARCA "apenas o termo
-    # digitado" — e só acrescenta palavras: a descrição do item continua
-    # sendo a régua de comparação, então vizinho não vira preço (F071).
-    if motor_semantico is not None and not filtros_efetivos.get("literal"):
-        from . import semantica
+    # A estratégia de expansão é UMA (`expansao.Plano`), para o item avulso e
+    # para o lote: descrição + termo do servidor primeiro; variantes locais
+    # e, por fim, IA só se a amostra elegível ficar abaixo do mínimo. Com
+    # "apenas o meu termo" (`literal`), só a primeira fase. A descrição do
+    # item continua sendo a régua de comparação: vizinho não vira preço.
+    from . import expansao
 
-        termos = termos + tuple(semantica.sugerir_termos(motor_semantico, item))
+    plano = expansao.Plano(
+        item, termo=termo, literal=bool(filtros_efetivos.get("literal")),
+        motor=motor_semantico, cache=cache_de_termos or expansao.CACHE)
+    termos = plano.fase_inicial()
 
     estado = EstadoItem(str(item.get("estado") or "pending"))
     if estado is EstadoItem.COMPLETO:
@@ -739,12 +744,29 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
                             else politica_saneamento())
     coleta = busca.coletar(item, fontes, filtros=filtros_efetivos,
                            termos=termos, politica=politica)
+    piso_auto = estatistica.PISO_COMPARABILIDADE
+    plano.registrar_rendimento(coleta.elegiveis(piso_auto), coleta.unicas)
+    # Amostra curta: a próxima fase, com TODOS os termos até ali. Fica a
+    # coleta que rendeu mais elegíveis; falha técnica numa fase extra não
+    # apaga o que a anterior trouxe.
+    while not coleta.erro and coleta.elegiveis(piso_auto) < perfil.minimo_referencias:
+        proximos = plano.proxima_fase()
+        if proximos is None:
+            break
+        ampliada = busca.coletar(item, fontes, filtros=filtros_efetivos,
+                                 termos=proximos, politica=politica)
+        plano.registrar_rendimento(ampliada.elegiveis(piso_auto), ampliada.unicas)
+        if ampliada.erro:
+            break
+        if ampliada.elegiveis(piso_auto) >= coleta.elegiveis(piso_auto):
+            coleta, termos = ampliada, proximos
     resultado = ResultadoPesquisa(
         item_id=item_id, modo=modo, diagnostico="", brutas=coleta.brutas,
         unicas=coleta.unicas,
         elegiveis=coleta.elegiveis(estatistica.PISO_COMPARABILIDADE),
         desfechos=dict(coleta.desfechos), ocorrencias=list(coleta.ocorrencias),
-        termos=list(termos), politica=politica.versao if politica else "")
+        termos=list(termos), politica=politica.versao if politica else "",
+        expansao=plano.para_registro(), equivalencias=coleta.por_equivalencia())
 
     if coleta.erro:
         repo.mover_item(item_id, EstadoItem.ERRO, EstadoItem.BUSCANDO,
@@ -966,6 +988,9 @@ def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
         descricao=f"{resultado.modo}: {DIAGNOSTICOS[resultado.diagnostico][:120]}",
         payload={"modo": resultado.modo, "termo": termo,
                  "termos_extras": resultado.termos,
+                 **({"expansao": resultado.expansao} if resultado.expansao else {}),
+                 **({"equivalencias": resultado.equivalencias}
+                    if resultado.equivalencias else {}),
                  "filtros": {k: v for k, v in filtros.items()
                              if k in ("janela_dias", "uf", "literal",
                                       "fontes", "data_base")},
@@ -1006,8 +1031,15 @@ def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
         itens = [i for i in itens if str(i["id"]) in alvo]
     # A automática olha a trilha: item buscado por último à mão e sem cesta
     # entra no lote (ver `precisa_de_busca`).
-    ultimas = (modo_da_ultima_busca(repo.buscas_da_pesquisa(cotacao_id))
-               if modo == "automatico" else {})
+    buscas = repo.buscas_da_pesquisa(cotacao_id)
+    ultimas = modo_da_ultima_busca(buscas) if modo == "automatico" else {}
+    # termos que a IA já sugeriu nesta pesquisa (mesma versão da descrição
+    # e da política): o lote não pede de novo
+    from . import expansao
+
+    cache = expansao.CacheDeTermos()
+    cache.carregar_da_trilha(buscas)
+    opcoes.setdefault("cache_de_termos", cache)
     fila = [i for i in itens
             if precisa_de_busca(i, modo, ultimas.get(str(i["id"])))
             and str(i["id"]) not in ja_tentados]

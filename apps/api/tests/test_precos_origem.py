@@ -44,3 +44,16 @@ def test_fonte_sem_origem_declarada_fica_vazia():
                                       "bruto": {}})
     assert compras.origem == "Compras.gov.br"
     assert compras.canal == "Coleta via Compras.gov.br (dados abertos)"
+
+
+def test_rotulo_de_equivalencia_vem_do_fator_gravado():
+    fatores = [{"nome": "descricao", "explicacao": "x"},
+               {"nome": "equivalencia", "explicacao":
+                "equivalente comprovado — conferido: formato A4; gramatura 75 g/m²"}]
+    saida = api_precos._referencia({**LINHA, "fatores": fatores})
+    assert saida.equivalencia == "equivalente comprovado"
+    assert "gramatura 75 g/m²" in saida.equivalencia_detalhe
+    # texto que não é rótulo conhecido não vira rótulo
+    estranho = [{"nome": "equivalencia", "explicacao": "<script>"}]
+    assert api_precos._referencia({**LINHA, "fatores": estranho}).equivalencia == ""
+    assert api_precos._referencia(LINHA).equivalencia == ""

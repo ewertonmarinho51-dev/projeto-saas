@@ -596,6 +596,21 @@ def selecionar_cesta(
                 rotulo=referencia.rotulo_da_natureza))
             cesta.descartadas.append(referencia)
             continue
+        # Recuperar não é aceitar (`equivalencia`): similar sem prova de
+        # atributo essencial fica com o servidor; divergência essencial sai
+        # da série, com a autoria do sistema ("[barreira por atributo]").
+        classe = getattr(comparabilidade, "classe_equivalencia", "")
+        if classe in ("similar", "incompativel"):
+            explicacao = comparabilidade.equivalencia.explicacao
+            if classe == "incompativel":
+                referencia.status = StatusReferencia.REJEITADA
+                referencia.com_motivo(f"[barreira por atributo] {explicacao}")
+            else:
+                referencia.status = StatusReferencia.REVISAO_MANUAL
+                referencia.com_motivo(f"{explicacao} — disponível para "
+                                      "inclusão manual, com o comparativo")
+            cesta.descartadas.append(referencia)
+            continue
         if comparabilidade.score < piso:
             referencia.status = StatusReferencia.REVISAO_MANUAL
             referencia.com_motivo(

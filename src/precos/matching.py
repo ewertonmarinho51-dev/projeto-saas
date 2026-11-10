@@ -126,6 +126,13 @@ class Comparabilidade:
     identidade: Decimal = ZERO           # é o mesmo produto?
     circunstancias: Decimal = ZERO       # a contratação é comparável?
     fatores: list[Fator] = field(default_factory=list)
+    # `equivalencia.Equivalencia` quando o item traz atributo essencial
+    # quantificável; None = só a redação decide, como sempre foi
+    equivalencia: object | None = None
+
+    @property
+    def classe_equivalencia(self) -> str:
+        return getattr(self.equivalencia, "classe", "") or ""
 
     @property
     def percentual(self) -> int:
@@ -350,7 +357,8 @@ def comparar(referencia: Referencia, *, descricao: str,
              quantidade: Decimal | None = None,
              uf: str | None = None,
              data_base: date | None = None,
-             pdms_item: frozenset[str] = frozenset()) -> Comparabilidade:
+             pdms_item: frozenset[str] = frozenset(),
+             unidade: str | None = None) -> Comparabilidade:
     """
     Score de comparabilidade e sua decomposição.
 
@@ -393,6 +401,27 @@ def comparar(referencia: Referencia, *, descricao: str,
     else:
         identidade = descricao_fator.score
 
+    # Atributos essenciais (gramatura, volume, contagem, formato…): a redação
+    # diferente com os atributos conferidos é EQUIVALENTE e conta como o
+    # mesmo item; a divergência essencial zera a identidade, por mais
+    # parecidas que sejam as palavras (90 g/m² não é 75 g/m²).
+    from . import equivalencia as eqv
+
+    equivalencia = eqv.classificar(
+        descricao, referencia.descricao_original, unidade_item=unidade or "",
+        unidade_fonte=referencia.unidade_original or "",
+        mesmo_codigo=catalogo_fator.score == UM,
+        semelhanca=descricao_fator.score,
+        convertida=referencia.valor_unitario_normalizado is not None)
+    if equivalencia is not None:
+        if equivalencia.classe == eqv.INCOMPATIVEL:
+            identidade = ZERO
+        elif equivalencia.classe == eqv.EQUIVALENTE:
+            identidade = max(identidade, eqv.IDENTIDADE_EQUIVALENTE)
+        identidade_fatores.append(Fator(
+            "equivalencia", ZERO, equivalencia.score, equivalencia.explicacao,
+            eqv.elegivel_automatica(equivalencia.classe)))
+
     total_peso = sum((f.peso for f in circunstancia_fatores), ZERO)
     bruto = sum((f.contribuicao for f in circunstancia_fatores), ZERO)
     circunstancias = (bruto / total_peso) if total_peso else ZERO
@@ -403,6 +432,7 @@ def comparar(referencia: Referencia, *, descricao: str,
         identidade=identidade,
         circunstancias=circunstancias,
         fatores=identidade_fatores + circunstancia_fatores,
+        equivalencia=equivalencia,
     )
 
 

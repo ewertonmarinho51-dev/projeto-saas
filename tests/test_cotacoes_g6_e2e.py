@@ -68,9 +68,21 @@ def test_lote_automatico_preserva_itens_e_nao_fabrica_preco(n, monkeypatch):
     antes = len(cliente.tabelas["pesquisa_preco_referencias"])
     _rodar_lote(cid, fonte)
     assert len(cliente.tabelas["pesquisa_preco_referencias"]) == antes
-    # uma chamada de fonte por item processado, nenhuma de IA
-    assert fonte.chamadas <= n + sum(1 for k in range(1, n + 1)
-                                     if bench._cenario(k) == "fonte_fora")
+    # uma chamada de fonte por item processado, mais UMA rodada de variantes
+    # locais para cada item de amostra curta (`expansao`); nenhuma de IA
+    assert fonte.chamadas <= sum(_orcamento(k) for k in range(1, n + 1))
+
+
+# Amostra curta (zero, só vizinhos, dois preços): a expansão faz a rodada das
+# variantes locais. Falha técnica não amplia; conta a nova tentativa.
+_CURTOS = ("zero", "vizinhos", "dois")
+
+
+def _orcamento(numero: int, *, retentativa: bool = True) -> int:
+    cenario = bench._cenario(numero)
+    if cenario == "fonte_fora":
+        return 2 if retentativa else 1
+    return 2 if cenario in _CURTOS else 1
 
 
 def test_50_itens_cancelar_no_meio_e_retomar(monkeypatch):
@@ -84,7 +96,8 @@ def test_50_itens_cancelar_no_meio_e_retomar(monkeypatch):
     # outra sessão retoma sem o conjunto da primeira: pega só os pendentes
     chamadas_antes = fonte.chamadas
     _rodar_lote(cid, fonte)
-    assert fonte.chamadas - chamadas_antes == 35
+    assert fonte.chamadas - chamadas_antes == sum(_orcamento(k, retentativa=False)
+                                                  for k in range(16, 51))
     assert all(i["estado"] != "pending" for i in repo.listar_itens(cid))
 
 

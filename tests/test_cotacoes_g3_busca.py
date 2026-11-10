@@ -65,7 +65,10 @@ def test_item_ficticio_com_11_vizinhos_da_zero_elegiveis(monkeypatch):
 
 
 def test_ampliacao_semantica_so_quando_nao_literal_e_registrada(monkeypatch):
-    from src.precos import semantica
+    """Política da expansão (10/11/2026, `expansao.Plano`): a IA só entra
+    depois da descrição e das variantes locais, e só com a amostra curta;
+    "apenas o meu termo" (`literal`) não chama a IA."""
+    from src.precos import expansao, semantica
 
     chamadas = []
 
@@ -75,17 +78,22 @@ def test_ampliacao_semantica_so_quando_nao_literal_e_registrada(monkeypatch):
 
     monkeypatch.setattr(semantica, "sugerir_termos", sugerir)
     cliente, cid, iid = _cotacao(monkeypatch)
-    cotacoes.pesquisar_item(CTX, cid, iid, modo="manual", fontes=[_fonte()],
-                            filtros={"literal": True}, motor_semantico=object())
-    assert chamadas == []
-    r = cotacoes.pesquisar_item(CTX, cid, iid, modo="manual", fontes=[_fonte()],
+    vazia = _FonteFalsa(PRECOS)          # o mercado não responde: amostra curta
+    cotacoes.pesquisar_item(CTX, cid, iid, modo="manual", fontes=[vazia],
+                            filtros={"literal": True}, motor_semantico=object(),
+                            cache_de_termos=expansao.CacheDeTermos())
+    assert chamadas == [] and vazia.chamadas == 1
+    r = cotacoes.pesquisar_item(CTX, cid, iid, modo="manual", fontes=[vazia],
                                 filtros={"literal": False},
-                                motor_semantico=object())
+                                motor_semantico=object(),
+                                cache_de_termos=expansao.CacheDeTermos())
     assert chamadas == [ITEM["descricao"]]
-    assert r.termos == ["PAPEL A4", "PAPEL OFICIO"]
+    assert r.termos[-2:] == ["PAPEL A4", "PAPEL OFICIO"]
+    assert [f["fase"] for f in r.expansao["fases"]][-1] == "ia"
     ultimo = [e for e in cliente.tabelas["pesquisa_preco_eventos"]
               if e["tipo"] == "busca_concluida"][-1]
-    assert ultimo["payload"]["termos_extras"] == ["PAPEL A4", "PAPEL OFICIO"]
+    assert ultimo["payload"]["termos_extras"][-2:] == ["PAPEL A4", "PAPEL OFICIO"]
+    assert ultimo["payload"]["expansao"]["ia"] is True
     assert ultimo["payload"]["filtros"]["literal"] is False
 
 

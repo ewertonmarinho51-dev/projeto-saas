@@ -369,6 +369,13 @@ FLAG_TETO_AUTOMATICO = "cotacao_automatica_teto"
 # busca, sem tocar em referência gravada.
 FLAG_PNCP_INDICE = "price_source_pncp_indice"
 
+# Termos sugeridos por IA na busca de preços (cotação automática multiportal,
+# 10/11/2026): só quando as variantes locais não bastaram, um pedido por
+# item, com cache pela versão da descrição e da política (`expansao`). A IA
+# devolve PALAVRAS; preço, equivalência e cesta seguem determinísticos.
+# Nasce DESLIGADA; falha de leitura = sem IA.
+FLAG_PRECOS_IA_TERMOS = "precos_ia_termos"
+
 # Saneamento pré-cesta (pacote Jev de 17/10/2026): antes da cesta
 # automática, cada item passa pela triagem de `precos.saneamento` —
 # invalidação objetiva e suspeita estatística corroborada; o Jev entra

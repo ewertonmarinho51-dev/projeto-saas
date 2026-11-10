@@ -80,6 +80,10 @@ class FiltrosDaBusca(BaseModel):
     # Dentro da janela que a busca consulta de fato (`execucao.JANELA_MAXIMA_DIAS`).
     janela_dias: int = Field(default=180, ge=30, le=JANELA_MAXIMA_DIAS)
     uf: str = Field(default="", max_length=2)
+    # "Apenas o meu termo": só a descrição e o termo digitado, sem variantes
+    # locais nem IA (`expansao.Plano`). Desmarcado, a busca do item usa a
+    # MESMA estratégia de expansão do lote.
+    literal: bool = False
 
 
 class PedidoDeColeta(BaseModel):
@@ -111,6 +115,21 @@ def contratacao_canonica(entrada: str) -> str | None:
 def _fonte_da_contratacao(entrada: str):
     """Ponto único de criação (as provas trocam por um dublê sem rede)."""
     return pncp.PNCPContratacao(entrada)
+
+
+def _motor_de_termos():
+    """Motor de IA para sugerir termos, só com a flag `precos_ia_termos`
+    ligada e motor configurado. Falha de leitura = sem IA: a busca segue
+    determinística (normalização, catálogo, sinônimos validados)."""
+    from src import governanca
+    from src.precos import semantica
+
+    try:
+        if not db.flag_ativa(governanca.FLAG_PRECOS_IA_TERMOS):
+            return None
+        return semantica.motor_do_projeto(finalidade="pesquisa_precos")
+    except Exception:  # noqa: BLE001 — IA é opcional de verdade
+        return None
 
 
 def job_do_banco(linha: dict) -> Job:
@@ -211,12 +230,18 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
     try:
         with sessao_da_requisicao(token, tenant_id):
             cotacoes._exigir_editavel(repo.obter_pesquisa(pesquisa_id))  # noqa: SLF001
+            # A mesma estratégia de expansão no item avulso e no lote; a IA
+            # só entra com a flag e motor disponível (`_motor_de_termos`).
+            motor = _motor_de_termos()
+            if motor is not None:
+                opcoes["motor_semantico"] = motor
             if parametros.get("item_id"):
-                # UM item, a pedido: termo e filtros do servidor, literal (a
-                # ampliação semântica pede o motor de IA, que o worker não tem).
+                # UM item, a pedido: termo e filtros do servidor. O termo
+                # digitado vai sempre na frente; "apenas o meu termo"
+                # (`literal`) desliga as variantes e a IA.
                 filtros = dict(parametros.get("filtros") or {})
                 filtros["uf"] = (filtros.get("uf") or "").upper() or None
-                filtros["literal"] = True
+                filtros["literal"] = bool(filtros.get("literal"))
                 opcoes_do_item = dict(opcoes)
                 contratacao = str(parametros.get("contratacao_pncp") or "")
                 if contratacao:

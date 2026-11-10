@@ -105,6 +105,33 @@ def termos_da_consulta(consulta: Consulta, maximo: int = 12) -> list[str]:
     return termos[:maximo]
 
 
+# Grupos consultados por item: a descrição e até 4 variantes. Cada grupo é
+# uma chamada à RPC (o índice é local, sem rede externa).
+MAX_GRUPOS = 5
+
+
+def grupos_da_consulta(consulta: Consulta, maximo: int = 12) -> list[list[str]]:
+    """
+    Uma lista de palavras POR VARIANTE — descrição primeiro, depois cada
+    termo alternativo. A lista achatada (`termos_da_consulta`) juntava tudo
+    e cortava em 12 palavras ordenadas por tamanho: uma descrição longa
+    ocupava as 12 vagas e o sinônimo nunca chegava ao índice.
+    """
+    from .compras_gov import _tokens
+
+    grupos: list[list[str]] = []
+    for texto in (consulta.descricao, *consulta.termos_alternativos):
+        palavras: list[str] = []
+        for palavra in sorted(_tokens(texto), key=lambda p: (-len(p), p)):
+            palavra = palavra.lower()
+            if palavra.isalnum() and palavra not in palavras:
+                palavras.append(palavra)
+        palavras = palavras[:maximo]
+        if palavras and palavras not in grupos:
+            grupos.append(palavras)
+    return grupos[:MAX_GRUPOS]
+
+
 # ---------------------------------------------------------------------------
 # Linhas do índice
 # ---------------------------------------------------------------------------
@@ -610,30 +637,40 @@ class PNCPIndice(FontePesquisaPreco):
         from .compras_gov import _casa, _tokens
 
         resultado = ResultadoBusca(fonte=self.fonte)
-        termos = termos_da_consulta(consulta)
-        if not termos:
+        grupos = grupos_da_consulta(consulta)
+        if not grupos:
             return resultado.registrar(
                 "PNCP: descrição sem termo pesquisável no índice")
-        try:
-            resultado.chamadas += 1
-            linhas = self._buscar(termos, uf=consulta.uf,
-                                  desde=consulta.data_inicial,
-                                  ate=consulta.data_final,
-                                  limite=consulta.limite)
-        except Exception as erro:  # noqa: BLE001 — índice fora não derruba a busca
-            return resultado.falhar(
-                "o índice do PNCP não respondeu agora "
-                f"({type(erro).__name__}); a pesquisa continua nas demais "
-                "fontes")
-        if not isinstance(linhas, list):
-            return resultado.falhar("o índice do PNCP devolveu resposta "
-                                    "inesperada")
-        procurados = {t.upper() for t in termos}
+        # uma consulta POR VARIANTE, cada uma com o seu próprio corte de
+        # relevância; a linha entra se casar com qualquer variante
+        vistas: dict[str, dict] = {}
+        casou: set[str] = set()
+        for termos in grupos:
+            try:
+                resultado.chamadas += 1
+                linhas = self._buscar(termos, uf=consulta.uf,
+                                      desde=consulta.data_inicial,
+                                      ate=consulta.data_final,
+                                      limite=consulta.limite)
+            except Exception as erro:  # noqa: BLE001 — índice fora não derruba a busca
+                return resultado.falhar(
+                    "o índice do PNCP não respondeu agora "
+                    f"({type(erro).__name__}); a pesquisa continua nas "
+                    "demais fontes")
+            if not isinstance(linhas, list):
+                return resultado.falhar("o índice do PNCP devolveu resposta "
+                                        "inesperada")
+            procurados = {t.upper() for t in termos}
+            for linha in linhas:
+                if not isinstance(linha, dict) or linha.get("vigente") is False:
+                    continue
+                chave = str(linha.get("id_externo") or id(linha))
+                vistas.setdefault(chave, linha)
+                if _casa(procurados, _tokens(str(linha.get("descricao") or ""))):
+                    casou.add(chave)
         recusadas = 0
-        for linha in linhas:
-            if not isinstance(linha, dict) or linha.get("vigente") is False \
-                    or not _casa(
-                    procurados, _tokens(str(linha.get("descricao") or ""))):
+        for chave, linha in vistas.items():
+            if chave not in casou:
                 continue
             referencia = referencia_da_linha(linha)
             if referencia is None:

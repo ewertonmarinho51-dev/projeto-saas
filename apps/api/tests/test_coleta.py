@@ -283,7 +283,7 @@ def test_pedido_de_um_item_grava_termo_e_filtros_e_total_1(emissor):
     gravado = banco.corpo(next(c for c in banco.chamadas if c.method == "POST"))
     assert gravado["total"] == 1
     assert gravado["parametros"] == {"modo": "automatico", "item_id": ITEM, "termo": "caneta azul",
-                                     "filtros": {"janela_dias": 90, "uf": "pa"}}
+                                     "filtros": {"janela_dias": 90, "uf": "pa", "literal": False}}
 
 
 @pytest.mark.parametrize("estado, existe, status", [("complete", True, 409), ("in_review", False, 404)])
@@ -302,7 +302,7 @@ def test_filtros_fora_da_regra_sao_422(emissor, filtros):
     assert r.status_code == 422
 
 
-def test_worker_busca_so_o_item_pedido_literal_e_guarda_a_mensagem(banco, dominio, monkeypatch):
+def test_worker_busca_so_o_item_pedido_com_a_estrategia_comum_e_guarda_a_mensagem(banco, dominio, monkeypatch):
     recebido = {}
 
     def pesquisar_item(ctx, pesquisa_id, item_id, *, modo, termo, filtros, **opcoes):
@@ -314,7 +314,7 @@ def test_worker_busca_so_o_item_pedido_literal_e_guarda_a_mensagem(banco, domini
         "modo": "manual", "item_id": ITEM, "termo": "caneta", "filtros": {"janela_dias": 90, "uf": "pa"}})])
     assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
     assert recebido == {"item": ITEM, "modo": "manual", "termo": "caneta",
-                        "filtros": {"janela_dias": 90, "uf": "PA", "literal": True}, "opcoes": {"fontes": []}}
+                        "filtros": {"janela_dias": 90, "uf": "PA", "literal": False}, "opcoes": {"fontes": []}}
     assert dominio["chamadas"] == 0, "o lote não pode rodar junto"
     final = _patches(banco)[-1]
     assert final["estado"] == "succeeded" and final["feitos"] == 1

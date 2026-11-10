@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
 
-import { Alert, Button, Card, Dialog, Field, Input, Textarea } from "@/design-system";
+import { Alert, Button, Card, Checkbox, Dialog, Field, Input, Textarea } from "@/design-system";
 import {
   arquivarPesquisa,
   buscarItem,
@@ -390,18 +390,26 @@ export function BuscaDoItem({
             <Input id="busca-pncp" name="contratacao_pncp" maxLength={300} autoComplete="off" />
           </Field>
         </div>
+        <div className="md:col-span-3">
+          <Checkbox
+            name="literal"
+            value="1"
+            label="Apenas o meu termo"
+            description="Sem sinônimos, variantes de unidade nem sugestão de IA: só a descrição do item e o termo digitado."
+          />
+        </div>
         <div className="grid gap-3 md:col-span-3">
           <Retorno estado={estado} />
           <div className="flex flex-wrap gap-2">
             <Button type="submit" name="modo" value="manual" variant="secondary" icon="magnifying-glass" loading={enviando}>
-              Pesquisar preços
+              Buscar com meus termos
             </Button>
             <Button type="submit" name="modo" value="automatico" loading={enviando}>
               Cotação automática deste item
             </Button>
           </div>
           <p className="text-[length:var(--gc-fs-sm)] text-secundario">
-            Busca pelo termo literal, em todas as fontes oficiais. A ampliação por sinônimos continua no GovDocs.
+            O termo digitado vai na frente. Se a amostra comparável ficar curta, a busca tenta sinônimos e variantes de unidade; cada candidato recebe o rótulo de equivalência antes de qualquer preço entrar na cesta.
           </p>
         </div>
       </form>
