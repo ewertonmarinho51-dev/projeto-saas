@@ -264,3 +264,73 @@ def test_streamlit_tira_o_timbrado_do_destinatario(monkeypatch, banco):
     assert precos_ui._branding_da_emissao(
         {"destinatario_secretaria_id": SEMAD["id"]}) is SEMAD
     assert banco == ["secretarias"]
+
+
+# ---------------------------------------------------------------------------
+# Streamlit: a troca de destinatário só para quem consegue salvá-la
+# ---------------------------------------------------------------------------
+AUTOR = "aaaaaaaa-0000-4000-8000-00000000a001"
+
+
+class _StFalso:
+    """Registra o que a tela desenha; nenhum botão é clicado."""
+
+    def __init__(self):
+        self.desenhado: list[str] = []
+
+    def _bloco(self, nome):
+        import contextlib
+
+        self.desenhado.append(nome)
+        return contextlib.nullcontext()
+
+    def expander(self, *a, **k):
+        return self._bloco("expander")
+
+    def form(self, *a, **k):
+        return self._bloco("form")
+
+    def form_submit_button(self, *a, **k):
+        self.desenhado.append("botao")
+        return False
+
+    def caption(self, texto):
+        self.desenhado.append(f"caption:{texto}")
+
+    def markdown(self, texto, **k):
+        self.desenhado.append(f"markdown:{texto}")
+
+
+@pytest.mark.parametrize("quem, admin, edita", [
+    (AUTOR, False, True),                                     # o autor
+    ("99999999-0000-4000-8000-000000000009", True, True),     # o administrador
+    ("99999999-0000-4000-8000-000000000009", False, False),   # colega: só lê
+])
+def test_streamlit_so_oferece_a_troca_a_quem_pode_salvar(monkeypatch, quem, admin, edita):
+    from src import auth
+    from src.ui import precos_ui
+
+    falso = _StFalso()
+    monkeypatch.setattr(precos_ui, "st", falso)
+    monkeypatch.setattr(auth, "eh_admin", lambda: admin)
+    monkeypatch.setattr(auth, "usuario_logado", lambda: {"auth_user_id": quem})
+    monkeypatch.setattr(precos_ui, "campo_destinatario", lambda *a, **k: ({}, None))
+    pesquisa = {"id": "p1", "auth_user_id": AUTOR,
+                "destinatario_externo": "Prefeitura de Ulianópolis"}
+
+    precos_ui._render_destinatario(pesquisa)
+
+    assert ("form" in falso.desenhado) is edita
+    assert ("botao" in falso.desenhado) is edita
+    if not edita:
+        assert falso.desenhado == [
+            "caption:Destinado a **Prefeitura de Ulianópolis**: sai sem timbrado."]
+
+
+def test_streamlit_pesquisa_sem_autor_nao_e_de_ninguem(monkeypatch):
+    from src import auth
+    from src.ui import precos_ui
+
+    monkeypatch.setattr(auth, "eh_admin", lambda: False)
+    monkeypatch.setattr(auth, "usuario_logado", lambda: {"auth_user_id": ""})
+    assert precos_ui._pode_alterar_pesquisa({"id": "p1"}) is False

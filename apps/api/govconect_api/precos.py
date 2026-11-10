@@ -44,7 +44,7 @@ TABELA_REFERENCIAS = "pesquisa_preco_referencias"
 
 _COLUNAS_PESQUISA = ("id,nome,objeto,estado,valor_global,data_base,responsavel,"
                      "local_referencia,processo_id,versao,criado_em,atualizado_em,"
-                     "destinatario_secretaria_id,destinatario_externo")
+                     "destinatario_secretaria_id,destinatario_externo,auth_user_id")
 _COLUNAS_ITEM = ("id,numero,codigo,tipo_catalogo,descricao,unidade,quantidade,"
                  "estado,metodo,preco_estimado,preco_total,justificativa,"
                  "lote,uf,revisao")
@@ -147,6 +147,10 @@ class Pesquisa(ResumoPesquisa):
     versao: int
     criado_em: str
     destinatario: Destinatario = Destinatario(tipo="nenhum")
+    # Quem pergunta pode alterar a pesquisa: o autor ou o administrador —
+    # espelha `pode_escrever_pesquisa_preco` (0021). Só decide o que a tela
+    # oferece; quem recusa a escrita continua sendo a API e o RLS.
+    pode_alterar: bool = False
     itens: list[Item]
 
 
@@ -286,6 +290,13 @@ def _referencia(linha: dict) -> Referencia:
         identificacao=vinculos.identificacao)
 
 
+def pode_alterar(eu: Identidade, linha: dict) -> bool:
+    """Autor da pesquisa ou administrador do município (0021)."""
+    if eu.papel == "admin":
+        return True
+    return str(linha.get("auth_user_id") or "") == str(eu.auth_user_id)
+
+
 def destinatario_da_linha(linha: dict) -> Destinatario:
     secretaria = _texto(linha.get("destinatario_secretaria_id"))
     if secretaria:
@@ -411,6 +422,7 @@ def rotas() -> APIRouter:
             versao=int(linha.get("versao") or 1),
             criado_em=str(linha.get("criado_em") or ""),
             destinatario=destinatario_da_linha(linha),
+            pode_alterar=pode_alterar(eu, linha),
             soma_dos_itens=_soma_dos_itens(itens), itens=[_item(i) for i in itens])
 
     @r.get("/pesquisas/{pesquisa_id}/itens/{item_id}/referencias",

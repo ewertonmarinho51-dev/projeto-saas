@@ -69,8 +69,36 @@ export function CampoDestinatario({
   );
 }
 
-/** O destinatário de uma pesquisa existente, editável: vale para as próximas emissões. */
+/**
+ * O destinatário de uma pesquisa existente. Para o autor ou o administrador,
+ * editável (vale para as próximas emissões); para os demais, só a linha que
+ * diz que timbrado sai — eles não conseguiriam salvar a troca.
+ */
 export function DestinatarioDaPesquisa({
+  pesquisa,
+  orgaos,
+  atual,
+  podeAlterar,
+}: {
+  pesquisa: string;
+  orgaos: OrgaoDoMunicipio[];
+  atual: DestinatarioDoRelatorio;
+  podeAlterar: boolean;
+}) {
+  if (!podeAlterar) {
+    return (
+      <p
+        className="border-b border-linha pb-3 text-[length:var(--gc-fs-sm)] text-secundario"
+        data-testid="destinatario-do-relatorio"
+      >
+        Destinatário e timbrado: {resumo(orgaos, atual)}
+      </p>
+    );
+  }
+  return <FormularioDoDestinatario pesquisa={pesquisa} orgaos={orgaos} atual={atual} />;
+}
+
+function FormularioDoDestinatario({
   pesquisa,
   orgaos,
   atual,
