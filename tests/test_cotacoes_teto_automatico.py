@@ -133,7 +133,7 @@ def test_rodizio_so_com_teto_sem_teto_e_a_ordem_historica():
 def test_mesma_aritmetica_decimal_sobre_a_cesta_escolhida():
     cesta_ = estatistica.selecionar_cesta(_ranqueadas(40), teto=POL.teto)
     est = estatistica.estimar(cesta_, regras=estatistica.REGRAS_MEDIA_PADRAO)
-    esperado = sum(Decimal(20 + i) for i in range(POL.teto)) / 15
+    esperado = sum(Decimal(20 + i) for i in range(POL.teto)) / POL.teto
     assert est.estatisticas.media == esperado
 
 
