@@ -1,7 +1,11 @@
 -- ## 0042 — Índice de resultados homologados do PNCP (piloto da busca por descrição)
--- ## ESTADO: NÃO APLICADA EM PRODUÇÃO. Aplicável; aguarda o ensaio nos dois
--- ##   níveis (o do CI roda em `tests/test_migracao_0042.py`), a revisão do
+-- ## ESTADO: NÃO APLICADA EM PRODUÇÃO. Aplicável; aguarda a revisão do
 -- ##   `revisor-de-banco-e-seguranca` e a autorização do dono.
+-- ## ENSAIO: CI (`tests/test_migracao_0042.py`, PostgreSQL) e projeto
+-- ##   descartável `uslaxaxomjawydqtbwkb` em 10/11/2026 (registro
+-- ##   `m0042_precos_pncp_indice`): conferência passou; com amostra REAL do
+-- ##   índice paraense, `authenticated` buscou "gasolina comum" (2 vigentes,
+-- ##   a invalidada fora), não escreveu nem leu o controle; `anon` sem execute.
 --
 -- O PROBLEMA (10/11/2026)
 --   A busca de preços da prefeitura só tem UMA fonte de preço: o Compras.gov.
