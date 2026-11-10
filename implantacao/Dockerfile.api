@@ -34,9 +34,6 @@ RUN pip install -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 COPY --chown=govconect:govconect src/ ./src/
 COPY --chown=govconect:govconect apps/api/govconect_api/ ./govconect_api/
-# Indexador do PNCP (serviço `indexador-pncp`, perfil `indexador`): roda
-# fora da busca, com credencial PRÓPRIA (indexador.env), nunca a da API.
-COPY --chown=govconect:govconect scripts/indexar_pncp.py ./scripts/indexar_pncp.py
 
 ARG GOVCONECT_RELEASE=desconhecida
 ARG GOVCONECT_COMMIT=desconhecido

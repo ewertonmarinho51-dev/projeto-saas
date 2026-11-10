@@ -190,7 +190,8 @@ def test_anon_nao_le_nem_executa(banco, cenario):
 ])
 def test_usuario_so_le_os_resultados(banco, cenario, sql):
     assert _como(banco, sql)[0] == "42501"
-    assert _como(banco, "select count(*) from public.precos_pncp_resultados") == (None, [(3,)])
+    # 3 vigentes + a invalidada na revisita: o usuário LÊ a tabela inteira
+    assert _como(banco, "select count(*) from public.precos_pncp_resultados") == (None, [(4,)])
 
 
 @requer_pg

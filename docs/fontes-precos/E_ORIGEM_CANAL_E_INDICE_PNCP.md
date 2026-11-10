@@ -77,7 +77,7 @@ invalida item a item, nunca o que a rodada anterior confirmou.
 
 Serviço `indexador-pncp` no `implantacao/docker-compose.yml`, perfil
 **`indexador`** (o `--profile govconect` não o sobe). Usa a imagem do worker,
-roda `scripts/indexar_pncp.py ciclo --banco` e lê a credencial de servidor
+roda `python -m src.precos.pncp_indice_servico ciclo --banco` (a imagem não carrega `scripts/`) e lê a credencial de servidor
 de `/etc/govdocs/indexador.env` — API e worker continuam sem ela.
 
 ```

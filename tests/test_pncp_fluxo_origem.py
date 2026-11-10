@@ -22,7 +22,6 @@ O que estas provas guardam:
 from __future__ import annotations
 
 import copy
-import importlib.util
 from datetime import date
 from pathlib import Path
 
@@ -38,14 +37,6 @@ from tests.cotacoes_apoio import ligar_banco_falso
 from tests.test_cotacoes_g2_servico import CTX
 from tests.test_pncp_indice import ATE, CIMENTO, FIXTURE, ApiFalsa, _coletor, _indexar
 from tests.test_precos_fase4 import _FonteFalsa
-
-
-def _script():
-    caminho = Path(__file__).resolve().parent.parent / "scripts" / "indexar_pncp.py"
-    spec = importlib.util.spec_from_file_location("indexar_pncp_prova", caminho)
-    modulo = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(modulo)
-    return modulo
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +214,7 @@ def test_retomada_no_meio_nao_invalida_o_que_a_rodada_anterior_confirmou():
 # Indexação agendada
 # ---------------------------------------------------------------------------
 def test_ciclo_agendado_reparte_o_orcamento_entre_descoberta_e_coleta(capsys):
-    script = _script()
+    from src.precos import pncp_indice_servico as script
     api, armazem = ApiFalsa(), indice.ArmazemEmMemoria()
     relato = script.rodada(armazem, "PA", dias=30, ate=ATE, modalidades=(6,),
                            max_chamadas=10, max_contratacoes=10, pausa=0,
@@ -236,7 +227,7 @@ def test_ciclo_agendado_reparte_o_orcamento_entre_descoberta_e_coleta(capsys):
 
 
 def test_ciclo_uma_vez_registra_cada_uf_e_nao_derruba_na_falha(capsys):
-    script = _script()
+    from src.precos import pncp_indice_servico as script
 
     class Quebrado(indice.ArmazemEmMemoria):
         def cursor(self, uf, modalidade):
@@ -275,3 +266,18 @@ def test_lote_automatico_consulta_o_indice_e_grava_a_origem(monkeypatch, armazem
                 if l["fonte_id"] == "pncp"]
     assert gravadas
     assert {portais.atribuir("pncp", l["bruto"]).origem_id for l in gravadas} == {"pcp"}
+
+
+def test_servico_agendado_mora_em_src_e_a_imagem_nao_carrega_scripts(monkeypatch):
+    from pathlib import Path
+
+    from src.precos import pncp_indice_servico as servico
+
+    raiz = Path(__file__).resolve().parent.parent
+    assert "scripts/" not in (raiz / "implantacao" / "Dockerfile.api").read_text("utf-8")
+    compose = (raiz / "implantacao" / "docker-compose.yml").read_text("utf-8")
+    assert '"-m", "src.precos.pncp_indice_servico", "ciclo", "--banco"' in compose
+    # sem a credencial no ambiente, para com a mensagem — sem imprimir nada dela
+    monkeypatch.delenv("SUPABASE_SERVICE_KEY", raising=False)
+    with pytest.raises(SystemExit, match="SUPABASE_SERVICE_KEY no ambiente"):
+        servico.main(["ciclo", "--banco", "--uma-vez"])

@@ -198,7 +198,7 @@ services:
     profiles: ["indexador"]
     image: ${GOVCONECT_IMAGEM_WORKER:-govconect-worker:local}
     restart: unless-stopped
-    command: ["python", "scripts/indexar_pncp.py", "ciclo", "--banco"]
+    command: ["python", "-m", "src.precos.pncp_indice_servico", "ciclo", "--banco"]
     env_file:
       - /etc/govdocs/indexador.env
     read_only: true
