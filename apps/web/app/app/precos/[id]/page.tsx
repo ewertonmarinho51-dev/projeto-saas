@@ -304,7 +304,12 @@ export default async function Pesquisa({
             </div>
           </div>
           <div className="gc-card__body grid gap-3">
-            <DestinatarioDaPesquisa pesquisa={p.id} orgaos={orgaos} atual={p.destinatario} />
+            <DestinatarioDaPesquisa
+              pesquisa={p.id}
+              orgaos={orgaos}
+              atual={p.destinatario}
+              podeAlterar={p.pode_alterar}
+            />
             {relatorioId && <ProgressoDoRelatorio jobId={relatorioId} />}
             {preparo ? (
               <PainelDeEmissao pesquisa={p.id} preparo={preparo} chave={`web-rel-${crypto.randomUUID()}`} />

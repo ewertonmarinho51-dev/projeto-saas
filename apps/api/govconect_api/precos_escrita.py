@@ -50,7 +50,7 @@ from .cesta import _revisao
 from .erros import ErroApi
 from .precos import (TABELA_ITENS, TABELA_PESQUISAS, Destinatario, Valor,
                      destinatario_da_linha, exigir_precos_habilitado,
-                     valor_monetario)
+                     pode_alterar, valor_monetario)
 from .seguranca import Identidade, exigir_identidade
 from .supabase_rest import ClienteRest
 
@@ -253,8 +253,9 @@ def rotas() -> APIRouter:
         if resposta.status != 200 or not resposta.dados:
             raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
         linha = resposta.dados[0]
-        # Espelha `pode_escrever_pesquisa_preco` (0021): admin ou dono.
-        if eu.papel != "admin" and str(linha.get("auth_user_id") or "") != eu.auth_user_id:
+        # Espelha `pode_escrever_pesquisa_preco` (0021): admin ou dono. A
+        # mesma regra diz à tela o que oferecer (`Pesquisa.pode_alterar`).
+        if not pode_alterar(eu, linha):
             raise ErroApi(403, "FORBIDDEN", "Só quem criou a pesquisa (ou o administrador) pode alterá-la.")
         return linha
 

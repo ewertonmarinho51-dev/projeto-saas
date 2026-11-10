@@ -173,6 +173,8 @@ export type PesquisaDePrecos = ResumoPesquisa & {
   versao: number;
   criado_em: string;
   destinatario: DestinatarioDoRelatorio;
+  /** Autor da pesquisa ou administrador: só decide o que a tela oferece. */
+  pode_alterar: boolean;
   itens: ItemDePesquisa[];
 };
 
