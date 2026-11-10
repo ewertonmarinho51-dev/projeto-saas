@@ -302,3 +302,17 @@ def test_pncp_linha_que_so_casa_com_a_variante_entra():
                                    termos_alternativos=(texto,)))
     assert alvo["id_externo"] not in {r.id_externo for r in sem.referencias}
     assert alvo["id_externo"] in {r.id_externo for r in com.referencias}
+
+
+def test_oficio_no_catalogo_e_tipo_de_papel_nao_formato():
+    # "TIPO: SULFITE/APERGAMINHADO/OFÍCIO" (Compras.gov): sem A4 nem medida,
+    # o formato não está provado — mas também não diverge
+    c = equivalencia.classificar(
+        ITEM_PAPEL, "PAPEL PARA IMPRESSÃO, TIPO: SULFITE/APERGAMINHADO/OFÍCIO, "
+        "GRAMATURA: 75 G/M2", convertida=True)
+    assert c.classe == equivalencia.SIMILAR and any("formato A4" in f for f in c.faltam)
+    # a medida em mm prova o formato
+    c = equivalencia.classificar(
+        ITEM_PAPEL, "PAPEL PARA IMPRESSÃO, TIPO: OFÍCIO, 297 X 210 MM, 75 G/M2",
+        convertida=True)
+    assert c.classe == equivalencia.EQUIVALENTE
