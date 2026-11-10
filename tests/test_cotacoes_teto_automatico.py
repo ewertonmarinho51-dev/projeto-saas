@@ -1,12 +1,12 @@
 """
-G1 (pacote de 17/10/2026) — teto de 15 referências na cotação automática.
+G1 (pacote de 17/10/2026) — teto de 5 referências na cotação automática.
 
 Medido antes: 301 candidatas por fonte → 602 referências gravadas e 452
 CONSIDERADAS por item. O que estas provas guardam:
 
-* a cesta automática de um item tem no máximo 15 referências — inclusive
+* a cesta automática de um item tem no máximo 5 referências — inclusive
   numa reconsulta, contando as que já estavam lá;
-* 15 é teto, não meta: com 3 boas, ficam 3;
+* 5 é teto, não meta: com 3 boas, ficam 3;
 * a seleção é por prioridade de fonte e comparabilidade, nunca "as
   primeiras" nem "as mais baratas";
 * TODA fonte é consultada, mesmo com amostra farta na primeira, e as
@@ -67,11 +67,11 @@ def _ranqueadas(n: int, *, tipo="sistema_oficial",
 # ---------------------------------------------------------------------------
 # Unidade — a regra da cesta
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("n", [0, 1, 2, 3, 5, 15, 16, 100, 300])
-def test_teto_nunca_passa_de_15_e_nao_infla(n):
+@pytest.mark.parametrize("n", [0, 1, 2, 3, 5, 6, 15, 100, 300])
+def test_teto_nunca_passa_de_5_e_nao_infla(n):
     cesta_ = estatistica.selecionar_cesta(_ranqueadas(n), teto=POL.teto)
-    assert len(cesta_.selecionadas) == min(n, 15)
-    assert len(cesta_.excedentes) == max(0, n - 15)
+    assert len(cesta_.selecionadas) == min(n, POL.teto)
+    assert len(cesta_.excedentes) == max(0, n - POL.teto)
     for ref in cesta_.excedentes:
         assert ref.status.value == "candidate"
         assert any("teto" in m for m in ref.motivos)
@@ -84,9 +84,9 @@ def test_sem_teto_e_o_comportamento_historico():
 
 def test_ficam_as_mais_comparaveis_nao_as_mais_baratas():
     pares = list(reversed(_ranqueadas(40)))      # ordem de entrada invertida
-    cesta_ = estatistica.selecionar_cesta(pares, teto=15)
+    cesta_ = estatistica.selecionar_cesta(pares, teto=POL.teto)
     ids = {r.id_externo for r in cesta_.selecionadas}
-    assert ids == {f"r{i}" for i in range(15)}   # maiores scores
+    assert ids == {f"r{i}" for i in range(POL.teto)}   # maiores scores
 
 
 def test_teto_reparte_as_vagas_entre_as_fontes():
@@ -95,16 +95,16 @@ def test_teto_reparte_as_vagas_entre_as_fontes():
                            tipo="contratacao_similar")
              + _ranqueadas(1, fonte_id="tce_rs", prefixo="c", tipo="outro",
                            score_base=Decimal("0.80")))
-    cesta_ = estatistica.selecionar_cesta(pares, teto=15)
+    cesta_ = estatistica.selecionar_cesta(pares, teto=POL.teto)
     por_fonte = Counter(r.fonte.id for r in cesta_.selecionadas)
     # rodízio: 5 rodadas de 3 fontes; a fonte de UMA referência entra
-    assert por_fonte == {"compras_gov_precos": 7, "pncp": 7, "tce_rs": 1}
+    assert por_fonte == {"compras_gov_precos": 2, "pncp": 2, "tce_rs": 1}
     # dentro de cada fonte, continuam as mais comparáveis
     assert {r.id_externo for r in cesta_.selecionadas
-            if r.fonte.id == "pncp"} == {f"b{i}" for i in range(7)}
+            if r.fonte.id == "pncp"} == {f"b{i}" for i in range(2)}
     # a de maior prioridade normativa abre cada rodada
     assert cesta_.selecionadas[0].fonte.id == "compras_gov_precos"
-    assert len(cesta_.excedentes) == 81 - 15
+    assert len(cesta_.excedentes) == 81 - POL.teto
 
 
 def test_teto_com_fonte_de_baixa_prioridade_mais_comparavel():
@@ -131,9 +131,9 @@ def test_rodizio_so_com_teto_sem_teto_e_a_ordem_historica():
 
 
 def test_mesma_aritmetica_decimal_sobre_a_cesta_escolhida():
-    cesta_ = estatistica.selecionar_cesta(_ranqueadas(40), teto=15)
+    cesta_ = estatistica.selecionar_cesta(_ranqueadas(40), teto=POL.teto)
     est = estatistica.estimar(cesta_, regras=estatistica.REGRAS_MEDIA_PADRAO)
-    esperado = sum(Decimal(20 + i) for i in range(15)) / 15
+    esperado = sum(Decimal(20 + i) for i in range(POL.teto)) / 15
     assert est.estatisticas.media == esperado
 
 
@@ -169,13 +169,13 @@ def test_301_por_fonte_vira_no_maximo_15_de_todas_as_fontes(monkeypatch):
                                 fontes=fontes)
     linhas = repo.listar_referencias(iid)
     dentro = cesta.consideradas(linhas)
-    assert r.consideradas == len(dentro) == 15
+    assert r.consideradas == len(dentro) == POL.teto
     assert len(linhas) <= POL.teto + POL.reserva
     assert r.nao_gravadas > 200 and r.brutas == 602
     # amostra farta na primeira NÃO dispensa a segunda
     assert fontes[0].chamadas == 1 and fontes[1].chamadas == 1
     por_fonte = Counter(l["fonte_id"] for l in dentro)
-    assert sorted(por_fonte.values()) == [7, 8], por_fonte
+    assert sorted(por_fonte.values()) == [2, 3], por_fonte
     assert r.politica == POL.versao
     [evento] = [e for e in repo.listar_eventos(cid)
                 if e["tipo"] == "busca_concluida"]
@@ -202,12 +202,12 @@ def test_fonte_principal_fora_consulta_a_seguinte(monkeypatch):
     reserva.registrar({**ITEM, "numero": 1, "valor_unitario": 28.7})
     r = cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                                 fontes=[fora, reserva])
-    assert reserva.chamadas == 1 and r.consideradas == 15
+    assert reserva.chamadas == 1 and r.consideradas == POL.teto
     assert r.diagnostico == "ok"
 
 
-@pytest.mark.parametrize("ja_na_cesta", [14, 15])
-def test_reconsulta_nunca_poe_a_16a(monkeypatch, ja_na_cesta):
+@pytest.mark.parametrize("ja_na_cesta", [4, 5])
+def test_reconsulta_nunca_poe_a_6a(monkeypatch, ja_na_cesta):
     cid, iid = _nova(monkeypatch)
     cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                             fontes=_fontes(301))
@@ -222,9 +222,9 @@ def test_reconsulta_nunca_poe_a_16a(monkeypatch, ja_na_cesta):
     r = cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                                 fontes=_fontes(301))
     final = repo.listar_referencias(iid)
-    assert len(cesta.consideradas(final)) <= 15 and r.consideradas <= 15
+    assert len(cesta.consideradas(final)) <= POL.teto and r.consideradas <= POL.teto
     rejeitadas = {l["id_externo"] for l in final if l["status"] == "rejected"}
-    assert len(rejeitadas) == 15 - ja_na_cesta     # desconsiderada não volta
+    assert len(rejeitadas) == POL.teto - ja_na_cesta     # desconsiderada não volta
 
 
 def test_modo_manual_nao_tem_teto(monkeypatch):
@@ -264,7 +264,7 @@ def test_rota_legada_respeita_o_mesmo_teto():
     sem = execucao.pesquisar_item(item, _fontes(301))
     com = execucao.pesquisar_item(item, fontes, politica=POL)
     assert len(sem.estimativa.cesta.selecionadas) == 452
-    assert len(com.estimativa.cesta.selecionadas) == 15
+    assert len(com.estimativa.cesta.selecionadas) == POL.teto
     assert len(com.referencias) <= POL.teto + POL.reserva
     assert fontes[1].chamadas == 1
     assert {r.fonte.id for r in com.estimativa.cesta.selecionadas} == {
@@ -294,11 +294,11 @@ def test_rodada_com_teto_reavalia_selecoes_antigas_da_maquina(monkeypatch):
     r = cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico",
                                 fontes=_fontes(301))
     linhas = repo.listar_referencias(iid)
-    assert len(cesta.consideradas(linhas)) == r.consideradas == 15
+    assert len(cesta.consideradas(linhas)) == r.consideradas == POL.teto
     assert len(linhas) == antes                # nada apagado
     # as seleções antigas saem da cesta: em lote (`rebaixadas`) ou pelo
     # upsert da reserva do revisor
-    assert r.rebaixadas >= 452 - 15 - POL.reserva
+    assert r.rebaixadas >= 452 - POL.teto - POL.reserva
     [evento] = [e for e in repo.listar_eventos(cid)
                 if e["tipo"] == "busca_concluida"
                 and (e["payload"] or {}).get("politica")]
@@ -324,7 +324,7 @@ def test_decisao_de_pessoa_sobrevive_a_reavaliacao(monkeypatch):
     final = {l["id"]: l for l in repo.listar_referencias(iid)}
     assert final[excluida["id"]]["status"] == "rejected"
     assert final[escolhida["id"]]["status"] == "selected"
-    assert len(cesta.consideradas(list(final.values()))) <= 15
+    assert len(cesta.consideradas(list(final.values()))) <= POL.teto
 
 
 def test_ia_ve_so_o_que_decide_o_item(monkeypatch):
@@ -365,3 +365,87 @@ def test_adapter_compras_gov_pede_o_grupo_pelo_limite_da_consulta():
         adapter._por_pdm(Consulta(descricao="papel", limite_grupo=limite_grupo),
                          "123", ResultadoBusca(fonte=adapter.fonte))
     assert pedidos == [100, 500]
+
+
+# ---------------------------------------------------------------------------
+# Regra de produção (09/11/2026): 5 referências + CV estritamente acima
+# de 25% impede somente a inclusão AUTOMÁTICA; nada é apagado.
+# ---------------------------------------------------------------------------
+def _com_precos(valores):
+    pares = _ranqueadas(len(valores))
+    for (ref, _), valor in zip(pares, valores):
+        ref.valor_unitario_normalizado = Decimal(str(valor))
+    return pares
+
+
+def test_cv_acima_de_25_bloqueia_toda_a_inclusao_automatica():
+    escolha = estatistica.selecionar_cesta(
+        _com_precos([10, 10, 10, 10, 100]), teto=POL.teto,
+        cv_maximo=POL.cv_maximo)
+    assert escolha.selecionadas == []
+    assert len(escolha.retidas) == POL.teto
+    assert all(r.status.value == "candidate" for r in escolha.retidas)
+    assert all(any("coeficiente de variação" in m for m in r.motivos)
+               for r in escolha.retidas)
+    assert any("25,00%" in m for m in escolha.motivos)
+    assert not estatistica.estimar(escolha).concluida
+
+
+def test_cv_exatamente_25_permite_selecao():
+    # Média 100, desvio amostral 25: CV exatamente 25%.
+    escolha = estatistica.selecionar_cesta(
+        _com_precos([75, 100, 125]), teto=POL.teto,
+        cv_maximo=POL.cv_maximo)
+    assert len(escolha.selecionadas) == 3
+    assert escolha.retidas == []
+
+
+def test_cv_com_uma_referencia_nao_finge_dispersao():
+    escolha = estatistica.selecionar_cesta(
+        _com_precos([100]), teto=POL.teto,
+        cv_maximo=POL.cv_maximo)
+    assert len(escolha.selecionadas) == 1
+
+
+def test_cv_e_calculado_com_precos_preservados_de_pessoa():
+    escolha = estatistica.selecionar_cesta(
+        _com_precos([10, 10, 10, 10]), teto=4,
+        cv_maximo=POL.cv_maximo,
+        valores_ja_considerados=[Decimal("100")])
+    assert not escolha.selecionadas
+    assert len(escolha.retidas) == 4
+
+
+def test_modo_sem_politica_nao_remove_decisao_manual():
+    escolha = estatistica.selecionar_cesta(
+        _com_precos([10, 10, 10, 10, 100]))
+    assert len(escolha.selecionadas) == 5
+    assert not escolha.retidas
+
+
+def test_servico_registra_bloqueio_cv_sem_perder_referencias(monkeypatch):
+    cid, iid = _nova(monkeypatch)
+    # Duas fontes; a série altamente dispersa não pode virar cesta.
+    class FonteDispersa:
+        def __init__(self):
+            self.fonte = Fonte("dispersa", "Dispersa (teste)", "sistema_oficial")
+        def pesquisar(self, consulta):
+            from src.precos.fontes import ResultadoBusca
+            referencias = []
+            for i, valor in enumerate([10, 10, 10, 10, 100]):
+                ref = Referencia(
+                    fonte=self.fonte, id_externo=f"d-{i}",
+                    bruto={"valor": str(valor)},
+                    descricao_original=consulta.descricao,
+                    unidade_original="RESMA",
+                    valor_unitario_original=Decimal(valor),
+                    natureza_valor=NaturezaValor.HOMOLOGADO)
+                referencias.append(ref)
+            return ResultadoBusca(fonte=self.fonte, referencias=referencias)
+    r = cotacoes.pesquisar_item(
+        CTX, cid, iid, modo="automatico", fontes=[FonteDispersa()])
+    assert r.consideradas == 0
+    assert any("coeficiente de variação" in m for m in r.ocorrencias)
+    gravadas = repo.listar_referencias(iid)
+    assert len(gravadas) == 5
+    assert not cesta.consideradas(gravadas)
