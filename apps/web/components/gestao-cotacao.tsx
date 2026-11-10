@@ -280,12 +280,15 @@ export function FechamentoDaPesquisa({
   estado,
   itens,
   faltam,
+  aptas = 0,
 }: {
   pesquisa: string;
   estado: string;
   itens: number;
   /** Itens ainda não concluídos: com algum, o botão diz por que não. */
   faltam: number;
+  /** Propostas aptas pelo perfil: o mesmo clique as aceita, uma a uma, na trilha. */
+  aptas?: number;
 }) {
   const [revisar, setRevisar] = useState(false);
   const [motivo, setMotivo] = useState("");
@@ -310,6 +313,13 @@ export function FechamentoDaPesquisa({
           </Button>
         )}
       </div>
+      {podeConcluir && aptas > 0 && (
+        <p className="text-[length:var(--gc-fs-sm)] text-secundario" data-testid="aptas">
+          {faltam > 0
+            ? `${aptas} proposta(s) apta(s) serão aceitas ao concluir, quando os demais itens estiverem resolvidos.`
+            : `Concluir aceita ${aptas} proposta(s) apta(s) pelo perfil do órgão — preço, CV e mínimo de referências conferidos.`}
+        </p>
+      )}
       {podeConcluir && faltam > 0 && (
         <p className="text-[length:var(--gc-fs-sm)] text-secundario">
           Para concluir, todos os itens precisam estar concluídos. Faltam {faltam}.

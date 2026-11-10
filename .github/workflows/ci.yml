@@ -384,6 +384,12 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: pip install -r apps/api/requirements-dev.txt "psycopg[binary]==3.3.6"
+      # O PDF do relatório nasce de DOCX → LibreOffice → PDF no worker; o E2E
+      # da cotação automática baixa o PDF de verdade.
+      - name: Instalar o motor institucional de PDF
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-writer fonts-dejavu
       - name: Baixar GoTrue e PostgREST pinados
         shell: bash
         run: |
@@ -416,7 +422,7 @@ jobs:
         run: |
           set -euo pipefail
           APP_ENV=test SUPABASE_URL="$PILHA_URL" SUPABASE_KEY="$PILHA_ANON" PYTHONPATH=.:../.. \
-            PRICE_RESEARCH_ENABLED=1 REDIS_URL=redis://127.0.0.1:6379/0 GOVCONECT_FONTES_COLETA=nenhuma \
+            PRICE_RESEARCH_ENABLED=1 REDIS_URL=redis://127.0.0.1:6379/0 GOVCONECT_FONTES_COLETA=indice \
             GOVCONECT_GOVERNANCA_ESCRITA=1 GOVCONECT_GOVBOT=1 GOVCONECT_WORDCRAFT_WORKSPACE=1 \
             OPENAI_API_KEY=motor-falso-do-ci OPENAI_MODEL=modelo-falso \
             OMNIROUTE_ENABLED=1 OMNIROUTE_BASE_URL=http://127.0.0.1:8099/v1 \
@@ -426,9 +432,10 @@ jobs:
           # produto. Embedding não passa por gateway: a chave falsa é recusada pela
           # OpenAI, e a Base segue PENDENTE de vetor, como a prova dela espera.
           nohup python tests_rls/motor_falso.py --porta 8099 > "$RUNNER_TEMP/motor.log" 2>&1 < /dev/null &
-          # Worker de verdade, sem fontes externas (só a pilha de teste aceita).
+          # Worker de verdade, sem fontes externas: só o índice do PNCP semeado na
+          # pilha (`indice`, recusado em produção) — o caminho do piloto.
           APP_ENV=test SUPABASE_URL="$PILHA_URL" SUPABASE_KEY="$PILHA_ANON" PYTHONPATH=.:../.. \
-            REDIS_URL=redis://127.0.0.1:6379/0 GOVCONECT_FONTES_COLETA=nenhuma \
+            REDIS_URL=redis://127.0.0.1:6379/0 GOVCONECT_FONTES_COLETA=indice \
             OPENAI_API_KEY=motor-falso-do-ci OPENAI_MODEL=modelo-falso \
             OMNIROUTE_ENABLED=1 OMNIROUTE_BASE_URL=http://127.0.0.1:8099/v1 \
             nohup python -m celery -A govconect_api.fila:celery worker --pool=solo \

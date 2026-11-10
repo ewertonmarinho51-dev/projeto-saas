@@ -26,14 +26,10 @@ export function BotaoDeColeta({ pesquisa, chave }: { pesquisa: string; chave: st
           {enviando ? "Iniciando..." : "Coletar preços"}
         </button>
         {/* Automática: a cesta é formada pela regra determinística (teto,
-            equivalência e CV); o revisor confere e conclui depois. */}
+            equivalência e CV); o revisor confere e conclui depois. Volta
+            sozinha ao pendente com dado novo; o aceito não é tocado. */}
         <button type="submit" name="modo" value="automatico" className={botaoSecundario} disabled={enviando}>
-          Cotar todos os itens
-        </button>
-        {/* Depois de fontes novas, termos, alteração do item ou falha
-            técnica: só o que ainda não tem preço proposto. Concluído não entra. */}
-        <button type="submit" name="acao" value="reprocessar" className={botaoSecundario} disabled={enviando}>
-          Reprocessar pendentes
+          Cotação automática
         </button>
       </div>
       {estado.erro && (
@@ -49,7 +45,7 @@ export function BotaoDeColeta({ pesquisa, chave }: { pesquisa: string; chave: st
  * Acompanha a coleta (`useJob`) e, no fim, recarrega os dados da página
  * (itens e preços).
  */
-export function ProgressoDaColeta({ jobId, pesquisa }: { jobId: string; pesquisa?: string }) {
+export function ProgressoDaColeta({ jobId }: { jobId: string }) {
   const router = useRouter();
   const { job, erro } = useJob(jobId, () => router.refresh());
 
@@ -76,7 +72,7 @@ export function ProgressoDaColeta({ jobId, pesquisa }: { jobId: string; pesquisa
         <progress className="h-1.5 w-full max-w-sm accent-[var(--color-acento)]" max={100} value={job.progresso} aria-label="Progresso da coleta" />
       )}
       {job.resultado?.resumo && Object.keys(job.resultado.resumo).length > 0 && (
-        <ResumoDoLote job={job} pesquisa={pesquisa} />
+        <ResumoDoLote job={job} />
       )}
       {erro && <span className="text-xs text-secundario">{erro}</span>}
     </div>
@@ -84,7 +80,7 @@ export function ProgressoDaColeta({ jobId, pesquisa }: { jobId: string; pesquisa
 }
 
 /** Cada item contado uma vez, pelo desfecho principal; acesso aos pendentes. */
-function ResumoDoLote({ job, pesquisa }: { job: NonNullable<ReturnType<typeof useJob>["job"]>; pesquisa?: string }) {
+function ResumoDoLote({ job }: { job: NonNullable<ReturnType<typeof useJob>["job"]> }) {
   const resumo = job.resultado.resumo ?? {};
   const pendentes = job.resultado.pendentes ?? 0;
   return (
@@ -100,11 +96,6 @@ function ResumoDoLote({ job, pesquisa }: { job: NonNullable<ReturnType<typeof us
           </li>
         ))}
       </ul>
-      {pendentes > 0 && pesquisa && (
-        <a href={`/app/precos/${pesquisa}?pendentes=1#itens`} className="text-acento underline">
-          Ver os itens pendentes
-        </a>
-      )}
     </div>
   );
 }

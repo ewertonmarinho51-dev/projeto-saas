@@ -5,7 +5,7 @@ import { expect, test } from "@playwright/test";
 /**
  * Coleta assíncrona no navegador, contra a pilha real com Redis e um
  * worker Celery de verdade (sem fontes externas — GOVCONECT_FONTES_COLETA=
- * nenhuma, recusado em produção). O que se prova: o clique responde na
+ * indice: só o índice do PNCP da pilha, recusado em produção). O que se prova: o clique responde na
  * hora, a página acompanha o job até o fim e os itens saem de "Pendente".
  */
 const estado = JSON.parse(readFileSync(process.env.GOVCONECT_E2E_ESTADO ?? "", "utf8")) as {
@@ -34,22 +34,4 @@ test("coletar preços acompanha o job até o fim, inclusive após recarregar", a
   );
   await expect(page.locator("tbody")).not.toContainText("Pendente");
   await page.screenshot({ path: "e2e/resultados/telas/coleta-1440.png", fullPage: true });
-
-  // Cotar todos os itens: sem fonte no CI, cada item termina com desfecho
-  // "Falha técnica" — contado uma vez no resumo, com acesso aos pendentes.
-  await page.getByRole("button", { name: "Cotar todos os itens" }).click();
-  await expect(page).toHaveURL(/\?job=[0-9a-f-]{36}$/);
-  const resumo = page.getByTestId("resumo-do-lote");
-  await expect(resumo).toContainText("2 de 2 itens processados · 2 pendente(s)", { timeout: 60_000 });
-  await expect(resumo).toContainText("Falha técnica: 2");
-  await resumo.getByRole("link", { name: "Ver os itens pendentes" }).click();
-  await expect(page).toHaveURL(/\?pendentes=1#itens$/);
-  await expect(page.locator("tbody tr")).toHaveCount(2);
-  await expect(page.getByTestId("filtro-pendentes")).toHaveText("Ver todos os itens");
-  await page.screenshot({ path: "e2e/resultados/telas/coleta-pendentes-1440.png", fullPage: true });
-
-  // Reprocessar pendentes: novo job, só com o que ainda não tem preço.
-  await page.getByRole("button", { name: "Reprocessar pendentes" }).click();
-  await expect(page).toHaveURL(/\?job=[0-9a-f-]{36}$/);
-  await expect(page.getByTestId("resumo-do-lote")).toContainText("2 de 2 itens processados", { timeout: 60_000 });
 });

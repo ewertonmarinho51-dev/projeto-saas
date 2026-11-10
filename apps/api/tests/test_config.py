@@ -112,3 +112,18 @@ def test_redis_com_senha_sobe_e_a_senha_nao_vai_para_o_repr():
 def test_redis_sem_senha_vale_em_desenvolvimento():
     assert carregar({"APP_ENV": "development",
                      "REDIS_URL": "redis://127.0.0.1:6379/0"}).redis_url
+
+
+def test_fontes_indice_so_fora_de_producao():
+    from govconect_api import fila
+
+    base = {"APP_ENV": "test", "SUPABASE_URL": "https://exemplo-staging.supabase.co",
+            "SUPABASE_KEY": "chave-publicavel-de-teste"}
+    assert carregar({**base, "GOVCONECT_FONTES_COLETA": "indice"}).fontes_coleta == "indice"
+    with pytest.raises(ConfiguracaoInvalida, match="indice"):
+        carregar({**base, "APP_ENV": "production", "GOVCONECT_FONTES_COLETA": "indice"})
+    [indice] = fila._fontes_da_configuracao("indice")   # noqa: SLF001
+    assert type(indice).__name__ == "PNCPIndice"
+    assert fila._fontes_da_configuracao("nenhuma") == []   # noqa: SLF001
+    assert fila._fontes_da_configuracao("padrao") is None   # noqa: SLF001
+

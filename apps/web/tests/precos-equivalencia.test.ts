@@ -42,3 +42,21 @@ describe("itens pendentes do lote", () => {
     expect(itemPendente({ estado: "complete", preco_estimado: null })).toBe(false);
   });
 });
+
+describe("lista da pesquisa: o que exige atenção primeiro", () => {
+  it("pendentes por gravidade, depois propostas aptas, por último o concluído", async () => {
+    const { ordenarPorAtencao, rotuloDaPendencia } = await import("@/components/precos");
+    const preco = { valor: "10", exibicao: "R$ 10,00" };
+    const itens = [
+      { numero: 1, estado: "complete", preco_estimado: preco, pendencia: "" as const, apta: false },
+      { numero: 2, estado: "review", preco_estimado: preco, pendencia: "pronto_para_revisao" as const, apta: true },
+      { numero: 3, estado: "incomplete", preco_estimado: null, pendencia: "amostra_insuficiente" as const, apta: false },
+      { numero: 4, estado: "error", preco_estimado: null, pendencia: "falha_tecnica" as const, apta: false },
+      { numero: 5, estado: "review", preco_estimado: preco, pendencia: "revisar_similaridade" as const, apta: false },
+    ];
+    expect(ordenarPorAtencao(itens).map((i) => i.numero)).toEqual([4, 3, 5, 2, 1]);
+    expect(rotuloDaPendencia(itens[1])).toBe("Proposta apta");
+    expect(rotuloDaPendencia(itens[3])).toBe("Falha técnica");
+    expect(rotuloDaPendencia(itens[0])).toBe("");
+  });
+});
