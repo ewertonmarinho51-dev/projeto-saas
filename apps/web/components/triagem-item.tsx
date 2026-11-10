@@ -182,8 +182,8 @@ export function TriagemDoItem({
                     <Badge variant={varianteDaEquivalencia(r.equivalencia)} size="sm">
                       {r.equivalencia}
                     </Badge>
-                    {r.equivalencia_detalhe.includes(" — ") && (
-                      <span>{r.equivalencia_detalhe.split(" — ").slice(1).join(" · ")}</span>
+                    {comparativoDaEquivalencia(r.equivalencia_detalhe) && (
+                      <span>{comparativoDaEquivalencia(r.equivalencia_detalhe)}</span>
                     )}
                   </span>
                 )}
