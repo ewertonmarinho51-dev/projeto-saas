@@ -768,15 +768,22 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
             novas.append((referencia, comparabilidade))
     if modo == "automatico" and novas:
         teto = None
+        valores_humanos = []
         if politica is not None:
-            # o teto é da CESTA do item: as escolhidas por PESSOA contam,
-            # e a reconsulta nunca põe a 16ª
-            ja = len(cesta.consideradas([l for l in existentes.values()
-                                         if de_pessoa(l)]))
-            teto = max(0, politica.teto - ja)
+            # Decisão humana prevalece e ocupa vaga; seu preço também
+            # compõe o CV da eventual nova inclusão automática.
+            humanas_na_cesta = cesta.consideradas(
+                [l for l in existentes.values() if de_pessoa(l)])
+            teto = max(0, politica.teto - len(humanas_na_cesta))
+            valores_humanos = [
+                cesta.referencia_da_linha(l).valor_unitario_normalizado
+                for l in humanas_na_cesta]
         escolha = estatistica.selecionar_cesta(
             novas, perfil, teto=teto, saneamento=politica_triagem,
-            texto_item=str(item.get("descricao") or ""))
+            texto_item=str(item.get("descricao") or ""),
+            cv_maximo=politica.cv_maximo if politica is not None else None,
+            valores_ja_considerados=valores_humanos)
+        resultado.ocorrencias.extend(escolha.motivos)
         if politica is not None:
             manter |= {id(r) for r in escolha.selecionadas}
             manter |= {id(r) for r in escolha.excedentes[:politica.reserva]}

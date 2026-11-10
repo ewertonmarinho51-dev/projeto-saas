@@ -399,13 +399,16 @@ class PoliticaAmostraAutomatica:
     # seleções ANTERIORES da automática reavaliadas sob o teto.
     # .3 (21/10/2026): todas as fontes consultadas e cesta repartida entre
     # elas — a .2 parava no primeiro portal com amostra "suficiente".
-    versao: str = "2026-10-21.teto-15.3"
-    teto: int = 15
+    versao: str = "2026-11-09.teto-5.cv-25.1"
+    teto: int = 5
     limite_por_fonte: int = 50
     # registros por grupo do catálogo (PDM) no caminho por descrição do
     # Compras.gov; o manual continua pedindo 500
     limite_por_grupo: int = 100
     reserva: int = 10
+    # Regra operacional interna, não percentual imposto pela IN 65/2021.
+    # A série dispersa NÃO é excluída: fica registrada para revisão.
+    cv_maximo: Decimal = CV_DISPERSAO
 
 
 POLITICA_AUTOMATICA = PoliticaAmostraAutomatica()
@@ -418,6 +421,8 @@ def selecionar_cesta(
     teto: int | None = None,
     saneamento=None,
     texto_item: str = "",
+    cv_maximo: Decimal | None = None,
+    valores_ja_considerados: list[Decimal] | None = None,
 ) -> Cesta:
     """
     Monta a cesta por COMPARABILIDADE e prioridade de fonte — nunca por
@@ -503,6 +508,27 @@ def selecionar_cesta(
         # falha de fluxo, e o que sai não some (status e motivo).
         escolhidas, reservas = _recompor(escolhidas, reservas, cesta,
                                          saneamento, texto_item)
+    # Bloqueio somente da INCLUSÃO AUTOMÁTICA. Não há rejeição de preço
+    # nem remoção de decisão humana: toda a amostra segue auditável.
+    # Os valores humanos já considerados entram no CV para impedir que
+    # uma nova automática torne dispersa uma cesta aprovada pelo revisor.
+    if cv_maximo is not None and escolhidas:
+        serie_cv = list(valores_ja_considerados or ())
+        serie_cv.extend(r.valor_unitario_normalizado for r in escolhidas
+                        if r.valor_unitario_normalizado is not None)
+        resumo_cv = calcular(serie_cv) if len(serie_cv) >= 2 else None
+        if resumo_cv is not None and resumo_cv.coeficiente_variacao > cv_maximo:
+            motivo_cv = (
+                "inclusão automática suspensa: coeficiente de variação "
+                f"{pct(resumo_cv.coeficiente_variacao)} acima do limite "
+                f"{pct(cv_maximo)}; analise as referências e decida "
+                "manualmente quais preços compõem a cesta")
+            for referencia in escolhidas:
+                referencia.status = StatusReferencia.CANDIDATA
+                referencia.com_motivo(motivo_cv)
+                cesta.retidas.append(referencia)
+            cesta.motivos.append(motivo_cv)
+            escolhidas = []
     for referencia in escolhidas:
         referencia.status = StatusReferencia.SELECIONADA
         cesta.selecionadas.append(referencia)
@@ -523,7 +549,7 @@ def selecionar_cesta(
             "da cotação automática — disponível para inclusão manual")
         cesta.excedentes.append(referencia)
 
-    if not cesta.selecionadas and not cesta.excedentes:
+    if not cesta.selecionadas and not cesta.excedentes and not cesta.retidas:
         cesta.motivos.append(
             "nenhuma referência atingiu a comparabilidade mínima")
     return cesta
@@ -837,7 +863,8 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
             valor_unitario=None, metodo=metodo, status="INCOMPLETO",
             estatisticas=None, cesta=cesta, perfil_id=perfil.id,
             criterio_percentual=criterio_percentual,
-            memoria=["nenhuma referência comparável foi considerada — item "
+            memoria=[*cesta.motivos,
+                     "nenhuma referência comparável foi considerada — item "
                      "sem preço (não é preço zero)"])
 
     anomalias = detectar_anomalias(cesta.selecionadas, estatisticas)

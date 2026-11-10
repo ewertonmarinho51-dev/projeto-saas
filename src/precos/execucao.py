@@ -435,7 +435,9 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
         ranqueadas, perfil,
         piso if piso is not None else estatistica.PISO_COMPARABILIDADE,
         teto=politica.teto if politica is not None else None,
-        saneamento=saneamento, texto_item=str(item.get("descricao") or ""))
+        saneamento=saneamento, texto_item=str(item.get("descricao") or ""),
+        cv_maximo=politica.cv_maximo if politica is not None else None)
+    resultado.ocorrencias.extend(cesta.motivos)
     if politica is not None:
         # grava a cesta, a reserva do revisor e as retidas pela triagem
         # (com o motivo técnico); o resto fica contado

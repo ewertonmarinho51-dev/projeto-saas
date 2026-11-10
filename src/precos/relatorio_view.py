@@ -41,7 +41,7 @@ from .perfil import obter as obter_perfil
 NAO_INFORMADO = "Não informado"
 
 # Quantas referências o relatório COMPACTO mostra por item. Revisão 02:
-# TODAS as consideradas (a cesta automática tem no máximo 15), para o
+# TODAS as consideradas (as novas cestas automáticas têm até 5), para o
 # relatório bastar sozinho; o corte só vale para cesta antiga, formada
 # antes do teto, e o documento diz quantas foram exibidas.
 REFERENCIAS_EXIBIDAS = 30
