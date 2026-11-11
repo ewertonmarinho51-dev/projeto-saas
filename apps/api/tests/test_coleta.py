@@ -528,3 +528,19 @@ def test_pedido_de_lote_nao_fixa_recorte_nem_aceita_reprocessar(emissor, banco):
     assert r.status_code == 202, r.text
     corpo = banco.corpo(next(c for c in banco.chamadas if c.method == "POST"))
     assert corpo["parametros"] == {"modo": "automatico"} and corpo["total"] == 1
+
+
+def test_reentrega_nao_retenta_alem_do_limite(banco, dominio):
+    # job retomado: i3 já gastou as tentativas desta execução
+    dominio["retentativa"] = True
+    dominio["restantes"] = [0]
+    esperas = []
+    banco.responder("GET", "api_jobs", 200, [_job(estado="running", parametros={
+        "modo": "automatico", "item_ids": ["i1", "i2", "i3"]},
+        resultado={"itens": {"i1": "pronto_para_revisao", "i2": "revisar_cv",
+                             "i3": "falha_tecnica"},
+                   "tentativas": {"i1": 1, "i2": 1, "i3": coleta.TENTATIVAS_POR_ITEM}})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[],
+                      dormir=esperas.append) == "succeeded"
+    assert esperas == [] and _patches(banco)[-1]["resultado"]["itens"]["i3"] == "falha_tecnica"
+
