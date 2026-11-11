@@ -238,6 +238,34 @@ def test_orcamento_esgotado_nao_marca_o_termo():
     assert armazem.termos[NUCLEO].get("buscado_em") is None
 
 
+class _ConsultaFalsa:
+    """O encadeamento do postgrest, anotando os filtros."""
+
+    def __init__(self, filtros):
+        self.filtros = filtros
+
+    def __getattr__(self, nome):
+        def passo(*args, **kw):
+            self.filtros.append((nome, args, kw))
+            return self
+        return passo
+
+    def execute(self):
+        return type("R", (), {"data": []})()
+
+
+def test_termo_registrado_agora_ja_esta_na_vez_no_banco():
+    """O termo nasce com `proxima_busca = now()` (com fração de segundo) e
+    é procurado no mesmo segundo: o corte não pode ser o agora truncado."""
+    filtros = []
+    cliente = type("C", (), {"table": lambda self, nome: _ConsultaFalsa(filtros)})()
+    antes = datetime.now(timezone.utc)
+    servico.ArmazemSupabase(cliente).termos_para_buscar(10)
+    [(_, (coluna, corte), _)] = [f for f in filtros if f[0] == "lte"]
+    assert coluna == "proxima_busca"
+    assert datetime.fromisoformat(corte) > antes + timedelta(seconds=30)
+
+
 def test_ciclo_roda_a_busca_por_termo_depois_das_ufs(monkeypatch, capsys):
     chamadas = []
     monkeypatch.setattr(servico, "rodada", lambda armazem, uf, **kw:

@@ -105,8 +105,15 @@ class ArmazemSupabase:
         return len(resposta.data or [])
 
     def termos_para_buscar(self, limite):
+        # O termo novo nasce com `proxima_busca = now()` — com fração de
+        # segundo — e é procurado logo em seguida. Comparar com o "agora"
+        # TRUNCADO no segundo (`_agora`) o deixava de fora na própria rodada:
+        # a 1ª rodada em produção (11/11/2026) registrou 229 termos e não
+        # buscou nenhum. A folga de 1 minuto cobre também relógio de servidor.
+        limite_vez = (datetime.now(timezone.utc) + timedelta(minutes=1)
+                      ).isoformat(timespec="seconds")
         return (self._c.table("precos_pncp_termos").select("*")
-                .lte("proxima_busca", self._agora())
+                .lte("proxima_busca", limite_vez)
                 .order("buscado_em", desc=False, nullsfirst=True)
                 .order("proxima_busca").limit(limite).execute()).data or []
 
