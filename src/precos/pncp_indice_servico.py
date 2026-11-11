@@ -19,7 +19,7 @@ import argparse
 import json
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from . import pncp_indice as indice
 
@@ -94,6 +94,39 @@ class ArmazemSupabase:
              .in_("id_externo", alvo).execute())
         return len(alvo)
 
+    # -- busca por termo (0043) ---------------------------------------------
+    def registrar_termos(self, nucleos):
+        if not nucleos:
+            return 0
+        # sem sobrescrever o estado de quem já existe
+        resposta = self._c.table("precos_pncp_termos").upsert(
+            [{"nucleo": n} for n in nucleos], on_conflict="nucleo",
+            ignore_duplicates=True).execute()
+        return len(resposta.data or [])
+
+    def termos_para_buscar(self, limite):
+        return (self._c.table("precos_pncp_termos").select("*")
+                .lte("proxima_busca", self._agora())
+                .order("buscado_em", desc=False, nullsfirst=True)
+                .order("proxima_busca").limit(limite).execute()).data or []
+
+    def salvar_termo(self, nucleo, **campos):
+        (self._c.table("precos_pncp_termos")
+         .update({**campos, "atualizado_em": self._agora()})
+         .eq("nucleo", nucleo).execute())
+
+    def descricoes_cotadas(self, dias: int, limite: int = 2000) -> list[str]:
+        """Descrições dos itens cotados nos últimos `dias` — só o texto,
+        que vira núcleo de busca e nada mais (nenhum dado do processo, do
+        órgão ou de quem cotou sai daqui)."""
+        desde = (datetime.now(timezone.utc) - timedelta(days=dias)).isoformat(
+            timespec="seconds")
+        linhas = (self._c.table("pesquisa_preco_itens").select("descricao")
+                  .gte("atualizado_em", desde).is_("removido_em", "null")
+                  .order("atualizado_em", desc=True).limit(limite)
+                  .execute()).data or []
+        return [str(l.get("descricao") or "") for l in linhas]
+
     def buscar(self, termos, *, uf=None, desde=None, ate=None, limite=50):
         return self._c.rpc("precos_pncp_buscar", {
             "p_termos": termos, "p_uf": uf,
@@ -137,8 +170,65 @@ def rodada(armazem, uf: str, *, dias: int, ate, modalidades, max_chamadas: int,
             "coleta": coleta.rodada.para_registro()}
 
 
+NUCLEO_MIN, NUCLEO_MAX = 3, 120          # o CHECK da 0043
+
+
+def nucleos_das_descricoes(descricoes) -> list[str]:
+    """Núcleos distintos, na ordem em que vieram (o mais recente primeiro).
+    Fora do tamanho que a 0043 aceita, o núcleo não entra: um só ("a4")
+    derrubaria o registro do lote inteiro (revisão de 11/11/2026)."""
+    from .pncp_nacional import nucleo
+
+    return list(dict.fromkeys(
+        n for n in (nucleo(d) for d in descricoes)
+        if NUCLEO_MIN <= len(n) <= NUCLEO_MAX))
+
+
+def rodada_por_termos(armazem, *, max_chamadas: int, max_termos: int,
+                      pausa: float, modalidades=indice.MODALIDADES_PADRAO,
+                      dias_itens: int = 30, hoje=None, **rede) -> dict:
+    """
+    Busca NACIONAL pelos itens que os usuários cotam (0043). Registra os
+    núcleos novos, e busca os que estão na vez — nunca buscados primeiro.
+    Termo buscado volta em `TERMO_REBUSCA_DIAS`; o que falhou, em
+    `TERMO_FALHA_HORAS`; o que o orçamento interrompeu fica como estava e
+    a próxima rodada o refaz.
+    """
+    from .fontes import ErroFonte
+
+    agora = datetime.now(timezone.utc)
+    novos = armazem.registrar_termos(nucleos_das_descricoes(
+        armazem.descricoes_cotadas(dias_itens)))
+    coletor = indice.Coletor(armazem, max_chamadas=max_chamadas, pausa_s=pausa,
+                             modalidades=modalidades, **rede)
+    termos = {"novos": novos, "buscados": 0, "falhas": 0}
+    for termo in armazem.termos_para_buscar(max_termos):
+        nucleo = termo["nucleo"]
+        try:
+            relato = coletor.indexar_termo(nucleo, hoje=hoje)
+        except indice.OrcamentoEsgotado:
+            coletor.rodada.interrompida = True
+            break
+        except ErroFonte as erro:
+            termos["falhas"] += 1
+            armazem.salvar_termo(
+                nucleo, falhas=int(termo.get("falhas") or 0) + 1,
+                erro=str(erro)[:200], proxima_busca=(agora + timedelta(
+                    hours=indice.TERMO_FALHA_HORAS)).isoformat(timespec="seconds"))
+            continue
+        termos["buscados"] += 1
+        armazem.salvar_termo(
+            nucleo, buscado_em=agora.isoformat(timespec="seconds"),
+            proxima_busca=(agora + timedelta(days=indice.TERMO_REBUSCA_DIAS)
+                           ).isoformat(timespec="seconds"),
+            contratacoes=relato["achadas"], resultados=relato["validos"],
+            falhas=0, erro="")
+    return {"termos": termos, "coleta": coletor.rodada.para_registro()}
+
+
 def ciclo(armazem, ufs: list[str], *, intervalo_s: int, uma_vez: bool,
-          dormir=None, recomecar: bool = False, **opcoes) -> int:
+          dormir=None, recomecar: bool = False, termos: dict | None = None,
+          **opcoes) -> int:
     """Indexação fora da busca: uma rodada por UF, depois espera. Retoma
     sozinha (cursor e ponto de leitura moram no índice). `recomecar` vale
     só para a PRIMEIRA rodada de cada UF: as seguintes continuam do cursor
@@ -151,6 +241,15 @@ def ciclo(armazem, ufs: list[str], *, intervalo_s: int, uma_vez: bool,
                                 **opcoes)
             except Exception as erro:  # noqa: BLE001 — próxima UF segue
                 relato = {"uf": uf, "erro": type(erro).__name__}
+            if isinstance(armazem, indice.ArmazemEmMemoria):
+                armazem.persistir()
+            relato["em"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            print(json.dumps(relato, ensure_ascii=False), flush=True)
+        if termos is not None:
+            try:
+                relato = {"busca_por_termo": rodada_por_termos(armazem, **termos)}
+            except Exception as erro:  # noqa: BLE001 — a regional já rodou
+                relato = {"busca_por_termo": {"erro": type(erro).__name__}}
             if isinstance(armazem, indice.ArmazemEmMemoria):
                 armazem.persistir()
             relato["em"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -178,14 +277,23 @@ def argumentos_do_ciclo(s: argparse.ArgumentParser) -> None:
     s.add_argument("--intervalo", type=int, default=int(
         os.environ.get("INDEXADOR_INTERVALO_S", "21600")))
     s.add_argument("--uma-vez", action="store_true")
+    # busca NACIONAL pelos itens cotados (0043): orçamento próprio, depois
+    # das UFs; `--sem-termos` desliga
+    s.add_argument("--sem-termos", action="store_true")
+    s.add_argument("--max-chamadas-termos", type=int, default=int(
+        os.environ.get("INDEXADOR_MAX_CHAMADAS_TERMOS", "600")))
+    s.add_argument("--max-termos", type=int, default=40)
 
 
 def rodar_ciclo(a, armazem) -> int:
+    termos = None if a.sem_termos else {
+        "max_chamadas": a.max_chamadas_termos, "max_termos": a.max_termos,
+        "pausa": max(a.pausa, 0.35), "modalidades": a.modalidades}
     return ciclo(armazem, a.ufs, intervalo_s=a.intervalo, uma_vez=a.uma_vez,
                  dias=a.dias, ate=None, modalidades=a.modalidades,
                  max_chamadas=a.max_chamadas,
                  max_contratacoes=a.max_contratacoes, pausa=a.pausa,
-                 recomecar=a.recomecar)
+                 recomecar=a.recomecar, termos=termos)
 
 
 def main(argv=None) -> int:

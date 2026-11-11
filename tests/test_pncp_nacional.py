@@ -33,6 +33,9 @@ def _hit(controle, *, uf="MG", municipio="Careaçu", modalidade="6",
             "modalidade_licitacao_nome": "Pregão - Eletrônico",
             "tem_resultado": tem_resultado, "cancelado": cancelado,
             "data_publicacao_pncp": f"{publicada}T10:00:00",
+            "data_atualizacao_pncp": f"{publicada}T12:00:00",
+            "orgao_cnpj": controle.split("-")[0], "ano": controle[-4:],
+            "numero_sequencial": controle.split("-")[-1].split("/")[0].lstrip("0"),
             "usuario_nome": "Portal de Compras Públicas",
             "link_sistema_origem": "https://www.portaldecompraspublicas.com.br/x"}
 
@@ -41,7 +44,8 @@ def _item(numero, descricao, *, criterio="Menor preço", tem_resultado=True):
     return {"numeroItem": numero, "descricao": descricao, "unidadeMedida": "UN",
             "quantidade": 1, "temResultado": tem_resultado,
             "criterioJulgamentoNome": criterio, "materialOuServico": "M",
-            "catalogoCodigoItem": None, "situacaoCompraItemNome": "Homologado"}
+            "catalogoCodigoItem": None, "situacaoCompraItem": 2,
+            "situacaoCompraItemNome": "Homologado"}
 
 
 def _resultado(valor, *, quantidade=1, data="2026-10-29"):
@@ -116,6 +120,14 @@ def _portal_padrao(hits=None):
     ("Cimento CP II 32, saco 50 kg", "cimento"),
     ("Papel A4 75g resma 500 folhas", "papel a4 75g"),
     ("123 - ", ""),
+    ("Bateria CR2032 3V", "bateria cr2032 3v"),
+    # o verbo da compra sai; o objeto fica
+    ("Aquisição de cimento", "cimento"),
+    ("Contratação de empresa especializada em limpeza", "limpeza"),
+    # identificação colada não vira termo de busca
+    ("Palestra contato fulano@exemplo.com", "palestra contato"),
+    ("Honorarios cpf12345678900 consultoria", "honorarios consultoria"),
+    ("Item ABC123456", "item"),
 ])
 def test_nucleo_e_o_comeco_da_descricao_sem_medida_nem_numero(descricao, esperado):
     assert nucleo(descricao) == esperado

@@ -85,7 +85,17 @@ _RUIDO = {"especificacao", "especificacoes", "tipo", "material", "com", "sem",
           # o item É ("Cimento CP II 32, saco 50 kg" → "cimento")
           "saco", "sacos", "caixa", "pacote", "resma", "folhas", "litro",
           "litros", "metro", "metros", "frasco", "galao", "rolo", "fardo",
-          "und", "pct", "gramas", "quilo", "quilos"}
+          "und", "pct", "gramas", "quilo", "quilos",
+          # verbo da compra, que vem ANTES do objeto: "Contratação de empresa
+          # para…", "Aquisição de cimento" — e, num serviço, antes de um
+          # nome próprio (revisão de banco de 11/11/2026)
+          "aquisicao", "contratacao", "empresa", "prestacao", "servico",
+          "servicos", "fornecimento", "especializada", "eventual", "futura",
+          "registro", "precos", "objeto"}
+# formato com letra e número ("a4", "75g", "cr2032") é curto; maior que isso
+# é código, documento ou identificação colada na descrição
+FORMATO_MAX = 6
+FORMATO_MAX_DIGITOS = 4
 
 
 def _sem_acento(texto: str) -> str:
@@ -102,11 +112,14 @@ def nucleo(texto: str, maximo: int = PALAVRAS_DA_BUSCA) -> str:
     letra e número ("a4", "75g") fica — "papel" sozinho acha guardanapo."""
     palavras: list[str] = []
     for bruta in _sem_acento(texto).replace(",", " ").replace(";", " ").split():
+        if "@" in bruta:
+            continue                          # e-mail nunca vira termo
         palavra = "".join(c for c in bruta if c.isalnum())
-        com_letra = any(c.isalpha() for c in palavra)
-        formato = com_letra and any(c.isdigit() for c in palavra)
-        if ((len(palavra) > 2 and palavra.isalpha()) or
-                (formato and len(palavra) >= 2)) \
+        digitos = sum(c.isdigit() for c in palavra)
+        formato = (0 < digitos <= FORMATO_MAX_DIGITOS
+                   and any(c.isalpha() for c in palavra)
+                   and 2 <= len(palavra) <= FORMATO_MAX)
+        if ((len(palavra) > 2 and palavra.isalpha()) or formato) \
                 and palavra not in _RUIDO and palavra not in palavras:
             palavras.append(palavra)
         if len(palavras) >= maximo:
@@ -151,17 +164,73 @@ def aceitar_item(descricao_consulta: str):
 
 
 def contratacao_do_resultado(hit: dict) -> dict:
-    """O cabeçalho que `pncp._referencia_do_resultado` lê, a partir do
-    resultado da busca — sem a chamada à API de consulta."""
+    """O cabeçalho da contratação no formato da API de consulta (o que
+    `pncp._referencia_do_resultado` e `pncp_indice.resumo_da_contratacao`
+    leem), a partir do resultado da busca — sem chamar a API de consulta."""
+    def _int(valor):
+        try:
+            return int(valor)
+        except (TypeError, ValueError):
+            return None
     return {
         "numeroControlePNCP": hit.get("numero_controle_pncp"),
         "usuarioNome": hit.get("usuario_nome"),
         "linkSistemaOrigem": hit.get("link_sistema_origem"),
-        "orgaoEntidade": {"razaoSocial": hit.get("orgao_nome")},
-        "unidadeOrgao": {"ufSigla": hit.get("uf"),
-                         "municipioNome": hit.get("municipio_nome")},
+        "modalidadeId": _int(hit.get("modalidade_licitacao_id")),
         "modalidadeNome": hit.get("modalidade_licitacao_nome"),
+        "anoCompra": _int(hit.get("ano")),
+        "sequencialCompra": _int(hit.get("numero_sequencial")),
+        "numeroCompra": hit.get("numero"),
+        "srp": hit.get("srp"),
+        "dataAtualizacaoGlobal": hit.get("data_atualizacao_pncp"),
+        "dataPublicacaoPncp": hit.get("data_publicacao_pncp"),
+        "situacaoCompraNome": hit.get("situacao_nome"),
+        "valorTotalHomologado": hit.get("valor_total_homologado"),
+        "orgaoEntidade": {"cnpj": hit.get("orgao_cnpj"),
+                          "razaoSocial": hit.get("orgao_nome"),
+                          "esferaId": hit.get("esfera_id"),
+                          "poderId": hit.get("poder_id")},
+        "unidadeOrgao": {"ufSigla": hit.get("uf"),
+                         "municipioNome": hit.get("municipio_nome"),
+                         "nomeUnidade": hit.get("unidade_nome")},
     }
+
+
+def parametros_da_busca(texto: str, *, uf: str | None = None,
+                        modalidades=MODALIDADES,
+                        tamanho: int = PAGINA_BUSCA) -> dict:
+    """Pregões ENCERRADOS com resultado: com `status=todos` o portal ignora
+    `tem_resultado` (medido: 25 de 30 sem resultado; com `encerradas`, 30/30)."""
+    parametros = {
+        "q": texto, "tipos_documento": "edital", "ordenacao": "-data",
+        "pagina": 1, "tam_pagina": tamanho, "status": "encerradas",
+        "modalidades": "|".join(str(m) for m in modalidades),
+        "tem_resultado": "true"}
+    if uf:
+        parametros["ufs"] = uf.upper()
+    return parametros
+
+
+def controle_aceito(hit, *, modalidades=MODALIDADES, uf: str | None = None,
+                    desde=None) -> str | None:
+    """Número de controle do resultado da busca, se for pregão do piloto,
+    com resultado, não cancelado, da UF e publicado a partir de `desde`."""
+    if not isinstance(hit, dict) or hit.get("cancelado"):
+        return None
+    try:
+        if int(hit.get("modalidade_licitacao_id")) not in modalidades:
+            return None
+    except (TypeError, ValueError):
+        return None
+    if not hit.get("tem_resultado"):
+        return None
+    if uf and str(hit.get("uf") or "").upper() != uf.upper():
+        return None
+    publicada = str(hit.get("data_publicacao_pncp") or "")[:10]
+    if desde and publicada and publicada < desde.isoformat():
+        return None
+    controle = str(hit.get("numero_controle_pncp") or "")
+    return controle if pncp.controle_da_entrada(controle) else None
 
 
 class PNCPNacional(FontePesquisaPreco):
@@ -230,15 +299,7 @@ class PNCPNacional(FontePesquisaPreco):
                  if consulta.data_inicial else None)
         achadas: dict[str, dict] = {}
         for texto in dict.fromkeys(t for t in textos if t):
-            parametros = {
-                "q": texto, "tipos_documento": "edital", "ordenacao": "-data",
-                # `encerradas`: com `todos` o portal IGNORA `tem_resultado`
-                # (medido: 25 de 30 sem resultado; com `encerradas`, 30/30)
-                "pagina": 1, "tam_pagina": PAGINA_BUSCA, "status": "encerradas",
-                "modalidades": "|".join(str(m) for m in MODALIDADES),
-                "tem_resultado": "true"}
-            if consulta.uf:
-                parametros["ufs"] = consulta.uf.upper()
+            parametros = parametros_da_busca(texto, uf=consulta.uf)
             resultado.chamadas += 1
             try:
                 dados = json.loads(self._abrir(
@@ -260,29 +321,10 @@ class PNCPNacional(FontePesquisaPreco):
                                  "pesquisa continua nas demais fontes")
                 return None
             for hit in dados["items"]:
-                controle = self._aceita(hit, consulta, desde)
+                controle = controle_aceito(hit, uf=consulta.uf, desde=desde)
                 if controle and controle not in achadas:
                     achadas[controle] = hit
         return list(achadas.values())[:self._max_contratacoes]
-
-    @staticmethod
-    def _aceita(hit, consulta: Consulta, desde) -> str | None:
-        if not isinstance(hit, dict) or hit.get("cancelado"):
-            return None
-        try:
-            if int(hit.get("modalidade_licitacao_id")) not in MODALIDADES:
-                return None
-        except (TypeError, ValueError):
-            return None
-        if not hit.get("tem_resultado"):
-            return None
-        if consulta.uf and str(hit.get("uf") or "").upper() != consulta.uf.upper():
-            return None
-        publicada = str(hit.get("data_publicacao_pncp") or "")[:10]
-        if desde and publicada and publicada < desde.isoformat():
-            return None
-        controle = str(hit.get("numero_controle_pncp") or "")
-        return controle if pncp.controle_da_entrada(controle) else None
 
     # -- fonte ----------------------------------------------------------------
     def pesquisar(self, consulta: Consulta) -> ResultadoBusca:
