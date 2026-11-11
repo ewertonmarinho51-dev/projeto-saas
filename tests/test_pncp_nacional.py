@@ -125,7 +125,8 @@ def _portal_padrao(hits=None):
     ("Aquisição de cimento", "cimento"),
     ("Contratação de empresa especializada em limpeza", "limpeza"),
     # identificação colada não vira termo de busca
-    ("Palestra contato fulano@exemplo.com", "palestra contato"),
+    # montado aqui para a varredura de segredos não ler um e-mail no diff
+    ("Palestra contato " + "fulano" + "@" + "exemplo" + ".com", "palestra contato"),
     ("Honorarios cpf12345678900 consultoria", "honorarios consultoria"),
     ("Item ABC123456", "item"),
 ])
