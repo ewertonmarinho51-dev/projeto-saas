@@ -1537,7 +1537,10 @@ TABELAS_PRIVADAS = tabelas_do_inventario()
 # Mais `api_jobs` da 0031, aplicada em 22/10/2026 (registro
 # 20261022202731): o catálogo passou de 47 para 48 tabelas em `public`,
 # todas com RLS; este inventário sobe de 44 para 45.
-TABELAS_EM_PRODUCAO = 45
+# Mais as três da 0042 (índice do PNCP), aplicada em 11/11/2026 (registro
+# 20261111004415): o catálogo passou de 48 para 51 tabelas em `public`, todas
+# com RLS; este inventário sobe de 45 para 48.
+TABELAS_EM_PRODUCAO = 48
 
 # As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
 # inclui, mas porque são as únicas cuja implantação esta suíte
@@ -1590,13 +1593,12 @@ TABELAS_WORDCRAFT_NAO_IMPLANTADAS = frozenset({
     "documentos_editor_emissoes",
 })
 
-# As três da 0042 (índice do PNCP, piloto de 10/11/2026). Escritas e cobertas
-# pelo ensaio descartável (`tests/test_migracao_0042.py`), NÃO aplicadas em
-# produção: ficam fora do censo até a aplicação autorizada ser medida. A matriz
-# de RLS delas mora no arquivo da própria 0042 — dado público, sem tenant:
+# As três da 0042 (índice do PNCP), aplicada em produção em 11/11/2026 —
+# já contam em TABELAS_EM_PRODUCAO. Ficam nomeadas porque a matriz de RLS
+# delas mora no arquivo da própria 0042 — dado público, sem tenant:
 # `authenticated` só lê `precos_pncp_resultados`; o controle da coleta é da
 # credencial de servidor.
-TABELAS_DO_INDICE_PNCP_NAO_IMPLANTADAS = frozenset({
+TABELAS_DO_INDICE_PNCP = frozenset({
     "precos_pncp_cursores", "precos_pncp_contratacoes",
     "precos_pncp_resultados",
 })
@@ -1613,8 +1615,7 @@ def test_o_inventario_cobre_todas_as_tabelas():
     implantada fora da conta que a cobre; para mais, dando por
     implantado o que ainda não foi.
     """
-    nao_implantadas = (TABELAS_WORDCRAFT_NAO_IMPLANTADAS
-                       | TABELAS_DO_INDICE_PNCP_NAO_IMPLANTADAS)
+    nao_implantadas = TABELAS_WORDCRAFT_NAO_IMPLANTADAS
     assert nao_implantadas <= set(TABELAS_PRIVADAS)
     assert TABELAS_DA_API <= set(TABELAS_PRIVADAS)
     assert len(set(TABELAS_PRIVADAS) - nao_implantadas) == TABELAS_EM_PRODUCAO, \
@@ -1961,7 +1962,7 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     proprias = (TABELAS_DA_PESQUISA_DE_PRECOS | TABELAS_DA_MULTI_PREFEITURA
                 | TABELAS_DO_CACHE_DE_GERACAO | TABELAS_DAS_COTACOES
                 | TABELAS_WORDCRAFT_NAO_IMPLANTADAS | TABELAS_DA_API
-                | TABELAS_DO_INDICE_PNCP_NAO_IMPLANTADAS)
+                | TABELAS_DO_INDICE_PNCP)
     for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 

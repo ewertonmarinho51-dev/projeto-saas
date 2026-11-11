@@ -1,6 +1,12 @@
 -- ## 0042 — Índice de resultados homologados do PNCP (piloto da busca por descrição)
--- ## ESTADO: NÃO APLICADA EM PRODUÇÃO. Aplicável; aguarda a revisão do
--- ##   `revisor-de-banco-e-seguranca` e a autorização do dono.
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 11/11/2026 (registro 20261111004415,
+-- ##   nome `m0042_precos_pncp_indice`), com a autorização do dono e depois da
+-- ##   revisão do `revisor-de-banco-e-seguranca`. Medido antes e depois: 48 → 51
+-- ##   tabelas em `public`, as 51 com RLS; `authenticated` +1 SELECT (só
+-- ##   `precos_pncp_resultados`); `service_role` +3 SELECT/INSERT/UPDATE e
+-- ##   DELETE/REFERENCES/TRIGGER inalterados; referências e itens de preços
+-- ##   intactos (12.228 e 613). Comportamento conferido num bloco DO que termina
+-- ##   em RAISE: a RPC responde para `authenticated` e a escrita é recusada.
 -- ## ENSAIO: CI (`tests/test_migracao_0042.py`, PostgreSQL) e projeto
 -- ##   descartável `uslaxaxomjawydqtbwkb` em 10/11/2026 (registro
 -- ##   `m0042_precos_pncp_indice`): conferência passou; com amostra REAL do
