@@ -61,13 +61,15 @@ test("importar → cotação automática → revisar → aceitar → PDF", async
   await expect(page.getByTestId("aptas")).toContainText("2 proposta(s) apta(s)");
   await page.screenshot({ path: "e2e/resultados/telas/cotacao-automatica-lista-1440.png", fullPage: true });
 
-  // 2. Reimportar a mesma planilha: nada novo, nenhum item duplicado.
-  await importar(page);
-  await expect(page).toHaveURL(/\?importada=1/);
-  await expect(page.getByTestId("progresso-coleta")).toContainText("Coleta concluída", { timeout: 60_000 });
+  // 2. Reimportar a mesma planilha: o plano diz que é igual, não há o que
+  // confirmar, e nenhum item é duplicado (a repetição da MESMA confirmação
+  // cai na mesma execução pela chave do plano — prova da API e da action).
+  await page.getByLabel("Planilha de itens (XLSX)").setInputFiles(estado.planilha_cotacao);
+  await page.getByRole("button", { name: "Conferir planilha" }).click();
+  await expect(page.getByText("A planilha é igual ao que a pesquisa já tem.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirmar importação" })).toHaveCount(0);
+  await page.goto(`/app/precos/${pesquisa}`);
   await expect(itens(page)).toHaveCount(2);
-  // sem dado novo, a nova rodada não refaz nada: as propostas continuam aptas
-  await page.reload();
   await expect(page.getByTestId("aptas")).toContainText("2 proposta(s) apta(s)");
   expect(primeiroJob).toBeTruthy();
 
