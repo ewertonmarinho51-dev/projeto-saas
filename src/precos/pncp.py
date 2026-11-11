@@ -378,6 +378,9 @@ def _referencia_do_resultado(contratacao: dict, item: dict,
     numero = item.get("numeroItem")
     bruto = {
         "numeroControlePNCP": controle,
+        # o sistema que publicou a contratação no PNCP: com o link de
+        # origem, é a evidência da ORIGEM da compra (`portais.atribuir`)
+        "usuarioNome": contratacao.get("usuarioNome"),
         "linkSistemaOrigem": contratacao.get("linkSistemaOrigem"),
         "idCompraOrigem": _id_compra_de_origem(
             contratacao.get("linkSistemaOrigem")),

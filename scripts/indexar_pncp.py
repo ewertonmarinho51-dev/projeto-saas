@@ -12,6 +12,11 @@ Job de bancada do índice do PNCP (piloto: Pará) — limitado e retomável.
     SUPABASE_URL=... SUPABASE_SERVICE_KEY=... \
         python scripts/indexar_pncp.py rodar --uf PA --banco --max-chamadas 500
 
+    # agendado (serviço `indexador-pncp` do compose, perfil `indexador`):
+    # uma rodada por UF a cada INDEXADOR_INTERVALO_S, orçamento separado
+    # para descoberta e coleta
+    python scripts/indexar_pncp.py ciclo --banco --ufs PA
+
 `rodar` faz a descoberta (contratações atualizadas na janela) e depois a
 coleta (itens e resultados homologados das pendentes), parando quando o
 orçamento de chamadas acaba. Rodar de novo CONTINUA: a página da descoberta
@@ -39,75 +44,17 @@ from src.precos import pncp_indice as indice  # noqa: E402
 from src.precos.fontes import Consulta  # noqa: E402
 
 
-class ArmazemSupabase:
-    """O mesmo contrato de `pncp_indice.Armazem`, nas tabelas da 0042."""
+# O armazém do banco e o ciclo agendado moram em `src/` (a imagem de
+# produção não carrega `scripts/`); este arquivo é a linha de comando.
+from src.precos.pncp_indice_servico import (  # noqa: E402
+    ArmazemSupabase, argumentos_do_ciclo, armazem_do_banco, ciclo, rodada, rodar_ciclo)
 
-    def __init__(self, cliente) -> None:
-        self._c = cliente
-
-    @staticmethod
-    def _agora() -> str:
-        return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-    def cursor(self, uf, modalidade):
-        dados = (self._c.table("precos_pncp_cursores").select("*")
-                 .eq("uf", uf).eq("modalidade_id", modalidade).limit(1)
-                 .execute()).data
-        return dados[0] if dados else None
-
-    def salvar_cursor(self, uf, modalidade, **campos):
-        atual = self.cursor(uf, modalidade) or {}
-        self._c.table("precos_pncp_cursores").upsert(
-            {**atual, **campos, "uf": uf, "modalidade_id": modalidade,
-             "atualizado_em": self._agora()},
-            on_conflict="uf,modalidade_id").execute()
-
-    def contratacao(self, numero_controle):
-        dados = (self._c.table("precos_pncp_contratacoes").select("*")
-                 .eq("numero_controle", numero_controle).limit(1)
-                 .execute()).data
-        return dados[0] if dados else None
-
-    def salvar_contratacao(self, numero_controle, **campos):
-        if self.contratacao(numero_controle) is None:
-            self._c.table("precos_pncp_contratacoes").insert(
-                {"numero_controle": numero_controle, **campos}).execute()
-        else:
-            (self._c.table("precos_pncp_contratacoes")
-             .update({**campos, "atualizado_em": self._agora()})
-             .eq("numero_controle", numero_controle).execute())
-
-    def pendentes(self, limite):
-        return (self._c.table("precos_pncp_contratacoes").select("*")
-                .eq("estado", indice.PENDENTE)
-                .order("tem_homologacao", desc=True)
-                .order("atualizacao_global", desc=True)
-                .limit(limite).execute()).data or []
-
-    def gravar_resultados(self, linhas):
-        agora = self._agora()
-        self._c.table("precos_pncp_resultados").upsert(
-            [{**linha, "coletado_em": agora} for linha in linhas],
-            on_conflict="id_externo").execute()
-
-    def buscar(self, termos, *, uf=None, desde=None, ate=None, limite=50):
-        return self._c.rpc("precos_pncp_buscar", {
-            "p_termos": termos, "p_uf": uf,
-            "p_desde": desde.isoformat() if desde else None,
-            "p_ate": ate.isoformat() if ate else None,
-            "p_limite": limite}).execute().data or []
+__all__ = ["ArmazemSupabase", "ciclo", "rodada"]
 
 
 def _armazem(args):
     if args.banco:
-        url = os.environ.get("SUPABASE_URL")
-        chave = os.environ.get("SUPABASE_SERVICE_KEY")
-        if not url or not chave:
-            raise SystemExit("defina SUPABASE_URL e SUPABASE_SERVICE_KEY no "
-                             "ambiente (a chave não é lida de arquivo)")
-        from supabase import create_client
-
-        return ArmazemSupabase(create_client(url, chave))
+        return armazem_do_banco()
     if not args.arquivo:
         raise SystemExit("informe --arquivo (índice local) ou --banco")
     return indice.ArmazemEmMemoria(args.arquivo)
@@ -137,10 +84,12 @@ def resumo(armazem: indice.ArmazemEmMemoria) -> dict:
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="Índice do PNCP — job de bancada")
     sub = p.add_subparsers(dest="acao", required=True)
-    for nome in ("rodar", "buscar", "resumo"):
+    for nome in ("rodar", "buscar", "resumo", "ciclo"):
         s = sub.add_parser(nome)
         s.add_argument("--arquivo", type=Path)
         s.add_argument("--banco", action="store_true")
+        if nome == "ciclo":
+            argumentos_do_ciclo(s)
         if nome == "rodar":
             s.add_argument("--uf", default="PA")
             s.add_argument("--dias", type=int, default=30)
@@ -157,6 +106,9 @@ def main(argv=None) -> int:
             s.add_argument("--limite", type=int, default=10)
     a = p.parse_args(argv)
     armazem = _armazem(a)
+
+    if a.acao == "ciclo":
+        return rodar_ciclo(a, armazem)
 
     if a.acao == "rodar":
         coletor = indice.Coletor(armazem, max_chamadas=a.max_chamadas,

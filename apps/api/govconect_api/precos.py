@@ -32,7 +32,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
-from src.precos import estatistica, links
+from src.precos import estatistica, links, portais
 
 from .erros import ErroApi
 from .seguranca import Identidade, exigir_identidade
@@ -177,6 +177,12 @@ class Referencia(BaseModel):
     rotulo_contratacao: str
     link_fonte: str | None
     identificacao: str
+    # ORIGEM (portal em que a compra aconteceu) e CANAL (por onde o preço
+    # foi lido), separados: "Origem Licitanet · Coleta via PNCP". Vazios
+    # quando a fonte não declara origem (`portais.atribuir`).
+    origem: str = ""
+    canal: str = ""
+    rotulo_origem: str = ""
 
 
 class PaginaDePesquisas(BaseModel):
@@ -266,7 +272,11 @@ def _revisao_cv(gravado) -> RevisaoPorCV | None:
 def _referencia(linha: dict) -> Referencia:
     vinculos = links.resolver(linha)
     motivos = linha.get("motivos") or []
+    atribuicao = portais.atribuir(linha.get("fonte_id"), linha.get("bruto"))
     return Referencia(
+        origem=atribuicao.origem if atribuicao else "",
+        canal=atribuicao.canal if atribuicao else "",
+        rotulo_origem=atribuicao.rotulo if atribuicao else "",
         id=str(linha["id"]),
         fonte=linha.get("fonte_nome") or vinculos.fonte_rotulo or str(linha.get("fonte_id") or ""),
         fonte_tipo=linha.get("fonte_tipo") or "outro",

@@ -1,7 +1,11 @@
 -- ## 0042 — Índice de resultados homologados do PNCP (piloto da busca por descrição)
--- ## ESTADO: NÃO APLICADA EM PRODUÇÃO. Aplicável; aguarda o ensaio nos dois
--- ##   níveis (o do CI roda em `tests/test_migracao_0042.py`), a revisão do
+-- ## ESTADO: NÃO APLICADA EM PRODUÇÃO. Aplicável; aguarda a revisão do
 -- ##   `revisor-de-banco-e-seguranca` e a autorização do dono.
+-- ## ENSAIO: CI (`tests/test_migracao_0042.py`, PostgreSQL) e projeto
+-- ##   descartável `uslaxaxomjawydqtbwkb` em 10/11/2026 (registro
+-- ##   `m0042_precos_pncp_indice`): conferência passou; com amostra REAL do
+-- ##   índice paraense, `authenticated` buscou "gasolina comum" (2 vigentes,
+-- ##   a invalidada fora), não escreveu nem leu o controle; `anon` sem execute.
 --
 -- O PROBLEMA (10/11/2026)
 --   A busca de preços da prefeitura só tem UMA fonte de preço: o Compras.gov.
@@ -36,6 +40,9 @@
 --   * a busca roda como quem chama (`security invoker`), com `search_path`
 --     vazio. O texto de busca vem pronto do coletor (sem acento, minúsculas),
 --     para não depender da extensão `unaccent`;
+--   * correção ou cancelamento publicado DEPOIS da coleta não apaga nada:
+--     a revisita marca a linha antiga `vigente = false`, com motivo, e a
+--     busca deixa de devolvê-la (o histórico do que foi lido fica);
 --   * a tabela NÃO decide se a fonte está ligada: isso é a flag
 --     `price_source_pncp_indice` (`governanca.FLAG_PNCP_INDICE`), desligada.
 --
@@ -104,6 +111,13 @@ create table if not exists public.precos_pncp_resultados (
   hash_linha text not null,
   versao_coletor text not null,
   coletado_em timestamptz not null default now(),
+  -- Correção e cancelamento TARDIOS: quando a revisita da contratação não
+  -- encontra mais este resultado como homologado conferível, a linha não
+  -- é apagada (DELETE é revogado de todos) — fica `vigente = false`, com o
+  -- motivo, e sai da busca. Se voltar a valer, o upsert a reativa.
+  vigente boolean not null default true,
+  invalidado_em timestamptz,
+  invalidado_motivo text not null default '',
   busca tsvector generated always as
     (to_tsvector('portuguese'::regconfig, descricao_busca)) stored
 );
@@ -113,7 +127,7 @@ create index if not exists precos_pncp_resultados_busca_idx
 create index if not exists precos_pncp_resultados_data_idx
   on public.precos_pncp_resultados (uf, data_resultado desc);
 create index if not exists precos_pncp_resultados_contratacao_idx
-  on public.precos_pncp_resultados (numero_controle);
+  on public.precos_pncp_resultados (numero_controle, numero_item);
 
 alter table public.precos_pncp_cursores     enable row level security;
 alter table public.precos_pncp_contratacoes enable row level security;
@@ -126,9 +140,11 @@ revoke all on public.precos_pncp_resultados   from anon, authenticated, public;
 grant select, insert, update on public.precos_pncp_cursores     to service_role;
 grant select, insert, update on public.precos_pncp_contratacoes to service_role;
 grant select, insert, update on public.precos_pncp_resultados   to service_role;
-revoke delete, truncate on public.precos_pncp_cursores     from service_role;
-revoke delete, truncate on public.precos_pncp_contratacoes from service_role;
-revoke delete, truncate on public.precos_pncp_resultados   from service_role;
+-- o default do Supabase dá `arwdDxtm`: além de apagar, o servidor não cria
+-- gatilho nem chave estrangeira apontando para cá (revisão de 10/11/2026)
+revoke delete, truncate, references, trigger on public.precos_pncp_cursores     from service_role;
+revoke delete, truncate, references, trigger on public.precos_pncp_contratacoes from service_role;
+revoke delete, truncate, references, trigger on public.precos_pncp_resultados   from service_role;
 
 grant select on public.precos_pncp_resultados to authenticated;
 drop policy if exists "precos_pncp_resultados_leitura" on public.precos_pncp_resultados;
@@ -151,12 +167,20 @@ as $$
     -- `websearch_to_tsquery` não levanta erro de sintaxe com texto livre; o
     -- "or" entre os termos é o OU dele. Sem termo, a consulta é vazia e não
     -- casa com nada.
+    -- Teto de custo (revisão de 10/11/2026): a RPC é alcançável direto pelo
+    -- PostgREST por qualquer conta autenticada. Só os 24 primeiros termos,
+    -- cada um cortado em 60 caracteres — o coletor manda no máximo 12 por
+    -- variante; o resto seria só OU a mais sobre o GIN e o `ts_rank`.
     select websearch_to_tsquery('portuguese'::regconfig,
-             array_to_string(coalesce(p_termos, '{}'::text[]), ' or ')) as q
+             coalesce((select string_agg(left(t, 60), ' or ')
+                         from unnest(coalesce(p_termos, '{}'::text[]))
+                              with ordinality as u(t, n)
+                        where n <= 24), '')) as q
   )
   select r.*
     from public.precos_pncp_resultados r, consulta c
    where r.busca @@ c.q
+     and r.vigente
      and (p_uf is null or r.uf = upper(p_uf))
      and (p_desde is null or r.data_resultado >= p_desde)
      and (p_ate is null or r.data_resultado <= p_ate)
@@ -208,6 +232,10 @@ begin
     if has_table_privilege('service_role', 'public.' || tabela,
                            'delete, truncate') then
       faltou := faltou || ' service_role_apaga:' || tabela;
+    end if;
+    if has_table_privilege('service_role', 'public.' || tabela,
+                           'references, trigger') then
+      faltou := faltou || ' service_role_gatilho_ou_fk:' || tabela;
     end if;
     -- com lista, `has_table_privilege` responde "algum": cada um é conferido
     if not (has_table_privilege('service_role', 'public.' || tabela, 'select')

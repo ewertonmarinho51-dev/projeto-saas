@@ -226,6 +226,12 @@ export type ReferenciaDePreco = {
   rotulo_contratacao: string;
   link_fonte: string | null;
   identificacao: string;
+  /** Portal em que a compra aconteceu (Licitanet, Licitações-e…); vazio se a fonte não declara. */
+  origem?: string;
+  /** Por onde o preço foi lido ("Coleta via PNCP"). */
+  canal?: string;
+  /** "Origem Licitanet · Coleta via PNCP". */
+  rotulo_origem?: string;
 };
 
 /** Série de preços resumida pelo servidor (`estatistica.calcular`); tudo já formatado. */

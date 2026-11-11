@@ -42,7 +42,8 @@ def test_cabecalho_diz_o_estado():
 def test_cada_tabela_nasce_fechada(tabela):
     assert re.search(rf"alter table public\.{tabela}\s+enable row level security", SQL)
     assert re.search(rf"revoke all on public\.{tabela}\s+from anon, authenticated, public", SQL)
-    assert re.search(rf"revoke delete, truncate on public\.{tabela}\s+from service_role", SQL)
+    assert re.search(rf"revoke delete, truncate, references, trigger on public\.{tabela}\s+"
+                     r"from service_role", SQL)
 
 
 def test_leitura_so_dos_resultados_e_so_para_authenticated():
@@ -115,6 +116,15 @@ def cenario(banco):
                 "on conflict (id_externo) do update set valor_unitario = excluded.valor_unitario",
                 (f"{CONTROLE}#{n}#1", CONTROLE, n, descricao.upper(), descricao, valor, data,
                  uf, Jsonb({})))
+        # cancelado depois da coleta: guardado, fora da busca
+        c.execute(
+            "insert into public.precos_pncp_resultados (id_externo, numero_controle, "
+            "numero_item, descricao, descricao_busca, unidade, quantidade, valor_unitario, "
+            "data_resultado, uf, bruto, hash_linha, versao_coletor, vigente, "
+            "invalidado_motivo) values (%s, %s, 4, 'CIMENTO CP 4', 'cimento cp 4', 'UN', 10, "
+            "40, '2026-10-01', 'PA', %s, 'h', 'v', false, 'revisita') "
+            "on conflict (id_externo) do nothing",
+            (f"{CONTROLE}#4#1", CONTROLE, Jsonb({})))
         voltar_a_ser_servidor(c)
     banco.commit()
     return {}
@@ -152,6 +162,17 @@ def test_filtros_de_uf_e_janela(banco, cenario):
 
 
 @requer_pg
+def test_busca_tem_teto_de_termos(banco, cenario):
+    # 24 termos no máximo: o 25º não alcança a busca (custo da RPC exposta)
+    vinte_e_quatro = [f"inexistente{n}" for n in range(24)]
+    assert _como(banco, BUSCA, (vinte_e_quatro + ["cimento"], None, None, None, 10)) == (None, [])
+    erro, linhas = _como(banco, BUSCA, (vinte_e_quatro[:23] + ["cimento"], None, None, None, 10))
+    assert erro is None and len(linhas) == 2
+    erro, linhas = _como(banco, BUSCA, (["x" * 5000], None, None, None, 10))
+    assert erro is None and linhas == []
+
+
+@requer_pg
 def test_anon_nao_le_nem_executa(banco, cenario):
     assert _como(banco, BUSCA, (["cimento"], None, None, None, 10), papel="anon", jwt="{}")[0] == "42501"
     for tabela in TABELAS:
@@ -169,7 +190,8 @@ def test_anon_nao_le_nem_executa(banco, cenario):
 ])
 def test_usuario_so_le_os_resultados(banco, cenario, sql):
     assert _como(banco, sql)[0] == "42501"
-    assert _como(banco, "select count(*) from public.precos_pncp_resultados") == (None, [(3,)])
+    # 3 vigentes + a invalidada na revisita: o usuário LÊ a tabela inteira
+    assert _como(banco, "select count(*) from public.precos_pncp_resultados") == (None, [(4,)])
 
 
 @requer_pg
@@ -191,6 +213,8 @@ MUTACOES = [
     ("grant truncate on public.precos_pncp_cursores to service_role", "service_role_apaga"),
     ("grant delete on public.precos_pncp_resultados to service_role", "service_role_apaga"),
     ("revoke insert on public.precos_pncp_resultados from service_role", "service_role_sem_escrita"),
+    ("grant trigger on public.precos_pncp_resultados to service_role", "service_role_gatilho_ou_fk"),
+    ("grant references on public.precos_pncp_contratacoes to service_role", "service_role_gatilho_ou_fk"),
     ("create policy p on public.precos_pncp_contratacoes for select to authenticated using (true)",
      "politica_fora_do_previsto"),
     ("drop policy precos_pncp_resultados_leitura on public.precos_pncp_resultados",

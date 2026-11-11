@@ -74,6 +74,11 @@ FORA_DO_PILOTO = "fora_do_piloto"   # publicada pelo Compras.gov
 FALHA = "falha"                  # esgotou as tentativas
 
 ITEM_NAO_HOMOLOGADO = "ITEM_NAO_HOMOLOGADO"
+# Na revisita, o resultado indexado antes não voltou como homologado
+# conferível: cancelado, revogado ou corrigido depois da coleta.
+MOTIVO_REVISITA = ("não confirmado na revisita da contratação (resultado "
+                   "cancelado, revogado ou corrigido no PNCP depois da "
+                   "coleta)")
 RESULTADO_NAO_CONFERIVEL = "RESULTADO_CANCELADO_OU_TOTAL_INCOERENTE"
 
 
@@ -213,6 +218,9 @@ class Armazem(Protocol):
 
     def gravar_resultados(self, linhas: list[dict]) -> None: ...
 
+    def invalidar(self, numero_controle: str, *, manter: set[str],
+                  itens: set[int] | None, motivo: str) -> int: ...
+
     def buscar(self, termos: list[str], *, uf: str | None, desde: date | None,
                ate: date | None, limite: int) -> list[dict]: ...
 
@@ -266,13 +274,31 @@ class ArmazemEmMemoria:
     def gravar_resultados(self, linhas):
         agora = datetime.now(timezone.utc).isoformat(timespec="seconds")
         for linha in linhas:
-            self.resultados[linha["id_externo"]] = {"coletado_em": agora,
-                                                    **linha}
+            self.resultados[linha["id_externo"]] = {
+                "coletado_em": agora, **linha, "vigente": True,
+                "invalidado_em": None, "invalidado_motivo": ""}
+
+    def invalidar(self, numero_controle, *, manter, itens, motivo):
+        agora = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        feitas = 0
+        for linha in self.resultados.values():
+            if linha.get("numero_controle") != numero_controle \
+                    or linha["id_externo"] in manter \
+                    or linha.get("vigente", True) is False \
+                    or (itens is not None
+                        and int(linha.get("numero_item") or 0) not in itens):
+                continue
+            linha.update(vigente=False, invalidado_em=agora,
+                         invalidado_motivo=motivo)
+            feitas += 1
+        return feitas
 
     def buscar(self, termos, *, uf=None, desde=None, ate=None, limite=50):
         procurados = set(termos)
         achados = []
         for linha in self.resultados.values():
+            if linha.get("vigente", True) is False:
+                continue
             if uf and (linha.get("uf") or "").upper() != uf.upper():
                 continue
             data = str(linha.get("data_resultado") or "")[:10]
@@ -310,6 +336,7 @@ class Rodada:
     itens_lidos: int = 0
     resultados: int = 0           # linhas brutas de resultado lidas
     validos: int = 0              # gravados no índice
+    invalidados: int = 0          # saíram da busca na revisita
     quarentena: Counter = field(default_factory=Counter)
     falhas: list[str] = field(default_factory=list)
     interrompida: bool = False    # parou pelo orçamento; a próxima continua
@@ -507,11 +534,17 @@ class Coletor:
                 break
             pagina += 1
         lidos_ate = int(contratacao.get("itens_lidos_ate") or 0)
+        # leitura COMPLETA (primeira, ou revisita depois de atualização):
+        # no fim, o que estava no índice e não foi confirmado agora sai da
+        # busca. Retomada no meio só invalida item a item — os anteriores
+        # foram confirmados na rodada que parou.
+        completa = lidos_ate == 0
         fila = sorted((i for i in itens if i.get("temResultado")
                        and int(i.get("numeroItem") or 0) > lidos_ate),
                       key=lambda i: int(i.get("numeroItem") or 0))
         resumo = contratacao.get("resumo") or {}
         validos = int(contratacao.get("resultados_validos") or 0)
+        confirmados: set[str] = set()
         for item in fila:
             numero = int(item.get("numeroItem") or 0)
             linhas = self._json(f"{base}/{numero}/resultados") or []
@@ -525,12 +558,23 @@ class Coletor:
                     gravar.append(linha)
             if gravar:
                 self.armazem.gravar_resultados(gravar)
+            do_item = {linha["id_externo"] for linha in gravar}
+            confirmados |= do_item
+            self.rodada.invalidados += self.armazem.invalidar(
+                controle, manter=do_item, itens={numero},
+                motivo=MOTIVO_REVISITA)
             validos += len(gravar)
             self.rodada.validos += len(gravar)
             self.rodada.itens_lidos += 1
             # o ponto de retomada é o item: parar aqui não relê os anteriores
             self.armazem.salvar_contratacao(
                 controle, itens_lidos_ate=numero, resultados_validos=validos)
+        if completa:
+            # item que perdeu o resultado (cancelado, revogado, corrigido)
+            # nem entra na fila: sai da busca aqui
+            self.rodada.invalidados += self.armazem.invalidar(
+                controle, manter=confirmados, itens=None,
+                motivo=MOTIVO_REVISITA)
         self.rodada.contratacoes_lidas += 1
         com_resultado = any(i.get("temResultado") for i in itens)
         self.armazem.salvar_contratacao(
@@ -587,7 +631,8 @@ class PNCPIndice(FontePesquisaPreco):
         procurados = {t.upper() for t in termos}
         recusadas = 0
         for linha in linhas:
-            if not isinstance(linha, dict) or not _casa(
+            if not isinstance(linha, dict) or linha.get("vigente") is False \
+                    or not _casa(
                     procurados, _tokens(str(linha.get("descricao") or ""))):
                 continue
             referencia = referencia_da_linha(linha)

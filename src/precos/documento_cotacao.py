@@ -650,6 +650,9 @@ def _celula_fonte(ref: ReferenciaView) -> list[T]:
     partes = [T(ref.fonte, negrito=True)]
     if ref.inciso:
         partes.append(T(f" · inc. {ref.inciso}", cor=SECUNDARIO))
+    if ref.origem_canal:
+        partes.append(T(ref.origem_canal, quebra_antes=True, cor=SECUNDARIO,
+                        pt=7.5))
     partes.append(T(ref.id_externo, link=ref.link, quebra_antes=True,
                     cor=SECUNDARIO, pt=7.5))
     return partes
@@ -843,6 +846,8 @@ def _detalhe_do_item(d: Documento, view: CotacaoReportView,
         d.tabela(colunas, [[
             str(n), r.data, _celula_origem(r),
             [T(r.fonte, negrito=True, pt=7.5),
+             *([T(r.origem_canal, quebra_antes=True, cor=SECUNDARIO, pt=7)]
+               if r.origem_canal else []),
              T((f"inc. {r.inciso} · " if r.inciso else "") + r.natureza,
                quebra_antes=True, cor=SECUNDARIO, pt=7)],
             _celula_preco(r), _celula_contratacao(r),
@@ -1113,6 +1118,8 @@ def _linhas_do_anexo(item: ItemView) -> tuple[list[list[Trechos]], list]:
         linhas.append([
             str(n), situacao,
             [T(r.fonte, negrito=True),
+             *([T(r.origem_canal, quebra_antes=True, cor=SECUNDARIO, pt=7)]
+               if r.origem_canal else []),
              T(f"inc. {r.inciso} · {r.natureza}" if r.inciso else r.natureza,
                quebra_antes=True, cor=SECUNDARIO, pt=7)],
             [T(r.orgao), T(" · ".join(x for x in (r.uf, r.data) if x),

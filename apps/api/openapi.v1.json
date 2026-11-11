@@ -6191,6 +6191,11 @@
       },
       "govconect_api__precos__Referencia": {
         "properties": {
+          "canal": {
+            "default": "",
+            "title": "Canal",
+            "type": "string"
+          },
           "coletado_em": {
             "title": "Coletado Em",
             "type": "string"
@@ -6303,8 +6308,18 @@
             ],
             "title": "Orgao"
           },
+          "origem": {
+            "default": "",
+            "title": "Origem",
+            "type": "string"
+          },
           "rotulo_contratacao": {
             "title": "Rotulo Contratacao",
+            "type": "string"
+          },
+          "rotulo_origem": {
+            "default": "",
+            "title": "Rotulo Origem",
             "type": "string"
           },
           "status": {
