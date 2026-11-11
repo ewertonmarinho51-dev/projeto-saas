@@ -193,7 +193,7 @@ def test_rodar_de_novo_sem_mudanca_nao_refaz_nada():
     assert coletor.rodada.contratacoes_lidas == 0
     cursor = armazem.cursor("PA", 6)
     assert cursor["data_final"] == "2026-10-15"
-    assert cursor["data_inicial"] == "2026-08-16"     # recuou a revisita
+    assert cursor["data_inicial"] == "2026-06-02"     # 120 dias antes do fim anterior
 
 
 def test_contratacao_atualizada_volta_para_a_fila():
@@ -209,6 +209,99 @@ def test_contratacao_atualizada_volta_para_a_fila():
     assert coletor.rodada.novas == 1 and coletor.rodada.contratacoes_lidas == 1
     assert Decimal(armazem.resultados[f"{CIMENTO}#1#1"]["valor_unitario"]) == 40
     assert len(armazem.resultados) == 5      # substituído, não duplicado
+
+
+def test_piloto_so_com_pregoes_e_janela_de_120_dias():
+    from src.precos import pncp_indice_servico as servico
+    # 6 = pregão eletrônico, 7 = pregão presencial; 8 (dispensa) fora
+    assert indice.MODALIDADES_PADRAO == (6, 7)
+    assert indice.REVISITA_DIAS == 120
+    import argparse
+    p = argparse.ArgumentParser()
+    servico.argumentos_do_ciclo(p)
+    a = p.parse_args([])
+    assert (a.modalidades, a.dias, a.recomecar) == ([6, 7], 120, False)
+
+
+def test_dispensa_descoberta_nao_tem_item_lido():
+    contratacoes = copy.deepcopy(FIXTURE["contratacoes"])
+    contratacoes[0]["contratacao"]["modalidadeId"] = 8
+    api = ApiFalsa(contratacoes)
+    fora = _indexar(api)
+    assert fora.rodada.fora_do_piloto == 1 and fora.rodada.novas == 2
+    assert fora.armazem.contratacao(CIMENTO)["estado"] == indice.FORA_DO_PILOTO
+    cnpj, ano, seq = pncp.controle_da_entrada(CIMENTO)
+    assert not api.de(f"/orgaos/{cnpj}/compras/{ano}/{seq}/")
+    assert not any(k.startswith(CIMENTO) for k in fora.armazem.resultados)
+
+
+def test_dispensa_que_ja_estava_na_fila_sai_sem_chamada_nem_vaga():
+    api, armazem = ApiFalsa(), indice.ArmazemEmMemoria()
+    coletor = _coletor(api, armazem)
+    coletor.descobrir("PA", modalidades=(6,), ate=ATE)
+    # dispensas da fila antiga, na FRENTE (homologadas e mais recentes)
+    for n in range(3):
+        armazem.salvar_contratacao(
+            f"11111111000111-1-00000{n}/2026", modalidade_id=8,
+            estado=indice.PENDENTE, tem_homologacao=True,
+            atualizacao_global="2026-12-31T00:00:00")
+    antes = len(api.chamadas)
+    coletor.coletar(max_contratacoes=3)
+    assert coletor.rodada.fora_do_piloto == 3
+    assert coletor.rodada.contratacoes_lidas == 3     # as 3 vagas, dos pregões
+    assert not any("11111111000111" in u for u in api.chamadas[antes:])
+    assert {c["estado"] for c in armazem.contratacoes.values()
+            if c.get("modalidade_id") == 8} == {indice.FORA_DO_PILOTO}
+
+
+def test_contratacao_que_falha_aparece_uma_vez_por_rodada():
+    api, armazem = ApiFalsa(), indice.ArmazemEmMemoria()
+    _coletor(api, armazem).descobrir("PA", modalidades=(6,), ate=ATE)
+
+    def quebrada(url):
+        if "/itens" in url:
+            raise urllib.error.HTTPError(url, 404, "x", {}, None)
+        return api(url)
+    coletor = _coletor(quebrada, armazem)
+    coletor.coletar(max_contratacoes=10)
+    assert len(coletor.rodada.falhas) == 3            # uma por contratação
+    assert {c["estado"] for c in armazem.contratacoes.values()} == {indice.PENDENTE}
+
+
+def test_recomecar_refaz_a_janela_inteira_de_um_indice_existente():
+    api, armazem = ApiFalsa(), indice.ArmazemEmMemoria()
+    _indexar(api, armazem)                   # 1ª janela: 30 dias
+    antes = len(api.chamadas)
+    coletor = _coletor(api, armazem)
+    coletor.descobrir("PA", modalidades=(6,), ate=ATE)
+    assert len(api.chamadas) == antes        # sem recomeçar: janela já feita
+    coletor.descobrir("PA", modalidades=(6,), ate=ATE, dias=120, recomecar=True)
+    consultas = [urllib.parse.parse_qs(urllib.parse.urlsplit(u).query)
+                 for u in api.chamadas[antes:]]
+    assert {c["dataInicial"][0] for c in consultas} == {"20260602"}
+    assert [c["pagina"] for c in consultas] == [["1"], ["2"]]
+    cursor = armazem.cursor("PA", 6)
+    assert (cursor["data_inicial"], cursor["concluido"]) == ("2026-06-02", True)
+    assert coletor.rodada.novas == 0         # idempotente: nada duplicado
+
+
+def test_ciclo_recomeca_so_na_primeira_rodada(monkeypatch):
+    from src.precos import pncp_indice_servico as servico
+    vistos = []
+    monkeypatch.setattr(servico, "rodada",
+                        lambda armazem, uf, **kw: vistos.append(kw["recomecar"])
+                        or {"uf": uf})
+
+    class Fim(Exception):
+        pass
+
+    def dormir(_):
+        if len(vistos) >= 4:
+            raise Fim
+    with pytest.raises(Fim):
+        servico.ciclo(indice.ArmazemEmMemoria(), ["PA", "AP"], intervalo_s=1,
+                      uma_vez=False, dormir=dormir, recomecar=True)
+    assert vistos == [True, True, False, False]
 
 
 def test_compras_gov_fica_fora_do_piloto_por_padrao():
