@@ -381,22 +381,32 @@ export function BuscaDoItem({
       subtitle="A descrição do item continua sendo a referência de comparação; o termo só amplia a consulta às fontes oficiais."
       divided
     >
-      <form action={acao} className="grid gap-4 md:grid-cols-[3fr_1fr_1fr]" data-testid="busca-item">
-        <Field label="Termo da busca" htmlFor="busca-termo">
-          <Input id="busca-termo" name="termo" defaultValue={termo} maxLength={300} />
-        </Field>
-        <Field label="Período das compras" htmlFor="busca-janela">
-          <Select
-            id="busca-janela"
-            name="janela"
-            options={JANELAS_DA_BUSCA}
-            defaultValue={String(JANELA_PADRAO_DIAS)}
-          />
-        </Field>
-        <Field label="UF" htmlFor="busca-uf" optional>
-          <Input id="busca-uf" name="uf" maxLength={2} defaultValue={uf} />
-        </Field>
-        <div className="md:col-span-3">
+      {/* A largura que decide é a do CARTÃO, não a da janela: na coluna do
+          meio, entre Itens e Cesta, o cartão é estreito mesmo em 1366 px.
+          Termo, período e UF numa linha quando cabem; senão o termo ganha a
+          linha e período e UF vão para a de baixo; no estreito, um por linha.
+          `items-end` alinha os controles pela base mesmo se um rótulo quebrar. */}
+      <form action={acao} className="@container grid gap-4" data-testid="busca-item">
+        <div
+          className="grid items-end gap-4 @sm:grid-cols-[minmax(calc(var(--space-16)*3),1fr)_calc(var(--space-16)*1.75)] @2xl:grid-cols-[minmax(0,1fr)_calc(var(--space-16)*3)_calc(var(--space-16)*1.75)]"
+          data-testid="busca-campos"
+        >
+          <Field label="Termo da busca" htmlFor="busca-termo" className="@sm:col-span-2 @2xl:col-span-1">
+            <Input id="busca-termo" name="termo" defaultValue={termo} maxLength={300} />
+          </Field>
+          <Field label="Período das compras" htmlFor="busca-janela">
+            <Select
+              id="busca-janela"
+              name="janela"
+              options={JANELAS_DA_BUSCA}
+              defaultValue={String(JANELA_PADRAO_DIAS)}
+            />
+          </Field>
+          <Field label="UF" htmlFor="busca-uf" optional>
+            <Input id="busca-uf" name="uf" maxLength={2} defaultValue={uf} />
+          </Field>
+        </div>
+        <div>
           <Field
             label="Contratação similar no PNCP"
             htmlFor="busca-pncp"
@@ -406,7 +416,7 @@ export function BuscaDoItem({
             <Input id="busca-pncp" name="contratacao_pncp" maxLength={300} autoComplete="off" />
           </Field>
         </div>
-        <div className="grid gap-3 md:col-span-3">
+        <div className="grid gap-3">
           <Retorno estado={estado} />
           <div className="flex flex-wrap gap-2">
             <Button type="submit" name="modo" value="manual" variant="secondary" icon="magnifying-glass" loading={enviando}>

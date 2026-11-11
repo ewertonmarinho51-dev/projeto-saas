@@ -112,7 +112,7 @@ export { ValidationSummary, type Severity, type ValidationIssue, type Validation
 // templates (composições de página, do ui_kit do export)
 export { AppShell, type AppShellProps } from "./templates/AppShell";
 export { AuthLayout, type AuthLayoutProps } from "./templates/AuthLayout";
-export { DocumentWorkspace, type DocumentWorkspaceProps, type SaveTone } from "./templates/DocumentWorkspace";
+export { DocumentWorkspace, type DocumentWorkspaceProps, type SaveTone, type WorkspaceTool } from "./templates/DocumentWorkspace";
 export { LandingHero, type LandingHeroProps, type LandingLink } from "./templates/LandingHero";
 export { NavigationProgress, type NavigationProgressProps } from "./templates/NavigationProgress";
 export { PageHead, type PageHeadProps } from "./templates/PageHead";

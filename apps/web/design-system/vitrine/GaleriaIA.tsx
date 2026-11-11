@@ -23,6 +23,7 @@ import {
   ConversationList,
   DataList,
   DocumentWorkspace,
+  IconButton,
   ExclusionDialog,
   Field,
   Input,
@@ -46,6 +47,7 @@ import {
   ScreeningSummary,
   SourceList,
   SourcePicker,
+  Textarea,
   TraceabilityPanel,
   UserCard,
   ValidationSummary,
@@ -79,6 +81,39 @@ const MENU: SidebarGroup[] = [
   },
 ];
 
+// O caso do print: centenas de itens, descrição sem espaço e número de três
+// algarismos, num cartão de 256 px. A prova mede que nada sai do cartão.
+const SITUACOES = ["done", "review", "pending", "blocked"] as const;
+const DESCRICOES = [
+  "Papel sulfite A4 75 g/m², alcalino, pacote com 500 folhas",
+  "MEDICAMENTO_DIPIRONA_SODICA_500MG_ML_SOLUCAO_ORAL_FRASCO_GOTEJADOR_20ML",
+  "Luva de procedimento não cirúrgico, látex, tamanho M, caixa com 100 unidades, ambidestra",
+];
+const ITENS_DO_PRINT = itensDoPrint();
+function itensDoPrint() {
+  return Array.from({ length: 383 }, (_, i) => ({
+    id: i + 1,
+    n: String(i + 1).padStart(2, "0"),
+    title: DESCRICOES[i % DESCRICOES.length],
+    unit: i % 3 ? "UN" : "CAIXA COM 100 UNIDADES",
+    value: i % 2 ? "R$ 1.234.567,89" : undefined,
+    status: SITUACOES[i % SITUACOES.length],
+  }));
+}
+
+// Texto longo o bastante para rolar dentro da área do documento.
+const TEXTO_DO_DOCUMENTO = Array.from(
+  { length: 60 },
+  (_, i) => `${i + 1}. A contratação atende à demanda descrita no DFD, conforme o art. 18 da Lei nº 14.133/2021.`,
+).join("\n");
+
+const FERRAMENTAS = [
+  { id: "estrutura", icon: "clipboard-text", label: "Estrutura" },
+  { id: "evidencias", icon: "book-open", label: "Evidências" },
+  { id: "historico", icon: "clock", label: "Histórico" },
+  { id: "revisao", icon: "seal-check", label: "Revisão" },
+] as const;
+
 const EIXO_DE_PRECOS = {
   min: 0,
   max: 50,
@@ -90,6 +125,9 @@ export function GaleriaIA({ tema }: { tema: string }) {
   const [filtro, setFiltro] = useState<ScreeningKey | null>(null);
   const [fontes, setFontes] = useState(["pncp", "compras"]);
   const [item, setItem] = useState<string | number>(1);
+  const [itemLongo, setItemLongo] = useState<string | number>(200);
+
+  const [ferramenta, setFerramenta] = useState<string | null>("revisao");
   const [cesta, setCesta] = useState([true, true, false]);
   const [exclusao, setExclusao] = useState<string | null>(null);
 
@@ -235,6 +273,15 @@ export function GaleriaIA({ tema }: { tema: string }) {
                 { id: 4, n: "04", title: "Toner compatível", unit: "UN", refs: 4, status: "blocked" },
               ]}
             />
+          </Exemplo>
+          <Exemplo rotulo="PriceItemNav: 383 itens no cartão Itens (rola dentro)">
+            <div data-prova="itemnav-estreito" className="w-[calc(var(--space-16)*4)] max-w-full">
+              <Card title="Itens" flush actions={<Badge size="sm">{ITENS_DO_PRINT.length}</Badge>}>
+                <div className="px-2 pb-3 [--gc-itemnav-max:calc(var(--space-16)*6)]">
+                  <PriceItemNav scroll activeId={itemLongo} onSelect={setItemLongo} items={ITENS_DO_PRINT} />
+                </div>
+              </Card>
+            </div>
           </Exemplo>
           <Exemplo rotulo="ScreeningSummary — filtra a lista">
             <ScreeningSummary counts={{ total: 5, valid: 3, attention: 1, discrepant: 1, excluded: 0 }} active={filtro} onFilter={setFiltro} />
@@ -495,9 +542,9 @@ export function GaleriaIA({ tema }: { tema: string }) {
             </div>
           </Palco>
         </Exemplo>
-        <Exemplo rotulo="DocumentWorkspace: salvo, com painel de revisão" largo>
+        <Exemplo rotulo="DocumentWorkspace: trilho lateral, um painel por vez" largo>
           <Palco alto>
-            <div className="flex h-full flex-col">
+            <div className="flex h-full flex-col" data-prova="workspace-trilho">
               <DocumentWorkspace
                 back={
                   <Button size="sm" variant="ghost" icon="arrow-left">
@@ -506,29 +553,37 @@ export function GaleriaIA({ tema }: { tema: string }) {
                 }
                 kicker="DFD"
                 title="Documento de Formalização da Demanda"
-                meta={
-                  <>
-                    <Badge size="sm">Rascunho</Badge>
-                    <Badge size="sm">Revisão 4</Badge>
-                  </>
-                }
+                meta={<Badge size="sm">Rascunho</Badge>}
                 save={{ tone: "success", label: "Salvo · revisão 4" }}
                 actions={
-                  <Button size="sm" variant="subtle" icon="seal-check" aria-pressed>
-                    Revisão
-                  </Button>
+                  <>
+                    <Button size="sm" variant="secondary" icon="download-simple" iconRight="caret-down">
+                      Exportar
+                    </Button>
+                    <IconButton size="sm" icon="eye-slash" label="Modo foco" />
+                  </>
                 }
-                panelTitle="Revisão e aprovação"
+                tools={[...FERRAMENTAS]}
+                activeTool={ferramenta}
+                onToolChange={setFerramenta}
+                panelTitle={FERRAMENTAS.find((f) => f.id === ferramenta)?.label}
                 panel={
-                  <DataList
-                    items={[
-                      { label: "Situação", value: "Rascunho" },
-                      { label: "Revisão salva", value: 4, numeric: true },
-                    ]}
-                  />
+                  ferramenta ? (
+                    <DataList
+                      items={[
+                        { label: "Situação", value: "Rascunho" },
+                        { label: "Revisão salva", value: 4, numeric: true },
+                      ]}
+                    />
+                  ) : null
                 }
               >
-                <div className="grid h-full place-items-center text-sm text-[var(--text-tertiary)]">Área do editor nativo</div>
+                {/* Estado que um remonte perderia: texto digitado e rolagem. */}
+                <Textarea
+                  aria-label="Área do documento"
+                  className="absolute inset-0 h-full w-full resize-none rounded-none border-0"
+                  defaultValue={TEXTO_DO_DOCUMENTO}
+                />
               </DocumentWorkspace>
             </div>
           </Palco>
