@@ -443,7 +443,7 @@ def completo(pesquisa: dict, itens: list[dict],
     filtros = pesquisa.get("filtros") or {}
     from .execucao import janela_efetiva
 
-    # a janela EFETIVA: uma pesquisa gravada com 365 dias consulta 180
+    # a janela EFETIVA: uma pesquisa gravada com mais de 365 dias consulta 365
     janela = janela_efetiva(filtros) if filtros.get("janela_dias") else None
     ad(f"- **Janela temporal:** últimos {janela} dias contados da "
        f"data-base" if janela else "- **Janela temporal:** " + AUSENTE)

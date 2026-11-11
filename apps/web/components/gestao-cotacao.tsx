@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
 
-import { Alert, Button, Card, Dialog, Field, Input, Textarea } from "@/design-system";
+import { Alert, Button, Card, Dialog, Field, Input, Select, Textarea } from "@/design-system";
 import {
   arquivarPesquisa,
   buscarItem,
@@ -18,6 +18,7 @@ import {
   type EstadoDaGestao,
 } from "@/app/app/precos/gestao";
 import { useJob } from "@/components/acompanhar-job";
+import { JANELA_PADRAO_DIAS, JANELAS_DA_BUSCA } from "@/components/precos";
 import type { AlertaDePreco, ItemDePesquisa } from "@/lib/api";
 
 const INICIAL: EstadoDaGestao = { erro: null, ok: null };
@@ -384,8 +385,13 @@ export function BuscaDoItem({
         <Field label="Termo da busca" htmlFor="busca-termo">
           <Input id="busca-termo" name="termo" defaultValue={termo} maxLength={300} />
         </Field>
-        <Field label="Janela (dias)" htmlFor="busca-janela" help="De 30 a 180">
-          <Input id="busca-janela" name="janela" type="number" min={30} max={180} step={30} defaultValue={180} />
+        <Field label="Período das compras" htmlFor="busca-janela">
+          <Select
+            id="busca-janela"
+            name="janela"
+            options={JANELAS_DA_BUSCA}
+            defaultValue={String(JANELA_PADRAO_DIAS)}
+          />
         </Field>
         <Field label="UF" htmlFor="busca-uf" optional>
           <Input id="busca-uf" name="uf" maxLength={2} defaultValue={uf} />

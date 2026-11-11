@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { JANELA_PADRAO_DIAS } from "@/components/precos";
 import { chamarApi, ErroDaApi } from "@/lib/api";
 
 /**
@@ -201,7 +202,7 @@ export async function buscarItem(
         item_id: item,
         termo: texto(form, "termo", 300),
         filtros: {
-          janela_dias: Number.isFinite(janela) ? janela : 180,
+          janela_dias: Number.isFinite(janela) ? janela : JANELA_PADRAO_DIAS,
           uf: texto(form, "uf", 2),
         },
         ...(contratacao ? { contratacao_pncp: contratacao } : {}),
@@ -214,7 +215,7 @@ export async function buscarItem(
       return { erro: "A busca está indisponível no momento. Tente de novo em instantes.", ok: null };
     if (e instanceof ErroDaApi && e.codigo === "PNCP_CONTRACT_INVALID")
       return { erro: "Contratação do PNCP não reconhecida. Informe o número de controle ou o link do edital.", ok: null };
-    if (e instanceof ErroDaApi && e.status === 422) return { erro: "Confira a janela (30 a 180 dias) e a UF.", ok: null };
+    if (e instanceof ErroDaApi && e.status === 422) return { erro: "Confira o período (até 1 ano) e a UF.", ok: null };
     return { erro: mensagem(e), ok: null };
   }
   // O termo volta na URL: o campo mostra o que foi pesquisado, não a

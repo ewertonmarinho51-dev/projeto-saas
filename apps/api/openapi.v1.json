@@ -2192,8 +2192,8 @@
         "description": "Os filtros da busca de UM item (o painel \"Pesquisar preços\" do GovDocs).",
         "properties": {
           "janela_dias": {
-            "default": 180,
-            "maximum": 180.0,
+            "default": 365,
+            "maximum": 365.0,
             "minimum": 30.0,
             "title": "Janela Dias",
             "type": "integer"

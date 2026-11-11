@@ -20,7 +20,7 @@ O dono rodou a mesma cotação no Banco de Preços e aqui. Para "analisador bioq
 2. Entram só pregões eletrônicos e presenciais encerrados, com resultado, não cancelados e da UF da pesquisa. Sem UF, a busca é nacional. A dispensa fica fora, pelo mesmo motivo do índice: dado pessoal.
 3. Cada contratação passa por `pncp.PNCPContratacao` (a conferência de #187) com o cabeçalho que a busca já trouxe, sem chamada à API de consulta. Só entram os itens que **começam** pelo nome do item consultado e contêm o qualificador. Assim saem, medido em produção: "lâmpada… para analisador", "desproteinizante para analisador", o analisador de hematologia, "papeleira" e "envelope em papel".
 4. O resultado só vira referência se unitário × quantidade bater com o total, se não for julgado por maior desconto e se não estiver cancelado.
-5. Referência fora da janela da pesquisa não entra. A janela continua sendo a da **pesquisa**, 180 dias por orientação do órgão em 14/10/2026; esta fonte não a altera.
+5. Referência fora da janela da pesquisa não entra. A janela continua sendo a da **pesquisa**, e esta fonte não a altera. Desde 11/11/2026 ela é de **1 ano** (IN 65/2021, art. 5º, II), por decisão do dono, como no Banco de Preços; antes, 180 dias.
 6. A fonte para ao atingir 15 referências (ou o limite por fonte da política), lendo no máximo 16 contratações e 2 itens por contratação.
 
 ## Limite de taxa

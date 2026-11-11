@@ -22,22 +22,31 @@ from src.precos.estados import EstadoItem
 # ---------------------------------------------------------------------------
 # janela de 180 dias
 # ---------------------------------------------------------------------------
-def test_janela_padrao_e_a_validade_das_cotacoes():
-    assert execucao.JANELA_PADRAO_DIAS == 180
-    assert execucao.janela_efetiva({}) == 180
+def test_janela_padrao_e_um_ano_da_in_65():
+    # 11/11/2026: 1 ano (IN 65/2021, art. 5º, II), como o Banco de Preços;
+    # antes, 180 dias
+    assert execucao.JANELA_PADRAO_DIAS == execucao.JANELA_MAXIMA_DIAS == 365
+    assert execucao.janela_efetiva({}) == 365
 
 
-def test_pesquisa_gravada_com_365_dias_consulta_180():
-    assert execucao.janela_efetiva({"janela_dias": 365}) == 180
+def test_janela_pedida_acima_do_ano_consulta_365():
+    assert execucao.janela_efetiva({"janela_dias": 730}) == 365
+    assert execucao.janela_efetiva({"janela_dias": 180}) == 180
     assert execucao.janela_efetiva({"janela_dias": 90}) == 90
+
+
+def test_cotacao_direta_segue_com_seis_meses():
+    from src.precos import cotacao
+
+    assert cotacao.VALIDADE_DIAS == 180
 
 
 def test_a_consulta_leva_a_janela_efetiva():
     consulta = execucao.consulta_do_item(
         {"descricao": "CANETA", "codigo": "275111", "tipo_catalogo": "CATMAT"},
-        {"janela_dias": 365, "data_base": "2026-10-14"})
+        {"janela_dias": 730, "data_base": "2026-10-14"})
     assert consulta.data_final == date(2026, 10, 14)
-    assert (consulta.data_final - consulta.data_inicial).days == 180
+    assert (consulta.data_final - consulta.data_inicial).days == 365
 
 
 # ---------------------------------------------------------------------------

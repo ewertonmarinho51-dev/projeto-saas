@@ -58,13 +58,15 @@ from .perfil import PADRAO, PerfilNormativo
 # reruns e fica mais lento no total.
 LOTE_PADRAO = 5
 
-# Janela temporal da consulta: 180 dias, que é a validade das cotações
-# adotada pelo órgão (orientação do operador, 14/10/2026). É também o
-# TETO: uma pesquisa gravada antes com 365 dias passa a consultar 180,
-# porque referência além disso não sustenta o preço estimado. O
-# relatório mostra a janela efetiva, não a pedida.
-JANELA_PADRAO_DIAS = 180
-JANELA_MAXIMA_DIAS = 180
+# Janela temporal da consulta: 1 ano, o período que a IN SEGES/ME 65/2021
+# (art. 5º, II) admite para contratações similares — o mesmo do Banco de
+# Preços. Decisão do dono em 11/11/2026; antes eram 180 dias, a validade
+# das cotações adotada pelo órgão em 14/10/2026. É também o TETO: pesquisa
+# gravada com janela maior consulta 365. O relatório mostra a janela
+# efetiva, não a pedida. A cotação DIRETA com fornecedor segue com 6 meses
+# (inciso IV, `cotacao.VALIDADE_DIAS`).
+JANELA_PADRAO_DIAS = 365
+JANELA_MAXIMA_DIAS = 365
 
 
 def janela_efetiva(filtros: dict | None) -> int:
