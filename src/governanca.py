@@ -361,6 +361,14 @@ FLAG_RELATORIO_VISUAL = "precos_relatorio_visual"
 # referência gravada ou decisão humana.
 FLAG_TETO_AUTOMATICO = "cotacao_automatica_teto"
 
+# Índice do PNCP por descrição (piloto de 10/11/2026, começando pelo Pará):
+# com a flag ligada, a busca do item consulta também os resultados
+# homologados indexados em `precos_pncp_resultados` (0042), coletados fora
+# do clique por `scripts/indexar_pncp.py`. Nasce DESLIGADA; falha na
+# leitura da flag NÃO liga a fonte. Desligar tira a fonte da próxima
+# busca, sem tocar em referência gravada.
+FLAG_PNCP_INDICE = "price_source_pncp_indice"
+
 # Saneamento pré-cesta (pacote Jev de 17/10/2026): antes da cesta
 # automática, cada item passa pela triagem de `precos.saneamento` —
 # invalidação objetiva e suspeita estatística corroborada; o Jev entra

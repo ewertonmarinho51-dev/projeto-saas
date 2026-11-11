@@ -609,9 +609,27 @@ def diagnostico_da_coleta(coleta: busca.Coleta, consideradas: int,
 
 
 def _fontes_padrao():
+    """
+    As fontes de sempre e, com a flag do piloto ligada, o índice do PNCP
+    no lugar do adapter de evidência (os dois respondem por `pncp`; o
+    adapter não traz preço). Flag ilegível = fonte nova desligada.
+    """
     from . import fontes_padrao
 
-    return fontes_padrao()
+    fontes = fontes_padrao()
+    from .. import governanca
+
+    try:
+        ligado = db.flag_ativa(governanca.FLAG_PNCP_INDICE)
+    except Exception:  # noqa: BLE001 — leitura de flag nunca liga fonte
+        ligado = False
+    if ligado:
+        from .pncp import PNCPAdapter
+        from .pncp_indice import PNCPIndice
+
+        fontes = [f for f in fontes if not isinstance(f, PNCPAdapter)]
+        fontes.append(PNCPIndice(repo.buscar_indice_pncp))
+    return fontes
 
 
 def politica_automatica() -> estatistica.PoliticaAmostraAutomatica | None:

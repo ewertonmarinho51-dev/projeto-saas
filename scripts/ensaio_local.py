@@ -188,6 +188,10 @@ SEQUENCIA_EM_ENSAIO = (
     # A 0041 altera `pesquisas_preco` (0021) e redefine a revisão da 0029;
     # pelo glob rodaria antes das duas.
     "0041_pesquisa_destinatario.sql",
+    # A 0042 confere que `anon` e `authenticated` não alcançam o controle da
+    # coleta do PNCP e que `service_role` nasce sem DELETE/TRUNCATE nas três
+    # tabelas: só vale depois das migrações de contenção (0019, 0024).
+    "0042_precos_pncp_indice.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

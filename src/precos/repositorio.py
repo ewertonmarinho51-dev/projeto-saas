@@ -418,6 +418,23 @@ def revisar(pesquisa_id: str, motivo: str = "") -> str:
         raise db._traduzir_erro(exc) from exc  # noqa: SLF001
 
 
+def buscar_indice_pncp(termos: list[str], *, uf: str | None = None,
+                       desde=None, ate=None, limite: int = 50) -> list[dict]:
+    """
+    Resultados homologados do PNCP no índice (0042), por termos da
+    descrição. Lê com o JWT do usuário, pela RPC `precos_pncp_buscar` —
+    nenhuma chamada externa. Erro sobe: quem decide que índice fora não
+    derruba a busca é a fonte (`pncp_indice.PNCPIndice`).
+    """
+    resposta = _cliente().rpc("precos_pncp_buscar", {
+        "p_termos": [str(t) for t in termos],
+        "p_uf": (uf or None) and str(uf).upper(),
+        "p_desde": desde.isoformat() if desde else None,
+        "p_ate": ate.isoformat() if ate else None,
+        "p_limite": int(limite)}).execute()
+    return resposta.data
+
+
 def historico(pesquisa_id: str) -> list[dict]:
     """
     Todas as revisões da mesma pesquisa lógica, da primeira à vigente.
