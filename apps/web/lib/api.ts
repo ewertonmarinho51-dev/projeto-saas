@@ -155,6 +155,10 @@ export type ItemDePesquisa = {
   revisao: number;
   /** A cotação automática segurou sugestões fora da cesta pela regra do CV. */
   revisao_cv?: RevisaoPorCV | null;
+  /** Desfecho da última busca (o que o servidor precisa fazer). */
+  pendencia?: DesfechoDoLote | "";
+  /** Proposta que "Concluir cotação" aceita junto, pelo perfil do órgão. */
+  apta?: boolean;
 };
 
 export type RevisaoPorCV = {

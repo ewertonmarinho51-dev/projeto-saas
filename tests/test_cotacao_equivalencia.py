@@ -316,3 +316,28 @@ def test_oficio_no_catalogo_e_tipo_de_papel_nao_formato():
         ITEM_PAPEL, "PAPEL PARA IMPRESSÃO, TIPO: OFÍCIO, 297 X 210 MM, 75 G/M2",
         convertida=True)
     assert c.classe == equivalencia.EQUIVALENTE
+
+
+def test_orcamento_de_ia_por_execucao_e_ganho_registrado(monkeypatch):
+    from src.precos import semantica
+
+    pedidos = []
+    monkeypatch.setattr(semantica, "sugerir_termos",
+                        lambda motor, item, limite=8: pedidos.append(item["descricao"]) or ["RESMA A4"])
+    orcamento = expansao.Orcamento(1)
+    planos = []
+    for descricao in ("papel sulfite A4 75 g/m²", "papel sulfite A4 90 g/m²"):
+        plano = expansao.Plano({**ITEM, "descricao": descricao}, motor=object(),
+                               cache=expansao.CacheDeTermos(), orcamento=orcamento)
+        plano.fase_inicial()
+        plano.registrar_rendimento(0, 0)
+        plano.proxima_fase()
+        plano.registrar_rendimento(1, 3)
+        plano.proxima_fase()
+        plano.registrar_rendimento(3, 5)
+        planos.append(plano)
+    # um pedido só: o segundo item esbarra no orçamento da execução
+    assert len(pedidos) == 1
+    assert planos[0].ganho_ia == 2 and planos[0].para_registro()["ganho_ia"] == 2
+    assert planos[1].ia_sem_orcamento and planos[1].para_registro()["ia_sem_orcamento"]
+    assert planos[1].termos_ia == ()

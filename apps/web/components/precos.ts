@@ -93,6 +93,43 @@ export const DESFECHOS_DO_LOTE: [DesfechoDoLote, string][] = [
 ];
 
 /**
+ * Ordem da lista: primeiro o que exige atenção do servidor (falha, sem
+ * referência, amostra curta, CV, similaridade), depois as propostas aptas,
+ * por último o concluído. Dentro de cada grupo, a ordem da planilha.
+ */
+const PESO_DA_PENDENCIA: Record<string, number> = {
+  falha_tecnica: 0,
+  consulta_parcial: 1,
+  sem_referencia_compativel: 2,
+  amostra_insuficiente: 3,
+  revisar_cv: 4,
+  revisar_similaridade: 5,
+};
+
+export function prioridadeDoItem(
+  item: Pick<ItemDePesquisa, "estado" | "preco_estimado" | "revisao_cv" | "pendencia" | "apta" | "numero">,
+): [number, number, number] {
+  if (item.estado === "complete") return [3, 0, item.numero];
+  if (item.apta) return [2, 0, item.numero];
+  if (itemPendente(item)) return [0, PESO_DA_PENDENCIA[item.pendencia ?? ""] ?? 6, item.numero];
+  return [1, 0, item.numero];
+}
+
+export function ordenarPorAtencao<T extends Parameters<typeof prioridadeDoItem>[0]>(itens: T[]): T[] {
+  return [...itens].sort((a, b) => {
+    const [x, y] = [prioridadeDoItem(a), prioridadeDoItem(b)];
+    return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+  });
+}
+
+/** Rótulo curto da pendência do item na lista ("" quando não há). */
+export function rotuloDaPendencia(item: Pick<ItemDePesquisa, "estado" | "pendencia" | "apta">): string {
+  if (item.estado === "complete") return "";
+  if (item.apta) return "Proposta apta";
+  return DESFECHOS_DO_LOTE.find(([chave]) => chave === item.pendencia)?.[1] ?? "";
+}
+
+/**
  * Pendente = ainda sem preço proposto defensável: o mesmo critério do
  * "Reprocessar pendentes" no servidor (`execucao.precisa_de_reprocesso`).
  * Concluído nunca é pendente.

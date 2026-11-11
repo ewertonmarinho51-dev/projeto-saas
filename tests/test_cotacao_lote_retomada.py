@@ -9,14 +9,18 @@ O que estas provas guardam:
   compatível, falha técnica), mais os motivos adicionais (consulta parcial);
   indisponibilidade de fonte não se confunde com pesquisa sem preço;
 * a exceção de um item não fica só no retorno do lote: vai para a trilha;
-* "Reprocessar pendentes" pega o item sem preço proposto, com falha ou com
-  CV reprovado — nunca o concluído — e preserva a decisão de pessoa;
-* reprocessar duas vezes não duplica referência (idempotência).
+* a cotação automática volta SOZINHA ao item pendente quando há dado novo
+  aplicável (fonte nova, item alterado, falha transitória) — nunca ao
+  concluído — e preserva a decisão de pessoa;
+* sem dado novo, rodar de novo não refaz nem duplica referência;
+* "Concluir cotação" aceita junto as propostas aptas pelo perfil.
 """
 
 from __future__ import annotations
 
 from decimal import Decimal
+
+import pytest
 
 from src.precos import cotacoes, estados, execucao
 from src.precos import repositorio as repo
@@ -131,11 +135,11 @@ def test_falha_de_um_item_vai_para_a_trilha(monkeypatch):
     assert feito["payload"]["desfecho"] == "pronto_para_revisao"
 
 
-def test_reprocessar_pendentes_preserva_aceito_e_decisao_de_pessoa(monkeypatch):
+def test_dado_novo_reavalia_o_pendente_e_preserva_aceito_e_decisao_de_pessoa(monkeypatch):
     cliente, cid, (i1, i2) = _cotacao(monkeypatch)
+    curta = _Fonte(("24.90", "25.40"))
     # primeira rodada: amostra curta (2 preços) → os dois sem preço proposto
-    cotacoes.pesquisar_em_lote(CTX, cid, modo="automatico", tamanho=5,
-                               fontes=[_Fonte(("24.90", "25.40"))])
+    cotacoes.pesquisar_em_lote(CTX, cid, modo="automatico", tamanho=5, fontes=[curta])
     assert all(execucao.precisa_de_reprocesso(repo.obter_item(i)) for i in (i1, i2))
     # o servidor concluiu i1 (aceite humano, p. ex. com cotação direta)
     next(i for i in cliente.tabelas["pesquisa_preco_itens"]
@@ -144,11 +148,14 @@ def test_reprocessar_pendentes_preserva_aceito_e_decisao_de_pessoa(monkeypatch):
     ref_i2 = repo.listar_referencias(i2)[0]
     cotacoes.alterar_status_referencia(CTX, cid, i2, str(ref_i2["id"]), incluir=False,
                                        motivo="marca fora da especificação")
-    # chegou fonte nova: reprocessar pendentes
+    # sem dado novo, a automática não volta a ninguém
+    resultados, _ = cotacoes.pesquisar_em_lote(CTX, cid, modo="automatico", tamanho=5,
+                                               fontes=[curta])
+    assert resultados == [] and curta.chamadas == 4   # 2 itens × 2 fases, só a 1ª vez
+    # chegou fonte nova (dado aplicável): o pendente volta sozinho
     nova = _Fonte(("25.00", "25.80"), fonte=FONTE_B)
     resultados, _ = cotacoes.pesquisar_em_lote(
-        CTX, cid, modo="automatico", tamanho=5, reprocessar=True,
-        fontes=[_Fonte(("24.90", "25.40")), nova])
+        CTX, cid, modo="automatico", tamanho=5, fontes=[curta, nova])
     assert [r.item_id for r in resultados] == [i2]          # i1 aceito não entra
     assert repo.obter_item(i1)["estado"] == "complete"
     retirada = next(l for l in repo.listar_referencias(i2) if l["id"] == ref_i2["id"])
@@ -156,15 +163,67 @@ def test_reprocessar_pendentes_preserva_aceito_e_decisao_de_pessoa(monkeypatch):
     assert resultados[0].desfecho == "pronto_para_revisao"
 
 
-def test_reprocessar_duas_vezes_nao_duplica_referencia(monkeypatch):
+def test_item_alterado_e_falha_transitoria_reavaliam(monkeypatch):
+    cliente, cid, (i1,) = _cotacao(monkeypatch, n=1)
+    fonte = _Fonte(("24.90",))
+    cotacoes.pesquisar_em_lote(CTX, cid, modo="automatico", tamanho=5, fontes=[fonte])
+    assert cotacoes.pesquisar_em_lote(CTX, cid, modo="automatico", tamanho=5,
+                                      fontes=[fonte])[0] == []
+    # o servidor corrige a descrição: assinatura nova → volta
+    linha = next(i for i in cliente.tabelas["pesquisa_preco_itens"] if str(i["id"]) == i1)
+    linha["descricao"] = "papel sulfite A4 75 g/m², resma com 500 folhas"
+    assert len(cotacoes.pesquisar_em_lote(CTX, cid, modo="automatico", tamanho=5,
+                                          fontes=[fonte])[0]) == 1
+    # falha transitória gravada: volta mesmo sem dado novo
+    ultima = execucao.ultima_busca_por_item(repo.buscas_da_pesquisa(cid))[i1]
+    assert execucao.reavaliar_pendencia(repo.obter_item(i1),
+                                        {**ultima, "desfecho": "falha_tecnica"},
+                                        ultima["assinatura"])
+    assert not execucao.reavaliar_pendencia(repo.obter_item(i1), ultima,
+                                            ultima["assinatura"])
+
+
+def test_rodar_de_novo_sem_dado_novo_nao_duplica_referencia(monkeypatch):
     cliente, cid, _ = _cotacao(monkeypatch, n=1)
     fonte = _Fonte(("24.90", "25.40"))
     cotacoes.pesquisar_em_lote(CTX, cid, modo="automatico", tamanho=5, fontes=[fonte])
     antes = len(cliente.tabelas["pesquisa_preco_referencias"])
     for _ in range(2):
-        cotacoes.pesquisar_em_lote(CTX, cid, modo="automatico", tamanho=5,
-                                   reprocessar=True, fontes=[fonte])
+        cotacoes.pesquisar_em_lote(CTX, cid, modo="automatico", tamanho=5, fontes=[fonte])
     assert len(cliente.tabelas["pesquisa_preco_referencias"]) == antes
+    assert fonte.chamadas == 2          # inicial + variantes locais, uma vez
+
+
+def test_concluir_cotacao_aceita_as_propostas_aptas(monkeypatch):
+    cliente, cid, (apto, curto) = _cotacao(monkeypatch)
+    cotacoes.pesquisar_em_lote(CTX, cid, modo="automatico", tamanho=5, item_ids=[apto],
+                               fontes=[_Fonte()])
+    cotacoes.pesquisar_em_lote(CTX, cid, modo="automatico", tamanho=5, item_ids=[curto],
+                               fontes=[_Fonte(("24.90",))])
+    assert cotacoes.proposta_apta(repo.obter_item(apto))
+    assert not cotacoes.proposta_apta(repo.obter_item(curto))
+    # a cotação não conclui com item faltando, mas a apta foi aceita no ato
+    with pytest.raises(cotacoes.ErroCotacao, match="faltam"):
+        cotacoes.concluir_cotacao(CTX, cid, aceitar_aptas=True)
+    assert repo.obter_item(apto)["estado"] == "complete"
+    aceite = [e for e in cliente.tabelas["pesquisa_preco_eventos"]
+              if e["tipo"] == "item_concluido" and e["item_id"] == apto]
+    assert aceite and "proposta apta" in aceite[0]["descricao"]
+    # sem o aceite das aptas (rota antiga), nada é concluído sozinho
+    cliente2, cid2, (outro,) = _cotacao(monkeypatch, n=1)
+    cotacoes.pesquisar_em_lote(CTX, cid2, modo="automatico", tamanho=5, fontes=[_Fonte()])
+    with pytest.raises(cotacoes.ErroCotacao):
+        cotacoes.concluir_cotacao(CTX, cid2)
+    assert repo.obter_item(outro)["estado"] == "review"
+
+
+def test_proposta_com_cv_reprovado_ou_pendencia_nao_e_apta():
+    base = {"estado": "review", "preco_estimado": "10"}
+    assert cotacoes.proposta_apta(base)
+    assert not cotacoes.proposta_apta({**base, "barreira_cv": {"aprovada": False}})
+    assert not cotacoes.proposta_apta({**base, "estatisticas": {"pendencias": ["discrepante"]}})
+    assert not cotacoes.proposta_apta({**base, "preco_estimado": None})
+    assert not cotacoes.proposta_apta({**base, "estado": "complete"})
 
 
 def test_somas_do_lote_fecham(monkeypatch):

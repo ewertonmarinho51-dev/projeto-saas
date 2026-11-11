@@ -381,10 +381,28 @@ def sincronizar_estado(cotacao_id: str) -> str:
     return atual.value
 
 
-def concluir_cotacao(ctx: Contexto, cotacao_id: str) -> dict:
-    """Todos os itens ativos COMPLETOS → CONCLUÍDA. Senão diz quais faltam."""
+def concluir_cotacao(ctx: Contexto, cotacao_id: str, *,
+                     aceitar_aptas: bool = False) -> dict:
+    """
+    Todos os itens ativos COMPLETOS → CONCLUÍDA. Senão diz quais faltam.
+
+    `aceitar_aptas` (o "Concluir cotação" da tela): o mesmo ato do servidor
+    conclui antes as propostas APTAS (`proposta_apta`), item a item, com o
+    evento de cada uma na trilha. O que não é apto continua faltando — e a
+    cotação só conclui quando nada falta.
+    """
     cotacao = _exigir_editavel(repo.obter_pesquisa(cotacao_id))
     itens = ativos(repo.listar_itens(cotacao_id))
+    if aceitar_aptas:
+        for item in itens:
+            if proposta_apta(item):
+                repo.confirmar_item(str(item["id"]), justificativa="",
+                                    revisao_esperada=None)
+                repo.registrar_evento(
+                    cotacao_id, "item_concluido", ator=ctx.auth_user_id,
+                    item_id=str(item["id"]),
+                    descricao="proposta apta aceita na conclusão da cotação")
+                item["estado"] = EstadoItem.COMPLETO.value
     faltam = [int(i.get("numero") or 0) for i in itens
               if str(i.get("estado")) != EstadoItem.COMPLETO.value]
     if not itens or faltam:
@@ -591,6 +609,9 @@ class ResultadoPesquisa:
     # equivalência — ganho de cobertura, não só mais candidatos
     expansao: dict = field(default_factory=dict)
     equivalencias: dict = field(default_factory=dict)
+    # dados com que a busca rodou (`assinatura_de_dados`): mudou, o item
+    # pendente é reavaliado pela automática
+    assinatura: str = ""
 
     @property
     def mensagem(self) -> str:
@@ -664,6 +685,42 @@ def diagnostico_da_coleta(coleta: busca.Coleta, consideradas: int,
     return "ok"
 
 
+def assinatura_de_dados(item: dict, fontes, politica: str = "") -> str:
+    """O que, mudando, justifica pesquisar de novo um item pendente: a
+    descrição e os dados do item, as fontes de preço configuradas e as
+    versões da política, da expansão e da equivalência."""
+    import hashlib
+
+    from . import equivalencia, expansao
+
+    ids = sorted(str(getattr(getattr(f, "fonte", None), "id", "") or "") for f in fontes or [])
+    partes = [str(item.get(k) or "").strip().upper() for k in
+              ("descricao", "unidade", "quantidade", "codigo", "tipo_catalogo")]
+    partes += [",".join(ids), politica, expansao.VERSAO, equivalencia.VERSAO]
+    return hashlib.sha256("|".join(partes).encode("utf-8")).hexdigest()[:24]
+
+
+def proposta_apta(item: dict) -> bool:
+    """
+    Proposta que o aceite do servidor pode concluir junto com a cotação:
+    item em revisão, com preço proposto pela regra do perfil (o estado
+    `review` já diz que o mínimo foi atingido), CV aprovado e sem pendência
+    de análise crítica (que exige justificativa própria).
+    """
+    if str(item.get("estado")) != EstadoItem.EM_REVISAO.value:
+        return False
+    if item.get("preco_estimado") in (None, ""):
+        return False
+    gravado = item.get("estatisticas")
+    if not isinstance(gravado, dict):
+        gravado = {"pendencias": item.get("pendencias"),
+                   "barreira_cv": item.get("barreira_cv")}
+    barreira = gravado.get("barreira_cv")
+    if isinstance(barreira, dict) and barreira.get("aprovada") is False:
+        return False
+    return not [p for p in (gravado.get("pendencias") or []) if p]
+
+
 def _fontes_padrao():
     """
     As fontes de sempre e, com a flag do piloto ligada, o índice do PNCP
@@ -735,7 +792,8 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
                    termo: str = "", fontes=None, motor_semantico=None,
                    seletor=None, sincronizar: bool = True,
                    cotacao: dict | None = None,
-                   triagem=None, cache_de_termos=None) -> ResultadoPesquisa:
+                   triagem=None, cache_de_termos=None,
+                   orcamento_ia=None) -> ResultadoPesquisa:
     """
     Busca preços para UM item e grava as candidatas no próprio item.
 
@@ -774,7 +832,8 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
 
     plano = expansao.Plano(
         item, termo=termo, literal=bool(filtros_efetivos.get("literal")),
-        motor=motor_semantico, cache=cache_de_termos or expansao.CACHE)
+        motor=motor_semantico, cache=cache_de_termos or expansao.CACHE,
+        orcamento=orcamento_ia or expansao.Orcamento(1))
     termos = plano.fase_inicial()
 
     estado = EstadoItem(str(item.get("estado") or "pending"))
@@ -817,7 +876,8 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
         elegiveis=coleta.elegiveis(estatistica.PISO_COMPARABILIDADE),
         desfechos=dict(coleta.desfechos), ocorrencias=list(coleta.ocorrencias),
         termos=list(termos), politica=politica.versao if politica else "",
-        expansao=plano.para_registro(), equivalencias=coleta.por_equivalencia())
+        expansao=plano.para_registro(), equivalencias=coleta.por_equivalencia(),
+        assinatura=assinatura_de_dados(item, fontes, politica.versao if politica else ""))
 
     if coleta.erro:
         repo.mover_item(item_id, EstadoItem.ERRO, EstadoItem.BUSCANDO,
@@ -1060,35 +1120,18 @@ def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
                  "diagnostico": resultado.diagnostico,
                  "desfecho": resultado.desfecho,
                  "motivos_extras": resultado.motivos_extras,
+                 "assinatura": resultado.assinatura,
                  "duracao_s": round(resultado.duracao_s, 3),
                  "em": datetime.now(timezone.utc).isoformat(
                      timespec="seconds")})
 
 
-def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
-                      item_ids: list[str] | None = None, tamanho: int = 1,
-                      ja_tentados: set[str] | None = None,
-                      reprocessar: bool = False, **opcoes
-                      ) -> tuple[list[ResultadoPesquisa], int]:
-    """
-    Um passo da pesquisa em lote, REENTRANTE: processa até `tamanho`
-    itens que ainda precisam de busca e devolve (resultados, restantes).
-    O checkpoint é o estado de cada item no banco — fechar a aba não perde
-    nada; 1 e 210 itens usam o mesmo contrato (pacote, 04 §Operação).
-
-    `reprocessar` ("Reprocessar pendentes"): além do que nunca rodou, o item
-    que terminou sem preço proposto, com falha ou com o CV para revisar —
-    depois de fontes novas, termos novos, alteração do item ou falha
-    técnica. Item concluído (aceito pelo servidor) nunca entra, e a decisão
-    de pessoa sobre referência é preservada por `pesquisar_item`.
-
-    A falha de UM item não fica só no retorno: vai para a trilha
-    (`busca_falhou`, desfecho `falha_tecnica`), com o motivo.
-    """
+def _preparar_lote(cotacao_id: str, modo: str, item_ids, opcoes: dict):
+    """Os itens que a rodada pega (na ordem da planilha) e a cotação. O
+    MESMO critério para o passo do lote e para o recorte do job."""
     from .execucao import (modo_da_ultima_busca, precisa_de_busca,
-                           precisa_de_reprocesso)
+                           reavaliar_pendencia, ultima_busca_por_item)
 
-    ja_tentados = ja_tentados if ja_tentados is not None else set()
     itens = ativos(repo.listar_itens(cotacao_id))
     if item_ids is not None:
         alvo = set(map(str, item_ids))
@@ -1104,12 +1147,62 @@ def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
     cache = expansao.CacheDeTermos()
     cache.carregar_da_trilha(buscas)
     opcoes.setdefault("cache_de_termos", cache)
-    fila = [i for i in itens
-            if (precisa_de_reprocesso(i) if reprocessar
-                else precisa_de_busca(i, modo, ultimas.get(str(i["id"]))))
-            and str(i["id"]) not in ja_tentados]
-    resultados = []
+    # o orçamento de IA vale para a EXECUÇÃO (o worker passa o mesmo objeto
+    # a cada passo); sem ele, um por chamada
+    opcoes.setdefault("orcamento_ia", expansao.Orcamento(expansao.ORCAMENTO_IA_POR_LOTE))
+    # as fontes uma vez por passo (a flag do índice não é relida por item)
+    if opcoes.get("fontes") is None:
+        opcoes["fontes"] = _fontes_padrao()
+    politica = politica_automatica() if modo == "automatico" else None
+    por_item = ultima_busca_por_item(buscas) if modo == "automatico" else {}
     cotacao = repo.obter_pesquisa(cotacao_id)
+    # as MESMAS fontes que `pesquisar_item` usará (filtro da pesquisa)
+    escolhidas = set(((cotacao or {}).get("filtros") or {}).get("fontes") or ())
+    fontes_da_assinatura = [f for f in opcoes["fontes"] if not escolhidas
+                            or getattr(getattr(f, "fonte", None), "id", "") in escolhidas]
+
+    def entra(item: dict) -> bool:
+        if precisa_de_busca(item, modo, ultimas.get(str(item["id"]))):
+            return True
+        return modo == "automatico" and reavaliar_pendencia(
+            item, por_item.get(str(item["id"])),
+            assinatura_de_dados(item, fontes_da_assinatura,
+                                politica.versao if politica else ""))
+
+    return [i for i in itens if entra(i)], cotacao
+
+
+def recorte_do_lote(cotacao_id: str, *, modo: str, item_ids=None,
+                    **opcoes) -> list[str]:
+    """Os ids que uma rodada processaria agora — o worker fixa este
+    recorte no job na largada (reentrega não muda a rodada)."""
+    fila, _ = _preparar_lote(cotacao_id, modo, item_ids, opcoes)
+    return [str(i["id"]) for i in fila]
+
+
+def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
+                      item_ids: list[str] | None = None, tamanho: int = 1,
+                      ja_tentados: set[str] | None = None, **opcoes
+                      ) -> tuple[list[ResultadoPesquisa], int]:
+    """
+    Um passo da pesquisa em lote, REENTRANTE: processa até `tamanho`
+    itens que ainda precisam de busca e devolve (resultados, restantes).
+    O checkpoint é o estado de cada item no banco — fechar a aba não perde
+    nada; 1 e 210 itens usam o mesmo contrato (pacote, 04 §Operação).
+
+    Na automática, o item PENDENTE volta sozinho quando há dado novo
+    aplicável (`execucao.reavaliar_pendencia`): falha transitória, ou outra
+    assinatura de dados — o item mudou, entrou fonte, mudou a política.
+    Item concluído (aceito pelo servidor) nunca entra, e a decisão de pessoa
+    sobre referência é preservada por `pesquisar_item`.
+
+    A falha de UM item não fica só no retorno: vai para a trilha
+    (`busca_falhou`, desfecho `falha_tecnica`), com o motivo.
+    """
+    ja_tentados = ja_tentados if ja_tentados is not None else set()
+    candidatos, cotacao = _preparar_lote(cotacao_id, modo, item_ids, opcoes)
+    fila = [i for i in candidatos if str(i["id"]) not in ja_tentados]
+    resultados = []
     for item in fila[:max(1, tamanho)]:
         ja_tentados.add(str(item["id"]))
         try:

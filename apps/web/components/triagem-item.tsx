@@ -176,7 +176,22 @@ export function TriagemDoItem({
                   {rotuloNatureza(r.natureza_valor)}
                   {r.identificacao && <span className="gc-mono"> · {r.identificacao}</span>}
                 </span>
-                {r.rotulo_origem && <span data-testid="origem-canal">{r.rotulo_origem}</span>}
+                {(r.rotulo_origem || r.link_contratacao) && (
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    {r.rotulo_origem && <span data-testid="origem-canal">{r.rotulo_origem}</span>}
+                    {r.link_contratacao && (
+                      <a
+                        href={r.link_contratacao}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-acento underline"
+                        data-testid="abrir-evidencia"
+                      >
+                        Abrir evidência
+                      </a>
+                    )}
+                  </span>
+                )}
                 {r.equivalencia && (
                   <span className="flex flex-wrap items-center gap-2" data-testid="equivalencia">
                     <Badge variant={varianteDaEquivalencia(r.equivalencia)} size="sm">

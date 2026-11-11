@@ -61,18 +61,15 @@ const ERROS_DA_COLETA: Record<string, string> = {
 /** Põe a coleta na fila e volta à pesquisa acompanhando o job. */
 export async function iniciarColeta(_: EstadoDaColeta, form: FormData): Promise<EstadoDaColeta> {
   const pesquisa = String(form.get("pesquisa") ?? "");
-  // "Reprocessar pendentes" é a cotação automática sobre o que ainda não
-  // tem preço proposto (`execucao.precisa_de_reprocesso` no servidor).
-  const reprocessar = form.get("acao") === "reprocessar";
-  const modo = reprocessar || form.get("modo") === "automatico" ? "automatico" : "manual";
-  // Uma chave por botão: os três da mesma tela não colidem.
-  const chave = `${String(form.get("chave") ?? "")}-${reprocessar ? "reprocessar" : modo}`;
+  const modo = form.get("modo") === "automatico" ? "automatico" : "manual";
+  // Uma chave por modo: os dois botões da mesma tela não colidem.
+  const chave = `${String(form.get("chave") ?? "")}-${modo}`;
   if (!UUID.test(pesquisa) || !/^[A-Za-z0-9._:-]{8,128}$/.test(chave)) return { erro: "Requisição inválida." };
   let jobId: string;
   try {
     const { dados } = await chamarApi<{ id: string }>(`/precos/pesquisas/${pesquisa}/coleta`, {
       metodo: "POST",
-      corpo: { modo, ...(reprocessar ? { reprocessar: true } : {}) },
+      corpo: { modo },
       cabecalhos: { "Idempotency-Key": chave },
     });
     jobId = dados.id;
@@ -232,6 +229,20 @@ const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
  * dois casos o arquivo vai inteiro e o SERVIDOR refaz o plano; se a cotação
  * mudou no meio, a confirmação é recusada e o plano novo aparece.
  */
+async function iniciarCotacaoDaImportacao(pesquisa: string, plano: string): Promise<string | null> {
+  try {
+    const { dados } = await chamarApi<{ id: string }>(`/precos/pesquisas/${pesquisa}/coleta`, {
+      metodo: "POST",
+      corpo: { modo: "automatico" },
+      cabecalhos: { "Idempotency-Key": `importacao:${pesquisa}:${plano}` },
+    });
+    return UUID.test(dados.id) ? dados.id : null;
+  } catch {
+    // Fila fora: a importação está gravada; o botão de cotação continua lá.
+    return null;
+  }
+}
+
 export async function importarPlanilha(_: EstadoDaImportacao, form: FormData): Promise<EstadoDaImportacao> {
   const pesquisa = String(form.get("pesquisa") ?? "");
   const plano = String(form.get("plano") ?? "");
@@ -249,9 +260,13 @@ export async function importarPlanilha(_: EstadoDaImportacao, form: FormData): P
         tempoMs: 30000,
       },
     );
-    if (dados.gravado) {
+    if (plano && dados.pode_importar) {
+      // Confirmada a importação, a cotação automática dos itens pendentes
+      // começa sozinha, pelo job de sempre. A chave nasce do PLANO conferido:
+      // confirmar de novo (duplo clique, recarga) aponta para a MESMA execução.
+      const job = await iniciarCotacaoDaImportacao(pesquisa, plano);
       revalidatePath(`/app/precos/${pesquisa}`);
-      redirect(`/app/precos/${pesquisa}?importada=1`);
+      redirect(`/app/precos/${pesquisa}?importada=1${job ? `&job=${job}` : ""}`);
     }
     return { erro: null, plano: dados };
   } catch (e) {

@@ -32,7 +32,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
-from src.precos import estatistica, links, portais
+from src.precos import cotacoes, estatistica, execucao, links, portais
 
 from .erros import ErroApi
 from .seguranca import Identidade, exigir_identidade
@@ -41,6 +41,7 @@ from .supabase_rest import ClienteRest, RespostaRest
 TABELA_PESQUISAS = "pesquisas_preco"
 TABELA_ITENS = "pesquisa_preco_itens"
 TABELA_REFERENCIAS = "pesquisa_preco_referencias"
+TABELA_EVENTOS = "pesquisa_preco_eventos"
 
 _COLUNAS_PESQUISA = ("id,nome,objeto,estado,valor_global,data_base,responsavel,"
                      "local_referencia,processo_id,versao,criado_em,atualizado_em,"
@@ -50,7 +51,8 @@ _COLUNAS_ITEM = ("id,numero,codigo,tipo_catalogo,descricao,unidade,quantidade,"
                  "lote,uf,revisao")
 # Só o pedaço de `estatisticas` que a tela usa (PostgREST lê dentro do JSON):
 # a memória inteira de cada um dos 210 itens não viaja na consulta.
-_COLUNAS_ITEM_COM_CV = _COLUNAS_ITEM + ",barreira_cv:estatisticas->barreira_cv"
+_COLUNAS_ITEM_COM_CV = (_COLUNAS_ITEM + ",barreira_cv:estatisticas->barreira_cv"
+                        ",pendencias:estatisticas->pendencias")
 _COLUNAS_REFERENCIA = (
     "id,fonte_id,fonte_nome,fonte_tipo,id_externo,referencia_externa,"
     "descricao_original,unidade_original,valor_unitario_original,"
@@ -113,6 +115,11 @@ class Item(BaseModel):
     # A última cotação automática segurou sugestões fora da cesta pela regra
     # do coeficiente de variação; `None` quando não há o que revisar.
     revisao_cv: RevisaoPorCV | None = None
+    # Desfecho da última busca (`cotacoes.DESFECHOS`: pronto_para_revisao,
+    # revisar_cv, amostra_insuficiente…) — o que o servidor precisa fazer.
+    pendencia: str = ""
+    # Proposta que o "Concluir cotação" aceita junto (`cotacoes.proposta_apta`).
+    apta: bool = False
 
 
 class Destinatario(BaseModel):
@@ -244,7 +251,7 @@ def _soma_dos_itens(itens: list[dict]) -> Valor | None:
     return valor_monetario(sum(totais, Decimal(0))) if totais else None
 
 
-def _item(linha: dict) -> Item:
+def _item(linha: dict, pendencia: str = "") -> Item:
     return Item(
         id=str(linha["id"]), numero=int(linha["numero"]),
         codigo=linha.get("codigo"), tipo_catalogo=linha.get("tipo_catalogo"),
@@ -256,7 +263,9 @@ def _item(linha: dict) -> Item:
         justificativa=linha.get("justificativa") or "",
         lote=linha.get("lote"), uf=linha.get("uf"),
         revisao=int(linha.get("revisao") or 1),
-        revisao_cv=_revisao_cv(linha.get("barreira_cv")))
+        revisao_cv=_revisao_cv(linha.get("barreira_cv")),
+        pendencia=pendencia if pendencia in cotacoes.DESFECHOS else "",
+        apta=cotacoes.proposta_apta(linha))
 
 
 def _revisao_cv(gravado) -> RevisaoPorCV | None:
@@ -438,6 +447,16 @@ def rotas() -> APIRouter:
                   eu: Identidade = Depends(exigir_identidade)) -> Pesquisa:
         rest = _rest(request)
         linha = _obter_pesquisa(rest, eu, str(pesquisa_id))
+        # o desfecho da última busca de cada item (trilha), para a lista
+        # mostrar propostas e pendências; trilha ilegível não derruba a tela
+        buscas = rest.requisitar(eu.token, "GET", TABELA_EVENTOS, params={
+            "select": "item_id,criado_em,desfecho:payload->>desfecho",
+            "pesquisa_id": f"eq.{pesquisa_id}", "tenant_id": f"eq.{eu.tenant_id}",
+            "tipo": "in.(busca_concluida,busca_falhou)", "order": "criado_em.desc",
+            "limit": "5000"})
+        desfechos = {item: str(l.get("desfecho") or "") for item, l in
+                     execucao.ultima_busca_por_item(buscas.dados or []).items()} \
+            if buscas.status == 200 else {}
         itens = _ok(rest.requisitar(eu.token, "GET", TABELA_ITENS, decimal=True, params={
             "select": _COLUNAS_ITEM_COM_CV, "pesquisa_id": f"eq.{pesquisa_id}",
             "tenant_id": f"eq.{eu.tenant_id}", "order": "numero.asc",
@@ -456,7 +475,8 @@ def rotas() -> APIRouter:
             criado_em=str(linha.get("criado_em") or ""),
             destinatario=destinatario_da_linha(linha),
             pode_alterar=pode_alterar(eu, linha),
-            soma_dos_itens=_soma_dos_itens(itens), itens=[_item(i) for i in itens])
+            soma_dos_itens=_soma_dos_itens(itens),
+            itens=[_item(i, desfechos.get(str(i["id"]), "")) for i in itens])
 
     @r.get("/pesquisas/{pesquisa_id}/itens/{item_id}/referencias",
            response_model=list[Referencia],

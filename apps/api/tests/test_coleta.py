@@ -155,13 +155,27 @@ def _token(exp_em: float) -> str:
 @pytest.fixture
 def dominio(monkeypatch):
     estado = {"restantes": [2, 1, 0], "chamadas": 0, "erro": None, "vistos": [],
-              "desfechos": ["pronto_para_revisao", "revisar_cv", "falha_tecnica"]}
+              "desfechos": ["pronto_para_revisao", "revisar_cv", "amostra_insuficiente"]}
 
-    def passo(ctx, pesquisa_id, *, modo, tamanho, ja_tentados, item_ids=None,
-              reprocessar=False, **opcoes):
+    estado["recorte"] = ["i1", "i2", "i3"]
+    estado["falhas_por_item"] = {}
+
+    def passo(ctx, pesquisa_id, *, modo, tamanho, ja_tentados, item_ids=None, **opcoes):
         estado["chamadas"] += 1
         estado["opcoes"] = opcoes
-        estado["item_ids"], estado["reprocessar"] = item_ids, reprocessar
+        estado["item_ids"] = item_ids
+        if estado.get("retentativa") is not None and item_ids != estado["recorte"]:
+            # segunda passada: só os que falharam, um por vez
+            pendentes = [i for i in item_ids if i not in ja_tentados]
+            if not pendentes:
+                return [], 0
+            item = pendentes[0]
+            ja_tentados.add(item)
+            falhas = estado["falhas_por_item"].get(item, 0)
+            estado["falhas_por_item"][item] = falhas - 1
+            desfecho = "falha_tecnica" if falhas > 1 else "pronto_para_revisao"
+            return ([type("R", (), {"item_id": item, "desfecho": desfecho})()],
+                    len(pendentes) - 1)
         estado["vistos"].append(set(ja_tentados))
         if estado["erro"]:
             raise estado["erro"]
@@ -172,11 +186,14 @@ def dominio(monkeypatch):
                 estado["restantes"].pop(0))
 
     monkeypatch.setattr(cotacoes, "pesquisar_em_lote", passo)
+    monkeypatch.setattr(cotacoes, "recorte_do_lote",
+                        lambda pesquisa_id, *, modo, **opcoes: list(estado["recorte"]))
     monkeypatch.setattr(repo, "obter_pesquisa", lambda pid: {"id": pid, "estado": "review"})
     return estado
 
 
 def _processar(banco, token, **kw):
+    kw.setdefault("dormir", lambda s: None)
     return coleta.processar_job(job_id=JOB, token=token, tenant_id=TENANT_A,
                                 auth_user_id=USUARIO_A, secretaria_id=None,
                                 rest=banco.cliente(), **kw)
@@ -191,7 +208,8 @@ def test_worker_processa_ate_o_fim_e_registra_progresso(banco, dominio):
     assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
     corpos = _patches(banco)
     assert corpos[0]["estado"] == "running" and corpos[0]["tentativas"] == 1
-    assert [c["feitos"] for c in corpos[1:4]] == [1, 2, 3]
+    assert corpos[1]["parametros"]["item_ids"] == ["i1", "i2", "i3"] and corpos[1]["total"] == 3
+    assert [c["feitos"] for c in corpos[2:5]] == [1, 2, 3]
     assert corpos[-1]["estado"] == "succeeded"
     assert dominio["opcoes"] == {"fontes": []}
 
@@ -290,7 +308,7 @@ def test_pedido_de_um_item_grava_termo_e_filtros_e_total_1(emissor):
     gravado = banco.corpo(next(c for c in banco.chamadas if c.method == "POST"))
     assert gravado["total"] == 1
     assert gravado["parametros"] == {"modo": "automatico", "item_id": ITEM, "termo": "caneta azul",
-                                     "filtros": {"janela_dias": 90, "uf": "pa", "literal": False}}
+                                     "filtros": {"janela_dias": 90, "uf": "pa"}}
 
 
 @pytest.mark.parametrize("estado, existe, status", [("complete", True, 409), ("in_review", False, 404)])
@@ -309,7 +327,30 @@ def test_filtros_fora_da_regra_sao_422(emissor, filtros):
     assert r.status_code == 422
 
 
-def test_worker_busca_so_o_item_pedido_com_a_estrategia_comum_e_guarda_a_mensagem(banco, dominio, monkeypatch):
+@pytest.mark.parametrize("modo, literal", [("manual", True), ("automatico", False)])
+def test_o_modo_decide_a_ampliacao_da_busca_do_item(banco, dominio, monkeypatch, modo, literal):
+    recebido = {}
+
+    def pesquisar_item(ctx, pesquisa_id, item_id, *, modo, termo, filtros, **opcoes):
+        recebido.update(filtros=filtros)
+        return type("R", (), {"mensagem": ""})()
+
+    monkeypatch.setattr(cotacoes, "pesquisar_item", pesquisar_item)
+    banco.responder("GET", "api_jobs", 200, [_job(total=1, parametros={
+        "modo": modo, "item_id": ITEM, "termo": "caneta",
+        # pedido antigo com `literal` gravado não decide mais nada
+        "filtros": {"janela_dias": 90, "uf": "", "literal": not literal}})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    assert recebido["filtros"]["literal"] is literal
+
+
+def test_pedido_com_literal_e_recusado(emissor):
+    r = _api(emissor, _banco_do_item(), FilaFalsa()).post(
+        URL, headers=_h(emissor), json={"item_id": ITEM, "filtros": {"literal": True}})
+    assert r.status_code == 422
+
+
+def test_worker_busca_manual_e_do_termo_do_servidor_e_guarda_a_mensagem(banco, dominio, monkeypatch):
     recebido = {}
 
     def pesquisar_item(ctx, pesquisa_id, item_id, *, modo, termo, filtros, **opcoes):
@@ -321,7 +362,7 @@ def test_worker_busca_so_o_item_pedido_com_a_estrategia_comum_e_guarda_a_mensage
         "modo": "manual", "item_id": ITEM, "termo": "caneta", "filtros": {"janela_dias": 90, "uf": "pa"}})])
     assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
     assert recebido == {"item": ITEM, "modo": "manual", "termo": "caneta",
-                        "filtros": {"janela_dias": 90, "uf": "PA", "literal": False}, "opcoes": {"fontes": []}}
+                        "filtros": {"janela_dias": 90, "uf": "PA", "literal": True}, "opcoes": {"fontes": []}}
     assert dominio["chamadas"] == 0, "o lote não pode rodar junto"
     final = _patches(banco)[-1]
     assert final["estado"] == "succeeded" and final["feitos"] == 1
@@ -393,12 +434,13 @@ def test_lote_grava_o_desfecho_de_cada_item_e_o_resumo(banco, dominio):
     assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
     final = _patches(banco)[-1]["resultado"]
     assert final["itens"] == {"i1": "pronto_para_revisao", "i2": "revisar_cv",
-                              "i3": "falha_tecnica"}
-    assert final["resumo"] == {"pronto_para_revisao": 1, "revisar_cv": 1, "falha_tecnica": 1}
+                              "i3": "amostra_insuficiente"}
+    assert final["resumo"] == {"pronto_para_revisao": 1, "revisar_cv": 1,
+                               "amostra_insuficiente": 1}
     # cada item contado uma vez: processados = soma do resumo = total do recorte
     assert final["processados"] == sum(final["resumo"].values()) == 3
     assert final["pendentes"] == 2
-    assert dominio["item_ids"] == ["i1", "i2", "i3"] and dominio["reprocessar"] is False
+    assert dominio["item_ids"] == ["i1", "i2", "i3"]
 
 
 def test_reentrega_retoma_sem_refazer_o_que_tem_desfecho(banco, dominio):
@@ -426,10 +468,43 @@ def test_item_do_recorte_resolvido_no_meio_conta_uma_vez(banco, dominio):
     assert final["processados"] == 2 and final["pendentes"] == 0
 
 
-def test_job_antigo_sem_recorte_segue_a_pesquisa_inteira(banco, dominio):
+def test_recorte_fixado_na_largada_pelo_criterio_do_dominio(banco, dominio):
+    dominio["recorte"] = ["a", "b"]
+    dominio["restantes"] = [1, 0]
     banco.responder("GET", "api_jobs", 200, [_job(parametros={"modo": "automatico"})])
     assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
-    assert dominio["item_ids"] is None
+    fixado = _patches(banco)[1]
+    assert fixado["parametros"] == {"modo": "automatico", "item_ids": ["a", "b"]}
+    assert fixado["total"] == 2 and dominio["item_ids"] == ["a", "b"]
+
+
+def test_falha_transitoria_e_retentada_com_limite_e_espera(banco, dominio):
+    # i3 falha (desfecho falha_tecnica na 1ª passada); depois falha mais uma
+    # vez e na terceira tentativa responde
+    dominio["retentativa"] = True
+    dominio["desfechos"] = ["pronto_para_revisao", "revisar_cv", "falha_tecnica"]
+    dominio["falhas_por_item"] = {"i3": 2}
+    esperas = []
+    banco.responder("GET", "api_jobs", 200, [_job(parametros={
+        "modo": "automatico", "item_ids": ["i1", "i2", "i3"]})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[],
+                      dormir=esperas.append) == "succeeded"
+    final = _patches(banco)[-1]["resultado"]
+    assert final["itens"]["i3"] == "pronto_para_revisao"
+    assert final["tentativas"]["i3"] == coleta.TENTATIVAS_POR_ITEM
+    assert esperas == list(coleta.ESPERA_ENTRE_TENTATIVAS_S)
+
+
+def test_falha_que_persiste_para_no_limite(banco, dominio):
+    dominio["retentativa"] = True
+    dominio["desfechos"] = ["pronto_para_revisao", "revisar_cv", "falha_tecnica"]
+    dominio["falhas_por_item"] = {"i3": 99}
+    banco.responder("GET", "api_jobs", 200, [_job(parametros={
+        "modo": "automatico", "item_ids": ["i1", "i2", "i3"]})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    final = _patches(banco)[-1]["resultado"]
+    assert final["itens"]["i3"] == "falha_tecnica"
+    assert final["tentativas"]["i3"] == coleta.TENTATIVAS_POR_ITEM
 
 
 def test_resumo_exibivel_so_com_motivos_conhecidos():
@@ -440,33 +515,16 @@ def test_resumo_exibivel_so_com_motivos_conhecidos():
     assert exibido == {"resumo": {"revisar_cv": 2}, "processados": 2, "pendentes": 2}
 
 
-def _itens_do_reprocesso(banco):
+def test_pedido_de_lote_nao_fixa_recorte_nem_aceita_reprocessar(emissor, banco):
     banco.respostas[("GET", "pesquisa_preco_itens")] = []
     banco.responder("GET", "pesquisa_preco_itens", 200, [
-        {"id": "i1", "estado": "pending", "preco_estimado": None},
-        {"id": "i2", "estado": "incomplete", "preco_estimado": None},
-        {"id": "i3", "estado": "review", "preco_estimado": "10.00",
-         "estatisticas": {"barreira_cv": {"aprovada": False}}},
-        {"id": "i4", "estado": "review", "preco_estimado": "12.00",
-         "estatisticas": {"barreira_cv": {"aprovada": True}}},
-        {"id": "i5", "estado": "complete", "preco_estimado": None},
-        {"id": "i6", "estado": "error", "preco_estimado": None},
-    ])
-    banco.responder("GET", "pesquisa_preco_eventos", 200, [
-        {"item_id": "i2", "criado_em": "2026-11-09T19:43:00+00:00", "modo": "automatico"}])
-
-
-@pytest.mark.parametrize("reprocessar, recorte", [
-    (False, ["i1", "i6"]),
-    # pendentes: sem preço, incompleto, falha, CV reprovado — nunca o concluído
-    (True, ["i1", "i2", "i3", "i6"]),
-])
-def test_recorte_do_lote_e_fixado_na_criacao(emissor, banco, reprocessar, recorte):
-    _itens_do_reprocesso(banco)
-    banco.responder("POST", "api_jobs", 201, [_job(total=len(recorte))])
-    r = _api(emissor, banco, FilaFalsa()).post(
-        URL, headers=_h(emissor), json={"modo": "automatico", "reprocessar": reprocessar})
+        {"id": "i1", "estado": "pending", "preco_estimado": None}])
+    banco.responder("GET", "pesquisa_preco_eventos", 200, [])
+    banco.responder("POST", "api_jobs", 201, [_job(total=1)])
+    api = _api(emissor, banco, FilaFalsa())
+    assert api.post(URL, headers=_h(emissor),
+                    json={"modo": "automatico", "reprocessar": True}).status_code == 422
+    r = api.post(URL, headers=_h(emissor), json={"modo": "automatico"})
     assert r.status_code == 202, r.text
     corpo = banco.corpo(next(c for c in banco.chamadas if c.method == "POST"))
-    assert corpo["parametros"]["item_ids"] == recorte and corpo["total"] == len(recorte)
-    assert corpo["parametros"].get("reprocessar", False) is reprocessar
+    assert corpo["parametros"] == {"modo": "automatico"} and corpo["total"] == 1

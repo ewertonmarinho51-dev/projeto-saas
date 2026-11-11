@@ -123,6 +123,19 @@ def _espera(tentativa: int) -> int:
     return min(60, 2 ** tentativa * 5) + random.randint(0, 5)
 
 
+def _fontes_da_configuracao(fontes_coleta: str):
+    """`padrao` = as do domínio (flags); `nenhuma` = sem fonte; `indice` = só
+    o índice do PNCP, lido com o JWT do usuário (pilha de teste)."""
+    if fontes_coleta == "nenhuma":
+        return []
+    if fontes_coleta == "indice":
+        from src.precos import repositorio
+        from src.precos.pncp_indice import PNCPIndice
+
+        return [PNCPIndice(repositorio.buscar_indice_pncp)]
+    return None
+
+
 @celery.task(name=NOME_TAREFA, bind=True, max_retries=MAX_TENTATIVAS)
 def coletar_precos(self, job_id: str, token: str, tenant_id: str, auth_user_id: str,
                    secretaria_id: str | None) -> str:
@@ -131,7 +144,7 @@ def coletar_precos(self, job_id: str, token: str, tenant_id: str, auth_user_id: 
 
     configurar_supabase(config.supabase_url, config.supabase_chave_publica)
     rest = ClienteRest(config.supabase_url, config.supabase_chave_publica)
-    fontes = [] if config.fontes_coleta == "nenhuma" else None
+    fontes = _fontes_da_configuracao(config.fontes_coleta)
     inicio, tentativa = time.monotonic(), self.request.retries + 1
 
     def fim(estado: str) -> str:

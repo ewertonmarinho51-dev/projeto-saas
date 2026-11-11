@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
 
-import { Alert, Button, Card, Checkbox, Dialog, Field, Input, Textarea } from "@/design-system";
+import { Alert, Button, Card, Dialog, Field, Input, Textarea } from "@/design-system";
 import {
   arquivarPesquisa,
   buscarItem,
@@ -280,12 +280,15 @@ export function FechamentoDaPesquisa({
   estado,
   itens,
   faltam,
+  aptas = 0,
 }: {
   pesquisa: string;
   estado: string;
   itens: number;
   /** Itens ainda não concluídos: com algum, o botão diz por que não. */
   faltam: number;
+  /** Propostas aptas pelo perfil: o mesmo clique as aceita, uma a uma, na trilha. */
+  aptas?: number;
 }) {
   const [revisar, setRevisar] = useState(false);
   const [motivo, setMotivo] = useState("");
@@ -310,6 +313,13 @@ export function FechamentoDaPesquisa({
           </Button>
         )}
       </div>
+      {podeConcluir && aptas > 0 && (
+        <p className="text-[length:var(--gc-fs-sm)] text-secundario" data-testid="aptas">
+          {faltam > 0
+            ? `${aptas} proposta(s) apta(s) serão aceitas ao concluir, quando os demais itens estiverem resolvidos.`
+            : `Concluir aceita ${aptas} proposta(s) apta(s) pelo perfil do órgão — preço, CV e mínimo de referências conferidos.`}
+        </p>
+      )}
       {podeConcluir && faltam > 0 && (
         <p className="text-[length:var(--gc-fs-sm)] text-secundario">
           Para concluir, todos os itens precisam estar concluídos. Faltam {faltam}.
@@ -390,26 +400,18 @@ export function BuscaDoItem({
             <Input id="busca-pncp" name="contratacao_pncp" maxLength={300} autoComplete="off" />
           </Field>
         </div>
-        <div className="md:col-span-3">
-          <Checkbox
-            name="literal"
-            value="1"
-            label="Apenas o meu termo"
-            description="Sem sinônimos, variantes de unidade nem sugestão de IA: só a descrição do item e o termo digitado."
-          />
-        </div>
         <div className="grid gap-3 md:col-span-3">
           <Retorno estado={estado} />
           <div className="flex flex-wrap gap-2">
             <Button type="submit" name="modo" value="manual" variant="secondary" icon="magnifying-glass" loading={enviando}>
-              Buscar com meus termos
+              Pesquisar preços
             </Button>
             <Button type="submit" name="modo" value="automatico" loading={enviando}>
               Cotação automática deste item
             </Button>
           </div>
           <p className="text-[length:var(--gc-fs-sm)] text-secundario">
-            O termo digitado vai na frente. Se a amostra comparável ficar curta, a busca tenta sinônimos e variantes de unidade; cada candidato recebe o rótulo de equivalência antes de qualquer preço entrar na cesta.
+            Pesquisar preços busca pela descrição e pelo seu termo, em todas as fontes oficiais. A cotação automática amplia sozinha com sinônimos e variantes de unidade; cada candidato recebe o rótulo de equivalência antes de qualquer preço entrar na cesta.
           </p>
         </div>
       </form>
