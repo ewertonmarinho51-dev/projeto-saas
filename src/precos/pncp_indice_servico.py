@@ -278,11 +278,13 @@ def argumentos_do_ciclo(s: argparse.ArgumentParser) -> None:
         os.environ.get("INDEXADOR_INTERVALO_S", "21600")))
     s.add_argument("--uma-vez", action="store_true")
     # busca NACIONAL pelos itens cotados (0043): orçamento próprio, depois
-    # das UFs; `--sem-termos` desliga
+    # das UFs; `--sem-termos` desliga. Medido em 11/11/2026: ~33 chamadas e
+    # ~45 s por termo, ~10 resultados novos. 2.000 chamadas ≈ 60 termos em
+    # ~45 min; a cada 6 h, ~240 termos/dia (565 descrições cotadas em 30 d).
     s.add_argument("--sem-termos", action="store_true")
     s.add_argument("--max-chamadas-termos", type=int, default=int(
-        os.environ.get("INDEXADOR_MAX_CHAMADAS_TERMOS", "600")))
-    s.add_argument("--max-termos", type=int, default=40)
+        os.environ.get("INDEXADOR_MAX_CHAMADAS_TERMOS", "2000")))
+    s.add_argument("--max-termos", type=int, default=80)
 
 
 def rodar_ciclo(a, armazem) -> int:

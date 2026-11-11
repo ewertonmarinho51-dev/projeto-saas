@@ -60,6 +60,30 @@ Usei o mesmo lote de 40 itens do doc F, mais o analisador bioquímico. As fontes
 - **Ainda não serve sob carga.** Com ~30 chamadas por item em sequência, o PNCP passa a recusar conexão na busca e a fonte falha em 44% dos itens. Item com fonte em falha fica pendente para nova tentativa, por isso 5 itens que tinham preço voltaram como "amostra insuficiente" com os mesmos elegíveis.
 - **Analisador bioquímico**: a fonte achou os resultados de PA, MG e AM, mas a cesta não fechou (amostra insuficiente). O equipamento varia de R$ 12 mil (semiautomático) a R$ 270 mil (automático 620 testes/h).
 
-## Próximo passo recomendado
+## O caminho adotado: o indexador busca pelos itens cotados (0043)
 
-Tirar a busca nacional do caminho do clique: o **indexador** busca pelos termos dos itens cotados, no ritmo que o PNCP aceita, e grava em `precos_pncp_resultados`. A cotação lê o índice, que é rápido, pela RPC e com o JWT. É o modelo do Banco de Preços, mas com o escopo do que os usuários realmente cotam, não das 390 mil contratações por ano. O código desta fonte (busca, filtro de item, cabeçalho, taxa) serve aos dois caminhos.
+Como a busca nacional no clique não aguenta a carga, ela passou para o **indexador**:
+
+1. A cada ciclo, depois das UFs, `rodada_por_termos` lê as descrições cotadas nos últimos 30 dias (`pesquisa_preco_itens`, só a coluna `descricao`, com a credencial de servidor). Tira o **núcleo** de cada uma e registra os núcleos novos em `precos_pncp_termos`.
+2. Busca os termos que estão na vez, os nunca buscados primeiro, pela busca do portal: pregões encerrados com resultado, publicados nos últimos 485 dias (1 ano da IN 65 mais a folga até o resultado).
+3. De cada contratação achada (até 16 por termo), `Coletor.indexar_termo` lê os itens e, dos que **começam** pelo nome do item, até 3 resultados. Grava pela mesma `linha_do_resultado` da coleta regional: mesma conferência, mesma quarentena, mesmo maior desconto fora.
+4. A contratação fica `parcial`, com os termos já lidos. Se a descoberta regional a achar depois, ela volta à fila da leitura completa.
+5. O termo volta em 7 dias; se falhou, em 6 h. Se o orçamento acabar no meio, o termo fica para a próxima rodada.
+
+**A cotação não muda:** a fonte do índice (`price_source_pncp_indice`, ligada) lê pela RPC, com o JWT do usuário, e passa a achar resultados do Brasil inteiro. A flag da fonte ao vivo (`price_source_pncp_nacional`) fica **desligada**; o código dela serve ao indexador (núcleo, filtro de item, cabeçalho, parâmetros).
+
+**Medido em 11/11/2026, na bancada:**
+- ~33 chamadas e ~45 s por termo, rendendo ~10 resultados novos;
+- "analisador bioquímico" passou de 0 para 10 referências (AM, MG, PA, RS) dentro da janela de 180 dias.
+
+O padrão por ciclo é de 2.000 chamadas e 80 termos (~45 min). A cada 6 h, isso dá ~240 termos por dia.
+
+**Privacidade (revisão de banco de 11/11/2026):**
+- A leitura cruza órgãos por desenho, mas só o núcleo sai do processo. O núcleo descarta:
+  - número puro;
+  - palavra com e-mail;
+  - formato longo com dígitos;
+  - o verbo da compra ("aquisição", "contratação", "empresa"), que viria antes de um nome próprio numa descrição de serviço.
+- O servidor pode apagar um termo gravado por engano.
+
+**Desligar:** rodar o ciclo com `--sem-termos`. O que já está no índice continua valendo pela conferência de sempre.

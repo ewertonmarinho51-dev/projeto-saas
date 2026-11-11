@@ -278,8 +278,8 @@ def test_linha_de_comando_liga_a_busca_por_termo_por_padrao():
     servico.ciclo = ciclo
     try:
         servico.rodar_ciclo(p.parse_args([]), None)
-        assert capturado["termos"]["max_termos"] == 40
-        assert capturado["termos"]["max_chamadas"] == 600
+        assert capturado["termos"]["max_termos"] == 80
+        assert capturado["termos"]["max_chamadas"] == 2000
         assert capturado["termos"]["pausa"] >= 0.35
         servico.rodar_ciclo(p.parse_args(["--sem-termos"]), None)
         assert capturado["termos"] is None
