@@ -675,10 +675,10 @@ def _painel_busca(ctx, cotacao: dict, item: dict, referencias: list[dict],
             fontes = a.multiselect("Fontes", list(nomes),
                                    default=list(nomes),
                                    format_func=lambda f: nomes.get(f, f))
-            # A janela EFETIVA, nunca a gravada: pesquisas antigas guardam
-            # 365 dias (regra anterior), e valor fora de [mín, máx]
+            # A janela EFETIVA, nunca a gravada: valor fora de [mín, máx]
             # derrubava a tela com StreamlitValueAboveMaxError — visto em
-            # produção. A busca já consultava só 180 (`janela_efetiva`).
+            # produção (16/10/2026). A busca consulta a efetiva
+            # (`janela_efetiva`); o teto é 1 ano desde 11/11/2026.
             janela = b.number_input(
                 "Janela (dias)", JANELA_MINIMA, execucao.JANELA_MAXIMA_DIAS,
                 max(JANELA_MINIMA,

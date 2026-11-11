@@ -166,7 +166,8 @@ def test_cotacao_antiga_com_janela_fora_da_faixa_abre_sem_erro(monkeypatch):
     """
     from src.ui import cotacoes_ui
 
-    for gravada, esperada in ((365, 180), (7, 30)):
+    # 11/11/2026: o teto passou a 1 ano; a janela acima dele cai para 365
+    for gravada, esperada in ((730, 365), (7, 30)):
         at, cliente = _app(monkeypatch, unificada=True, pagina="Cotações")
         cotacao = cotacoes.criar_cotacao(CTX, {"nome": f"Antiga {gravada}"})
         cotacoes.salvar_item(CTX, str(cotacao["id"]), ITEM)
