@@ -9,7 +9,14 @@ import { DestinatarioDaPesquisa } from "@/components/destinatario";
 import { etapasDaPesquisa, SECAO } from "@/components/etapas-da-pesquisa";
 import { FechamentoDaPesquisa, GestaoDaPesquisa, NovoItem } from "@/components/gestao-cotacao";
 import { ImportarPlanilha } from "@/components/importar-planilha";
-import { dataCurta, rotuloEstadoItem, rotuloEstadoPesquisa, rotuloMetodo } from "@/components/precos";
+import {
+  dataCurta,
+  ordenarPorAtencao,
+  rotuloDaPendencia,
+  rotuloEstadoItem,
+  rotuloEstadoPesquisa,
+  rotuloMetodo,
+} from "@/components/precos";
 import { situacaoDaPesquisa, situacaoDoItem } from "@/components/situacao";
 import {
   Alert,
@@ -52,7 +59,8 @@ export default async function Pesquisa({
 }) {
   if (!precosHabilitado()) notFound();
   const { id } = await params;
-  const { job, relatorio, criada, importada, aplicada, duplicada, arquivada, item_retirado, concluida, revisao } = await searchParams;
+  const { job, relatorio, criada, importada, aplicada, duplicada, arquivada, item_retirado, concluida, revisao } =
+    await searchParams;
   const jobId = typeof job === "string" && UUID.test(job) ? job : null;
   const relatorioId = typeof relatorio === "string" && UUID.test(relatorio) ? relatorio : null;
   if (!UUID.test(id)) notFound();
@@ -64,6 +72,8 @@ export default async function Pesquisa({
     if (e instanceof ErroDaApi && e.status === 404) notFound();
     throw e;
   }
+  // Primeiro o que exige atenção, depois as propostas aptas, por último o concluído.
+  const listados = ordenarPorAtencao(p.itens);
   // Aplicar ao processo: a prévia só faz sentido com a pesquisa concluída
   // (ou já aplicada, para dizer isso). Erro na prévia não derruba a página.
   // A emissão também não derruba: sem preparo, a seção diz que não deu.
@@ -83,7 +93,9 @@ export default async function Pesquisa({
     criada === "1"
       ? "Pesquisa criada. Importe a planilha de itens para começar."
       : importada === "1"
-        ? "Planilha importada. Os itens novos estão pendentes de coleta."
+        ? jobId
+          ? "Planilha importada. A cotação automática dos itens pendentes começou; acompanhe abaixo."
+          : "Planilha importada. Os itens novos estão pendentes de coleta."
         : duplicada === "1"
           ? "Pesquisa duplicada: mesmos itens, nenhum preço. A coleta é refeita na nova data-base."
           : arquivada === "1"
@@ -99,6 +111,8 @@ export default async function Pesquisa({
                     : null;
   const concluidos = p.itens.filter((i) => i.estado === "complete").length;
   const faltam = p.itens.length - concluidos;
+  // "Concluir cotação" aceita junto as propostas aptas: falta só o resto.
+  const aptas = p.itens.filter((i) => i.estado !== "complete" && i.apta).length;
   const comPreco = p.itens.filter((i) => i.preco_estimado).length;
   const semPreco = p.itens.length - comPreco;
   const valorGlobal = p.valor_global ?? p.soma_dos_itens;
@@ -170,7 +184,8 @@ export default async function Pesquisa({
         pesquisa={p.id}
         estado={p.estado}
         itens={p.itens.length}
-        faltam={faltam}
+        faltam={faltam - aptas}
+        aptas={aptas}
       />
       {jobId && <ProgressoDaColeta jobId={jobId} />}
       {!IMUTAVEIS.has(p.estado) && (
@@ -212,7 +227,10 @@ export default async function Pesquisa({
             <h2 id="titulo-itens" className="gc-card__title">
               Itens <Badge size="sm">{p.itens.length}</Badge>
             </h2>
-            <p className="gc-card__subtitle">Abra um item para ver as referências, a cesta e a origem de cada preço.</p>
+            <p className="gc-card__subtitle">
+              O que exige atenção vem primeiro; depois as propostas aptas. Abra um item para ver as referências, a
+              cesta e a origem de cada preço.
+            </p>
           </div>
         </div>
         <div className="gc-card__body gc-card__body--flush">
@@ -247,7 +265,7 @@ export default async function Pesquisa({
                   </tr>
                 </thead>
                 <tbody>
-                  {p.itens.map((i) => (
+                  {listados.map((i) => (
                     <tr key={i.id}>
                       <td className="gc-mono text-secundario">{i.numero}</td>
                       <td className="max-w-[calc(var(--space-16)*7)]">
@@ -276,7 +294,12 @@ export default async function Pesquisa({
                         {i.preco_total?.exibicao ?? ""}
                       </td>
                       <td>
-                        <StatusBadge status={situacaoDoItem(i.estado)} label={rotuloEstadoItem(i.estado)} size="sm" />
+                        <span className="grid justify-items-start gap-1" data-testid="situacao-item">
+                          <StatusBadge status={situacaoDoItem(i.estado)} label={rotuloEstadoItem(i.estado)} size="sm" />
+                          {rotuloDaPendencia(i) && (
+                            <span className="text-[length:var(--gc-fs-xs)] text-secundario">{rotuloDaPendencia(i)}</span>
+                          )}
+                        </span>
                       </td>
                     </tr>
                   ))}

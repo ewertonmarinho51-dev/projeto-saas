@@ -213,11 +213,13 @@ def carregar(ambiente: dict[str, str] | None = None) -> Configuracao:
             "REDIS_URL sem senha em ambiente protegido. Use "
             "redis://:<senha>@redis:6379/0 (RUNBOOK_P06.md).")
     fontes = _ler(env, "GOVCONECT_FONTES_COLETA") or "padrao"
-    if fontes not in ("padrao", "nenhuma"):
-        raise ConfiguracaoInvalida("GOVCONECT_FONTES_COLETA: use padrao ou nenhuma.")
-    if fontes == "nenhuma" and nome_ambiente == "production":
+    # `indice`: só o índice do PNCP (0042), sem rede externa — o caminho do
+    # piloto na pilha de teste (E2E com propostas de verdade).
+    if fontes not in ("padrao", "nenhuma", "indice"):
+        raise ConfiguracaoInvalida("GOVCONECT_FONTES_COLETA: use padrao, nenhuma ou indice.")
+    if fontes != "padrao" and nome_ambiente == "production":
         raise ConfiguracaoInvalida(
-            "GOVCONECT_FONTES_COLETA=nenhuma é só para teste; recusado em produção.")
+            f"GOVCONECT_FONTES_COLETA={fontes} é só para teste; recusado em produção.")
 
     admin = _ler(env, "GOVCONECT_AUTH_ADMIN_KEY")
     if admin and _papel_de_chave_jwt(admin) == "service_role":

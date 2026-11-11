@@ -207,3 +207,35 @@ def test_item_diz_quando_a_automatica_segurou_sugestoes_pelo_cv(api, emissor, ba
     assert r.json()["itens"][0]["revisao_cv"] == esperado
     # só o pedaço da memória que a tela usa viaja na consulta
     assert "barreira_cv:estatisticas->barreira_cv" in banco.chamadas[-1].url.params["select"]
+
+
+# ---------------------------------------------------------------------------
+# Lista: propostas e pendências (cotação multiportal, 10/11/2026)
+# ---------------------------------------------------------------------------
+def test_lista_traz_a_pendencia_da_ultima_busca_e_a_proposta_apta(api, emissor, banco):
+    banco.respostas[("GET", "pesquisas_preco")] = [_bruto(
+        '[{"id": "%s", "nome": "P", "objeto": "", "estado": "in_review", "valor_global": null,'
+        ' "data_base": null, "responsavel": "", "local_referencia": "", "processo_id": null,'
+        ' "versao": 1, "criado_em": "x", "atualizado_em": "x"}]' % PESQUISA)]
+    banco.respostas[("GET", "pesquisa_preco_itens")] = [_bruto(
+        '[{"id": "a", "numero": 1, "descricao": "x", "unidade": "UN", "quantidade": 1,'
+        ' "estado": "review", "preco_estimado": 10.0000, "justificativa": "",'
+        ' "barreira_cv": {"aprovada": true}, "pendencias": []},'
+        ' {"id": "b", "numero": 2, "descricao": "y", "unidade": "UN", "quantidade": 1,'
+        ' "estado": "review", "preco_estimado": 10.0000, "justificativa": "",'
+        ' "pendencias": ["discrepante"]},'
+        ' {"id": "c", "numero": 3, "descricao": "z", "unidade": "UN", "quantidade": 1,'
+        ' "estado": "incomplete", "preco_estimado": null, "justificativa": ""}]')]
+    banco.responder("GET", "pesquisa_preco_eventos", 200, [
+        {"item_id": "c", "criado_em": "2026-11-10T10:00:00+00:00", "desfecho": "falha_tecnica"},
+        {"item_id": "c", "criado_em": "2026-11-10T11:00:00+00:00", "desfecho": "amostra_insuficiente"},
+        {"item_id": "a", "criado_em": "2026-11-10T11:00:00+00:00", "desfecho": "pronto_para_revisao"},
+        {"item_id": "b", "criado_em": "2026-11-10T11:00:00+00:00", "desfecho": "<script>"},
+    ])
+    itens = {i["id"]: i for i in
+             api().get(f"/api/v1/precos/pesquisas/{PESQUISA}", headers=_auth(emissor)).json()["itens"]}
+    assert (itens["a"]["pendencia"], itens["a"]["apta"]) == ("pronto_para_revisao", True)
+    # pendência de análise crítica: não é apta; desfecho desconhecido não passa
+    assert (itens["b"]["pendencia"], itens["b"]["apta"]) == ("", False)
+    # vale a busca MAIS RECENTE
+    assert (itens["c"]["pendencia"], itens["c"]["apta"]) == ("amostra_insuficiente", False)

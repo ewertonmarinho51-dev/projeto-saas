@@ -381,10 +381,28 @@ def sincronizar_estado(cotacao_id: str) -> str:
     return atual.value
 
 
-def concluir_cotacao(ctx: Contexto, cotacao_id: str) -> dict:
-    """Todos os itens ativos COMPLETOS → CONCLUÍDA. Senão diz quais faltam."""
+def concluir_cotacao(ctx: Contexto, cotacao_id: str, *,
+                     aceitar_aptas: bool = False) -> dict:
+    """
+    Todos os itens ativos COMPLETOS → CONCLUÍDA. Senão diz quais faltam.
+
+    `aceitar_aptas` (o "Concluir cotação" da tela): o mesmo ato do servidor
+    conclui antes as propostas APTAS (`proposta_apta`), item a item, com o
+    evento de cada uma na trilha. O que não é apto continua faltando — e a
+    cotação só conclui quando nada falta.
+    """
     cotacao = _exigir_editavel(repo.obter_pesquisa(cotacao_id))
     itens = ativos(repo.listar_itens(cotacao_id))
+    if aceitar_aptas:
+        for item in itens:
+            if proposta_apta(item):
+                repo.confirmar_item(str(item["id"]), justificativa="",
+                                    revisao_esperada=None)
+                repo.registrar_evento(
+                    cotacao_id, "item_concluido", ator=ctx.auth_user_id,
+                    item_id=str(item["id"]),
+                    descricao="proposta apta aceita na conclusão da cotação")
+                item["estado"] = EstadoItem.COMPLETO.value
     faltam = [int(i.get("numero") or 0) for i in itens
               if str(i.get("estado")) != EstadoItem.COMPLETO.value]
     if not itens or faltam:
@@ -591,12 +609,66 @@ class ResultadoPesquisa:
     # equivalência — ganho de cobertura, não só mais candidatos
     expansao: dict = field(default_factory=dict)
     equivalencias: dict = field(default_factory=dict)
+    # dados com que a busca rodou (`assinatura_de_dados`): mudou, o item
+    # pendente é reavaliado pela automática
+    assinatura: str = ""
 
     @property
     def mensagem(self) -> str:
         if self.barreira_cv and not self.barreira_cv.get("aprovada", True):
             return str(self.barreira_cv.get("texto") or "")
         return DIAGNOSTICOS.get(self.diagnostico, "")
+
+    @property
+    def desfecho(self) -> str:
+        """O motivo PRINCIPAL do item depois da busca (`DESFECHOS`) — um só,
+        para o resumo do lote contar cada item uma vez."""
+        return desfecho_do_resultado(self)[0]
+
+    @property
+    def motivos_extras(self) -> list[str]:
+        return desfecho_do_resultado(self)[1]
+
+
+# Desfecho de cada item no lote: o que o servidor precisa fazer a seguir.
+# Indisponibilidade de fonte NÃO se confunde com pesquisa concluída sem
+# preço: só a primeira justifica "Reprocessar pendentes" sem mudar nada.
+DESFECHOS = {
+    "pronto_para_revisao": "Pronto para revisão",
+    "revisar_similaridade": "Revisar similaridade",
+    "revisar_cv": "Revisar CV",
+    "amostra_insuficiente": "Amostra insuficiente",
+    "sem_referencia_compativel": "Sem referência compatível",
+    "consulta_parcial": "Consulta parcial",
+    "falha_tecnica": "Falha técnica",
+}
+PENDENTES = frozenset(DESFECHOS) - {"pronto_para_revisao"}
+
+
+def desfecho_do_resultado(r: "ResultadoPesquisa") -> tuple[str, list[str]]:
+    """(motivo principal, motivos adicionais) — distinguíveis e acionáveis."""
+    from .fontes import Desfecho
+
+    similares = int((r.equivalencias or {}).get("similar") or 0)
+    falhou_alguma = any(d == Desfecho.FALHA.value
+                        for d in (r.desfechos or {}).values())
+    if r.diagnostico == "fonte_indisponivel":
+        return "falha_tecnica", []
+    if r.barreira_cv and not r.barreira_cv.get("aprovada", True):
+        principal = "revisar_cv"
+    elif r.diagnostico in ("zero_resultados", "sem_comparaveis"):
+        principal = ("revisar_similaridade" if similares
+                     else "sem_referencia_compativel")
+    elif r.diagnostico == "amostra_insuficiente":
+        principal = "revisar_similaridade" if similares else "amostra_insuficiente"
+    else:
+        principal = "pronto_para_revisao"
+    extras = []
+    if falhou_alguma:
+        extras.append("consulta_parcial")
+    if similares and principal != "revisar_similaridade":
+        extras.append("revisar_similaridade")
+    return principal, extras
 
 
 def diagnostico_da_coleta(coleta: busca.Coleta, consideradas: int,
@@ -611,6 +683,42 @@ def diagnostico_da_coleta(coleta: busca.Coleta, consideradas: int,
     if consideradas < minimo:
         return "amostra_insuficiente"
     return "ok"
+
+
+def assinatura_de_dados(item: dict, fontes, politica: str = "") -> str:
+    """O que, mudando, justifica pesquisar de novo um item pendente: a
+    descrição e os dados do item, as fontes de preço configuradas e as
+    versões da política, da expansão e da equivalência."""
+    import hashlib
+
+    from . import equivalencia, expansao
+
+    ids = sorted(str(getattr(getattr(f, "fonte", None), "id", "") or "") for f in fontes or [])
+    partes = [str(item.get(k) or "").strip().upper() for k in
+              ("descricao", "unidade", "quantidade", "codigo", "tipo_catalogo")]
+    partes += [",".join(ids), politica, expansao.VERSAO, equivalencia.VERSAO]
+    return hashlib.sha256("|".join(partes).encode("utf-8")).hexdigest()[:24]
+
+
+def proposta_apta(item: dict) -> bool:
+    """
+    Proposta que o aceite do servidor pode concluir junto com a cotação:
+    item em revisão, com preço proposto pela regra do perfil (o estado
+    `review` já diz que o mínimo foi atingido), CV aprovado e sem pendência
+    de análise crítica (que exige justificativa própria).
+    """
+    if str(item.get("estado")) != EstadoItem.EM_REVISAO.value:
+        return False
+    if item.get("preco_estimado") in (None, ""):
+        return False
+    gravado = item.get("estatisticas")
+    if not isinstance(gravado, dict):
+        gravado = {"pendencias": item.get("pendencias"),
+                   "barreira_cv": item.get("barreira_cv")}
+    barreira = gravado.get("barreira_cv")
+    if isinstance(barreira, dict) and barreira.get("aprovada") is False:
+        return False
+    return not [p for p in (gravado.get("pendencias") or []) if p]
 
 
 def _fontes_padrao():
@@ -768,7 +876,8 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
         elegiveis=coleta.elegiveis(estatistica.PISO_COMPARABILIDADE),
         desfechos=dict(coleta.desfechos), ocorrencias=list(coleta.ocorrencias),
         termos=list(termos), politica=politica.versao if politica else "",
-        expansao=plano.para_registro(), equivalencias=coleta.por_equivalencia())
+        expansao=plano.para_registro(), equivalencias=coleta.por_equivalencia(),
+        assinatura=assinatura_de_dados(item, fontes, politica.versao if politica else ""))
 
     if coleta.erro:
         repo.mover_item(item_id, EstadoItem.ERRO, EstadoItem.BUSCANDO,
@@ -1009,24 +1118,20 @@ def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
                  **({"barreira_cv": resultado.barreira_cv}
                     if resultado.barreira_cv else {}),
                  "diagnostico": resultado.diagnostico,
+                 "desfecho": resultado.desfecho,
+                 "motivos_extras": resultado.motivos_extras,
+                 "assinatura": resultado.assinatura,
                  "duracao_s": round(resultado.duracao_s, 3),
                  "em": datetime.now(timezone.utc).isoformat(
                      timespec="seconds")})
 
 
-def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
-                      item_ids: list[str] | None = None, tamanho: int = 1,
-                      ja_tentados: set[str] | None = None, **opcoes
-                      ) -> tuple[list[ResultadoPesquisa], int]:
-    """
-    Um passo da pesquisa em lote, REENTRANTE: processa até `tamanho`
-    itens que ainda precisam de busca e devolve (resultados, restantes).
-    O checkpoint é o estado de cada item no banco — fechar a aba não perde
-    nada; 1 e 210 itens usam o mesmo contrato (pacote, 04 §Operação).
-    """
-    from .execucao import modo_da_ultima_busca, precisa_de_busca
+def _preparar_lote(cotacao_id: str, modo: str, item_ids, opcoes: dict):
+    """Os itens que a rodada pega (na ordem da planilha) e a cotação. O
+    MESMO critério para o passo do lote e para o recorte do job."""
+    from .execucao import (modo_da_ultima_busca, precisa_de_busca,
+                           reavaliar_pendencia, ultima_busca_por_item)
 
-    ja_tentados = ja_tentados if ja_tentados is not None else set()
     itens = ativos(repo.listar_itens(cotacao_id))
     if item_ids is not None:
         alvo = set(map(str, item_ids))
@@ -1045,11 +1150,59 @@ def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
     # o orçamento de IA vale para a EXECUÇÃO (o worker passa o mesmo objeto
     # a cada passo); sem ele, um por chamada
     opcoes.setdefault("orcamento_ia", expansao.Orcamento(expansao.ORCAMENTO_IA_POR_LOTE))
-    fila = [i for i in itens
-            if precisa_de_busca(i, modo, ultimas.get(str(i["id"])))
-            and str(i["id"]) not in ja_tentados]
-    resultados = []
+    # as fontes uma vez por passo (a flag do índice não é relida por item)
+    if opcoes.get("fontes") is None:
+        opcoes["fontes"] = _fontes_padrao()
+    politica = politica_automatica() if modo == "automatico" else None
+    por_item = ultima_busca_por_item(buscas) if modo == "automatico" else {}
     cotacao = repo.obter_pesquisa(cotacao_id)
+    # as MESMAS fontes que `pesquisar_item` usará (filtro da pesquisa)
+    escolhidas = set(((cotacao or {}).get("filtros") or {}).get("fontes") or ())
+    fontes_da_assinatura = [f for f in opcoes["fontes"] if not escolhidas
+                            or getattr(getattr(f, "fonte", None), "id", "") in escolhidas]
+
+    def entra(item: dict) -> bool:
+        if precisa_de_busca(item, modo, ultimas.get(str(item["id"]))):
+            return True
+        return modo == "automatico" and reavaliar_pendencia(
+            item, por_item.get(str(item["id"])),
+            assinatura_de_dados(item, fontes_da_assinatura,
+                                politica.versao if politica else ""))
+
+    return [i for i in itens if entra(i)], cotacao
+
+
+def recorte_do_lote(cotacao_id: str, *, modo: str, item_ids=None,
+                    **opcoes) -> list[str]:
+    """Os ids que uma rodada processaria agora — o worker fixa este
+    recorte no job na largada (reentrega não muda a rodada)."""
+    fila, _ = _preparar_lote(cotacao_id, modo, item_ids, opcoes)
+    return [str(i["id"]) for i in fila]
+
+
+def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
+                      item_ids: list[str] | None = None, tamanho: int = 1,
+                      ja_tentados: set[str] | None = None, **opcoes
+                      ) -> tuple[list[ResultadoPesquisa], int]:
+    """
+    Um passo da pesquisa em lote, REENTRANTE: processa até `tamanho`
+    itens que ainda precisam de busca e devolve (resultados, restantes).
+    O checkpoint é o estado de cada item no banco — fechar a aba não perde
+    nada; 1 e 210 itens usam o mesmo contrato (pacote, 04 §Operação).
+
+    Na automática, o item PENDENTE volta sozinho quando há dado novo
+    aplicável (`execucao.reavaliar_pendencia`): falha transitória, ou outra
+    assinatura de dados — o item mudou, entrou fonte, mudou a política.
+    Item concluído (aceito pelo servidor) nunca entra, e a decisão de pessoa
+    sobre referência é preservada por `pesquisar_item`.
+
+    A falha de UM item não fica só no retorno: vai para a trilha
+    (`busca_falhou`, desfecho `falha_tecnica`), com o motivo.
+    """
+    ja_tentados = ja_tentados if ja_tentados is not None else set()
+    candidatos, cotacao = _preparar_lote(cotacao_id, modo, item_ids, opcoes)
+    fila = [i for i in candidatos if str(i["id"]) not in ja_tentados]
+    resultados = []
     for item in fila[:max(1, tamanho)]:
         ja_tentados.add(str(item["id"]))
         try:
@@ -1058,10 +1211,23 @@ def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
                                              modo=modo, sincronizar=False,
                                              cotacao=cotacao, **opcoes))
         except (ErroCotacao, db.ErroBanco, estados.TransicaoInvalida) as exc:
-            resultados.append(ResultadoPesquisa(
+            falha = ResultadoPesquisa(
                 item_id=str(item["id"]), modo=modo,
                 diagnostico="fonte_indisponivel",
-                ocorrencias=[f"item não processado: {exc}"]))
+                ocorrencias=[f"item não processado: {exc}"])
+            resultados.append(falha)
+            try:
+                repo.registrar_evento(
+                    cotacao_id, "busca_falhou", ator=ctx.auth_user_id,
+                    item_id=str(item["id"]),
+                    descricao=f"{modo}: item não processado no lote",
+                    payload={"modo": modo, "diagnostico": falha.diagnostico,
+                             "desfecho": "falha_tecnica",
+                             "erro": f"{type(exc).__name__}: {exc}"[:300],
+                             "em": datetime.now(timezone.utc).isoformat(
+                                 timespec="seconds")})
+            except Exception:  # noqa: BLE001 — o retorno ainda leva a falha
+                pass
     if resultados:
         sincronizar_estado(cotacao_id)
     restantes = len([i for i in fila if str(i["id"]) not in ja_tentados])

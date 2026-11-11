@@ -47,10 +47,11 @@ test("criar pesquisa, importar planilha e concluir/reabrir item", async ({ page 
   await expect(page.locator("tbody tr")).toHaveCount(2); // a tabela do plano, nada gravado
   await page.screenshot({ path: "e2e/resultados/telas/importacao-1440.png", fullPage: true });
   await page.getByRole("button", { name: "Confirmar importação" }).click();
-  await expect(page).toHaveURL(/\?importada=1$/);
+  // Confirmada a importação, a cotação automática começa sozinha (job de sempre).
+  await expect(page).toHaveURL(/\?importada=1&job=[0-9a-f-]{36}$/);
   await expect(page.getByText("Planilha importada.")).toBeVisible();
   await expect(page.locator("section[aria-labelledby=titulo-itens] tbody tr")).toHaveCount(2);
-  await expect(page.locator("section[aria-labelledby=titulo-itens] tbody")).toContainText("Pendente");
+  await expect(page.getByTestId("progresso-coleta")).toContainText("Coleta concluída", { timeout: 60_000 });
 
   // Concluir e reabrir um item em revisão (pesquisa semeada própria).
   await page.goto(`/app/precos/${estado.escrita}`);

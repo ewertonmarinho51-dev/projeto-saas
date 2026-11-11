@@ -144,7 +144,32 @@ def job_do_banco(linha: dict) -> Job:
 
 _CAMPOS_DO_RESULTADO = {"nome": str, "mimetype": str, "tamanho": int, "sha256": str,
                         "hash_decisorio": str, "registrado": bool, "expira_em": str,
-                        "mensagem": str, "documento": str, "bloqueios": int, "avisos": int}
+                        "mensagem": str, "documento": str, "bloqueios": int, "avisos": int,
+                        "processados": int, "pendentes": int}
+# Desfecho por item no lote (`cotacoes.DESFECHOS`) e o item do recorte que
+# já estava resolvido quando a vez dele chegou.
+JA_RESOLVIDO = "ja_resolvido"
+DESFECHOS_DO_LOTE = frozenset(cotacoes.DESFECHOS) | {JA_RESOLVIDO}
+
+
+# Falha transitória (fonte fora) dentro da MESMA execução: até mais duas
+# tentativas por item, com espera crescente. Passou disso, o desfecho fica
+# "falha técnica" e a próxima cotação automática volta a ele sozinha.
+TENTATIVAS_POR_ITEM = 3
+ESPERA_ENTRE_TENTATIVAS_S = (5, 20)
+
+
+def registro_do_lote(desfechos: dict[str, str],
+                     tentativas: dict[str, int] | None = None) -> dict:
+    """O que o job do lote grava: o desfecho de CADA item (ponto de
+    retomada), as tentativas e o resumo que conta cada item uma vez."""
+    resumo: dict[str, int] = {}
+    for motivo in desfechos.values():
+        resumo[motivo] = resumo.get(motivo, 0) + 1
+    return {"itens": dict(desfechos), "tentativas": dict(tentativas or {}),
+            "resumo": resumo,
+            "processados": len(desfechos),
+            "pendentes": sum(1 for m in desfechos.values() if m in cotacoes.PENDENTES)}
 
 
 def _resultado_exibivel(bruto) -> dict:
@@ -160,6 +185,11 @@ def _resultado_exibivel(bruto) -> dict:
     pendencias = bruto.get("pendencias")
     if isinstance(pendencias, list):
         saida["pendencias"] = [p[:200] for p in pendencias[:20] if isinstance(p, str)]
+    resumo = bruto.get("resumo")
+    if isinstance(resumo, dict):
+        saida["resumo"] = {k: v for k, v in resumo.items()
+                           if k in DESFECHOS_DO_LOTE and isinstance(v, int)
+                           and not isinstance(v, bool) and v >= 0}
     return saida
 
 
@@ -199,10 +229,12 @@ def atualizar_job(rest: ClienteRest, token: str, job_id: str, **campos) -> None:
 def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
                   secretaria_id: str | None, rest: ClienteRest,
                   fontes: list | None = None,
-                  agora: Callable[[], float] = time.time) -> str:
+                  agora: Callable[[], float] = time.time,
+                  dormir: Callable[[float], None] = time.sleep) -> str:
     """Executa (ou retoma) um job. Devolve o estado final gravado."""
     r = rest.requisitar(token, "GET", TABELA_JOBS, params={
-        "select": "id,estado,recurso_id,parametros,tentativas,total", "id": f"eq.{job_id}"})
+        "select": "id,estado,recurso_id,parametros,tentativas,total,resultado",
+        "id": f"eq.{job_id}"})
     if r.status != 200 or not r.dados:
         # Token vencido no caminho ou job invisível: nada a fazer, e nada
         # a gravar (sem token válido não há como escrever).
@@ -222,6 +254,8 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
 
     ctx = cotacoes.Contexto(auth_user_id=auth_user_id, secretaria_id=secretaria_id)
     tentados: set[str] = set()
+    desfechos: dict[str, str] = {}
+    tentativas: dict[str, int] = {}
     opcoes = {} if fontes is None else {"fontes": fontes}
     try:
         with sessao_da_requisicao(token, tenant_id):
@@ -259,17 +293,65 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
                 atualizar_job(rest, token, job_id, estado="succeeded", concluido_em=_agora_iso(),
                               feitos=1, resultado={"mensagem": str(resultado.mensagem)[:500]})
                 return "succeeded"
-            while True:
-                if expira is not None and expira - agora() < MARGEM_DO_TOKEN_S:
-                    atualizar_job(rest, token, job_id, estado="failed",
-                                  erro_codigo="SESSION_EXPIRED", concluido_em=_agora_iso())
-                    return "failed"
-                _, restantes = cotacoes.pesquisar_em_lote(
-                    ctx, pesquisa_id, modo=modo, tamanho=1, ja_tentados=tentados, **opcoes)
-                feitos = min(len(tentados), total) if total else len(tentados)
-                atualizar_job(rest, token, job_id, feitos=feitos)
-                if restantes == 0:
+            # O RECORTE da rodada é fixado na LARGADA, pelo critério do
+            # domínio (`cotacoes.recorte_do_lote`: o que precisa de busca e o
+            # pendente com dado novo), e gravado no job: reentrega da fila ou
+            # worker que caiu não muda a rodada. O desfecho de cada item mora
+            # no próprio job (`resultado.itens`) e é o ponto de retomada.
+            item_ids = parametros.get("item_ids")
+            if isinstance(item_ids, list):
+                item_ids = [str(i) for i in item_ids]
+            else:
+                item_ids = cotacoes.recorte_do_lote(pesquisa_id, modo=modo, **opcoes)
+                total = len(item_ids)
+                atualizar_job(rest, token, job_id, total=total,
+                              parametros={**parametros, "item_ids": item_ids})
+            anteriores = job.get("resultado") or {}
+            itens_gravados = anteriores.get("itens") if isinstance(anteriores, dict) else None
+            desfechos = {str(k): str(v) for k, v in (itens_gravados or {}).items()
+                         if str(v) in DESFECHOS_DO_LOTE} if isinstance(itens_gravados, dict) else {}
+            gravadas = anteriores.get("tentativas") if isinstance(anteriores, dict) else None
+            tentativas = {str(k): int(v) for k, v in (gravadas or {}).items()
+                          if isinstance(v, int) and not isinstance(v, bool)} \
+                if isinstance(gravadas, dict) else {}
+            tentados |= set(desfechos)
+
+            def rodar(alvo: list[str], ja: set[str]) -> str | None:
+                while True:
+                    if expira is not None and expira - agora() < MARGEM_DO_TOKEN_S:
+                        atualizar_job(rest, token, job_id, estado="failed",
+                                      erro_codigo="SESSION_EXPIRED", concluido_em=_agora_iso(),
+                                      resultado=registro_do_lote(desfechos, tentativas))
+                        return "failed"
+                    resultados, restantes = cotacoes.pesquisar_em_lote(
+                        ctx, pesquisa_id, modo=modo, tamanho=1, ja_tentados=ja,
+                        item_ids=alvo, **opcoes)
+                    for resultado in resultados:
+                        chave = str(resultado.item_id)
+                        desfechos[chave] = resultado.desfecho
+                        tentativas[chave] = tentativas.get(chave, 0) + 1
+                    feitos = min(len(desfechos), total) if total else len(desfechos)
+                    atualizar_job(rest, token, job_id, feitos=feitos,
+                                  resultado=registro_do_lote(desfechos, tentativas))
+                    if restantes == 0 or not resultados:
+                        return None
+
+            if rodar(item_ids, tentados) == "failed":
+                return "failed"
+            # Falha transitória: nova tentativa NESTA execução, com espera e
+            # limite por item. Item que o servidor concluiu no meio não volta.
+            for espera in ESPERA_ENTRE_TENTATIVAS_S:
+                falhos = [i for i in item_ids if desfechos.get(i) == "falha_tecnica"
+                          and tentativas.get(i, 0) < TENTATIVAS_POR_ITEM]
+                if not falhos:
                     break
+                dormir(espera)
+                if rodar(falhos, set()) == "failed":
+                    return "failed"
+            # item do recorte que já não precisava de busca quando a vez dele
+            # chegou (concluído pelo servidor no meio do lote): conta uma vez
+            for item_id in item_ids or []:
+                desfechos.setdefault(item_id, JA_RESOLVIDO)
     except cotacoes.CotacaoImutavel:
         atualizar_job(rest, token, job_id, estado="failed", erro_codigo="IMMUTABLE",
                       concluido_em=_agora_iso())
@@ -281,7 +363,8 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
     except db.ErroBanco as exc:
         raise ErroTransitorio("banco") from exc
     atualizar_job(rest, token, job_id, estado="succeeded", concluido_em=_agora_iso(),
-                  feitos=total if total else len(tentados))
+                  feitos=total if total else len(tentados),
+                  resultado=registro_do_lote(desfechos, tentativas))
     return "succeeded"
 
 
@@ -355,6 +438,8 @@ def rotas() -> APIRouter:
                     "select": "item_id,criado_em,modo:payload->>modo", "pesquisa_id": f"eq.{pesquisa_id}",
                     "tipo": "in.(busca_concluida,busca_falhou)", "order": "criado_em.desc", "limit": "5000"})
                 ultimas = modo_da_ultima_busca(buscas.dados or []) if buscas.status == 200 else {}
+            # ESTIMATIVA para a barra não dizer "0 de 0": o recorte final (que
+            # inclui o pendente com dado novo) é fixado pelo worker na largada.
             total = (sum(1 for i in itens.dados or []
                          if precisa_de_busca(i, pedido.modo, ultimas.get(str(i.get("id")))))
                      if itens.status == 200 else 0)

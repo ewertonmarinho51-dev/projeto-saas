@@ -147,13 +147,15 @@ def rotas() -> APIRouter:
                        422: {"description": "Há itens não concluídos"}})
     def concluir(pesquisa_id: uuid.UUID, request: Request,
                  eu: Identidade = Depends(exigir_identidade)) -> PesquisaCriada:
-        """Todos os itens concluídos → cotação CONCLUÍDA. É ato humano: o sistema nunca a declara sozinho."""
+        """Todos os itens concluídos → cotação CONCLUÍDA. É ato humano: o sistema nunca a declara sozinho.
+        O mesmo ato aceita as propostas APTAS pelo perfil (`cotacoes.proposta_apta`): em revisão,
+        com preço, CV aprovado e sem pendência de análise crítica — cada uma com o seu evento."""
         atual = _pesquisa(_rest(request), eu, pesquisa_id, escrever=True)
         if atual.get("estado") == "completed":
             return PesquisaCriada(id=str(pesquisa_id), nome=str(atual.get("nome") or ""), estado="completed")
 
         def fechar():
-            linha = cotacoes.concluir_cotacao(_ctx(eu), str(pesquisa_id)) or {}
+            linha = cotacoes.concluir_cotacao(_ctx(eu), str(pesquisa_id), aceitar_aptas=True) or {}
             return PesquisaCriada(id=str(pesquisa_id), nome=str(atual.get("nome") or ""),
                                   estado=str(linha.get("estado") or "completed"))
         return _executar(eu, fechar)

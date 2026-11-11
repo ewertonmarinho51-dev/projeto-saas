@@ -1035,7 +1035,9 @@ def buscas_da_pesquisa(pesquisa_id: str, limite: int = 5000) -> list[dict]:
     try:
         resposta = (_cliente().table(TABELA_EVENTOS)
                     .select("item_id,criado_em,modo:payload->>modo,"
-                            "expansao:payload->expansao")
+                            "expansao:payload->expansao,"
+                            "desfecho:payload->>desfecho,"
+                            "assinatura:payload->>assinatura")
                     .eq("pesquisa_id", pesquisa_id)
                     .in_("tipo", ["busca_concluida", "busca_falhou"])
                     .order("criado_em", desc=True).limit(limite).execute())

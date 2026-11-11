@@ -146,6 +146,12 @@ def test_identidade_nao_entra_pelo_corpo(emissor, dominio):
 # ---------------------------------------------------------------------------
 # Ler e listar
 # ---------------------------------------------------------------------------
+def _leitura_da_pesquisa(banco):
+    """A leitura da própria pesquisa (a tela lê também a trilha e os itens)."""
+    return next(c for c in banco.chamadas if c.method == "GET"
+                and c.url.path.endswith("/pesquisas_preco"))
+
+
 def test_leitura_traz_o_destinatario(emissor):
     banco = PostgrestFalso()
     banco.responder("GET", "pesquisas_preco", 200, [{
@@ -157,7 +163,7 @@ def test_leitura_traz_o_destinatario(emissor):
     r = _api(emissor, banco).get(f"/api/v1/precos/pesquisas/{P}", headers=_h(emissor))
     assert r.status_code == 200, r.text
     assert r.json()["destinatario"] == {"tipo": "externo", "secretaria_id": None, "nome": "Prefeitura X"}
-    select = banco.chamadas[-2].url.params["select"]
+    select = _leitura_da_pesquisa(banco).url.params["select"]
     assert "destinatario_secretaria_id" in select and "destinatario_externo" in select
 
 
@@ -172,7 +178,7 @@ def _ler(emissor, autor, **token):
     r = _api(emissor, banco).get(f"/api/v1/precos/pesquisas/{P}",
                                  headers={"Authorization": f"Bearer {emissor.token(**token)}"})
     assert r.status_code == 200, r.text
-    assert "auth_user_id" in banco.chamadas[-2].url.params["select"]
+    assert "auth_user_id" in _leitura_da_pesquisa(banco).url.params["select"]
     return r.json()
 
 

@@ -220,6 +220,8 @@ def test_concluir_a_cotacao_e_ato_do_dono_e_repetir_nao_refaz(emissor, dominio):
     r = _api(emissor, _banco()).post(f"{BASE}/conclusao", headers=_h(emissor))
     assert r.status_code == 200 and r.json()["estado"] == "completed"
     assert [c[0] for c in dominio["chamadas"]] == ["concluir"]
+    # o mesmo ato aceita as propostas aptas (`cotacoes.proposta_apta`)
+    assert dominio["chamadas"][0][2] == {"aceitar_aptas": True}
     r = _api(emissor, _banco(estado="completed")).post(f"{BASE}/conclusao", headers=_h(emissor))
     assert r.status_code == 200 and len(dominio["chamadas"]) == 1
 

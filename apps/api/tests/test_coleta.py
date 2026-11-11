@@ -154,22 +154,46 @@ def _token(exp_em: float) -> str:
 
 @pytest.fixture
 def dominio(monkeypatch):
-    estado = {"restantes": [2, 1, 0], "chamadas": 0, "erro": None}
+    estado = {"restantes": [2, 1, 0], "chamadas": 0, "erro": None, "vistos": [],
+              "desfechos": ["pronto_para_revisao", "revisar_cv", "amostra_insuficiente"]}
 
-    def passo(ctx, pesquisa_id, *, modo, tamanho, ja_tentados, **opcoes):
+    estado["recorte"] = ["i1", "i2", "i3"]
+    estado["falhas_por_item"] = {}
+
+    def passo(ctx, pesquisa_id, *, modo, tamanho, ja_tentados, item_ids=None, **opcoes):
         estado["chamadas"] += 1
         estado["opcoes"] = opcoes
+        estado["item_ids"] = item_ids
+        if estado.get("retentativa") is not None and item_ids != estado["recorte"]:
+            # segunda passada: só os que falharam, um por vez
+            pendentes = [i for i in item_ids if i not in ja_tentados]
+            if not pendentes:
+                return [], 0
+            item = pendentes[0]
+            ja_tentados.add(item)
+            falhas = estado["falhas_por_item"].get(item, 0)
+            estado["falhas_por_item"][item] = falhas - 1
+            desfecho = "falha_tecnica" if falhas > 1 else "pronto_para_revisao"
+            return ([type("R", (), {"item_id": item, "desfecho": desfecho})()],
+                    len(pendentes) - 1)
+        estado["vistos"].append(set(ja_tentados))
         if estado["erro"]:
             raise estado["erro"]
-        ja_tentados.add(f"i{estado['chamadas']}")
-        return [], estado["restantes"].pop(0)
+        item = f"i{estado['chamadas']}"
+        ja_tentados.add(item)
+        desfecho = estado["desfechos"][(estado["chamadas"] - 1) % 3]
+        return ([type("R", (), {"item_id": item, "desfecho": desfecho})()],
+                estado["restantes"].pop(0))
 
     monkeypatch.setattr(cotacoes, "pesquisar_em_lote", passo)
+    monkeypatch.setattr(cotacoes, "recorte_do_lote",
+                        lambda pesquisa_id, *, modo, **opcoes: list(estado["recorte"]))
     monkeypatch.setattr(repo, "obter_pesquisa", lambda pid: {"id": pid, "estado": "review"})
     return estado
 
 
 def _processar(banco, token, **kw):
+    kw.setdefault("dormir", lambda s: None)
     return coleta.processar_job(job_id=JOB, token=token, tenant_id=TENANT_A,
                                 auth_user_id=USUARIO_A, secretaria_id=None,
                                 rest=banco.cliente(), **kw)
@@ -184,7 +208,8 @@ def test_worker_processa_ate_o_fim_e_registra_progresso(banco, dominio):
     assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
     corpos = _patches(banco)
     assert corpos[0]["estado"] == "running" and corpos[0]["tentativas"] == 1
-    assert [c["feitos"] for c in corpos[1:4]] == [1, 2, 3]
+    assert corpos[1]["parametros"]["item_ids"] == ["i1", "i2", "i3"] and corpos[1]["total"] == 3
+    assert [c["feitos"] for c in corpos[2:5]] == [1, 2, 3]
     assert corpos[-1]["estado"] == "succeeded"
     assert dominio["opcoes"] == {"fontes": []}
 
@@ -398,3 +423,124 @@ def test_contratacao_canonica_le_so_digitos():
     assert coleta.contratacao_canonica("abc") is None
     fonte = coleta._fonte_da_contratacao(LINK_PNCP)
     assert fonte._controle == ("07954480000179", "2026", "15836")
+
+
+# ---------------------------------------------------------------------------
+# Lote: recorte fixo, desfecho por item, retomada e "Reprocessar pendentes"
+# ---------------------------------------------------------------------------
+def test_lote_grava_o_desfecho_de_cada_item_e_o_resumo(banco, dominio):
+    banco.responder("GET", "api_jobs", 200, [_job(parametros={
+        "modo": "automatico", "item_ids": ["i1", "i2", "i3"]})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    final = _patches(banco)[-1]["resultado"]
+    assert final["itens"] == {"i1": "pronto_para_revisao", "i2": "revisar_cv",
+                              "i3": "amostra_insuficiente"}
+    assert final["resumo"] == {"pronto_para_revisao": 1, "revisar_cv": 1,
+                               "amostra_insuficiente": 1}
+    # cada item contado uma vez: processados = soma do resumo = total do recorte
+    assert final["processados"] == sum(final["resumo"].values()) == 3
+    assert final["pendentes"] == 2
+    assert dominio["item_ids"] == ["i1", "i2", "i3"]
+
+
+def test_reentrega_retoma_sem_refazer_o_que_tem_desfecho(banco, dominio):
+    dominio["restantes"] = [0]
+    banco.responder("GET", "api_jobs", 200, [_job(estado="running", feitos=2, parametros={
+        "modo": "automatico", "item_ids": ["a", "b", "i1"]},
+        resultado={"itens": {"a": "pronto_para_revisao", "b": "amostra_insuficiente",
+                             "x": "<script>"}})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    # o que já tinha desfecho chega ao domínio como já tentado
+    assert {"a", "b"} <= dominio["vistos"][0] and "x" not in dominio["vistos"][0]
+    final = _patches(banco)[-1]["resultado"]
+    assert final["itens"] == {"a": "pronto_para_revisao", "b": "amostra_insuficiente",
+                              "i1": "pronto_para_revisao"}
+    assert final["processados"] == 3
+
+
+def test_item_do_recorte_resolvido_no_meio_conta_uma_vez(banco, dominio):
+    dominio["restantes"] = [0]
+    banco.responder("GET", "api_jobs", 200, [_job(parametros={
+        "modo": "automatico", "item_ids": ["i1", "aceito"]})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    final = _patches(banco)[-1]["resultado"]
+    assert final["itens"]["aceito"] == coleta.JA_RESOLVIDO
+    assert final["processados"] == 2 and final["pendentes"] == 0
+
+
+def test_recorte_fixado_na_largada_pelo_criterio_do_dominio(banco, dominio):
+    dominio["recorte"] = ["a", "b"]
+    dominio["restantes"] = [1, 0]
+    banco.responder("GET", "api_jobs", 200, [_job(parametros={"modo": "automatico"})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    fixado = _patches(banco)[1]
+    assert fixado["parametros"] == {"modo": "automatico", "item_ids": ["a", "b"]}
+    assert fixado["total"] == 2 and dominio["item_ids"] == ["a", "b"]
+
+
+def test_falha_transitoria_e_retentada_com_limite_e_espera(banco, dominio):
+    # i3 falha (desfecho falha_tecnica na 1ª passada); depois falha mais uma
+    # vez e na terceira tentativa responde
+    dominio["retentativa"] = True
+    dominio["desfechos"] = ["pronto_para_revisao", "revisar_cv", "falha_tecnica"]
+    dominio["falhas_por_item"] = {"i3": 2}
+    esperas = []
+    banco.responder("GET", "api_jobs", 200, [_job(parametros={
+        "modo": "automatico", "item_ids": ["i1", "i2", "i3"]})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[],
+                      dormir=esperas.append) == "succeeded"
+    final = _patches(banco)[-1]["resultado"]
+    assert final["itens"]["i3"] == "pronto_para_revisao"
+    assert final["tentativas"]["i3"] == coleta.TENTATIVAS_POR_ITEM
+    assert esperas == list(coleta.ESPERA_ENTRE_TENTATIVAS_S)
+
+
+def test_falha_que_persiste_para_no_limite(banco, dominio):
+    dominio["retentativa"] = True
+    dominio["desfechos"] = ["pronto_para_revisao", "revisar_cv", "falha_tecnica"]
+    dominio["falhas_por_item"] = {"i3": 99}
+    banco.responder("GET", "api_jobs", 200, [_job(parametros={
+        "modo": "automatico", "item_ids": ["i1", "i2", "i3"]})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    final = _patches(banco)[-1]["resultado"]
+    assert final["itens"]["i3"] == "falha_tecnica"
+    assert final["tentativas"]["i3"] == coleta.TENTATIVAS_POR_ITEM
+
+
+def test_resumo_exibivel_so_com_motivos_conhecidos():
+    exibido = coleta._resultado_exibivel({  # noqa: SLF001
+        "resumo": {"revisar_cv": 2, "inventado": 9, "falha_tecnica": True,
+                   "pronto_para_revisao": -1},
+        "processados": 2, "pendentes": 2, "itens": {"i1": "revisar_cv"}})
+    assert exibido == {"resumo": {"revisar_cv": 2}, "processados": 2, "pendentes": 2}
+
+
+def test_pedido_de_lote_nao_fixa_recorte_nem_aceita_reprocessar(emissor, banco):
+    banco.respostas[("GET", "pesquisa_preco_itens")] = []
+    banco.responder("GET", "pesquisa_preco_itens", 200, [
+        {"id": "i1", "estado": "pending", "preco_estimado": None}])
+    banco.responder("GET", "pesquisa_preco_eventos", 200, [])
+    banco.responder("POST", "api_jobs", 201, [_job(total=1)])
+    api = _api(emissor, banco, FilaFalsa())
+    assert api.post(URL, headers=_h(emissor),
+                    json={"modo": "automatico", "reprocessar": True}).status_code == 422
+    r = api.post(URL, headers=_h(emissor), json={"modo": "automatico"})
+    assert r.status_code == 202, r.text
+    corpo = banco.corpo(next(c for c in banco.chamadas if c.method == "POST"))
+    assert corpo["parametros"] == {"modo": "automatico"} and corpo["total"] == 1
+
+
+def test_reentrega_nao_retenta_alem_do_limite(banco, dominio):
+    # job retomado: i3 já gastou as tentativas desta execução
+    dominio["retentativa"] = True
+    dominio["restantes"] = [0]
+    esperas = []
+    banco.responder("GET", "api_jobs", 200, [_job(estado="running", parametros={
+        "modo": "automatico", "item_ids": ["i1", "i2", "i3"]},
+        resultado={"itens": {"i1": "pronto_para_revisao", "i2": "revisar_cv",
+                             "i3": "falha_tecnica"},
+                   "tentativas": {"i1": 1, "i2": 1, "i3": coleta.TENTATIVAS_POR_ITEM}})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[],
+                      dormir=esperas.append) == "succeeded"
+    assert esperas == [] and _patches(banco)[-1]["resultado"]["itens"]["i3"] == "falha_tecnica"
+

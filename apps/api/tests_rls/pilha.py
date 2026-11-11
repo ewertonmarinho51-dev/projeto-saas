@@ -85,6 +85,8 @@ CONTAS = (
     # Só da prova de responsividade (responsividade.spec.ts), idem: percorre
     # todas as rotas. A do tenant B é a tela de Consolidar Demandas.
     ("admin_larguras", "A", "A1", "admin", True),
+    # cotação automática de ponta a ponta (importar → cotar → aceitar → PDF)
+    ("cotador_a", "A", "A1", "usuario", True),
     ("larguras_b", "B", "B1", "usuario", True),
     ("b1", "B", "B1", "usuario", True),
     ("a1_revogado", "A", "A1", "usuario", False),
@@ -439,6 +441,75 @@ def gravar_planilha_e2e(pasta: Path) -> Path:
     return caminho
 
 
+# Índice do PNCP (0042) da pilha: resultados homologados com a forma REAL
+# da API (publicador e link de origem da Licitanet), para a cotação
+# automática do E2E achar propostas sem sair para a rede. Gasolina: três
+# preços próximos; papel: quatro equivalentes ("para impressão" × "sulfite").
+INDICE_E2E = (
+    ("04873600000115-1-000173/2026", 1, "GASOLINA COMUM", "LITRO", "7.60"),
+    ("34887950000100-1-000023/2026", 1, "GASOLINA COMUM", "LITRO", "7.39"),
+    ("12884091000154-1-000005/2026", 1, "GASOLINA COMUM", "LITRO", "7.16"),
+    ("04873600000115-1-000180/2026", 2, "PAPEL PARA IMPRESSAO A4 75 G RESMA 500 FOLHAS", "RESMA", "24.90"),
+    ("34887950000100-1-000030/2026", 2, "PAPEL PARA IMPRESSAO A4 75 G RESMA 500 FOLHAS", "RESMA", "25.40"),
+    ("12884091000154-1-000011/2026", 2, "PAPEL PARA IMPRESSAO A4 75 G RESMA 500 FOLHAS", "RESMA", "26.10"),
+    ("05196530000170-1-000043/2026", 2, "PAPEL PARA IMPRESSAO A4 75 G RESMA 500 FOLHAS", "RESMA", "25.20"),
+)
+
+
+def semear_indice_pncp(pilha: Pilha) -> int:
+    import psycopg
+    from datetime import date, timedelta
+
+    data = (date.today() - timedelta(days=15)).isoformat()
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        for controle, numero, descricao, unidade, valor in INDICE_E2E:
+            cnpj, ano = controle[:14], controle[-4:]
+            seq = int(controle.split("-")[2].split("/")[0])
+            bruto = {
+                "contratacao": {
+                    "numeroControlePNCP": controle,
+                    "linkSistemaOrigem": f"https://licitanet.com.br/sessao/{seq}",
+                    "usuarioNome": "Licitanet Licitações Eletrônicas LTDA",
+                    "modalidadeNome": "Pregão - Eletrônico",
+                    "orgaoEntidade": {"cnpj": cnpj, "razaoSocial": f"MUNICIPIO {seq}"},
+                    "unidadeOrgao": {"ufSigla": "PA", "municipioNome": "Augusto Corrêa"}},
+                "item": {"numeroItem": numero, "descricao": descricao, "unidadeMedida": unidade,
+                         "quantidade": 100.0, "materialOuServico": "M",
+                         "criterioJulgamentoNome": "Menor preço", "situacaoCompraItem": 2,
+                         "situacaoCompraItemNome": "Homologado"},
+                "resultado": {"sequencialResultado": 1, "niFornecedor": "48619057000108",
+                              "tipoPessoa": "PJ", "nomeRazaoSocialFornecedor": "FORNECEDOR E2E",
+                              "valorUnitarioHomologado": float(valor), "quantidadeHomologada": 100.0,
+                              "valorTotalHomologado": round(float(valor) * 100, 2),
+                              "dataResultado": data}}
+            c.execute("insert into public.precos_pncp_contratacoes (numero_controle, uf, estado) "
+                      "values (%s, 'PA', 'coletada') on conflict do nothing", (controle,))
+            c.execute(
+                "insert into public.precos_pncp_resultados (id_externo, numero_controle, numero_item, "
+                "descricao, descricao_busca, unidade, quantidade, valor_unitario, valor_total, "
+                "data_resultado, uf, plataforma, bruto, hash_linha, versao_coletor) values "
+                "(%s,%s,%s,%s,%s,%s,100,%s,%s,%s,'PA','Licitanet',%s::jsonb,'e2e','e2e') "
+                "on conflict (id_externo) do nothing",
+                (f"{controle}#{numero}#1", controle, numero, descricao, descricao.lower(), unidade,
+                 valor, round(float(valor) * 100, 2), data, json.dumps(bruto)))
+    return len(INDICE_E2E)
+
+
+def gravar_planilha_cotacao_e2e(pasta: Path) -> Path:
+    """A planilha da cotação automática de ponta a ponta: dois itens que o
+    índice da pilha cobre (um pelo nome, outro por equivalente)."""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Código", "Descrição", "Unidade", "Quantidade"])
+    ws.append(["", "GASOLINA COMUM", "LITRO", 1000])
+    ws.append(["", "PAPEL SULFITE A4 75 G/M2 500 FOLHAS", "RESMA", 50])
+    caminho = pasta / "cotacao-automatica-e2e.xlsx"
+    wb.save(caminho)
+    return caminho
+
+
 def gravar_demandas_e2e(pasta: Path) -> list[str]:
     """Dois Documentos de Formalização de Demanda em PDF de texto (M4): o
     mesmo envelope pedido por duas secretarias, para a soma aparecer."""
@@ -601,6 +672,8 @@ def principal() -> int:
                   "editor": semear_editor(pilha),
                   "elaboracao": semear_elaboracao(pilha),
                   "larguras": semear_larguras(pilha),
+                  "indice_pncp": semear_indice_pncp(pilha),
+                  "planilha_cotacao": str(gravar_planilha_cotacao_e2e(args.estado.parent)),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
         temporario = args.estado.with_suffix(".tmp")

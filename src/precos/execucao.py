@@ -218,6 +218,61 @@ def precisa_de_busca(item: dict, modo: str = "manual",
     return int(gravado.get("consideradas") or gravado.get("selecionadas") or 0) == 0
 
 
+def precisa_de_reprocesso(item: dict) -> bool:
+    """
+    Pendente: o item ainda NÃO tem preço proposto defensável — nunca rodou,
+    falhou, ficou incompleto, ou está em revisão sem preço ou com o CV
+    reprovado. Item concluído (aceito pelo servidor) nunca é pendente. O
+    que já tem preço proposto fica como está: o servidor reabre ou busca o
+    item à mão se quiser mudar.
+    """
+    estado = str(item.get("estado") or EstadoItem.PENDENTE.value)
+    if estado == EstadoItem.COMPLETO.value:
+        return False
+    if estado in A_PROCESSAR or estado == EstadoItem.INCOMPLETO.value:
+        return True
+    if item.get("preco_estimado") in (None, ""):
+        return True
+    barreira = (item.get("estatisticas") or {}).get("barreira_cv") or {}
+    return isinstance(barreira, dict) and barreira.get("aprovada") is False
+
+
+# Desfechos de falha TRANSITÓRIA: a fonte não respondeu (toda ou parte).
+# Repetir mais tarde pode mudar tudo — o worker tenta de novo, com limite.
+TRANSITORIOS = frozenset({"falha_tecnica", "consulta_parcial"})
+
+
+def ultima_busca_por_item(eventos: list[dict]) -> dict[str, dict]:
+    """item_id → a linha da trilha da busca mais recente (com `desfecho` e
+    `assinatura`, quando gravados). Empate fica com a que veio depois."""
+    ultimo: dict[str, tuple[tuple[str, int], dict]] = {}
+    for posicao, linha in enumerate(eventos or []):
+        item = linha.get("item_id")
+        if not item:
+            continue
+        chave = (str(linha.get("criado_em") or ""), posicao)
+        if str(item) not in ultimo or chave > ultimo[str(item)][0]:
+            ultimo[str(item)] = (chave, linha)
+    return {item: linha for item, (_, linha) in ultimo.items()}
+
+
+def reavaliar_pendencia(item: dict, ultima: dict | None, assinatura: str) -> bool:
+    """
+    A cotação automática volta a um item PENDENTE sozinha quando há dado
+    novo aplicável: a última busca falhou de forma transitória, ou foi feita
+    com outra assinatura de dados (o item mudou, entrou fonte nova, mudou a
+    política de busca ou de equivalência — `cotacoes.assinatura_de_dados`).
+    Item aceito nunca entra; item com preço proposto também não.
+    """
+    if not precisa_de_reprocesso(item):
+        return False
+    if not ultima:
+        return True
+    if str(ultima.get("desfecho") or "") in TRANSITORIOS:
+        return True
+    return str(ultima.get("assinatura") or "") != assinatura
+
+
 # Prioridade na fila: o que o processo largou no meio, depois o que nunca
 # rodou, e a falha técnica POR ÚLTIMO. Antes o `error` entrava pela ordem
 # da planilha, à frente dos pendentes: com os itens 1–5 sempre falhando,

@@ -2658,6 +2658,11 @@
       },
       "Item": {
         "properties": {
+          "apta": {
+            "default": false,
+            "title": "Apta",
+            "type": "boolean"
+          },
           "codigo": {
             "anyOf": [
               {
@@ -2710,6 +2715,11 @@
           "numero": {
             "title": "Numero",
             "type": "integer"
+          },
+          "pendencia": {
+            "default": "",
+            "title": "Pendencia",
+            "type": "string"
           },
           "preco_estimado": {
             "anyOf": [
@@ -9505,7 +9515,7 @@
     },
     "/api/v1/precos/pesquisas/{pesquisa_id}/conclusao": {
       "post": {
-        "description": "Todos os itens concluídos → cotação CONCLUÍDA. É ato humano: o sistema nunca a declara sozinho.",
+        "description": "Todos os itens concluídos → cotação CONCLUÍDA. É ato humano: o sistema nunca a declara sozinho.\nO mesmo ato aceita as propostas APTAS pelo perfil (`cotacoes.proposta_apta`): em revisão,\ncom preço, CV aprovado e sem pendência de análise crítica — cada uma com o seu evento.",
         "operationId": "concluir_api_v1_precos_pesquisas__pesquisa_id__conclusao_post",
         "parameters": [
           {

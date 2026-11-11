@@ -5,7 +5,7 @@ import { expect, test } from "@playwright/test";
 /**
  * Coleta assíncrona no navegador, contra a pilha real com Redis e um
  * worker Celery de verdade (sem fontes externas — GOVCONECT_FONTES_COLETA=
- * nenhuma, recusado em produção). O que se prova: o clique responde na
+ * indice: só o índice do PNCP da pilha, recusado em produção). O que se prova: o clique responde na
  * hora, a página acompanha o job até o fim e os itens saem de "Pendente".
  */
 const estado = JSON.parse(readFileSync(process.env.GOVCONECT_E2E_ESTADO ?? "", "utf8")) as {
