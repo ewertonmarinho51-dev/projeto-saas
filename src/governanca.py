@@ -369,6 +369,14 @@ FLAG_TETO_AUTOMATICO = "cotacao_automatica_teto"
 # busca, sem tocar em referência gravada.
 FLAG_PNCP_INDICE = "price_source_pncp_indice"
 
+# PNCP nacional sob demanda (11/11/2026, `precos.pncp_nacional`): a busca
+# textual do portal acha os pregões homologados do Brasil inteiro com a
+# descrição do item, e a conferência de #187 lê o resultado. Com a flag
+# ligada, SUBSTITUI o índice regional na resposta por `pncp` (o índice
+# segue sendo coletado; desligar esta flag o devolve à busca). Nasce
+# DESLIGADA; falha de leitura não liga a fonte.
+FLAG_PNCP_NACIONAL = "price_source_pncp_nacional"
+
 # Termos sugeridos por IA na busca de preços (cotação automática multiportal,
 # 10/11/2026): só quando as variantes locais não bastaram, um pedido por
 # item, com cache pela versão da descrição e da política (`expansao`). A IA
