@@ -86,4 +86,15 @@ O padrão por ciclo é de 2.000 chamadas e 80 termos (~45 min). A cada 6 h, isso
   - o verbo da compra ("aquisição", "contratação", "empresa"), que viria antes de um nome próprio numa descrição de serviço.
 - O servidor pode apagar um termo gravado por engano.
 
+**Homologação do caminho adotado (11/11/2026).** Usei o mesmo lote de 40 itens, com Compras.gov ao vivo e o banco dublê. O índice de bancada era o do Pará (822 resultados) mais a busca por termo dos 41 núcleos do lote: 1.264 chamadas em 28 min, que chegaram a **1.191 resultados de 24 UFs**. O controle, rodado no mesmo dia e com o mesmo código, usou o índice só do Pará, porque o Compras.gov ao vivo muda de um dia para o outro.
+
+| | Índice só do PA | Índice + busca por termo |
+| --- | ---: | ---: |
+| Itens com preço proposto | 7 | 7 (feijão ganhou, caderno capa dura grande perdeu) |
+| Itens com mais elegíveis | — | 15 de 40 |
+| Fonte PNCP em falha | 0 | 0 |
+| p95 por item | 12,5 s | 15,3 s |
+
+Os elegíveis cresceram em 15 itens, entre eles cola bastão (0→5), bateria 9 V (0→3), bloco adesivo (0→4), água 20 L (2→6) e caderno pequeno (15→34). O preço proposto não subiu porque o que segura a cesta continua sendo a amostra mínima e o CV (doc F: 20 de 40 barrados pelo CV), não a falta de fonte.
+
 **Desligar:** rodar o ciclo com `--sem-termos`. O que já está no índice continua valendo pela conferência de sempre.
