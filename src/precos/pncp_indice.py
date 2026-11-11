@@ -74,6 +74,8 @@ FORA_DO_PILOTO = "fora_do_piloto"   # publicada pelo Compras.gov
 FALHA = "falha"                  # esgotou as tentativas
 
 ITEM_NAO_HOMOLOGADO = "ITEM_NAO_HOMOLOGADO"
+# julgado por maior desconto: o "unitário" publicado é percentual, não preço
+CRITERIO_MAIOR_DESCONTO = "CRITERIO_MAIOR_DESCONTO_NAO_E_PRECO"
 # Na revisita, o resultado indexado antes não voltou como homologado
 # conferível: cancelado, revogado ou corrigido depois da coleta.
 MOTIVO_REVISITA = ("não confirmado na revisita da contratação (resultado "
@@ -175,6 +177,8 @@ def linha_do_resultado(contratacao: dict, item: dict, resultado: dict
     """
     if item.get("situacaoCompraItem") != SITUACAO_ITEM_HOMOLOGADO:
         return None, ITEM_NAO_HOMOLOGADO
+    if pncp.julgado_por_desconto(item):
+        return None, CRITERIO_MAIOR_DESCONTO
     if not str(item.get("descricao") or "").strip():
         return None, evidencia.SEM_DESCRICAO
     if not str(item.get("unidadeMedida") or "").strip():

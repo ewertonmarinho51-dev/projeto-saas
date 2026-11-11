@@ -360,10 +360,24 @@ class PNCPContratacao(FontePesquisaPreco):
         return resultado
 
 
+def julgado_por_desconto(item: dict) -> bool:
+    """
+    Item julgado por MAIOR DESCONTO: o `valorUnitarioHomologado` que o PNCP
+    publica é o percentual de desconto, não preço — e o total vem na mesma
+    escala, então a conferência unitário × quantidade = total não o pega.
+    Medido no índice de produção em 11/11/2026: óleo diesel S-10 "homologado"
+    a 0,20 por litro (Floresta do Araguaia, 01613338000181-1-000046/2026,
+    `percentualDesconto` 0,2). Nunca vira referência de preço.
+    """
+    return "desconto" in str(item.get("criterioJulgamentoNome") or "").lower()
+
+
 def _referencia_do_resultado(contratacao: dict, item: dict,
                              linha: dict) -> Referencia | None:
     """Resultado homologado do item → `Referencia` HOMOLOGADA, ou `None`."""
     if linha.get("dataCancelamento") or linha.get("moedaEstrangeira"):
+        return None
+    if julgado_por_desconto(item):
         return None
     if "cancel" in str(linha.get("situacaoCompraItemResultadoNome") or "").lower():
         return None

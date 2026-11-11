@@ -421,3 +421,46 @@ def test_pesquisa_do_item_grava_a_referencia_do_indice(monkeypatch, armazem):
     assert gravada["fonte_id"] == "pncp" and gravada["status"] == "candidate"
     assert gravada["natureza_valor"] == "homologado"
     assert gravada["referencia_externa"] == CIMENTO
+
+
+# ---------------------------------------------------------------------------
+# Maior desconto não é preço (índice de produção, 11/11/2026)
+# ---------------------------------------------------------------------------
+DIESEL_POR_DESCONTO = {
+    "item": {"numeroItem": 6, "descricao": "ÓLEO DIESEL S-10. Especificação: Tipo S-10, conforme norma ANP.",
+             "unidadeMedida": "Litro", "quantidade": 13560.0, "materialOuServico": "M",
+             "criterioJulgamentoNome": "Maior desconto", "situacaoCompraItem": 2,
+             "situacaoCompraItemNome": "Homologado", "valorUnitarioEstimado": 8.06},
+    "resultado": {"valorUnitarioHomologado": 0.2, "quantidadeHomologada": 13560.0,
+                  "valorTotalHomologado": 2712.0, "percentualDesconto": 0.2,
+                  "situacaoCompraItemResultadoNome": "Informado", "dataResultado": "2026-11-03",
+                  "sequencialResultado": 1, "tipoPessoa": "PJ", "niFornecedor": "12345678000199"},
+}
+CONTRATACAO_DESCONTO = {"numeroControlePNCP": "01613338000181-1-000046/2026",
+                        "usuarioNome": "ECustomize Consultoria em Software S.A",
+                        "orgaoEntidade": {"cnpj": "01613338000181"},
+                        "unidadeOrgao": {"ufSigla": "PA", "municipioNome": "Floresta do Araguaia"}}
+
+
+def test_maior_desconto_fica_fora_do_indice_com_motivo():
+    linha, motivo = indice.linha_do_resultado(CONTRATACAO_DESCONTO, DIESEL_POR_DESCONTO["item"],
+                                              DIESEL_POR_DESCONTO["resultado"])
+    assert linha is None and motivo == indice.CRITERIO_MAIOR_DESCONTO
+    # o mesmo item julgado por menor preço entra (a regra é o critério)
+    menor = {**DIESEL_POR_DESCONTO["item"], "criterioJulgamentoNome": "Menor preço"}
+    linha, motivo = indice.linha_do_resultado(CONTRATACAO_DESCONTO, menor,
+                                              DIESEL_POR_DESCONTO["resultado"])
+    assert linha is not None and motivo == ""
+
+
+def test_linha_ja_indexada_por_desconto_e_recusada_na_leitura():
+    # gravada antes da correção (produção, 11/11/2026): a fonte não a devolve
+    bruto = {"contratacao": CONTRATACAO_DESCONTO, **DIESEL_POR_DESCONTO}
+    linha = {"id_externo": "01613338000181-1-000046/2026#6#1", "descricao": "OLEO DIESEL S-10",
+             "bruto": bruto}
+    resultado = indice.PNCPIndice(lambda *a, **k: [linha]).pesquisar(
+        Consulta(descricao="oleo diesel s-10"))
+    assert resultado.referencias == []
+    # e a consulta por contratação (#187) também recusa
+    assert pncp._referencia_do_resultado(CONTRATACAO_DESCONTO, DIESEL_POR_DESCONTO["item"],
+                                         DIESEL_POR_DESCONTO["resultado"]) is None
