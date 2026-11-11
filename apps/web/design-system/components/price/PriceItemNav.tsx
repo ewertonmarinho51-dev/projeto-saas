@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+
 import { cx } from "../../lib/cx";
 import { Icon, type IconName } from "../core/Icon";
 
@@ -19,6 +23,11 @@ export interface PriceItemNavProps {
   onSelect?: (id: string | number) => void;
   /** Destaca em âmbar o item com menos referências que isto. */
   minRefs?: number;
+  /**
+   * Lista longa (centenas de itens): a lista rola dentro do cartão, até a
+   * altura de `--gc-itemnav-max`, e abre com o item atual à vista.
+   */
+  scroll?: boolean;
 }
 
 const SITUACAO: Record<PriceItemStatus, { icone: IconName; rotulo: string }> = {
@@ -29,9 +38,34 @@ const SITUACAO: Record<PriceItemStatus, { icone: IconName; rotulo: string }> = {
 };
 
 /** Navegador dos itens de uma pesquisa: número, descrição, nº de referências, estimativa e situação com rótulo. */
-export function PriceItemNav({ items, activeId, onSelect, minRefs = 3 }: PriceItemNavProps) {
+export function PriceItemNav({ items, activeId, onSelect, minRefs = 3, scroll = false }: PriceItemNavProps) {
+  const lista = useRef<HTMLUListElement>(null);
+
+  // Só a própria lista rola (scrollTop), nunca a página: `scrollIntoView`
+  // arrastaria a janela junto quando a lista está fora da tela. Uma vez por
+  // item atual: se a lista ainda não tem altura (estilo chegando, painel
+  // oculto), espera o primeiro tamanho de verdade e para de observar.
+  useEffect(() => {
+    const ul = lista.current;
+    if (!scroll || !ul) return;
+    const centralizar = () => {
+      if (ul.clientHeight === 0 || ul.scrollHeight <= ul.clientHeight) return false;
+      const atual = ul.querySelector<HTMLElement>('[aria-current="true"]');
+      if (!atual) return true;
+      const topo = atual.offsetTop; // a lista com rolagem é `position: relative`
+      if (topo < ul.scrollTop || topo + atual.offsetHeight > ul.scrollTop + ul.clientHeight) {
+        ul.scrollTop = Math.max(0, topo - (ul.clientHeight - atual.offsetHeight) / 2);
+      }
+      return true;
+    };
+    if (centralizar() || typeof ResizeObserver === "undefined") return;
+    const observador = new ResizeObserver(() => centralizar() && observador.disconnect());
+    observador.observe(ul);
+    return () => observador.disconnect();
+  }, [scroll, activeId]);
+
   return (
-    <ul className="gc-itemnav" role="list">
+    <ul ref={lista} className={cx("gc-itemnav", scroll && "gc-itemnav--scroll")} role="list">
       {items.map((it) => {
         const status = it.status ?? "pending";
         const s = SITUACAO[status];

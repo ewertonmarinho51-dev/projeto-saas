@@ -541,17 +541,20 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
 .gc-feedback__thanks{font:var(--type-caption);color:var(--text-secondary);margin:0 6px}
 
 /* ——— Price research (deep) ——— */
-.gc-itemnav{list-style:none;margin:0;padding:0;display:grid;gap:2px}
-.gc-itemnav__btn{display:flex;align-items:flex-start;gap:10px;width:100%;padding:8px 10px;border:0;border-radius:var(--gc-radius-md);background:transparent;text-align:left;cursor:pointer;position:relative;transition:background-color var(--dur-fast)}
+/* Cada linha cabe na coluna do cartão: a trilha da lista é minmax(0,1fr), a
+   descrição quebra em qualquer ponto e número e situação têm espaço próprio. */
+.gc-itemnav{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(0,1fr);gap:2px}
+.gc-itemnav>li{min-width:0}
+.gc-itemnav--scroll{position:relative;max-block-size:var(--gc-itemnav-max,none);overflow-y:auto;overscroll-behavior:contain}
+.gc-itemnav__btn{display:flex;align-items:flex-start;gap:10px;width:100%;min-width:0;padding:8px 10px;border:0;border-radius:var(--gc-radius-md);background:transparent;text-align:left;cursor:pointer;position:relative;transition:background-color var(--dur-fast)}
 .gc-itemnav__btn:hover{background:var(--surface-hover)}
 .gc-itemnav__btn[aria-current="true"]{background:var(--accent-subtle)}
 .gc-itemnav__btn[aria-current="true"]::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--accent-brand)}
-.gc-itemnav__btn>span:last-child{margin-top:1px;font-size:16px}
-.gc-itemnav__n{font:500 var(--gc-fs-xs)/1.5 var(--gc-font-mono);color:var(--text-secondary);margin-top:1px}
+.gc-itemnav__n{flex:none;min-inline-size:3ch;font:500 var(--gc-fs-xs)/1.5 var(--gc-font-mono);color:var(--text-secondary);margin-top:1px}
 .gc-itemnav__body{flex:1;min-width:0;display:grid;gap:3px}
-.gc-itemnav__title{font:500 var(--gc-fs-sm)/1.35 var(--gc-font-sans);color:var(--text-primary)}
+.gc-itemnav__title{font:500 var(--gc-fs-sm)/1.35 var(--gc-font-sans);color:var(--text-primary);overflow-wrap:anywhere}
 .gc-itemnav__btn[aria-current="true"] .gc-itemnav__title{font-weight:600;color:var(--accent-strong-text)}
-.gc-itemnav__meta{display:flex;gap:4px;flex-wrap:wrap;font:var(--type-caption);color:var(--text-secondary)}
+.gc-itemnav__meta{display:flex;gap:4px;flex-wrap:wrap;min-width:0;font:var(--type-caption);color:var(--text-secondary);overflow-wrap:anywhere}
 .gc-disp{display:grid;gap:var(--space-2);container-type:inline-size;min-width:0;padding-inline:var(--space-3)}
 .gc-disp__plot{--gc-disp-passo:var(--space-4);--gc-disp-topo:calc(var(--space-10) + var(--space-1));--gc-disp-centro:calc(var(--gc-disp-topo) + var(--gc-disp-passo) * (var(--gc-disp-lado,0) + .5));position:relative;height:calc(var(--gc-disp-centro) + var(--gc-disp-passo) * (var(--gc-disp-lado,0) + .5) + var(--space-2))}
 .gc-disp__grid{position:absolute;top:var(--gc-disp-topo);bottom:0;width:var(--border-width);background:var(--border-subtle)}
@@ -703,7 +706,7 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   .gc-msg__dot:nth-child(2){animation-delay:.2s}
   .gc-msg__dot:nth-child(3){animation-delay:.4s}
   .gc-source__ext{color:var(--text-tertiary);font-size:var(--icon-xs)}
-  .gc-itemnav__status{display:inline-flex;color:var(--text-tertiary)}
+  .gc-itemnav__status{flex:none;display:inline-flex;justify-content:center;inline-size:var(--icon-sm);margin-top:var(--space-0-5);font-size:var(--icon-sm);color:var(--text-tertiary)}
   .gc-itemnav__status[data-status="done"]{color:var(--success-solid)}
   .gc-itemnav__status[data-status="review"]{color:var(--warning-solid)}
   .gc-itemnav__status[data-status="blocked"]{color:var(--error-solid)}
@@ -720,6 +723,8 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   /* Aba como link de navegação (aria-current), não só como botão de tablist. */
   a.gc-tab{text-decoration:none}
   .gc-page-head__actions{display:flex;gap:var(--space-2);flex-wrap:wrap}
+  /* Descrição de item sem espaço (código de catálogo, nome de arquivo) quebra em vez de alargar a página. */
+  .gc-page-head__titles,.gc-pref__main{overflow-wrap:anywhere}
   fieldset.gc-srcpick{border:0;padding:0;margin:0}
   figure.gc-disp{margin:0}
   .gc-shell__body{display:flex;flex:1;min-height:0;position:relative}
@@ -790,16 +795,19 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   .gc-shell--workspace{height:100dvh;min-height:0;overflow:hidden}
   .gc-shell--workspace .gc-shell__main{min-height:0;height:100dvh}
   .gc-shell--workspace .gc-shell__content{overflow:hidden;display:flex;flex-direction:column}
+  /* A trilha repete o "Voltar ao processo" da faixa do documento: no editor ela sai e a altura vai
+     para o documento. No celular a barra fica, porque é dela o botão que abre o menu. */
+  @media (min-width:769px){.gc-shell--workspace .gc-topbar{display:none}}
   .gc-workspace{display:flex;flex-direction:column;flex:1;min-height:0;height:100%;background:var(--surface-sunken)}
   .gc-workspace--focus{position:fixed;inset:0;z-index:var(--z-overlay);height:100dvh}
-  .gc-workspace__bar{display:flex;align-items:center;gap:var(--space-3);min-height:var(--control-lg);padding:var(--space-2) var(--space-4);background:var(--surface-card);border-bottom:var(--border-width) solid var(--border-subtle);flex-wrap:wrap}
+  .gc-workspace__bar{display:flex;align-items:center;gap:var(--space-3);min-height:var(--control-lg);padding:var(--space-1) var(--space-3);background:var(--surface-card);border-bottom:var(--border-width) solid var(--border-subtle);flex-wrap:nowrap;min-width:0}
   .gc-workspace__back{flex:none}
-  .gc-workspace__titles{display:grid;min-width:0;flex:0 1 auto}
-  .gc-workspace__kicker{font:var(--type-overline);letter-spacing:var(--gc-tracking-caps);text-transform:uppercase;color:var(--text-tertiary)}
-  .gc-workspace__title{margin:0;font:var(--type-h3);color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .gc-workspace__meta{display:flex;align-items:center;gap:var(--space-1-5);flex-wrap:wrap}
+  .gc-workspace__titles{display:flex;align-items:baseline;gap:var(--space-2);min-width:0;flex:0 1 auto}
+  .gc-workspace__kicker{flex:none;font:var(--type-overline);letter-spacing:var(--gc-tracking-caps);text-transform:uppercase;color:var(--text-tertiary)}
+  .gc-workspace__title{margin:0;min-width:0;font:var(--type-h3);color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gc-workspace__meta{flex:none;display:flex;align-items:center;gap:var(--space-1-5)}
   .gc-workspace__spacer{flex:1}
-  .gc-workspace__actions{display:flex;align-items:center;gap:var(--space-1-5);flex-wrap:wrap}
+  .gc-workspace__actions{flex:none;display:flex;align-items:center;gap:var(--space-1-5)}
   .gc-workspace__save{display:inline-flex;align-items:center;gap:var(--space-1-5);font:var(--type-caption);color:var(--text-secondary);white-space:nowrap}
   .gc-workspace__save::before{content:"";width:var(--space-2);height:var(--space-2);border-radius:var(--gc-radius-pill);background:var(--text-tertiary)}
   .gc-workspace__save--progress::before{background:var(--info-solid);animation:gc-pulse var(--dur-slow) var(--gc-ease-standard) infinite alternate}
@@ -810,6 +818,15 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   .gc-workspace__notice{padding:var(--space-2) var(--space-4) 0}
   .gc-workspace__body{display:grid;grid-template-columns:minmax(0,1fr);flex:1 1 auto;min-height:0;min-width:0}
   .gc-workspace--panel .gc-workspace__body{grid-template-columns:minmax(0,1fr) minmax(0,calc(var(--sidebar-width) + var(--space-16)))}
+  .gc-workspace--rail .gc-workspace__body{grid-template-columns:minmax(0,1fr) auto}
+  .gc-workspace--rail.gc-workspace--panel .gc-workspace__body{grid-template-columns:minmax(0,1fr) minmax(0,calc(var(--sidebar-width) + var(--space-16))) auto}
+  .gc-workspace__rail{display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-2) var(--space-1);background:var(--surface-card);border-left:var(--border-width) solid var(--border-subtle);overflow-y:auto}
+  .gc-workspace__tool{display:grid;justify-items:center;gap:var(--space-1);inline-size:calc(var(--space-16) + var(--space-2));padding:var(--space-2) var(--space-1);border:var(--border-width) solid transparent;border-radius:var(--gc-radius-md);background:transparent;color:var(--text-secondary);font:var(--type-caption);cursor:pointer;transition:background-color var(--dur-fast) var(--gc-ease-standard),color var(--dur-fast) var(--gc-ease-standard)}
+  .gc-workspace__tool .gc-icon{font-size:var(--icon-md)}
+  .gc-workspace__tool:hover{background:var(--surface-hover);color:var(--text-primary)}
+  .gc-workspace__tool[aria-pressed="true"]{background:var(--accent-subtle);color:var(--accent-strong-text);font-weight:var(--weight-semibold)}
+  .gc-workspace__tool:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .gc-workspace__tool-label{max-inline-size:100%;overflow-wrap:anywhere;text-align:center}
   .gc-workspace__canvas{position:relative;min-width:0;min-height:0;overflow:hidden}
   .gc-workspace__panel{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;background:var(--surface-card);border-left:var(--border-width) solid var(--border-subtle)}
   .gc-workspace__panel-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);padding:var(--space-3) var(--space-4);border-bottom:var(--border-width) solid var(--border-subtle)}
@@ -824,7 +841,8 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   .gc-wordcraft-editor > button:disabled{display:none}
   @keyframes gc-pulse{from{opacity:1}to{opacity:.35}}
   @media (max-width:768px){
-    .gc-workspace--panel .gc-workspace__body{grid-template-columns:minmax(0,1fr)}
+    .gc-workspace--panel .gc-workspace__body,.gc-workspace--rail.gc-workspace--panel .gc-workspace__body{grid-template-columns:minmax(0,1fr) auto}
+    .gc-workspace__bar{flex-wrap:wrap}
     .gc-workspace--panel .gc-workspace__panel{position:absolute;inset:auto 0 0 0;max-height:60%;border-left:0;border-top:var(--border-width) solid var(--border-subtle);box-shadow:var(--gc-shadow-lg);z-index:var(--z-dropdown)}
     .gc-workspace__body{position:relative}
   }

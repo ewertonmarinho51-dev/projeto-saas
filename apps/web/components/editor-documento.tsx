@@ -33,6 +33,7 @@ import {
   Select,
   Spinner,
   type SaveTone,
+  type WorkspaceTool,
 } from "@/design-system";
 import type { AnaliseDaRevisao, DocumentoDoProcesso, Evidencias, FatosDoProcesso, RevisaoDoHistorico } from "@/lib/api";
 import { montarHost, type HostMontado } from "@/lib/wordcraft/host-nativo";
@@ -69,6 +70,15 @@ const TITULO_DO_PAINEL: Record<Exclude<Painel, null>, string> = {
   evidencias: "Evidências e fontes",
 };
 type Modo = "edicao" | "leitura";
+
+// O trilho lateral, de cima para baixo: do documento (estrutura, fontes) ao
+// ato sobre ele (histórico, revisão e aprovação).
+const FERRAMENTAS: WorkspaceTool[] = [
+  { id: "estrutura", icon: "clipboard-text", label: "Estrutura" },
+  { id: "evidencias", icon: "book-open", label: "Evidências" },
+  { id: "historico", icon: "clock", label: "Histórico" },
+  { id: "revisao", icon: "seal-check", label: "Revisão" },
+];
 
 const STATUS: Record<string, { rotulo: string; variante: "neutral" | "info" | "success" | "brand" }> = {
   rascunho: { rotulo: "Rascunho", variante: "neutral" },
@@ -704,24 +714,31 @@ export function EditorDeDocumento({
       </div>
     );
 
-  const meta = (
-    <>
-      {status && (
-        <Badge size="sm" variant={status.variante}>
-          {status.rotulo}
-        </Badge>
-      )}
-      {revisaoSalva && (
-        <Badge size="sm" variant="neutral">
-          Revisão {revisaoSalva}
-        </Badge>
-      )}
-    </>
+  const situacao = status && (
+    <Badge size="sm" variant={status.variante}>
+      {status.rotulo}
+    </Badge>
   );
 
   if (modo === "leitura") {
+    // Sem editor não há indicador de salvamento: a revisão vai no selo.
     return (
-      <DocumentWorkspace back={voltar} kicker={documento.sigla} title={documento.rotulo} meta={meta} actions={exportar}>
+      <DocumentWorkspace
+        back={voltar}
+        kicker={documento.sigla}
+        title={documento.rotulo}
+        meta={
+          <>
+            {situacao}
+            {revisaoSalva && (
+              <Badge size="sm" variant="neutral">
+                Revisão {revisaoSalva}
+              </Badge>
+            )}
+          </>
+        }
+        actions={exportar}
+      >
         <div className="grid h-full place-items-center p-6">
           <EmptyState
             icon="file-text"
@@ -739,7 +756,8 @@ export function EditorDeDocumento({
         back={voltar}
         kicker={documento.sigla}
         title={<span data-testid="titulo-documento">{documento.rotulo}</span>}
-        meta={meta}
+        // A revisão já está no salvamento ("Revisão 13 aberta", "Salvo · revisão 13"): sem selo repetido.
+        meta={situacao}
         save={falhaDeAbertura || falhaDoHost ? undefined : salvamento(fase, estado)}
         notice={notice}
         focus={foco}
@@ -756,21 +774,12 @@ export function EditorDeDocumento({
         }
         panelTitle={painel ? TITULO_DO_PAINEL[painel] : undefined}
         onClosePanel={() => setPainel(null)}
+        tools={abertura ? FERRAMENTAS : undefined}
+        activeTool={painel}
+        onToolChange={(id) => (id ? alternarPainel(id as Exclude<Painel, null>) : setPainel(null))}
         actions={
           abertura ? (
             <>
-              <Button size="sm" variant={painel === "estrutura" ? "subtle" : "ghost"} icon="clipboard-text" aria-pressed={painel === "estrutura"} onClick={() => alternarPainel("estrutura")}>
-                Estrutura
-              </Button>
-              <Button size="sm" variant={painel === "evidencias" ? "subtle" : "ghost"} icon="book-open" aria-pressed={painel === "evidencias"} onClick={() => alternarPainel("evidencias")}>
-                Evidências
-              </Button>
-              <Button size="sm" variant={painel === "historico" ? "subtle" : "ghost"} icon="clock" aria-pressed={painel === "historico"} onClick={() => alternarPainel("historico")}>
-                Histórico
-              </Button>
-              <Button size="sm" variant={painel === "revisao" ? "subtle" : "ghost"} icon="seal-check" aria-pressed={painel === "revisao"} onClick={() => alternarPainel("revisao")}>
-                Revisão
-              </Button>
               {exportar}
               <IconButton
                 size="sm"
@@ -799,7 +808,9 @@ export function EditorDeDocumento({
             />
           </div>
         ) : falhaDoHost ? (
-          <div className="grid h-full place-items-center p-6">
+          // Chave própria: sem ela o React reaproveitaria o nó da área, com o host
+          // já montado dentro, e o aviso ficaria empurrado para fora da tela.
+          <div key="falha-do-host" className="grid h-full place-items-center p-6">
             <EmptyState
               icon="warning-circle"
               title="O editor não carregou"
@@ -812,7 +823,7 @@ export function EditorDeDocumento({
             />
           </div>
         ) : (
-          <div ref={area} className="absolute inset-0" data-testid="area-do-editor" aria-label={`Editor: ${documento.rotulo}`} />
+          <div key="area-do-editor" ref={area} className="absolute inset-0" data-testid="area-do-editor" aria-label={`Editor: ${documento.rotulo}`} />
         )}
       </DocumentWorkspace>
 

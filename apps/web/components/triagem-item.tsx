@@ -249,6 +249,7 @@ export function NavegadorDeItens({ pesquisa, itens, atual }: { pesquisa: string;
   };
   return (
     <PriceItemNav
+      scroll
       activeId={atual}
       onSelect={(id) => router.push(`/app/precos/${pesquisa}/itens/${id}`)}
       items={itens.map((i) => ({

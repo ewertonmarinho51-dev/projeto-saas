@@ -99,7 +99,7 @@ server component. Componente que recebe função (`render`, `trigger`,
 | price | `PriceStats` | estatística do item | |
 | price | `TraceabilityPanel` | origem da referência | |
 | price | `SourcePicker` | fontes consultadas | |
-| price | `PriceItemNav` | navegador de itens | |
+| price | `PriceItemNav` | navegador de itens; `scroll` faz a lista longa rolar dentro do cartão (`--gc-itemnav-max`) com o item atual à vista; descrição sem espaço quebra | |
 | price | `PriceDispersion` | dispersão no eixo linear de preço, com média, mediana e extremos | |
 | price | `PriceCompare` | grupos de preços no mesmo eixo: menor, maior e mediana | peça nova do porte |
 | price | `ScreeningSummary` | contadores/filtros da triagem | |
@@ -108,7 +108,7 @@ server component. Componente que recebe função (`render`, `trigger`,
 | price | `ExclusionDialog` | retirar referência com motivo | sim |
 | templates | `PageHead` | cabeçalho de página | |
 | templates | `AppShell` | casca do app (barra lateral + superior); `workspace` = modo de trabalho do editor (tela inteira, barra recolhida) | sim |
-| templates | `DocumentWorkspace` | espaço de trabalho do editor de documento: barra (voltar, sigla, título, selos, salvamento anunciado, ações), área do editor sem cartão e painel opcional; modo foco cobre a tela sem recriar a área | |
+| templates | `DocumentWorkspace` | espaço de trabalho do editor de documento: faixa de uma linha (voltar, sigla e título, situação, salvamento anunciado, ações), área do editor sem cartão, trilho lateral de ferramentas (`tools`, um painel por vez, aberto entre a área e o trilho); abrir painel ou modo foco não recria a área | |
 | templates | `AuthLayout` | entrada dividida marca/formulário; sempre no tema claro (usado em `/entrar` e `/entrar/recuperar`) | |
 | templates | `NavigationProgress` | barra fina no topo enquanto a próxima página não chega; quem decide quando mostrar é o app (`components/progresso-de-navegacao.tsx`) | |
 | templates | `PageSkeleton` | formato genérico de página enquanto a próxima não chega; a casca o mantém escondido até `html[data-navegando]`, sem pedir nada ao servidor (serve às rotas com 404 real, que não têm `loading.tsx`) | |

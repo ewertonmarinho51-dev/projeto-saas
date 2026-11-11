@@ -135,9 +135,19 @@ export default async function Referencias({
           )
         }
         triagem={
+          // Desktop (xl): Itens | busca e triagem | Cesta, as laterais presas
+          // ao rolar. Abaixo disso, os três blocos em sequência, na mesma
+          // ordem. A lista de itens rola dentro do cartão: com centenas de
+          // itens ela não empurra a busca para longe nem estica a página.
           <div className="grid items-start gap-5 xl:grid-cols-[calc(var(--space-16)*4)_minmax(0,1fr)_calc(var(--space-16)*4.75)]">
-        <Card title="Itens" flush actions={<Badge size="sm">{pesquisa.itens.length}</Badge>} className="hidden xl:block">
-          <div className="px-2 pb-3">
+        <Card
+          title="Itens"
+          flush
+          actions={<Badge size="sm">{pesquisa.itens.length}</Badge>}
+          className="min-w-0 xl:sticky xl:top-[calc(var(--topbar-height)+var(--space-4))]"
+          data-testid="cartao-itens"
+        >
+          <div className="px-2 pb-3 [--gc-itemnav-max:calc(var(--space-16)*4)] xl:[--gc-itemnav-max:calc(100dvh-var(--topbar-height)-var(--space-16)*2)]">
             <NavegadorDeItens pesquisa={id} itens={pesquisa.itens} atual={item.id} />
           </div>
         </Card>
@@ -185,8 +195,13 @@ export default async function Referencias({
           {editavel && <EdicaoDoItem key={item.revisao} pesquisa={id} item={item} />}
         </div>
 
-        <div className="grid gap-4 xl:sticky xl:top-[calc(var(--topbar-height)+var(--space-4))]">
-          <Card title="Cesta de preços" subtitle="Referências que entram no cálculo." actions={<Badge variant="brand" size="sm">{escolhidas.length}</Badge>}>
+        <div className="grid min-w-0 gap-4 xl:sticky xl:top-[calc(var(--topbar-height)+var(--space-4))]">
+          <Card
+            title="Cesta de preços"
+            subtitle="Referências que entram no cálculo."
+            actions={<Badge variant="brand" size="sm">{escolhidas.length}</Badge>}
+            data-testid="cartao-cesta"
+          >
             {escolhidas.length > 0 ? (
               <PriceBasket
                 items={escolhidas.map((r) => ({

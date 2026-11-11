@@ -626,13 +626,19 @@ def semear_larguras(pilha: Pilha, dono: str = "admin_larguras", dono_b: str = "l
             (conta.tenant_id, conta.secretaria_id, conta.auth_user_id, f"Pesquisa de {objeto}",
              objeto, pid, uuid.uuid4().hex)).fetchone()[0])
         primeiro = None
+        # O item 2 leva o caso do print de 383 itens: código de catálogo sem
+        # espaço, que não tem onde quebrar. Aparece no navegador de itens da
+        # página do item 1 (a que as provas abrem).
+        sem_espaco = ("MATERIAL_DE_EXPEDIENTE_PAPEL_SULFITE_A4_75G_ALCALINO_PACOTE_500_FOLHAS_"
+                      "CERTIFICACAO_AMBIENTAL_FSC_OU_EQUIVALENTE")
         for i, dado in enumerate(itens, start=1):
+            descricao_do_item = sem_espaco if i == 2 else dado["descricao"]
             item = str(c.execute(
                 "insert into public.pesquisa_preco_itens (pesquisa_id, tenant_id, numero, codigo, "
                 "tipo_catalogo, descricao, unidade, quantidade, estado, metodo, preco_estimado, "
                 "preco_total) values (%s,%s,%s,%s,'CATMAT',%s,'RESMA',%s,'review','mediana',"
                 "1234567.8900,15432098.6250) returning id",
-                (pesquisa, conta.tenant_id, i, dado["codigo"], dado["descricao"],
+                (pesquisa, conta.tenant_id, i, dado["codigo"], descricao_do_item,
                  dado["quantidade"])).fetchone()[0])
             primeiro = primeiro or item
         for n in range(1, 7):
