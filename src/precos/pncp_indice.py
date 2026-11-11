@@ -78,6 +78,24 @@ COLETADA = "coletada"            # todos os itens homologados lidos
 SEM_RESULTADO = "sem_resultado"  # ainda sem item homologado; volta se atualizar
 FORA_DO_PILOTO = "fora_do_piloto"   # publicada pelo Compras.gov
 FALHA = "falha"                  # esgotou as tentativas
+# Achada pela BUSCA POR TERMO (`Coletor.indexar_termo`, 0043): só os itens
+# que casaram com os termos lidos (`resumo.termos`). `atualizacao_global`
+# fica vazia de propósito: se a descoberta regional a encontrar, a versão
+# "difere", e ela volta à fila para a leitura completa.
+PARCIAL = "parcial"
+
+# Busca por termo: os termos voltam à fila depois deste prazo (o pregão
+# novo do mesmo item aparece), e antes dele quando a busca falhou.
+TERMO_REBUSCA_DIAS = 7
+TERMO_FALHA_HORAS = 6
+TERMO_TENTATIVAS_BUSCA = 3       # cada uma com as tentativas de `_json`
+TERMO_ESPERA_BUSCA_S = 5.0
+TERMO_CONTRATACOES = 16
+TERMO_ITENS_POR_CONTRATACAO = 3
+# janela de PUBLICAÇÃO da busca por termo: cobre a janela de pesquisa mais
+# longa que a lei admite para contratação similar (1 ano, IN 65/2021, art.
+# 5º, II) e a folga entre publicação e resultado
+TERMO_PUBLICACAO_DIAS = 365 + 120
 
 ITEM_NAO_HOMOLOGADO = "ITEM_NAO_HOMOLOGADO"
 # julgado por maior desconto: o "unitário" publicado é percentual, não preço
@@ -261,6 +279,13 @@ class Armazem(Protocol):
     def buscar(self, termos: list[str], *, uf: str | None, desde: date | None,
                ate: date | None, limite: int) -> list[dict]: ...
 
+    # busca por termo (0043)
+    def registrar_termos(self, nucleos: list[str]) -> int: ...
+
+    def termos_para_buscar(self, limite: int) -> list[dict]: ...
+
+    def salvar_termo(self, nucleo: str, **campos) -> None: ...
+
 
 class ArmazemEmMemoria:
     """Índice em memória, opcionalmente espelhado num arquivo JSON — o
@@ -271,18 +296,47 @@ class ArmazemEmMemoria:
         self.cursores: dict[str, dict] = {}
         self.contratacoes: dict[str, dict] = {}
         self.resultados: dict[str, dict] = {}
+        self.termos: dict[str, dict] = {}
+        self.descricoes: list[str] = []      # o que `pesquisa_preco_itens` daria
+        self.agora = lambda: datetime.now(timezone.utc)
         if arquivo is not None and arquivo.exists():
             dados = json.loads(arquivo.read_text(encoding="utf-8"))
             self.cursores = dados.get("cursores", {})
             self.contratacoes = dados.get("contratacoes", {})
             self.resultados = dados.get("resultados", {})
+            self.termos = dados.get("termos", {})
 
     def persistir(self) -> None:
         if self._arquivo is not None:
             self._arquivo.write_text(json.dumps(
                 {"cursores": self.cursores, "contratacoes": self.contratacoes,
-                 "resultados": self.resultados}, ensure_ascii=False),
-                encoding="utf-8")
+                 "resultados": self.resultados, "termos": self.termos},
+                ensure_ascii=False), encoding="utf-8")
+
+    def registrar_termos(self, nucleos):
+        novos = 0
+        for nucleo in nucleos:
+            if nucleo and nucleo not in self.termos:
+                self.termos[nucleo] = {"nucleo": nucleo, "buscado_em": None,
+                                       "proxima_busca": None, "falhas": 0}
+                novos += 1
+        return novos
+
+    def termos_para_buscar(self, limite):
+        agora = self.agora().isoformat()
+        prontos = [t for t in self.termos.values()
+                   if not t.get("proxima_busca") or t["proxima_busca"] <= agora]
+        # nunca buscado primeiro; depois, o que espera há mais tempo
+        prontos.sort(key=lambda t: (t.get("buscado_em") is not None,
+                                    str(t.get("proxima_busca") or "")))
+        return prontos[:limite]
+
+    def salvar_termo(self, nucleo, **campos):
+        self.termos[nucleo] = {**self.termos.get(nucleo, {"nucleo": nucleo}),
+                               **campos}
+
+    def descricoes_cotadas(self, dias, limite=2000):
+        return list(self.descricoes)[:limite]
 
     def cursor(self, uf, modalidade):
         return self.cursores.get(f"{uf}:{modalidade}")
@@ -603,10 +657,7 @@ class Coletor:
                 if entregues >= max_contratacoes:
                     return
 
-    def _coletar_contratacao(self, contratacao: dict) -> None:
-        controle = contratacao["numero_controle"]
-        cnpj, ano, seq = pncp.controle_da_entrada(controle)
-        base = f"{pncp.BASE_PNCP}/orgaos/{cnpj}/compras/{ano}/{seq}/itens"
+    def _itens(self, base: str) -> list[dict]:
         itens: list[dict] = []
         pagina = 1
         while True:
@@ -614,8 +665,129 @@ class Coletor:
                 f"{base}?pagina={pagina}&tamanhoPagina={PAGINA_ITENS}") or []
             itens.extend(lote)
             if len(lote) < PAGINA_ITENS:
-                break
+                return itens
             pagina += 1
+
+    # -- busca por termo (0043) ---------------------------------------------
+    def indexar_termo(self, nucleo: str, *, hoje: date | None = None,
+                      max_contratacoes: int = TERMO_CONTRATACOES,
+                      itens_por_contratacao: int = TERMO_ITENS_POR_CONTRATACAO
+                      ) -> dict:
+        """
+        Busca NACIONAL do portal pelo núcleo de um item cotado. De cada
+        pregão achado lê só os itens que casam (`pncp_nacional.aceitar_item`)
+        e grava os resultados pela mesma `linha_do_resultado` da coleta
+        regional — mesma conferência, mesma quarentena.
+
+        Não relê o que já está no índice por inteiro (coletada, ou na fila
+        da coleta regional), nem a contratação parcial que já leu este
+        termo. Publicada pelo Compras.gov fica fora, como na regional (a
+        fonte do Compras.gov já a traz). `OrcamentoEsgotado` sobe: quem
+        chama não marca o termo, e a próxima rodada o refaz.
+        """
+        from . import pncp_nacional as nacional
+        from .fontes import ErroFonte
+
+        hoje = hoje or date.today()
+        desde = hoje - timedelta(days=TERMO_PUBLICACAO_DIAS)
+        consulta = urllib.parse.urlencode(nacional.parametros_da_busca(
+            nucleo, modalidades=sorted(self._modalidades)))
+        # a busca do portal derruba a conexão em ~metade das chamadas sob
+        # uso contínuo (medido em 11/11/2026: "Connection was reset", termo
+        # qualquer; a mesma chamada passa depois). Mais fôlego que o padrão.
+        for tentativa in range(1, TERMO_TENTATIVAS_BUSCA + 1):
+            try:
+                dados = self._json(f"{nacional.BUSCA}?{consulta}")
+                break
+            except ErroFonte:
+                if tentativa == TERMO_TENTATIVAS_BUSCA:
+                    raise
+                self._dormir(TERMO_ESPERA_BUSCA_S * tentativa)
+        if not isinstance(dados, dict) or not isinstance(dados.get("items"), list):
+            raise ErroFonte("a busca do PNCP mudou de formato")
+        aceitar = nacional.aceitar_item(nucleo)
+        relato = {"achadas": 0, "lidas": 0, "puladas": 0, "validos": 0}
+        vistas: set[str] = set()
+        for hit in dados["items"]:
+            controle = nacional.controle_aceito(
+                hit, modalidades=self._modalidades, desde=desde)
+            if not controle or controle in vistas:
+                continue
+            if len(vistas) >= max_contratacoes:
+                break
+            vistas.add(controle)
+            relato["achadas"] += 1
+            anterior = self.armazem.contratacao(controle)
+            if self._ja_indexada(anterior, nucleo) or (
+                    str(hit.get("usuario_nome") or "") == PLATAFORMA_COMPRAS_GOV
+                    and not self._incluir_compras_gov):
+                relato["puladas"] += 1
+                continue
+            relato["validos"] += self._indexar_parcial(
+                controle, hit, anterior, nucleo, aceitar, itens_por_contratacao)
+            relato["lidas"] += 1
+        return relato
+
+    @staticmethod
+    def _ja_indexada(anterior: dict | None, nucleo: str) -> bool:
+        if anterior is None:
+            return False
+        estado = anterior.get("estado")
+        if estado == PARCIAL:
+            return nucleo in ((anterior.get("resumo") or {}).get("termos") or [])
+        # sem_resultado: a regional leu quando ainda não havia resultado
+        return estado != SEM_RESULTADO
+
+    def _indexar_parcial(self, controle: str, hit: dict, anterior: dict | None,
+                         nucleo: str, aceitar, maximo: int) -> int:
+        from . import pncp_nacional as nacional
+
+        resumo = resumo_da_contratacao(nacional.contratacao_do_resultado(hit))
+        termos = list(((anterior or {}).get("resumo") or {}).get("termos") or [])
+        cnpj, ano, seq = pncp.controle_da_entrada(controle)
+        base = f"{pncp.BASE_PNCP}/orgaos/{cnpj}/compras/{ano}/{seq}/itens"
+        # a contratação entra ANTES dos resultados (chave estrangeira), com
+        # os termos JÁ lidos: interrompida aqui, a próxima rodada a relê
+        self.armazem.salvar_contratacao(
+            controle, uf=resumo["unidadeOrgao"].get("ufSigla"),
+            modalidade_id=resumo.get("modalidadeId"),
+            plataforma=resumo.get("usuarioNome") or "", atualizacao_global="",
+            tem_homologacao=True, estado=PARCIAL, erro="",
+            resumo={**resumo, "termos": termos})
+        itens = self._itens(base)
+        candidatos = sorted(
+            (i for i in itens if i.get("temResultado")
+             and (aceitar is None or aceitar(str(i.get("descricao") or "")))),
+            key=lambda i: int(i.get("numeroItem") or 0))[:maximo]
+        validos = int((anterior or {}).get("resultados_validos") or 0)
+        gravados = 0
+        for item in candidatos:
+            numero = int(item.get("numeroItem") or 0)
+            gravar = []
+            for resultado in self._json(f"{base}/{numero}/resultados") or []:
+                self.rodada.resultados += 1
+                linha, motivo = linha_do_resultado(resumo, item, resultado)
+                if linha is None:
+                    self.rodada.quarentena[motivo] += 1
+                else:
+                    gravar.append(linha)
+            if gravar:
+                self.armazem.gravar_resultados(gravar)
+            gravados += len(gravar)
+            self.rodada.itens_lidos += 1
+        self.rodada.validos += gravados
+        self.rodada.contratacoes_lidas += 1
+        self.armazem.salvar_contratacao(
+            controle, itens=len(itens), resultados_validos=validos + gravados,
+            resumo={**resumo, "termos": sorted({*termos, nucleo})},
+            coletada_em=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        return gravados
+
+    def _coletar_contratacao(self, contratacao: dict) -> None:
+        controle = contratacao["numero_controle"]
+        cnpj, ano, seq = pncp.controle_da_entrada(controle)
+        base = f"{pncp.BASE_PNCP}/orgaos/{cnpj}/compras/{ano}/{seq}/itens"
+        itens = self._itens(base)
         lidos_ate = int(contratacao.get("itens_lidos_ate") or 0)
         # leitura COMPLETA (primeira, ou revisita depois de atualização):
         # no fim, o que estava no índice e não foi confirmado agora sai da

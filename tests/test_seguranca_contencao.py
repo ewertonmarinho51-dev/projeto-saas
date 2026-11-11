@@ -1540,7 +1540,10 @@ TABELAS_PRIVADAS = tabelas_do_inventario()
 # Mais as três da 0042 (índice do PNCP), aplicada em 11/11/2026 (registro
 # 20261111004415): o catálogo passou de 48 para 51 tabelas em `public`, todas
 # com RLS; este inventário sobe de 45 para 48.
-TABELAS_EM_PRODUCAO = 48
+# Mais `precos_pncp_termos` da 0043 (busca do PNCP por termo), aplicada em
+# 11/11/2026 (registro 20261111124057): o catálogo passou de 51 para 52
+# tabelas em `public`, todas com RLS; este inventário sobe de 48 para 49.
+TABELAS_EM_PRODUCAO = 49
 
 # As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
 # inclui, mas porque são as únicas cuja implantação esta suíte
@@ -1601,6 +1604,8 @@ TABELAS_WORDCRAFT_NAO_IMPLANTADAS = frozenset({
 TABELAS_DO_INDICE_PNCP = frozenset({
     "precos_pncp_cursores", "precos_pncp_contratacoes",
     "precos_pncp_resultados",
+    # 0043: a fila de termos da busca nacional — só da credencial de servidor
+    "precos_pncp_termos",
 })
 
 
@@ -1950,9 +1955,11 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
                    / "20261016231514_documentos_editor_emissao_nativa.sql").read_text(encoding="utf-8")
     sql_indice_pncp = (Path(__file__).resolve().parent.parent / "supabase/migrations"
                        / "0042_precos_pncp_indice.sql").read_text(encoding="utf-8")
+    sql_termos_pncp = (Path(__file__).resolve().parent.parent / "supabase/migrations"
+                       / "0043_precos_pncp_termos.sql").read_text(encoding="utf-8")
     coberto = (_sql_da_0020() + _sql_da_0021() + _sql_da_0025()
                + _sql_da_0028() + _sql_da_0029() + _sql_da_0031()
-               + sql_editor + sql_emissao + sql_indice_pncp)
+               + sql_editor + sql_emissao + sql_indice_pncp + sql_termos_pncp)
     faltando = [t for t in TABELAS_PRIVADAS if t not in coberto]
     assert not faltando, f"sem matriz de RLS escrita: {faltando}"
 

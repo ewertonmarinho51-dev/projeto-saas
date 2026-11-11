@@ -282,9 +282,18 @@ class PNCPContratacao(FontePesquisaPreco):
     fonte = FONTE_PNCP
     capacidades = frozenset({Capacidade.PRECO, Capacidade.EVIDENCIA})
 
-    def __init__(self, entrada: str, abrir_url=None) -> None:
+    def __init__(self, entrada: str, abrir_url=None, *,
+                 max_itens: int = MAX_ITENS_COM_RESULTADO,
+                 contratacao: dict | None = None,
+                 aceitar_item=None) -> None:
+        """`contratacao`: o cabeçalho já conhecido (a busca nacional o
+        traz) — poupa a chamada à API de consulta, a mais limitada.
+        `aceitar_item(descricao) -> bool`: filtro adicional dos itens."""
         self._controle = controle_da_entrada(entrada)
         self._abrir = abrir_url or PNCPAdapter()._abrir_url
+        self._max_itens = max_itens
+        self._contratacao = contratacao
+        self._aceitar_item = aceitar_item
 
     def _json(self, url: str, resultado: ResultadoBusca):
         resultado.chamadas += 1
@@ -310,7 +319,8 @@ class PNCPContratacao(FontePesquisaPreco):
                 "00000000000000-1-000000/2026 ou o link do edital")
         cnpj, ano, seq = self._controle
         caminho = f"/orgaos/{cnpj}/compras/{ano}/{seq}"
-        contratacao = self._json(f"{BASE}{caminho}", resultado)
+        contratacao = self._contratacao or self._json(f"{BASE}{caminho}",
+                                                      resultado)
         if contratacao is None:
             return resultado
         itens = self._json(
@@ -322,10 +332,12 @@ class PNCPContratacao(FontePesquisaPreco):
         termos = _tokens(consulta.descricao)
         pontuados = sorted(
             ((len(termos & _tokens(str(i.get("descricao") or ""))), i)
-             for i in itens if i.get("temResultado")),
+             for i in itens if i.get("temResultado") and (
+                 self._aceitar_item is None
+                 or self._aceitar_item(str(i.get("descricao") or "")))),
             key=lambda par: (-par[0], int(par[1].get("numeroItem") or 0)))
         candidatos = [i for comuns, i in pontuados if comuns][
-            :MAX_ITENS_COM_RESULTADO]
+            :self._max_itens]
         if not candidatos:
             return resultado.registrar(
                 "a contratação informada não tem item homologado com termos "

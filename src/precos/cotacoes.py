@@ -732,12 +732,22 @@ def _fontes_padrao():
     fontes = fontes_padrao()
     from .. import governanca
 
-    try:
-        ligado = db.flag_ativa(governanca.FLAG_PNCP_INDICE)
-    except Exception:  # noqa: BLE001 — leitura de flag nunca liga fonte
-        ligado = False
-    if ligado:
-        from .pncp import PNCPAdapter
+    def _ligada(flag: str) -> bool:
+        try:
+            return bool(db.flag_ativa(flag))
+        except Exception:  # noqa: BLE001 — leitura de flag nunca liga fonte
+            return False
+
+    from .pncp import PNCPAdapter
+
+    if _ligada(governanca.FLAG_PNCP_NACIONAL):
+        # Brasil inteiro, pela busca do portal; o índice regional é um
+        # subconjunto dela e responderia pelo mesmo `pncp`
+        from .pncp_nacional import PNCPNacional
+
+        fontes = [f for f in fontes if not isinstance(f, PNCPAdapter)]
+        fontes.append(PNCPNacional())
+    elif _ligada(governanca.FLAG_PNCP_INDICE):
         from .pncp_indice import PNCPIndice
 
         fontes = [f for f in fontes if not isinstance(f, PNCPAdapter)]

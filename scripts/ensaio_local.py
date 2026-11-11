@@ -192,6 +192,8 @@ SEQUENCIA_EM_ENSAIO = (
     # coleta do PNCP e que `service_role` nasce sem DELETE/TRUNCATE nas três
     # tabelas: só vale depois das migrações de contenção (0019, 0024).
     "0042_precos_pncp_indice.sql",
+    # A 0043 altera a tabela de contratações da 0042.
+    "0043_precos_pncp_termos.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
