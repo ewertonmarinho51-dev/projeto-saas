@@ -157,7 +157,25 @@ export default async function Referencias({
             />
           )}
           {typeof busca === "string" && UUID.test(busca) && <ProgressoDaBusca jobId={busca} />}
-          <h2>Triagem das referências</h2>
+          <h2 id="triagem">Triagem das referências</h2>
+          {item.revisao_cv && (
+            <Alert
+              variant="warning"
+              title={
+                item.revisao_cv.cv
+                  ? `Revisão necessária: coeficiente de variação da série proposta em ${item.revisao_cv.cv} (limite de ${item.revisao_cv.limite})`
+                  : "Revisão necessária: coeficiente de variação indisponível"
+              }
+            >
+              <span data-testid="revisao-cv">
+                {item.revisao_cv.cv
+                  ? `A cotação automática encontrou ${item.revisao_cv.sugeridas} referência(s), mas a série de ${item.revisao_cv.quantidade} preços ficou dispersa demais para entrar na cesta sozinha.`
+                  : `A cotação automática encontrou ${item.revisao_cv.sugeridas} referência(s), mas a série proposta tem menos de dois preços válidos.`}{" "}
+                Elas estão abaixo como pendentes: confira a origem e inclua na cesta as que representam o item.
+                {escolhidas.length === 0 && " Enquanto a cesta estiver vazia, o preço estimado fica pendente."}
+              </span>
+            </Alert>
+          )}
           {analise?.coletadas && (
             <Card title="Dispersão das referências" actions={<Badge variant="warning" caps size="sm">Avaliação preliminar</Badge>}>
               <GraficoDaSerie dados={analise} />

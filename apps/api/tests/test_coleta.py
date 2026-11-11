@@ -319,3 +319,59 @@ def test_worker_busca_so_o_item_pedido_literal_e_guarda_a_mensagem(banco, domini
     final = _patches(banco)[-1]
     assert final["estado"] == "succeeded" and final["feitos"] == 1
     assert final["resultado"] == {"mensagem": "Preço formado com 3 preços."}
+
+
+# ---------------------------------------------------------------------------
+# Contratação conhecida do PNCP na busca de um item (10/11/2026)
+# ---------------------------------------------------------------------------
+CONTROLE_PNCP = "07954480000179-1-015836/2026"
+LINK_PNCP = "https://pncp.gov.br/app/editais/07954480000179/2026/15836"
+
+
+@pytest.mark.parametrize("entrada", [CONTROLE_PNCP, f"  {LINK_PNCP}  ",
+                                      f"{LINK_PNCP}?x=http://169.254.169.254/"])
+def test_contratacao_do_pncp_vai_para_a_fila_remontada_dos_digitos(emissor, entrada):
+    banco = _banco_do_item()
+    banco.responder("POST", "api_jobs", 201, [_job(total=1)])
+    r = _api(emissor, banco, FilaFalsa()).post(URL, headers=_h(emissor), json={
+        "modo": "manual", "item_id": ITEM, "contratacao_pncp": entrada})
+    assert r.status_code == 202, r.text
+    gravado = banco.corpo(next(c for c in banco.chamadas if c.method == "POST"))
+    # nunca o texto digitado: o endereço montado com CNPJ, ano e sequencial
+    assert gravado["parametros"]["contratacao_pncp"] == LINK_PNCP
+
+
+@pytest.mark.parametrize("corpo", [
+    {"item_id": ITEM, "contratacao_pncp": "caneta azul"},
+    {"item_id": ITEM, "contratacao_pncp": "http://169.254.169.254/latest/meta-data"},
+    {"contratacao_pncp": CONTROLE_PNCP},          # só na busca de UM item
+])
+def test_contratacao_do_pncp_invalida_ou_no_lote_e_422_sem_fila(emissor, corpo):
+    banco = _banco_do_item()
+    fila = FilaFalsa()
+    r = _api(emissor, banco, fila).post(URL, headers=_h(emissor), json=corpo)
+    assert r.status_code == 422 and r.json()["code"] == "PNCP_CONTRACT_INVALID"
+    assert fila.avisos == [] and not any(c.method == "POST" for c in banco.chamadas)
+
+
+def test_worker_soma_a_contratacao_do_pncp_as_fontes_de_sempre(banco, dominio, monkeypatch):
+    recebido = {}
+
+    def pesquisar_item(ctx, pesquisa_id, item_id, *, modo, termo, filtros, **opcoes):
+        recebido.update(opcoes)
+        return type("R", (), {"mensagem": "ok"})()
+
+    monkeypatch.setattr(cotacoes, "pesquisar_item", pesquisar_item)
+    monkeypatch.setattr(coleta, "_fonte_da_contratacao", lambda entrada: ("pncp", entrada))
+    banco.responder("GET", "api_jobs", 200, [_job(total=1, parametros={
+        "modo": "automatico", "item_id": ITEM, "termo": "", "filtros": {},
+        "contratacao_pncp": LINK_PNCP})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=["compras"]) == "succeeded"
+    assert recebido["fontes"] == ["compras", ("pncp", LINK_PNCP)]
+
+
+def test_contratacao_canonica_le_so_digitos():
+    assert coleta.contratacao_canonica(CONTROLE_PNCP) == LINK_PNCP
+    assert coleta.contratacao_canonica("abc") is None
+    fonte = coleta._fonte_da_contratacao(LINK_PNCP)
+    assert fonte._controle == ("07954480000179", "2026", "15836")

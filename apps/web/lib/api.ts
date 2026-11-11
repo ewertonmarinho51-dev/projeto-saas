@@ -153,6 +153,17 @@ export type ItemDePesquisa = {
   lote: string | null;
   uf: string | null;
   revisao: number;
+  /** A cotação automática segurou sugestões fora da cesta pela regra do CV. */
+  revisao_cv?: RevisaoPorCV | null;
+};
+
+export type RevisaoPorCV = {
+  motivo: string;
+  cv: string | null;
+  limite: string;
+  quantidade: number;
+  sugeridas: number;
+  texto: string;
 };
 
 /** O card "Confira este preço" da cesta (M10a). */

@@ -2745,6 +2745,16 @@
             "title": "Revisao",
             "type": "integer"
           },
+          "revisao_cv": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RevisaoPorCV"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "tipo_catalogo": {
             "anyOf": [
               {
@@ -3964,6 +3974,12 @@
       "PedidoDeColeta": {
         "additionalProperties": false,
         "properties": {
+          "contratacao_pncp": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Contratacao Pncp",
+            "type": "string"
+          },
           "filtros": {
             "anyOf": [
               {
@@ -5529,6 +5545,52 @@
           "restauravel"
         ],
         "title": "RevisaoDoHistorico",
+        "type": "object"
+      },
+      "RevisaoPorCV": {
+        "description": "Barreira do CV da cotação automática (`estatistica.BarreiraCV`).",
+        "properties": {
+          "cv": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv"
+          },
+          "limite": {
+            "title": "Limite",
+            "type": "string"
+          },
+          "motivo": {
+            "title": "Motivo",
+            "type": "string"
+          },
+          "quantidade": {
+            "title": "Quantidade",
+            "type": "integer"
+          },
+          "sugeridas": {
+            "title": "Sugeridas",
+            "type": "integer"
+          },
+          "texto": {
+            "title": "Texto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "motivo",
+          "cv",
+          "limite",
+          "quantidade",
+          "sugeridas",
+          "texto"
+        ],
+        "title": "RevisaoPorCV",
         "type": "object"
       },
       "Secretaria": {

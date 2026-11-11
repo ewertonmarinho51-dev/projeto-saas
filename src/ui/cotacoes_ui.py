@@ -1163,7 +1163,8 @@ def _painel_cesta(ctx, cotacao: dict, item: dict, referencias: list[dict],
                                           str(item.get("metodo") or "")), "")])
         st.caption(f"Total do item: {_moeda(item.get('preco_total'))}")
         for problema in cesta.integridade_do_item(
-                item, referencias, teto=estatistica.POLITICA_AUTOMATICA.teto):
+                item, referencias,
+                teto=estatistica.POLITICA_AUTOMATICA.teto_de_emissao):
             st.warning(_sem_latex(problema[:1].upper() + problema[1:] + "."))
         _proximo_passo(ctx, cotacao, item, gravado, n, minimo, editavel)
     alertas = _alertas_do_item(item, referencias)

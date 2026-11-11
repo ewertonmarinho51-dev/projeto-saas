@@ -436,10 +436,14 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
         piso if piso is not None else estatistica.PISO_COMPARABILIDADE,
         teto=politica.teto if politica is not None else None,
         saneamento=saneamento, texto_item=str(item.get("descricao") or ""))
+    barreira = None
     if politica is not None:
-        # grava a cesta, a reserva do revisor e as retidas pela triagem
-        # (com o motivo técnico); o resto fica contado
+        # a mesma barreira do CV da cotação unificada, antes de gravar
+        barreira = estatistica.aplicar_barreira_cv(cesta)
+        # grava a cesta, as seguradas pelo CV, a reserva do revisor e as
+        # retidas pela triagem (com o motivo técnico); o resto fica contado
         manter = ({id(r) for r in cesta.selecionadas}
+                  | {id(r) for r in cesta.em_revisao_cv}
                   | {id(r) for r in cesta.excedentes[:politica.reserva]}
                   | {id(r) for r in cesta.retidas})
         resultado.referencias = [par for par in ranqueadas
@@ -448,6 +452,9 @@ def pesquisar_item(item: dict, fontes: list[FontePesquisaPreco], *,
         cesta, perfil=perfil,
         metodo=str(filtros.get("metodo") or estatistica.METODO_AUTOMATICO),
         regras=regras)
+    if barreira is not None:
+        estatistica.registrar_barreira(resultado.estimativa,
+                                       barreira.para_registro())
     resultado.duracao_s = time.monotonic() - inicio
     return resultado
 

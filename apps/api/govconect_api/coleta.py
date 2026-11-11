@@ -36,7 +36,7 @@ from fastapi import APIRouter, Body, Depends, Header, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from src import db
-from src.precos import cotacoes
+from src.precos import cotacoes, pncp
 from src.precos import repositorio as repo
 from src.precos.execucao import JANELA_MAXIMA_DIAS, modo_da_ultima_busca, precisa_de_busca
 from src.streamlit_opcional import sessao_da_requisicao
@@ -90,6 +90,27 @@ class PedidoDeColeta(BaseModel):
     item_id: uuid.UUID | None = None
     termo: str = Field(default="", max_length=300)
     filtros: FiltrosDaBusca | None = None
+    # Contratação similar CONHECIDA no PNCP (número de controle ou link do
+    # edital): os resultados homologados dela entram como referências do
+    # item, pelo mesmo pipeline (Lei 14.133, art. 23, § 1º, II). Só com
+    # `item_id`. O que viaja para a fila é o endereço REMONTADO a partir dos
+    # dígitos (`contratacao_canonica`), nunca o texto digitado.
+    contratacao_pncp: str = Field(default="", max_length=300)
+
+
+def contratacao_canonica(entrada: str) -> str | None:
+    """Link público do edital montado só com CNPJ, ano e sequencial lidos da
+    entrada — ou `None` se ela não é número de controle nem link do PNCP."""
+    controle = pncp.controle_da_entrada(entrada)
+    if controle is None:
+        return None
+    cnpj, ano, sequencial = controle
+    return pncp.URL_CONTRATACAO.format(cnpj=cnpj, ano=ano, sequencial=sequencial)
+
+
+def _fonte_da_contratacao(entrada: str):
+    """Ponto único de criação (as provas trocam por um dublê sem rede)."""
+    return pncp.PNCPContratacao(entrada)
 
 
 def job_do_banco(linha: dict) -> Job:
@@ -196,9 +217,18 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
                 filtros = dict(parametros.get("filtros") or {})
                 filtros["uf"] = (filtros.get("uf") or "").upper() or None
                 filtros["literal"] = True
+                opcoes_do_item = dict(opcoes)
+                contratacao = str(parametros.get("contratacao_pncp") or "")
+                if contratacao:
+                    # As fontes de sempre MAIS a contratação informada: a mesma
+                    # compra vista nos dois portais é fundida em `busca`.
+                    base = (list(fontes) if fontes is not None
+                            else cotacoes._fontes_padrao())  # noqa: SLF001
+                    opcoes_do_item["fontes"] = [*base, _fonte_da_contratacao(contratacao)]
                 resultado = cotacoes.pesquisar_item(
                     ctx, pesquisa_id, str(parametros["item_id"]), modo=modo,
-                    termo=str(parametros.get("termo") or ""), filtros=filtros, **opcoes)
+                    termo=str(parametros.get("termo") or ""), filtros=filtros,
+                    **opcoes_do_item)
                 atualizar_job(rest, token, job_id, estado="succeeded", concluido_em=_agora_iso(),
                               feitos=1, resultado={"mensagem": str(resultado.mensagem)[:500]})
                 return "succeeded"
@@ -264,6 +294,14 @@ def rotas() -> APIRouter:
             raise ErroApi(403, "FORBIDDEN", "Acesso negado")
 
         parametros: dict = {"modo": pedido.modo}
+        contratacao = None
+        if pedido.contratacao_pncp:
+            contratacao = contratacao_canonica(pedido.contratacao_pncp)
+            if pedido.item_id is None or contratacao is None:
+                raise ErroApi(422, "PNCP_CONTRACT_INVALID",
+                              "Contratação do PNCP não reconhecida: informe o número de "
+                              "controle (00000000000000-1-000000/2026) ou o link do edital, "
+                              "na busca de um item.")
         if pedido.item_id is not None:
             alvo = rest.requisitar(eu.token, "GET", TABELA_ITENS, params={
                 "select": "id,estado", "id": f"eq.{pedido.item_id}", "pesquisa_id": f"eq.{pesquisa_id}",
@@ -275,6 +313,8 @@ def rotas() -> APIRouter:
                               "Item concluído: reabra o item, com o motivo, antes de pesquisar de novo.")
             parametros.update({"item_id": str(pedido.item_id), "termo": pedido.termo,
                                "filtros": (pedido.filtros or FiltrosDaBusca()).model_dump()})
+            if contratacao:
+                parametros["contratacao_pncp"] = contratacao
             total = 1
         else:
             # O mesmo critério do worker (`execucao.precisa_de_busca`), para a

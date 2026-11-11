@@ -167,7 +167,8 @@ def _texto_da_excecao(excecao: dict) -> str:
 
 def recalcular_e_gravar(pesquisa: dict, item: dict, repositorio, *,
                         perfil: PerfilNormativo, linhas: list[dict] | None = None,
-                        revisao_esperada: int | None = None
+                        revisao_esperada: int | None = None,
+                        barreira_cv: dict | None = None
                         ) -> estatistica.Estimativa:
     """
     Refaz a estimativa do item pela seleção gravada e persiste.
@@ -215,6 +216,9 @@ def recalcular_e_gravar(pesquisa: dict, item: dict, repositorio, *,
             f"— {metodo_decidido.get('justificativa')} "
             f"({metodo_decidido.get('registrado_por') or '—'}, "
             f"{metodo_decidido.get('registrado_em') or '—'})")
+    # só a cotação automática passa `barreira_cv`: recálculo por decisão
+    # de pessoa regrava sem ela (a revisão aconteceu)
+    estatistica.registrar_barreira(estimativa, barreira_cv)
     repositorio.atualizar_estimativa(
         item, estimativa, quantidade=_decimal(item.get("quantidade")),
         decisoes=decisoes or None, revisao_esperada=revisao_esperada)
