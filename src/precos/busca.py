@@ -61,10 +61,22 @@ class Coleta:
         comparabilidade ≥ piso. A consulta manual parte da MESMA regra da
         automática; o servidor ajusta a partir daí.
         """
+        from .equivalencia import elegivel_automatica
+
         return {ref.chave_dedupe for ref, comp in self.referencias
                 if ref.valor_unitario_normalizado is not None
                 and ref.natureza_valor in NATUREZAS_COMPARAVEIS
-                and comp.score >= piso}
+                and comp.score >= piso
+                and elegivel_automatica(getattr(comp, "classe_equivalencia", ""))}
+
+    def por_equivalencia(self) -> dict[str, int]:
+        """Candidatos por classe — distingue ganho de cobertura (mais
+        equivalentes comprovados) de simples aumento de candidatos."""
+        contagem: dict[str, int] = {}
+        for _, comp in self.referencias:
+            chave = getattr(comp, "classe_equivalencia", "") or "sem_atributos"
+            contagem[chave] = contagem.get(chave, 0) + 1
+        return contagem
 
 
 def _mesma_compra(ref: Referencia) -> tuple | None:
@@ -161,6 +173,7 @@ def _ranquear(coletadas: list[Referencia], item: dict, filtros: dict,
         uf=filtros.get("uf") or None,
         data_base=data_base,
         pdms_item=frozenset(pdms_inferidos),
+        unidade=unidade or None,
     )
 
 

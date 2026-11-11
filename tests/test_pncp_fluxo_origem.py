@@ -261,7 +261,8 @@ def test_lote_automatico_consulta_o_indice_e_grava_a_origem(monkeypatch, armazem
                                                        modo="automatico", tamanho=5)
     assert restantes == 0 and len(resultados) == 1
     assert resultados[0].desfechos["pncp"] == Desfecho.COM_PRECOS.value
-    assert compras.chamadas == 1                      # o Compras.gov continua
+    # o Compras.gov continua (uma vez por fase da expansão, amostra curta)
+    assert compras.chamadas >= 1
     gravadas = [l for l in repo.listar_referencias(str(item["id"]))
                 if l["fonte_id"] == "pncp"]
     assert gravadas

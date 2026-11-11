@@ -113,6 +113,21 @@ def _fonte_da_contratacao(entrada: str):
     return pncp.PNCPContratacao(entrada)
 
 
+def _motor_de_termos():
+    """Motor de IA para sugerir termos, só com a flag `precos_ia_termos`
+    ligada e motor configurado. Falha de leitura = sem IA: a busca segue
+    determinística (normalização, catálogo, sinônimos validados)."""
+    from src import governanca
+    from src.precos import semantica
+
+    try:
+        if not db.flag_ativa(governanca.FLAG_PRECOS_IA_TERMOS):
+            return None
+        return semantica.motor_do_projeto(finalidade="pesquisa_precos")
+    except Exception:  # noqa: BLE001 — IA é opcional de verdade
+        return None
+
+
 def job_do_banco(linha: dict) -> Job:
     feitos, total = int(linha.get("feitos") or 0), int(linha.get("total") or 0)
     estado = str(linha.get("estado") or "")
@@ -211,12 +226,24 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
     try:
         with sessao_da_requisicao(token, tenant_id):
             cotacoes._exigir_editavel(repo.obter_pesquisa(pesquisa_id))  # noqa: SLF001
+            # A mesma estratégia de expansão no item avulso e no lote; a IA
+            # só entra com a flag e motor disponível (`_motor_de_termos`).
+            motor = _motor_de_termos()
+            if motor is not None:
+                from src.precos import expansao
+
+                opcoes["motor_semantico"] = motor
+                # um orçamento de IA para a execução inteira do job
+                opcoes["orcamento_ia"] = expansao.Orcamento(expansao.ORCAMENTO_IA_POR_LOTE)
             if parametros.get("item_id"):
-                # UM item, a pedido: termo e filtros do servidor, literal (a
-                # ampliação semântica pede o motor de IA, que o worker não tem).
+                # UM item, a pedido. O MODO decide a ampliação: a busca
+                # manual ("Pesquisar preços") é do servidor — descrição e o
+                # termo dele, nada além; a automática gera as variantes
+                # sozinha (`expansao.Plano`).
                 filtros = dict(parametros.get("filtros") or {})
+                filtros.pop("literal", None)
                 filtros["uf"] = (filtros.get("uf") or "").upper() or None
-                filtros["literal"] = True
+                filtros["literal"] = modo == "manual"
                 opcoes_do_item = dict(opcoes)
                 contratacao = str(parametros.get("contratacao_pncp") or "")
                 if contratacao:

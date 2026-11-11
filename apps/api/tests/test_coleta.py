@@ -302,7 +302,30 @@ def test_filtros_fora_da_regra_sao_422(emissor, filtros):
     assert r.status_code == 422
 
 
-def test_worker_busca_so_o_item_pedido_literal_e_guarda_a_mensagem(banco, dominio, monkeypatch):
+@pytest.mark.parametrize("modo, literal", [("manual", True), ("automatico", False)])
+def test_o_modo_decide_a_ampliacao_da_busca_do_item(banco, dominio, monkeypatch, modo, literal):
+    recebido = {}
+
+    def pesquisar_item(ctx, pesquisa_id, item_id, *, modo, termo, filtros, **opcoes):
+        recebido.update(filtros=filtros)
+        return type("R", (), {"mensagem": ""})()
+
+    monkeypatch.setattr(cotacoes, "pesquisar_item", pesquisar_item)
+    banco.responder("GET", "api_jobs", 200, [_job(total=1, parametros={
+        "modo": modo, "item_id": ITEM, "termo": "caneta",
+        # pedido antigo com `literal` gravado não decide mais nada
+        "filtros": {"janela_dias": 90, "uf": "", "literal": not literal}})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    assert recebido["filtros"]["literal"] is literal
+
+
+def test_pedido_com_literal_e_recusado(emissor):
+    r = _api(emissor, _banco_do_item(), FilaFalsa()).post(
+        URL, headers=_h(emissor), json={"item_id": ITEM, "filtros": {"literal": True}})
+    assert r.status_code == 422
+
+
+def test_worker_busca_manual_e_do_termo_do_servidor_e_guarda_a_mensagem(banco, dominio, monkeypatch):
     recebido = {}
 
     def pesquisar_item(ctx, pesquisa_id, item_id, *, modo, termo, filtros, **opcoes):

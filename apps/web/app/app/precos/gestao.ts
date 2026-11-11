@@ -200,7 +200,10 @@ export async function buscarItem(
         modo,
         item_id: item,
         termo: texto(form, "termo", 300),
-        filtros: { janela_dias: Number.isFinite(janela) ? janela : 180, uf: texto(form, "uf", 2) },
+        filtros: {
+          janela_dias: Number.isFinite(janela) ? janela : 180,
+          uf: texto(form, "uf", 2),
+        },
         ...(contratacao ? { contratacao_pncp: contratacao } : {}),
       },
       cabecalhos: { "Idempotency-Key": idempotencia },

@@ -232,6 +232,10 @@ export type ReferenciaDePreco = {
   canal?: string;
   /** "Origem Licitanet · Coleta via PNCP". */
   rotulo_origem?: string;
+  /** "mesmo item", "equivalente comprovado", "similar para revisão" ou "incompatível". */
+  equivalencia?: string;
+  /** Comparativo dos atributos essenciais (conferidos, ausentes, divergentes). */
+  equivalencia_detalhe?: string;
 };
 
 /** Série de preços resumida pelo servidor (`estatistica.calcular`); tudo já formatado. */

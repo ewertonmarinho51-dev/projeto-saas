@@ -6226,6 +6226,16 @@
             "title": "Descricao Original",
             "type": "string"
           },
+          "equivalencia": {
+            "default": "",
+            "title": "Equivalencia",
+            "type": "string"
+          },
+          "equivalencia_detalhe": {
+            "default": "",
+            "title": "Equivalencia Detalhe",
+            "type": "string"
+          },
           "fonte": {
             "title": "Fonte",
             "type": "string"

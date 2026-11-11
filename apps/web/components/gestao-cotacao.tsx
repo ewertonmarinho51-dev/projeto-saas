@@ -401,7 +401,7 @@ export function BuscaDoItem({
             </Button>
           </div>
           <p className="text-[length:var(--gc-fs-sm)] text-secundario">
-            Busca pelo termo literal, em todas as fontes oficiais. A ampliação por sinônimos continua no GovDocs.
+            Pesquisar preços busca pela descrição e pelo seu termo, em todas as fontes oficiais. A cotação automática amplia sozinha com sinônimos e variantes de unidade; cada candidato recebe o rótulo de equivalência antes de qualquer preço entrar na cesta.
           </p>
         </div>
       </form>

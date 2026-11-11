@@ -22,7 +22,14 @@ import type { AlertaDePreco, ItemDePesquisa, ReferenciaDePreco } from "@/lib/api
 
 import { AcaoNaCesta } from "./acao-cesta";
 import { AlertaDoPreco } from "./gestao-cotacao";
-import { dataCurta, naCesta, rotuloNatureza, rotuloStatusReferencia } from "./precos";
+import {
+  comparativoDaEquivalencia,
+  dataCurta,
+  naCesta,
+  rotuloNatureza,
+  rotuloStatusReferencia,
+  varianteDaEquivalencia,
+} from "./precos";
 
 /**
  * Situação visual de cada referência. Discrepante é a que tem o card
@@ -51,6 +58,7 @@ function VerOrigem({ r }: { r: ReferenciaDePreco }) {
     { label: "Fonte consultada", value: r.fonte },
     ...(r.origem ? [{ label: "Origem da compra", value: r.origem }] : []),
     ...(r.canal ? [{ label: "Canal da coleta", value: r.canal }] : []),
+    ...(r.equivalencia_detalhe ? [{ label: "Equivalência com o item", value: r.equivalencia_detalhe }] : []),
     { label: "Natureza do valor", value: rotuloNatureza(r.natureza_valor) },
     { label: "Identificador do registro", value: r.identificacao ? <span className="gc-mono">{r.identificacao}</span> : "Não informado" },
     { label: "Órgão", value: r.orgao || "Não informado" },
@@ -169,6 +177,16 @@ export function TriagemDoItem({
                   {r.identificacao && <span className="gc-mono"> · {r.identificacao}</span>}
                 </span>
                 {r.rotulo_origem && <span data-testid="origem-canal">{r.rotulo_origem}</span>}
+                {r.equivalencia && (
+                  <span className="flex flex-wrap items-center gap-2" data-testid="equivalencia">
+                    <Badge variant={varianteDaEquivalencia(r.equivalencia)} size="sm">
+                      {r.equivalencia}
+                    </Badge>
+                    {comparativoDaEquivalencia(r.equivalencia_detalhe) && (
+                      <span>{comparativoDaEquivalencia(r.equivalencia_detalhe)}</span>
+                    )}
+                  </span>
+                )}
                 {alertaDe.has(r.id) && (
                   <AlertaDoPreco
                     pesquisa={pesquisa}
