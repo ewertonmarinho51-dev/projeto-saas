@@ -1,5 +1,13 @@
 -- ## 0043 — Busca NACIONAL do PNCP pelos itens cotados (índice por termo)
--- ## ESTADO: NÃO APLICADA em produção. Aplicar só com o aceite do dono.
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 11/11/2026 (registro 20261111124057,
+-- ##   nome `m0043_precos_pncp_termos`), a pedido do dono, depois da revisão
+-- ##   do `revisor-de-banco-e-seguranca`. Medido antes e depois: 51 → 52
+-- ##   tabelas, as 52 com RLS; `service_role` +1 SELECT/INSERT/UPDATE/DELETE,
+-- ##   REFERENCES/TRIGGER inalterados (43); `authenticated` e políticas (105)
+-- ##   inalterados; ACL da tabela nova `service_role=arwd`; contratações,
+-- ##   resultados, referências e itens intactos (1.465, 457, 12.228, 613).
+-- ##   Comportamento num bloco DO que termina em RAISE, só leitura:
+-- ##   `authenticated` e `anon` recusados na tabela; a RPC de busca responde.
 -- ## ENSAIO: CI (`tests/test_migracao_0043.py`, PostgreSQL) e projeto
 -- ##   descartável `uslaxaxomjawydqtbwkb` em 11/11/2026 (registros
 -- ##   `m0043_precos_pncp_termos` e, depois da revisão do
