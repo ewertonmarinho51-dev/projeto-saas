@@ -104,14 +104,15 @@ test("Pesquisa de Preços: três colunas no desktop, linhas contidas, busca alin
 
     const caixa = async (seletor: string) => (await page.locator(seletor).first().boundingBox())!;
     const itens = await caixa('[data-testid="cartao-itens"]');
+    const cartaoBusca = await caixa('section.gc-card:has([data-testid="busca-item"])');
     const busca = await caixa('[data-testid="busca-item"]');
     const cesta = await caixa('[data-testid="cartao-cesta"]');
-    expect(itens.x + itens.width, `${tela.nome}: Itens invade a busca`).toBeLessThanOrEqual(busca.x);
-    expect(busca.x + busca.width, `${tela.nome}: busca invade a Cesta`).toBeLessThanOrEqual(cesta.x);
+    expect(itens.x + itens.width, `${tela.nome}: Itens invade a busca`).toBeLessThanOrEqual(cartaoBusca.x);
+    expect(cartaoBusca.x + cartaoBusca.width, `${tela.nome}: busca invade a Cesta`).toBeLessThanOrEqual(cesta.x);
     // A triagem vem logo abaixo da busca, na mesma coluna.
     const triagem = await caixa("h2#triagem");
-    expect(triagem.y).toBeGreaterThan(busca.y + busca.height - 1);
-    expect(Math.abs(triagem.x - busca.x)).toBeLessThanOrEqual(1);
+    expect(triagem.y).toBeGreaterThan(cartaoBusca.y + cartaoBusca.height - 1);
+    expect(Math.abs(triagem.x - cartaoBusca.x)).toBeLessThanOrEqual(1);
 
     // Termo, Período e UF: base comum, mesmo quando quebram em duas linhas.
     const base = await Promise.all(
