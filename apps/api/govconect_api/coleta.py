@@ -78,7 +78,7 @@ class FiltrosDaBusca(BaseModel):
     """Os filtros da busca de UM item (o painel "Pesquisar preços" do GovDocs)."""
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     # Dentro da janela que a busca consulta de fato (`execucao.JANELA_MAXIMA_DIAS`).
-    janela_dias: int = Field(default=180, ge=30, le=JANELA_MAXIMA_DIAS)
+    janela_dias: int = Field(default=JANELA_MAXIMA_DIAS, ge=30, le=JANELA_MAXIMA_DIAS)
     uf: str = Field(default="", max_length=2)
 
 

@@ -1,6 +1,22 @@
 import type { DesfechoDoLote, ItemDePesquisa } from "@/lib/api";
 
 /**
+ * Períodos da busca de preços, como o servidor escolhe num portal de
+ * cotação. O teto é 1 ano: a IN 65/2021 (art. 5º, II) admite contratações
+ * similares do último ano — a API recusa acima de 365
+ * (`execucao.JANELA_MAXIMA_DIAS`). "Último ano" é o padrão.
+ */
+export const JANELA_PADRAO_DIAS = 365;
+export const JANELAS_DA_BUSCA: { value: string; label: string }[] = [
+  { value: "30", label: "Últimos 30 dias" },
+  { value: "60", label: "Últimos 60 dias" },
+  { value: "90", label: "Últimos 90 dias" },
+  { value: "120", label: "Últimos 120 dias" },
+  { value: "180", label: "Últimos 180 dias" },
+  { value: String(JANELA_PADRAO_DIAS), label: "Último ano" },
+];
+
+/**
  * Rótulos dos códigos que a API devolve (os mesmos CHECKs da 0021).
  * Código desconhecido aparece como veio: esconder seria pior que mostrar.
  */

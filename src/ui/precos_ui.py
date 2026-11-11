@@ -319,8 +319,9 @@ def _render_banco() -> None:
         uf = c4.text_input("UF (opcional)", max_chars=2)
         janela = st.slider("Janela de compras (dias)", 30,
                            execucao.JANELA_MAXIMA_DIAS,
-                           execucao.JANELA_PADRAO_DIAS, step=30,
-                           help="Limitada à validade das cotações (180 dias).")
+                           execucao.JANELA_PADRAO_DIAS, step=5,
+                           help="Até 1 ano de contratações similares "
+                                "(IN 65/2021, art. 5º, II).")
         contratacao_pncp = st.text_input(
             "Contratação similar no PNCP (opcional)",
             placeholder="nº de controle 00000000000000-1-000000/2026 "
