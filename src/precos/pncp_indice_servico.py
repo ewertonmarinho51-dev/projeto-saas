@@ -115,34 +115,40 @@ def armazem_do_banco() -> ArmazemSupabase:
 
 def rodada(armazem, uf: str, *, dias: int, ate, modalidades, max_chamadas: int,
            max_contratacoes: int, pausa: float, incluir_compras_gov: bool = False,
-           fracao_descoberta: float = 0.3, **rede) -> dict:
+           fracao_descoberta: float = 0.3, recomecar: bool = False,
+           **rede) -> dict:
     """
     Uma rodada AGENDADA de uma UF: descoberta e coleta com orçamentos
     SEPARADOS. Com um orçamento só, uma UF grande gastava tudo na
-    descoberta e a fila de contratações nunca andava.
+    descoberta e a fila de contratações nunca andava. As MESMAS modalidades
+    valem para as duas: a coleta não lê o que a descoberta não buscaria.
     """
     teto_descoberta = max(1, int(max_chamadas * fracao_descoberta))
     descoberta = indice.Coletor(armazem, max_chamadas=teto_descoberta,
-                                pausa_s=pausa,
+                                pausa_s=pausa, modalidades=modalidades,
                                 incluir_compras_gov=incluir_compras_gov, **rede)
-    descoberta.descobrir(uf, modalidades=modalidades, ate=ate, dias=dias)
+    descoberta.descobrir(uf, ate=ate, dias=dias, recomecar=recomecar)
     coleta = indice.Coletor(
         armazem, max_chamadas=max(1, max_chamadas - descoberta.rodada.chamadas),
-        pausa_s=pausa, incluir_compras_gov=incluir_compras_gov, **rede)
+        pausa_s=pausa, modalidades=modalidades,
+        incluir_compras_gov=incluir_compras_gov, **rede)
     coleta.coletar(max_contratacoes)
     return {"uf": uf, "descoberta": descoberta.rodada.para_registro(),
             "coleta": coleta.rodada.para_registro()}
 
 
 def ciclo(armazem, ufs: list[str], *, intervalo_s: int, uma_vez: bool,
-          dormir=None, **opcoes) -> int:
+          dormir=None, recomecar: bool = False, **opcoes) -> int:
     """Indexação fora da busca: uma rodada por UF, depois espera. Retoma
-    sozinha (cursor e ponto de leitura moram no índice)."""
+    sozinha (cursor e ponto de leitura moram no índice). `recomecar` vale
+    só para a PRIMEIRA rodada de cada UF: as seguintes continuam do cursor
+    que ela deixou, inclusive quando o orçamento a interrompeu."""
     dormir = dormir or time.sleep
     while True:
         for uf in ufs:
             try:
-                relato = rodada(armazem, uf.upper(), **opcoes)
+                relato = rodada(armazem, uf.upper(), recomecar=recomecar,
+                                **opcoes)
             except Exception as erro:  # noqa: BLE001 — próxima UF segue
                 relato = {"uf": uf, "erro": type(erro).__name__}
             if isinstance(armazem, indice.ArmazemEmMemoria):
@@ -151,13 +157,18 @@ def ciclo(armazem, ufs: list[str], *, intervalo_s: int, uma_vez: bool,
             print(json.dumps(relato, ensure_ascii=False), flush=True)
         if uma_vez:
             return 0
+        recomecar = False
         dormir(intervalo_s)
 
 
 def argumentos_do_ciclo(s: argparse.ArgumentParser) -> None:
     s.add_argument("--ufs", nargs="+",
                    default=os.environ.get("INDEXADOR_UFS", "PA").split())
-    s.add_argument("--dias", type=int, default=30)
+    # janela da 1ª descoberta (e do --recomecar); as seguintes recuam
+    # `indice.REVISITA_DIAS` sobre a anterior
+    s.add_argument("--dias", type=int, default=indice.REVISITA_DIAS)
+    s.add_argument("--recomecar", action="store_true",
+                   help="ignora o cursor e refaz a janela de --dias")
     s.add_argument("--modalidades", type=int, nargs="*",
                    default=list(indice.MODALIDADES_PADRAO))
     s.add_argument("--max-chamadas", type=int, default=int(
@@ -173,7 +184,8 @@ def rodar_ciclo(a, armazem) -> int:
     return ciclo(armazem, a.ufs, intervalo_s=a.intervalo, uma_vez=a.uma_vez,
                  dias=a.dias, ate=None, modalidades=a.modalidades,
                  max_chamadas=a.max_chamadas,
-                 max_contratacoes=a.max_contratacoes, pausa=a.pausa)
+                 max_contratacoes=a.max_contratacoes, pausa=a.pausa,
+                 recomecar=a.recomecar)
 
 
 def main(argv=None) -> int:

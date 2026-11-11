@@ -73,6 +73,19 @@ encontra mais um resultado como homologado conferível, a linha fica
 voltar a valer, o upsert a reativa. Retomada no meio de uma contratação só
 invalida item a item, nunca o que a rodada anterior confirmou.
 
+## Escopo do piloto (11/11/2026)
+
+- **Só pregões**: eletrônico (6) e presencial (7). A dispensa (8) saiu
+  depois que a conferência da 1ª rodada do Pará achou dispensas de
+  Tratamento Fora do Domicílio com nome de paciente na descrição do item.
+  As 316 linhas de dispensa já indexadas ficaram `vigente = false` (motivo
+  `FORA_DO_PILOTO_DISPENSA…`). Dispensa que já estava na fila vai para
+  `fora_do_piloto` sem chamada à fonte. Volta só com filtro de dado pessoal.
+- **Janela de 120 dias** (era 45 de revisita e 30 na 1ª rodada): o
+  resultado do pregão sai semanas depois da publicação. Para alargar um
+  índice existente: `ciclo --banco --uma-vez --recomecar` (o `--recomecar`
+  vale só para a primeira rodada de cada UF).
+
 ## Agendamento
 
 Serviço `indexador-pncp` no `implantacao/docker-compose.yml`, perfil

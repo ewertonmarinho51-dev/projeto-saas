@@ -112,11 +112,10 @@ def main(argv=None) -> int:
 
     if a.acao == "rodar":
         coletor = indice.Coletor(armazem, max_chamadas=a.max_chamadas,
-                                 pausa_s=a.pausa,
+                                 pausa_s=a.pausa, modalidades=a.modalidades,
                                  incluir_compras_gov=a.incluir_compras_gov)
         try:
-            coletor.descobrir(a.uf, modalidades=a.modalidades, ate=a.ate,
-                              dias=a.dias)
+            coletor.descobrir(a.uf, ate=a.ate, dias=a.dias)
             if not coletor.rodada.interrompida:
                 coletor.coletar(a.max_contratacoes)
         finally:

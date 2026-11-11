@@ -50,9 +50,13 @@ VERSAO_COLETOR = "2026-11-10.pncp-indice.1"
 
 # `usuarioNome` da contratação: o sistema que a publicou no PNCP.
 PLATAFORMA_COMPRAS_GOV = "Compras.gov.br"
-# Pregão eletrônico, dispensa e pregão presencial — onde há disputa de
-# preço por item e resultado homologado publicado.
-MODALIDADES_PADRAO = (6, 8, 7)
+# Pregão eletrônico (6) e pregão presencial (7) — onde há disputa de preço
+# por item e resultado homologado publicado. A DISPENSA (8) saiu em
+# 11/11/2026: na conferência da 1ª rodada do Pará, dispensas de Tratamento
+# Fora do Domicílio traziam NOME DE PACIENTE na descrição do item. Volta só
+# quando houver filtro de dado pessoal na coleta. Contratação de modalidade
+# fora desta lista não tem item lido, nem quando já estava na fila.
+MODALIDADES_PADRAO = (6, 7)
 SITUACAO_ITEM_HOMOLOGADO = 2
 PAGINA_DESCOBERTA = 50
 PAGINA_ITENS = 500
@@ -62,9 +66,11 @@ TENTATIVAS_POR_CONTRATACAO = 3
 # `/contratacoes/atualizacao` levou 24 s e, na tentativa seguinte, HTTP 500
 # aos 51 s. Como a homologação vem depois da publicação, cada janela nova
 # RECUA `REVISITA_DIAS` sobre a anterior: a contratação já vista volta para
-# a fila quando o `dataAtualizacaoGlobal` dela mudou.
+# a fila quando o `dataAtualizacaoGlobal` dela mudou. 120 dias desde
+# 11/11/2026 (eram 45): a 1ª rodada, de 30 dias, achou boa parte dos pregões
+# ainda sem homologação — o resultado sai semanas depois da publicação.
 ROTA_DESCOBERTA = "/contratacoes/publicacao"
-REVISITA_DIAS = 45
+REVISITA_DIAS = 120
 
 # Estados da contratação no índice
 PENDENTE = "pendente"            # descoberta (ou atualizada): falta ler itens
@@ -397,8 +403,10 @@ class Coletor:
     def __init__(self, armazem: Armazem, *, abrir_url: Callable[[str], str] = _abrir_url,
                  max_chamadas: int = 200, pausa_s: float = 0.2,
                  dormir: Callable[[float], None] = time.sleep,
-                 incluir_compras_gov: bool = False) -> None:
+                 incluir_compras_gov: bool = False,
+                 modalidades=MODALIDADES_PADRAO) -> None:
         self.armazem = armazem
+        self._modalidades = frozenset(int(m) for m in modalidades)
         self._abrir = abrir_url
         self._max = max_chamadas
         self._pausa = pausa_s
@@ -441,9 +449,10 @@ class Coletor:
         raise ErroFonte("PNCP não respondeu")
 
     # -- descoberta ---------------------------------------------------------
-    def descobrir(self, uf: str, *, modalidades=MODALIDADES_PADRAO,
+    def descobrir(self, uf: str, *, modalidades=None,
                   ate: date | None = None, dias: int = 30,
-                  revisita_dias: int = REVISITA_DIAS) -> Rodada:
+                  revisita_dias: int = REVISITA_DIAS,
+                  recomecar: bool = False) -> Rodada:
         """
         Percorre as contratações publicadas da UF, modalidade a modalidade.
 
@@ -451,15 +460,19 @@ class Coletor:
         concluída, a próxima vai até `ate` e recua `revisita_dias` sobre a
         anterior, para alcançar o que foi homologado depois de publicado
         (o registro é idempotente, e só volta à fila o que mudou).
-        Interrompida, retoma na página em que parou.
+        Interrompida, retoma na página em que parou. `recomecar` ignora o
+        cursor e refaz a janela inteira de `dias` — para alargar a janela de
+        um índice que já existe. Sem `modalidades`, as do coletor.
         """
         from .fontes import ErroFonte
 
         ate = ate or date.today()
+        if modalidades is None:
+            modalidades = sorted(self._modalidades)
         try:
             for modalidade in modalidades:
                 self._descobrir_modalidade(uf.upper(), int(modalidade), ate,
-                                           dias, revisita_dias)
+                                           dias, revisita_dias, recomecar)
         except OrcamentoEsgotado:
             self.rodada.interrompida = True
         except ErroFonte as erro:
@@ -467,8 +480,9 @@ class Coletor:
         return self.rodada
 
     def _descobrir_modalidade(self, uf: str, modalidade: int, ate: date,
-                              dias: int, revisita_dias: int) -> None:
-        cursor = self.armazem.cursor(uf, modalidade)
+                              dias: int, revisita_dias: int,
+                              recomecar: bool = False) -> None:
+        cursor = None if recomecar else self.armazem.cursor(uf, modalidade)
         if cursor is None:
             inicio, fim, pagina = ate - timedelta(days=dias), ate, 1
         elif cursor.get("concluido"):
@@ -514,8 +528,9 @@ class Coletor:
                 and anterior.get("estado") != PENDENTE:
             return                          # já vista nesta mesma versão
         plataforma = str(contratacao.get("usuarioNome") or "")
-        fora = (plataforma == PLATAFORMA_COMPRAS_GOV
-                and not self._incluir_compras_gov)
+        fora = ((plataforma == PLATAFORMA_COMPRAS_GOV
+                 and not self._incluir_compras_gov)
+                or not self._no_piloto(contratacao.get("modalidadeId")))
         if fora:
             self.rodada.fora_do_piloto += 1
         else:
@@ -530,12 +545,24 @@ class Coletor:
             tentativas=0, itens_lidos_ate=0, resultados_validos=0, erro="",
             resumo=resumo_da_contratacao(contratacao))
 
+    def _no_piloto(self, modalidade) -> bool:
+        try:
+            return int(modalidade) in self._modalidades
+        except (TypeError, ValueError):
+            return False                    # sem modalidade: não se lê
+
     # -- coleta -------------------------------------------------------------
     def coletar(self, max_contratacoes: int = 50) -> Rodada:
-        """Lê itens e resultados das contratações pendentes, até o orçamento."""
+        """
+        Lê itens e resultados das contratações pendentes, até o orçamento.
+
+        Pendente de modalidade fora do piloto (a dispensa que entrou na fila
+        antes de sair da lista) vai para `FORA_DO_PILOTO` sem chamada à
+        fonte e não ocupa vaga de `max_contratacoes`.
+        """
         from .fontes import ErroFonte
 
-        for contratacao in self.armazem.pendentes(max_contratacoes):
+        for contratacao in self._fila(max_contratacoes):
             controle = contratacao["numero_controle"]
             try:
                 self._coletar_contratacao(contratacao)
@@ -550,6 +577,31 @@ class Coletor:
                     else PENDENTE)
                 self.rodada.falhas.append(f"{controle}: {erro}")
         return self.rodada
+
+    def _fila(self, max_contratacoes: int):
+        """Pendentes do piloto, até `max_contratacoes`; as de fora saem da
+        fila no caminho. Cada contratação aparece uma vez por rodada (a que
+        falhou e voltou a `PENDENTE` fica para a próxima)."""
+        vistas: set[str] = set()
+        entregues = 0
+        while entregues < max_contratacoes:
+            lote = [c for c in self.armazem.pendentes(max_contratacoes - entregues
+                                                      + len(vistas))
+                    if c["numero_controle"] not in vistas]
+            if not lote:
+                return
+            for contratacao in lote:
+                vistas.add(contratacao["numero_controle"])
+                if not self._no_piloto(contratacao.get("modalidade_id")):
+                    self.rodada.fora_do_piloto += 1
+                    self.armazem.salvar_contratacao(
+                        contratacao["numero_controle"], estado=FORA_DO_PILOTO,
+                        erro="modalidade fora do piloto")
+                    continue
+                entregues += 1
+                yield contratacao
+                if entregues >= max_contratacoes:
+                    return
 
     def _coletar_contratacao(self, contratacao: dict) -> None:
         controle = contratacao["numero_controle"]
