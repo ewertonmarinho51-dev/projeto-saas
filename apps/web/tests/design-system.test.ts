@@ -130,7 +130,7 @@ describe("DESIGN.md é a fonte da verdade dos tokens", () => {
   it("os tamanhos de fonte dos papéis existem na escala do CSS", () => {
     const tamanhos = new Set([...tipo].filter(([n]) => n.startsWith("gc-fs-")).map(([, v]) => v));
     const papeis = [...design.matchAll(/^ {4}fontSize: (\S+)$/gm)].map((m) => m[1]);
-    expect(papeis.length).toBe(10);
+    expect(papeis.length).toBe(11);
     for (const t of papeis) expect(tamanhos.has(t), t).toBe(true);
   });
 });

@@ -43,4 +43,11 @@ test("coletar preços acompanha o job até o fim, inclusive após recarregar", a
   await expect(page.getByRole("button", { name: "Coletar preços" })).toBeEnabled();
   await expect(page.locator("tbody")).not.toContainText("Pendente");
   await page.screenshot({ path: "e2e/resultados/telas/coleta-1440.png", fullPage: true });
+
+  // Lote que esta conta não enxerga (404): não trava a coleta nem fica em
+  // "Preparando" para sempre.
+  await page.goto(`/app/precos/${estado.coleta}?job=00000000-0000-4000-8000-000000000000`);
+  await expect(progresso).toHaveAttribute("data-job", "inacessivel");
+  await expect(progresso).toContainText("Não foi possível acompanhar este lote");
+  await expect(page.getByRole("button", { name: "Coletar preços" })).toBeEnabled();
 });

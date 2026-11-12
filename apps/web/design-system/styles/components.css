@@ -331,9 +331,9 @@
 .gc-progress--success .gc-progress__fill{background:var(--success-solid)}
 .gc-progress--warning .gc-progress__fill{background:var(--warning-solid)}
 .gc-progress--sm .gc-progress__track{height:4px}
-.gc-progress--lg .gc-progress__track{height:14px;background:var(--gc-blue-50);box-shadow:inset 0 0 0 var(--border-width) var(--gc-blue-100)}
+.gc-progress--lg .gc-progress__track{height:calc(var(--space-3) + var(--space-0-5));background:var(--gc-blue-50);box-shadow:inset 0 0 0 var(--border-width) var(--gc-blue-100)}
 [data-theme="dark"] .gc-progress--lg .gc-progress__track{background:var(--accent-subtle);box-shadow:inset 0 0 0 var(--border-width) var(--border-default)}
-.gc-progress--started .gc-progress__fill{min-width:14px}
+.gc-progress--started .gc-progress__fill{min-width:calc(var(--space-3) + var(--space-0-5))}
 .gc-progress--neutral .gc-progress__fill{background:var(--gc-gray-400)}
 .gc-progress--lg.gc-progress--neutral .gc-progress__track{background:var(--surface-sunken);box-shadow:inset 0 0 0 var(--border-width) var(--border-default)}
 .gc-progress--indeterminate .gc-progress__fill{width:40%!important;animation:gc-indeterminate 1.3s var(--gc-ease-standard) infinite}
@@ -664,36 +664,36 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
 :root[data-navegando] .gc-shell__page>:not(.gc-shell__pending){display:none}
 :root[data-navegando] .gc-shell__pending{display:grid}
 /* Painel de carregamento de lote (export "Pesquisa de preços · Estados de carregamento"): ⅔ da largura e ~metade da altura útil no desktop; largura útil no celular. Sem botões próprios. */
-.gc-jobprog{width:66%;min-height:52dvh;margin-inline:auto;display:flex;flex-direction:column;justify-content:center;gap:var(--space-6);padding:36px var(--space-10);background:var(--surface-card);border:var(--border-width) solid var(--border-subtle);border-radius:var(--gc-radius-xl);box-shadow:var(--gc-shadow-sm);min-width:0}
+.gc-jobprog{width:66%;min-height:52dvh;margin-inline:auto;display:flex;flex-direction:column;justify-content:center;gap:var(--space-6);padding:var(--space-8) var(--space-10);background:var(--surface-card);border:var(--border-width) solid var(--border-subtle);border-radius:var(--gc-radius-xl);box-shadow:var(--gc-shadow-sm);min-width:0}
 /* Foco só programático (a tela leva o leitor de tela ao painel): sem anel, o painel não é controle. */
 .gc-jobprog:focus{outline:none}
-.gc-jobprog__head{display:flex;align-items:flex-start;gap:14px}
-.gc-jobprog__ico{width:44px;height:44px;border-radius:var(--gc-radius-md);display:grid;place-items:center;flex-shrink:0;background:var(--accent-subtle);color:var(--accent);font-size:22px}
-.gc-jobprog__ico .gc-spinner{width:20px;height:20px;border-width:2.5px}
+.gc-jobprog__head{display:flex;align-items:flex-start;gap:var(--space-3)}
+.gc-jobprog__ico{width:var(--control-lg);height:var(--control-lg);border-radius:var(--gc-radius-md);display:grid;place-items:center;flex-shrink:0;background:var(--accent-subtle);color:var(--accent);font-size:var(--icon-lg)}
+.gc-jobprog__ico .gc-spinner{width:var(--icon-lg);height:var(--icon-lg);border-width:calc(var(--border-width-strong) + var(--border-width))}
 .gc-jobprog[data-state="error"] .gc-jobprog__ico{background:var(--error-bg);color:var(--error-fg)}
 .gc-jobprog__titles{display:grid;gap:var(--space-1);min-width:0}
-.gc-jobprog__title{margin:0;font:600 22px/1.25 var(--gc-font-sans);letter-spacing:-.015em;color:var(--text-primary)}
+.gc-jobprog__title{margin:0;font:var(--type-h1);letter-spacing:var(--gc-tracking-tight);color:var(--text-primary)}
 .gc-jobprog__desc{margin:0;font:var(--type-body);color:var(--text-secondary);text-wrap:pretty}
-.gc-jobprog__count{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.gc-jobprog__num{font:600 64px/1 var(--gc-font-sans);letter-spacing:-.035em;font-variant-numeric:tabular-nums;color:var(--accent-strong-text)}
+.gc-jobprog__count{display:flex;align-items:baseline;gap:var(--space-2-5);flex-wrap:wrap}
+.gc-jobprog__num{font:var(--type-metric);letter-spacing:var(--gc-tracking-tighter);font-variant-numeric:tabular-nums;color:var(--accent-strong-text)}
 .gc-jobprog[data-state="error"] .gc-jobprog__num{color:var(--text-primary)}
 .gc-jobprog[data-state="prep"] .gc-jobprog__num{color:var(--text-disabled)}
-.gc-jobprog__of{font:500 22px/1.2 var(--gc-font-sans);color:var(--text-primary);font-variant-numeric:tabular-nums}
+.gc-jobprog__of{font:500 var(--gc-fs-2xl)/1.2 var(--gc-font-sans);color:var(--text-primary);font-variant-numeric:tabular-nums}
 .gc-jobprog__of span{color:var(--text-secondary);font-weight:400}
 .gc-jobprog__bar{display:grid;gap:var(--space-2)}
 .gc-jobprog__barmeta{display:flex;justify-content:space-between;gap:var(--space-3);font:400 var(--gc-fs-sm)/1.3 var(--gc-font-sans);color:var(--text-secondary);font-variant-numeric:tabular-nums}
 .gc-jobprog__barmeta b{color:var(--text-primary);font-weight:600}
-.gc-jobprog__out{display:flex;align-items:center;gap:var(--space-3);padding-top:18px;border-top:var(--border-width) solid var(--border-subtle)}
-.gc-jobprog__out-ico{width:32px;height:32px;border-radius:var(--gc-radius-sm);display:grid;place-items:center;background:var(--warning-bg);color:var(--warning-fg);font-size:17px;flex-shrink:0}
+.gc-jobprog__out{display:flex;align-items:center;gap:var(--space-3);padding-top:var(--space-4);border-top:var(--border-width) solid var(--border-subtle)}
+.gc-jobprog__out-ico{width:var(--control-sm);height:var(--control-sm);border-radius:var(--gc-radius-sm);display:grid;place-items:center;background:var(--warning-bg);color:var(--warning-fg);font-size:var(--icon-md);flex-shrink:0}
 .gc-jobprog__out-t{display:grid;gap:var(--space-0-5)}
 .gc-jobprog__out-t b{font:600 var(--gc-fs-lg)/1.25 var(--gc-font-sans);font-variant-numeric:tabular-nums}
 .gc-jobprog__out-t span{font:400 var(--gc-fs-sm)/1.4 var(--gc-font-sans);color:var(--text-secondary)}
 @media (max-width:768px){
-  .gc-jobprog{width:100%;min-height:0;padding:22px 18px;gap:18px;border-radius:var(--gc-radius-lg)}
-  .gc-jobprog__ico{width:36px;height:36px;font-size:18px}
+  .gc-jobprog{width:100%;min-height:0;padding:var(--space-5) var(--space-4);gap:var(--space-4);border-radius:var(--gc-radius-lg)}
+  .gc-jobprog__ico{width:var(--control-md);height:var(--control-md);font-size:var(--icon-md)}
   .gc-jobprog__title{font-size:var(--gc-fs-xl)}
-  .gc-jobprog__num{font-size:48px}
-  .gc-jobprog__of{font-size:17px}
+  .gc-jobprog__num{font-size:var(--gc-fs-6xl)}
+  .gc-jobprog__of{font-size:var(--gc-fs-lg)}
 }
 
 /* ——— Adições do porte para React/TypeScript ———

@@ -62,11 +62,19 @@ function ColetaAcompanhada({
   itens: ItemResumido[];
 }) {
   const router = useRouter();
-  const { job, erro } = useJob(jobId, () => router.refresh());
+  const { job, erro, inacessivel } = useJob(jobId, () => router.refresh());
   const painel = useRef<HTMLElement>(null);
-  const ocupado = !job || job.estado === "queued" || job.estado === "running";
-  // Muda só quando o painel troca de forma: acompanhando → resumo ou falha.
-  const marco = ocupado ? "acompanhando" : job?.estado === "succeeded" ? "concluida" : "falha";
+  // Só um lote que se sabe ativo trava os botões: sem resposta do servidor
+  // ou com o lote inacessível (404), a coleta continua possível.
+  const ocupado = job ? job.estado === "queued" || job.estado === "running" : !erro && !inacessivel;
+  // Muda só quando o painel troca de forma: acompanhando → resumo, falha ou inacessível.
+  const marco = inacessivel
+    ? "inacessivel"
+    : !job || ocupado
+      ? "acompanhando"
+      : job.estado === "succeeded"
+        ? "concluida"
+        : "falha";
 
   // O painel aparece onde a pessoa está: o botão que o criou pode estar
   // fora da tela. Na conclusão ou na falha, o destaque passa ao resumo (ou
@@ -82,7 +90,30 @@ function ColetaAcompanhada({
   return (
     <>
       {editavel && <BotaoDeColeta pesquisa={pesquisa} chave={chave} ocupado={ocupado} />}
-      <PainelDoLote job={job} erro={erro} itens={itens} painel={painel} />
+      {inacessivel ? (
+        <div
+          ref={painel as RefObject<HTMLDivElement | null>}
+          tabIndex={-1}
+          data-testid="progresso-coleta"
+          data-job="inacessivel"
+          className={`outline-none ${ALVO}`}
+        >
+          <Alert
+            variant="neutral"
+            title="Não foi possível acompanhar este lote"
+            actions={
+              <Button size="sm" variant="secondary" href={`/app/precos/${pesquisa}`}>
+                Parar de acompanhar
+              </Button>
+            }
+          >
+            Ele foi iniciado por outra conta ou não existe mais. Os preços já coletados aparecem nos itens
+            {editavel ? "; para coletar de novo, use Coletar preços." : "."}
+          </Alert>
+        </div>
+      ) : (
+        <PainelDoLote job={job} erro={erro} itens={itens} painel={painel} />
+      )}
     </>
   );
 }
