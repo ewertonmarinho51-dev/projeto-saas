@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { BotaoDeColeta, ProgressoDaColeta } from "@/components/coleta";
+import { ColetaDaPesquisa } from "@/components/coleta";
 import { PainelDeEmissao, ProgressoDoRelatorio } from "@/components/emissao";
 import { AplicarAoProcesso } from "@/components/aplicar-processo";
 import { DestinatarioDaPesquisa } from "@/components/destinatario";
@@ -187,13 +187,21 @@ export default async function Pesquisa({
         faltam={faltam - aptas}
         aptas={aptas}
       />
-      {jobId && <ProgressoDaColeta jobId={jobId} />}
-      {!IMUTAVEIS.has(p.estado) && (
+      {(jobId || !IMUTAVEIS.has(p.estado)) && (
         // Chave nova a cada renderização: um clique (ou o reenvio do
         // formulário) não põe duas coletas na fila — a API devolve o
-        // mesmo job para a mesma chave.
-        <div id={SECAO.coleta} className={ALVO}>
-          <BotaoDeColeta pesquisa={p.id} chave={`web-coleta-${crypto.randomUUID()}`} />
+        // mesmo job para a mesma chave. O lote acompanhado vem de `?job=`.
+        <div id={SECAO.coleta} className={`grid gap-4 ${ALVO}`}>
+          <ColetaDaPesquisa
+            pesquisa={p.id}
+            chave={`web-coleta-${crypto.randomUUID()}`}
+            jobId={jobId}
+            editavel={!IMUTAVEIS.has(p.estado)}
+            // Só o que o resumo lista: os itens sem referência compatível.
+            itens={p.itens
+              .filter((i) => i.pendencia === "sem_referencia_compativel")
+              .map(({ id, numero, descricao, unidade, pendencia }) => ({ id, numero, descricao, unidade, pendencia }))}
+          />
         </div>
       )}
 

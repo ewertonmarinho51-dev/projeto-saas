@@ -80,7 +80,7 @@ server component. Componente que recebe função (`render`, `trigger`,
 | feedback | `EmptyState` | lista vazia / primeiro uso | |
 | feedback | `Skeleton`, `SkeletonText` | marcador de carregamento | |
 | feedback | `Spinner` | carregando sem total | |
-| feedback | `ProgressBar` | progresso linear | |
+| feedback | `ProgressBar` | progresso linear; `size="lg"` (trilho de 14 px do painel de carregamento), `tone="neutral"` (progresso parado), `ariaLabel` | |
 | data | `KpiCard` | indicador com tendência | |
 | data | `DataTable`, `TableContainer` | tabela ordenável e selecionável, com rolagem horizontal própria; `stack` vira cartão até 640 px (nunca em tabela de preço) | sim |
 | data | `Pagination` | paginação | |
@@ -112,6 +112,7 @@ server component. Componente que recebe função (`render`, `trigger`,
 | templates | `AuthLayout` | entrada dividida marca/formulário; sempre no tema claro (usado em `/entrar` e `/entrar/recuperar`) | |
 | templates | `NavigationProgress` | barra fina no topo enquanto a próxima página não chega; quem decide quando mostrar é o app (`components/progresso-de-navegacao.tsx`) | |
 | templates | `PageSkeleton` | formato genérico de página enquanto a próxima não chega; a casca o mantém escondido até `html[data-navegando]`, sem pedir nada ao servidor (serve às rotas com 404 real, que não têm `loading.tsx`) | |
+| templates | `JobProgress` | painel de carregamento de lote longo (export "Pesquisa de preços · Estados de carregamento"): `prep`/`run`/`error`, contador grande `feitos de total`, `ProgressBar size="lg"` (cinza na falha), desfecho à parte (`outcome`); ⅔ da largura no desktop, largura útil no celular; sem botões (retomar = o "Coletar preços" da tela); na conclusão a tela troca o painel pelo resumo (Alert + Card + DataList). Usado em `components/coleta.tsx` | |
 | templates | `LandingHero` | Hero da landing pública (`/`): cabeçalho de vidro, fluxo DFD → ETP → TR → Preços em SVG, painéis ilustrativos; CSS em `styles/landing.css`, sem JavaScript | |
 
 ## Integração com o resto do app

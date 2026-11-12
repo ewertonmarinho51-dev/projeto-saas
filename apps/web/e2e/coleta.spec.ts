@@ -26,12 +26,21 @@ test("coletar preços acompanha o job até o fim, inclusive após recarregar", a
 
   await page.getByRole("button", { name: "Coletar preços" }).click();
   await expect(page).toHaveURL(/\?job=[0-9a-f-]{36}$/);
-  // Refresh no meio: o job vem da URL, o acompanhamento continua.
+  const lote = new URL(page.url()).searchParams.get("job");
+  const progresso = page.getByTestId("progresso-coleta");
+  // O painel aparece onde a pessoa está olhando, e com o foco.
+  await expect(progresso).toBeInViewport();
+  await expect(progresso).toBeFocused();
+  // Refresh no meio: o job vem da URL, o acompanhamento continua no MESMO lote.
   await page.reload();
-  await expect(page.getByTestId("progresso-coleta")).toContainText(
-    "Coleta concluída: 2 de 2 itens processados.",
-    { timeout: 60_000 },
-  );
+  expect(new URL(page.url()).searchParams.get("job")).toBe(lote);
+  await expect(progresso).toBeInViewport();
+  // Na conclusão o painel dá lugar ao resumo, e o destaque vai para ele.
+  await expect(progresso).toHaveAttribute("data-job", "succeeded", { timeout: 60_000 });
+  await expect(progresso).toContainText("Coleta concluída");
+  await expect(progresso).toContainText("2 de 2 itens processados");
+  await expect(progresso).toBeFocused();
+  await expect(page.getByRole("button", { name: "Coletar preços" })).toBeEnabled();
   await expect(page.locator("tbody")).not.toContainText("Pendente");
   await page.screenshot({ path: "e2e/resultados/telas/coleta-1440.png", fullPage: true });
 });

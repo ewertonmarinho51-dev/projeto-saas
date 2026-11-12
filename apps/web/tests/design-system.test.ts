@@ -38,6 +38,7 @@ const TEMPLATES = [
   "AppShell",
   "AuthLayout",
   "DocumentWorkspace",
+  "JobProgress",
   "LandingHero",
   "NavigationProgress",
   "PageHead",
