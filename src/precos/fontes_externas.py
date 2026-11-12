@@ -14,8 +14,14 @@ Uma fonte só fica `habilitada` com as TRÊS coisas ao mesmo tempo:
 3. `mapeamento_confirmado` — colunas, códigos e etapa do preço conferidos
    no dicionário/leiaute oficial da fonte.
 
-Nenhuma fonte deste arquivo cumpre as três hoje. Mudar `licenca` para
-APROVADA exige o documento da autorização citado em `prova_licenca`.
+Mudar `licenca` para APROVADA exige o documento da autorização citado
+em `prova_licenca`. Em 12/11/2026 só o BPS cumpre as três.
+
+As plataformas privadas de licitação (Portal de Compras Públicas,
+Licitanet, BLL, BNC, Compras BR, BBMNET, Licitar Digital) e o TCM-PA SAÍRAM
+deste registro em 12/11/2026, por decisão do dono: chegam pela via oficial,
+o PNCP (Lei 14.133, art. 174), e não terão canal direto. A medição e a
+origem de cada uma moram em `portais.REGISTRO`.
 """
 
 from __future__ import annotations
@@ -101,29 +107,6 @@ REGISTRO: dict[str, RegistroFonte] = {r.id: r for r in (
         # 2026 importado (SHA-256 569921c9…6ebb, 10.755 registros vigentes;
         # 60 de 60 conferidos na API oficial no mesmo dia)
         pendencia="só ligar a flag price_source_bps"),
-    RegistroFonte(
-        "pcp", "Portal de Compras Públicas — API de parceiros",
-        Acesso.API_COM_CHAVE,
-        "https://bibliotecapcp.zendesk.com/hc/pt-br/articles/4593611793690",
-        Licenca.NAO_AVALIADA,
-        "exige PublicKey e termo; nenhuma chave nem endpoint de itens "
-        "confirmados",
-        pendencia="PublicKey, documentação dos recursos de itens e "
-                  "resultados, termo de reúso"),
-    *(RegistroFonte(i, n, Acesso.SEM_CANAL, d, Licenca.NAO_AVALIADA,
-                    "sem API de leitura de preços unitários confirmada",
-                    pendencia="pedido de documentação/parceria (ver "
-                              "docs/fontes-precos/D_PENDENCIAS_ACESSO.md)")
-      for i, n, d in (
-          ("licitanet", "LICITANET", "https://licitanet.com.br/"),
-          ("bll", "BLL Compras", "https://bll.org.br/"),
-          ("bnc", "BNC", "https://bnc.org.br/"),
-          ("comprasbr", "Compras BR", "https://comprasbr.com.br/"),
-          ("bbmnet", "BBMNET", "https://bbmnet.com.br/"),
-          ("tcm_pa", "TCM-PA — Mural de Licitações",
-           "https://www.tcm.pa.gov.br/mural-de-licitacoes/"),
-          ("licitar_digital", "Licitar Digital",
-           "https://licitardigital.com.br/"))),
 )}
 
 
