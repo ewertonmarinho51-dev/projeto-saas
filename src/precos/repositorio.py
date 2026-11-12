@@ -435,6 +435,25 @@ def buscar_indice_pncp(termos: list[str], *, uf: str | None = None,
     return resposta.data
 
 
+def buscar_indice_bps(termos: list[str], *, catmat: str | None = None,
+                      uf: str | None = None, desde=None, ate=None,
+                      limite: int = 50) -> list[dict]:
+    """
+    Preços pagos do BPS no índice (0044), por CATMAT ou por termos. Lê com
+    o JWT do usuário, pela RPC `precos_bps_buscar` — nenhuma chamada
+    externa. Erro sobe: quem decide que índice fora não derruba a busca é
+    a fonte (`bps.BPSIndice`).
+    """
+    resposta = _cliente().rpc("precos_bps_buscar", {
+        "p_termos": [str(t) for t in termos],
+        "p_catmat": str(catmat) if catmat else None,
+        "p_uf": (uf or None) and str(uf).upper(),
+        "p_desde": desde.isoformat() if desde else None,
+        "p_ate": ate.isoformat() if ate else None,
+        "p_limite": int(limite)}).execute()
+    return resposta.data
+
+
 def historico(pesquisa_id: str) -> list[dict]:
     """
     Todas as revisões da mesma pesquisa lógica, da primeira à vigente.

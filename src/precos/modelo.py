@@ -362,6 +362,10 @@ FONTES_REGISTRADAS: dict[str, str] = {
     # canal direto de Curitiba (Dados Abertos): valor CONTRATADO por outro
     # ente — contratação similar (art. 23, § 1º, II), não sistema oficial
     "curitiba_itens": "contratacao_similar",
+    # Banco de Preços em Saúde (Ministério da Saúde): banco oficial de
+    # preços pagos em compras públicas — "banco de preços em saúde" do
+    # art. 23, § 1º, I
+    "bps": "sistema_oficial",
 }
 
 TIPO_NAO_REGISTRADO = "outro"

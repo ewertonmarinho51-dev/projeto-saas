@@ -1543,7 +1543,10 @@ TABELAS_PRIVADAS = tabelas_do_inventario()
 # Mais `precos_pncp_termos` da 0043 (busca do PNCP por termo), aplicada em
 # 11/11/2026 (registro 20261111124057): o catálogo passou de 51 para 52
 # tabelas em `public`, todas com RLS; este inventário sobe de 48 para 49.
-TABELAS_EM_PRODUCAO = 49
+# Mais as duas da 0044 (índice do BPS), aplicada em 12/11/2026 (registro
+# 20261112120809): o catálogo passou de 52 para 54 tabelas em `public`, todas
+# com RLS; este inventário sobe de 49 para 51.
+TABELAS_EM_PRODUCAO = 51
 
 # As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
 # inclui, mas porque são as únicas cuja implantação esta suíte
@@ -1606,6 +1609,15 @@ TABELAS_DO_INDICE_PNCP = frozenset({
     "precos_pncp_resultados",
     # 0043: a fila de termos da busca nacional — só da credencial de servidor
     "precos_pncp_termos",
+})
+
+# As duas da 0044 (índice do BPS), aplicada em produção em 12/11/2026 — já
+# contam em TABELAS_EM_PRODUCAO. Ficam nomeadas porque a matriz de RLS delas
+# mora no arquivo da própria 0044 — dado público, sem tenant: `authenticated`
+# só lê as linhas vigentes de `precos_bps_registros`; as versões são da
+# credencial de servidor.
+TABELAS_DO_INDICE_BPS = frozenset({
+    "precos_bps_versoes", "precos_bps_registros",
 })
 
 
@@ -1959,7 +1971,9 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
                        / "0043_precos_pncp_termos.sql").read_text(encoding="utf-8")
     coberto = (_sql_da_0020() + _sql_da_0021() + _sql_da_0025()
                + _sql_da_0028() + _sql_da_0029() + _sql_da_0031()
-               + sql_editor + sql_emissao + sql_indice_pncp + sql_termos_pncp)
+               + sql_editor + sql_emissao + sql_indice_pncp + sql_termos_pncp
+               + (Path(__file__).resolve().parent.parent / "supabase/migrations"
+                  / "0044_precos_bps_indice.sql").read_text(encoding="utf-8"))
     faltando = [t for t in TABELAS_PRIVADAS if t not in coberto]
     assert not faltando, f"sem matriz de RLS escrita: {faltando}"
 
@@ -1969,7 +1983,8 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
     proprias = (TABELAS_DA_PESQUISA_DE_PRECOS | TABELAS_DA_MULTI_PREFEITURA
                 | TABELAS_DO_CACHE_DE_GERACAO | TABELAS_DAS_COTACOES
                 | TABELAS_WORDCRAFT_NAO_IMPLANTADAS | TABELAS_DA_API
-                | TABELAS_DO_INDICE_PNCP)
+                | TABELAS_DO_INDICE_PNCP
+                | TABELAS_DO_INDICE_BPS)
     for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 

@@ -55,11 +55,20 @@ def zip_bps(tmp_path):
 # ---------------------------------------------------------------------------
 # Registro e travas
 # ---------------------------------------------------------------------------
-def test_nenhuma_fonte_nova_esta_habilitada_nem_com_a_flag_ligada():
-    assert fontes_externas.fontes_habilitadas(flag_ativa=lambda _: True) == []
+def test_so_o_bps_tem_licenca_aprovada_e_ele_so_liga_com_a_flag():
+    """Até 12/11/2026 nenhuma fonte nova tinha licença aprovada. O BPS foi
+    aprovado pelo dono (CC BY-ND 3.0 do portal, PR #200) — com a prova
+    registrada; as demais continuam sem licença e não ligam nem com a flag."""
+    assert fontes_externas.fontes_habilitadas(flag_ativa=lambda _: True) == ["bps"]
+    assert fontes_externas.fontes_habilitadas(flag_ativa=lambda _: False) == []
     for registro in fontes_externas.REGISTRO.values():
-        assert registro.licenca != fontes_externas.Licenca.APROVADA
         assert registro.flag.startswith("price_source_")
+        if registro.id == "bps":
+            assert registro.licenca == fontes_externas.Licenca.APROVADA
+            assert "12/11/2026" in registro.prova_licenca
+            assert "BY-ND" in registro.prova_licenca
+        else:
+            assert registro.licenca != fontes_externas.Licenca.APROVADA
 
 
 def test_a_fonte_so_liga_com_licenca_prova_mapeamento_e_flag(monkeypatch):
@@ -200,9 +209,11 @@ def test_tce_rs_recusa_leiaute_mudado(tmp_path):
 # ---------------------------------------------------------------------------
 # BPS — linhas reais
 # ---------------------------------------------------------------------------
-def test_bps_e_preco_pago_mas_sem_url_por_registro_nada_valida(zip_bps):
+def test_bps_e_preco_pago_e_a_evidencia_e_a_consulta_oficial_do_catmat(zip_bps):
     """Dicionário de 07/04/2026: "Preço pago por unidade do item
-    adquirido" — PRATICADO. O que segura é a falta de URL por registro."""
+    adquirido" — PRATICADO. Até 11/11/2026 a falta de URL por registro
+    segurava TODAS as linhas; a evidência passou a ser a consulta oficial do
+    CATMAT na API do Ministério (mais arquivo, hash e `co_seq_bps`)."""
     leitura = etl_bps.Leitura()
     linhas = {e.registro_id: e for e in etl_bps.ler(zip_bps, leitura=leitura)}
     assert leitura.linhas == 5
@@ -212,12 +223,34 @@ def test_bps_e_preco_pago_mas_sem_url_por_registro_nada_valida(zip_bps):
     assert pali.codigo_catalogo == "446467" and pali.data_resultado == "2026-01-09"
     assert pali.atributos["apresentacao"] == "FRASCO 1,00 ML"
     assert str(linhas["27507743"].valor_unitario) == "1.0393"
-    assert pali.motivos == [ev.SEM_EVIDENCIA]
+    assert pali.motivos == [] and pali.validada
+    assert pali.url_evidencia == ("https://apidadosabertos.saude.gov.br/"
+                                  "economia-da-saude/bps?codigoCatmat=446467")
+    assert pali.atributos["esfera"] == "ESTADUAL"
     for e in linhas.values():
         assert e.tipo_preco == ev.TipoPreco.PRATICADO
         assert ev.NATUREZA_DO_TIPO[e.tipo_preco].value == "praticado"
         assert ev.TIPO_NAO_COMPROVADO not in e.motivos
-        assert ev.SEM_EVIDENCIA in e.motivos and not e.validada
+        assert ev.SEM_EVIDENCIA not in e.motivos
+    assert sum(e.validada for e in linhas.values()) == 3
+
+
+@pytest.mark.parametrize("mudanca, motivo", [
+    ({"co_catmat": ""}, ev.SEM_EVIDENCIA),            # sem consulta oficial
+    ({"co_catmat": "BR0446467"}, ev.SEM_EVIDENCIA),   # só dígitos viram URL
+    ({"ds_esfera": "PRIVADA"}, etl_bps.COMPRA_NAO_PUBLICA),
+    ({"ds_esfera": ""}, etl_bps.COMPRA_NAO_PUBLICA),
+])
+def test_bps_sem_catmat_ou_compra_nao_publica_fica_em_quarentena(
+        zip_bps, mudanca, motivo):
+    import csv
+    import zipfile
+
+    with zipfile.ZipFile(zip_bps) as z:
+        linhas = list(csv.DictReader(
+            z.read("2026.csv").decode("utf-8-sig").splitlines(), delimiter=";"))
+    e = etl_bps.evidencia_da_linha({**linhas[0], **mudanca})
+    assert e.motivos == [motivo] and not e.validada
 
 
 def test_bps_judicial_e_leilao_tem_motivo_proprio(zip_bps):
@@ -388,6 +421,7 @@ def test_relatorio_de_staging_nas_linhas_reais(zip_tce, zip_bps):
     assert tce["por_termo"]["pasta az"]["linhas"] == 2
     assert len(tce["amostra"]) == 2 and tce["com_url_oficial"] == 4
     bps = etl.relatorio("bps", zip_bps, amostra=30)
-    assert bps["evidencias"] == 5 and bps["validadas"] == 0
+    assert bps["evidencias"] == 5 and bps["validadas"] == 3
+    assert bps["com_url_oficial"] == 5
     assert len(bps["amostra"]) == 5
     assert "00000000191" not in json.dumps(tce, ensure_ascii=False)

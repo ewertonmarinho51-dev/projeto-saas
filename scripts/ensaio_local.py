@@ -194,6 +194,10 @@ SEQUENCIA_EM_ENSAIO = (
     "0042_precos_pncp_indice.sql",
     # A 0043 altera a tabela de contratações da 0042.
     "0043_precos_pncp_termos.sql",
+    # A 0044 (índice do BPS) confere que `anon` e `authenticated` não
+    # alcançam o controle da importação e que `service_role` fica sem
+    # DELETE/TRUNCATE/REFERENCES/TRIGGER: só vale depois da contenção.
+    "0044_precos_bps_indice.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

@@ -123,6 +123,7 @@ ROTULO_DESFECHO = {Desfecho.COM_PRECOS.value: "respondeu com preços",
 NOME_DA_FONTE = {"compras_gov_precos": "Compras.gov (preços praticados)",
                  "compras_gov_itens": "Compras.gov (itens de contratações)",
                  "pncp": "PNCP",
+                 "bps": "BPS — Banco de Preços em Saúde",
                  "cotacao_direta": "Cotação direta"}
 
 

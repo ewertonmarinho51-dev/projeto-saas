@@ -63,7 +63,10 @@ HOSTS_PERMITIDOS = frozenset({
     "dadosabertos.compras.gov.br",
     # Portal de Dados Abertos de Curitiba (canal direto): a página do
     # conjunto e o servidor de arquivos dele
-    "dadosabertos.curitiba.pr.gov.br", "mid-dadosabertos.curitiba.pr.gov.br"})
+    "dadosabertos.curitiba.pr.gov.br", "mid-dadosabertos.curitiba.pr.gov.br",
+    # Ministério da Saúde: a página do conjunto BPS e a API oficial que
+    # devolve os registros de um CATMAT
+    "dadosabertos.saude.gov.br", "apidadosabertos.saude.gov.br"})
 
 NAO_DISPONIVEL = "Não disponível na fonte"
 
@@ -209,6 +212,19 @@ def resolver(linha: dict) -> Links:
             contratacao_url=seguro(direta.get("url")),
             contratacao_rotulo="Recurso oficial (Itens Processo)"
             if seguro(direta.get("url")) else "",
+            identificacao=str(linha.get("referencia_externa") or ""),
+            unidade_compradora=str(linha.get("orgao") or ""))
+    if fid == "bps":
+        from . import bps
+
+        url = seguro(bps.url_de_verificacao(bruto))
+        return Links(
+            fonte_url=seguro(bps.URL_CONJUNTO),
+            fonte_rotulo="BPS — Ministério da Saúde",
+            contratacao_url=url,
+            contratacao_rotulo="Registros do CATMAT no BPS (consulta oficial)"
+            if url else "",
+            dados_url=url,
             identificacao=str(linha.get("referencia_externa") or ""),
             unidade_compradora=str(linha.get("orgao") or ""))
     return Links()
