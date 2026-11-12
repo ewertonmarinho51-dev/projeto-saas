@@ -8,7 +8,7 @@ Nada aqui foi enviado a ninguém. Os textos de pedido são os do pacote
 | Fonte | Situação | Como entra na pesquisa |
 |---|---|---|
 | **BPS** (Ministério da Saúde) | **Ligada em produção.** Licença aprovada pelo dono (CC BY-ND 3.0 do portal); 0044 aplicada; arquivo de 2026 importado (10.755 registros); 60 de 60 conferidos na API oficial; `flag_price_source_bps = on` | Índice do BPS (PR #200) |
-| **TCE-RS / LicitaCon** | **Parada.** Conjunto ainda com "licença não especificada" no CKAN (conferido em 12/11/2026); leiaute de `TP_RESULTADO_ITEM` sem documento. Só órgãos do Rio Grande do Sul, que também publicam no PNCP | Nenhuma. Contato: `dados-abertos@tce.rs.gov.br` |
+| **TCE-RS / LicitaCon** | **Parada.** Conjunto ainda com "licença não especificada" no CKAN (conferido em 12/11/2026); leiaute de `TP_RESULTADO_ITEM` sem documento. Só órgãos do Rio Grande do Sul, que também publicam no PNCP | Nenhuma. Contato: o e-mail de dados abertos publicado no próprio conjunto (CKAN do TCE-RS) |
 | Portal de Compras Públicas, LICITANET, BLL, BNC, BBMNET, Licitar Digital | **Sem canal direto, por decisão de 12/11/2026.** Já chegam pelo PNCP (Lei 14.133, art. 174) | Índice do PNCP, com "Origem <plataforma> · Coleta via PNCP" |
 | Compras BR | Sem canal direto (mesma decisão); nenhum resultado no índice até 12/11/2026 | Pelo PNCP, quando aparecer |
 | TCM-PA | Sem canal direto. Não há base estruturada: o mural respondeu HTTP 500 e não há página de dados abertos (12/11/2026). Os municípios paraenses publicam no PNCP | Índice do PNCP; atas do mural como evidência manual |
