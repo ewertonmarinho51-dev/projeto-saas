@@ -35,7 +35,8 @@ requer_pg = pytest.mark.usefixtures("ensaio_sql")
 # ---------------------------------------------------------------------------
 def test_cabecalho_diz_o_estado():
     assert TEXTO.startswith("-- ## 0044 —")
-    assert "ESTADO: NÃO APLICADA EM PRODUÇÃO" in TEXTO
+    assert "ESTADO: APLICADA EM PRODUÇÃO em 12/11/2026" in TEXTO
+    assert "registro 20261112120809" in TEXTO
     assert "O QUE ESTA MIGRAÇÃO NÃO RESOLVE" in TEXTO
 
 
@@ -263,6 +264,20 @@ MUTACOES = [
     ("grant truncate on public.precos_bps_versoes to service_role", "service_role_apaga"),
     ("grant delete on public.precos_bps_registros to service_role", "service_role_apaga"),
     ("grant trigger on public.precos_bps_registros to service_role", "service_role_gatilho_ou_fk"),
+    # reforços da revisão de 12/11/2026: o que a conferência por papel
+    # NOMEADO não via
+    ("grant references (catmat) on public.precos_bps_registros to service_role",
+     "service_role_gatilho_ou_fk"),
+    ("create role zz_outro; grant select on public.precos_bps_versoes to zz_outro",
+     "grant_a_papel_inesperado"),
+    ("create role zz_outro; grant select (ano) on public.precos_bps_versoes to zz_outro",
+     "grant_a_papel_inesperado"),
+    ("grant select (catmat) on public.precos_bps_registros to public",
+     "grant_a_papel_inesperado"),
+    ("create function public.zz_gatilho() returns trigger language plpgsql "
+     "as 'begin return new; end'; create trigger zz before insert on "
+     "public.precos_bps_registros for each row execute function public.zz_gatilho()",
+     "gatilho"),
     ("revoke insert on public.precos_bps_registros from service_role", "service_role_sem_escrita"),
     ("create policy p on public.precos_bps_versoes for select to authenticated using (true)",
      "politica_fora_do_previsto"),

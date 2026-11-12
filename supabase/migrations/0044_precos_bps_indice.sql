@@ -1,7 +1,42 @@
 -- ## 0044 — Índice do BPS (Banco de Preços em Saúde, Ministério da Saúde)
--- ## ESTADO: NÃO APLICADA EM PRODUÇÃO. Aplicável; aguarda o ensaio nos dois
--- ##   níveis (o do CI roda em `tests/test_migracao_0044.py`), a revisão do
--- ##   `revisor-de-banco-e-seguranca` e a autorização do dono.
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 12/11/2026 como `m0044_precos_bps_indice`
+-- ##   (registro 20261112120809), a pedido expresso do dono ("pode aplicar a
+-- ##   0044 e importar o BPS"), depois do ensaio nos dois níveis e da revisão.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (12/11/2026):
+--   * ANTES: 52 tabelas em public, as 52 com RLS; 105 políticas; 96 grants de
+--     tabela a `authenticated`, 0 a `anon`; 109 grants DELETE/TRUNCATE/
+--     REFERENCES/TRIGGER a `service_role`; 174 funções; nenhum objeto do BPS;
+--     12.377 referências, 616 itens, 3.760 resultados do PNCP;
+--   * aplicação: conferência interna aprovada;
+--   * DEPOIS: 54 tabelas, as 54 com RLS; 106 políticas; 97 e 0 grants
+--     (`authenticated` +1: SELECT em `precos_bps_registros`); os 109 de
+--     `service_role` inalterados; 175 funções; ACL `service_role=arwm` nas
+--     duas tabelas, `authenticated=r` só nos registros; EXECUTE da busca só
+--     para `authenticated` e `service_role`; referências, itens e PNCP intactos;
+--   * comportamento, num bloco desfeito com versões e registros sintéticos:
+--     `authenticated` vê só os vigentes e busca por termo e por CATMAT; não lê
+--     versões nem altera (42501); `anon` sem leitura nem busca (42501);
+--     `service_role` não apaga nem trunca (42501). Nenhum resíduo depois;
+--   * advisors de segurança: nada novo além do INFO "RLS sem política" em
+--     `precos_bps_versoes`, por desenho (como as tabelas de controle da 0042).
+--
+-- REGISTRO DO ENSAIO (12/11/2026):
+--   * nível 1: PostgreSQL do CI (`tests/test_migracao_0044.py`), com cada ramo
+--     da conferência sob mutação;
+--   * nível 2, descartável `uslaxaxomjawydqtbwkb`
+--     (`m0044_precos_bps_indice_ensaio`): conferência aprovada; comportamento
+--     idêntico ao de produção; o banco recusa duas versões vigentes no ano
+--     (23505), vigente sem publicar (23514), esfera privada (23514) e versão
+--     inexistente (23503). Com 11.000 registros sintéticos (o volume do
+--     arquivo de 2026): busca por termos 59 ms, por CATMAT 7 ms; republicar
+--     tudo (reapontar + os quatro passos de `publicar`) < 1 s;
+--   * revisão do `revisor-de-banco-e-seguranca`: sem bloqueador. Entraram na
+--     conferência os reforços que ela sugeriu: REFERENCES por coluna, grant a
+--     papel não nomeado (tabela e coluna, PUBLIC incluído) e gatilho — os
+--     três provados por mutação no descartável. Ficou de fora, por ser herdado
+--     da 0042 e só de custo: termo começando com "-" vira negação no
+--     `websearch_to_tsquery`.
 --
 -- O PROBLEMA (11/11/2026)
 --   Medicamento é o objeto em que a pesquisa de preços mais depende de fonte
@@ -213,9 +248,34 @@ begin
                            'delete, truncate') then
       faltou := faltou || ' service_role_apaga:' || tabela;
     end if;
-    if has_table_privilege('service_role', 'public.' || tabela,
-                           'references, trigger') then
+    -- REFERENCES por coluna não aparece em `has_table_privilege`
+    if has_table_privilege('service_role', 'public.' || tabela, 'trigger')
+       or has_any_column_privilege('service_role', 'public.' || tabela,
+                                   'references') then
       faltou := faltou || ' service_role_gatilho_ou_fk:' || tabela;
+    end if;
+    -- A conferência por papel NOMEADO não vê o papel que ninguém nomeou:
+    -- fora o dono, só `service_role` e `authenticated` podem aparecer no ACL
+    -- da tabela ou de qualquer coluna (PUBLIC é o grantee 0 e também cai).
+    if exists (
+         select 1 from pg_class c,
+                aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a
+          where c.oid = ('public.' || tabela)::regclass
+            and a.grantee not in (c.relowner, 'service_role'::regrole::oid,
+                                  'authenticated'::regrole::oid))
+       or exists (
+         select 1 from pg_attribute at, pg_class c, aclexplode(at.attacl) a
+          where at.attrelid = ('public.' || tabela)::regclass
+            and c.oid = at.attrelid and at.attacl is not null
+            and a.grantee not in (c.relowner, 'service_role'::regrole::oid,
+                                  'authenticated'::regrole::oid)) then
+      faltou := faltou || ' grant_a_papel_inesperado:' || tabela;
+    end if;
+    -- a migração não cria gatilho; um que apareça mudaria o que é gravado
+    if exists (select 1 from pg_trigger
+                where tgrelid = ('public.' || tabela)::regclass
+                  and not tgisinternal) then
+      faltou := faltou || ' gatilho:' || tabela;
     end if;
     -- com lista, `has_table_privilege` responde "algum": cada um é conferido
     if not (has_table_privilege('service_role', 'public.' || tabela, 'select')
