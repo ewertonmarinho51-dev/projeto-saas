@@ -76,25 +76,30 @@ REGISTRO: dict[str, RegistroFonte] = {r.id: r for r in (
     RegistroFonte(
         "bps", "Ministério da Saúde — Banco de Preços em Saúde",
         Acesso.ZIP_CSV, "https://dadosabertos.saude.gov.br/dataset/bps",
-        Licenca.PENDENTE_JURIDICO,
+        Licenca.APROVADA,
         "11/11/2026: o conjunto continua com license_id vazio, mas o rodapé "
         "do portal declara \"Todo o conteúdo deste site está publicado sob a "
         "licença Creative Commons Atribuição-SemDerivações 3.0\" (CC BY-ND "
-        "3.0). Atribuição o relatório já faz (fonte, arquivo, link); se "
-        "exibir e calcular sobre os registros num SaaS é \"obra derivada\" "
-        "é juízo jurídico — não foi feito aqui",
+        "3.0). Atribuição o relatório faz (fonte, arquivo, link da consulta "
+        "oficial); o registro é exibido como a fonte o publicou",
         # Etapa do preço pelo dicionário oficial (preço pago); colunas pelo
         # arquivo real; evidência = consulta oficial do CATMAT + arquivo +
         # co_seq_bps, com 60 de 60 linhas da amostra de 11/11/2026 achadas
         # na API oficial (`bps.confrontar`, `tests/test_bps_indice.py`)
         mapeamento_confirmado=True,
+        # A decisão é do dono do produto, não do código: registrada aqui com
+        # data e texto para que a habilitação tenha de onde vir.
+        prova_licenca="12/11/2026: o dono do Gov Conect decidiu que a CC "
+                      "BY-ND 3.0 declarada no rodapé de "
+                      "dadosabertos.saude.gov.br cobre o uso do BPS na "
+                      "pesquisa de preços (\"Cobre, aprovar\", PR #200)",
         downloads=("https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/"
                    "BPS/csv/2026_csv.zip",
                    "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/"
                    "BPS/json/2026_json.zip"),
-        pendencia="só a licença: o dono decide se a CC BY-ND 3.0 do portal "
-                  "cobre o uso e registra a decisão em `prova_licenca` "
-                  "(licenca=APROVADA). Sem isso a flag não liga a fonte"),
+        pendencia="licença aprovada pelo dono em 12/11/2026; falta "
+                  "aplicar a 0044, importar o arquivo e ligar a flag "
+                  "price_source_bps"),
     RegistroFonte(
         "pcp", "Portal de Compras Públicas — API de parceiros",
         Acesso.API_COM_CHAVE,

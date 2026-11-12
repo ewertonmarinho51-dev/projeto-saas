@@ -55,11 +55,20 @@ def zip_bps(tmp_path):
 # ---------------------------------------------------------------------------
 # Registro e travas
 # ---------------------------------------------------------------------------
-def test_nenhuma_fonte_nova_esta_habilitada_nem_com_a_flag_ligada():
-    assert fontes_externas.fontes_habilitadas(flag_ativa=lambda _: True) == []
+def test_so_o_bps_tem_licenca_aprovada_e_ele_so_liga_com_a_flag():
+    """Até 12/11/2026 nenhuma fonte nova tinha licença aprovada. O BPS foi
+    aprovado pelo dono (CC BY-ND 3.0 do portal, PR #200) — com a prova
+    registrada; as demais continuam sem licença e não ligam nem com a flag."""
+    assert fontes_externas.fontes_habilitadas(flag_ativa=lambda _: True) == ["bps"]
+    assert fontes_externas.fontes_habilitadas(flag_ativa=lambda _: False) == []
     for registro in fontes_externas.REGISTRO.values():
-        assert registro.licenca != fontes_externas.Licenca.APROVADA
         assert registro.flag.startswith("price_source_")
+        if registro.id == "bps":
+            assert registro.licenca == fontes_externas.Licenca.APROVADA
+            assert "12/11/2026" in registro.prova_licenca
+            assert "BY-ND" in registro.prova_licenca
+        else:
+            assert registro.licenca != fontes_externas.Licenca.APROVADA
 
 
 def test_a_fonte_so_liga_com_licenca_prova_mapeamento_e_flag(monkeypatch):

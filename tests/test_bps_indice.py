@@ -391,12 +391,19 @@ def _tipos(fontes):
     return [type(f).__name__ for f in fontes]
 
 
-def test_so_a_flag_nao_liga_o_bps_falta_a_licenca(monkeypatch):
+def test_licenca_aprovada_com_prova_e_a_fonte_nasce_desligada(monkeypatch):
     ligar_banco_falso(monkeypatch)
     registro = fontes_externas.REGISTRO["bps"]
     assert registro.flag == "price_source_bps" and registro.mapeamento_confirmado
-    assert registro.licenca is fontes_externas.Licenca.PENDENTE_JURIDICO
-    assert "SemDerivações" in registro.nota_licenca and not registro.prova_licenca
+    assert registro.licenca is fontes_externas.Licenca.APROVADA
+    assert "SemDerivações" in registro.nota_licenca and registro.prova_licenca
+    # aprovar a licença não liga nada: sem a flag, a fonte fica fora
+    assert "BPSIndice" not in _tipos(cotacoes._fontes_padrao())
+    # e sem a prova, nem a flag liga
+    import dataclasses
+
+    monkeypatch.setitem(fontes_externas.REGISTRO, "bps",
+                        dataclasses.replace(registro, prova_licenca=""))
     monkeypatch.setattr(db, "flag_ativa", lambda nome: nome == registro.flag)
     assert "BPSIndice" not in _tipos(cotacoes._fontes_padrao())
 
