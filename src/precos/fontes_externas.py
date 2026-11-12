@@ -97,9 +97,10 @@ REGISTRO: dict[str, RegistroFonte] = {r.id: r for r in (
                    "BPS/csv/2026_csv.zip",
                    "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/"
                    "BPS/json/2026_json.zip"),
-        pendencia="licença aprovada pelo dono em 12/11/2026; falta "
-                  "aplicar a 0044, importar o arquivo e ligar a flag "
-                  "price_source_bps"),
+        # 12/11/2026: 0044 aplicada (registro 20261112120809) e o arquivo de
+        # 2026 importado (SHA-256 569921c9…6ebb, 10.755 registros vigentes;
+        # 60 de 60 conferidos na API oficial no mesmo dia)
+        pendencia="só ligar a flag price_source_bps"),
     RegistroFonte(
         "pcp", "Portal de Compras Públicas — API de parceiros",
         Acesso.API_COM_CHAVE,
