@@ -752,6 +752,15 @@ def _fontes_padrao():
 
         fontes = [f for f in fontes if not isinstance(f, PNCPAdapter)]
         fontes.append(PNCPIndice(repo.buscar_indice_pncp))
+
+    # BPS: flag + mapeamento conferido + licença aprovada com prova — as
+    # três em `fontes_externas`, e ali flag ilegível também não liga
+    from . import fontes_externas
+
+    if fontes_externas.habilitada("bps"):
+        from .bps import BPSIndice
+
+        fontes.append(BPSIndice(repo.buscar_indice_bps))
     return fontes
 
 

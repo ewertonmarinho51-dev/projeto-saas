@@ -79,6 +79,25 @@ _CANONICAS = {
     "MES": ("MES", ("MES", "MESES")),
     # serviço medido por deslocamento (frete, entrega): só casa consigo
     "VIAGEM": ("VIAGEM", ("VIAGEM", "VIAGENS")),
+    # Unidades de fornecimento de MEDICAMENTO, como o BPS as publica
+    # (`un_fornecimento`, arquivo oficial de 11/11/2026: comprimido em 5.112
+    # de 11.417 linhas, depois frasco, ampola, cápsula, frasco-ampola,
+    # bisnaga, bolsa, seringa, drágea, tubete, envelope e sachê). Só casam
+    # consigo mesmas: comprimido não vira cápsula, ampola não vira frasco.
+    # Entram por extenso — abreviação de bula ("CP", "FA", "ENV") é ambígua
+    # e fica de fora, como as demais siglas ambíguas acima.
+    "COMPRIMIDO": ("COMPRIMIDO", ("COMPRIMIDO", "COMPRIMIDOS")),
+    "CAPSULA": ("CAPSULA", ("CAPSULA", "CAPSULAS")),
+    "AMPOLA": ("AMPOLA", ("AMPOLA", "AMPOLAS")),
+    "FRASCO_AMPOLA": ("FRASCO-AMPOLA", ("FRASCO-AMPOLA", "FRASCO AMPOLA",
+                                        "FRASCOS-AMPOLA")),
+    "BISNAGA": ("BISNAGA", ("BISNAGA", "BISNAGAS")),
+    "BOLSA": ("BOLSA", ("BOLSA", "BOLSAS")),
+    "SERINGA": ("SERINGA", ("SERINGA", "SERINGAS")),
+    "DRAGEA": ("DRAGEA", ("DRAGEA", "DRAGEAS")),
+    "TUBETE": ("TUBETE", ("TUBETE", "TUBETES")),
+    "ENVELOPE": ("ENVELOPE", ("ENVELOPE", "ENVELOPES")),
+    "SACHE": ("SACHE", ("SACHE", "SACHES")),
 }
 
 _POR_SIGLA: dict[str, str] = {}

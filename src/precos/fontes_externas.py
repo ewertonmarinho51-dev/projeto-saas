@@ -76,16 +76,25 @@ REGISTRO: dict[str, RegistroFonte] = {r.id: r for r in (
     RegistroFonte(
         "bps", "Ministério da Saúde — Banco de Preços em Saúde",
         Acesso.ZIP_CSV, "https://dadosabertos.saude.gov.br/dataset/bps",
-        Licenca.NAO_AVALIADA,
-        "20/10/2026: página do dataset com license_id vazio",
+        Licenca.PENDENTE_JURIDICO,
+        "11/11/2026: o conjunto continua com license_id vazio, mas o rodapé "
+        "do portal declara \"Todo o conteúdo deste site está publicado sob a "
+        "licença Creative Commons Atribuição-SemDerivações 3.0\" (CC BY-ND "
+        "3.0). Atribuição o relatório já faz (fonte, arquivo, link); se "
+        "exibir e calcular sobre os registros num SaaS é \"obra derivada\" "
+        "é juízo jurídico — não foi feito aqui",
+        # Etapa do preço pelo dicionário oficial (preço pago); colunas pelo
+        # arquivo real; evidência = consulta oficial do CATMAT + arquivo +
+        # co_seq_bps, com 60 de 60 linhas da amostra de 11/11/2026 achadas
+        # na API oficial (`bps.confrontar`, `tests/test_bps_indice.py`)
+        mapeamento_confirmado=True,
         downloads=("https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/"
                    "BPS/csv/2026_csv.zip",
                    "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/"
                    "BPS/json/2026_json.zip"),
-        pendencia="licença; decidir se arquivo oficial + co_seq_bps basta "
-                  "como evidência (o arquivo não traz URL por registro). A "
-                  "etapa do preço está no dicionário: preço pago "
-                  "(Metadados_BPS_07_04_2026.pdf)"),
+        pendencia="só a licença: o dono decide se a CC BY-ND 3.0 do portal "
+                  "cobre o uso e registra a decisão em `prova_licenca` "
+                  "(licenca=APROVADA). Sem isso a flag não liga a fonte"),
     RegistroFonte(
         "pcp", "Portal de Compras Públicas — API de parceiros",
         Acesso.API_COM_CHAVE,

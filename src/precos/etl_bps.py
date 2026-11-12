@@ -20,8 +20,18 @@ desatualizada; as colunas são as "das planilhas de 2020-2026".)
 
 O que o arquivo NÃO prova sozinho:
 
-* URL oficial POR REGISTRO — não há. O rastro é o arquivo do recurso
-  oficial + `co_seq_bps`;
+* URL oficial POR REGISTRO — não há, nem no arquivo nem na API. O rastro
+  passou a ser triplo (11/11/2026): a consulta oficial do CATMAT na API
+  do Ministério (`url_da_consulta`, que devolve o registro entre os do
+  mesmo código), o arquivo do recurso oficial com o SHA-256, e o
+  `co_seq_bps` da linha. A API não devolve `co_seq_bps`: dentro da
+  resposta, o registro é reconhecido por instituição, data, quantidade,
+  preço e fornecedor (`bps.confrontar`). Linha sem CATMAT numérico não
+  tem consulta oficial e continua em quarentena;
+* compra PÚBLICA: `ds_esfera` (FEDERAL, ESTADUAL, MUNICIPAL, DISTRITAL).
+  O BPS também recebe compra de instituição privada; qualquer outra
+  esfera fica em quarentena — não é "contratação similar feita pela
+  Administração Pública" (Lei 14.133, art. 23, § 1º, II);
 * equivalência entre medicamentos: só o mesmo CATMAT na mesma unidade de
   fornecimento é comparável (`chave_de_equivalencia`); concentração,
   forma farmacêutica e apresentação estão no próprio CATMAT, e nada aqui
@@ -42,7 +52,21 @@ from . import evidencia as ev
 from .arquivos import abrir_csv, conferir_zip
 
 FONTE_ID = "bps"
-VERSAO_PARSER = "bps-2026-10-20.2"
+VERSAO_PARSER = "bps-2026-11-11.3"
+# Consulta oficial por CATMAT (API de Dados Abertos do Ministério da Saúde).
+# Conferida em 11/11/2026: exige `codigoCatmat` ou `cnpjInstituicao`,
+# pagina por `limit`/`offset` e devolve os mesmos registros do arquivo.
+URL_API = "https://apidadosabertos.saude.gov.br/economia-da-saude/bps"
+ESFERAS_PUBLICAS = frozenset({"FEDERAL", "ESTADUAL", "MUNICIPAL", "DISTRITAL"})
+COMPRA_NAO_PUBLICA = "COMPRA_DE_INSTITUICAO_NAO_PUBLICA"
+
+
+def url_da_consulta(catmat) -> str | None:
+    """Endereço oficial que devolve os registros do CATMAT — só dígitos."""
+    codigo = str(catmat or "").strip()
+    if not codigo.isdigit() or not 1 <= len(codigo) <= 9:
+        return None
+    return f"{URL_API}?codigoCatmat={codigo}"
 # "Preço pago por unidade do item adquirido" (dicionário de 07/04/2026)
 TIPO_PRECO = ev.TipoPreco.PRATICADO
 SEPARADOR = ";"
@@ -53,7 +77,8 @@ COLUNAS = ("ano_compra", "cnpj_instituicao", "sg_uf", "dt_compra", "co_catmat",
            "qt_medicamento", "no_instituicao", "no_municipio",
            "un_medida_capacidade", "nu_processo_compra", "un_fornecimento",
            "registro_anvisa", "modalidade", "vl_capacidade",
-           "vl_preco_unitario", "vl_preco_total", "co_seq_bps", "fg_generico")
+           "vl_preco_unitario", "vl_preco_total", "co_seq_bps", "fg_generico",
+           "ds_esfera")
 MODALIDADES_FORA = frozenset({"Leilão"})
 
 
@@ -103,19 +128,24 @@ def evidencia_da_linha(r: dict, *, sha256: str = "",
         codigo_catalogo=(r.get("co_catmat") or "").strip() or None,
         data_resultado=_data(r.get("dt_compra")),
         resultado=(r.get("tp_compra") or "").strip() or None,
-        url_evidencia=None, url_snapshot=url_snapshot, sha256_snapshot=sha256,
+        url_evidencia=url_da_consulta(r.get("co_catmat")),
+        url_snapshot=url_snapshot, sha256_snapshot=sha256,
         versao_parser=VERSAO_PARSER,
         atributos={"modalidade": r.get("modalidade") or None,
                    "apresentacao": r.get("un_medida_capacidade") or None,
                    "capacidade": r.get("vl_capacidade") or None,
                    "unidade_da_capacidade": r.get("sg_unidade_medida") or None,
                    "registro_anvisa": r.get("registro_anvisa") or None,
-                   "generico": r.get("fg_generico") or None})
+                   "generico": r.get("fg_generico") or None,
+                   "esfera": (r.get("ds_esfera") or "").strip().upper() or None,
+                   "ano": (r.get("ano_compra") or "").strip() or None})
     e.hash_linha = ev.hash_da_linha(r)
     if (r.get("tp_compra") or "").strip().upper() == "JUDICIAL":
         e.motivos.append(ev.COMPRA_JUDICIAL)
     if (r.get("modalidade") or "").strip() in MODALIDADES_FORA:
         e.motivos.append(ev.MODALIDADE_FORA)
+    if e.atributos["esfera"] not in ESFERAS_PUBLICAS:
+        e.motivos.append(COMPRA_NAO_PUBLICA)
     return ev.conferir(e)
 
 
