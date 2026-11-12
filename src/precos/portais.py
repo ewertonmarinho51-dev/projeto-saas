@@ -25,6 +25,18 @@ O REGISTRO abaixo também diz, para cada portal, como ele entra na pesquisa
 hoje (`Situacao`). Canal direto só conta como ativo depois de uma consulta
 real com preço por item e evidência recuperável — a mesma régua de
 `fontes_externas`, que guarda as trilhas de licença das bases novas.
+
+DECISÃO DE 12/11/2026 (dono do produto): as plataformas privadas de
+licitação NÃO terão canal direto. A Lei 14.133 (art. 174) obriga a
+publicação no PNCP, e o índice do PNCP em produção já trazia, medido nesse
+dia, preço homologado de seis delas com o link oficial do edital. Integrar
+cada uma exigiria chave, termo e licença da empresa para trazer, em boa
+parte, as mesmas compras — que a fusão por `idCompra` contaria uma vez. Elas
+ficam aqui só para dizer a ORIGEM da compra ("Origem Licitanet · Coleta via
+PNCP"); o que falta para cobrir mais delas é o indexador rodar, não
+integração. O mesmo vale para o TCM-PA: não há base aberta com preço por
+item (o mural respondeu HTTP 500 e não há página de dados abertos), e os
+municípios paraenses publicam no PNCP.
 """
 
 from __future__ import annotations
@@ -89,6 +101,11 @@ class Portal:
 
 _MEDICAO_188 = ("índice PNCP do Pará, pregão eletrônico publicado de 10 a "
                 "30/09/2026, 37 contratações lidas (PR #188, 10/11/2026)")
+# Índice do PNCP em PRODUÇÃO em 12/11/2026: resultados homologados vigentes
+# por publicador (`usuarioNome`), todas as UFs indexadas.
+_MEDICAO_1211 = "no índice PNCP de produção em 12/11/2026"
+_SEM_CANAL_DIRETO = ("sem canal direto, por decisão de 12/11/2026: coberta "
+                     "pelo PNCP (Lei 14.133, art. 174)")
 
 REGISTRO: dict[str, Portal] = {p.id: p for p in (
     Portal("compras_gov", "Compras.gov.br",
@@ -98,69 +115,57 @@ REGISTRO: dict[str, Portal] = {p.id: p for p in (
            "fonte padrão da pesquisa (dados abertos de preços praticados); "
            "em produção desde 2026"),
     Portal("licitanet", "Licitanet", ("LICITANET",), ("licitanet.com.br",),
-           Situacao.VIA_PNCP_VERIFICADA, f"558 resultados no {_MEDICAO_188}",
-           pendencia_direta="documentação oficial de leitura de resultados "
-                            "por item e prova de ganho de cobertura sobre o "
-                            "PNCP",
-           registro_externo="licitanet"),
+           Situacao.VIA_PNCP_VERIFICADA,
+           f"1.166 resultados de 41 contratações em 10 UFs {_MEDICAO_1211} "
+           f"(558 no {_MEDICAO_188}); {_SEM_CANAL_DIRETO}"),
     Portal("licitacoes_e", "Licitações-e (Banco do Brasil)",
            ("LICITACOES-E", "LICITACOES E", "BANCO DO BRASIL"),
            ("licitacoes-e.com.br", "licitacoes-e2.bb.com.br", "bb.com.br"),
-           Situacao.VIA_PNCP_VERIFICADA, f"161 resultados no {_MEDICAO_188}",
-           pendencia_direta="documentação oficial de leitura e prova de "
-                            "ganho de cobertura"),
+           Situacao.VIA_PNCP_VERIFICADA,
+           f"10 resultados de 9 contratações {_MEDICAO_1211} (161 no "
+           f"{_MEDICAO_188}); {_SEM_CANAL_DIRETO}"),
     Portal("pcp", "Portal de Compras Públicas",
            ("ECUSTOMIZE", "PORTAL DE COMPRAS PUBLICAS"),
            ("portaldecompraspublicas.com.br",),
-           Situacao.VIA_PNCP_VERIFICADA, f"113 resultados no {_MEDICAO_188}",
-           pendencia_direta="PublicKey de parceiro (novas solicitações "
-                            "suspensas na página do portal), termo de uso, "
-                            "leiaute vigente e preço por item em resposta "
-                            "real",
-           registro_externo="pcp"),
+           Situacao.VIA_PNCP_VERIFICADA,
+           f"1.658 resultados de 54 contratações em 9 UFs {_MEDICAO_1211} — "
+           "o maior publicador depois do Compras.gov; publica no PNCP como "
+           f"ECustomize; {_SEM_CANAL_DIRETO} (o adaptador `pcp.py` fica "
+           "desconectado)"),
     Portal("bll", "BLL Compras", ("BLL", "BOLSA DE LICITACOES"),
            ("bll.org.br", "bllcompras.com", "bllcompras.org.br"),
-           Situacao.VIA_PNCP_VERIFICADA, f"61 resultados no {_MEDICAO_188}",
-           pendencia_direta="API ou exportação oficial de resultados por "
-                            "item, com termos verificados",
-           registro_externo="bll"),
+           Situacao.VIA_PNCP_VERIFICADA,
+           f"63 resultados de 19 contratações em 8 UFs {_MEDICAO_1211}; "
+           f"{_SEM_CANAL_DIRETO}"),
     Portal("bnc", "BNC — Bolsa Nacional de Compras",
            ("BOLSA NACIONAL DE COMPRAS", "BNC"),
            ("bnc.org.br", "bnccompras.com"),
-           Situacao.VIA_PNCP_VERIFICADA, f"36 resultados no {_MEDICAO_188}",
-           pendencia_direta="API ou exportação oficial de resultados por "
-                            "item, com termos verificados",
-           registro_externo="bnc"),
+           Situacao.VIA_PNCP_VERIFICADA,
+           f"43 resultados de 13 contratações em 6 UFs {_MEDICAO_1211}; "
+           f"{_SEM_CANAL_DIRETO}"),
     Portal("compras_para", "Compras Pará",
            ("COMPRAS PARA", "COMPRASPARA", "SEPLAD"),
            ("compraspara.pa.gov.br", "sistemas.pa.gov.br"),
            Situacao.VIA_PNCP_VERIFICADA,
-           f"5 resultados no {_MEDICAO_188}; atas do portal oficial como "
-           "evidência manual",
+           f"47 resultados de 10 contratações {_MEDICAO_1211} (5 no "
+           f"{_MEDICAO_188}); atas do portal oficial como evidência manual",
            pendencia_direta="canal autorizado com dados por item (as atas "
                             "públicas servem de evidência manual)"),
     Portal("m2a", "M2A Tecnologia", ("M2A",), ("m2atecnologia.com.br",),
-           Situacao.VIA_PNCP_VERIFICADA, f"3 resultados no {_MEDICAO_188}"),
+           Situacao.VIA_PNCP_VERIFICADA,
+           f"11 resultados de 2 contratações {_MEDICAO_1211}"),
     Portal("comprasbr", "Compras BR", ("COMPRAS BR", "COMPRASBR"),
            ("comprasbr.com.br",), Situacao.AGUARDANDO_ACESSO,
-           "cadastrado; sem resultado com origem comprovada no índice "
-           "medido — entra via PNCP quando aparecer",
-           pendencia_direta="autorização, leitura documentada de resultados "
-                            "por item e prova real",
-           registro_externo="comprasbr"),
+           f"nenhum resultado com origem comprovada {_MEDICAO_1211} — entra "
+           f"via PNCP quando aparecer; {_SEM_CANAL_DIRETO}"),
     Portal("bbmnet", "BBMNET", ("BBMNET", "BBM NET"), ("bbmnet.com.br",),
-           Situacao.AGUARDANDO_ACESSO,
-           "cadastrado; sem resultado com origem comprovada no índice "
-           "medido — entra via PNCP quando aparecer",
-           pendencia_direta="autorização pelo manual de integração e prova "
-                            "real com preço por item",
-           registro_externo="bbmnet"),
+           Situacao.VIA_PNCP_VERIFICADA,
+           f"30 resultados de 11 contratações em 6 UFs {_MEDICAO_1211} "
+           f"(publica como \"Novo BBMNET Licitações\"); {_SEM_CANAL_DIRETO}"),
     Portal("licitar_digital", "Licitar Digital", ("LICITAR DIGITAL",),
-           ("licitardigital.com.br",), Situacao.AGUARDANDO_ACESSO,
-           "cadastrado; sem resultado com origem comprovada no índice "
-           "medido — entra via PNCP quando aparecer",
-           pendencia_direta="autorização, leitura documentada e prova real",
-           registro_externo="licitar_digital"),
+           ("licitardigital.com.br",), Situacao.VIA_PNCP_VERIFICADA,
+           f"33 resultados de 11 contratações em 4 UFs {_MEDICAO_1211}; "
+           f"{_SEM_CANAL_DIRETO}"),
     Portal("curitiba", "Portal de Dados Abertos de Curitiba", (),
            ("dadosabertos.curitiba.pr.gov.br", "curitiba.pr.gov.br"),
            Situacao.AGUARDANDO_ACESSO,
@@ -173,9 +178,9 @@ REGISTRO: dict[str, Portal] = {p.id: p for p in (
     Portal("tcm_pa", "TCM-PA — Mural de Licitações", (),
            ("tcm.pa.gov.br",), Situacao.EVIDENCIA_MANUAL,
            "documentos municipais anexados na revisão; sem base estruturada "
-           "com preço por item",
-           pendencia_direta="base estruturada com preço por item",
-           registro_externo="tcm_pa"),
+           "com preço por item (12/11/2026: o mural respondeu HTTP 500 e "
+           "tcm.pa.gov.br/dados-abertos/ não existe); os municípios do Pará "
+           "publicam no PNCP — sem canal direto, por decisão de 12/11/2026"),
     Portal("tce_rs", "TCE-RS — LicitaCon", (), ("tce.rs.gov.br",),
            Situacao.AGUARDANDO_ACESSO,
            "ETL existente (`etl_tce_rs`); leiaute de TP_RESULTADO_ITEM e "

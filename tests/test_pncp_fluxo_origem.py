@@ -91,10 +91,32 @@ def test_cada_portal_da_especificacao_tem_situacao_registrada():
                  "tcm_pa", "tce_rs", "tce_pr", "compras_gov"}
     assert esperados <= set(situacoes)
     assert set(situacoes.values()) <= {s.value for s in portais.Situacao}
-    # o que o #188 mediu entra via PNCP; o que não apareceu, aguarda
-    assert situacoes["licitanet"] == portais.Situacao.VIA_PNCP_VERIFICADA.value
-    assert situacoes["bbmnet"] == portais.Situacao.AGUARDANDO_ACESSO.value
+    # medição de produção de 12/11/2026: o que tem resultado no índice entra
+    # via PNCP; o que não apareceu (Compras BR), aguarda aparecer nele
+    for via_pncp in ("licitanet", "pcp", "bll", "bnc", "bbmnet", "licitar_digital"):
+        assert situacoes[via_pncp] == portais.Situacao.VIA_PNCP_VERIFICADA.value
+    assert situacoes["comprasbr"] == portais.Situacao.AGUARDANDO_ACESSO.value
     assert situacoes["tcm_pa"] == portais.Situacao.EVIDENCIA_MANUAL.value
+
+
+def test_plataformas_privadas_nao_tem_canal_direto_nem_trilha_de_licenca():
+    """Decisão de 12/11/2026: as plataformas privadas e o TCM-PA chegam pelo
+    PNCP (Lei 14.133, art. 174) e saíram de `fontes_externas`. Uma volta
+    para lá teria de ser decisão nova, não resto de cadastro."""
+    from src.precos import fontes_externas
+
+    privadas = ("licitanet", "pcp", "bll", "bnc", "comprasbr", "bbmnet",
+                "licitar_digital", "tcm_pa")
+    for pid in privadas:
+        portal = portais.REGISTRO[pid]
+        assert portal.registro_externo == "" and portal.pendencia_direta == ""
+        assert "12/11/2026" in portal.evidencia
+        assert pid not in fontes_externas.REGISTRO
+    assert sorted(fontes_externas.REGISTRO) == ["bps", "tce_rs"]
+    # todo `registro_externo` que sobrou aponta para entrada que existe
+    for portal in portais.REGISTRO.values():
+        assert not portal.registro_externo or \
+            portal.registro_externo in fontes_externas.REGISTRO
     # canal direto sem prova real não é declarado ativo
     for portal in portais.REGISTRO.values():
         if portal.situacao is portais.Situacao.DIRETA_VALIDADA:
