@@ -17,6 +17,8 @@
   --gc-fs-3xl:24px;
   --gc-fs-4xl:30px;
   --gc-fs-5xl:36px;
+  --gc-fs-6xl:48px;
+  --gc-fs-7xl:64px;
   --gc-leading-tight:1.25;
   --gc-leading-snug:1.4;
   --gc-leading-normal:1.55;
@@ -26,6 +28,8 @@
   --gc-tracking-caps:0.06em;
   /* Roles */
   --type-display:600 var(--gc-fs-4xl)/1.15 var(--gc-font-sans);
+  /* Número em destaque (contador de lote): algarismos tabulares na peça. */
+  --type-metric:600 var(--gc-fs-7xl)/1 var(--gc-font-sans);
   --type-h1:600 var(--gc-fs-3xl)/1.25 var(--gc-font-sans);
   --type-h2:600 var(--gc-fs-xl)/1.35 var(--gc-font-sans);
   --type-h3:600 var(--gc-fs-md)/1.4 var(--gc-font-sans);

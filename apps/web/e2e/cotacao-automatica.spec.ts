@@ -53,8 +53,9 @@ test("importar → cotação automática → revisar → aceitar → PDF", async
   const primeiroJob = new URL(page.url()).searchParams.get("job");
   await expect(page.getByText("A cotação automática dos itens pendentes começou")).toBeVisible();
   const progresso = page.getByTestId("progresso-coleta");
-  await expect(progresso).toContainText("Coleta concluída: 2 de 2 itens processados.", { timeout: 90_000 });
-  await expect(page.getByTestId("resumo-do-lote")).toContainText("Pronto para revisão: 2");
+  await expect(progresso).toHaveAttribute("data-job", "succeeded", { timeout: 90_000 });
+  await expect(progresso).toContainText("2 de 2 itens processados");
+  await expect(page.getByTestId("resumo-do-lote")).toContainText(/Pronto para revisão\s*2/);
   await page.reload();
   await expect(itens(page)).toHaveCount(2);
   await expect(page.getByTestId("situacao-item").first()).toContainText("Proposta apta");

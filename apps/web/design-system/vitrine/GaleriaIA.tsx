@@ -23,6 +23,8 @@ import {
   ConversationList,
   DataList,
   DocumentWorkspace,
+  JobProgress,
+  ProgressBar,
   IconButton,
   ExclusionDialog,
   Field,
@@ -505,7 +507,7 @@ export function GaleriaIA({ tema }: { tema: string }) {
         </Grade>
       </Secao>
 
-      <Secao id="templates" tema={tema} titulo="Templates" descricao="PageHead, AppShell, AuthLayout, LandingHero e DocumentWorkspace: composições de página.">
+      <Secao id="templates" tema={tema} titulo="Templates" descricao="PageHead, AppShell, AuthLayout, LandingHero, DocumentWorkspace e JobProgress: composições de página.">
         <Exemplo rotulo="PageHead">
           <PageHead
             eyebrow={<Badge variant="brand">Proc. 2026/001234</Badge>}
@@ -620,6 +622,40 @@ export function GaleriaIA({ tema }: { tema: string }) {
           >
             <div className="h-16" />
           </DocumentWorkspace>
+        </Exemplo>
+        <Exemplo rotulo="JobProgress: preparando (fila)" largo>
+          <JobProgress
+            state="prep"
+            title="Preparando a pesquisa"
+            description="Validando os itens e abrindo conexão com as fontes de preço."
+            total={125}
+            meta="Aguardando início da coleta"
+          />
+        </Exemplo>
+        <Exemplo rotulo="JobProgress: pesquisando" largo>
+          <JobProgress
+            state="run"
+            title="Pesquisando preços"
+            description="A coleta continua em segundo plano — você pode navegar pelo sistema e voltar depois."
+            done={3}
+            total={125}
+            meta={<>Faltam <b>122</b> itens</>}
+            outcome={{ title: "3 sem referência compatível", detail: "Ficam listados no resumo para pesquisa complementar." }}
+          />
+        </Exemplo>
+        <Exemplo rotulo="JobProgress: falha" largo>
+          <JobProgress
+            state="error"
+            title="Falha na coleta"
+            description="O banco não respondeu durante a coleta. Os itens já processados foram mantidos; use Coletar preços para retomar."
+            done={38}
+            total={125}
+            meta={<>Interrompida após <b>38</b> de 125 itens</>}
+            outcome={{ title: "3 sem referência compatível", detail: "Independem da falha." }}
+          />
+        </Exemplo>
+        <Exemplo rotulo="ProgressBar lg (painel de carregamento)">
+          <ProgressBar size="lg" value={3} max={125} showValue={false} ariaLabel="Itens processados" />
         </Exemplo>
         <Exemplo rotulo="LandingHero (contido)" largo>
           <Palco>

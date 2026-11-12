@@ -132,6 +132,11 @@ colors:
   dark-neutral-border: "#2C3647"
   dark-chart-track: "#232C3B"
 typography:
+  metric:
+    fontFamily: Geist
+    fontSize: 64px
+    fontWeight: 600
+    lineHeight: 1
   display:
     fontFamily: Geist
     fontSize: 30px
