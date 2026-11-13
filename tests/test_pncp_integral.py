@@ -452,3 +452,35 @@ def test_fila_em_memoria_impoe_os_limites_da_rpc():
     assert len(fila.reservar("w", ["comprasgov_lote"], 500, 1)) == 100
     t = next(t for t in fila.tarefas if t["estado"] == "em_execucao")
     assert t["lease_ate"] - datetime.now(timezone.utc) > timedelta(seconds=25)
+
+
+def test_reconciliacao_reabre_so_o_que_diverge():
+    fonte, lote = _cenario()      # o dia declara 4 resultados
+    fila = _fila_com([DIA, DIA - timedelta(days=1)])
+    fila.tarefas[0].update(checkpoint={"lido_em": "x"}, totais={"resultados": 4},
+                           estado="concluida")
+    fila.tarefas[1].update(checkpoint={"lido_em": "x"}, totais={"resultados": 3},
+                           estado="concluida")
+    r = pi.reconciliar(fila.tarefas, lote=lote, pncp=None, reabrir=fila.reabrir_uma)
+    assert r["conferidas"] == 2 and r["batem"] == 1
+    assert r["divergentes"] == [{"particao": (DIA - timedelta(days=1)).isoformat(),
+                                 "fonte": "comprasgov_lote", "lido": 3, "declarado": 4}]
+    assert [t["estado"] for t in fila.tarefas] == ["concluida", "pendente"]
+
+
+def test_reconciliacao_sem_resposta_nao_muda_nada():
+    _, lote = _cenario()
+    lote.http._abrir = lambda url: (503, {}, b"")
+    fila = _fila_com([DIA])
+    fila.tarefas[0].update(checkpoint={"lido_em": "x"}, totais={"resultados": 1},
+                           estado="concluida")
+    r = pi.reconciliar(fila.tarefas, lote=lote, pncp=None, reabrir=fila.reabrir_uma)
+    assert r["sem_resposta"] == 1 and fila.tarefas[0]["estado"] == "concluida"
+
+
+def test_cli_plan_simulado_conta_as_particoes(capsys):
+    assert pi.main(["plan", "--campanha", "c", "--desde", "2026-11-01", "--ate", "2026-11-10",
+                    "--simular", "--fontes", "comprasgov_lote", "pncp_descoberta"]) == 0
+    saida = json.loads(capsys.readouterr().out)
+    assert saida == {"tarefas": 10 + 10 * len(pi.MODALIDADES), "recentes": 150,
+                     "historicas": 0}

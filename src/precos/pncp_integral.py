@@ -582,6 +582,14 @@ class FilaEmMemoria:
     def resumo(self, campanha):
         return [dict(t) for t in self.tarefas if campanha in (None, t["campanha"])]
 
+    def resumo_completo(self, campanha):
+        return self.resumo(campanha)
+
+    def reabrir_uma(self, tarefa):
+        t = self._achar(tarefa)
+        t.update(estado="pendente", proxima_em=_agora(), tentativas=0,
+                 erro="divergência na reconciliação")
+
     def reabrir(self, campanha, estados, fonte):
         n = 0
         for t in self.tarefas:
@@ -651,6 +659,24 @@ class FilaSupabase:
             if len(lote) < 1000:
                 return saida
             inicio += 1000
+
+    def resumo_completo(self, campanha):
+        saida, inicio = [], 0
+        while True:
+            lote = (self._c.table("precos_pncp_tarefas")
+                    .select("id,fonte,faixa,estado,particao,totais,checkpoint")
+                    .eq("campanha", campanha).in_("fonte", ["comprasgov_lote", "pncp_descoberta"])
+                    .order("id").range(inicio, inicio + 999).execute().data or [])
+            saida.extend(lote)
+            if len(lote) < 1000:
+                return saida
+            inicio += 1000
+
+    def reabrir_uma(self, tarefa):
+        (self._c.table("precos_pncp_tarefas")
+         .update({"estado": "pendente", "proxima_em": _agora().isoformat(), "tentativas": 0,
+                  "erro": "divergência na reconciliação"})
+         .eq("id", tarefa["id"]).neq("estado", "em_execucao").execute())
 
     def reabrir(self, campanha, estados, fonte):
         consulta = (self._c.table("precos_pncp_tarefas")
@@ -804,6 +830,47 @@ class Servico:
                 self.dormir(self.ocioso_s)
 
 
+def total_declarado(tarefa: dict, *, lote: ComprasGovLote, pncp: PncpItemAItem) -> int:
+    """O total que a fonte declara HOJE para a partição (uma chamada)."""
+    if tarefa["fonte"] == "comprasgov_lote":
+        dia = tarefa["particao"]
+        dados = lote.http.json(_url("3_consultarResultadoItensContratacoes_PNCP_14133",
+                                    pagina=1, tamanhoPagina=10,
+                                    dataResultadoPncpInicial=dia, dataResultadoPncpFinal=dia))
+        return _pagina_valida(dados)[1]
+    modalidade, dia = tarefa["particao"].split(":", 1)
+    return int(pncp.pagina_de_publicacao(int(modalidade), date.fromisoformat(dia), 1)
+               .get("totalRegistros") or 0)
+
+
+def reconciliar(tarefas: list[dict], *, lote: ComprasGovLote, pncp: PncpItemAItem,
+                reabrir: Callable[[dict], None]) -> dict:
+    """
+    Janela fechada: a partição lida tem de bater com o total que a fonte
+    declara agora. Divergência volta para a fila (nunca é forçada a
+    fechar); falha da fonte não muda nada e fica contada.
+    """
+    saida = {"conferidas": 0, "batem": 0, "divergentes": [], "sem_resposta": 0}
+    chave = {"comprasgov_lote": "resultados", "pncp_descoberta": "contratacoes"}
+    for t in tarefas:
+        if t["fonte"] not in chave or not (t.get("checkpoint") or {}).get("lido_em"):
+            continue
+        saida["conferidas"] += 1
+        try:
+            declarado = total_declarado(t, lote=lote, pncp=pncp)
+        except (FalhaTransitoria, RespostaParcial):
+            saida["sem_resposta"] += 1
+            continue
+        lido = int((t.get("totais") or {}).get(chave[t["fonte"]]) or 0)
+        if declarado == lido:
+            saida["batem"] += 1
+        else:
+            saida["divergentes"].append({"particao": t["particao"], "fonte": t["fonte"],
+                                         "lido": lido, "declarado": declarado})
+            reabrir(t)
+    return saida
+
+
 def relatorio(linhas: list[dict]) -> dict:
     por: dict = {}
     for t in linhas:
@@ -813,6 +880,8 @@ def relatorio(linhas: list[dict]) -> dict:
                                        "contratacoes": 0, "itens": 0})
         bloco["total"] += 1
         bloco["estados"][t["estado"]] = bloco["estados"].get(t["estado"], 0) + 1
+        if (t.get("checkpoint") or {}).get("lido_em"):
+            bloco["lidas"] = bloco.get("lidas", 0) + 1
         totais = t.get("totais") or {}
         for k in ("resultados", "gravadas", "chamadas", "contratacoes", "itens"):
             bloco[k] += int(totais.get(k) or 0)
@@ -847,6 +916,11 @@ def main(argv=None) -> int:
     s = sub.add_parser("pause")
     s.add_argument("--motivo", required=True)
     sub.add_parser("resume")
+    s = sub.add_parser("reconcile", help="confere totais lidos x declarados, janela fechada")
+    s.add_argument("--campanha", required=True)
+    s.add_argument("--desde", required=True)
+    s.add_argument("--ate", required=True)
+    s.add_argument("--req-por-s", type=float, default=1.0)
     s = sub.add_parser("retry-failed", help="reabre falha/quarentena/parcial (sem reset global)")
     s.add_argument("--campanha", default=None)
     s.add_argument("--fonte", default=None)
@@ -895,6 +969,14 @@ def main(argv=None) -> int:
         return 0
     if a.acao == "retry-failed":
         print(json.dumps({"reabertas": fila.reabrir(a.campanha, a.estados, a.fonte)}))
+        return 0
+    if a.acao == "reconcile":
+        http = ClienteHttp(Limitador(a.req_por_s))
+        alvo = [t for t in fila.resumo_completo(a.campanha)
+                if a.desde <= t["particao"].split(":")[-1] <= a.ate]
+        resultado = reconciliar(alvo, lote=ComprasGovLote(http), pncp=PncpItemAItem(http),
+                                reabrir=fila.reabrir_uma)
+        print(json.dumps(resultado, ensure_ascii=False))
         return 0
     return 1
 
