@@ -239,3 +239,33 @@ def fornece_preco(fonte) -> bool:
     """
     return Capacidade.PRECO in getattr(
         fonte, "capacidades", frozenset({Capacidade.PRECO}))
+
+
+def com_memoria(buscar):
+    """
+    Memória de UMA execução para a consulta de uma fonte (13/11/2026).
+
+    As fases da expansão (`expansao.Plano`) chamam a fonte de novo com os
+    termos de antes MAIS os novos; sem memória, cada fase repetia as
+    consultas das anteriores. A fonte é criada por execução do item
+    (`cotacoes._fontes_padrao`), e a memória vive com ela: nada atravessa
+    itens, cotações ou contas. Só resposta guarda — exceção sobe e a
+    próxima tentativa vai à fonte.
+    """
+    memoria: dict = {}
+
+    def _chave(valor):
+        return tuple(valor) if isinstance(valor, (list, set, frozenset)) else valor
+
+    def envolvido(*args, **kw):
+        chave = (tuple(_chave(a) for a in args),
+                 tuple(sorted((k, _chave(v)) for k, v in kw.items())))
+        if chave in memoria:
+            envolvido.reaproveitadas += 1
+        else:
+            memoria[chave] = buscar(*args, **kw)
+        valor = memoria[chave]
+        return list(valor) if isinstance(valor, list) else valor
+
+    envolvido.reaproveitadas = 0
+    return envolvido

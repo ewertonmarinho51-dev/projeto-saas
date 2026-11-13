@@ -276,6 +276,8 @@ def test_lote_automatico_consulta_o_indice_e_grava_a_origem(monkeypatch, armazem
                         lambda: [compras, pncp.PNCPAdapter()])
     # a RPC com o JWT do usuário, respondida pelo índice de bancada
     monkeypatch.setattr(repo, "buscar_indice_pncp", armazem.buscar)
+    # o corte é o dia da execução: fixado na data dos dados da fixture
+    monkeypatch.setattr(cotacoes, "hoje_da_execucao", lambda: date(2025, 6, 30))
     c = cotacoes.criar_cotacao(CTX, {"nome": "Lote PNCP", "data_base": "2025-06-30"})
     item = cotacoes.salvar_item(CTX, str(c["id"]), {
         "descricao": "CIMENTO CP 2 F", "unidade": "UNIDADE", "quantidade": "10"})

@@ -500,7 +500,10 @@ class BPSIndice(FontePesquisaPreco):
     capacidades = frozenset({Capacidade.PRECO, Capacidade.EVIDENCIA})
 
     def __init__(self, buscar: Buscador) -> None:
-        self._buscar = buscar
+        from .fontes import com_memoria
+
+        # a fase seguinte da expansão não repete a consulta da anterior
+        self._buscar = com_memoria(buscar)
 
     def pesquisar(self, consulta: Consulta) -> ResultadoBusca:
         from .compras_gov import _casa, _tokens
