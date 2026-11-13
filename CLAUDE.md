@@ -29,6 +29,66 @@ App Streamlit que gera documentos da fase preparatória de licitações
   entrega, com PR. Usuário autoriza o merge caso a caso, quando o CI
   fecha verde. Textos de commit em português.
 
+## Execução até a conclusão
+
+- **Pedido de implementação vai até o fim**: análise, implementação,
+  testes, correções e validação ponta a ponta. Plano, commit, PR aberto
+  ou CI verde **não** encerram a tarefa se ainda há etapa autorizada
+  pendente (mesclar, gerar imagem, promover, conferir em produção).
+- **Ação já autorizada segue sem "posso seguir?"**. Só pare para pedir
+  quando faltar credencial (ex.: a senha da chave SSH, que o dono
+  digita no Terminal), decisão essencial ou autorização que de fato não
+  existe. A autorização ampla vigente está na memória do projeto.
+- **Sem evidência não há sucesso.** Diga sempre em qual estado a coisa
+  está: *implementado* (código no branch), *testado* (prova rodou e
+  passou), *implantado* (SHA em produção conferido com `--atual`) ou
+  *validado em produção* (o caso real conferido no ambiente). Serviço
+  rodando ≠ carga concluída; fila vazia ≠ tudo importado.
+- **Antes de encerrar, confira cada critério de aceite do pedido.**
+
+### Continuidade e o gancho Stop
+
+Tarefa de implementação com mais de uma etapa começa registrada:
+
+```bash
+python scripts/continuidade.py iniciar --objetivo "..." \
+  --criterio "C1: provas de preços verdes" --criterio "C2: em produção e conferido"
+python scripts/continuidade.py provar C1 --arquivos src/precos tests --barato -- \
+  python -m pytest -q tests/test_precos_jev.py
+python scripts/continuidade.py etapa "PR #210 mesclado"
+python scripts/continuidade.py proxima "promover sha-xxxx"
+python scripts/continuidade.py bloquear --motivo "senha da chave SSH" --falta "o dono digitar no Terminal"
+python scripts/continuidade.py aguardar "suíte completa em segundo plano" --minutos 20   # job que acorda a sessão
+python scripts/continuidade.py status      # o checkpoint
+python scripts/continuidade.py concluir    # só fecha com tudo provado
+```
+
+- Critério só fica cumprido por **evidência executada** (`provar` roda o
+  comando e grava log, hash, código de saída e assinatura dos arquivos
+  cobertos). Não existe "marcar como feito". Mudou o código coberto, a
+  prova vence: as `--barato` o gancho refaz sozinho; as caras ele pede.
+- O gancho Stop bloqueia o encerramento com critério sem prova válida e
+  diz a próxima ação concreta. Bloqueio externo registrado libera. Três
+  tentativas sem progresso ou oito bloqueios na sessão também liberam,
+  e a interrupção fica registrada no estado — nada de laço infinito.
+- O gancho SessionStart entrega o checkpoint à sessão nova ou retomada:
+  continue dali. Estado em `.claude/continuidade/` (fora do git, por
+  worktree); `CONTINUIDADE.md` é a versão legível.
+- **Desligar**: `CLAUDE_CONTINUIDADE=0` no ambiente (os dois ganchos se
+  calam), `python scripts/continuidade.py encerrar --motivo "..."` (só
+  esta tarefa), ou remover os blocos `Stop`/`SessionStart` de
+  `.claude/settings.json`. `"disableAllHooks": true` em
+  `.claude/settings.local.json` desliga todos os ganchos.
+
+### Permissões
+
+`.claude/settings.json` libera só leitura, git local, provas, lint e
+inspeção do GitHub/CI. Pede confirmação para `git push`, PR, merge,
+disparo de workflow, `ssh`, `docker`, promoção e migração. **Recusa**
+push forçado, `reset --hard`, `clean -f`, `db reset` e contratação ou
+remoção de infraestrutura no Supabase (projeto, branch, custo). Não há
+liberação irrestrita (`Bash` ou `Bash(*)`) — há prova disso.
+
 ## Design system (apps/web)
 
 - **`DESIGN.md` na raiz é a fonte da verdade** dos tokens (formato
@@ -73,6 +133,10 @@ sumir inteira, o app gera documento igual.
 | `revisor-de-banco-e-seguranca` | `.claude/agents/` | RLS, grants, segredos |
 | bloqueio de segredo | `.claude/settings.json` | recusa escrita em `.env`, `secrets.toml`, `contas-auth*.json` |
 | provas relacionadas | `.claude/settings.json` | roda o teste do módulo editado; nunca reprova |
+| continuidade | `scripts/continuidade.py` | objetivo, critérios, evidência executada, próxima ação |
+| encerramento com prova | `.claude/settings.json` (Stop) | não deixa parar com critério sem prova válida |
+| retomada | `.claude/settings.json` (SessionStart) | devolve o checkpoint à sessão nova |
+| lançador de Python | `.claude/hooks/python.sh` | todo gancho; o `python3` do Windows é o atalho da Store |
 
 Detalhes em `docs/AI_AUTOMATION_ARCHITECTURE.md`. Não há
 `.claude/commands/` de propósito: skill já é invocável como `/nome`.

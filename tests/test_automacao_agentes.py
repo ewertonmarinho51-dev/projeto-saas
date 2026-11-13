@@ -51,12 +51,32 @@ def _rodar_gancho(script: str, entrada: dict) -> subprocess.CompletedProcess:
 def test_o_settings_e_json_valido_e_aponta_para_ganchos_reais():
     config = json.loads((CLAUDE / "settings.json").read_text())
     ganchos = config["hooks"]
-    assert set(ganchos) == {"PreToolUse", "PostToolUse"}
+    assert set(ganchos) == {"PreToolUse", "PostToolUse", "Stop", "SessionStart"}
 
-    citados = re.findall(r"\.claude/hooks/([\w.]+\.py)", json.dumps(ganchos))
+    citados = re.findall(r"\.claude/hooks/([\w.]+\.(?:py|sh))", json.dumps(ganchos))
     assert citados, "nenhum gancho citado no settings.json"
     for nome in citados:
         assert (GANCHOS / nome).exists(), f"gancho citado e ausente: {nome}"
+    # no Windows o `python3` do PATH é o atalho da Store e não roda nada:
+    # todo gancho Python passa pelo lançador que acha um interpretador real
+    for grupo in ganchos.values():
+        for item in grupo:
+            for gancho in item["hooks"]:
+                assert "hooks/python.sh" in gancho["command"], gancho["command"]
+
+
+def test_permissoes_nao_liberam_tudo_e_barram_o_destrutivo():
+    permissoes = json.loads((CLAUDE / "settings.json").read_text())["permissions"]
+    allow, deny, ask = permissoes["allow"], permissoes["deny"], permissoes["ask"]
+    assert "Bash" not in allow and "Bash(*)" not in allow, "liberação irrestrita"
+    for regra in ("Bash(git push --force*)", "Bash(git reset --hard*)",
+                  "Bash(supabase db reset*)", "mcp__supabase__create_project",
+                  "mcp__supabase__confirm_cost"):
+        assert regra in deny, regra
+    for regra in ("Bash(git push*)", "Bash(gh pr merge*)", "Bash(ssh*)",
+                  "Bash(*promover_govconect*)"):
+        assert regra in ask, regra
+    assert not set(allow) & set(ask) and not set(allow) & set(deny)
 
 
 def test_o_gancho_de_segredo_cobre_as_ferramentas_de_escrita():

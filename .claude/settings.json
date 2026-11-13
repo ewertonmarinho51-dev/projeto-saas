@@ -1,5 +1,98 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git rev-parse*)",
+      "Bash(git ls-files*)",
+      "Bash(git branch --show-current)",
+      "Bash(git branch -a*)",
+      "Bash(git branch --list*)",
+      "Bash(git fetch*)",
+      "Bash(git switch*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git stash list*)",
+      "Bash(python -m pytest*)",
+      "Bash(python3 -m pytest*)",
+      "Bash(python scripts/continuidade.py*)",
+      "Bash(python3 scripts/continuidade.py*)",
+      "Bash(python scripts/varredura_segredos.py*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run typecheck*)",
+      "Bash(npm run test*)",
+      "Bash(npx tsc --noEmit*)",
+      "Bash(npx vitest run*)",
+      "Bash(npx eslint*)",
+      "Bash(node node_modules/typescript/bin/tsc*)",
+      "Bash(node node_modules/eslint/bin/eslint.js*)",
+      "Bash(node node_modules/vitest/vitest.mjs*)",
+      "Bash(gh pr view*)",
+      "Bash(gh pr list*)",
+      "Bash(gh pr checks*)",
+      "Bash(gh pr diff*)",
+      "Bash(gh run list*)",
+      "Bash(gh run view*)",
+      "Bash(gh run watch*)",
+      "Bash(gh workflow list*)",
+      "Bash(ls*)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(grep *)",
+      "Bash(sort *)",
+      "Bash(diff *)",
+      "Bash(curl -s -o /dev/null -w*)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr merge*)",
+      "Bash(gh workflow run*)",
+      "Bash(ssh*)",
+      "Bash(scp*)",
+      "Bash(docker*)",
+      "Bash(*promover_govconect*)",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__execute_sql",
+      "mcp__a5a6754e-232a-4c82-b4d5-e63c2a152da2__apply_migration"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)",
+      "Bash(rm -rf .git*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f *)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git branch -D*)",
+      "Bash(git checkout -- .)",
+      "Bash(supabase db reset*)",
+      "Bash(docker system prune*)",
+      "Bash(docker volume rm*)",
+      "mcp__supabase__create_project",
+      "mcp__supabase__confirm_cost",
+      "mcp__supabase__create_branch",
+      "mcp__supabase__delete_branch",
+      "mcp__supabase__reset_branch",
+      "mcp__supabase__pause_project",
+      "mcp__a5a6754e-232a-4c82-b4d5-e63c2a152da2__create_project",
+      "mcp__a5a6754e-232a-4c82-b4d5-e63c2a152da2__confirm_cost",
+      "mcp__a5a6754e-232a-4c82-b4d5-e63c2a152da2__create_branch",
+      "mcp__a5a6754e-232a-4c82-b4d5-e63c2a152da2__delete_branch",
+      "mcp__a5a6754e-232a-4c82-b4d5-e63c2a152da2__reset_branch",
+      "mcp__a5a6754e-232a-4c82-b4d5-e63c2a152da2__pause_project"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -7,7 +100,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/bloquear_segredo.py\""
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/python.sh\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/bloquear_segredo.py\""
           }
         ]
       }
@@ -18,8 +111,31 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/provas_relacionadas.py\"",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/python.sh\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/provas_relacionadas.py\"",
             "timeout": 120
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/python.sh\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/parar_com_evidencia.py\"",
+            "timeout": 600,
+            "statusMessage": "Conferindo critérios de aceite e evidências"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/python.sh\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/retomar_checkpoint.py\"",
+            "timeout": 30
           }
         ]
       }
