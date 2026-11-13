@@ -70,24 +70,32 @@ test("dono vê a pesquisa com dinheiro exato e evidência verificável", async (
   await page.getByRole("tab", { name: /Triagem/ }).click();
 });
 
-test("tirar e pôr de volta na cesta recalcula pela regra do domínio", async ({ page }) => {
+test("cesta em um clique: tira, põe de volta, grava em segundo plano e persiste", async ({ page }) => {
   await entrar(page, "a1");
-  await page.goto(`/app/precos/${estado.precos.pesquisa}/itens/${estado.precos.item}`);
-  const referencia = page.getByTestId("referencia");
-  await expect(referencia).toContainText("Na cesta");
+  const url = `/app/precos/${estado.precos.pesquisa}/itens/${estado.precos.item}`;
+  await page.goto(url);
+  const referencia = page.getByTestId("referencia").first();
+  await expect(referencia).toHaveAttribute("data-na-cesta", "1");
+  const contagem = page.getByTestId("cartao-cesta").getByTestId("contagem-cesta");
+  const antes = Number(await contagem.textContent());
 
-  // Tirar: um clique, sem justificativa.
-  await referencia.getByRole("button", { name: "Tirar da cesta" }).click();
-  await expect(page.getByText("Preço retirado da cesta. Estimativa recalculada.")).toBeVisible();
-  await expect(referencia).toContainText("Excluída");
-  await expect(page.getByTestId("preco-do-item")).not.toHaveText("R$ 2,35");
+  // Retirar: um clique, sem justificativa nem modal; marca e conta na hora.
+  await referencia.getByRole("button", { name: "Retirar da cesta" }).click();
+  await expect(referencia).toHaveAttribute("data-na-cesta", "0");
+  await expect(contagem).toHaveText(String(antes - 1));
+  await expect(referencia.getByRole("button", { name: "Incluir na cesta" })).toBeVisible();
+  // o valor recalculado chega quando o servidor confirma; a URL não muda
+  await expect(page.getByTestId("preco-do-item").first()).not.toHaveText("R$ 2,35");
+  await expect(page).toHaveURL(new RegExp(`${url}$`));
+  // persiste ao recarregar
+  await page.reload();
+  await expect(page.getByTestId("referencia").first()).toHaveAttribute("data-na-cesta", "0");
 
-  // Pôr de volta: pede o motivo, que vai para a memória de cálculo.
-  await referencia.getByText("Pôr na cesta").click();
-  await referencia.getByLabel("Motivo da inclusão").fill("Referência oficial do PNCP conferida (E2E).");
-  await referencia.getByRole("button", { name: "Confirmar inclusão" }).click();
-  await expect(page.getByText("Preço incluído na cesta. Estimativa recalculada.")).toBeVisible();
-  await expect(referencia).toContainText(/Na cesta|Atenção/);
+  // Incluir de volta: também um clique, sem justificativa.
+  await page.getByTestId("referencia").first().getByRole("button", { name: "Incluir na cesta" }).click();
+  await expect(page.getByTestId("referencia").first()).toHaveAttribute("data-na-cesta", "1");
+  await page.reload();
+  await expect(page.getByTestId("referencia").first()).toHaveAttribute("data-na-cesta", "1");
   await page.screenshot({ path: "e2e/resultados/telas/cesta-1440.png", fullPage: true });
 });
 

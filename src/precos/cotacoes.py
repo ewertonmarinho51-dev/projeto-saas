@@ -1331,6 +1331,7 @@ def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
 # Texto AUTOMÁTICO da retirada sem justificativa: diz o que aconteceu e
 # quem fez — não inventa fundamento estatístico para o ato do usuário.
 MOTIVO_RETIRADA_AUTOMATICO = "retirada da cesta pelo usuário"
+MOTIVO_INCLUSAO_AUTOMATICO = "incluída na cesta pelo usuário"
 
 
 def alterar_status_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
@@ -1366,10 +1367,12 @@ def alterar_status_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
     else:
         cotacao = _exigir_editavel(repo.obter_pesquisa(cotacao_id))
         item, linhas_lidas = None, None
+    # Inclusão comum SEM justificativa (13/11/2026), como a retirada: a
+    # trilha automática registra quem, quando, qual referência e a ação. A
+    # compatibilidade do objeto continua barrando (`_impedimento_de_inclusao`)
+    # e as exceções formais continuam com justificativa (conclusão com
+    # pendência de análise crítica, exceção de mínimo).
     texto = str(motivo or "").strip()
-    if incluir and not texto:
-        raise ErroCotacao("registre o motivo da inclusão: ele vai para a "
-                          "memória de cálculo")
     if item is None:
         item = repo.obter_item(item_id)
     if not item or str(item.get("pesquisa_id")) != str(cotacao_id):
@@ -1403,7 +1406,8 @@ def alterar_status_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
     else:
         reincluida = False
         novo = "rejected"
-    registro = texto or MOTIVO_RETIRADA_AUTOMATICO
+    registro = texto or (MOTIVO_INCLUSAO_AUTOMATICO if incluir
+                         else MOTIVO_RETIRADA_AUTOMATICO)
     return _mudar_e_recalcular(
         ctx, cotacao, item, linhas, alvo, novo, registro,
         tipo="referencia_incluida" if incluir else "referencia_excluida",

@@ -5,6 +5,7 @@ import { dataCurta, naCesta, rotuloEstadoItem, rotuloMetodo } from "@/components
 import { AbasDoItem } from "@/components/abas-do-item";
 import { AnaliseDoItem, GraficoDaSerie } from "@/components/analise-item";
 import { AtoNoItem } from "@/components/ato-item";
+import { CestaDoItem, ConcluirEAvancar, ContagemNaCesta, PrecoConfirmado } from "@/components/cesta-do-item";
 import { BuscaDoItem, DesfazerRetirada, EdicaoDoItem, ProgressoDaBusca } from "@/components/gestao-cotacao";
 import { situacaoDoItem } from "@/components/situacao";
 import { NavegadorDeItens, TriagemDoItem } from "@/components/triagem-item";
@@ -85,6 +86,7 @@ export default async function Referencias({
           : undefined;
 
   const escolhidas = refs.filter(naCesta);
+  const marcadas = Object.fromEntries(refs.map((r) => [r.id, naCesta(r)]));
 
   return (
     <>
@@ -110,7 +112,7 @@ export default async function Referencias({
             { label: "Método", value: rotuloMetodo(item.metodo) || "Não definido" },
             {
               label: "Preço estimado",
-              value: <span data-testid="preco-do-item">{item.preco_estimado?.exibicao ?? "não calculado"}</span>,
+              value: <PrecoConfirmado inicial={item.preco_estimado?.exibicao ?? "não calculado"} />,
               numeric: true,
             },
             { label: "Total do item", value: item.preco_total?.exibicao ?? "—", numeric: true },
@@ -139,6 +141,7 @@ export default async function Referencias({
           // ao rolar. Abaixo disso, os três blocos em sequência, na mesma
           // ordem. A lista de itens rola dentro do cartão: com centenas de
           // itens ela não empurra a busca para longe nem estica a página.
+          <CestaDoItem key={item.revisao} pesquisa={id} item={item.id} revisao={item.revisao} marcadas={marcadas}>
           <div className="grid items-start gap-5 xl:grid-cols-[calc(var(--space-16)*4)_minmax(0,1fr)_calc(var(--space-16)*4.75)]">
         <Card
           title="Itens"
@@ -199,7 +202,7 @@ export default async function Referencias({
           <Card
             title="Cesta de preços"
             subtitle="Referências que entram no cálculo."
-            actions={<Badge variant="brand" size="sm">{escolhidas.length}</Badge>}
+            actions={<Badge variant="brand" size="sm"><ContagemNaCesta marcadas={marcadas} /></Badge>}
             data-testid="cartao-cesta"
           >
             {escolhidas.length > 0 ? (
@@ -220,7 +223,7 @@ export default async function Referencias({
             items={[
               {
                 label: "Preço estimado",
-                value: item.preco_estimado?.exibicao ?? "—",
+                value: <PrecoConfirmado inicial={item.preco_estimado?.exibicao ?? "—"} />,
                 highlight: true,
                 hint: item.metodo ? `Método: ${rotuloMetodo(item.metodo)}` : "Método não definido",
               },
@@ -229,14 +232,23 @@ export default async function Referencias({
                 value: item.preco_total?.exibicao ?? "—",
                 hint: `${item.quantidade?.exibicao ?? "—"} ${item.unidade}`,
               },
-              { label: "Na cesta", value: escolhidas.length, hint: `de ${refs.length} coletadas` },
+              { label: "Na cesta", value: <ContagemNaCesta marcadas={marcadas} />, hint: `de ${refs.length} coletadas` },
             ]}
           />
-          {/* `key` pelo estado: concluir troca o formulário por reabrir, e um
-              componente novo nasce com a ação certa e sem o erro anterior. */}
-          <AtoNoItem key={item.estado} pesquisa={id} item={item.id} revisao={item.revisao} estado={item.estado} />
+          {/* Concluir e seguir para o próximo item a concluir; item concluído
+              só se reabre, com motivo. */}
+          {editavel && item.estado !== "complete" ? (
+            <ConcluirEAvancar
+              pesquisa={id}
+              item={item.id}
+              itens={pesquisa.itens.map((i) => ({ id: i.id, numero: i.numero, estado: i.estado }))}
+            />
+          ) : (
+            <AtoNoItem key={item.estado} pesquisa={id} item={item.id} revisao={item.revisao} estado={item.estado} />
+          )}
         </div>
           </div>
+          </CestaDoItem>
         }
       />
     </>

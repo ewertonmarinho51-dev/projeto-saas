@@ -87,17 +87,20 @@ def test_revisao_velha_e_409_e_nada_muda(api_precos, pilha, pesquisa):
     assert _referencia(pilha, pesquisa["item"])[1] == "selected"
 
 
-def test_incluir_sem_motivo_e_recusado_pela_regra(api_precos, pilha, pesquisa):
+def test_incluir_sem_motivo_grava_pelo_dono(api_precos, pilha, pesquisa):
+    """13/11/2026: inclusão comum sem justificativa, como a retirada — a
+    trilha registra quem, quando e a ação; a revisão nova volta ao cliente."""
     ref, _ = _referencia(pilha, pesquisa["item"])
     a1 = pilha.contas["a1"]
     revisao = _revisao(pilha, pesquisa["item"])
     tirou = api_precos.patch(_url(pesquisa, ref), headers=_h(a1, revisao), json={"incluir": False})
     assert tirou.status_code == 200, tirou.text
+    assert _referencia(pilha, pesquisa["item"])[1] == "rejected"
     r = api_precos.patch(_url(pesquisa, ref), headers=_h(a1, tirou.json()["revisao"]),
                          json={"incluir": True})
-    assert r.status_code == 422
-    assert "motivo" in r.json()["message"]
-    assert _referencia(pilha, pesquisa["item"])[1] == "rejected"
+    assert r.status_code == 200, r.text
+    assert r.json()["revisao"] > tirou.json()["revisao"]
+    assert _referencia(pilha, pesquisa["item"])[1] == "selected"
 
 
 @pytest.mark.parametrize("rotulo", ["b1", "a2", "a1_colega"])

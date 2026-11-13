@@ -5235,6 +5235,119 @@
         "title": "RegistroDeDecisoes",
         "type": "object"
       },
+      "RegistroOriginal": {
+        "description": "O item exato e o resultado da fonte oficial que deram origem ao preço\n(`links.registro_original`): o que \"Consultar registro original\" mostra.",
+        "properties": {
+          "dados_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dados Url"
+          },
+          "data_resultado": {
+            "title": "Data Resultado",
+            "type": "string"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "fonte": {
+            "title": "Fonte",
+            "type": "string"
+          },
+          "fornecedor": {
+            "title": "Fornecedor",
+            "type": "string"
+          },
+          "numero_controle": {
+            "title": "Numero Controle",
+            "type": "string"
+          },
+          "numero_item": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numero Item"
+          },
+          "pagina_rotulo": {
+            "title": "Pagina Rotulo",
+            "type": "string"
+          },
+          "pagina_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagina Url"
+          },
+          "quantidade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unidade": {
+            "title": "Unidade",
+            "type": "string"
+          },
+          "valor_total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valor_unitario": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "fonte",
+          "numero_controle",
+          "numero_item",
+          "descricao",
+          "unidade",
+          "quantidade",
+          "valor_unitario",
+          "valor_total",
+          "fornecedor",
+          "data_resultado",
+          "pagina_url",
+          "pagina_rotulo",
+          "dados_url"
+        ],
+        "title": "RegistroOriginal",
+        "type": "object"
+      },
       "RespostaDoGovBot": {
         "properties": {
           "acao": {
@@ -6332,6 +6445,16 @@
             "default": "",
             "title": "Origem",
             "type": "string"
+          },
+          "registro_original": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegistroOriginal"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "rotulo_contratacao": {
             "title": "Rotulo Contratacao",
@@ -10351,7 +10474,7 @@
             "description": "Revisão desatualizada ou cotação imutável"
           },
           "422": {
-            "description": "Regra da cesta recusou (ex.: incluir sem motivo)"
+            "description": "Regra da cesta recusou (ex.: referência de outro objeto)"
           },
           "428": {
             "description": "If-Match ausente"

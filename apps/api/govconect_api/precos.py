@@ -161,6 +161,27 @@ class Pesquisa(ResumoPesquisa):
     itens: list[Item]
 
 
+class RegistroOriginal(BaseModel):
+    """O item exato e o resultado da fonte oficial que deram origem ao preço
+    (`links.registro_original`): o que "Consultar registro original" mostra."""
+
+    fonte: str
+    numero_controle: str
+    numero_item: int | None
+    descricao: str
+    unidade: str
+    quantidade: Valor | None
+    valor_unitario: Valor | None
+    valor_total: Valor | None
+    fornecedor: str
+    data_resultado: str
+    # a página oficial (a contratação, quando o portal não tem página por
+    # item) e o dado oficial exato do resultado; só links oficiais
+    pagina_url: str | None
+    pagina_rotulo: str
+    dados_url: str | None
+
+
 class Referencia(BaseModel):
     id: str
     fonte: str
@@ -196,6 +217,7 @@ class Referencia(BaseModel):
     # quando o item não tem atributo quantificável a comprovar.
     equivalencia: str = ""
     equivalencia_detalhe: str = ""
+    registro_original: RegistroOriginal | None = None
 
 
 class PaginaDePesquisas(BaseModel):
@@ -314,7 +336,38 @@ def _referencia(linha: dict) -> Referencia:
         link_contratacao=vinculos.contratacao_url,
         rotulo_contratacao=vinculos.contratacao_rotulo,
         link_fonte=links.seguro(vinculos.fonte_url),
-        identificacao=vinculos.identificacao)
+        identificacao=vinculos.identificacao,
+        registro_original=_registro_original(linha))
+
+
+def _numero(valor) -> Decimal | None:
+    """Número do bruto da fonte (JSON: pode vir float) → Decimal exato do texto."""
+    if valor is None or valor == "" or isinstance(valor, bool):
+        return None
+    try:
+        return Decimal(str(valor))
+    except (ArithmeticError, ValueError):
+        return None
+
+
+def _registro_original(linha: dict) -> RegistroOriginal | None:
+    try:
+        dados = links.registro_original(linha)
+    except Exception:  # noqa: BLE001 — sem registro, a referência segue
+        return None
+    if not dados:
+        return None
+    return RegistroOriginal(
+        fonte=str(dados["fonte"])[:200], numero_controle=str(dados["numero_controle"])[:80],
+        numero_item=dados["numero_item"], descricao=str(dados["descricao"])[:2000],
+        unidade=str(dados["unidade"])[:80],
+        quantidade=valor_quantidade(_numero(dados["quantidade"])),
+        valor_unitario=valor_monetario(_numero(dados["valor_unitario"])),
+        valor_total=valor_monetario(_numero(dados["valor_total"])),
+        fornecedor=str(dados["fornecedor"])[:300],
+        data_resultado=str(dados["data_resultado"])[:10],
+        pagina_url=dados["pagina_url"], pagina_rotulo=str(dados["pagina_rotulo"])[:120],
+        dados_url=dados["dados_url"])
 
 
 def _equivalencia(fatores) -> tuple[str, str]:

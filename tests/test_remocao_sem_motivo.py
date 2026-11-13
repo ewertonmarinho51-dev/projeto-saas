@@ -83,14 +83,21 @@ def test_duplo_clique_na_retirada_nao_duplica_trilha(monkeypatch):
     assert len(_eventos(cliente, "referencia_excluida")) == 1
 
 
-def test_incluir_continua_exigindo_motivo(monkeypatch):
-    _, cid, iid = _pesquisada(monkeypatch)
+def test_incluir_sem_motivo_registra_quem_quando_e_a_acao(monkeypatch):
+    """13/11/2026: a inclusão comum também dispensa justificativa."""
+    cliente, cid, iid = _pesquisada(monkeypatch)
     [r1, *_] = repo.listar_referencias(iid)
     cotacoes.alterar_status_referencia(CTX, cid, iid, str(r1["id"]),
                                        incluir=False)
-    with pytest.raises(cotacoes.ErroCotacao, match="motivo da inclusão"):
-        cotacoes.alterar_status_referencia(CTX, cid, iid, str(r1["id"]),
-                                           incluir=True, motivo="  ")
+    cotacoes.alterar_status_referencia(CTX, cid, iid, str(r1["id"]),
+                                       incluir=True, motivo="  ")
+    assert next(l for l in repo.listar_referencias(iid)
+                if l["id"] == r1["id"])["status"] == "selected"
+    [evento] = _eventos(cliente, "referencia_incluida")
+    p = evento["payload"]
+    assert p["operacao"] == "manual_included" and p["origem"] == "user"
+    assert p["user_reason"] is None
+    assert p["de"] == "rejected" and p["para"] == "selected"
 
 
 @pytest.mark.parametrize("motivo", [None, ""], ids=["nulo", "vazio"])

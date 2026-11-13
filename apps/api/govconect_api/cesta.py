@@ -4,8 +4,9 @@ Cesta de preços: pôr ou tirar UMA referência e recalcular (P04b).
 A regra NÃO mora aqui. Mora em `src/precos/cotacoes.py::
 alterar_status_referencia`, a mesma que o Streamlit usa hoje:
 
-* tirar não exige motivo (pacote Jev, RF-02); pôr exige — vai para a
-  memória de cálculo;
+* pôr e tirar não exigem motivo (pacote Jev, RF-02; inclusão desde
+  13/11/2026): a trilha registra quem, quando, qual referência e a ação;
+  a compatibilidade do objeto continua barrando a inclusão;
 * reincluir o que a triagem desconsiderou entra SINALIZADO (`warning`);
 * a revisão do item é conferida antes de gravar; conflito na escrita
   final DESFAZ a mudança da referência;
@@ -39,8 +40,8 @@ class MudancaNaCesta(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     incluir: bool
-    # Opcional para tirar, obrigatório para pôr — quem decide é o domínio,
-    # e a mensagem dele volta ao cliente.
+    # Opcional para pôr e para tirar (vai para a memória de cálculo quando
+    # vem); quem decide o resto é o domínio, e a mensagem dele volta.
     motivo: str | None = Field(default=None, max_length=1000)
 
 
@@ -71,7 +72,7 @@ def rotas() -> APIRouter:
              response_model=ResultadoDaCesta,
              responses={404: {"description": "Inexistente ou fora do seu acesso"},
                         409: {"description": "Revisão desatualizada ou cotação imutável"},
-                        422: {"description": "Regra da cesta recusou (ex.: incluir sem motivo)"},
+                        422: {"description": "Regra da cesta recusou (ex.: referência de outro objeto)"},
                         428: {"description": "If-Match ausente"}})
     def mudar(pesquisa_id: uuid.UUID, item_id: uuid.UUID, referencia_id: uuid.UUID,
               corpo: MudancaNaCesta, request: Request,

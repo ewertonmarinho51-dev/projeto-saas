@@ -79,16 +79,27 @@ test("importar → cotação automática → revisar → aceitar → PDF", async
   await itens(page).filter({ hasText: "PAPEL SULFITE" }).getByRole("link").click();
   const referencias = page.getByTestId("referencia");
   await expect(referencias).toHaveCount(4);
-  await expect(referencias.first().getByTestId("equivalencia")).toContainText("equivalente comprovado");
-  await expect(referencias.first().getByTestId("origem-canal")).toContainText("Origem Licitanet · Coleta via PNCP");
-  await expect(referencias.first().getByTestId("abrir-evidencia")).toHaveAttribute(
+  // o cartão fica limpo (natureza do valor); o resto está na rastreabilidade
+  await expect(referencias.first().getByTestId("natureza")).toHaveText("Homologado");
+  await referencias.first().getByRole("button", { name: "Ver origem" }).click();
+  const dialogo = page.getByRole("dialog");
+  await expect(dialogo).toContainText("equivalente comprovado");
+  await expect(dialogo).toContainText("Licitanet");
+  await expect(dialogo).toContainText("Coleta via PNCP");
+  await page.keyboard.press("Escape");
+  // e o registro original, com o link de origem no PNCP
+  await referencias.first().getByTestId("consultar-registro").click();
+  await expect(page.getByTestId("registro-original")).toBeVisible();
+  await expect(page.getByTestId("registro-original").getByRole("link").first()).toHaveAttribute(
     "href",
-    /^https:\/\/pncp\.gov\.br\/app\/editais\//,
+    /^https:\/\/pncp\.gov\.br\//,
   );
+  await page.keyboard.press("Escape");
 
-  // 4. Decisão de pessoa: tirar uma referência da cesta.
-  await referencias.first().getByRole("button", { name: "Tirar da cesta" }).click();
-  await expect(page).toHaveURL(/\?cesta=retirada&ref=[0-9a-f-]{36}$/);
+  // 4. Decisão de pessoa: tirar uma referência da cesta, em um clique.
+  await referencias.first().getByRole("button", { name: "Retirar da cesta" }).click();
+  await expect(referencias.first()).toHaveAttribute("data-na-cesta", "0");
+  await page.reload();
   await expect(page.getByTestId("referencia").filter({ hasText: "Excluída" })).toHaveCount(1);
 
   // 5. Complemento manual opcional: o termo do servidor orienta a busca.

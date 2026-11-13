@@ -59,7 +59,7 @@ export default async function Pesquisa({
 }) {
   if (!precosHabilitado()) notFound();
   const { id } = await params;
-  const { job, relatorio, criada, importada, aplicada, duplicada, arquivada, item_retirado, concluida, revisao } =
+  const { job, relatorio, criada, importada, aplicada, duplicada, arquivada, item_retirado, concluida, revisao, item } =
     await searchParams;
   const jobId = typeof job === "string" && UUID.test(job) ? job : null;
   const relatorioId = typeof relatorio === "string" && UUID.test(relatorio) ? relatorio : null;
@@ -108,7 +108,9 @@ export default async function Pesquisa({
                   ? "Revisão criada: esta é a versão nova, editável. A anterior ficou guardada."
                   : aplicada === "1"
                     ? "Preços aplicados ao processo. Os documentos descartados precisam ser gerados novamente."
-                    : null;
+                    : item === "concluido"
+                      ? "Item concluído. Não há outro item por concluir nesta pesquisa."
+                      : null;
   const concluidos = p.itens.filter((i) => i.estado === "complete").length;
   const faltam = p.itens.length - concluidos;
   // "Concluir cotação" aceita junto as propostas aptas: falta só o resto.
