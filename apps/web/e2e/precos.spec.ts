@@ -97,6 +97,12 @@ test("cesta em um clique: tira, põe de volta, grava em segundo plano e persiste
   // Incluir de volta: também um clique, sem justificativa.
   await page.getByTestId("referencia").first().getByRole("button", { name: "Incluir na cesta" }).click();
   await expect(page.getByTestId("referencia").first()).toHaveAttribute("data-na-cesta", "1");
+  // a gravação é em segundo plano: espera o servidor confirmar antes de recarregar
+  await expect(page.getByTestId("referencia").first().getByTestId("controle-cesta")).not.toHaveAttribute(
+    "aria-busy",
+    "true",
+  );
+  await expect(page.getByTestId("aviso-cesta")).toHaveCount(0);
   await page.reload();
   await expect(page.getByTestId("referencia").first()).toHaveAttribute("data-na-cesta", "1");
   await page.screenshot({ path: "e2e/resultados/telas/cesta-1440.png", fullPage: true });
