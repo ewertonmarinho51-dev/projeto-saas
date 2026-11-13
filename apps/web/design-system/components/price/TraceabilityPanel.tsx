@@ -23,7 +23,7 @@ export function TraceabilityPanel({ fields, url, urlLabel = "Consultar registro 
       <DataList items={fields} />
       <div className="gc-trace__foot">
         {url ? (
-          <a href={url} target="_blank" rel="noreferrer" className="gc-btn gc-btn--secondary gc-btn--sm">
+          <a href={url} target="_blank" rel="noopener noreferrer" className="gc-btn gc-btn--secondary gc-btn--sm">
             <Icon name="arrow-square-out" />
             {urlLabel}
           </a>
