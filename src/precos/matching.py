@@ -160,6 +160,65 @@ class Comparabilidade:
 
 
 # ---------------------------------------------------------------------------
+# Raiz e abertura da descrição (13/11/2026)
+#
+# Medido em produção: o item "Analisador hematológico" não achava NENHUMA
+# das três compras de analisador hematológico do índice. "Hematológico" e
+# "hematologia" eram palavras diferentes (sobrava só "analisador": 0,24), e
+# "ANALISADOR HEMATOLÓGICO AUTOMATIZADO 50 PARÂMETROS – …", com as duas
+# palavras do item na abertura, ficava em 0,48 porque a fonte descreve o
+# produto com mais 11 termos. Descrição oficial é sempre mais longa que a
+# da planilha: quem nomeia o produto é o COMEÇO dela.
+# ---------------------------------------------------------------------------
+# terminações de adjetivo/substantivo de área: hematológico × hematologia,
+# bioquímico × bioquímica, elétrico × elétrica, plástico × plástica
+_TERMINACOES_DE_AREA = ("ICOS", "ICAS", "ICO", "ICA", "IAS", "IA")
+_RAIZ_MINIMA = 7
+# a abertura da fonte cabe o nome do item e até duas palavras a mais
+# ("Analisador AUTOMÁTICO para hematologia", "Analisador DE hematologia")
+_FOLGA_DA_ABERTURA = 2
+# nome do item na abertura vale "fortemente semelhante", mas fica abaixo de
+# `equivalencia.SEMELHANCA_MESMO_ITEM` (0,8): o atributo (medida, gramatura,
+# volume) continua decidindo equivalência e divergência
+PISO_DO_NOME_NA_ABERTURA = Decimal("0.7")
+
+
+def _raiz(palavra: str) -> str:
+    """Palavra sem a terminação de área — só nas longas, só em letras."""
+    if len(palavra) >= _RAIZ_MINIMA and palavra.isalpha():
+        for fim in _TERMINACOES_DE_AREA:
+            if palavra.endswith(fim) and len(palavra) - len(fim) >= 5:
+                return palavra[: -len(fim)]
+    return palavra
+
+
+def _sequencia(texto: str) -> list[str]:
+    """As palavras significativas, NA ORDEM, já reduzidas à raiz."""
+    limpo = _sem_acento(texto)
+    for simbolo in ",;:/()[]-–":
+        limpo = limpo.replace(simbolo, " ")
+    saida = []
+    for p in limpo.split():
+        p = p.strip(".")
+        if len(p) > 2 and p not in _RUIDO:
+            saida.append(_raiz(p))
+    return saida
+
+
+def _nome_na_abertura(descricao_item: str, descricao_fonte: str) -> bool:
+    """
+    O item tem nome de duas palavras ou mais, e todas aparecem na abertura
+    da fonte. Item de uma palavra só ("REFLETOR", "PAPEL") fica de fora:
+    é genérico demais para a abertura provar o produto.
+    """
+    nome = set(_sequencia(descricao_item))
+    if len(nome) < 2:
+        return False
+    abertura = set(_sequencia(descricao_fonte)[: len(nome) + _FOLGA_DA_ABERTURA])
+    return nome <= abertura
+
+
+# ---------------------------------------------------------------------------
 # Fatores
 # ---------------------------------------------------------------------------
 def _fator_descricao(descricao_item: str, referencia: Referencia) -> Fator:
@@ -176,7 +235,8 @@ def _fator_descricao(descricao_item: str, referencia: Referencia) -> Fator:
     A média das duas mantém a exigência da união sem punir o detalhe
     extra da fonte.
     """
-    a, b = tokens(descricao_item), tokens(referencia.descricao_original)
+    a = {_raiz(p) for p in tokens(descricao_item)}
+    b = {_raiz(p) for p in tokens(referencia.descricao_original)}
     if not a or not b:
         return Fator("descricao", ZERO, ZERO,
                      "descrição insuficiente para comparar", False)
@@ -184,6 +244,11 @@ def _fator_descricao(descricao_item: str, referencia: Referencia) -> Fator:
     jaccard = Decimal(intersecao) / Decimal(len(a | b))
     sobreposicao = Decimal(intersecao) / Decimal(min(len(a), len(b)))
     score = (jaccard + sobreposicao) / 2
+    if score < PISO_DO_NOME_NA_ABERTURA and _nome_na_abertura(
+            descricao_item, referencia.descricao_original):
+        return Fator("descricao", ZERO, PISO_DO_NOME_NA_ABERTURA,
+                     "a descrição da fonte começa pelo nome do item "
+                     f"({intersecao} de {len(a | b)} termos)", True)
     if score >= Decimal("0.6"):
         texto, ok = "descrição fortemente semelhante", True
     elif score >= Decimal("0.3"):
