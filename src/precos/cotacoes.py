@@ -700,6 +700,50 @@ def assinatura_de_dados(item: dict, fontes, politica: str = "") -> str:
     return hashlib.sha256("|".join(partes).encode("utf-8")).hexdigest()[:24]
 
 
+def _instante(valor) -> datetime | None:
+    try:
+        momento = datetime.fromisoformat(str(valor or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return momento if momento.tzinfo else momento.replace(tzinfo=timezone.utc)
+
+
+def novidade_no_indice(item: dict, ultima: dict | None, fontes) -> bool:
+    """
+    O índice do PNCP ganhou referência PERTINENTE ao item depois da última
+    busca dele (13/11/2026)? Pertinente = passa no filtro de item da busca
+    nacional (`pncp_nacional.aceitar_item`: começa pelo nome do item e traz
+    o qualificador). Uma vez por atualização: a busca nova fica mais recente
+    que a coleta, e o item não volta de novo até o índice ganhar outra.
+    Sem a fonte do índice, sem última busca ou com o índice fora: não.
+    """
+    from .fontes import Consulta
+    from .pncp_indice import PNCPIndice, grupos_da_consulta
+    from .pncp_nacional import aceitar_item
+
+    if not ultima or not any(isinstance(f, PNCPIndice) for f in fontes or []):
+        return False
+    desde = _instante(ultima.get("criado_em"))
+    grupos = grupos_da_consulta(Consulta(descricao=str(item.get("descricao") or "")))
+    if desde is None or not grupos:
+        return False
+    try:
+        linhas = repo.buscar_indice_pncp(grupos[0], limite=20)
+    except Exception:  # noqa: BLE001 — índice fora não decide o recorte
+        return False
+    if not isinstance(linhas, list):
+        return False                     # resposta inesperada não reabre nada
+    pertinente = aceitar_item(str(item.get("descricao") or "")) or (lambda _d: True)
+    for linha in linhas:
+        if not isinstance(linha, dict):
+            continue
+        coletada = _instante(linha.get("coletado_em"))
+        if (linha.get("vigente", True) is not False and coletada and coletada > desde
+                and pertinente(str(linha.get("descricao") or ""))):
+            return True
+    return False
+
+
 def hoje_da_execucao() -> date:
     """O corte das buscas correntes (e do "Pôr na cesta"): o dia da
     execução. Função própria para as provas fixarem a data."""
@@ -1203,10 +1247,18 @@ def _preparar_lote(cotacao_id: str, modo: str, item_ids, opcoes: dict):
     def entra(item: dict) -> bool:
         if precisa_de_busca(item, modo, ultimas.get(str(item["id"]))):
             return True
-        return modo == "automatico" and reavaliar_pendencia(
-            item, por_item.get(str(item["id"])),
-            assinatura_de_dados(item, fontes_da_assinatura,
-                                politica.versao if politica else ""))
+        if modo != "automatico":
+            return False
+        ultima = por_item.get(str(item["id"]))
+        if reavaliar_pendencia(item, ultima, assinatura_de_dados(
+                item, fontes_da_assinatura, politica.versao if politica else "")):
+            return True
+        # o índice do PNCP ganhou referência pertinente depois da última
+        # busca: o pendente volta, uma vez por atualização (13/11/2026)
+        from .execucao import precisa_de_reprocesso
+
+        return precisa_de_reprocesso(item) and novidade_no_indice(
+            item, ultima, fontes_da_assinatura)
 
     return [i for i in itens if entra(i)], cotacao
 

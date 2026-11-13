@@ -113,6 +113,10 @@ class ComprasGovAdapter(FontePesquisaPreco):
         # injetável para que os testes rodem sobre fixtures reais sem
         # depender da internet (§48)
         self._abrir = abrir_url or self._abrir_url
+        # resposta por URL, da vida da instância (uma execução do item): a
+        # fase seguinte da expansão não repete a consulta da anterior
+        self._memoria: dict[str, dict] = {}
+        self.reaproveitadas = 0
         # Catálogo da busca por descrição. Com transporte injetado e sem
         # catálogo, o catálogo usa o MESMO transporte e nenhum disco: um
         # teste nunca sai para a internet por um caminho que esqueceu.
@@ -141,11 +145,16 @@ class ComprasGovAdapter(FontePesquisaPreco):
         """
         limpos = {k: v for k, v in parametros.items() if v not in (None, "")}
         url = f"{BASE}{caminho}?{urllib.parse.urlencode(limpos)}"
+        if url in self._memoria:
+            self.reaproveitadas += 1
+            return self._memoria[url]
         recuo = RECUO_INICIAL_S
         for tentativa in range(1, TENTATIVAS + 1):
             try:
                 resultado.chamadas += 1
-                return json.loads(self._abrir(url))
+                dados = json.loads(self._abrir(url))
+                self._memoria[url] = dados
+                return dados
             except urllib.error.HTTPError as erro:
                 if erro.code in (429, 500, 502, 503, 504) and \
                         tentativa < TENTATIVAS:

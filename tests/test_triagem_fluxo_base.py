@@ -238,3 +238,70 @@ def test_por_na_cesta_aceita_homologacao_posterior_a_data_base():
     assert "janela" not in decisoes.impedimento(item, ref, pesquisa)
     velha = {**ref, "data_compra": (hoje - timedelta(days=400)).isoformat()}
     assert "janela" in decisoes.impedimento(item, velha, pesquisa)
+
+
+# ---------------------------------------------------------------------------
+# Referência nova no índice do PNCP reabre o pendente afetado
+# ---------------------------------------------------------------------------
+def _carimbar():
+    """O banco real grava `criado_em = now()` no evento; o falso, não."""
+    from datetime import datetime, timezone
+
+    for evento in repo._cliente().tabelas["pesquisa_preco_eventos"]:  # noqa: SLF001
+        evento.setdefault("criado_em", None)
+        if not evento["criado_em"]:
+            evento["criado_em"] = datetime.now(timezone.utc).isoformat()
+
+
+def _pendente_com_indice(monkeypatch):
+    from src.precos.pncp_indice import PNCPIndice
+
+    cid, iid = _cotacao(monkeypatch)
+    indice = PNCPIndice(lambda termos, **kw: [])
+    cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico", fontes=[indice])
+    _carimbar()
+    assert repo.obter_item(iid)["preco_estimado"] is None     # ficou pendente
+    return cid, iid, indice
+
+
+def _linha_do_indice(descricao, coletado_em, vigente=True):
+    return {"descricao": descricao, "coletado_em": coletado_em, "vigente": vigente}
+
+
+@pytest.mark.parametrize("linhas, volta", [
+    ([_linha_do_indice("ANALISADOR BIOQUÍMICO SEMIAUTOMÁTICO", "2099-01-01T00:00:00+00:00")], True),
+    ([_linha_do_indice("ANALISADOR BIOQUÍMICO", "2000-01-01T00:00:00+00:00")], False),   # antiga
+    ([_linha_do_indice("ANALISADOR HEMATOLÓGICO", "2099-01-01T00:00:00+00:00")], False),  # outro objeto
+    ([_linha_do_indice("ANALISADOR BIOQUÍMICO", "2099-01-01T00:00:00+00:00", False)], False),
+])
+def test_referencia_nova_no_indice_reabre_o_pendente(monkeypatch, linhas, volta):
+    cid, iid, indice = _pendente_com_indice(monkeypatch)
+    assert cotacoes.recorte_do_lote(cid, modo="automatico", fontes=[indice]) == []
+    monkeypatch.setattr(repo, "buscar_indice_pncp", lambda termos, **kw: linhas)
+    assert (cotacoes.recorte_do_lote(cid, modo="automatico", fontes=[indice]) == [iid]) is volta
+
+
+def test_indice_fora_nao_reabre(monkeypatch):
+    cid, iid, indice = _pendente_com_indice(monkeypatch)
+
+    def fora(termos, **kw):
+        raise RuntimeError("índice fora")
+
+    monkeypatch.setattr(repo, "buscar_indice_pncp", fora)
+    assert cotacoes.recorte_do_lote(cid, modo="automatico", fontes=[indice]) == []
+
+
+def test_reaberto_uma_vez_por_atualizacao(monkeypatch):
+    """Depois da nova busca, a mesma referência não reabre o item de novo."""
+    from datetime import datetime, timedelta, timezone
+
+    cid, iid, indice = _pendente_com_indice(monkeypatch)
+    coletada = (datetime.now(timezone.utc) + timedelta(seconds=1)).isoformat()
+    monkeypatch.setattr(repo, "buscar_indice_pncp", lambda termos, **kw: [
+        _linha_do_indice("ANALISADOR BIOQUÍMICO", coletada)])
+    assert cotacoes.recorte_do_lote(cid, modo="automatico", fontes=[indice]) == [iid]
+    import time
+    time.sleep(1.2)
+    cotacoes.pesquisar_item(CTX, cid, iid, modo="automatico", fontes=[indice])
+    _carimbar()
+    assert cotacoes.recorte_do_lote(cid, modo="automatico", fontes=[indice]) == []
