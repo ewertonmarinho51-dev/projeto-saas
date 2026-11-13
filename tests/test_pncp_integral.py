@@ -172,14 +172,40 @@ def _fila_com(dias):
     return fila
 
 
-def test_execucao_confirma_com_totais_e_agenda_revisita():
+def test_dia_recente_lido_volta_pendente_para_revisita_com_a_leitura_registrada():
+    # a 0045 nunca reentrega `concluida` (revisão de 13/11/2026): o que
+    # precisa ser relido é confirmado `pendente` com data futura
     _, lote = _cenario()
     fila = _fila_com([DIA])
     tarefa = fila.reservar("w", ["comprasgov_lote"], 1, 60)[0]
     estado = pi.executar(tarefa, lote=lote, armazem=pncp_indice.ArmazemEmMemoria(), fila=fila)
     gravada = fila.tarefas[0]
-    assert estado == "concluida" and gravada["totais"]["gravadas"] == 3
-    assert gravada["proxima_em"] > datetime.now(timezone.utc)
+    assert estado == "pendente" and gravada["totais"]["gravadas"] == 3
+    assert gravada["checkpoint"]["lido_em"] and gravada["checkpoint"]["leituras"] == 1
+    assert gravada["proxima_em"] > datetime.now(timezone.utc) + timedelta(days=6)
+    assert fila.reservar("w", ["comprasgov_lote"], 1, 60) == []   # só depois da data
+
+
+def test_dia_historico_lido_e_final_e_nao_volta():
+    _, lote = _cenario()
+    velho = date.today() - timedelta(days=500)
+    fila = _fila_com([velho])
+    tarefa = fila.reservar("w", ["comprasgov_lote"], 1, 60)[0]
+    assert pi.executar(tarefa, lote=lote, armazem=pncp_indice.ArmazemEmMemoria(),
+                       fila=fila) == "concluida"
+    fila.tarefas[0]["proxima_em"] = datetime.now(timezone.utc) - timedelta(days=1)
+    assert fila.reservar("w", ["comprasgov_lote"], 1, 60) == []
+
+
+def test_confirmacao_recusada_e_contada_nao_silenciosa():
+    _, lote = _cenario()
+    fila = _fila_com([DIA])
+    tarefa = fila.reservar("w", ["comprasgov_lote"], 1, 60)[0]
+    fila.tarefas[0]["token"] = "outro-dono"           # lease perdido no meio
+    antes = pi.CONFIRMACOES_RECUSADAS[0]
+    assert pi.executar(tarefa, lote=lote, armazem=pncp_indice.ArmazemEmMemoria(),
+                       fila=fila) == "confirmacao_recusada"
+    assert pi.CONFIRMACOES_RECUSADAS[0] == antes + 1
 
 
 def test_falha_transitoria_volta_para_a_fila_com_espera():
@@ -264,8 +290,15 @@ def test_reabrir_falhas_nao_reseta_o_resto():
     fila = _fila_com([DIA, DIA - timedelta(days=1)])
     fila.tarefas[0]["estado"] = "falha"
     fila.tarefas[1]["estado"] = "concluida"
+    fila.tarefas[0]["tentativas"] = pi.TENTATIVAS_MAX
     assert fila.reabrir(None, ["falha"], None) == 1
     assert [t["estado"] for t in fila.tarefas] == ["pendente", "concluida"]
+    assert fila.tarefas[0]["tentativas"] == 0          # não cai em falha de novo
+
+
+def test_reabrir_sem_filtro_exige_todas(capsys):
+    assert pi.main(["retry-failed"]) == 2
+    assert "--todas" in capsys.readouterr().out
 
 
 def test_relatorio_por_fonte_e_faixa():
@@ -275,4 +308,147 @@ def test_relatorio_por_fonte_e_faixa():
                "totais": {}}]
     r = pi.relatorio(linhas)["comprasgov_lote/recente"]
     assert r == {"total": 2, "estados": {"concluida": 1, "pendente": 1},
-                 "resultados": 10, "gravadas": 7, "chamadas": 30}
+                 "resultados": 10, "gravadas": 7, "chamadas": 30,
+                 "contratacoes": 0, "itens": 0}
+
+
+# ---------------------------------------------------------------------------
+# PNCP item a item
+# ---------------------------------------------------------------------------
+def _contr_pncp(controle, usuario="BLL Compras"):
+    cnpj, _, resto = controle.partition("-1-")
+    seq, _, ano = resto.partition("/")
+    return {"numeroControlePNCP": controle, "usuarioNome": usuario, "modalidadeId": 6,
+            "modalidadeNome": "Pregão - Eletrônico", "anoCompra": int(ano),
+            "sequencialCompra": int(seq), "dataPublicacaoPncp": "2026-10-29T10:00:00",
+            "orgaoEntidade": {"cnpj": cnpj, "razaoSocial": "MUNICIPIO DE CAREACU"},
+            "unidadeOrgao": {"ufSigla": "MG", "municipioNome": "Careaçu"}}
+
+
+class PortalPncp:
+    """PNCP falso: publicação paginada, itens e resultados por item."""
+
+    def __init__(self, contratacoes, itens, resultados, *, pagina=2, total=None,
+                 quantidade=None):
+        self.contratacoes, self.itens, self.resultados = contratacoes, itens, resultados
+        self.pagina, self.total, self.quantidade = pagina, total, quantidade
+        self.urls: list[str] = []
+
+    def __call__(self, url):
+        self.urls.append(url)
+        partes = urllib.parse.urlsplit(url)
+        q = dict(urllib.parse.parse_qsl(partes.query))
+        if "/contratacoes/publicacao" in partes.path:
+            n = int(q["pagina"])
+            fatia = self.contratacoes[(n - 1) * self.pagina:n * self.pagina]
+            restantes = max(0, -(-len(self.contratacoes) // self.pagina) - n)
+            corpo = {"data": fatia, "totalRegistros": self.total or len(self.contratacoes),
+                     "paginasRestantes": restantes}
+        elif partes.path.endswith("/itens/quantidade"):
+            corpo = self.quantidade if self.quantidade is not None else len(self.itens)
+        elif partes.path.endswith("/itens"):
+            corpo = self.itens if q.get("pagina") == "1" else []
+        else:
+            numero = int(partes.path.split("/itens/")[1].split("/")[0])
+            corpo = self.resultados.get(numero, [])
+        return 200, {}, json.dumps(corpo).encode()
+
+
+def _pncp(portal):
+    return pi.PncpItemAItem(pi.ClienteHttp(pi.Limitador(1000, dormir=lambda s: None),
+                                           abrir=portal))
+
+
+def test_descoberta_enfileira_so_o_que_nao_vem_em_lote():
+    contratacoes = [_contr_pncp("17935388000115-1-000108/2026"),
+                    _contr_pncp("11415535000140-1-000008/2026"),
+                    _contr_pncp("00038174000143-1-000438/2026", usuario="Compras.gov.br")]
+    fila = pi.FilaEmMemoria()
+    fila.criar([{"campanha": "c", "fonte": "pncp_descoberta", "particao": "6:2026-10-29"}])
+    tarefa = fila.reservar("w", ["pncp_descoberta"], 1, 60)[0]
+    totais = pi.executar_descoberta(tarefa, pncp=_pncp(PortalPncp(contratacoes, [], {})),
+                                    fila=fila)
+    assert totais["contratacoes"] == 3 and totais["comprasgov"] == 1
+    assert totais["enfileiradas"] == 2
+    novas = [t for t in fila.tarefas if t["fonte"] == "pncp_contratacao"]
+    assert {t["particao"] for t in novas} == {"17935388000115-1-000108/2026",
+                                              "11415535000140-1-000008/2026"}
+    assert novas[0]["checkpoint"]["cabecalho"]["unidadeOrgao"]["ufSigla"] == "MG"
+
+
+def test_descoberta_com_menos_que_o_declarado_e_parcial():
+    contratacoes = [_contr_pncp("17935388000115-1-000108/2026")]
+    fila = pi.FilaEmMemoria()
+    fila.criar([{"campanha": "c", "fonte": "pncp_descoberta", "particao": "6:2026-10-29"}])
+    tarefa = fila.reservar("w", ["pncp_descoberta"], 1, 60)[0]
+    with pytest.raises(pi.RespostaParcial):
+        pi.executar_descoberta(tarefa, pncp=_pncp(PortalPncp(contratacoes, [], {}, total=5)),
+                               fila=fila)
+
+
+def _careacu():
+    item = {"numeroItem": 2, "descricao": "ANALISADOR BIOQUÍMICO SEMIAUTOMÁTICO",
+            "unidadeMedida": "UN", "quantidade": 1, "situacaoCompraItem": 2,
+            "criterioJulgamentoNome": "Menor preço", "materialOuServico": "M"}
+    nao = {**item, "numeroItem": 1, "situacaoCompraItem": 1, "descricao": "AGITADOR"}
+    resultado = {"numeroItem": 2, "sequencialResultado": 1, "niFornecedor": "34700478000146",
+                 "tipoPessoa": "PJ", "nomeRazaoSocialFornecedor": "AGNUS BRASIL",
+                 "quantidadeHomologada": 1, "valorUnitarioHomologado": 12300.0,
+                 "valorTotalHomologado": 12300.0, "dataResultado": "2026-10-29"}
+    return [nao, item], {2: [resultado]}
+
+
+def test_contratacao_le_todos_os_itens_e_so_resultado_homologado():
+    itens, resultados = _careacu()
+    portal = PortalPncp([], itens, resultados)
+    fila = pi.FilaEmMemoria()
+    controle = "17935388000115-1-000108/2026"
+    fila.criar([{"campanha": "c", "fonte": "pncp_contratacao", "particao": controle,
+                 "checkpoint": {"cabecalho": pncp_indice.resumo_da_contratacao(
+                     _contr_pncp(controle))}}])
+    tarefa = fila.reservar("w", ["pncp_contratacao"], 1, 60)[0]
+    armazem = pncp_indice.ArmazemEmMemoria()
+    # um item ainda sem homologação: volta para revisita, com a leitura feita
+    assert pi.executar(tarefa, lote=None, armazem=armazem, fila=fila,
+                       pncp=_pncp(portal)) == "pendente"
+    linha = armazem.resultados[f"{controle}#2#1"]
+    assert linha["valor_unitario"].startswith("12300") and linha["uf"] == "MG"
+    assert sum("/resultados" in u for u in portal.urls) == 1   # só o homologado
+    gravada = fila.tarefas[0]
+    assert gravada["totais"]["gravadas"] == 1 and gravada["totais"]["itens"] == 2
+    assert gravada["checkpoint"]["cabecalho"]["numeroControlePNCP"] == controle  # preservado
+
+
+def test_itens_a_menos_que_a_quantidade_declarada_e_parcial():
+    itens, resultados = _careacu()
+    portal = PortalPncp([], itens, resultados, quantidade=39)
+    with pytest.raises(pi.RespostaParcial):
+        _pncp(portal).itens("17935388000115", 2026, 108)
+
+
+def test_plano_pncp_uma_modalidade_por_dia_com_o_ano_na_frente():
+    tarefas = pi.plano_pncp("c", ate=date(2026, 11, 12), desde=date(2026, 11, 11),
+                            modalidades=(6, 8))
+    assert [t["particao"] for t in tarefas] == ["6:2026-11-12", "8:2026-11-12",
+                                                "6:2026-11-11", "8:2026-11-11"]
+    assert all(t["faixa"] == "recente" for t in tarefas)
+
+
+def test_contratacao_toda_homologada_e_final():
+    itens, resultados = _careacu()
+    itens = [i for i in itens if i["situacaoCompraItem"] == 2]
+    fila = pi.FilaEmMemoria()
+    controle = "17935388000115-1-000108/2026"
+    fila.criar([{"campanha": "c", "fonte": "pncp_contratacao", "particao": controle,
+                 "checkpoint": {"cabecalho": pncp_indice.resumo_da_contratacao(
+                     _contr_pncp(controle))}}])
+    tarefa = fila.reservar("w", ["pncp_contratacao"], 1, 60)[0]
+    assert pi.executar(tarefa, lote=None, armazem=pncp_indice.ArmazemEmMemoria(), fila=fila,
+                       pncp=_pncp(PortalPncp([], itens, resultados))) == "concluida"
+
+
+def test_fila_em_memoria_impoe_os_limites_da_rpc():
+    fila = _fila_com([DIA - timedelta(days=i) for i in range(150)])
+    assert len(fila.reservar("w", ["comprasgov_lote"], 500, 1)) == 100
+    t = next(t for t in fila.tarefas if t["estado"] == "em_execucao")
+    assert t["lease_ate"] - datetime.now(timezone.utc) > timedelta(seconds=25)

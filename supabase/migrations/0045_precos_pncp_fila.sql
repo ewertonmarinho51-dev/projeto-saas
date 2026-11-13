@@ -35,7 +35,12 @@
 --     cobertura (o que foi lido, o que falhou, o que ficou em quarentena).
 --     Tarefa errada se corrige por UPDATE de estado, nunca some;
 --   * pausa vale para a reserva: com `pausado`, `reservar` não entrega nada
---     e o trabalho em curso termina a transação em que está.
+--     e o trabalho em curso termina a transação em que está;
+--   * `concluida` é FINAL e não volta à fila. O que precisa ser relido
+--     (resultado tardio, cancelamento) é confirmado como `pendente` com
+--     `proxima_em` futuro e `checkpoint.lido_em` — a leitura feita fica
+--     registrada e a revisita entra pela mesma reserva (revisão do
+--     `revisor-de-banco-e-seguranca`, 13/11/2026).
 --
 -- O QUE ESTA MIGRAÇÃO NÃO RESOLVE
 --   * não importa nada: o serviço (`pncp_integral`) precisa rodar;
@@ -89,6 +94,8 @@ alter table public.precos_pncp_tarefas enable row level security;
 alter table public.precos_pncp_controle enable row level security;
 revoke all on public.precos_pncp_tarefas from anon, authenticated, public;
 revoke all on public.precos_pncp_controle from anon, authenticated, public;
+-- a sequência da identidade herdaria o default ACL de sequências
+revoke all on sequence public.precos_pncp_tarefas_id_seq from anon, authenticated, public;
 grant select, insert, update on public.precos_pncp_tarefas to service_role;
 grant select, update on public.precos_pncp_controle to service_role;
 revoke delete, truncate, references, trigger on public.precos_pncp_tarefas from service_role;
@@ -109,20 +116,22 @@ create or replace function public.precos_pncp_reservar(
 returns setof public.precos_pncp_tarefas
 language sql volatile security invoker set search_path = public
 as $$
+  with escolhidas as materialized (
+    select f.id from public.precos_pncp_tarefas f
+     where f.fonte = any (p_fontes)
+       and f.proxima_em <= now()
+       and (f.estado in ('pendente', 'parcial')
+            or (f.estado = 'em_execucao' and f.lease_ate < now()))
+       and not coalesce((select c.pausado from public.precos_pncp_controle c where c.id = 1), false)
+     order by f.prioridade, f.proxima_em, f.id
+     limit greatest(1, least(coalesce(p_limite, 1), 100))
+     for update skip locked)
   update public.precos_pncp_tarefas t
      set estado = 'em_execucao', dono = p_dono, token = gen_random_uuid(),
-         lease_ate = now() + make_interval(secs => greatest(30, least(p_lease_s, 3600))),
+         lease_ate = now() + make_interval(secs => greatest(30, least(coalesce(p_lease_s, 600), 3600))),
          tentativas = t.tentativas + 1, atualizado_em = now()
-   where t.id in (
-     select f.id from public.precos_pncp_tarefas f
-      where f.fonte = any (p_fontes)
-        and f.proxima_em <= now()
-        and (f.estado in ('pendente', 'parcial')
-             or (f.estado = 'em_execucao' and f.lease_ate < now()))
-        and not coalesce((select c.pausado from public.precos_pncp_controle c where c.id = 1), false)
-      order by f.prioridade, f.proxima_em, f.id
-      limit greatest(1, least(p_limite, 100))
-      for update skip locked)
+    from escolhidas e
+   where t.id = e.id
   returning t.*;
 $$;
 
@@ -235,7 +244,16 @@ begin
     if (select prosecdef from pg_proc where oid = funcao::regprocedure) then
       faltou := faltou || ' security_definer:' || funcao;
     end if;
+    if not exists (select 1 from pg_proc where oid = funcao::regprocedure
+                    and 'search_path=public' = any (coalesce(proconfig, '{}'))) then
+      faltou := faltou || ' search_path_solto:' || funcao;
+    end if;
   end loop;
+  if has_sequence_privilege('anon', 'public.precos_pncp_tarefas_id_seq', 'usage, select, update')
+     or has_sequence_privilege('authenticated', 'public.precos_pncp_tarefas_id_seq',
+                               'usage, select, update') then
+    faltou := faltou || ' usuario_alcanca_sequencia';
+  end if;
   if (select count(*) from public.precos_pncp_controle) <> 1 then
     faltou := faltou || ' controle_sem_linha_unica';
   end if;

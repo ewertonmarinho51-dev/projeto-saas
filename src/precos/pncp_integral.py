@@ -47,6 +47,7 @@ ESTADOS_FINAIS = ("pendente", "concluida", "parcial", "falha", "quarentena")
 DADOS_ABERTOS = "https://dadosabertos.compras.gov.br/modulo-contratacoes"
 PAGINA_LOTE = 500
 LEASE_S = 600
+CONFIRMACOES_RECUSADAS = [0]
 TENTATIVAS_MAX = 6
 PLATAFORMA = "Compras.gov.br"
 # janela útil da cotação (IN 65/2021, art. 5º, II): o último ano vem primeiro
@@ -338,6 +339,144 @@ def importar_dia(lote: ComprasGovLote, armazem, dia: date, *,
 
 
 # ---------------------------------------------------------------------------
+# PNCP item a item (publicadores fora do Compras.gov)
+# ---------------------------------------------------------------------------
+PNCP_CONSULTA = "https://pncp.gov.br/api/consulta/v1"
+PNCP_API = "https://pncp.gov.br/api/pncp/v1"
+PAGINA_DESCOBERTA = 50
+PAGINA_ITENS = 500
+# catálogo medido em 13/11/2026 (1 a 14 respondem); código novo que apareça
+# numa contratação é contado em `totais.modalidades`, nunca descartado calado
+MODALIDADES = tuple(range(1, 15))
+
+
+class PncpItemAItem:
+    def __init__(self, http: ClienteHttp) -> None:
+        self.http = http
+
+    def pagina_de_publicacao(self, modalidade: int, dia: date, pagina: int) -> dict:
+        dados = self.http.json(
+            f"{PNCP_CONSULTA}/contratacoes/publicacao?" + urllib.parse.urlencode({
+                "dataInicial": dia.strftime("%Y%m%d"), "dataFinal": dia.strftime("%Y%m%d"),
+                "codigoModalidadeContratacao": modalidade, "pagina": pagina,
+                "tamanhoPagina": PAGINA_DESCOBERTA}))
+        if dados is None:  # 204: dia sem publicação nessa modalidade
+            return {"data": [], "totalRegistros": 0, "paginasRestantes": 0}
+        if not isinstance(dados, dict) or not isinstance(dados.get("data"), list):
+            raise FalhaTransitoria("formato inesperado na publicação")
+        return dados
+
+    def itens(self, cnpj: str, ano, sequencial) -> list[dict]:
+        base = f"{PNCP_API}/orgaos/{cnpj}/compras/{ano}/{sequencial}/itens"
+        itens, pagina = [], 1
+        while True:
+            lote = self.http.json(f"{base}?pagina={pagina}&tamanhoPagina={PAGINA_ITENS}") or []
+            if not isinstance(lote, list):
+                raise FalhaTransitoria("formato inesperado nos itens")
+            itens.extend(lote)
+            if len(lote) < PAGINA_ITENS:
+                break
+            pagina += 1
+        declarado = self.http.json(f"{base}/quantidade")
+        if isinstance(declarado, int) and len({i.get("numeroItem") for i in itens}) < declarado:
+            raise RespostaParcial(f"{len(itens)} de {declarado} itens")
+        return itens
+
+    def resultados(self, cnpj: str, ano, sequencial, numero) -> list[dict]:
+        dados = self.http.json(
+            f"{PNCP_API}/orgaos/{cnpj}/compras/{ano}/{sequencial}/itens/{numero}/resultados")
+        if dados is None:
+            return []
+        if not isinstance(dados, list):
+            raise FalhaTransitoria("formato inesperado nos resultados")
+        return dados
+
+
+def _revisita(dia: date | None) -> timedelta | None:
+    """
+    Quando reler (resultado tardio, cancelamento). Reler custa o mesmo que
+    ler, então é espaçado: 7 dias no último mês, 60 no último ano; o
+    histórico não volta (None = leitura final).
+    """
+    idade = (date.today() - dia).days if dia else 0
+    if idade < 30:
+        return timedelta(days=7)
+    if idade < DIAS_RECENTES:
+        return timedelta(days=60)
+    return None
+
+
+def executar_descoberta(tarefa: dict, *, pncp: PncpItemAItem, fila: "Fila",
+                        lease_s: int = LEASE_S) -> dict:
+    """
+    Uma modalidade num dia: todas as páginas; cada contratação de fora do
+    Compras.gov vira tarefa `pncp_contratacao` (o cabeçalho vai no
+    checkpoint). Menos contratações únicas que o total declarado = parcial.
+    """
+    modalidade, dia_txt = tarefa["particao"].split(":", 1)
+    dia = date.fromisoformat(dia_txt)
+    vistas: set[str] = set()
+    totais = {"contratacoes": 0, "comprasgov": 0, "enfileiradas": 0, "paginas": 0,
+              "modalidades": {}}
+    pagina, declarado = 1, 0
+    while True:
+        dados = pncp.pagina_de_publicacao(int(modalidade), dia, pagina)
+        declarado = int(dados.get("totalRegistros") or 0)
+        totais["paginas"] += 1
+        novas = []
+        for c in dados["data"]:
+            controle = str(c.get("numeroControlePNCP") or "")
+            if not controle or controle in vistas:
+                continue
+            vistas.add(controle)
+            m = str(c.get("modalidadeId"))
+            totais["modalidades"][m] = totais["modalidades"].get(m, 0) + 1
+            if str(c.get("usuarioNome") or "") == PLATAFORMA:
+                totais["comprasgov"] += 1   # vem em lote, pela outra fonte
+                continue
+            novas.append({"campanha": tarefa["campanha"], "fonte": "pncp_contratacao",
+                          "particao": controle, "faixa": tarefa["faixa"],
+                          "prioridade": tarefa["prioridade"],
+                          "checkpoint": {"cabecalho": pncp_indice.resumo_da_contratacao(c)}})
+        totais["enfileiradas"] += fila.criar(novas)
+        fila.renovar(tarefa, lease_s)
+        if not dados["data"] or int(dados.get("paginasRestantes") or 0) <= 0:
+            break
+        pagina += 1
+    totais["contratacoes"] = len(vistas)
+    if len(vistas) < declarado:
+        raise RespostaParcial(f"{len(vistas)} de {declarado} contratações em {tarefa['particao']}")
+    return totais
+
+
+def executar_contratacao(tarefa: dict, *, pncp: PncpItemAItem, armazem) -> dict:
+    """Todos os itens; resultado só do homologado; mesma conferência do índice."""
+    cabecalho = (tarefa.get("checkpoint") or {}).get("cabecalho") or {}
+    orgao = (cabecalho.get("orgaoEntidade") or {}).get("cnpj")
+    ano, sequencial = cabecalho.get("anoCompra"), cabecalho.get("sequencialCompra")
+    if not (orgao and ano and sequencial):
+        raise RespostaParcial("cabeçalho incompleto na tarefa")
+    itens = pncp.itens(orgao, ano, sequencial)
+    totais = {"itens": len(itens), "homologados": 0, "gravadas": 0, "recusadas": {}}
+    linhas = []
+    for item in itens:
+        if item.get("situacaoCompraItem") != pncp_indice.SITUACAO_ITEM_HOMOLOGADO:
+            continue
+        totais["homologados"] += 1
+        for r in pncp.resultados(orgao, ano, sequencial, item.get("numeroItem")):
+            linha, motivo = pncp_indice.linha_do_resultado(cabecalho, item, r)
+            if linha is None:
+                totais["recusadas"][motivo] = totais["recusadas"].get(motivo, 0) + 1
+                continue
+            linha["versao_coletor"] = VERSAO
+            linhas.append(linha)
+    if linhas:
+        armazem.gravar_resultados(linhas)
+    totais["gravadas"] = len(linhas)
+    return totais
+
+
+# ---------------------------------------------------------------------------
 # Fila
 # ---------------------------------------------------------------------------
 class Fila(Protocol):
@@ -385,9 +524,10 @@ class FilaEmMemoria:
                            or (t["estado"] == "em_execucao" and t["lease_ate"] < agora))]
             livres.sort(key=lambda t: (t["prioridade"], t["proxima_em"], t["id"]))
             saida = []
-            for t in livres[:max(1, limite)]:
+            for t in livres[:max(1, min(limite or 1, 100))]:
+                lease = max(30, min(lease_s or 600, 3600))
                 t.update(estado="em_execucao", dono=dono, token=str(uuid.uuid4()),
-                         lease_ate=agora + timedelta(seconds=lease_s),
+                         lease_ate=agora + timedelta(seconds=lease),
                          tentativas=t["tentativas"] + 1)
                 saida.append(dict(t))
             return saida
@@ -447,7 +587,7 @@ class FilaEmMemoria:
         for t in self.tarefas:
             if (campanha in (None, t["campanha"]) and t["estado"] in estados
                     and fonte in (None, t["fonte"])):
-                t.update(estado="pendente", proxima_em=_agora(), erro="")
+                t.update(estado="pendente", proxima_em=_agora(), erro="", tentativas=0)
                 n += 1
         return n
 
@@ -515,7 +655,7 @@ class FilaSupabase:
     def reabrir(self, campanha, estados, fonte):
         consulta = (self._c.table("precos_pncp_tarefas")
                     .update({"estado": "pendente", "proxima_em": _agora().isoformat(),
-                             "erro": ""})
+                             "erro": "", "tentativas": 0})
                     .in_("estado", list(estados)))
         if campanha:
             consulta = consulta.eq("campanha", campanha)
@@ -549,17 +689,50 @@ def _espera(tentativas: int) -> timedelta:
     return timedelta(minutes=min(360, 2 ** max(0, tentativas - 1) * 5))
 
 
+def plano_pncp(campanha: str, *, ate: date, desde: date,
+               modalidades: Iterable[int] = MODALIDADES) -> list[dict]:
+    """Uma modalidade por dia por tarefa; mesma ordem de faixas do lote."""
+    tarefas = []
+    dia = ate
+    while dia >= desde:
+        idade = (ate - dia).days
+        recente = idade < DIAS_RECENTES
+        for m in modalidades:
+            tarefas.append({"campanha": campanha, "fonte": "pncp_descoberta",
+                            "particao": f"{m}:{dia.isoformat()}",
+                            "faixa": "recente" if recente else "historico",
+                            "prioridade": idade if recente else 10_000 + idade})
+        dia -= timedelta(days=1)
+    return tarefas
+
+
 def executar(tarefa: dict, *, lote: ComprasGovLote, armazem, fila: Fila,
-             lease_s: int = LEASE_S) -> str:
+             pncp: PncpItemAItem | None = None, lease_s: int = LEASE_S) -> str:
     """Executa UMA tarefa e confirma com o token. Devolve o estado gravado."""
-    if tarefa["fonte"] != "comprasgov_lote":
-        fila.concluir(tarefa, "pendente", erro="fonte ainda sem executor neste serviço",
+    if tarefa["fonte"] == "comprasgov_lote":
+        dia = date.fromisoformat(tarefa["particao"])
+
+        def trabalho():
+            return importar_dia(lote, armazem, dia,
+                                renovar=lambda: fila.renovar(tarefa, lease_s)).registro()
+    elif pncp is not None and tarefa["fonte"] == "pncp_descoberta":
+        dia = date.fromisoformat(tarefa["particao"].split(":", 1)[1])
+
+        def trabalho():
+            return executar_descoberta(tarefa, pncp=pncp, fila=fila, lease_s=lease_s)
+    elif pncp is not None and tarefa["fonte"] == "pncp_contratacao":
+        publicada = ((tarefa.get("checkpoint") or {}).get("cabecalho") or {}).get(
+            "dataPublicacaoPncp") or ""
+        dia = date.fromisoformat(publicada[:10]) if publicada[:10] else None
+
+        def trabalho():
+            return executar_contratacao(tarefa, pncp=pncp, armazem=armazem)
+    else:
+        fila.concluir(tarefa, "pendente", erro="fonte sem executor neste serviço",
                       proxima_em=_agora() + timedelta(hours=6))
         return "pendente"
-    dia = date.fromisoformat(tarefa["particao"])
     try:
-        totais = importar_dia(lote, armazem, dia,
-                              renovar=lambda: fila.renovar(tarefa, lease_s))
+        totais = trabalho()
     except RespostaParcial as erro:
         estado = "falha" if tarefa["tentativas"] >= TENTATIVAS_MAX else "parcial"
         fila.concluir(tarefa, estado, erro=str(erro),
@@ -570,13 +743,25 @@ def executar(tarefa: dict, *, lote: ComprasGovLote, armazem, fila: Fila,
         espera = max(_espera(tarefa["tentativas"]), timedelta(seconds=erro.espera_s))
         fila.concluir(tarefa, estado, erro=str(erro), proxima_em=_agora() + espera)
         return estado
-    # concluída; dia recente volta a ser relido (resultado novo, cancelamento)
-    idade = (date.today() - dia).days
-    revisita = timedelta(days=1 if idade < 30 else 7 if idade < DIAS_RECENTES else 90)
-    fila.concluir(tarefa, "concluida", totais=totais.registro(),
-                  checkpoint={"lido_em": _agora().isoformat(), "versao": VERSAO},
-                  proxima_em=_agora() + revisita)
-    return "concluida"
+    # Lida. `concluida` é final; o que precisa ser relido volta `pendente`
+    # com data futura e a leitura registrada em `checkpoint.lido_em` (a 0045
+    # nunca reentrega `concluida`). Contratação só é relida enquanto tiver
+    # item sem homologação. O checkpoint guarda o que havia (o cabeçalho).
+    revisita = _revisita(dia)
+    if tarefa["fonte"] == "pncp_contratacao" and             totais.get("homologados", 0) >= totais.get("itens", 0):
+        revisita = None
+    estado = "concluida" if revisita is None else "pendente"
+    checkpoint = {**(tarefa.get("checkpoint") or {}), "lido_em": _agora().isoformat(),
+                  "leituras": int((tarefa.get("checkpoint") or {}).get("leituras") or 0) + 1,
+                  "versao": VERSAO}
+    confirmado = fila.concluir(tarefa, estado, totais=totais, checkpoint=checkpoint,
+                               proxima_em=_agora() + revisita if revisita else None)
+    if not confirmado:
+        # token perdido (lease vencido e reentregue): o trabalho já está
+        # gravado (upsert idempotente); só a confirmação foi recusada
+        CONFIRMACOES_RECUSADAS[0] += 1
+        return "confirmacao_recusada"
+    return estado
 
 
 @dataclass
@@ -584,9 +769,14 @@ class Servico:
     fila: Fila
     lote: ComprasGovLote
     armazem: object
+    pncp: PncpItemAItem | None = None
     dono: str = field(default_factory=lambda: f"{socket.gethostname()}:{os.getpid()}")
     ocioso_s: float = 60.0
     dormir: Callable[[float], None] = time.sleep
+
+    @property
+    def fontes(self) -> list[str]:
+        return list(FONTES) if self.pncp is not None else ["comprasgov_lote"]
 
     def passo(self) -> int:
         """Um ciclo: liderar, reservar, executar. Devolve tarefas executadas."""
@@ -599,8 +789,9 @@ class Servico:
             novo = 1.0 / float(controle["req_por_s"])
             self.lote.http.limitador.base = novo
         feitas = 0
-        for tarefa in self.fila.reservar(self.dono, ["comprasgov_lote"], 1, LEASE_S):
-            executar(tarefa, lote=self.lote, armazem=self.armazem, fila=self.fila)
+        for tarefa in self.fila.reservar(self.dono, self.fontes, 1, LEASE_S):
+            executar(tarefa, lote=self.lote, armazem=self.armazem, fila=self.fila,
+                     pncp=self.pncp)
             feitas += 1
         return feitas
 
@@ -618,11 +809,12 @@ def relatorio(linhas: list[dict]) -> dict:
     for t in linhas:
         chave = f"{t['fonte']}/{t['faixa']}"
         bloco = por.setdefault(chave, {"total": 0, "estados": {}, "resultados": 0,
-                                       "gravadas": 0, "chamadas": 0})
+                                       "gravadas": 0, "chamadas": 0,
+                                       "contratacoes": 0, "itens": 0})
         bloco["total"] += 1
         bloco["estados"][t["estado"]] = bloco["estados"].get(t["estado"], 0) + 1
         totais = t.get("totais") or {}
-        for k in ("resultados", "gravadas", "chamadas"):
+        for k in ("resultados", "gravadas", "chamadas", "contratacoes", "itens"):
             bloco[k] += int(totais.get(k) or 0)
     return por
 
@@ -645,6 +837,8 @@ def main(argv=None) -> int:
     s.add_argument("--desde", default="2023-01-01")
     s.add_argument("--ate", default=None, help="padrão: ontem")
     s.add_argument("--simular", action="store_true", help="só conta, não grava")
+    s.add_argument("--fontes", nargs="+", default=["comprasgov_lote"],
+                   choices=["comprasgov_lote", "pncp_descoberta"])
     s = sub.add_parser("run", help="serviço contínuo (líder único, lease, heartbeat)")
     s.add_argument("--uma-vez", action="store_true")
     s.add_argument("--req-por-s", type=float, default=1.0)
@@ -656,12 +850,20 @@ def main(argv=None) -> int:
     s = sub.add_parser("retry-failed", help="reabre falha/quarentena/parcial (sem reset global)")
     s.add_argument("--campanha", default=None)
     s.add_argument("--fonte", default=None)
-    s.add_argument("--estados", nargs="+", default=["falha"])
+    s.add_argument("--estados", nargs="+", default=["falha"],
+                   choices=["falha", "quarentena", "parcial"])
+    s.add_argument("--todas", action="store_true",
+                   help="obrigatório sem --campanha e sem --fonte")
     a = p.parse_args(argv)
 
     if a.acao == "plan":
         ate = date.fromisoformat(a.ate) if a.ate else date.today() - timedelta(days=1)
-        tarefas = plano_comprasgov(a.campanha, ate=ate, desde=date.fromisoformat(a.desde))
+        desde = date.fromisoformat(a.desde)
+        tarefas = []
+        if "comprasgov_lote" in a.fontes:
+            tarefas += plano_comprasgov(a.campanha, ate=ate, desde=desde)
+        if "pncp_descoberta" in a.fontes:
+            tarefas += plano_pncp(a.campanha, ate=ate, desde=desde)
         resumo = {"tarefas": len(tarefas),
                   "recentes": sum(t["faixa"] == "recente" for t in tarefas),
                   "historicas": sum(t["faixa"] == "historico" for t in tarefas)}
@@ -670,10 +872,14 @@ def main(argv=None) -> int:
             resumo["novas"] = fila.criar(tarefas)
         print(json.dumps(resumo, ensure_ascii=False))
         return 0
+    if a.acao == "retry-failed" and not (a.campanha or a.fonte or a.todas):
+        print("recusado: sem --campanha nem --fonte reabre a fila inteira; use --todas")
+        return 2
     fila, armazem = _fila_do_banco()
     if a.acao == "run":
-        servico = Servico(fila=fila, armazem=armazem,
-                          lote=ComprasGovLote(ClienteHttp(Limitador(a.req_por_s))))
+        http = ClienteHttp(Limitador(a.req_por_s))
+        servico = Servico(fila=fila, armazem=armazem, lote=ComprasGovLote(http),
+                          pncp=PncpItemAItem(http))
         servico.rodar(uma_vez=a.uma_vez)
         return 0
     if a.acao == "status":

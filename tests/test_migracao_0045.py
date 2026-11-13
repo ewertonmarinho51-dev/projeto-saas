@@ -176,6 +176,30 @@ def test_reserva_lease_token_e_pausa(banco, cenario):
 
 
 @requer_pg
+def test_concluida_nunca_volta_e_pendente_futuro_so_na_data(banco, cenario):
+    with banco.transaction(force_rollback=True), banco.cursor() as c:
+        como(c, "{}", "service_role")
+        _ciclo(c, "insert into public.precos_pncp_tarefas (campanha, fonte, particao, estado, "
+                  "proxima_em) values ('c-3', 'comprasgov_lote', 'a', 'concluida', "
+                  "now() - interval '1 day'), ('c-3', 'comprasgov_lote', 'b', 'pendente', "
+                  "now() + interval '7 days'), ('c-3', 'comprasgov_lote', 'c', 'pendente', "
+                  "now() - interval '1 s')")
+        pegas = _ciclo(c, "select particao from public.precos_pncp_reservar("
+                          "'w', array['comprasgov_lote'], 10, 60) where campanha = 'c-3'")
+        assert [p[0] for p in pegas] == ["c"]
+
+
+@requer_pg
+def test_limite_nulo_reserva_uma(banco, cenario):
+    with banco.transaction(force_rollback=True), banco.cursor() as c:
+        como(c, "{}", "service_role")
+        _ciclo(c, "insert into public.precos_pncp_tarefas (campanha, fonte, particao) "
+                  "select 'c-4', 'pncp_contratacao', 'x' || g from generate_series(1, 5) g")
+        assert len(_ciclo(c, "select * from public.precos_pncp_reservar("
+                             "'w', array['pncp_contratacao'], null, 60)")) == 1
+
+
+@requer_pg
 def test_estado_invalido_nao_confirma(banco, cenario):
     with banco.transaction(force_rollback=True), banco.cursor() as c:
         como(c, "{}", "service_role")
@@ -216,6 +240,10 @@ MUTACOES = [
      "text, timestamptz) from service_role", "servidor_nao_executa"),
     ("alter function public.precos_pncp_liderar(text, integer) security definer",
      "security_definer"),
+    ("alter function public.precos_pncp_renovar(bigint, uuid, integer) reset search_path",
+     "search_path_solto"),
+    ("grant usage on sequence public.precos_pncp_tarefas_id_seq to authenticated",
+     "usuario_alcanca_sequencia"),
 ]
 
 
