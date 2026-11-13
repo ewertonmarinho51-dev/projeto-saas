@@ -41,6 +41,49 @@ def _numero(valor, minimo=0, maximo=1):
     return valor
 
 
+# `usage` do contrato: os três obrigatórios PARA NÓS (o `cost` é opcional no
+# contrato, mas custo desconhecido não pode virar zero na contabilidade) e
+# os opcionais documentados, cada um com o tipo conferido. Em 13/11/2026
+# toda análise em produção caía em `usage_invalido` porque o provedor manda
+# os opcionais e o conjunto exigido era fechado nos três.
+_USAGE_OBRIGATORIOS = frozenset({"input_tokens", "output_tokens", "cost"})
+_USAGE_OPCIONAIS = frozenset({"cost_details", "input_tokens_details", "is_byok"})
+_CUSTO_OBRIGATORIOS = frozenset({"upstream_inference_prompt_cost",
+                                 "upstream_inference_completions_cost"})
+_CUSTO_OPCIONAIS = frozenset({"upstream_inference_cost", "server_tool_cost"})
+
+
+def _inteiro(valor) -> int:
+    if type(valor) is not int or valor < 0:
+        raise ErroDecisao("tokens_invalidos")
+    return valor
+
+
+def _validar_usage(usage) -> None:
+    if (not isinstance(usage, dict) or not _USAGE_OBRIGATORIOS <= set(usage)
+            or set(usage) - _USAGE_OBRIGATORIOS - _USAGE_OPCIONAIS):
+        raise ErroDecisao("usage_invalido")
+    _inteiro(usage["input_tokens"])
+    _inteiro(usage["output_tokens"])
+    _numero(usage["cost"], maximo=float("inf"))
+    if "is_byok" in usage and not isinstance(usage["is_byok"], bool):
+        raise ErroDecisao("usage_invalido")
+    if "input_tokens_details" in usage:
+        detalhe = usage["input_tokens_details"]
+        if not isinstance(detalhe, dict) or set(detalhe) != {"cached_tokens"}:
+            raise ErroDecisao("usage_invalido")
+        _inteiro(detalhe["cached_tokens"])
+    custo = usage.get("cost_details")
+    if custo is not None:
+        if (not isinstance(custo, dict) or not _CUSTO_OBRIGATORIOS <= set(custo)
+                or set(custo) - _CUSTO_OBRIGATORIOS - _CUSTO_OPCIONAIS):
+            raise ErroDecisao("usage_invalido")
+        for campo, valor in custo.items():
+            if valor is None and campo in _CUSTO_OPCIONAIS:
+                continue
+            _numero(valor, maximo=float("inf"))
+
+
 def validar_resposta(bruto: dict, questions: dict, model: str) -> Resultado:
     if not isinstance(bruto, dict) or set(bruto) - {
             "answers", "model", "usage", "id", "provider"}:
@@ -91,14 +134,8 @@ def validar_resposta(bruto: dict, questions: dict, model: str) -> Resultado:
                 raise ErroDecisao("score_inconsistente")
         else:
             raise ErroDecisao("tipo_nao_suportado")
-    usage = bruto.get("usage")
-    if not isinstance(usage, dict) or set(usage) != {
-            "input_tokens", "output_tokens", "cost"}:
-        raise ErroDecisao("usage_invalido")
-    for campo in ("input_tokens", "output_tokens"):
-        if type(usage[campo]) is not int or usage[campo] < 0:
-            raise ErroDecisao("tokens_invalidos")
-    _numero(usage["cost"], maximo=float("inf"))
+    _validar_usage(bruto.get("usage"))
+    usage = bruto["usage"]
     for campo in ("id", "provider"):
         if campo in bruto and not isinstance(bruto[campo], str):
             raise ErroDecisao("metadado_invalido")

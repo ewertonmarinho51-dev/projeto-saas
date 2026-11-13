@@ -52,6 +52,49 @@ def test_validar_recusa_respostas_incompletas_e_campos_nao_contratados(mudar, er
         jev.validar_resposta(bruto, QUESTIONS, MODEL)
 
 
+@pytest.mark.parametrize("extras", [
+    # campos OPCIONAIS do `usage` no contrato do OpenRouter Decisions: em
+    # produção (13/11/2026) toda análise caía em `usage_invalido` porque o
+    # validador exigia exatamente {input_tokens, output_tokens, cost}
+    {"is_byok": False},
+    {"input_tokens_details": {"cached_tokens": 0}},
+    {"cost_details": {"upstream_inference_prompt_cost": 0.0001,
+                      "upstream_inference_completions_cost": 0.00005,
+                      "upstream_inference_cost": None}},
+    {"cost_details": None},
+    {"is_byok": True, "input_tokens_details": {"cached_tokens": 4},
+     "cost_details": {"upstream_inference_prompt_cost": 0,
+                      "upstream_inference_completions_cost": 0,
+                      "upstream_inference_cost": 0.00015,
+                      "server_tool_cost": None}},
+])
+def test_usage_aceita_campos_opcionais_do_contrato(extras):
+    bruto = resposta()
+    bruto["usage"].update(extras)
+    resultado = jev.validar_resposta(bruto, QUESTIONS, MODEL)
+    assert resultado.usage["cost"] == 0.01
+
+
+@pytest.mark.parametrize("mudar", [
+    lambda u: u.update(total_tokens=15),                      # fora do contrato
+    lambda u: u.update(is_byok="não"),
+    lambda u: u.update(input_tokens_details={"cached_tokens": -1}),
+    lambda u: u.update(input_tokens_details={}),
+    lambda u: u.update(cost_details={"upstream_inference_prompt_cost": 0.1}),
+    lambda u: u.update(cost_details={"upstream_inference_prompt_cost": 0.1,
+                                     "upstream_inference_completions_cost": "x"}),
+    lambda u: u.update(cost_details={"upstream_inference_prompt_cost": 0.1,
+                                     "upstream_inference_completions_cost": 0.1,
+                                     "inventado": 1}),
+    lambda u: u.update(cost=None),                            # custo desconhecido não vira zero
+])
+def test_usage_recusa_campo_fora_do_contrato_ou_mal_tipado(mudar):
+    bruto = resposta()
+    mudar(bruto["usage"])
+    with pytest.raises(jev.ErroDecisao):
+        jev.validar_resposta(bruto, QUESTIONS, MODEL)
+
+
 class FakeResponse:
     def __init__(self, status=200, body=None, json_error=False):
         self.status_code, self.body, self.json_error = status, body, json_error
