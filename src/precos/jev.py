@@ -14,6 +14,23 @@ import httpx
 
 ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
 
+# Versão da validação do contrato da resposta. Mudou a validação (aceitar
+# campo que o contrato documenta, recusar um novo), mude a versão: a falha
+# de contrato gravada pela versão anterior deixa de valer como cache e o
+# item ganha UMA rodada nova por versão (`decisoes.revisar_referencia`).
+VALIDADOR = "2026-11-13.usage-opcionais"
+
+# O provedor RESPONDEU (200 com corpo) e a validação recusou: refazer com o
+# validador novo é seguro, o custo da chamada anterior já é conhecido.
+# Timeout e transporte ficam de fora — a chamada pode ter sido faturada sem
+# resposta, e repetir em silêncio é o que a reserva durável impede.
+ERROS_DE_CONTRATO = frozenset({
+    "envelope_invalido", "modelo_inesperado", "perguntas_incompletas",
+    "tipo_invalido", "noul_invalido", "numero_invalido", "campos_invalidos",
+    "distribuicao_invalida", "opcao_nao_oferecida", "escolha_inconsistente",
+    "rubrica_invalida", "score_inconsistente", "tipo_nao_suportado",
+    "usage_invalido", "tokens_invalidos", "metadado_invalido", "json_invalido"})
+
 
 class ErroDecisao(ValueError):
     """Código seguro: nunca inclui corpo HTTP, state ou credencial."""

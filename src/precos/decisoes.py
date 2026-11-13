@@ -114,6 +114,14 @@ def chave_cache(tenant: str, pesquisa_id: str, item_id: str,
                           "version": VERSAO_PERGUNTAS, "questions": questions})
 
 
+def falha_de_contrato_superada(registro: dict) -> bool:
+    """A análise gravada falhou na NOSSA validação, feita por outra versão
+    do validador (ou antes de ela ser registrada). Só falha de contrato:
+    timeout e transporte nunca reabrem a chamada."""
+    return (str(registro.get("erro") or "") in jev.ERROS_DE_CONTRATO
+            and registro.get("validador") != jev.VALIDADOR)
+
+
 def identidade_exata(item: dict, referencia: dict) -> bool:
     """Não usa tokenização: números curtos/especificações não podem sumir."""
     def normal(texto):
@@ -193,6 +201,13 @@ def revisar_referencia(pesquisa_id: str, item_id: str, referencia_id: str, *,
             payload=bloqueado, idempotency_key="jev:result:blocked:" + chave)
         return bloqueado
     cache = repo.evento_decisao(pesquisa_id, item_id, "jev:result:" + chave)
+    if cache and falha_de_contrato_superada(cache):
+        # A falha foi do NOSSO validador (13/11/2026: `usage_invalido` em
+        # toda análise, com a resposta do provedor válida pelo contrato).
+        # Corrigido o validador, a análise ganha uma rodada nova, com chave
+        # própria da versão — a reserva da rodada antiga continua valendo.
+        chave = chave + ":" + jev.VALIDADOR
+        cache = repo.evento_decisao(pesquisa_id, item_id, "jev:result:" + chave)
     if cache:
         if cache.get("state_hash") != hash_do_bruto(state):
             raise jev.ErroDecisao("cache_desatualizado")
@@ -216,7 +231,7 @@ def revisar_referencia(pesquisa_id: str, item_id: str, referencia_id: str, *,
                 "finalidades": list(questions),
                 "model_requested": config["model"], "cache_hit": False,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "status": "manual_review", "called": True,
+                "status": "manual_review", "called": True, "validador": jev.VALIDADOR,
                 "automatic_acceptance": False, "failure_mode": config["failure_mode"]}
     try:
         resultado = motor(state=state, questions=questions, contexto=contexto)
