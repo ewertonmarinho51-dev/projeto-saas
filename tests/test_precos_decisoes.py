@@ -216,3 +216,66 @@ def test_catalogo_recusa_candidatos_invalidos_e_choice_so_oferece_recuperados():
         decisoes.perguntas_catalogo([{"codigo": "none", "descricao": "x"}])
     questions = decisoes.perguntas_catalogo([{"codigo": "CATMAT:1", "descricao": "Caneta"}])
     assert set(questions["catalog_candidate_selection"]["criteria"]) == {"CATMAT:1", "none"}
+
+
+class RepoComChave(Repo):
+    """Trilha de verdade: cache e reserva pela `idempotency_key`."""
+
+    def __init__(self):
+        super().__init__()
+        self.trilha = {}
+
+    def evento_decisao(self, _pesquisa, _item, chave):
+        return self.trilha.get(chave)
+
+    def registrar_evento(self, *args, **kwargs):
+        chave = kwargs.get("idempotency_key", "")
+        if chave in self.trilha:
+            return None  # unique(pesquisa, idempotency_key)
+        self.trilha[chave] = kwargs.get("payload") or {}
+        self.events.append((args, kwargs))
+        return {"id": "event"}
+
+
+def _gravar_falha(repo, erro, validador=None):
+    state = decisoes.state_referencia(repo.item, repo.ref)
+    chave = decisoes.chave_cache("tenant-1", "p-1", "item-1", state, config()["model"])
+    falha = {"state_hash": hash_do_bruto(state), "erro": erro, "status": "manual_review",
+             "explicacao": "Análise indisponível ou desatualizada; requer revisão humana."}
+    if validador:
+        falha["validador"] = validador
+    repo.trilha["jev:claim:" + chave] = {}
+    repo.trilha["jev:result:" + chave] = falha
+
+
+def test_falha_de_contrato_do_validador_antigo_ganha_uma_rodada_nova():
+    # Produção, 13/11/2026: toda análise ficou gravada com `usage_invalido`
+    # e o cache devolvia a falha para sempre, mesmo com o validador corrigido.
+    repo, chamadas = RepoComChave(), []
+    _gravar_falha(repo, "usage_invalido")
+    motor = lambda **kw: chamadas.append(kw) or resposta_perguntas(kw["questions"])
+    resultado = decisoes.revisar_referencia("p-1", "item-1", "ref-1", repo=repo,
+                                            config=config(), motor=motor)
+    assert len(chamadas) == 1
+    assert resultado["called"] is True and "erro" not in resultado
+    assert resultado["validador"] == jev.VALIDADOR
+
+    # a rodada nova vira o cache: a terceira leitura não chama de novo
+    resultado = decisoes.revisar_referencia("p-1", "item-1", "ref-1", repo=repo,
+                                            config=config(), motor=motor)
+    assert len(chamadas) == 1 and resultado["cache_hit"] is True
+
+
+@pytest.mark.parametrize(("erro", "validador"), [
+    ("timeout_resultado_desconhecido", None),   # pode ter sido faturada: nunca repetir
+    ("falha_transporte", None),
+    ("http_503", None),
+    ("usage_invalido", jev.VALIDADOR),           # já é o validador atual
+    ("decisao_desatualizada", None),
+])
+def test_falha_que_nao_e_do_validador_antigo_continua_sendo_cache(erro, validador):
+    repo, chamadas = RepoComChave(), []
+    _gravar_falha(repo, erro, validador)
+    resultado = decisoes.revisar_referencia("p-1", "item-1", "ref-1", repo=repo, config=config(),
+                                            motor=lambda **kw: chamadas.append(kw))
+    assert chamadas == [] and resultado["cache_hit"] is True and resultado["erro"] == erro
