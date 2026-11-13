@@ -87,6 +87,8 @@ PARCIAL = "parcial"
 # Busca por termo: os termos voltam à fila depois deste prazo (o pregão
 # novo do mesmo item aparece), e antes dele quando a busca falhou.
 TERMO_REBUSCA_DIAS = 7
+# termo de item que ficou SEM preço: o pregão novo dele é procurado todo dia
+TERMO_REBUSCA_SEM_PRECO_DIAS = 1
 TERMO_FALHA_HORAS = 6
 TERMO_TENTATIVAS_BUSCA = 3       # cada uma com as tentativas de `_json`
 TERMO_ESPERA_BUSCA_S = 5.0
@@ -337,6 +339,9 @@ class ArmazemEmMemoria:
 
     def descricoes_cotadas(self, dias, limite=2000):
         return list(self.descricoes)[:limite]
+
+    def descricoes_sem_preco(self, dias, limite=2000):
+        return list(getattr(self, "sem_preco", []))[:limite]
 
     def cursor(self, uf, modalidade):
         return self.cursores.get(f"{uf}:{modalidade}")

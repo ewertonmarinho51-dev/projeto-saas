@@ -194,7 +194,7 @@ def test_rodada_registra_busca_e_agenda_a_volta():
     armazem = indice.ArmazemEmMemoria()
     armazem.descricoes = ["ANALISADOR BIOQUÍMICO", "Analisador Bioquímico"]
     relato = _rodada(armazem, _portal_padrao())
-    assert relato["termos"] == {"novos": 1, "buscados": 1, "falhas": 0}
+    assert relato["termos"] == {"novos": 1, "buscados": 1, "falhas": 0, "prioritarios": 0}
     termo = armazem.termos[NUCLEO]
     assert (termo["contratacoes"], termo["resultados"], termo["falhas"]) == (2, 2, 0)
     volta = datetime.fromisoformat(termo["proxima_busca"]) - datetime.fromisoformat(
@@ -264,6 +264,44 @@ def test_termo_registrado_agora_ja_esta_na_vez_no_banco():
     [(_, (coluna, corte), _)] = [f for f in filtros if f[0] == "lte"]
     assert coluna == "proxima_busca"
     assert datetime.fromisoformat(corte) > antes + timedelta(seconds=30)
+
+
+def test_item_sem_preco_fura_a_fila_e_volta_em_um_dia():
+    """Produção, 12/11/2026: o analisador bioquímico (sem preço) ficava atrás
+    de 60 termos nunca buscados; a rodada acabava antes de chegar nele."""
+    armazem = indice.ArmazemEmMemoria()
+    # a fila antiga: termos nunca buscados registrados ANTES
+    for n in ("cimento", "areia grossa", "tubo pvc soldavel"):
+        armazem.salvar_termo(n, buscado_em=None,
+                             proxima_busca="2026-11-01T00:00:00+00:00")
+    armazem.salvar_termo(NUCLEO, buscado_em=None, falhas=1,
+                         proxima_busca="2026-11-05T00:00:00+00:00")
+    armazem.descricoes = ["Cimento", "Areia grossa", "ANALISADOR BIOQUÍMICO"]
+    armazem.sem_preco = ["ANALISADOR BIOQUÍMICO"]
+    portal = _portal_padrao()
+    relato = _rodada(armazem, portal, max_termos=1)
+    assert portal.busca()["q"] == NUCLEO
+    assert relato["termos"]["prioritarios"] == 1
+    termo = armazem.termos[NUCLEO]
+    volta = datetime.fromisoformat(termo["proxima_busca"]) - datetime.fromisoformat(
+        termo["buscado_em"])
+    assert volta == timedelta(days=indice.TERMO_REBUSCA_SEM_PRECO_DIAS) == timedelta(days=1)
+
+
+def test_item_sem_preco_novo_e_registrado_e_buscado():
+    armazem = indice.ArmazemEmMemoria()
+    armazem.sem_preco = ["ANALISADOR BIOQUÍMICO"]       # nem nas cotadas
+    portal = _portal_padrao()
+    relato = _rodada(armazem, portal, max_termos=5)
+    assert relato["termos"]["novos"] == 1 and portal.busca()["q"] == NUCLEO
+
+
+def test_banco_le_os_itens_sem_preco_proposto():
+    filtros = []
+    cliente = type("C", (), {"table": lambda self, nome: _ConsultaFalsa(filtros)})()
+    servico.ArmazemSupabase(cliente).descricoes_sem_preco(30)
+    assert ("is_", ("preco_estimado", "null"), {}) in filtros
+    assert ("is_", ("removido_em", "null"), {}) in filtros
 
 
 def test_ciclo_roda_a_busca_por_termo_depois_das_ufs(monkeypatch, capsys):

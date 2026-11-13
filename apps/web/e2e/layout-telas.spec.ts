@@ -10,8 +10,8 @@ import { expect, test, type Page } from "@playwright/test";
  *   de descrição sem espaço): Itens | busca e triagem | Cesta no desktop, em
  *   sequência no estreito; cada linha do navegador contida no cartão Itens;
  *   Termo, Período e UF alinhados pela base, e o seletor mostrando cada
- *   período por inteiro; Contratação similar no PNCP numa linha própria, com
- *   as ações abaixo; sem rolagem lateral.
+ *   período por inteiro; sem o campo da contratação similar no PNCP (saiu em
+ *   12/11/2026), com as ações abaixo dos campos; sem rolagem lateral.
  * - WordCraft (editor sem motor na pilha): faixa do documento numa linha só,
  *   sem a barra superior da casca, e a área do documento ocupando o resto da
  *   altura. Alternar painéis com o motor de verdade é prova da vitrine
@@ -131,10 +131,11 @@ test("Pesquisa de Preços: três colunas no desktop, linhas contidas, busca alin
       expect(Math.abs(base[1].fundo - base[2].fundo), "período e UF desalinhados").toBeLessThanOrEqual(1);
       expect(base[1].y, "período ao lado do termo sem caber").toBeGreaterThan(base[0].fundo);
     }
-    const pncp = (await page.locator("#busca-pncp").boundingBox())!;
-    expect(pncp.y, "PNCP numa linha própria, abaixo dos campos").toBeGreaterThan(Math.max(...base.map((b) => b.fundo)));
+    // O campo da contratação similar no PNCP saiu da tela em 12/11/2026.
+    await expect(page.locator("#busca-pncp")).toHaveCount(0);
+    await expect(page.getByText("Contratação similar no PNCP")).toHaveCount(0);
     const acao = (await page.getByRole("button", { name: "Pesquisar preços" }).boundingBox())!;
-    expect(acao.y, "ações abaixo do PNCP").toBeGreaterThan(pncp.y + pncp.height);
+    expect(acao.y, "ações abaixo dos campos").toBeGreaterThan(Math.max(...base.map((b) => b.fundo)));
 
     await periodoLegivel(page);
     await itensContidos(page);

@@ -322,12 +322,6 @@ def _render_banco() -> None:
                            execucao.JANELA_PADRAO_DIAS, step=5,
                            help="Até 1 ano de contratações similares "
                                 "(IN 65/2021, art. 5º, II).")
-        contratacao_pncp = st.text_input(
-            "Contratação similar no PNCP (opcional)",
-            placeholder="nº de controle 00000000000000-1-000000/2026 "
-                        "ou link do edital",
-            help="Os itens homologados dessa contratação entram como "
-                 "referências, com o mesmo cálculo de comparabilidade.")
         consultar = st.form_submit_button("Consultar preços", type="primary",
                                           use_container_width=True)
     if consultar:
@@ -339,15 +333,9 @@ def _render_banco() -> None:
                 "codigo": codigo.strip() or None,
                 "tipo_catalogo": "CATMAT" if codigo.strip() else None}
         filtros = {"janela_dias": janela, "uf": uf.strip().upper() or None}
+        # A contratação similar do PNCP saiu da tela (12/11/2026): o índice
+        # do PNCP, coletado em segundo plano, entra pela descrição.
         fontes = list(_fontes())
-        if contratacao_pncp.strip():
-            from ..precos import pncp as pncp_mod
-
-            if pncp_mod.controle_da_entrada(contratacao_pncp) is None:
-                st.error("Contratação do PNCP não reconhecida: informe o "
-                         "número de controle ou o link do edital.")
-                return
-            fontes.append(pncp_mod.PNCPContratacao(contratacao_pncp))
         with st.spinner("Consultando fontes oficiais…"):
             coleta = busca_mod.coletar(item, fontes, filtros=filtros)
         st.session_state[BANCO_ITEM] = {**item, "filtros": filtros}

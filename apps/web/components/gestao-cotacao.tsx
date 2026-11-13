@@ -406,16 +406,6 @@ export function BuscaDoItem({
             <Input id="busca-uf" name="uf" maxLength={2} defaultValue={uf} />
           </Field>
         </div>
-        <div>
-          <Field
-            label="Contratação similar no PNCP"
-            htmlFor="busca-pncp"
-            optional
-            help="Número de controle (00000000000000-1-000000/2026) ou link do edital. Os preços homologados dessa contratação entram como referências, com a mesma regra de comparação."
-          >
-            <Input id="busca-pncp" name="contratacao_pncp" maxLength={300} autoComplete="off" />
-          </Field>
-        </div>
         <div className="grid gap-3">
           <Retorno estado={estado} />
           <div className="flex flex-wrap gap-2">
