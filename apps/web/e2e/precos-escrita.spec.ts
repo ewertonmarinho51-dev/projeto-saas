@@ -56,6 +56,7 @@ test("criar pesquisa, importar planilha e concluir/reabrir item", async ({ page 
   // Concluir e avançar, depois reabrir o item (pesquisa semeada própria).
   await page.goto(`/app/precos/${estado.escrita}`);
   await page.locator("section[aria-labelledby=titulo-itens] tbody a").first().click();
+  await expect(page).toHaveURL(/\/itens\/[0-9a-f-]{36}$/);
   const itemConcluido = page.url();
   const concluir = page.getByTestId("concluir-e-avancar");
   await concluir.getByLabel(/Justificativa/).fill("Conferido na fonte oficial (E2E).");

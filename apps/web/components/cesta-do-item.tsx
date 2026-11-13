@@ -176,10 +176,14 @@ export function AvisoDaCesta() {
   );
 }
 
-/** O preço que o servidor confirmou por último (ou o da página). */
-export function PrecoConfirmado({ inicial }: { inicial: string }) {
+/**
+ * O preço que o servidor confirmou por último (ou o da página). A página o
+ * mostra duas vezes (resumo e cartão da cesta); só a do resumo leva o
+ * `data-testid`, para a prova achar um elemento só.
+ */
+export function PrecoConfirmado({ inicial, principal = true }: { inicial: string; principal?: boolean }) {
   const fila = useCestaDoItem();
-  return <span data-testid="preco-do-item">{fila?.preco ?? inicial}</span>;
+  return <span data-testid={principal ? "preco-do-item" : undefined}>{fila?.preco ?? inicial}</span>;
 }
 
 /** Quantas estão na cesta pela marcação que a tela mostra (atualiza no clique). */

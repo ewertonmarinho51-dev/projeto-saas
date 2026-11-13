@@ -223,7 +223,7 @@ export default async function Referencias({
             items={[
               {
                 label: "Preço estimado",
-                value: <PrecoConfirmado inicial={item.preco_estimado?.exibicao ?? "—"} />,
+                value: <PrecoConfirmado inicial={item.preco_estimado?.exibicao ?? "—"} principal={false} />,
                 highlight: true,
                 hint: item.metodo ? `Método: ${rotuloMetodo(item.metodo)}` : "Método não definido",
               },
