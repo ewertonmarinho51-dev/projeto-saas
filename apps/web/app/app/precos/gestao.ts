@@ -192,7 +192,6 @@ export async function buscarItem(
   const idempotencia = `${chave}-${modo}`;
   if (!/^[A-Za-z0-9._:-]{8,128}$/.test(idempotencia)) return { erro: "Requisição inválida.", ok: null };
   const janela = Number.parseInt(texto(form, "janela", 4), 10);
-  const contratacao = texto(form, "contratacao_pncp", 300);
   let jobId: string;
   try {
     const { dados } = await chamarApi<{ id: string }>(`/precos/pesquisas/${pesquisa}/coleta`, {
@@ -205,7 +204,8 @@ export async function buscarItem(
           janela_dias: Number.isFinite(janela) ? janela : JANELA_PADRAO_DIAS,
           uf: texto(form, "uf", 2),
         },
-        ...(contratacao ? { contratacao_pncp: contratacao } : {}),
+        // A contratação similar do PNCP saiu da tela (12/11/2026): o índice do
+        // PNCP, coletado em segundo plano, já entra na busca pela descrição.
       },
       cabecalhos: { "Idempotency-Key": idempotencia },
     });
@@ -213,8 +213,6 @@ export async function buscarItem(
   } catch (e) {
     if (e instanceof ErroDaApi && e.codigo === "QUEUE_UNAVAILABLE")
       return { erro: "A busca está indisponível no momento. Tente de novo em instantes.", ok: null };
-    if (e instanceof ErroDaApi && e.codigo === "PNCP_CONTRACT_INVALID")
-      return { erro: "Contratação do PNCP não reconhecida. Informe o número de controle ou o link do edital.", ok: null };
     if (e instanceof ErroDaApi && e.status === 422) return { erro: "Confira o período (até 1 ano) e a UF.", ok: null };
     return { erro: mensagem(e), ok: null };
   }

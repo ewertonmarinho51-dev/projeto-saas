@@ -134,6 +134,18 @@ class ArmazemSupabase:
                   .execute()).data or []
         return [str(l.get("descricao") or "") for l in linhas]
 
+    def descricoes_sem_preco(self, dias: int, limite: int = 2000) -> list[str]:
+        """Dos itens cotados nos últimos `dias`, os que ficaram SEM preço
+        proposto — os primeiros da fila da busca por termo."""
+        desde = (datetime.now(timezone.utc) - timedelta(days=dias)).isoformat(
+            timespec="seconds")
+        linhas = (self._c.table("pesquisa_preco_itens").select("descricao")
+                  .gte("atualizado_em", desde).is_("removido_em", "null")
+                  .is_("preco_estimado", "null")
+                  .order("atualizado_em", desc=True).limit(limite)
+                  .execute()).data or []
+        return [str(l.get("descricao") or "") for l in linhas]
+
     def buscar(self, termos, *, uf=None, desde=None, ate=None, limite=50):
         return self._c.rpc("precos_pncp_buscar", {
             "p_termos": termos, "p_uf": uf,
@@ -178,6 +190,8 @@ def rodada(armazem, uf: str, *, dias: int, ate, modalidades, max_chamadas: int,
 
 
 NUCLEO_MIN, NUCLEO_MAX = 3, 120          # o CHECK da 0043
+# a fila é lida com folga para os termos de itens sem preço passarem à frente
+FOLGA_DA_FILA = 5
 
 
 def nucleos_das_descricoes(descricoes) -> list[str]:
@@ -204,13 +218,24 @@ def rodada_por_termos(armazem, *, max_chamadas: int, max_termos: int,
     from .fontes import ErroFonte
 
     agora = datetime.now(timezone.utc)
-    novos = armazem.registrar_termos(nucleos_das_descricoes(
-        armazem.descricoes_cotadas(dias_itens)))
+    # Itens SEM preço vêm primeiro (12/11/2026): o termo deles fura a fila
+    # e volta em 1 dia, não em 7. Medido em produção: o "analisador
+    # bioquímico", sem preço desde 11/11, ficava atrás de 60 termos nunca
+    # buscados e a rodada acabava o orçamento antes de chegar nele.
+    sem_preco = nucleos_das_descricoes(armazem.descricoes_sem_preco(dias_itens))
+    prioritarios = set(sem_preco)
+    novos = armazem.registrar_termos(list(dict.fromkeys(
+        sem_preco + nucleos_das_descricoes(armazem.descricoes_cotadas(dias_itens)))))
     coletor = indice.Coletor(armazem, max_chamadas=max_chamadas, pausa_s=pausa,
                              modalidades=modalidades, **rede)
-    termos = {"novos": novos, "buscados": 0, "falhas": 0}
-    for termo in armazem.termos_para_buscar(max_termos):
+    termos = {"novos": novos, "buscados": 0, "falhas": 0, "prioritarios": 0}
+    vez = armazem.termos_para_buscar(max_termos * FOLGA_DA_FILA)
+    # ordem estável: dentro de cada grupo, a da fila (nunca buscado primeiro)
+    vez = sorted(vez, key=lambda t: t["nucleo"] not in prioritarios)[:max_termos]
+    for termo in vez:
         nucleo = termo["nucleo"]
+        prioritario = nucleo in prioritarios
+        termos["prioritarios"] += prioritario
         try:
             relato = coletor.indexar_termo(nucleo, hoje=hoje)
         except indice.OrcamentoEsgotado:
@@ -224,9 +249,11 @@ def rodada_por_termos(armazem, *, max_chamadas: int, max_termos: int,
                     hours=indice.TERMO_FALHA_HORAS)).isoformat(timespec="seconds"))
             continue
         termos["buscados"] += 1
+        volta = (indice.TERMO_REBUSCA_SEM_PRECO_DIAS if prioritario
+                 else indice.TERMO_REBUSCA_DIAS)
         armazem.salvar_termo(
             nucleo, buscado_em=agora.isoformat(timespec="seconds"),
-            proxima_busca=(agora + timedelta(days=indice.TERMO_REBUSCA_DIAS)
+            proxima_busca=(agora + timedelta(days=volta)
                            ).isoformat(timespec="seconds"),
             contratacoes=relato["achadas"], resultados=relato["validos"],
             falhas=0, erro="")

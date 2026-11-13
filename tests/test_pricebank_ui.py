@@ -104,40 +104,13 @@ def test_salvar_cria_pesquisa_no_mesmo_dominio_e_abre_a_revisao(monkeypatch):
                for e in eventos)
 
 
-def _consultar_com_pncp(at, entrada):
-    at.text_area[0].input("PANO LIMPEZA")
-    at.text_input[0].input("UNIDADE")
-    campo = next(t for t in at.text_input
-                 if t.label == "Contratação similar no PNCP (opcional)")
-    campo.input(entrada)
-    next(b for b in at.button if b.label == "Consultar preços").click().run()
-
-
-def test_contratacao_do_pncp_entra_como_referencia_verificavel(monkeypatch):
-    from src.precos import pncp
-    from tests.test_pricebank_pncp import CONTROLE, _api
-
-    abrir = _api()
-    monkeypatch.setattr(pncp.PNCPAdapter, "_abrir_url",
-                        lambda self, url: abrir(url))
+def test_campo_de_contratacao_do_pncp_saiu_da_tela(monkeypatch):
+    """12/11/2026: o índice do PNCP, coletado em segundo plano, entra pela
+    descrição; a tela não pede mais o número da contratação similar."""
     at, _ = _app(monkeypatch)
     at.run()
-    _consultar_com_pncp(at, CONTROLE)
     assert not at.exception
-    assert not at.error
-    metricas = {m.label: m.value for m in at.metric}
-    assert metricas["Sem duplicatas"] == "6", "5 do dublê + 1 do PNCP"
-    links = " ".join(m.value for m in at.markdown)
-    assert "pncp.gov.br/app/editais/07954480000179/2026/15836" in links
-
-
-def test_contratacao_pncp_invalida_avisa_e_nao_consulta(monkeypatch):
-    at, _ = _app(monkeypatch)
-    at.run()
-    _consultar_com_pncp(at, "http://169.254.169.254/")
-    assert not at.exception
-    assert any("não reconhecida" in e.value for e in at.error)
-    assert not at.metric
+    assert not [t for t in at.text_input if "PNCP" in str(t.label)]
 
 
 def test_revisao_paginada_e_conclusao_com_pendencia_exige_justificativa(monkeypatch):
