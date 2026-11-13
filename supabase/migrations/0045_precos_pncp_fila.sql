@@ -225,8 +225,13 @@ begin
       faltou := faltou || ' politica_inesperada:' || tabela;
     end if;
   end loop;
-  if not has_table_privilege('service_role', 'public.precos_pncp_tarefas', 'select, insert, update')
-     or not has_table_privilege('service_role', 'public.precos_pncp_controle', 'select, update') then
+  -- um a um: com lista, has_table_privilege é verdadeiro se QUALQUER um
+  -- existir (a mutação "revoke update" passava calada — pega no CI)
+  if not (has_table_privilege('service_role', 'public.precos_pncp_tarefas', 'select')
+          and has_table_privilege('service_role', 'public.precos_pncp_tarefas', 'insert')
+          and has_table_privilege('service_role', 'public.precos_pncp_tarefas', 'update')
+          and has_table_privilege('service_role', 'public.precos_pncp_controle', 'select')
+          and has_table_privilege('service_role', 'public.precos_pncp_controle', 'update')) then
     faltou := faltou || ' service_role_sem_o_necessario';
   end if;
   foreach funcao in array array[
