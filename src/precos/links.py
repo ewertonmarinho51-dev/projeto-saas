@@ -237,3 +237,61 @@ def eh_tecnico(url: str | None) -> bool:
     partes = urlparse(url)
     return (partes.hostname or "") == "dadosabertos.compras.gov.br" or \
         "/api/" in partes.path
+
+RESULTADO_PNCP = ("https://pncp.gov.br/api/pncp/v1/orgaos/{cnpj}/compras/{ano}/"
+                  "{sequencial}/itens/{item}/resultados")
+
+
+def _num_item(valor) -> int | None:
+    try:
+        numero = int(str(valor).strip())
+    except (TypeError, ValueError):
+        return None
+    return numero if numero > 0 else None
+
+
+def registro_original(linha: dict) -> dict | None:
+    """
+    O registro que DEU ORIGEM ao preço, legível (13/11/2026): o item exato
+    e o resultado da fonte oficial, para a ação "Consultar registro
+    original". O PNCP não tem página por item — só a da contratação —, então
+    a tela mostra o resultado específico lido da fonte, com o link de origem
+    (a contratação) e o dado oficial exato (o resultado do item na API).
+
+    Só o que a fonte entregou; link só se passar por `seguro`.
+    """
+    bruto = linha.get("bruto") or {}
+    vinculos = resolver(linha)
+    item = bruto.get("item") if isinstance(bruto.get("item"), dict) else {}
+    resultado = bruto.get("resultado") if isinstance(bruto.get("resultado"), dict) else {}
+    numero_item = _num_item(item.get("numeroItem") or bruto.get("numeroItemPncp")
+                            or bruto.get("numeroItem"))
+    dados_url = vinculos.dados_url
+    controle = vinculos.identificacao
+    if str(linha.get("fonte_id") or "") == "pncp" and numero_item:
+        partes = controle_pncp(bruto.get("numeroControlePNCP"))
+        if partes:
+            cnpj, ano, sequencial = partes
+            dados_url = seguro(RESULTADO_PNCP.format(
+                cnpj=cnpj, ano=ano, sequencial=sequencial, item=numero_item))
+    pagina = vinculos.contratacao_url
+    if not (pagina or dados_url):
+        return None
+    return {
+        "fonte": vinculos.fonte_rotulo or str(linha.get("fonte_nome") or ""),
+        "numero_controle": controle,
+        "numero_item": numero_item,
+        "descricao": str(item.get("descricao") or linha.get("descricao_original") or ""),
+        "unidade": str(item.get("unidadeMedida") or linha.get("unidade_original") or ""),
+        "quantidade": resultado.get("quantidadeHomologada", linha.get("quantidade_original")),
+        "valor_unitario": resultado.get("valorUnitarioHomologado",
+                                        linha.get("valor_unitario_original")),
+        "valor_total": resultado.get("valorTotalHomologado"),
+        "fornecedor": str(resultado.get("nomeRazaoSocialFornecedor")
+                          or linha.get("fornecedor") or ""),
+        "data_resultado": str(resultado.get("dataResultado")
+                              or linha.get("data_resultado") or "")[:10],
+        "pagina_url": pagina,
+        "pagina_rotulo": vinculos.contratacao_rotulo,
+        "dados_url": dados_url,
+    }

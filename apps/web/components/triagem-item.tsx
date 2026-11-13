@@ -20,55 +20,55 @@ import {
 } from "@/design-system";
 import type { AlertaDePreco, ItemDePesquisa, ReferenciaDePreco } from "@/lib/api";
 
-import { AcaoNaCesta } from "./acao-cesta";
+import { AvisoDaCesta, ControleDaCesta, useCestaDoItem } from "./cesta-do-item";
 import { AlertaDoPreco } from "./gestao-cotacao";
-import {
-  comparativoDaEquivalencia,
-  dataCurta,
-  naCesta,
-  rotuloNatureza,
-  rotuloStatusReferencia,
-  varianteDaEquivalencia,
-} from "./precos";
+import { dataCurta, naCesta, rotuloNatureza, rotuloStatusReferencia } from "./precos";
 
 /**
- * Situação visual de cada referência. Discrepante é a que tem o card
- * "Confira este preço" da API ainda sem decisão — sinal para revisão
- * humana, nunca exclusão automática (a API não tira nada sozinha).
+ * Situação visual de cada referência, pela marcação QUE A TELA MOSTRA (a do
+ * último clique, que a fila grava em segundo plano). Discrepante é a que tem
+ * o card "Confira este preço" da API ainda sem decisão — sinal para revisão
+ * humana, nunca exclusão automática.
  */
-function situacao(r: ReferenciaDePreco, alerta: AlertaDePreco | undefined): ReferenceStatus {
+function situacao(r: ReferenciaDePreco, dentro: boolean, alerta: AlertaDePreco | undefined): ReferenceStatus {
   if (alerta && !alerta.mantida) return "discrepant";
-  if (r.status === "selected") return "compatible";
-  if (r.status === "warning" || r.status === "manual_review") return "attention";
+  if (dentro) return r.status === "warning" ? "attention" : "compatible";
+  if (r.status === "manual_review") return "attention";
   if (r.status === "rejected") return "excluded";
   return "pending";
 }
 
-function noFiltro(chave: ScreeningKey | null, r: ReferenciaDePreco, s: ReferenceStatus): boolean {
-  if (!chave || chave === "total") return true;
-  if (chave === "valid") return naCesta(r);
-  if (chave === "excluded") return !naCesta(r);
-  return s === chave;
+const PENDENCIAS = new Set(["warning", "manual_review"]);
+
+/** O status que a linha mostra enquanto a marcação nova é gravada. */
+function statusMostrado(r: ReferenciaDePreco, dentro: boolean): string {
+  if (dentro) return r.status === "warning" ? "warning" : "selected";
+  return naCesta(r) ? "rejected" : r.status;
 }
 
-/** Origem da referência, só com o que a coleta registrou — nunca presume verificação. */
+/** Rastreabilidade completa, no ícone de informação — o cartão fica limpo. */
 function VerOrigem({ r }: { r: ReferenciaDePreco }) {
   const [aberto, setAberto] = useState(false);
+  const reg = r.registro_original;
   const campos: DataListItem[] = [
-    { label: "Fonte consultada", value: r.fonte },
-    ...(r.origem ? [{ label: "Origem da compra", value: r.origem }] : []),
-    ...(r.canal ? [{ label: "Canal da coleta", value: r.canal }] : []),
-    ...(r.equivalencia_detalhe ? [{ label: "Equivalência com o item", value: r.equivalencia_detalhe }] : []),
-    { label: "Natureza do valor", value: rotuloNatureza(r.natureza_valor) },
-    { label: "Identificador do registro", value: r.identificacao ? <span className="gc-mono">{r.identificacao}</span> : "Não informado" },
+    { label: "Descrição na fonte", value: r.descricao_original },
+    ...(reg?.numero_item ? [{ label: "Número do item", value: String(reg.numero_item), numeric: true }] : []),
     { label: "Órgão", value: r.orgao || "Não informado" },
     { label: "Local", value: [r.municipio, r.uf].filter(Boolean).join("/") || "Não informado" },
     { label: "Fornecedor", value: r.fornecedor || "Não informado" },
     { label: "Data da compra", value: dataCurta(r.data_compra) || "Não informada" },
+    ...(r.data_resultado ? [{ label: "Data do resultado", value: dataCurta(r.data_resultado) }] : []),
     { label: "Coletada em", value: dataCurta(r.coletado_em) },
-    { label: "Descrição na fonte", value: r.descricao_original },
+    { label: "Fonte consultada", value: r.fonte },
+    ...(r.origem ? [{ label: "Origem da compra", value: r.origem }] : []),
+    ...(r.canal ? [{ label: "Canal da coleta", value: r.canal }] : []),
     {
-      label: "Valor na fonte",
+      label: "Número de controle",
+      value: r.identificacao ? <span className="gc-mono">{r.identificacao}</span> : "Não informado",
+    },
+    { label: "Natureza do valor", value: rotuloNatureza(r.natureza_valor) },
+    {
+      label: "Valor original",
       value: r.valor_unitario_original
         ? `${r.valor_unitario_original.exibicao} por ${r.unidade_original ?? "unidade"}`
         : "Não informado",
@@ -81,8 +81,11 @@ function VerOrigem({ r }: { r: ReferenciaDePreco }) {
         : "Não normalizado",
       numeric: true,
     },
+    ...(r.equivalencia_detalhe ? [{ label: "Equivalência com o item", value: r.equivalencia_detalhe }] : []),
   ];
-  if (r.motivos.length > 0) campos.push({ label: "Observações", value: r.motivos.join(", ") });
+  if (PENDENCIAS.has(r.status) && r.motivos.length > 0) {
+    campos.push({ label: "Motivo da revisão", value: r.motivos.join("; ") });
+  }
   return (
     <>
       <IconButton size="sm" icon="info" label="Ver origem" onClick={() => setAberto(true)} />
@@ -101,7 +104,6 @@ function VerOrigem({ r }: { r: ReferenciaDePreco }) {
       >
         <TraceabilityPanel
           fields={campos}
-          url={r.link_fonte ?? r.link_contratacao ?? undefined}
           status={
             <Badge variant="neutral" size="sm">
               {rotuloStatusReferencia(r.status)}
@@ -114,10 +116,75 @@ function VerOrigem({ r }: { r: ReferenciaDePreco }) {
 }
 
 /**
- * Triagem do item (PriceResearchScreen do ui_kit): contadores que filtram
- * a lista, cada referência com fonte, órgão, data, valor e situação, e a
- * ação de cesta da API (`AcaoNaCesta`, com a revisão no If-Match). Os
- * valores são as `exibicao` da API — nada é somado nem convertido aqui.
+ * "Consultar registro original": o item exato e o resultado oficial que deram
+ * origem ao preço, legíveis. O PNCP não tem página por item: mostra-se o
+ * resultado lido da fonte oficial, com o link de origem (a contratação) e o
+ * dado oficial exato do resultado do item.
+ */
+function RegistroOriginal({ r }: { r: ReferenciaDePreco }) {
+  const [aberto, setAberto] = useState(false);
+  const reg = r.registro_original;
+  if (!reg) return null;
+  const campos: DataListItem[] = [
+    { label: "Fonte oficial", value: reg.fonte },
+    ...(reg.numero_controle ? [{ label: "Número de controle", value: <span className="gc-mono">{reg.numero_controle}</span> }] : []),
+    ...(reg.numero_item ? [{ label: "Item", value: String(reg.numero_item), numeric: true }] : []),
+    { label: "Descrição do item", value: reg.descricao || "Não informada" },
+    ...(reg.quantidade ? [{ label: "Quantidade homologada", value: `${reg.quantidade.exibicao} ${reg.unidade}`.trim(), numeric: true }] : []),
+    {
+      label: "Valor unitário homologado",
+      value: <span data-testid="registro-valor-unitario">{reg.valor_unitario?.exibicao ?? "Não informado"}</span>,
+      numeric: true,
+    },
+    ...(reg.valor_total ? [{ label: "Valor total homologado", value: reg.valor_total.exibicao, numeric: true }] : []),
+    ...(reg.fornecedor ? [{ label: "Fornecedor", value: reg.fornecedor }] : []),
+    ...(reg.data_resultado ? [{ label: "Data do resultado", value: dataCurta(reg.data_resultado) }] : []),
+  ];
+  return (
+    <>
+      <Button variant="link" size="sm" icon="arrow-square-out" onClick={() => setAberto(true)} data-testid="consultar-registro">
+        Consultar registro original
+      </Button>
+      <Dialog
+        open={aberto}
+        onClose={() => setAberto(false)}
+        icon="file-text"
+        size="lg"
+        title="Registro original"
+        description="O resultado da fonte oficial que deu origem a este preço."
+        footer={
+          <Button variant="secondary" onClick={() => setAberto(false)}>
+            Fechar
+          </Button>
+        }
+      >
+        <div className="grid gap-4" data-testid="registro-original">
+          <TraceabilityPanel fields={campos} />
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {reg.pagina_url && (
+              <a href={reg.pagina_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[length:var(--gc-fs-sm)] text-acento underline">
+                {reg.pagina_rotulo || "Abrir na fonte oficial"}
+                <Icon name="arrow-square-out" />
+              </a>
+            )}
+            {reg.dados_url && (
+              <a href={reg.dados_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[length:var(--gc-fs-sm)] text-acento underline">
+                Dado oficial do resultado
+                <Icon name="arrow-square-out" />
+              </a>
+            )}
+          </div>
+        </div>
+      </Dialog>
+    </>
+  );
+}
+
+/**
+ * Triagem do item: contadores que filtram a lista e, em cada referência, o
+ * controle da cesta em UM clique (`ControleDaCesta`, gravado em segundo plano).
+ * As linhas ficam na ordem em que apareceram — marcar não as move de lugar.
+ * Os valores são as `exibicao` da API — nada é somado nem convertido aqui.
  */
 export function TriagemDoItem({
   pesquisa,
@@ -132,17 +199,27 @@ export function TriagemDoItem({
   alertas: AlertaDePreco[];
   editavel: boolean;
 }) {
+  const fila = useCestaDoItem();
   const [filtro, setFiltro] = useState<ScreeningKey | null>(null);
+  // A API ordena por valor e id — marcar não muda a posição da linha.
+  const ordenadas = referencias;
+
   const alertaDe = new Map(alertas.map((a) => [a.referencia_id, a]));
-  const linhas = referencias.map((r) => ({ r, s: situacao(r, alertaDe.get(r.id)) }));
+  const dentro = (r: ReferenciaDePreco) => (fila ? fila.marcado(r.id, naCesta(r)) : naCesta(r));
+  const linhas = ordenadas.map((r) => ({ r, d: dentro(r), s: situacao(r, dentro(r), alertaDe.get(r.id)) }));
   const contagem: Partial<Record<ScreeningKey, number>> = {
     total: linhas.length,
-    valid: linhas.filter(({ r }) => naCesta(r)).length,
+    valid: linhas.filter(({ d }) => d).length,
     attention: linhas.filter(({ s }) => s === "attention").length,
     discrepant: linhas.filter(({ s }) => s === "discrepant").length,
-    excluded: linhas.filter(({ r }) => !naCesta(r)).length,
+    excluded: linhas.filter(({ d }) => !d).length,
   };
-  const visiveis = linhas.filter(({ r, s }) => noFiltro(filtro, r, s));
+  const visiveis = linhas.filter(({ d, s }) => {
+    if (!filtro || filtro === "total") return true;
+    if (filtro === "valid") return d;
+    if (filtro === "excluded") return !d;
+    return s === filtro;
+  });
   const concluido = item.estado === "complete";
 
   if (referencias.length === 0) {
@@ -156,9 +233,10 @@ export function TriagemDoItem({
   return (
     <div className="grid gap-4">
       <ScreeningSummary counts={contagem} active={filtro} onFilter={setFiltro} />
-      <ul className="grid gap-3" aria-live="polite">
-        {visiveis.map(({ r, s }) => (
-          <li key={r.id} className="grid gap-2" data-testid="referencia">
+      <AvisoDaCesta />
+      <ul className="grid gap-3">
+        {visiveis.map(({ r, d, s }) => (
+          <li key={r.id} className="grid gap-2" data-testid="referencia" data-na-cesta={d ? "1" : "0"}>
             <PriceReferenceRow
               title={r.descricao_original}
               source={r.fonte}
@@ -167,73 +245,36 @@ export function TriagemDoItem({
               value={r.valor_unitario_normalizado?.exibicao ?? r.valor_unitario_original?.exibicao ?? ""}
               unitNote={`por ${r.unidade_normalizada ?? r.unidade_original ?? "unidade"}`}
               status={s}
-              statusLabel={rotuloStatusReferencia(r.status)}
-              actions={<VerOrigem r={r} />}
-            />
-            <div className="flex flex-wrap items-start justify-between gap-3 px-4">
-              <div className="grid min-w-0 flex-1 gap-2 text-[length:var(--gc-fs-xs)] text-secundario">
-                <span>
-                  {rotuloNatureza(r.natureza_valor)}
-                  {r.identificacao && <span className="gc-mono"> · {r.identificacao}</span>}
+              statusLabel={rotuloStatusReferencia(statusMostrado(r, d))}
+              actions={
+                <span className="flex items-center gap-1">
+                  <VerOrigem r={r} />
+                  {editavel && !concluido && <ControleDaCesta referencia={r.id} naCesta={naCesta(r)} />}
                 </span>
-                {(r.rotulo_origem || r.link_contratacao) && (
-                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    {r.rotulo_origem && <span data-testid="origem-canal">{r.rotulo_origem}</span>}
-                    {r.link_contratacao && (
-                      <a
-                        href={r.link_contratacao}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-acento underline"
-                        data-testid="abrir-evidencia"
-                      >
-                        Abrir evidência
-                      </a>
-                    )}
-                  </span>
-                )}
-                {r.equivalencia && (
-                  <span className="flex flex-wrap items-center gap-2" data-testid="equivalencia">
-                    <Badge variant={varianteDaEquivalencia(r.equivalencia)} size="sm">
-                      {r.equivalencia}
-                    </Badge>
-                    {comparativoDaEquivalencia(r.equivalencia_detalhe) && (
-                      <span>{comparativoDaEquivalencia(r.equivalencia_detalhe)}</span>
-                    )}
-                  </span>
-                )}
-                {alertaDe.has(r.id) && (
-                  <AlertaDoPreco
-                    pesquisa={pesquisa}
-                    item={item.id}
-                    revisao={item.revisao}
-                    alerta={alertaDe.get(r.id)!}
-                    editavel={editavel && !concluido}
-                  />
-                )}
-                {r.motivos.length > 0 && <span>Observações: {r.motivos.join(", ")}</span>}
-                {r.link_contratacao && (
-                  <a
-                    href={r.link_contratacao}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 justify-self-start text-[length:var(--gc-fs-sm)]"
-                  >
-                    {r.rotulo_contratacao || "Ver na fonte"}
-                    <Icon name="arrow-square-out" />
-                  </a>
-                )}
-              </div>
-              {concluido ? (
-                <p className="text-[length:var(--gc-fs-xs)] text-secundario">Item concluído: reabra para alterar a cesta.</p>
-              ) : (
-                <AcaoNaCesta pesquisa={pesquisa} item={item.id} referencia={r.id} revisao={item.revisao} naCesta={naCesta(r)} />
-              )}
+              }
+            />
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 text-[length:var(--gc-fs-xs)] text-secundario">
+              <span data-testid="natureza">{rotuloNatureza(r.natureza_valor)}</span>
+              <RegistroOriginal r={r} />
             </div>
+            {alertaDe.has(r.id) && (
+              <div className="px-4">
+                <AlertaDoPreco
+                  pesquisa={pesquisa}
+                  item={item.id}
+                  revisao={item.revisao}
+                  alerta={alertaDe.get(r.id)!}
+                  editavel={editavel && !concluido}
+                />
+              </div>
+            )}
           </li>
         ))}
         {visiveis.length === 0 && <li className="gc-help px-3">Nenhuma referência neste filtro.</li>}
       </ul>
+      {concluido && (
+        <p className="text-[length:var(--gc-fs-xs)] text-secundario">Item concluído: reabra para alterar a cesta.</p>
+      )}
     </div>
   );
 }

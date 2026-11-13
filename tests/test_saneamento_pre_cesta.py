@@ -461,9 +461,8 @@ def test_reincluir_desconsiderada_entra_sinalizada_com_trilha(monkeypatch):
                             triagem=V1)
     extremo = next(l for l in repo.listar_referencias(iid)
                    if l["id_externo"] == "Q01_05")
-    with pytest.raises(cotacoes.ErroCotacao, match="motivo da inclusão"):
-        cotacoes.alterar_status_referencia(CTX, cid, iid, str(extremo["id"]),
-                                           incluir=True)
+    # sem justificativa também entra — SINALIZADA, com o alerta (13/11/2026);
+    # aqui, com o motivo informado, que vai para a memória de cálculo
     cotacoes.alterar_status_referencia(
         CTX, cid, iid, str(extremo["id"]), incluir=True,
         motivo="fonte conferida: preço de lote com frete")

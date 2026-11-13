@@ -1724,7 +1724,7 @@ def _render_motivo(item: dict, linha: dict, na_cesta: bool) -> None:
     """
     with st.form(f"motivo_{linha['id']}"):
         motivo = st.text_input(
-            "Observação (opcional)" if na_cesta else "Motivo da inclusão",
+            "Observação (opcional)",
             placeholder="fora da curva; quantidade muito diferente; "
                         "unidade não comparável…")
         confirmar = st.form_submit_button(
@@ -1732,11 +1732,9 @@ def _render_motivo(item: dict, linha: dict, na_cesta: bool) -> None:
     if not confirmar:
         return
     texto = motivo.strip()
-    if not na_cesta and not texto:
-        st.error("Registre o motivo da inclusão: ele vai para a memória de "
-                 "cálculo.")
-        return
-    registro = texto or "retirada da cesta pelo usuário"
+    # sem justificativa nas inclusões comuns (13/11/2026): a trilha registra
+    registro = texto or ("retirada da cesta pelo usuário" if na_cesta
+                         else "incluída na cesta pelo usuário")
     status_anterior = str(linha.get("status") or "")
     repo.reclassificar_referencia(
         str(linha["id"]), "rejected" if na_cesta else "selected", registro)

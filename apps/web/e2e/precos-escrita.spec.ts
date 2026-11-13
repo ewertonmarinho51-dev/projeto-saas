@@ -53,13 +53,17 @@ test("criar pesquisa, importar planilha e concluir/reabrir item", async ({ page 
   await expect(page.locator("section[aria-labelledby=titulo-itens] tbody tr")).toHaveCount(2);
   await expect(page.getByTestId("progresso-coleta")).toContainText("Coleta concluída", { timeout: 60_000 });
 
-  // Concluir e reabrir um item em revisão (pesquisa semeada própria).
+  // Concluir e avançar, depois reabrir o item (pesquisa semeada própria).
   await page.goto(`/app/precos/${estado.escrita}`);
   await page.locator("section[aria-labelledby=titulo-itens] tbody a").first().click();
+  const itemConcluido = page.url();
+  const concluir = page.getByTestId("concluir-e-avancar");
+  await concluir.getByLabel(/Justificativa/).fill("Conferido na fonte oficial (E2E).");
+  await concluir.getByRole("button", { name: "Concluir item e avançar" }).click();
+  // só avança depois de o servidor confirmar: próximo item, ou o resumo
+  await expect(page).not.toHaveURL(itemConcluido);
+  await page.goto(itemConcluido);
   const ato = page.getByTestId("ato-item");
-  await ato.getByLabel(/Justificativa/).fill("Conferido na fonte oficial (E2E).");
-  await ato.getByRole("button", { name: "Concluir item" }).click();
-  await expect(page.getByText("Item concluído.")).toBeVisible();
   await ato.getByLabel("Motivo da reabertura").fill("Faltou conferir um preço (E2E).");
   await ato.getByRole("button", { name: "Reabrir item" }).click();
   await expect(page.getByText("Item reaberto para revisão.")).toBeVisible();

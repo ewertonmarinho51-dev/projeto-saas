@@ -355,3 +355,80 @@ export async function aplicarAoProcesso(_: EstadoDaAplicacao, form: FormData): P
   revalidatePath(`/app/processos/${processo}`);
   redirect(`/app/precos/${pesquisa}?aplicada=1`);
 }
+
+// ---------------------------------------------------------------------------
+// Revisão em um clique (13/11/2026): a tela marca na hora e grava em segundo
+// plano. Estas duas não redirecionam: devolvem o que o servidor confirmou.
+// ---------------------------------------------------------------------------
+
+export type MarcacaoGravada =
+  | { ok: true; revisao: number; preco: string | null; metodo: string; status: string }
+  | { ok: false; erro: string; conflito: boolean };
+
+/** Grava UMA marcação da cesta, com a revisão que a tela tem (If-Match). */
+export async function gravarMarcacao(
+  pesquisa: string,
+  item: string,
+  referencia: string,
+  incluir: boolean,
+  revisao: number,
+): Promise<MarcacaoGravada> {
+  if (![pesquisa, item, referencia].every((v) => UUID.test(v)) || !Number.isInteger(revisao) || revisao < 1) {
+    return { ok: false, erro: "Requisição inválida.", conflito: false };
+  }
+  try {
+    const { dados } = await chamarApi<{
+      preco_estimado: { exibicao: string } | null;
+      metodo: string;
+      status: string;
+      revisao: number;
+    }>(`/precos/pesquisas/${pesquisa}/itens/${item}/referencias/${referencia}`, {
+      metodo: "PATCH",
+      corpo: { incluir },
+      cabecalhos: { "If-Match": `"${revisao}"` },
+    });
+    return {
+      ok: true,
+      revisao: dados.revisao,
+      preco: dados.preco_estimado?.exibicao ?? null,
+      metodo: dados.metodo,
+      status: dados.status,
+    };
+  } catch (e) {
+    if (e instanceof ErroDaApi && e.status === 422) {
+      return { ok: false, erro: e.mensagem || "A regra da cesta recusou esta referência.", conflito: false };
+    }
+    if (e instanceof ErroDaApi) {
+      return { ok: false, erro: MENSAGENS[e.status] ?? "Não foi possível gravar agora.", conflito: e.status === 409 };
+    }
+    return { ok: false, erro: "Não foi possível gravar agora.", conflito: false };
+  }
+}
+
+export type ConclusaoDoItem = { ok: true } | { ok: false; erro: string };
+
+/** Conclui o item com a revisão confirmada; a tela decide para onde ir. */
+export async function concluirItemDaRevisao(
+  pesquisa: string,
+  item: string,
+  revisao: number,
+  justificativa: string,
+): Promise<ConclusaoDoItem> {
+  if (![pesquisa, item].every((v) => UUID.test(v)) || !Number.isInteger(revisao) || revisao < 1) {
+    return { ok: false, erro: "Requisição inválida." };
+  }
+  try {
+    await chamarApi(`/precos/pesquisas/${pesquisa}/itens/${item}/conclusao`, {
+      metodo: "POST",
+      corpo: { justificativa: justificativa.trim().slice(0, 2000) },
+      cabecalhos: { "If-Match": `"${revisao}"` },
+    });
+  } catch (e) {
+    if (e instanceof ErroDaApi && e.status === 422) return { ok: false, erro: e.mensagem || "A regra do item recusou." };
+    if (e instanceof ErroDaApi) return { ok: false, erro: ERROS_DO_ITEM[e.codigo] ?? MENSAGENS[e.status] ?? "Não foi possível concluir agora." };
+    return { ok: false, erro: "Não foi possível concluir agora." };
+  }
+  revalidatePath(`/app/precos/${pesquisa}`);
+  revalidatePath(`/app/precos/${pesquisa}/itens/${item}`);
+  return { ok: true };
+}

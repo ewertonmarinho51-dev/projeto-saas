@@ -240,6 +240,26 @@ export type ReferenciaDePreco = {
   equivalencia?: string;
   /** Comparativo dos atributos essenciais (conferidos, ausentes, divergentes). */
   equivalencia_detalhe?: string;
+  /** O item exato e o resultado oficial que deram origem ao preço ("Consultar registro original"). */
+  registro_original?: RegistroOriginal | null;
+};
+
+export type RegistroOriginal = {
+  fonte: string;
+  numero_controle: string;
+  numero_item: number | null;
+  descricao: string;
+  unidade: string;
+  quantidade: Valor | null;
+  valor_unitario: Valor | null;
+  valor_total: Valor | null;
+  fornecedor: string;
+  data_resultado: string;
+  /** Página oficial (a contratação, quando o portal não tem página por item). */
+  pagina_url: string | null;
+  pagina_rotulo: string;
+  /** O dado oficial exato do resultado do item. */
+  dados_url: string | null;
 };
 
 /** Série de preços resumida pelo servidor (`estatistica.calcular`); tudo já formatado. */

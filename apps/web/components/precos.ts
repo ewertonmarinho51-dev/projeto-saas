@@ -161,3 +161,18 @@ export function comparativoDaEquivalencia(detalhe: string | undefined): string {
   const partes = (detalhe ?? "").split(" — ");
   return partes.length > 1 ? partes.slice(1).join(" · ") : "";
 }
+
+/**
+ * O próximo item a concluir depois de `atual`, na ordem da pesquisa (o número
+ * do item): primeiro os que vêm depois, depois os de antes. `null` quando não
+ * sobra nenhum — a tela volta ao resumo.
+ */
+export function proximoAConcluir(
+  itens: { id: string; numero: number; estado: string }[],
+  atual: string,
+): string | null {
+  const ordem = [...itens].sort((a, b) => a.numero - b.numero);
+  const i = ordem.findIndex((x) => x.id === atual);
+  const giro = i < 0 ? ordem : [...ordem.slice(i + 1), ...ordem.slice(0, i)];
+  return giro.find((x) => x.id !== atual && x.estado !== "complete")?.id ?? null;
+}
