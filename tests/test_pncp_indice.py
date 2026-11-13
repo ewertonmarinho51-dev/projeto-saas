@@ -500,6 +500,7 @@ def test_flag_ligada_troca_o_adapter_de_evidencia_pelo_indice(monkeypatch):
 
 
 def test_pesquisa_do_item_grava_a_referencia_do_indice(monkeypatch, armazem):
+    monkeypatch.setattr(cotacoes, "hoje_da_execucao", lambda: date(2025, 6, 30))
     ligar_banco_falso(monkeypatch)
     c = cotacoes.criar_cotacao(CTX, {"nome": "Piloto PNCP",
                                      "data_base": "2025-06-30"})

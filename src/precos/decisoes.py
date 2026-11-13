@@ -87,7 +87,11 @@ def impedimento(item: dict, referencia: dict, pesquisa: dict) -> str:
         return "Unidade incompatível ou sem conversão comprovada."
     try:
         data = date.fromisoformat(str(referencia.get("data_compra") or "")[:10])
-        base = date.fromisoformat(str(pesquisa.get("data_base") or date.today())[:10])
+        # o corte é o dia da execução, como na busca (13/11/2026): uma
+        # referência homologada depois da data-base da cotação, e coletada
+        # por isso, não é "fora da janela"
+        base = max(date.fromisoformat(str(pesquisa.get("data_base") or date.today())[:10]),
+                   date.today())
         from .execucao import JANELA_MAXIMA_DIAS
 
         if not 0 <= (base - data).days <= JANELA_MAXIMA_DIAS:

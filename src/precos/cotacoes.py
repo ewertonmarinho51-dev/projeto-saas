@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from .. import db
@@ -700,6 +700,12 @@ def assinatura_de_dados(item: dict, fontes, politica: str = "") -> str:
     return hashlib.sha256("|".join(partes).encode("utf-8")).hexdigest()[:24]
 
 
+def hoje_da_execucao() -> date:
+    """O corte das buscas correntes (e do "Pôr na cesta"): o dia da
+    execução. Função própria para as provas fixarem a data."""
+    return date.today()
+
+
 def proposta_apta(item: dict) -> bool:
     """
     Proposta que o aceite do servidor pode concluir junto com a cotação:
@@ -839,9 +845,22 @@ def pesquisar_item(ctx: Contexto, cotacao_id: str, item_id: str, *,
             or item.get("removido_em"):
         raise ErroCotacao("item não encontrado nesta cotação")
     perfil = obter_perfil(cotacao.get("perfil_normativo"))
+    # Corte das buscas correntes = a DATA DA EXECUÇÃO (13/11/2026). Antes era
+    # a data-base gravada na criação da cotação: uma cotação aberta em 11/11
+    # nunca via a homologação publicada depois — "Analisador bioquímico",
+    # R$ 8.600, Dom Pedro/MA. A data-base continua da cotação (relatório); a
+    # janela que a busca usou de fato vai para a trilha (`janela_efetiva`).
+    corte = hoje_da_execucao()
     filtros_efetivos = {**(cotacao.get("filtros") or {}), **(filtros or {}),
-                        "data_base": cotacao.get("data_base")
-                        or date.today().isoformat()}
+                        "data_base": corte.isoformat()}
+    from .execucao import janela_efetiva as _dias_efetivos
+
+    dias = _dias_efetivos(filtros_efetivos)
+    filtros_efetivos["janela_efetiva"] = {
+        "de": (corte - timedelta(days=dias)).isoformat(),
+        "ate": corte.isoformat(), "dias": dias,
+        "corte": "data da execução",
+        "data_base_da_cotacao": str(cotacao.get("data_base") or "")}
     # A estratégia de expansão é UMA (`expansao.Plano`), para o item avulso e
     # para o lote: descrição + termo do servidor primeiro; variantes locais
     # e, por fim, IA só se a amostra elegível ficar abaixo do mínimo. Com
@@ -1123,7 +1142,8 @@ def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
                     if resultado.equivalencias else {}),
                  "filtros": {k: v for k, v in filtros.items()
                              if k in ("janela_dias", "uf", "literal",
-                                      "fontes", "data_base")},
+                                      "fontes", "data_base",
+                                      "janela_efetiva")},
                  "desfechos": resultado.desfechos,
                  "brutas": resultado.brutas, "unicas": resultado.unicas,
                  "elegiveis": resultado.elegiveis, "novas": resultado.novas,
@@ -1313,7 +1333,7 @@ def alterar_status_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
     if alvo is None:
         raise ErroCotacao("referência não pertence a este item")
     if incluir:
-        problema = _impedimento_de_inclusao(alvo)
+        problema = _impedimento_de_inclusao(alvo, item)
         if problema:
             raise ErroCotacao(problema)
     anterior = str(alvo.get("status"))
@@ -1501,8 +1521,23 @@ def manter_referencia(ctx: Contexto, cotacao_id: str, item_id: str,
         decisoes=decisoes, extra={"chave": chave})
 
 
-def _impedimento_de_inclusao(linha: dict) -> str:
-    """O servidor decide se a chave pode compor cesta — não o botão."""
+def _impedimento_de_inclusao(linha: dict, item: dict | None = None) -> str:
+    """O servidor decide se a chave pode compor cesta — não o botão.
+
+    A compatibilidade de OBJETO é a mesma regra do automático
+    (`equivalencia.conflito_de_objeto`): o que o automático tira da série
+    por ser outro objeto (locação mensal, analisador de hematologia na
+    compra de analisador bioquímico), o "Pôr na cesta" também recusa."""
+    if item is not None:
+        from . import equivalencia
+
+        conflito = equivalencia.conflito_de_objeto(
+            item.get("descricao"), linha.get("descricao_original"),
+            unidade_item=str(item.get("unidade") or ""),
+            unidade_fonte=str(linha.get("unidade_original") or ""))
+        if conflito:
+            return (f"esta referência é de outro objeto ({conflito}) e não "
+                    "pode compor a cesta deste item")
     if cesta._decimal(linha.get("valor_unitario_normalizado")) is None:
         return ("esta referência não tem preço na unidade do item (unidade "
                 "não comprovada) e não pode compor a cesta")

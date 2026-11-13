@@ -128,6 +128,24 @@ def _motor_de_termos():
         return None
 
 
+def _seletor_jev():
+    """O seletor do JEV para a cotação AUTOMÁTICA (item avulso e lote), só
+    com a flag `jev_price_research` ligada. Regras primeiro; o JEV só nos
+    candidatos ambíguos, com teto de consultas e custo, cache por item e
+    estado, prazo do gateway e, se cair, as regras locais seguem
+    (`precos.seletor.propor`). O parecer vai para a trilha
+    (`selecao_sugerida`). Falha de leitura da flag = sem JEV."""
+    from src import governanca
+    from src.precos import seletor
+
+    try:
+        if not db.flag_ativa(governanca.FLAG_JEV_PRECOS):
+            return None
+    except Exception:  # noqa: BLE001 — IA é opcional de verdade
+        return None
+    return seletor.seletor_padrao()
+
+
 def job_do_banco(linha: dict) -> Job:
     feitos, total = int(linha.get("feitos") or 0), int(linha.get("total") or 0)
     estado = str(linha.get("estado") or "")
@@ -269,6 +287,12 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
                 opcoes["motor_semantico"] = motor
                 # um orçamento de IA para a execução inteira do job
                 opcoes["orcamento_ia"] = expansao.Orcamento(expansao.ORCAMENTO_IA_POR_LOTE)
+            # O JEV no fluxo web (13/11/2026): antes só o Streamlit o passava.
+            # Só a cotação AUTOMÁTICA o usa (`cotacoes.pesquisar_item`); a
+            # busca manual segue do servidor.
+            jev = _seletor_jev()
+            if jev is not None:
+                opcoes["seletor"] = jev
             if parametros.get("item_id"):
                 # UM item, a pedido. O MODO decide a ampliação: a busca
                 # manual ("Pesquisar preços") é do servidor — descrição e o

@@ -544,3 +544,48 @@ def test_reentrega_nao_retenta_alem_do_limite(banco, dominio):
                       dormir=esperas.append) == "succeeded"
     assert esperas == [] and _patches(banco)[-1]["resultado"]["itens"]["i3"] == "falha_tecnica"
 
+
+
+# ---------------------------------------------------------------------------
+# JEV no fluxo web (13/11/2026): o seletor chega à cotação automática
+# ---------------------------------------------------------------------------
+def test_worker_passa_o_seletor_do_jev_ao_item_automatico(banco, dominio, monkeypatch):
+    from src import governanca
+    from src.precos import seletor as seletor_mod
+
+    marca = object()
+    monkeypatch.setattr(coleta.db, "flag_ativa", lambda nome: nome == governanca.FLAG_JEV_PRECOS)
+    monkeypatch.setattr(seletor_mod, "seletor_padrao", lambda: marca)
+    recebido = {}
+
+    def pesquisar_item(ctx, pesquisa_id, item_id, *, modo, termo, filtros, **opcoes):
+        recebido.update(opcoes)
+        return type("R", (), {"mensagem": "ok"})()
+
+    monkeypatch.setattr(cotacoes, "pesquisar_item", pesquisar_item)
+    banco.responder("GET", "api_jobs", 200, [_job(total=1, parametros={
+        "modo": "automatico", "item_id": ITEM, "termo": "", "filtros": {}})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    assert recebido["seletor"] is marca
+
+
+def test_worker_passa_o_seletor_do_jev_ao_lote(banco, dominio, monkeypatch):
+    from src import governanca
+    from src.precos import seletor as seletor_mod
+
+    marca = object()
+    monkeypatch.setattr(coleta.db, "flag_ativa", lambda nome: nome == governanca.FLAG_JEV_PRECOS)
+    monkeypatch.setattr(seletor_mod, "seletor_padrao", lambda: marca)
+    banco.responder("GET", "api_jobs", 200, [_job()])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    assert dominio["opcoes"]["seletor"] is marca
+
+
+def test_flag_do_jev_ilegivel_nao_liga_o_seletor(banco, dominio, monkeypatch):
+    def quebrada(nome):
+        raise RuntimeError("banco fora")
+
+    monkeypatch.setattr(coleta.db, "flag_ativa", quebrada)
+    banco.responder("GET", "api_jobs", 200, [_job()])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    assert "seletor" not in dominio["opcoes"]

@@ -31,7 +31,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 
-VERSAO = "2026-11-10.equivalencia.1"
+VERSAO = "2026-11-13.equivalencia.2"
 
 MESMO_ITEM = "mesmo_item"
 EQUIVALENTE = "equivalente"
@@ -100,6 +100,91 @@ def _nucleo(descricao: str) -> set[str]:
 
 # dimensões de CONTEÚDO DA EMBALAGEM (ver `classificar`)
 _EMBALAGEM = frozenset({"folhas", "doses"})
+
+
+# ---------------------------------------------------------------------------
+# Conflito de OBJETO (13/11/2026): vale mesmo quando o item não tem atributo
+# quantificável. Medido na cesta do "analisador bioquímico": o automático
+# trazia "Analisador Automatizado de Bioquímica — 12 MES" (locação) e o
+# analisador de HEMATOLOGIA. Os dois saem da série, aqui e no "Pôr na cesta"
+# (`cotacoes._impedimento_de_inclusao`), pela MESMA regra.
+# ---------------------------------------------------------------------------
+_PALAVRAS_DE_LOCACAO = ("LOCAC", "ALUGU", "COMODAT", "ARRENDAM")
+_PALAVRAS_DE_SERVICO = ("MANUTENC", "PRESTAC", "SERVICO", "ASSISTENC",
+                        "CALIBRAC", "CONSERTO", "REPARO")
+# unidade que mede TEMPO, não coisa: "12 MES" é locação mensal
+_UNIDADES_DE_PERIODO = frozenset({"MES", "MESES", "MENSAL", "MENSALIDADE",
+                                  "DIA", "DIAS", "DIARIA", "DIARIAS", "HORA",
+                                  "HORAS", "ANO", "ANUAL", "SEMANA"})
+# adjetivos que não distinguem o produto: ficam de fora do "qualificador"
+_GENERICOS = frozenset({
+    "AUTOMATICO", "AUTOMATICA", "SEMIAUTOMATICO", "SEMIAUTOMATICA",
+    "SEMI", "AUTOMATIZADO", "AUTOMATIZADA", "PORTATIL", "DIGITAL",
+    "ELETRONICO", "ELETRONICA", "ELETRICO", "ELETRICA", "COMPLETO",
+    "COMPLETA", "NOVO", "NOVA", "COMPACTO", "COMPACTA", "MULTIPARAMETRICO",
+    "MULTIPARAMETRICA", "MODELO", "MARCA", "REFERENCIA", "PROFISSIONAL",
+    "INDUSTRIAL", "SIMPLES", "PADRAO", "MANUAL", "UNIVERSAL"})
+# terminação de qualificador de ÁREA/ESPECIALIDADE: hematológico,
+# bioquímica, cirúrgica, endodôntico, higiênico, odontologia…
+_SUFIXOS_DE_AREA = ("ICO", "ICA", "ICOS", "ICAS", "IA", "IAS")
+
+
+def _sequencia(texto) -> list[str]:
+    limpo = "".join(c if c.isalnum() else " " for c in _norm(texto))
+    return [p for p in limpo.split() if len(p) > 2 and p.isalpha()
+            and p not in _RUIDO]
+
+
+def natureza_do_objeto(descricao, unidade="") -> str:
+    """"compra", "locação" ou "serviço", pela CABEÇA da descrição (as três
+    primeiras palavras: "Locação de analisador", "Manutenção do…") e pela
+    unidade de tempo. "Ar condicionado … com instalação" continua compra."""
+    cabeca = _sequencia(descricao)[:3]
+    if any(p.startswith(_PALAVRAS_DE_LOCACAO) for p in cabeca):
+        return "locação"
+    if any(p.startswith(_PALAVRAS_DE_SERVICO) for p in cabeca):
+        return "serviço"
+    if _norm(unidade).strip(" .") in _UNIDADES_DE_PERIODO:
+        return "locação"
+    return "compra"
+
+
+def _nome_e_qualificador(descricao) -> tuple[str | None, str | None]:
+    palavras = [p for p in _sequencia(descricao) if p not in _GENERICOS]
+    if not palavras:
+        return None, None
+    return palavras[0], (palavras[1] if len(palavras) > 1 else None)
+
+
+def _mesma(a: str, b: str) -> bool:
+    return a[:6] == b[:6] if min(len(a), len(b)) > 6 else a == b
+
+
+def conflito_de_objeto(descricao_item, descricao_fonte, *, unidade_item="",
+                       unidade_fonte="") -> str:
+    """O motivo do conflito entre o objeto do item e o da fonte, ou "".
+
+    * natureza: compra × locação × serviço;
+    * especificação concorrente: a fonte é o mesmo produto ("ANALISADOR"),
+      com outro qualificador de área ("HEMATOLÓGICO") e sem o do item
+      ("BIOQUÍMICO"). Qualificador ausente na fonte não é conflito — fica
+      para a equivalência por atributo ou para a revisão."""
+    do_item = natureza_do_objeto(descricao_item, unidade_item)
+    da_fonte = natureza_do_objeto(descricao_fonte, unidade_fonte)
+    if do_item != da_fonte:
+        return f"objeto diferente: {da_fonte} na fonte, {do_item} no item"
+    nome_item, qual_item = _nome_e_qualificador(descricao_item)
+    nome_fonte, qual_fonte = _nome_e_qualificador(descricao_fonte)
+    if not (nome_item and nome_fonte and qual_item and qual_fonte):
+        return ""
+    if not _mesma(nome_item, nome_fonte) or _mesma(qual_item, qual_fonte):
+        return ""
+    if not qual_fonte.endswith(_SUFIXOS_DE_AREA):
+        return ""
+    if any(_mesma(qual_item, p) for p in _sequencia(descricao_fonte)):
+        return ""                       # "… de bioquímica e hematologia"
+    return (f"especificação diferente: {qual_fonte.lower()} na fonte, "
+            f"{qual_item.lower()} no item")
 
 
 def _norm(texto) -> str:
@@ -241,6 +326,12 @@ def classificar(descricao_item: str, descricao_fonte: str, *,
     traga outra (resma de 500 contra pacote de 100 se converte, não
     diverge). Sem conversão, falta prova — e a seleção já a recusa.
     """
+    if not mesmo_codigo:
+        conflito = conflito_de_objeto(descricao_item, descricao_fonte,
+                                      unidade_item=unidade_item,
+                                      unidade_fonte=unidade_fonte)
+        if conflito:
+            return Equivalencia(INCOMPATIVEL, divergem=(conflito,))
     do_item = atributos(descricao_item, unidade_item)
     if not do_item:
         return None

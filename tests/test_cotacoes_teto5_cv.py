@@ -150,8 +150,8 @@ def test_cv_acima_de_25_fica_para_revisao_com_motivo_cv_e_quantidade(
     r = _auto(cid, iid, ["70", "100", "130"])
     linhas = repo.listar_referencias(iid)
     assert r.consideradas == 0 and cesta.consideradas(linhas) == []
-    # nada some: as três ficam candidatas, com o motivo
-    assert [l["status"] for l in linhas] == ["candidate"] * 3
+    # nada some: as três vão para "Para conferência" (manual_review), com o motivo
+    assert [l["status"] for l in linhas] == ["manual_review"] * 3
     assert all(any("coeficiente de variação" in m and "30,00%" in m
                    for m in l["motivos"]) for l in linhas)
     item = repo.obter_item(iid)
@@ -181,7 +181,7 @@ def test_uma_unica_referencia_vai_para_revisao_por_cv_indisponivel(
     cid, iid = _nova(monkeypatch)
     r = _auto(cid, iid, ["50"])
     [linha] = repo.listar_referencias(iid)
-    assert linha["status"] == "candidate" and r.consideradas == 0
+    assert linha["status"] == "manual_review" and r.consideradas == 0
     assert r.barreira_cv["motivo"] == estatistica.CV_INDISPONIVEL
     assert r.barreira_cv["cv"] is None
     assert repo.obter_item(iid)["preco_estimado"] is None
@@ -226,7 +226,7 @@ def test_cv_reprovado_preserva_a_escolha_de_pessoa(monkeypatch):
         fontes=[_fonte(["100"], prefixo="m"), _fonte(["60", "140"])])
     por_id = {l["id_externo"]: l["status"]
               for l in repo.listar_referencias(iid)}
-    assert por_id == {"m0": "selected", "r0": "candidate", "r1": "candidate"}
+    assert por_id == {"m0": "selected", "r0": "manual_review", "r1": "manual_review"}
     assert r.consideradas == 1 and r.barreira_cv["cv"] == "0.4"
     item = repo.obter_item(iid)
     assert Decimal(str(item["preco_estimado"])) == Decimal("100.00")
@@ -379,5 +379,5 @@ def test_rota_legada_obedece_teto_e_cv(valores, na_cesta, motivo):
     assert (r.estimativa.barreira_cv or {}).get("motivo", "") == motivo
     if motivo:
         assert r.estimativa.valor_unitario is None
-        assert len(r.referencias) == len(valores)      # gravadas, candidatas
-        assert all(ref.status.value == "candidate" for ref, _ in r.referencias)
+        assert len(r.referencias) == len(valores)      # gravadas, para conferência
+        assert all(ref.status.value == "manual_review" for ref, _ in r.referencias)

@@ -496,14 +496,16 @@ def aplicar_barreira_cv(cesta: "Cesta",
                         ) -> BarreiraCV:
     """
     Avalia a cesta que a automação montou e, reprovada, devolve as
-    selecionadas a CANDIDATAS (`cesta.em_revisao_cv`), com o motivo. A
+    selecionadas à REVISÃO MANUAL (`cesta.em_revisao_cv`), com o motivo. A
     cesta fica só com o que já era de pessoa — vazia, se não havia nada.
     """
     barreira = avaliar_barreira_cv(list(preservados or []), cesta.valores)
     if barreira.aprovada:
         return barreira
     for referencia in cesta.selecionadas:
-        referencia.status = StatusReferencia.CANDIDATA
+        # "Para conferência" na tela (13/11/2026): a pendência do CV é do
+        # servidor decidir, e como candidata ela sumia entre as demais
+        referencia.status = StatusReferencia.REVISAO_MANUAL
         referencia.com_motivo(
             "sugerida pela cotação automática, fora da cesta até revisão: "
             + ("coeficiente de variação indisponível (menos de 2 preços "
