@@ -1,6 +1,22 @@
 -- ## 0045 — Fila durável do importador nacional do PNCP (tarefas com lease)
--- ## ESTADO: aplicável; NÃO aplicada em produção (13/11/2026).
--- ## ENSAIO: CI (`tests/test_migracao_0045.py`, PostgreSQL).
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 13/11/2026 (registro 20261113234247,
+-- ##   nome `m0045_precos_pncp_fila`), depois da revisão do
+-- ##   `revisor-de-banco-e-seguranca` e do CI verde (PR #211). Medido antes e
+-- ##   depois: 54 → 56 tabelas, as 56 com RLS; políticas 106 inalteradas;
+-- ##   `service_role` +2 SELECT, +1 INSERT, +2 UPDATE, DELETE/REFERENCES/
+-- ##   TRIGGER inalterados (23/43/43); `authenticated` inalterado; ACL da
+-- ##   fila `service_role=arw`, do controle `service_role=rw`; resultados,
+-- ##   contratações, referências e itens intactos (11.719, 4.466, 12.387,
+-- ##   616). Comportamento num bloco DO que termina em RAISE: `anon` e
+-- ##   `authenticated` recusados (42501), DELETE do servidor recusado,
+-- ##   reserva em fila vazia devolve 0.
+-- ## ENSAIO: CI (`tests/test_migracao_0045.py`, PostgreSQL) e projeto
+-- ##   descartável `uslaxaxomjawydqtbwkb` em 13/11/2026 (registro
+-- ##   `m0045_precos_pncp_fila`): conferência passou com o default ACL real;
+-- ##   `anon`/`authenticated` 42501, token alheio recusado, dono confirma,
+-- ##   DELETE recusado. A conferência de então media os privilégios do
+-- ##   servidor em lista (verdadeiro com QUALQUER um); a mutação do CI pegou e
+-- ##   a versão aplicada em produção mede um a um.
 --
 -- O PROBLEMA (13/11/2026)
 --   O índice da 0042 é alimentado por um laço que lê PA, pregões (6/7) e

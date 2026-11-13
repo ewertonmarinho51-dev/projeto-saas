@@ -1546,7 +1546,10 @@ TABELAS_PRIVADAS = tabelas_do_inventario()
 # Mais as duas da 0044 (índice do BPS), aplicada em 12/11/2026 (registro
 # 20261112120809): o catálogo passou de 52 para 54 tabelas em `public`, todas
 # com RLS; este inventário sobe de 49 para 51.
-TABELAS_EM_PRODUCAO = 51
+# Mais as duas da 0045 (fila do importador nacional do PNCP), aplicada em
+# 13/11/2026 (registro 20261113234247): o catálogo passou de 54 para 56
+# tabelas em `public`, todas com RLS; este inventário sobe de 51 para 53.
+TABELAS_EM_PRODUCAO = 53
 
 # As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
 # inclui, mas porque são as únicas cuja implantação esta suíte
@@ -1621,11 +1624,11 @@ TABELAS_DO_INDICE_BPS = frozenset({
 })
 
 
-# As duas da 0045 (fila do importador nacional do PNCP), NÃO aplicada em
-# produção: ficam fora da contagem até a aplicação ser medida — aí saem
-# desta lista e TABELAS_EM_PRODUCAO sobe de 51 para 53. Só da credencial de
-# servidor; a matriz de RLS mora no arquivo da 0045.
-TABELAS_DA_FILA_PNCP_NAO_IMPLANTADAS = frozenset({
+# As duas da 0045 (fila do importador nacional do PNCP), aplicada em
+# produção em 13/11/2026 — já contam em TABELAS_EM_PRODUCAO. Ficam nomeadas
+# porque a matriz de RLS delas mora no arquivo da 0045: só da credencial de
+# servidor.
+TABELAS_DA_FILA_PNCP = frozenset({
     "precos_pncp_tarefas", "precos_pncp_controle",
 })
 
@@ -1641,8 +1644,7 @@ def test_o_inventario_cobre_todas_as_tabelas():
     implantada fora da conta que a cobre; para mais, dando por
     implantado o que ainda não foi.
     """
-    nao_implantadas = (TABELAS_WORDCRAFT_NAO_IMPLANTADAS
-                       | TABELAS_DA_FILA_PNCP_NAO_IMPLANTADAS)
+    nao_implantadas = TABELAS_WORDCRAFT_NAO_IMPLANTADAS
     assert nao_implantadas <= set(TABELAS_PRIVADAS)
     assert TABELAS_DA_API <= set(TABELAS_PRIVADAS)
     assert len(set(TABELAS_PRIVADAS) - nao_implantadas) == TABELAS_EM_PRODUCAO, \
@@ -1997,7 +1999,7 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
                 | TABELAS_WORDCRAFT_NAO_IMPLANTADAS | TABELAS_DA_API
                 | TABELAS_DO_INDICE_PNCP
                 | TABELAS_DO_INDICE_BPS
-                | TABELAS_DA_FILA_PNCP_NAO_IMPLANTADAS)
+                | TABELAS_DA_FILA_PNCP)
     for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 
