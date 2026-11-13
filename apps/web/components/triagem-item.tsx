@@ -104,6 +104,8 @@ function VerOrigem({ r }: { r: ReferenciaDePreco }) {
       >
         <TraceabilityPanel
           fields={campos}
+          url={reg?.pagina_url ?? undefined}
+          urlLabel={reg?.pagina_rotulo || undefined}
           status={
             <Badge variant="neutral" size="sm">
               {rotuloStatusReferencia(r.status)}
@@ -159,14 +161,14 @@ function RegistroOriginal({ r }: { r: ReferenciaDePreco }) {
         }
       >
         <div className="grid gap-4" data-testid="registro-original">
-          <TraceabilityPanel fields={campos} />
+          {/* o link de origem vai no próprio painel: sem ele, o painel diria
+              "sem URL pública" logo acima dos links (aceite de 13/11) */}
+          <TraceabilityPanel
+            fields={campos}
+            url={reg.pagina_url ?? undefined}
+            urlLabel={reg.pagina_rotulo || "Abrir na fonte oficial"}
+          />
           <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {reg.pagina_url && (
-              <a href={reg.pagina_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[length:var(--gc-fs-sm)] text-acento underline">
-                {reg.pagina_rotulo || "Abrir na fonte oficial"}
-                <Icon name="arrow-square-out" />
-              </a>
-            )}
             {reg.dados_url && (
               <a href={reg.dados_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[length:var(--gc-fs-sm)] text-acento underline">
                 Dado oficial do resultado

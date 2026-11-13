@@ -50,9 +50,12 @@ test("dono vê a pesquisa com dinheiro exato e evidência verificável", async (
   const referencia = page.getByTestId("referencia");
   await expect(referencia).toHaveCount(1);
   await expect(referencia).toContainText("R$ 2,35");
-  const link = referencia.getByRole("link", { name: /PNCP/ });
+  // o link oficial mora em "Consultar registro original", não no cartão
+  await referencia.getByTestId("consultar-registro").click();
+  const link = page.getByTestId("registro-original").getByRole("link", { name: /PNCP/ });
   await expect(link).toHaveAttribute("href", "https://pncp.gov.br/app/editais/12345678000190/2025/123");
   await expect(link).toHaveAttribute("rel", /noopener/);
+  await page.keyboard.press("Escape");
 
   // Análise da série: números do servidor, um preço só não inventa dispersão.
   await page.getByRole("tab", { name: "Análise da série" }).click();
@@ -85,7 +88,7 @@ test("cesta em um clique: tira, põe de volta, grava em segundo plano e persiste
   await expect(contagem).toHaveText(String(antes - 1));
   await expect(referencia.getByRole("button", { name: "Incluir na cesta" })).toBeVisible();
   // o valor recalculado chega quando o servidor confirma; a URL não muda
-  await expect(page.getByTestId("preco-do-item").first()).not.toHaveText("R$ 2,35");
+  await expect(page.getByTestId("preco-do-item")).not.toHaveText("R$ 2,35");
   await expect(page).toHaveURL(new RegExp(`${url}$`));
   // persiste ao recarregar
   await page.reload();
@@ -94,6 +97,12 @@ test("cesta em um clique: tira, põe de volta, grava em segundo plano e persiste
   // Incluir de volta: também um clique, sem justificativa.
   await page.getByTestId("referencia").first().getByRole("button", { name: "Incluir na cesta" }).click();
   await expect(page.getByTestId("referencia").first()).toHaveAttribute("data-na-cesta", "1");
+  // a gravação é em segundo plano: espera o servidor confirmar antes de recarregar
+  await expect(page.getByTestId("referencia").first().getByTestId("controle-cesta")).not.toHaveAttribute(
+    "aria-busy",
+    "true",
+  );
+  await expect(page.getByTestId("aviso-cesta")).toHaveCount(0);
   await page.reload();
   await expect(page.getByTestId("referencia").first()).toHaveAttribute("data-na-cesta", "1");
   await page.screenshot({ path: "e2e/resultados/telas/cesta-1440.png", fullPage: true });

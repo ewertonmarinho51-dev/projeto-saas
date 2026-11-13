@@ -88,8 +88,10 @@ export default async function Referencias({
   const escolhidas = refs.filter(naCesta);
   const marcadas = Object.fromEntries(refs.map((r) => [r.id, naCesta(r)]));
 
+  // O provedor da cesta envolve a página inteira: o preço do resumo, no
+  // topo, também mostra o valor que o servidor confirmou a cada clique.
   return (
-    <>
+    <CestaDoItem key={item.revisao} pesquisa={id} item={item.id} revisao={item.revisao} marcadas={marcadas}>
       <PageHead
         eyebrow={
           <span className="flex flex-wrap items-center gap-2">
@@ -141,7 +143,6 @@ export default async function Referencias({
           // ao rolar. Abaixo disso, os três blocos em sequência, na mesma
           // ordem. A lista de itens rola dentro do cartão: com centenas de
           // itens ela não empurra a busca para longe nem estica a página.
-          <CestaDoItem key={item.revisao} pesquisa={id} item={item.id} revisao={item.revisao} marcadas={marcadas}>
           <div className="grid items-start gap-5 xl:grid-cols-[calc(var(--space-16)*4)_minmax(0,1fr)_calc(var(--space-16)*4.75)]">
         <Card
           title="Itens"
@@ -223,7 +224,7 @@ export default async function Referencias({
             items={[
               {
                 label: "Preço estimado",
-                value: <PrecoConfirmado inicial={item.preco_estimado?.exibicao ?? "—"} />,
+                value: <PrecoConfirmado inicial={item.preco_estimado?.exibicao ?? "—"} principal={false} />,
                 highlight: true,
                 hint: item.metodo ? `Método: ${rotuloMetodo(item.metodo)}` : "Método não definido",
               },
@@ -248,9 +249,8 @@ export default async function Referencias({
           )}
         </div>
           </div>
-          </CestaDoItem>
         }
       />
-    </>
+    </CestaDoItem>
   );
 }

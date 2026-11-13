@@ -99,6 +99,8 @@ test("importar → cotação automática → revisar → aceitar → PDF", async
   // 4. Decisão de pessoa: tirar uma referência da cesta, em um clique.
   await referencias.first().getByRole("button", { name: "Retirar da cesta" }).click();
   await expect(referencias.first()).toHaveAttribute("data-na-cesta", "0");
+  // a gravação é em segundo plano: espera o servidor confirmar antes de recarregar
+  await expect(referencias.first().getByTestId("controle-cesta")).not.toHaveAttribute("aria-busy", "true");
   await page.reload();
   await expect(page.getByTestId("referencia").filter({ hasText: "Excluída" })).toHaveCount(1);
 
