@@ -197,7 +197,10 @@ SEQUENCIA_EM_ENSAIO = (
     # A 0044 (índice do BPS) confere que `anon` e `authenticated` não
     # alcançam o controle da importação e que `service_role` fica sem
     # DELETE/TRUNCATE/REFERENCES/TRIGGER: só vale depois da contenção.
-    "0044_precos_bps_indice.sql",
+    "0044_precos_bps_indice.sql",
+    # A 0045 (fila do importador nacional) confere RLS, EXECUTE revogado de
+    # PUBLIC e `service_role` sem DELETE: só vale depois da contenção.
+    "0045_precos_pncp_fila.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
