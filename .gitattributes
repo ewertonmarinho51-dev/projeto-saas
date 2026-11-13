@@ -1,3 +1,7 @@
 # O bundle contém dois espaços significativos em literal Markdown (hard break).
 # O arquivo gerado é conferido pela recompilação reproduzível no CI.
 assets/rich_editor/editor.bundle.js -whitespace
+
+# Scripts de shell rodam no bash (inclusive o Git Bash dos ganchos): CRLF
+# no checkout do Windows quebra o script.
+*.sh text eol=lf
