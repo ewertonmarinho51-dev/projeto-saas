@@ -883,3 +883,22 @@ def test_gravacao_cria_a_contratacao_antes_do_resultado_por_causa_da_fk():
         "11111111000111-1-000001/2026", "22222222000122-1-000002/2026"}
     assert all(c["estado"] == "coletada" and c["modalidade_id"] == 6 for c in contratacoes)
     assert totais.inseridas == 3
+
+
+def test_contratacao_descoberta_entra_na_faixa_da_sua_publicacao_nao_no_urgente():
+    # 14/11/2026: 6.025 alterações de um dia, todas na frente, 0 resultado
+    hoje = date.today()
+    velha = {**_contr_pncp("17935388000115-1-000108/2026"),
+             "dataPublicacaoPncp": (hoje - timedelta(days=200)).isoformat() + "T10:00:00"}
+    fresca = {**_contr_pncp("11415535000140-1-000008/2026"),
+              "dataPublicacaoPncp": (hoje - timedelta(days=3)).isoformat() + "T10:00:00"}
+    fila = pi.FilaEmMemoria()
+    fila.criar([{"campanha": "c", "fonte": "pncp_descoberta", "faixa": "urgente",
+                 "prioridade": pi.PRIORIDADE_URGENTE,
+                 "particao": f"u:6:{(hoje - timedelta(days=1)).isoformat()}"}])
+    tarefa = fila.reservar("w", ["pncp_descoberta"], 1, 60)[0]
+    pi.executar_descoberta(tarefa, pncp=_pncp(PortalPncp([velha, fresca], [], {})), fila=fila)
+    lugar = {t["particao"]: (t["faixa"], t["prioridade"])
+             for t in fila.tarefas if t["fonte"] == "pncp_contratacao"}
+    assert lugar["17935388000115-1-000108/2026"] == ("recente", 200)
+    assert lugar["11415535000140-1-000008/2026"] == ("atualizacao", 6)

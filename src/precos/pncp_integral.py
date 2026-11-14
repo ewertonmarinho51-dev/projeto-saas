@@ -640,6 +640,22 @@ def _particao_descoberta(particao: str) -> tuple[str, int, date]:
     return rota, int(partes[-2]), date.fromisoformat(partes[-1])
 
 
+def _lugar_da_contratacao(c: dict, tarefa: dict) -> tuple[str, int]:
+    """
+    Faixa e prioridade pela idade da PUBLICAÇÃO — o lugar que a contratação
+    teria no plano. Medido em 14/11/2026: as alterações de um só dia trazem
+    milhares (6.025 só no pregão) e, herdando o `urgente` da descoberta,
+    passavam todas na frente com 0 resultado. A descoberta segue urgente
+    (é barata); o trabalho que ela gera entra na sua faixa.
+    """
+    try:
+        publicada = date.fromisoformat(str(c.get("dataPublicacaoPncp") or "")[:10])
+    except ValueError:
+        return tarefa["faixa"], tarefa["prioridade"]
+    return faixa_e_prioridade(max(0, (date.today() - publicada).days),
+                              fonte="pncp_descoberta")
+
+
 def executar_descoberta(tarefa: dict, *, pncp: PncpItemAItem, fila: "Fila",
                         lease_s: int = LEASE_S) -> dict:
     """
@@ -671,9 +687,9 @@ def executar_descoberta(tarefa: dict, *, pncp: PncpItemAItem, fila: "Fila",
             if str(c.get("usuarioNome") or "") == PLATAFORMA:
                 totais["comprasgov"] += 1   # vem em lote, pela outra fonte
                 continue
+            faixa, prioridade = _lugar_da_contratacao(c, tarefa)
             novas.append({"campanha": tarefa["campanha"], "fonte": "pncp_contratacao",
-                          "particao": controle, "faixa": tarefa["faixa"],
-                          "prioridade": tarefa["prioridade"],
+                          "particao": controle, "faixa": faixa, "prioridade": prioridade,
                           "checkpoint": {"cabecalho": pncp_indice.resumo_da_contratacao(c)}})
         totais["enfileiradas"] += fila.criar(novas)
         if rota == "atualizacao" and novas:
