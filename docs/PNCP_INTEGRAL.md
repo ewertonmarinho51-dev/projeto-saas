@@ -51,10 +51,45 @@ por nós: subir o orçamento sem medir 429 só piora.
 - Reserva com `FOR UPDATE SKIP LOCKED`, lease de 10 min com heartbeat, só
   o token confirma; lease vencido volta à fila com outro token.
 - `concluida` é final. O que precisa ser relido volta `pendente` com data
-  futura e `checkpoint.lido_em`: 7 dias no último mês, 60 no ano; o
+  futura e `checkpoint.lido_em`. Releitura SOBREPOSTA: os últimos 3 dias
+  todo dia (mesmo com resultado), semanal no mês, 60 dias no ano; o
   histórico não volta; contratação só volta com item sem homologação.
-- Resposta parcial (menos itens/linhas que o declarado) vira `parcial`,
-  nunca `concluida`; 429 respeita `Retry-After`; 6 tentativas e `falha`.
+- O dia lido com falta (menos únicas que o declarado depois de 3
+  passadas) **grava o que veio** e vira `parcial` com `faltantes` nos
+  totais — nunca `concluida`, nunca descartado. Medido em 14/11/2026: a
+  regra antiga jogava fora 9.599 de 9.695 e nada entrava.
+- Rede caindo no meio grava o lido e guarda a retomada no checkpoint
+  (`compra_feita_ate`, `item_feito_ate`); a tentativa seguinte continua
+  dali. O cliente tenta 3 vezes o 429/5xx respeitando `Retry-After`.
+- Gravação recusada pelo banco vira erro da tarefa (`gravação: ...`) e
+  `falhas_gravacao` nos totais; exceção inesperada volta a tarefa com
+  `inesperado: ...` — a pista não morre calada.
+
+## Pistas e orçamento
+
+- **Duas pistas** no mesmo processo (threads), um limitador por host: a
+  do Compras.gov e a do PNCP. O 429 do PNCP dorme só a pista do PNCP.
+  Um escritor: as duas usam o mesmo `dono` e só o líder reserva.
+- **Faixas intercaladas**: prioridade = posição na faixa × passo
+  (`recente` 1, `atualizacao` 2, `historico` 4). A cada 7 partições, 4
+  do ano da cotação, 2 de publicação fresca (< 30 dias) e 1 do
+  histórico. `urgente` (o plano do dia) passa na frente e é pequeno.
+- **Plano do dia** (`run --campanha`): o serviço cria sozinho os dois
+  últimos dias do lote, a publicação de ontem e as ATUALIZAÇÕES de ontem
+  (`/contratacoes/atualizacao`, partição `u:<mod>:<dia>`), que reagendam
+  a contratação já lida — correção e resultado tardio entram assim.
+
+## Medição
+
+Cada tarefa grava em `totais`: `recebidos`, `declarados`, `resultados`
+(únicos), `faltantes`, `recusadas` por motivo, `inseridas` (linha nova),
+`atualizadas` (mesma chave, conteúdo novo), `inalteradas`, `invalidadas`,
+`falhas_gravacao` e `tempos` por fase (`espera_s` do limitador,
+`requisicao_s`, `transformacao_s`, `validacao_s`, `gravacao_s`). O
+gargalo se lê aí. `ritmo --minutos N` soma a janela por fonte, com
+inseridas por minuto; o stdout do contêiner tem uma linha JSON por
+tarefa. Novos únicos de verdade: a contagem de `precos_pncp_resultados`
+entre duas medições (chave primária).
 
 ## Operação (no VPS, `implantacao/importador_pncp.sh`)
 
@@ -62,6 +97,8 @@ por nós: subir o orçamento sem medir 429 só piora.
 sudo ./importador_pncp.sh subir                       # para o indexador antigo, sobe o novo
 sudo ./importador_pncp.sh plano nacional-2026-11 2023-01-01
 sudo ./importador_pncp.sh status nacional-2026-11     # JSON por fonte/faixa/estado
+sudo ./importador_pncp.sh ritmo 30                    # a janela: inseridas/min, recusas, gargalo
+sudo ./importador_pncp.sh logs 50                     # uma linha JSON por tarefa
 sudo ./importador_pncp.sh pausar "manutenção do banco"
 sudo ./importador_pncp.sh retomar
 sudo ./importador_pncp.sh reconciliar nacional-2026-11 2026-10-01 2026-10-31
@@ -78,5 +115,5 @@ paga a mais é decisão do dono, com medição.
 - descrição de item com nome de pessoa (ex.: inscrição em treinamento)
   segue para a busca, como no coletor antigo — sanitizar é o próximo passo;
 - atas, contratos/empenhos e documentos: coletores complementares;
-- incremental por data de atualização global (`/contratacoes/atualizacao`):
-  hoje a revisita é por idade da partição.
+- a atualização é lida só para ONTEM (plano do dia); atualizações de
+  dias anteriores à subida do serviço chegam pela releitura por idade.
