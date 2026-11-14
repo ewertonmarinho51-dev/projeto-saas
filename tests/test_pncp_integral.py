@@ -434,6 +434,18 @@ def test_plano_pncp_uma_modalidade_por_dia_com_o_ano_na_frente():
     assert all(t["faixa"] == "recente" for t in tarefas)
 
 
+def test_publicacao_fresca_vai_para_o_fim_da_faixa_recente():
+    # medido em produção: publicação de ontem não tem resultado ainda
+    tarefas = pi.plano_pncp("c", ate=date(2026, 11, 13), desde=date(2025, 11, 1),
+                            modalidades=(6,))
+    prio = {t["particao"]: t["prioridade"] for t in tarefas}
+    ontem, um_mes, um_ano = prio["6:2026-11-13"], prio["6:2026-10-13"], prio["6:2025-11-14"]
+    assert um_mes < ontem < prio["6:2025-11-01"]          # fresca depois, histórico por último
+    assert um_ano < ontem
+    lote = pi.plano_comprasgov("c", ate=date(2026, 11, 13), desde=date(2026, 11, 13))
+    assert lote[0]["prioridade"] < ontem                    # o lote tem resultado: vem antes
+
+
 def test_contratacao_toda_homologada_e_final():
     itens, resultados = _careacu()
     itens = [i for i in itens if i["situacaoCompraItem"] == 2]

@@ -715,9 +715,24 @@ def _espera(tentativas: int) -> timedelta:
     return timedelta(minutes=min(360, 2 ** max(0, tentativas - 1) * 5))
 
 
+# Publicação com menos de 30 dias quase nunca tem resultado ainda (a
+# homologação vem semanas depois) — medido na primeira hora em produção
+# (14/11/2026): 1.357 contratações de ontem na frente, 0 gravadas. Vai
+# para o fim da faixa recente; a revisita traz o resultado quando sair.
+DIAS_SEM_RESULTADO = 30
+
+
+def prioridade_pncp(idade: int) -> int:
+    if idade >= DIAS_RECENTES:
+        return 10_000 + idade
+    if idade < DIAS_SEM_RESULTADO:
+        return 1_000 + idade
+    return idade
+
+
 def plano_pncp(campanha: str, *, ate: date, desde: date,
                modalidades: Iterable[int] = MODALIDADES) -> list[dict]:
-    """Uma modalidade por dia por tarefa; mesma ordem de faixas do lote."""
+    """Uma modalidade por dia por tarefa; o que já pode ter resultado primeiro."""
     tarefas = []
     dia = ate
     while dia >= desde:
@@ -727,7 +742,7 @@ def plano_pncp(campanha: str, *, ate: date, desde: date,
             tarefas.append({"campanha": campanha, "fonte": "pncp_descoberta",
                             "particao": f"{m}:{dia.isoformat()}",
                             "faixa": "recente" if recente else "historico",
-                            "prioridade": idade if recente else 10_000 + idade})
+                            "prioridade": prioridade_pncp(idade)})
         dia -= timedelta(days=1)
     return tarefas
 
