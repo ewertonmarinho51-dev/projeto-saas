@@ -42,7 +42,7 @@ from typing import Callable, Iterable, Protocol
 
 from . import pncp_indice
 
-VERSAO = "2026-11-14.pncp-integral.3"
+VERSAO = "2026-11-14.pncp-integral.4"
 FONTES = ("comprasgov_lote", "pncp_descoberta", "pncp_contratacao")
 ESTADOS_FINAIS = ("pendente", "concluida", "parcial", "falha", "quarentena")
 DADOS_ABERTOS = "https://dadosabertos.compras.gov.br/modulo-contratacoes"
@@ -482,7 +482,7 @@ def _id_compra(r: dict) -> str:
 
 
 def importar_dia(lote: ComprasGovLote, armazem, dia: date, *,
-                 lote_gravacao: int = 500, renovar: Callable[[], None] | None = None,
+                 lote_gravacao: int = 500, renovar: Callable[..., object] | None = None,
                  retomar_depois_de: str = "") -> Totais:
     """
     Um dia inteiro do Compras.gov no índice, gravando a cada
@@ -538,7 +538,9 @@ def importar_dia(lote: ComprasGovLote, armazem, dia: date, *,
             if len(pendentes) >= lote_gravacao:
                 gravar(armazem, pendentes, totais)
                 pendentes, gravada_ate = [], ultima
-            if renovar and i % 20 == 19:
+                if renovar:   # o ponto de retomada vai junto com o heartbeat
+                    renovar({"compra_feita_ate": gravada_ate})
+            elif renovar and i % 20 == 19:
                 renovar()
         gravar(armazem, pendentes, totais)
         pendentes, gravada_ate = [], ultima
@@ -707,7 +709,7 @@ def executar_descoberta(tarefa: dict, *, pncp: PncpItemAItem, fila: "Fila",
 
 
 def executar_contratacao(tarefa: dict, *, pncp: PncpItemAItem, armazem,
-                         renovar: Callable[[], None] | None = None,
+                         renovar: Callable[..., object] | None = None,
                          lote_gravacao: int = 200) -> dict:
     """
     Todos os itens; resultado só do homologado; mesma conferência do índice.
@@ -761,7 +763,9 @@ def executar_contratacao(tarefa: dict, *, pncp: PncpItemAItem, armazem,
             if len(linhas) >= lote_gravacao:
                 gravar(armazem, linhas, totais)
                 linhas, feito_ate = [], ultimo
-            if renovar and n % 20 == 19:
+                if renovar:
+                    renovar({"item_feito_ate": feito_ate})
+            elif renovar and n % 20 == 19:
                 renovar()
         gravar(armazem, linhas, totais)
         linhas, feito_ate = [], ultimo
@@ -791,7 +795,7 @@ class Fila(Protocol):
     def liderar(self, dono: str, lease_s: int) -> bool: ...
     def liberar(self, dono: str) -> bool: ...
     def reservar(self, dono: str, fontes: Iterable[str], limite: int, lease_s: int) -> list[dict]: ...
-    def renovar(self, tarefa: dict, lease_s: int) -> bool: ...
+    def renovar(self, tarefa: dict, lease_s: int, checkpoint: dict | None = None) -> bool: ...
     def concluir(self, tarefa: dict, estado: str, *, checkpoint=None, totais=None,
                  erro: str = "", proxima_em: datetime | None = None) -> bool: ...
     def criar(self, tarefas: list[dict]) -> int: ...
@@ -852,12 +856,14 @@ class FilaEmMemoria:
     def _achar(self, tarefa):
         return next(t for t in self.tarefas if t["id"] == tarefa["id"])
 
-    def renovar(self, tarefa, lease_s):
+    def renovar(self, tarefa, lease_s, checkpoint=None):
         with self._trava:
             t = self._achar(tarefa)
             if t["token"] != tarefa["token"] or t["estado"] != "em_execucao":
                 return False
             t["lease_ate"] = _agora() + timedelta(seconds=lease_s)
+            if checkpoint is not None:
+                t["checkpoint"] = checkpoint
             return True
 
     def concluir(self, tarefa, estado, *, checkpoint=None, totais=None, erro="",
@@ -949,10 +955,19 @@ class FilaSupabase:
             "p_dono": dono, "p_fontes": list(fontes), "p_limite": limite,
             "p_lease_s": lease_s}).execute().data or []
 
-    def renovar(self, tarefa, lease_s):
-        return bool(self._c.rpc("precos_pncp_renovar", {
+    def renovar(self, tarefa, lease_s, checkpoint=None):
+        """Heartbeat; com `checkpoint`, grava também o ponto de retomada —
+        só o dono do token, só em execução (reinício no meio de um dia não
+        relê o que já gravou: medido em 14/11/2026, o dia em curso voltava
+        do zero)."""
+        vivo = bool(self._c.rpc("precos_pncp_renovar", {
             "p_id": tarefa["id"], "p_token": tarefa["token"],
             "p_lease_s": lease_s}).execute().data)
+        if vivo and checkpoint is not None:
+            (self._c.table("precos_pncp_tarefas").update({"checkpoint": checkpoint})
+             .eq("id", tarefa["id"]).eq("token", tarefa["token"])
+             .eq("estado", "em_execucao").execute())
+        return vivo
 
     def concluir(self, tarefa, estado, *, checkpoint=None, totais=None, erro="",
                  proxima_em=None):
@@ -1161,7 +1176,9 @@ def executar(tarefa: dict, *, lote: ComprasGovLote | None, armazem, fila: Fila,
     """Executa UMA tarefa e confirma com o token. Devolve o estado gravado."""
     inicio = time.monotonic()
     checkpoint = dict(tarefa.get("checkpoint") or {})
-    renovar = lambda: fila.renovar(tarefa, lease_s)  # noqa: E731
+    def renovar(progresso: dict | None = None):
+        return fila.renovar(tarefa, lease_s,
+                            checkpoint={**checkpoint, **progresso} if progresso else None)
     if tarefa["fonte"] == "comprasgov_lote" and lote is not None:
         def trabalho():
             return importar_dia(lote, armazem, date.fromisoformat(tarefa["particao"]),

@@ -95,6 +95,40 @@ inseridas por minuto; o stdout do contêiner tem uma linha JSON por
 tarefa. Novos únicos de verdade: a contagem de `precos_pncp_resultados`
 entre duas medições (chave primária).
 
+## Medido em produção (14/11/2026, v3 `sha-28e5af645808`)
+
+| Hora (UTC) | Índice | Compras.gov | Outros publicadores (PNCP) |
+|---|---|---|---|
+| 14:34 | 11.719 | 0 | 11.719 |
+| 14:41 | 12.599 | 634 | 11.965 |
+| 14:52 | 14.589 | 2.219 | 12.370 |
+| 15:03 (depois do `docker restart`) | 16.042 | 3.239 | 12.803 |
+
+- Novos ÚNICOS (chave primária) entre 14:41 e 14:52: 1.990 em 10,6 min
+  ≈ 188/min — ~150/min do Compras.gov, ~38/min do PNCP item a item.
+- PNCP, 111 contratações: 684 recebidos, 651 inseridos, 0 atualizados,
+  0 inalterados, 0 falha de gravação; recusas: 23 cancelado/total
+  incoerente, 10 julgamento por desconto. Tempos: requisição 722 s,
+  espera do limitador 206 s, gravação 43 s, validação 0,4 s — o gargalo do
+  PNCP é a latência da API (~0,76 s/chamada), não o limitador.
+- Amostras conferidas na API oficial e pela RPC `precos_pncp_buscar` como
+  `authenticated`: ar-condicionado 12.000 BTUs, Jucati/PE (BNC), 12 UNID.
+  a R$ 1.690,00 (08/12/2025); lâmpada LED 100 W, Jaú/SP (Compras.gov), 6
+  unidades a R$ 74,00 (06/10/2026).
+- Reinício (`docker restart`): parada em 1 s, liderança retomada, 11
+  tarefas concluídas em 3 min, 16.042 chaves para 16.042 linhas.
+
+### Cobertura e ETA (fila às 14:55)
+
+| Faixa | Compras.gov (dias por ler) | PNCP (contratações por ler) | ETA no ritmo medido |
+|---|---|---|---|
+| recente (ano da cotação) | 329 de 365 | 1.445 + descobertas de 4.690 partições | Compras.gov ~2–3 semanas; PNCP ~4 meses (~1 milhão de contratações no ano, ~9 mil/dia) |
+| atualização (< 30 dias) | — | 6.079 | dias |
+| histórico | 1.039 de 1.048 | 7.689 + 14.658 partições | Compras.gov ~2 meses; PNCP: anos sem orçamento maior |
+
+Faixas intercaladas (4:2:1) — o histórico avança desde o 1º dia. ETA é
+estimativa grosseira sobre 18 minutos de medição; refaça com `ritmo`.
+
 ## Operação (no VPS, `implantacao/importador_pncp.sh`)
 
 ```bash

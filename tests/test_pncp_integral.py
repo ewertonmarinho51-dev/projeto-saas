@@ -902,3 +902,42 @@ def test_contratacao_descoberta_entra_na_faixa_da_sua_publicacao_nao_no_urgente(
              for t in fila.tarefas if t["fonte"] == "pncp_contratacao"}
     assert lugar["17935388000115-1-000108/2026"] == ("recente", 200)
     assert lugar["11415535000140-1-000008/2026"] == ("atualizacao", 6)
+
+
+def test_reinicio_no_meio_do_dia_retoma_do_ultimo_lote_gravado():
+    # 14/11/2026: docker restart no meio de 2026-10-06 — o dia voltava do zero
+    _, lote = _cenario()
+    fila = _fila_com([DIA])
+    armazem = pncp_indice.ArmazemEmMemoria()
+    tarefa = fila.reservar("w", ["comprasgov_lote"], 1, 60)[0]
+
+    class Morte(BaseException):
+        pass
+    original = armazem.gravar_resultados
+    gravacoes = {"n": 0}
+
+    def grava_e_morre(linhas):
+        gravacoes["n"] += 1
+        if gravacoes["n"] == 2:
+            raise Morte()               # SIGKILL: nenhum except roda
+        return original(linhas)
+    armazem.gravar_resultados = grava_e_morre
+    with pytest.raises(Morte):
+        pi.importar_dia(lote, armazem, DIA, lote_gravacao=1,
+                        renovar=lambda p=None: fila.renovar(tarefa, 60, checkpoint=p))
+    assert fila.tarefas[0]["checkpoint"]["compra_feita_ate"].startswith("11111111000111")
+    armazem.gravar_resultados = original
+    fila.tarefas[0].update(lease_ate=datetime.now(timezone.utc) - timedelta(seconds=1))
+    nova = fila.reservar("w2", ["comprasgov_lote"], 1, 60)[0]
+    _, lote2 = _cenario()
+    assert pi.executar(nova, lote=lote2, armazem=armazem, fila=fila) == "pendente"
+    assert fila.tarefas[0]["totais"]["puladas_por_retomada"] == 2
+    assert len(armazem.resultados) == 3
+
+
+def test_ponto_de_retomada_so_grava_o_dono_do_token():
+    fila = _fila_com([DIA])
+    tarefa = fila.reservar("w", ["comprasgov_lote"], 1, 60)[0]
+    fila.tarefas[0]["token"] = "outro"
+    assert fila.renovar(tarefa, 60, checkpoint={"compra_feita_ate": "x"}) is False
+    assert "compra_feita_ate" not in fila.tarefas[0]["checkpoint"]
