@@ -413,8 +413,12 @@ def test_pdf_analitico_paisagem_com_todas_as_referencias(motor_institucional):
         assert r.id_externo in texto
     _conferir_paginacao(pdf)
     _conferir_geometria(pdf, margem_pt=1.6 / 2.54 * 72)
-    # cabeçalho da tabela repetido em toda página com tabela
-    for pagina in list(pdf)[1:-1]:
+    # cabeçalho da tabela repetido em toda página com linhas da tabela (o
+    # Integral também traz participação, saídas e alertas — pacote 14/11)
+    ids = [r.id_externo for r in v.itens[0].referencias if r.id_externo]
+    com_tabela = [p for p in pdf if any(i in p.get_text("text") for i in ids)]
+    assert len(com_tabela) > 3
+    for pagina in com_tabela:
         assert "Fonte · inciso · natureza" in pagina.get_text("text")
     _cabecalhos_inteiros(pdf, ["Situação", "Compat.", "Preço unit.",
                                "Identificador", "Motivo"])
