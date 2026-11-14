@@ -126,7 +126,8 @@ def test_pagina_faltando_grava_o_lido_e_registra_a_falta():
     assert totais.declarados == 4 and totais.resultados == 2 and totais.faltantes == 2
     assert totais.gravadas == 2 and len(armazem.resultados) == 2
     # tentou de novo antes de desistir (paginação instável na fonte)
-    assert sum("/3_" in u for u in fonte.urls) == 2 * pi.PASSADAS_DO_DIA
+    # só a página curta é relida, até as passadas acabarem
+    assert sum("/3_" in u for u in fonte.urls) == 2 + (pi.PASSADAS_DO_DIA - 1)
 
 
 def test_segunda_passada_completa_a_uniao():
@@ -145,7 +146,7 @@ def test_segunda_passada_completa_a_uniao():
         return original(url)
     lote.http._abrir = instavel
     unicas, declarado, recebidas = lote.resultados_do_dia(DIA)
-    assert len(unicas) == declarado == 4 and recebidas == 2 + 4   # duas passadas
+    assert len(unicas) == declarado == recebidas == 4   # a página curta foi trocada
 
 
 def test_reimportar_o_mesmo_dia_nao_duplica():
@@ -797,3 +798,88 @@ def test_cada_pista_tem_o_seu_ritmo_e_o_controle_so_mexe_no_pncp():
                fontes_da_pista=("pncp_contratacao", "pncp_descoberta")).passo()
     assert lim.intervalo("dadosabertos.compras.gov.br") == 0.5    # 2 req/s, próprio
     assert lim.intervalo("pncp.gov.br") == 2.0                    # 0,5 req/s, do controle
+
+
+def test_parada_limpa_solta_a_lideranca_e_o_novo_assume_na_hora():
+    # promoção de 14/11/2026: o contêiner novo ficou 10 min parado no lease
+    fila = pi.FilaEmMemoria()
+    assert fila.liderar("antigo:1", 600)
+    assert not fila.liderar("novo:1", 600)            # ainda vigente
+    saidas = []
+    pi.parar_limpo(fila, "antigo:1", sair=saidas.append)()
+    assert saidas == [0]
+    assert fila.liderar("novo:1", 600)                # assume sem esperar
+    assert not fila.liberar("antigo:1")               # o antigo não solta o do novo
+
+
+def test_linha_repetida_pela_fonte_nao_e_falta():
+    # 13/11/2025 medido: 12.811 linhas declaradas e recebidas, 145 idênticas
+    fonte, lote = _cenario()
+    fonte.resultados.append(dict(fonte.resultados[0]))     # a fonte repete uma linha
+    totais = pi.importar_dia(lote, pncp_indice.ArmazemEmMemoria(), DIA)
+    assert totais.declarados == totais.recebidos == 5
+    assert totais.resultados == 4 and totais.repetidas_na_fonte == 1
+    assert totais.faltantes == 0
+
+
+def test_pagina_vazia_no_meio_nao_encerra_a_leitura():
+    # em produção a leitura parava na 1ª página vazia e pulava as seguintes
+    fonte, lote = _cenario(pagina=1)
+    vazias = {"n": 0}
+    original = fonte.__call__
+
+    def abrir(url):
+        q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(url).query))
+        if "/3_" in url and q.get("pagina") == "2" and vazias["n"] == 0:
+            vazias["n"] += 1
+            return 200, {}, json.dumps({"resultado": [], "totalRegistros": 4,
+                                        "paginasRestantes": 0}).encode()
+        return original(url)
+    lote.http._abrir = abrir
+    unicas, declarado, recebidas = lote.resultados_do_dia(DIA)
+    assert len(unicas) == declarado == recebidas == 4
+
+
+class _Consulta:
+    def __init__(self, registro, tabela):
+        self.registro, self.tabela = registro, tabela
+
+    def upsert(self, dados, **kw):
+        self.registro.append((self.tabela, "upsert", dados, kw))
+        return self
+
+    def select(self, *a):
+        return self
+
+    def in_(self, *a):
+        return self
+
+    def execute(self):
+        return type("R", (), {"data": []})()
+
+
+class _ClienteFalso:
+    def __init__(self):
+        self.registro = []
+
+    def table(self, nome):
+        return _Consulta(self.registro, nome)
+
+
+def test_gravacao_cria_a_contratacao_antes_do_resultado_por_causa_da_fk():
+    # 14/11/2026: a 1ª gravação do lote em produção foi recusada pela FK
+    from src.precos.pncp_indice_servico import ArmazemSupabase
+    _, lote = _cenario()
+    cliente = _ClienteFalso()
+    totais = pi.importar_dia(lote, ArmazemSupabase(cliente), DIA)
+    ordem = [(t, op) for t, op, *_ in cliente.registro]
+    assert ordem[0] == ("precos_pncp_contratacoes", "upsert")
+    assert ("precos_pncp_resultados", "upsert") in ordem
+    assert ordem.index(("precos_pncp_contratacoes", "upsert")) < \
+        ordem.index(("precos_pncp_resultados", "upsert"))
+    _, _, contratacoes, kw = cliente.registro[0]
+    assert kw.get("ignore_duplicates") is True               # não pisa no coletor antigo
+    assert {c["numero_controle"] for c in contratacoes} == {
+        "11111111000111-1-000001/2026", "22222222000122-1-000002/2026"}
+    assert all(c["estado"] == "coletada" and c["modalidade_id"] == 6 for c in contratacoes)
+    assert totais.inseridas == 3

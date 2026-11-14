@@ -59,6 +59,8 @@ case "${1:-}" in
       echo "== parando o indexador antigo ($ANTIGO) — um escritor só"
       docker stop "$ANTIGO" >/dev/null && docker rm "$ANTIGO" >/dev/null
     fi
+    # SIGTERM primeiro: o serviço solta a liderança e o novo assume na hora
+    docker stop -t 30 "$NOME" >/dev/null 2>&1 || true
     docker rm -f "$NOME" >/dev/null 2>&1 || true
     docker run -d --name "$NOME" --restart unless-stopped --env-file "$AMBIENTE_ENV" \
       --read-only --tmpfs /tmp:size=32m --memory 256m \

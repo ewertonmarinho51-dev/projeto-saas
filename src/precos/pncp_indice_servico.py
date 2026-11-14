@@ -77,6 +77,26 @@ class ArmazemSupabase:
         (inalterada, não é reescrita). Recusa do banco sobe como exceção.
         """
         agora = self._agora()
+        # a FK da 0042 (resultado -> contratação): o caminho do lote não passa
+        # pelo coletor que criava a contratação — medido em 14/11/2026, a 1ª
+        # gravação do lote em produção foi recusada por ela. A que já existe
+        # não é tocada (o estado do coletor antigo fica).
+        contratacoes = {}
+        for linha in linhas:
+            resumo = (linha.get("bruto") or {}).get("contratacao") or {}
+            try:
+                modalidade = int(resumo.get("modalidadeId"))
+            except (TypeError, ValueError):
+                modalidade = None
+            contratacoes.setdefault(linha["numero_controle"], {
+                "numero_controle": linha["numero_controle"], "uf": linha.get("uf"),
+                "modalidade_id": modalidade, "plataforma": linha.get("plataforma"),
+                "atualizacao_global": resumo.get("dataAtualizacaoGlobal"),
+                "tem_homologacao": True, "estado": indice.COLETADA, "coletada_em": agora})
+        if contratacoes:
+            self._c.table("precos_pncp_contratacoes").upsert(
+                list(contratacoes.values()), on_conflict="numero_controle",
+                ignore_duplicates=True).execute()
         por_id = {linha["id_externo"]: linha for linha in linhas}
         existentes: dict[str, dict] = {}
         ids = list(por_id)
