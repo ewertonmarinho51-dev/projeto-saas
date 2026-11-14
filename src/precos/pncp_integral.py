@@ -73,22 +73,27 @@ class Limitador:
     """
     Um orçamento por host para TODO o processo: intervalo mínimo entre
     chamadas e pausa obrigatória quando a fonte pede (`Retry-After`). O
-    intervalo dobra a cada 429/5xx e volta devagar com sucesso.
+    intervalo de CADA host dobra a cada 429/5xx dele e volta devagar com
+    sucesso — o 429 do PNCP não freia o Dados Abertos (medido em produção,
+    14/11/2026: o PNCP recusava a 1 req/s, o Dados Abertos não).
     """
 
     def __init__(self, req_por_s: float = 1.0, relogio=time.monotonic,
                  dormir=time.sleep) -> None:
         self.base = 1.0 / max(0.05, req_por_s)
-        self.intervalo = self.base
+        self._intervalo: dict[str, float] = {}
         self._proxima: dict[str, float] = {}
         self._trava = threading.Lock()
         self._relogio, self._dormir = relogio, dormir
+
+    def intervalo(self, host: str) -> float:
+        return max(self.base, self._intervalo.get(host, self.base))
 
     def aguardar(self, host: str) -> None:
         with self._trava:
             agora = self._relogio()
             vez = max(agora, self._proxima.get(host, 0.0))
-            self._proxima[host] = vez + self.intervalo
+            self._proxima[host] = vez + self.intervalo(host)
         if vez > agora:
             self._dormir(vez - agora)
 
@@ -96,11 +101,11 @@ class Limitador:
         with self._trava:
             self._proxima[host] = max(self._proxima.get(host, 0.0),
                                       self._relogio() + espera_s)
-            self.intervalo = min(self.intervalo * 2, 60.0)
+            self._intervalo[host] = min(self.intervalo(host) * 2, 60.0)
 
-    def sucesso(self) -> None:
+    def sucesso(self, host: str) -> None:
         with self._trava:
-            self.intervalo = max(self.base, self.intervalo * 0.9)
+            self._intervalo[host] = max(self.base, self.intervalo(host) * 0.9)
 
 
 def _abrir(url: str, timeout: float = 90.0) -> tuple[int, dict, bytes]:
@@ -141,7 +146,7 @@ class ClienteHttp:
         except (ValueError, UnicodeDecodeError):
             self.falhas["json"] = self.falhas.get("json", 0) + 1
             raise FalhaTransitoria("json inválido") from None
-        self.limitador.sucesso()
+        self.limitador.sucesso(host)
         return dados
 
 
@@ -789,6 +794,11 @@ def executar(tarefa: dict, *, lote: ComprasGovLote, armazem, fila: Fila,
     # nunca reentrega `concluida`). Contratação só é relida enquanto tiver
     # item sem homologação. O checkpoint guarda o que havia (o cabeçalho).
     revisita = _revisita(dia)
+    if (tarefa["fonte"] == "comprasgov_lote" and not totais.get("resultados")
+            and dia and (date.today() - dia).days < 7):
+        # a base em lote atrasa 1 a 2 dias (medido em 14/11/2026: o dia 12
+        # vazio, o 11 com 8.799): dia recente lido vazio volta amanhã
+        revisita = timedelta(days=1)
     if tarefa["fonte"] == "pncp_contratacao" and             totais.get("homologados", 0) >= totais.get("itens", 0):
         revisita = None
     estado = "concluida" if revisita is None else "pendente"
