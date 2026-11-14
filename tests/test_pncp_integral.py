@@ -152,7 +152,7 @@ def test_5xx_e_transitorio_e_desacelera(status):
     http = pi.ClienteHttp(lim, abrir=lambda url: (status, {}, b""))
     with pytest.raises(pi.FalhaTransitoria):
         http.json("https://h/x")
-    assert lim.intervalo > lim.base
+    assert lim.intervalo("h") > lim.base
 
 
 def test_json_invalido_e_transitorio_nao_vazio():
@@ -434,6 +434,18 @@ def test_plano_pncp_uma_modalidade_por_dia_com_o_ano_na_frente():
     assert all(t["faixa"] == "recente" for t in tarefas)
 
 
+def test_publicacao_fresca_vai_para_o_fim_da_faixa_recente():
+    # medido em produção: publicação de ontem não tem resultado ainda
+    tarefas = pi.plano_pncp("c", ate=date(2026, 11, 13), desde=date(2025, 11, 1),
+                            modalidades=(6,))
+    prio = {t["particao"]: t["prioridade"] for t in tarefas}
+    ontem, um_mes, um_ano = prio["6:2026-11-13"], prio["6:2026-10-13"], prio["6:2025-11-14"]
+    assert um_mes < ontem < prio["6:2025-11-01"]          # fresca depois, histórico por último
+    assert um_ano < ontem
+    lote = pi.plano_comprasgov("c", ate=date(2026, 11, 13), desde=date(2026, 11, 13))
+    assert lote[0]["prioridade"] < ontem                    # o lote tem resultado: vem antes
+
+
 def test_contratacao_toda_homologada_e_final():
     itens, resultados = _careacu()
     itens = [i for i in itens if i["situacaoCompraItem"] == 2]
@@ -484,3 +496,24 @@ def test_cli_plan_simulado_conta_as_particoes(capsys):
     saida = json.loads(capsys.readouterr().out)
     assert saida == {"tarefas": 10 + 10 * len(pi.MODALIDADES), "recentes": 150,
                      "historicas": 0}
+
+
+
+def test_429_de_um_host_nao_freia_o_outro():
+    lim = pi.Limitador(1.0, dormir=lambda s: None)
+    lim.respeitar("pncp.gov.br", 30)
+    assert lim.intervalo("pncp.gov.br") > lim.base
+    assert lim.intervalo("dadosabertos.compras.gov.br") == lim.base
+
+
+def test_dia_recente_lido_vazio_volta_amanha():
+    ontem = date.today() - timedelta(days=1)
+    fonte = Fonte([], {}, {})
+    lote = pi.ComprasGovLote(pi.ClienteHttp(pi.Limitador(1000, dormir=lambda s: None),
+                                            abrir=fonte))
+    fila = _fila_com([ontem])
+    tarefa = fila.reservar("w", ["comprasgov_lote"], 1, 60)[0]
+    assert pi.executar(tarefa, lote=lote, armazem=pncp_indice.ArmazemEmMemoria(),
+                       fila=fila) == "pendente"
+    espera = fila.tarefas[0]["proxima_em"] - datetime.now(timezone.utc)
+    assert timedelta(hours=23) < espera < timedelta(days=1, minutes=1)
