@@ -69,6 +69,10 @@ por nós: subir o orçamento sem medir 429 só piora.
 
 - **Duas pistas** no mesmo processo (threads), um limitador por host: a
   do Compras.gov e a do PNCP. O 429 do PNCP dorme só a pista do PNCP.
+  Ritmo por host: Compras.gov a 2 req/s (`--req-por-s-lote`, sem 429
+  medido); PNCP pelo `req_por_s` de `precos_pncp_controle`. Medido em
+  14/11/2026 em dado real: as duas pistas passam metade ou mais do tempo
+  na espera do próprio orçamento; transformar e validar custa < 0,1%.
   Um escritor: as duas usam o mesmo `dono` e só o líder reserva.
 - **Faixas intercaladas**: prioridade = posição na faixa × passo
   (`recente` 1, `atualizacao` 2, `historico` 4). A cada 7 partições, 4

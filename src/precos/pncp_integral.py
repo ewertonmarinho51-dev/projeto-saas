@@ -81,13 +81,20 @@ class Limitador:
     def __init__(self, req_por_s: float = 1.0, relogio=time.monotonic,
                  dormir=time.sleep) -> None:
         self.base = 1.0 / max(0.05, req_por_s)
+        self._base_host: dict[str, float] = {}
         self._intervalo: dict[str, float] = {}
         self._proxima: dict[str, float] = {}
         self._trava = threading.Lock()
         self._relogio, self._dormir = relogio, dormir
 
     def intervalo(self, host: str) -> float:
-        return max(self.base, self._intervalo.get(host, self.base))
+        base = self._base_host.get(host, self.base)
+        return max(base, self._intervalo.get(host, base))
+
+    def definir_ritmo(self, host: str, req_por_s: float) -> None:
+        """Orçamento próprio do host (o Compras.gov aceita mais que o PNCP)."""
+        with self._trava:
+            self._base_host[host] = 1.0 / max(0.05, float(req_por_s))
 
     def aguardar(self, host: str) -> float:
         """Espera a vez do host; devolve quanto dormiu (métrica)."""
@@ -108,7 +115,8 @@ class Limitador:
 
     def sucesso(self, host: str) -> None:
         with self._trava:
-            self._intervalo[host] = max(self.base, self.intervalo(host) * 0.9)
+            self._intervalo[host] = max(self._base_host.get(host, self.base),
+                                        self.intervalo(host) * 0.9)
 
 
 def _abrir(url: str, timeout: float = 90.0) -> tuple[int, dict, bytes]:
@@ -1215,6 +1223,7 @@ class Servico:
     dormir: Callable[[float], None] = time.sleep
     fontes_da_pista: tuple | None = None
     campanha: str | None = None      # com campanha, esta pista cria o plano do dia
+    req_por_s: float | None = None   # orçamento próprio; None = o do controle
     _planejado_em: date | None = None
 
     @property
@@ -1222,6 +1231,14 @@ class Servico:
         if self.fontes_da_pista:
             return list(self.fontes_da_pista)
         return list(FONTES) if self.pncp is not None else ["comprasgov_lote"]
+
+    def _hosts(self) -> list[str]:
+        hosts = []
+        if self.lote is not None:
+            hosts.append(urllib.parse.urlsplit(DADOS_ABERTOS).netloc)
+        if self.pncp is not None:
+            hosts.append(urllib.parse.urlsplit(PNCP_API).netloc)
+        return hosts
 
     def _http(self) -> list[ClienteHttp]:
         return [x.http for x in (self.lote, self.pncp) if x is not None]
@@ -1244,9 +1261,13 @@ class Servico:
         if controle.get("pausado"):
             return 0
         self.planejar()
-        if controle.get("req_por_s"):
-            for http in self._http():
-                http.limitador.base = 1.0 / float(controle["req_por_s"])
+        # ritmo por host: a pista com orçamento próprio (`req_por_s`) usa o
+        # dela; as demais, o do controle (ajustável sem reiniciar)
+        ritmo = self.req_por_s or controle.get("req_por_s")
+        if ritmo:
+            for host in self._hosts():
+                for http in self._http():
+                    http.limitador.definir_ritmo(host, float(ritmo))
         feitas = 0
         for tarefa in self.fila.reservar(self.dono, self.fontes, 1, LEASE_S):
             try:
@@ -1411,6 +1432,9 @@ def main(argv=None) -> int:
     s.add_argument("--req-por-s", type=float, default=1.0)
     s.add_argument("--campanha", default=None,
                    help="cria sozinho o plano de cada dia novo nesta campanha")
+    s.add_argument("--req-por-s-lote", type=float, default=2.0,
+                   help="orçamento do Compras.gov (medido sem 429 a 2 req/s, 14/11/2026); "
+                        "o PNCP segue o `req_por_s` do controle")
     s = sub.add_parser("ritmo", help="o que a janela fez, por fonte e por minuto")
     s.add_argument("--minutos", type=int, default=30)
     s = sub.add_parser("status", help="relatório por fonte/faixa/estado em JSON")
@@ -1465,7 +1489,8 @@ def main(argv=None) -> int:
                 fila=fila_p, armazem=armazem_p, dono=dono, fontes_da_pista=fontes,
                 lote=ComprasGovLote(http) if "comprasgov_lote" in fontes else None,
                 pncp=PncpItemAItem(http) if "comprasgov_lote" not in fontes else None,
-                campanha=a.campanha if n == 0 else None))
+                campanha=a.campanha if n == 0 else None,
+                req_por_s=a.req_por_s_lote if "comprasgov_lote" in fontes else None))
         if a.uma_vez:
             for servico in servicos:
                 servico.rodar(uma_vez=True)

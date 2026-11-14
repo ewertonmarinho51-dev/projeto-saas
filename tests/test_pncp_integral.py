@@ -783,3 +783,17 @@ def test_cliente_tenta_de_novo_o_429_antes_de_falhar_a_tarefa():
                           abrir=lambda url: respostas.pop(0))
     assert http.json("https://pncp.gov.br/x") == {"ok": 1}
     assert http.chamadas == 2 and http.falhas == {"429": 1}
+
+
+def test_cada_pista_tem_o_seu_ritmo_e_o_controle_so_mexe_no_pncp():
+    lim = pi.Limitador(1.0, dormir=lambda s: None)
+    fila = pi.FilaEmMemoria()
+    fila.ajustar_controle(req_por_s=0.5)
+    lote = pi.ComprasGovLote(pi.ClienteHttp(lim))
+    pncp = pi.PncpItemAItem(pi.ClienteHttp(lim))
+    pi.Servico(fila=fila, lote=lote, armazem=None, dono="p", req_por_s=2.0,
+               fontes_da_pista=("comprasgov_lote",)).passo()
+    pi.Servico(fila=fila, lote=None, pncp=pncp, armazem=None, dono="p",
+               fontes_da_pista=("pncp_contratacao", "pncp_descoberta")).passo()
+    assert lim.intervalo("dadosabertos.compras.gov.br") == 0.5    # 2 req/s, próprio
+    assert lim.intervalo("pncp.gov.br") == 2.0                    # 0,5 req/s, do controle
