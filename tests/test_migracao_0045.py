@@ -31,7 +31,7 @@ FUNCOES = ("precos_pncp_reservar", "precos_pncp_renovar", "precos_pncp_concluir"
 
 def test_cabecalho_diz_o_estado():
     assert TEXTO.startswith("-- ## 0045 —")
-    assert "## ESTADO:" in TEXTO
+    assert "ESTADO: APLICADA EM PRODUÇÃO em 13/11/2026 (registro 20261113234247" in TEXTO
     assert "O QUE ESTA MIGRAÇÃO NÃO RESOLVE" in TEXTO
 
 
