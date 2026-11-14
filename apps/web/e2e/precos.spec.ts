@@ -106,12 +106,11 @@ test("cesta em um clique: tira, põe de volta, grava em segundo plano e persiste
   await page.reload();
   await expect(page.getByTestId("referencia").first()).toHaveAttribute("data-na-cesta", "1");
   await page.screenshot({ path: "e2e/resultados/telas/cesta-1440.png", fullPage: true });
-});
 
-test("P0: cliques rápidos em quatro referências — nenhuma some, tudo persiste e o item conclui", async ({ page }) => {
-  // 14/11/2026: com a revisão na `key` do provedor, o refresh do 1º clique
-  // recriava a cesta e o clique seguinte sumia (ou tomava 409).
-  await entrar(page, "a1");
+  // P0 de 14/11/2026 — cliques rápidos em quatro referências: nenhuma some,
+  // tudo persiste e o item conclui. Com a revisão na `key` do provedor, o
+  // refresh do 1º clique recriava a cesta e o clique seguinte sumia (ou
+  // tomava 409). Mesma sessão desta prova: o login tem limite de tentativas.
   await page.goto(`/app/precos/${estado.precos.rapida_pesquisa}/itens/${estado.precos.rapida_item}`);
   const linhas = page.getByTestId("referencia");
   await expect(linhas).toHaveCount(4);
