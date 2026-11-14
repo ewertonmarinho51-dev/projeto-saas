@@ -49,7 +49,13 @@ Reprodução determinística: `apps/web/tests/fila-da-cesta.test.ts`, caso "o mo
 | PERF-01 clique sem consulta externa | já funciona | `_mudar_e_recalcular`: só a linha e o item, "nenhuma fonte externa, nenhum Jev" |
 | UX-10 paginação server-side 20 (10/20/50) | **não existe** | `apps/api/govconect_api/precos.py`: `LIMITE_REFERENCIAS = 500`, ordem `valor,id`; a triagem filtra no cliente |
 | UX-11 filtros server-side, Lista/Mapa | não existe (filtros só por situação, no cliente) | `triagem-item.tsx` |
-| UX-01…09, R-01…R-05 | a auditar no PR correspondente | — |
+| R-01 resumido sem Memória de cálculo | **feito no PR de relatórios** | `documento_cotacao._saidas_e_memoria` só no Integral; `tests/test_relatorios_pacote_1114.py` |
+| R-02 resumido sem exclusões e sem "Alertas e ressalvas" | **feito no PR de relatórios** | `relatorio_de_cotacao_docx` sem `_alertas`; ciência da emissão mantida em uma linha |
+| R-03 extrato + fontes efetivamente usadas | **feito no PR de relatórios** | `fontes_usadas(view)` deriva da `considerada_lista` (mesma cesta do cálculo) |
+| R-04 completo com rosca Top 5 + Demais e % por item | **feito no PR de relatórios** | `participacao()` em Decimal; `rosca_png()` (Pillow) |
+| R-05 memória analítica XLSX e trilha | preservadas (nada mudou em `relatorio.xlsx_analitico` nem no banco) | — |
+| Markdown legado (`relatorio.resumido`) | não alterado: é o caminho não visual do pacote ZIP antigo | `emissao.partes_do_pacote(visual=False)` |
+| UX-01…09 | a auditar no PR correspondente | — |
 
 ## Riscos
 

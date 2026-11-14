@@ -147,8 +147,9 @@ def _cotacao(*, concluido=True):
     return pesquisa, [item], {"it-1": refs}
 
 
-def _docx_texto(view) -> tuple[str, str]:
-    bruto = dc.relatorio_de_cotacao_docx(view)
+def _docx_texto(view, *, integral: bool = False) -> tuple[str, str]:
+    bruto = (dc.relatorio_analitico_docx(view) if integral
+             else dc.relatorio_de_cotacao_docx(view))
     with zipfile.ZipFile(io.BytesIO(bruto)) as zf:
         xml = zf.read("word/document.xml").decode("utf-8")
         rels = zf.read("word/_rels/document.xml.rels").decode("utf-8")
@@ -184,12 +185,17 @@ def test_relatorio_sem_inventario_e_com_autoria_certa_ac15_ac16():
     texto, _ = _docx_texto(v)
     assert "Não consideradas (" not in texto
     assert "excluída pelo revisor" not in texto.lower()
-    assert "Desconsiderados da série (2)" in texto
-    assert "Desconsiderada pela triagem automática" in texto
-    assert "Retirada da cesta pelo servidor" in texto
+    # pacote de 14/11/2026 (RF-R01): o RESUMIDO não lista as retiradas nem
+    # a autoria delas — o registro segue no Analítico Integral, igual
+    assert "Desconsiderados da série" not in texto
+    assert "Retirada da cesta pelo servidor" not in texto
+    integral, _ = _docx_texto(v, integral=True)
+    assert "Desconsiderados da série (2)" in integral
+    assert "Desconsiderada pela triagem automática" in integral
+    assert "Retirada da cesta pelo servidor" in integral
     # o critério sem códigos internos (STATISTICAL_EXTREME…) nem política
     assert "STATISTICAL_EXTREME" not in texto
-    assert "40 resultado(s) da busca não entraram" in texto
+    assert "40 resultado(s) da busca não entraram" in integral
 
 
 def test_concluido_nao_sai_provisorio_e_teto_explicado_ac32_ac33():
@@ -197,7 +203,10 @@ def test_concluido_nao_sai_provisorio_e_teto_explicado_ac32_ac33():
     v = rv.projetar(p, itens, refs, emitido_em=MOMENTO)
     texto, _ = _docx_texto(v)
     assert "PROVISÓRIO" not in texto and "aguardam decisão" not in texto
-    assert "conclusão do revisor: conferido na fonte" in texto
+    # a memória de cálculo saiu do resumido (RF-R01) e está no Integral
+    assert "Memória de cálculo" not in texto
+    integral, _ = _docx_texto(v, integral=True)
+    assert "conclusão do revisor: conferido na fonte" in integral
     assert "R$ 27,98" in texto and "adotada a mediana, R$ 25,46" in texto
     assert "Catálogo 1" not in texto, "número da planilha não é catálogo"
     p, itens, refs = _cotacao(concluido=False)
