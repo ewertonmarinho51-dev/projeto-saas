@@ -1,26 +1,29 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { concluirItemDaRevisao, gravarMarcacao } from "@/app/app/precos/acoes";
 import { Alert, Button, Field, IconButton, Textarea } from "@/design-system";
 import type { ItemDePesquisa } from "@/lib/api";
 
+import { FilaDaCesta, type Marcas } from "./fila-da-cesta";
 import { proximoAConcluir } from "./precos";
 
 /**
- * A cesta do item em UM clique (13/11/2026).
+ * A cesta do item em UM clique (13/11/2026; P0 de 14/11/2026).
  *
  * Cada referência tem a marcação DESEJADA (o último clique) e a CONFIRMADA
  * (o que o servidor gravou). A tela mostra a desejada na hora; uma fila única
- * grava em segundo plano, uma referência por vez, cada uma com a revisão que a
- * anterior devolveu (If-Match) — cliques em várias linhas não colidem, e
- * cliques repetidos na mesma linha valem pelo último. Se a gravação falha, só
+ * (`FilaDaCesta`) grava em segundo plano, uma referência por vez, cada uma
+ * com a revisão que a anterior devolveu (If-Match). Se a gravação falha, só
  * a linha afetada volta ao que estava, com um aviso curto.
  *
- * Quem usa põe `key={revisao do item}`: quando o servidor manda uma página
- * nova (refresh depois da fila), o provedor nasce de novo com a verdade dele.
+ * Quem usa põe `key={id do item}` — NUNCA a revisão. A página que o refresh
+ * traz entra pela reconciliação da fila (`receberDoServidor`): instantâneo
+ * mais velho que a revisão confirmada é ignorado; o mais novo é adotado. Com
+ * a revisão na `key`, o provedor nascia de novo a cada gravação e a cesta
+ * "perdia" o clique seguinte (P0, ver `fila-da-cesta.ts`).
  */
 type Fila = {
   marcado: (id: string, padrao: boolean) => boolean;
@@ -38,7 +41,13 @@ export function useCestaDoItem(): Fila | null {
   return useContext(ContextoDaCesta);
 }
 
-type Marcas = Record<string, boolean>;
+/** Assinatura estável das marcações do servidor (a ordem das chaves não conta). */
+function assinatura(marcadas: Marcas): string {
+  return Object.keys(marcadas)
+    .sort()
+    .map((id) => `${id}:${marcadas[id] ? 1 : 0}`)
+    .join(",");
+}
 
 export function CestaDoItem({
   pesquisa,
@@ -55,90 +64,40 @@ export function CestaDoItem({
   children: ReactNode;
 }) {
   const router = useRouter();
-  // o que a TELA mostra (estado) …
-  const [desejadoV, setDesejadoV] = useState<Marcas>(marcadas);
-  const [confirmadoV, setConfirmadoV] = useState<Marcas>(marcadas);
-  const [emVooV, setEmVooV] = useState<string | null>(null);
-  const [preco, setPreco] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
-  // … e o que a fila assíncrona lê e escreve (refs, nunca lidas no desenho)
-  const desejado = useRef<Marcas>({ ...marcadas });
-  const confirmado = useRef<Marcas>({ ...marcadas });
-  const revisaoAtual = useRef(revisao);
-  const rodando = useRef(false);
-  const falhou = useRef(false);
-  const esperando = useRef<((r: { revisao: number; falhou: boolean }) => void)[]>([]);
+  // Uma fila por item, viva enquanto a página do item estiver aberta.
+  const [maquina] = useState(
+    () =>
+      new FilaDaCesta(
+        revisao,
+        marcadas,
+        async (referencia, incluir, rev) => {
+          const r = await gravarMarcacao(pesquisa, item, referencia, incluir, rev);
+          return r.ok ? { ok: true, revisao: r.revisao, preco: r.preco } : r;
+        },
+        () => router.refresh(),
+      ),
+  );
+  const estado = useSyncExternalStore(maquina.assinar, maquina.estado, maquina.estado);
 
-  function publicar() {
-    setDesejadoV({ ...desejado.current });
-    setConfirmadoV({ ...confirmado.current });
-  }
-
-  function pendentes(): [string, boolean][] {
-    return Object.entries(desejado.current).filter(([id, v]) => confirmado.current[id] !== v);
-  }
-
-  async function processar() {
-    if (rodando.current) return;
-    rodando.current = true;
-    falhou.current = false;
-    let gravou = false;
-    try {
-      for (;;) {
-        const proxima = pendentes()[0];
-        if (!proxima) break;
-        const [id, incluir] = proxima;
-        setEmVooV(id);
-        const r = await gravarMarcacao(pesquisa, item, id, incluir, revisaoAtual.current);
-        if (r.ok) {
-          confirmado.current[id] = incluir;
-          revisaoAtual.current = r.revisao;
-          setPreco(r.preco);
-          gravou = true;
-        } else {
-          // só esta linha volta; as outras marcações seguem na fila
-          falhou.current = true;
-          desejado.current[id] = confirmado.current[id] ?? false;
-          setAviso(r.erro);
-          if (r.conflito) {
-            // outra aba mexeu: descarta a fila e relê do servidor
-            desejado.current = { ...confirmado.current };
-          }
-        }
-        publicar();
-        if (!r.ok && r.conflito) break;
-      }
-    } finally {
-      rodando.current = false;
-      setEmVooV(null);
-      const resultado = { revisao: revisaoAtual.current, falhou: falhou.current };
-      esperando.current.splice(0).forEach((f) => f(resultado));
-      if (gravou || falhou.current) router.refresh();
-    }
-  }
+  // A página que o servidor manda (refresh, outra aba) entra pela revisão.
+  const chave = assinatura(marcadas);
+  const ultima = useRef<string>(`${revisao}|${chave}`);
+  useEffect(() => {
+    const atual = `${revisao}|${chave}`;
+    if (ultima.current === atual) return;
+    ultima.current = atual;
+    maquina.receberDoServidor(revisao, marcadas);
+    // `marcadas` muda de identidade a cada renderização; a assinatura é o que conta
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maquina, revisao, chave]);
 
   const fila: Fila = {
-    marcado: (id, padrao) => desejadoV[id] ?? padrao,
-    salvando: (id) => emVooV === id || (id in desejadoV && desejadoV[id] !== confirmadoV[id]),
-    alternar: (id, atual) => {
-      if (!(id in confirmado.current)) confirmado.current[id] = atual;
-      desejado.current[id] = !(desejado.current[id] ?? atual);
-      setAviso(null);
-      publicar();
-      void processar();
-    },
-    aguardar: () => {
-      if (!rodando.current && pendentes().length === 0) {
-        return Promise.resolve({ revisao: revisaoAtual.current, falhou: false });
-      }
-      const promessa = new Promise<{ revisao: number; falhou: boolean }>((resolver) =>
-        esperando.current.push(resolver),
-      );
-      void processar();
-      return promessa;
-    },
-    preco,
-    aviso,
+    marcado: (id, padrao) => estado.desejado[id] ?? padrao,
+    salvando: (id) => estado.emVoo === id || (id in estado.desejado && estado.desejado[id] !== estado.confirmado[id]),
+    alternar: (id, atual) => maquina.alternar(id, atual),
+    aguardar: () => maquina.aguardar(),
+    preco: estado.preco,
+    aviso: estado.aviso,
   };
 
   return <ContextoDaCesta.Provider value={fila}>{children}</ContextoDaCesta.Provider>;
