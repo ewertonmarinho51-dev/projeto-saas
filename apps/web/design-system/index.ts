@@ -77,6 +77,7 @@ export {
 } from "./components/data/DataTable";
 export { KpiCard, type KpiCardProps } from "./components/data/KpiCard";
 export { Pagination, type PaginationProps } from "./components/data/Pagination";
+export { UfTileMap, type UfTileMapProps, type UfTileValue } from "./components/data/UfTileMap";
 
 // ai (GovBot)
 export { AiDraftBlock, type AiDraftBlockProps } from "./components/ai/AiDraftBlock";

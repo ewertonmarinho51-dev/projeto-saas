@@ -23,13 +23,14 @@ Atrás de `PRICE_RESEARCH_ENABLED`, desligada por padrão.
 from __future__ import annotations
 
 import base64
+import re
 import json
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel
 
 from src.precos import cotacoes, estatistica, execucao, links, portais
@@ -61,6 +62,18 @@ _COLUNAS_REFERENCIA = (
     "motivos,bruto,fatores")
 LIMITE_ITENS = 2000          # a planilha real tem 210; folga sem ser infinita
 LIMITE_REFERENCIAS = 500
+# Paginação no servidor (pacote de 14/11/2026, RF-06): 20 por padrão,
+# 10/20/50 à escolha; outro valor é 422.
+TAMANHO_PADRAO = 20
+TAMANHOS_DE_PAGINA = frozenset({10, 20, 50})
+LIMITE_AGREGADOS = 20_000    # contadores e mapa: colunas enxutas, sem `bruto`
+NA_CESTA = ("selected", "warning")
+EM_ATENCAO = ("warning", "manual_review")
+ORDENS = {
+    "valor_asc": "valor_unitario_normalizado.asc.nullslast,id.asc",
+    "valor_desc": "valor_unitario_normalizado.desc.nullslast,id.asc",
+    "data_desc": "data_compra.desc.nullslast,data_resultado.desc.nullslast,id.asc",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -430,6 +443,120 @@ def _ok(resposta: RespostaRest) -> list:
 
 
 # ---------------------------------------------------------------------------
+# Referências: filtro e paginação no banco (pacote de 14/11/2026)
+# ---------------------------------------------------------------------------
+_SO_TEXTO = re.compile(r"[^0-9A-Za-zÀ-ÿ ]+")
+
+
+def filtros_de_referencia(*, item_id: str, tenant_id: str, situacao=None,
+                          fonte=None, uf=None, preco_min=None, preco_max=None,
+                          desde=None, ate=None, q=None) -> list[tuple[str, str]]:
+    """
+    Parâmetros do PostgREST: tenant e item SEMPRE (o RLS decide de novo),
+    depois os filtros — todos no banco, antes da paginação. O texto livre
+    vira palavras sem curinga nem sintaxe do PostgREST (`*`, `,`, `()`).
+    """
+    p: list[tuple[str, str]] = [("item_id", f"eq.{item_id}"),
+                                ("tenant_id", f"eq.{tenant_id}")]
+    if situacao == "cesta":
+        p.append(("status", f"in.({','.join(NA_CESTA)})"))
+    elif situacao == "fora":
+        p.append(("status", f"not.in.({','.join(NA_CESTA)})"))
+    elif situacao == "atencao":
+        p.append(("status", f"in.({','.join(EM_ATENCAO)})"))
+    if fonte:
+        p.append(("fonte_id", f"eq.{fonte}"))
+    if uf:
+        p.append(("uf", f"eq.{uf.upper()}"))
+    if preco_min is not None:
+        p.append(("valor_unitario_normalizado", f"gte.{preco_min}"))
+    if preco_max is not None:
+        p.append(("valor_unitario_normalizado", f"lte.{preco_max}"))
+    # data da compra OU do resultado (quem a fonte tiver)
+    datas = []
+    if desde:
+        datas.append(f"or(data_compra.gte.{desde.isoformat()},"
+                     f"data_resultado.gte.{desde.isoformat()})")
+    if ate:
+        datas.append(f"or(data_compra.lte.{ate.isoformat()},"
+                     f"data_resultado.lte.{ate.isoformat()})")
+    if datas:
+        p.append(("and", f"({','.join(datas)})"))
+    if q:
+        for palavra in _SO_TEXTO.sub(" ", q).split()[:6]:
+            if len(palavra) >= 2:
+                p.append(("descricao_original", f"ilike.*{palavra}*"))
+    return p
+
+
+def _total_do_intervalo(content_range: str | None) -> int | None:
+    """`0-19/1000` ou `*/0` → 1000 / 0; ausente ou `*` → None."""
+    if not content_range or "/" not in content_range:
+        return None
+    total = content_range.rsplit("/", 1)[1]
+    return int(total) if total.isdigit() else None
+
+
+class ContagemPorFonte(BaseModel):
+    id: str
+    nome: str
+    quantidade: int
+
+
+class ContagemPorUf(BaseModel):
+    uf: str
+    quantidade: int
+
+
+class AgregadosDasReferencias(BaseModel):
+    total: int
+    na_cesta: int
+    fora: int
+    em_atencao: int
+    fontes: list[ContagemPorFonte]
+    # Mapa (RF-08): UF do ÓRGÃO COMPRADOR; métrica = quantidade de
+    # referências. Sem UF não é "inventado": conta em `sem_uf`.
+    base_geografica: Literal["uf_orgao"] = "uf_orgao"
+    metrica: Literal["quantidade"] = "quantidade"
+    ufs: list[ContagemPorUf]
+    sem_uf: int
+    preco_min: Valor | None
+    preco_max: Valor | None
+    truncado: bool
+
+
+def agregar_referencias(linhas: list[dict]) -> AgregadosDasReferencias:
+    fontes: dict[str, list] = {}
+    ufs: dict[str, int] = {}
+    na_cesta = em_atencao = sem_uf = 0
+    precos: list[Decimal] = []
+    for l in linhas:
+        status = str(l.get("status") or "")
+        na_cesta += status in NA_CESTA
+        em_atencao += status in EM_ATENCAO
+        chave = str(l.get("fonte_id") or "")
+        fontes.setdefault(chave, [str(l.get("fonte_nome") or chave), 0])[1] += 1
+        uf = str(l.get("uf") or "").strip().upper()
+        if len(uf) == 2 and uf.isalpha():
+            ufs[uf] = ufs.get(uf, 0) + 1
+        else:
+            sem_uf += 1
+        valor = l.get("valor_unitario_normalizado")
+        if valor is not None:
+            precos.append(Decimal(str(valor)))
+    return AgregadosDasReferencias(
+        total=len(linhas), na_cesta=na_cesta, fora=len(linhas) - na_cesta,
+        em_atencao=em_atencao,
+        fontes=[ContagemPorFonte(id=k, nome=v[0], quantidade=v[1])
+                for k, v in sorted(fontes.items(), key=lambda kv: (-kv[1][1], kv[1][0]))],
+        ufs=[ContagemPorUf(uf=k, quantidade=v) for k, v in sorted(ufs.items())],
+        sem_uf=sem_uf,
+        preco_min=valor_monetario(min(precos)) if precos else None,
+        preco_max=valor_monetario(max(precos)) if precos else None,
+        truncado=len(linhas) >= LIMITE_AGREGADOS)
+
+
+# ---------------------------------------------------------------------------
 # Rotas
 # ---------------------------------------------------------------------------
 def exigir_precos_habilitado(request: Request) -> None:
@@ -531,12 +658,7 @@ def rotas() -> APIRouter:
             soma_dos_itens=_soma_dos_itens(itens),
             itens=[_item(i, desfechos.get(str(i["id"]), "")) for i in itens])
 
-    @r.get("/pesquisas/{pesquisa_id}/itens/{item_id}/referencias",
-           response_model=list[Referencia],
-           responses={404: {"description": "Inexistente ou fora do seu acesso"}})
-    def referencias(pesquisa_id: uuid.UUID, item_id: uuid.UUID, request: Request,
-                    eu: Identidade = Depends(exigir_identidade)) -> list[Referencia]:
-        rest = _rest(request)
+    def _item_da_pesquisa(rest: ClienteRest, eu: Identidade, pesquisa_id, item_id) -> None:
         # O item precisa ser DESTA pesquisa: sem isto, um id de item de
         # outra pesquisa do mesmo órgão passaria pela URL de qualquer uma.
         dono = _ok(rest.requisitar(eu.token, "GET", TABELA_ITENS, params={
@@ -544,12 +666,78 @@ def rotas() -> APIRouter:
             "tenant_id": f"eq.{eu.tenant_id}", "removido_em": "is.null", "limit": "1"}))
         if not dono:
             raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
-        linhas = _ok(rest.requisitar(eu.token, "GET", TABELA_REFERENCIAS, decimal=True, params={
-            "select": _COLUNAS_REFERENCIA, "item_id": f"eq.{item_id}",
-            "tenant_id": f"eq.{eu.tenant_id}",
-            "order": "valor_unitario_normalizado.asc.nullslast,id.asc",
-            "limit": str(LIMITE_REFERENCIAS)}))
+
+    @r.get("/pesquisas/{pesquisa_id}/itens/{item_id}/referencias",
+           response_model=list[Referencia],
+           responses={404: {"description": "Inexistente ou fora do seu acesso"},
+                      422: {"description": "Página, tamanho ou filtro inválido"}})
+    def referencias(pesquisa_id: uuid.UUID, item_id: uuid.UUID, request: Request,
+                    response: Response,
+                    pagina: int | None = Query(None, ge=1, le=100_000),
+                    por_pagina: int = Query(TAMANHO_PADRAO),
+                    situacao: Literal["cesta", "fora", "atencao"] | None = Query(None),
+                    fonte: str | None = Query(None, max_length=60, pattern=r"^[A-Za-z0-9_.-]+$"),
+                    uf: str | None = Query(None, pattern=r"^[A-Za-z]{2}$"),
+                    preco_min: Decimal | None = Query(None, ge=0, le=10**12),
+                    preco_max: Decimal | None = Query(None, ge=0, le=10**12),
+                    desde: date | None = Query(None),
+                    ate: date | None = Query(None),
+                    q: str | None = Query(None, max_length=120),
+                    ordem: Literal["valor_asc", "valor_desc", "data_desc"] = Query("valor_asc"),
+                    eu: Identidade = Depends(exigir_identidade)) -> list[Referencia]:
+        """
+        Referências do item, filtradas e paginadas NO BANCO (pacote de
+        14/11/2026, RF-06/RF-07): o filtro vem antes da paginação, a ordem
+        desempata pelo id e o total do conjunto filtrado sai em
+        `X-Total-Count`. Sem `pagina`, a leitura antiga (até 500) continua
+        igual para quem já a usa.
+        """
+        if por_pagina not in TAMANHOS_DE_PAGINA:
+            raise ErroApi(422, "BAD_REQUEST",
+                          f"por_pagina deve ser um de {sorted(TAMANHOS_DE_PAGINA)}")
+        if preco_min is not None and preco_max is not None and preco_min > preco_max:
+            raise ErroApi(422, "BAD_REQUEST", "preco_min maior que preco_max")
+        if desde and ate and desde > ate:
+            raise ErroApi(422, "BAD_REQUEST", "desde depois de ate")
+        rest = _rest(request)
+        _item_da_pesquisa(rest, eu, pesquisa_id, item_id)
+        params = filtros_de_referencia(
+            item_id=str(item_id), tenant_id=str(eu.tenant_id), situacao=situacao,
+            fonte=fonte, uf=uf, preco_min=preco_min, preco_max=preco_max,
+            desde=desde, ate=ate, q=q)
+        params += [("select", _COLUNAS_REFERENCIA), ("order", ORDENS[ordem])]
+        if pagina is None:
+            params.append(("limit", str(LIMITE_REFERENCIAS)))
+        else:
+            params += [("limit", str(por_pagina)),
+                       ("offset", str((pagina - 1) * por_pagina))]
+        resposta = rest.requisitar(eu.token, "GET", TABELA_REFERENCIAS, decimal=True,
+                                   params=params, prefer="count=exact")
+        # 206: página de um conjunto maior; 416: página além do fim (vazia)
+        linhas = ((resposta.dados if isinstance(resposta.dados, list) else [])
+                  if resposta.status in (206, 416) else _ok(resposta))
+        total = _total_do_intervalo(resposta.cabecalhos.get("content-range"))
+        if total is not None:
+            response.headers["X-Total-Count"] = str(total)
         return [_referencia(l) for l in linhas]
+
+    @r.get("/pesquisas/{pesquisa_id}/itens/{item_id}/referencias/agregados",
+           response_model=AgregadosDasReferencias,
+           responses={404: {"description": "Inexistente ou fora do seu acesso"}})
+    def agregados(pesquisa_id: uuid.UUID, item_id: uuid.UUID, request: Request,
+                  eu: Identidade = Depends(exigir_identidade)) -> AgregadosDasReferencias:
+        """
+        Contadores, opções de filtro e contagem por UF (o modo Mapa) de
+        TODAS as referências do item — leitura enxuta (sem `bruto`), pelo
+        JWT do usuário. A UF é a do ÓRGÃO COMPRADOR; sem UF conta à parte.
+        """
+        rest = _rest(request)
+        _item_da_pesquisa(rest, eu, pesquisa_id, item_id)
+        linhas = _ok(rest.requisitar(eu.token, "GET", TABELA_REFERENCIAS, decimal=True, params={
+            "select": "status,fonte_id,fonte_nome,uf,valor_unitario_normalizado",
+            "item_id": f"eq.{item_id}", "tenant_id": f"eq.{eu.tenant_id}",
+            "order": "id.asc", "limit": str(LIMITE_AGREGADOS)}))
+        return agregar_referencias(linhas)
 
     return r
 

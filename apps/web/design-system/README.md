@@ -102,6 +102,7 @@ server component. Componente que recebe função (`render`, `trigger`,
 | price | `PriceItemNav` | navegador de itens; `scroll` faz a lista longa rolar dentro do cartão (`--gc-itemnav-max`) com o item atual à vista; descrição sem espaço quebra | |
 | price | `PriceDispersion` | dispersão no eixo linear de preço, com média, mediana e extremos | |
 | price | `PriceCompare` | grupos de preços no mesmo eixo: menor, maior e mediana | peça nova do porte |
+| data | `UfTileMap` | esquema por UF (não é mapa em escala) com intensidade e tabela acessível; base e métrica explícitas | pacote 14/11/2026, RF-08 |
 | price | `ScreeningSummary` | contadores/filtros da triagem | |
 | price | `ValidationSummary` | conferência antes da emissão | |
 | price | `PriceMapTable` | mapa de preços | |

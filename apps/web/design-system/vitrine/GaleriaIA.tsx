@@ -35,6 +35,7 @@ import {
   PageHead,
   PriceBasket,
   PriceCompare,
+  UfTileMap,
   PriceDispersion,
   PriceItemNav,
   PriceMapTable,
@@ -335,6 +336,20 @@ export function GaleriaIA({ tema }: { tema: string }) {
                 { label: "Compras.gov · SP", value: 13, display: "R$ 13,00" },
                 { label: "Compras.gov · SP", value: 40, display: "R$ 40,00", state: "discrepant" },
                 { label: "PNCP · SP", value: 50, display: "R$ 50,00", state: "discrepant", extreme: "high", note: "+316,67% sobre a mediana" },
+              ]}
+            />
+          </Exemplo>
+          <Exemplo rotulo="UfTileMap — referências por UF do órgão comprador" largo>
+            <UfTileMap
+              basis="UF do órgão comprador"
+              metric="referências"
+              unknown={3}
+              values={[
+                { uf: "PA", quantidade: 18 },
+                { uf: "SP", quantidade: 41 },
+                { uf: "MG", quantidade: 22 },
+                { uf: "RS", quantidade: 7 },
+                { uf: "BA", quantidade: 2 },
               ]}
             />
           </Exemplo>

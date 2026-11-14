@@ -33,7 +33,7 @@ const DO_EXPORT = [
   "PriceStats", "ScreeningSummary", "SourcePicker", "TraceabilityPanel", "ValidationSummary",
 ];
 /** Peças nascidas no projeto, depois do export. */
-const ACRESCIMOS = ["PriceCompare"];
+const ACRESCIMOS = ["PriceCompare", "UfTileMap"];
 const TEMPLATES = [
   "AppShell",
   "AuthLayout",

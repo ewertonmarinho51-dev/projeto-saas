@@ -207,6 +207,26 @@ export type DestinatarioDoRelatorio = {
 /** A prefeitura e as secretarias do município, para escolher o destinatário. */
 export type OrgaoDoMunicipio = { id: string; nome: string; padrao: boolean; vinculo: boolean };
 
+/**
+ * Contadores, opções de filtro e contagem por UF de TODAS as referências do
+ * item (`GET .../referencias/agregados`, pacote de 14/11/2026). A UF é a do
+ * órgão comprador; sem UF conta em `sem_uf`.
+ */
+export type AgregadosDeReferencias = {
+  total: number;
+  na_cesta: number;
+  fora: number;
+  em_atencao: number;
+  fontes: { id: string; nome: string; quantidade: number }[];
+  base_geografica: "uf_orgao";
+  metrica: "quantidade";
+  ufs: { uf: string; quantidade: number }[];
+  sem_uf: number;
+  preco_min: { valor: string; exibicao: string } | null;
+  preco_max: { valor: string; exibicao: string } | null;
+  truncado: boolean;
+};
+
 export type ReferenciaDePreco = {
   id: string;
   fonte: string;

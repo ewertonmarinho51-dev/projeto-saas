@@ -885,3 +885,25 @@ a.gc-source:hover{border-color:var(--info-border);color:inherit}
   }
   @media (prefers-reduced-motion:reduce){.gc-workspace__save--progress::before{animation:none}}
 }
+
+/* UfTileMap — esquema por UF (pacote 14/11/2026, RF-08): não é mapa em escala */
+@layer components {
+  .gc-ufmap{display:grid;gap:var(--space-3);margin:0}
+  .gc-ufmap__grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:var(--space-1);max-width:calc(var(--space-16)*7)}
+  .gc-ufmap__tile{display:grid;place-items:center;aspect-ratio:1;border:var(--border-width) solid var(--border-subtle);border-radius:var(--gc-radius-sm);background:var(--surface-sunken);color:var(--text-secondary);font:600 var(--gc-fs-2xs)/1.1 var(--gc-font-sans);padding:var(--space-1)}
+  button.gc-ufmap__tile{cursor:pointer}
+  button.gc-ufmap__tile:hover{border-color:var(--border-strong)}
+  button.gc-ufmap__tile:focus-visible{outline:var(--space-0-5) solid var(--focus-ring-color);outline-offset:var(--space-1)}
+  .gc-ufmap__tile[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 var(--border-width) var(--accent)}
+  .gc-ufmap__tile--n1{background:var(--gc-blue-50);color:var(--gc-blue-800)}
+  .gc-ufmap__tile--n2{background:var(--gc-blue-200);color:var(--gc-blue-900)}
+  .gc-ufmap__tile--n3{background:var(--gc-blue-400);color:var(--gc-gray-0)}
+  .gc-ufmap__tile--n4{background:var(--gc-blue-700);color:var(--gc-gray-0)}
+  .gc-ufmap__uf{letter-spacing:0.02em}
+  .gc-ufmap__n{font:500 var(--gc-fs-2xs)/1 var(--gc-font-mono)}
+  .gc-ufmap__caption{font:400 var(--gc-fs-xs)/1.4 var(--gc-font-sans);color:var(--text-secondary)}
+  .gc-ufmap__table{border-collapse:collapse;font:400 var(--gc-fs-xs)/1.4 var(--gc-font-sans);color:var(--text-primary)}
+  .gc-ufmap__table caption{text-align:left;color:var(--text-secondary);padding-bottom:var(--space-1)}
+  .gc-ufmap__table th,.gc-ufmap__table td{padding:var(--space-1) var(--space-3);border-bottom:var(--border-width) solid var(--border-subtle);text-align:left}
+  .gc-ufmap__table td{text-align:right;font-variant-numeric:tabular-nums}
+}

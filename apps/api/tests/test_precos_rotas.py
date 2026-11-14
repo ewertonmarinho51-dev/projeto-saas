@@ -239,3 +239,104 @@ def test_lista_traz_a_pendencia_da_ultima_busca_e_a_proposta_apta(api, emissor, 
     assert (itens["b"]["pendencia"], itens["b"]["apta"]) == ("", False)
     # vale a busca MAIS RECENTE
     assert (itens["c"]["pendencia"], itens["c"]["apta"]) == ("amostra_insuficiente", False)
+
+
+# ---------------------------------------------------------------------------
+# Paginação e filtros no banco (pacote de 14/11/2026, RF-06/RF-07/RF-08)
+# ---------------------------------------------------------------------------
+URL_REFS = f"/api/v1/precos/pesquisas/{PESQUISA}/itens/{ITEM}/referencias"
+UMA_REF = """{"id": "r1", "fonte_id": "pncp", "fonte_nome": "PNCP", "fonte_tipo": "sistema_oficial",
+  "natureza_valor": "homologado", "status": "selected", "descricao_original": "Luva",
+  "valor_unitario_original": 2.30, "valor_unitario_normalizado": 2.30, "uf": "PA",
+  "coletado_em": "2026-10-20T10:00:00+00:00", "motivos": [], "bruto": {}}"""
+
+
+def _pagina(banco, *, content_range="0-19/1000", status=206):
+    banco.respostas[("GET", "pesquisa_preco_itens")] = [_bruto('[{"id": "%s"}]' % ITEM)]
+    banco.respostas[("GET", "pesquisa_preco_referencias")] = [httpx.Response(
+        status, content=f"[{UMA_REF}]".encode(),
+        headers={"content-type": "application/json", "content-range": content_range})]
+
+
+def test_pagina_20_e_total_do_conjunto_filtrado(api, emissor, banco):
+    _pagina(banco)
+    r = api().get(URL_REFS, params={"pagina": 3}, headers=_auth(emissor))
+    assert r.status_code == 200, r.text
+    assert r.headers["x-total-count"] == "1000"
+    chamada = banco.chamadas[-1]
+    params = chamada.url.params
+    assert params["limit"] == "20" and params["offset"] == "40"
+    assert params["order"] == "valor_unitario_normalizado.asc.nullslast,id.asc"   # desempate pelo id
+    assert chamada.headers["prefer"] == "count=exact"
+    assert params["tenant_id"].startswith("eq.") and params["item_id"] == f"eq.{ITEM}"
+
+
+@pytest.mark.parametrize("tamanho", [1, 30, 100, 500])
+def test_tamanho_fora_de_10_20_50_e_422(api, emissor, banco, tamanho):
+    _pagina(banco)
+    r = api().get(URL_REFS, params={"pagina": 1, "por_pagina": tamanho}, headers=_auth(emissor))
+    assert r.status_code == 422
+
+
+def test_filtros_vao_ao_banco_antes_da_paginacao(api, emissor, banco):
+    _pagina(banco, content_range="0-0/1")
+    r = api().get(URL_REFS, params={
+        "pagina": 1, "por_pagina": 50, "situacao": "cesta", "fonte": "pncp", "uf": "pa",
+        "preco_min": "1.50", "preco_max": "3", "desde": "2026-01-01", "ate": "2026-10-31",
+        "q": "luva*,(nitrílica)", "ordem": "data_desc"}, headers=_auth(emissor))
+    assert r.status_code == 200, r.text
+    pares = banco.chamadas[-1].url.params.multi_items()
+    assert ("status", "in.(selected,warning)") in pares
+    assert ("fonte_id", "eq.pncp") in pares and ("uf", "eq.PA") in pares
+    assert ("valor_unitario_normalizado", "gte.1.50") in pares
+    assert ("valor_unitario_normalizado", "lte.3") in pares
+    assert ("and", "(or(data_compra.gte.2026-01-01,data_resultado.gte.2026-01-01),"
+                   "or(data_compra.lte.2026-10-31,data_resultado.lte.2026-10-31))") in pares
+    # texto livre sem curinga nem sintaxe do PostgREST
+    assert ("descricao_original", "ilike.*luva*") in pares
+    assert ("descricao_original", "ilike.*nitrílica*") in pares
+    assert dict(pares)["limit"] == "50"
+
+
+@pytest.mark.parametrize("params", [
+    {"preco_min": "5", "preco_max": "1"}, {"desde": "2026-10-01", "ate": "2026-01-01"},
+    {"uf": "PAR"}, {"fonte": "pncp;drop"}, {"situacao": "todas"}, {"ordem": "id"}])
+def test_filtro_invalido_e_422(api, emissor, banco, params):
+    _pagina(banco)
+    r = api().get(URL_REFS, params={"pagina": 1, **params}, headers=_auth(emissor))
+    assert r.status_code == 422
+
+
+def test_pagina_alem_do_fim_vem_vazia_com_o_total(api, emissor, banco):
+    _pagina(banco, content_range="*/30", status=416)
+    banco.respostas[("GET", "pesquisa_preco_referencias")][0]._content = b"[]"
+    r = api().get(URL_REFS, params={"pagina": 9}, headers=_auth(emissor))
+    assert r.status_code == 200 and r.json() == []
+    assert r.headers["x-total-count"] == "30"
+
+
+def test_sem_pagina_a_leitura_antiga_continua(api, emissor, banco):
+    _pagina(banco, content_range="0-0/1", status=200)
+    r = api().get(URL_REFS, headers=_auth(emissor))
+    assert r.status_code == 200 and len(r.json()) == 1
+    params = banco.chamadas[-1].url.params
+    assert params["limit"] == "500" and "offset" not in params
+
+
+def test_agregados_por_uf_fonte_e_cesta(api, emissor, banco):
+    banco.respostas[("GET", "pesquisa_preco_itens")] = [_bruto('[{"id": "%s"}]' % ITEM)]
+    banco.respostas[("GET", "pesquisa_preco_referencias")] = [_bruto("""[
+      {"status": "selected", "fonte_id": "pncp", "fonte_nome": "PNCP", "uf": "PA", "valor_unitario_normalizado": 2.30},
+      {"status": "warning", "fonte_id": "pncp", "fonte_nome": "PNCP", "uf": "pa", "valor_unitario_normalizado": 2.45},
+      {"status": "candidate", "fonte_id": "cg", "fonte_nome": "Compras.gov.br", "uf": null, "valor_unitario_normalizado": null},
+      {"status": "manual_review", "fonte_id": "cg", "fonte_nome": "Compras.gov.br", "uf": "SP", "valor_unitario_normalizado": 1.99}
+    ]""")]
+    r = api().get(f"{URL_REFS}/agregados", headers=_auth(emissor))
+    assert r.status_code == 200, r.text
+    a = r.json()
+    assert (a["total"], a["na_cesta"], a["fora"], a["em_atencao"]) == (4, 2, 2, 2)
+    assert a["ufs"] == [{"uf": "PA", "quantidade": 2}, {"uf": "SP", "quantidade": 1}]
+    assert a["sem_uf"] == 1 and a["base_geografica"] == "uf_orgao" and a["metrica"] == "quantidade"
+    assert a["preco_min"]["valor"] == "1.99" and a["preco_max"]["valor"] == "2.45"
+    assert [f["id"] for f in a["fontes"]] == ["cg", "pncp"] or [f["quantidade"] for f in a["fontes"]] == [2, 2]
+    assert "bruto" not in banco.chamadas[-1].url.params["select"]
