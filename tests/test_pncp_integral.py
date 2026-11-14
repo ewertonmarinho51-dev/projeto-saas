@@ -118,10 +118,34 @@ def test_dia_inteiro_passa_pela_mesma_conferencia_do_pncp():
     assert sum("/2.1_" in u for u in fonte.urls) == 2
 
 
-def test_pagina_faltando_e_parcial_nunca_concluida():
-    _, lote = _cenario(corta_pagina=2)
-    with pytest.raises(pi.RespostaParcial):
-        lote.resultados_do_dia(DIA)
+def test_pagina_faltando_grava_o_lido_e_registra_a_falta():
+    # medido em produção (14/11/2026): 9.599 de 9.695 descartava o dia INTEIRO
+    fonte, lote = _cenario(corta_pagina=2)
+    armazem = pncp_indice.ArmazemEmMemoria()
+    totais = pi.importar_dia(lote, armazem, DIA)
+    assert totais.declarados == 4 and totais.resultados == 2 and totais.faltantes == 2
+    assert totais.gravadas == 2 and len(armazem.resultados) == 2
+    # tentou de novo antes de desistir (paginação instável na fonte)
+    assert sum("/3_" in u for u in fonte.urls) == 2 * pi.PASSADAS_DO_DIA
+
+
+def test_segunda_passada_completa_a_uniao():
+    fonte, lote = _cenario()
+    chamadas = {"n": 0}
+    original = fonte.__call__
+
+    def instavel(url):
+        if "/3_" in url:
+            chamadas["n"] += 1
+            if chamadas["n"] == 2:          # 1ª passada perde a página 2
+                fonte.corta_pagina = 2
+                resposta = original(url)
+                fonte.corta_pagina = None
+                return resposta
+        return original(url)
+    lote.http._abrir = instavel
+    unicas, declarado, recebidas = lote.resultados_do_dia(DIA)
+    assert len(unicas) == declarado == 4 and recebidas == 2 + 4   # duas passadas
 
 
 def test_reimportar_o_mesmo_dia_nao_duplica():
@@ -281,8 +305,13 @@ def test_plano_poe_o_ano_da_cotacao_na_frente_do_historico():
     recentes = [t for t in tarefas if t["faixa"] == "recente"]
     historicas = [t for t in tarefas if t["faixa"] == "historico"]
     assert len(recentes) == 365 and historicas
-    assert max(t["prioridade"] for t in recentes) < min(t["prioridade"] for t in historicas)
     assert recentes[0]["particao"] == "2026-11-12"   # o mais novo primeiro
+    # orçamento por faixa: o histórico entra intercalado (1 a cada 4
+    # recentes), nunca inteiro depois do ano — e o ano ainda vai na frente
+    ordem = sorted(tarefas, key=lambda t: t["prioridade"])
+    primeiras = [t["faixa"] for t in ordem[:50]]
+    assert primeiras.count("historico") >= 10 and primeiras.count("recente") >= 35
+    assert ordem[0]["faixa"] == "recente"
     assert len({t["particao"] for t in tarefas}) == len(tarefas)
 
 
@@ -306,10 +335,13 @@ def test_relatorio_por_fonte_e_faixa():
                "totais": {"resultados": 10, "gravadas": 7, "chamadas": 30}},
               {"fonte": "comprasgov_lote", "faixa": "recente", "estado": "pendente",
                "totais": {}}]
+    linhas[0]["totais"].update(inseridas=5, atualizadas=2, recusadas={"x": 3},
+                               tempos={"requisicao_s": 1.5, "gravacao_s": 0.5})
     r = pi.relatorio(linhas)["comprasgov_lote/recente"]
-    assert r == {"total": 2, "estados": {"concluida": 1, "pendente": 1},
-                 "resultados": 10, "gravadas": 7, "chamadas": 30,
-                 "contratacoes": 0, "itens": 0}
+    assert r["total"] == 2 and r["estados"] == {"concluida": 1, "pendente": 1}
+    assert (r["resultados"], r["gravadas"], r["chamadas"]) == (10, 7, 30)
+    assert (r["inseridas"], r["atualizadas"]) == (5, 2)
+    assert r["recusadas"] == {"x": 3} and r["tempos"]["requisicao_s"] == 1.5
 
 
 # ---------------------------------------------------------------------------
@@ -338,7 +370,7 @@ class PortalPncp:
         self.urls.append(url)
         partes = urllib.parse.urlsplit(url)
         q = dict(urllib.parse.parse_qsl(partes.query))
-        if "/contratacoes/publicacao" in partes.path:
+        if "/contratacoes/publicacao" in partes.path or "/contratacoes/atualizacao" in partes.path:
             n = int(q["pagina"])
             fatia = self.contratacoes[(n - 1) * self.pagina:n * self.pagina]
             restantes = max(0, -(-len(self.contratacoes) // self.pagina) - n)
@@ -431,19 +463,21 @@ def test_plano_pncp_uma_modalidade_por_dia_com_o_ano_na_frente():
                             modalidades=(6, 8))
     assert [t["particao"] for t in tarefas] == ["6:2026-11-12", "8:2026-11-12",
                                                 "6:2026-11-11", "8:2026-11-11"]
-    assert all(t["faixa"] == "recente" for t in tarefas)
+    # publicação com menos de 30 dias: faixa própria, relida até sair resultado
+    assert all(t["faixa"] == "atualizacao" for t in tarefas)
 
 
-def test_publicacao_fresca_vai_para_o_fim_da_faixa_recente():
-    # medido em produção: publicação de ontem não tem resultado ainda
-    tarefas = pi.plano_pncp("c", ate=date(2026, 11, 13), desde=date(2025, 11, 1),
+def test_nenhuma_faixa_fica_indefinidamente_no_fim():
+    # 14/11/2026: a publicação fresca ia inteira para o fim e o histórico
+    # esperava o ano todo. Com o passo por faixa, a cada janela da fila as
+    # três faixas recebem a sua parte (4 : 2 : 1).
+    tarefas = pi.plano_pncp("c", ate=date(2026, 11, 13), desde=date(2023, 1, 1),
                             modalidades=(6,))
-    prio = {t["particao"]: t["prioridade"] for t in tarefas}
-    ontem, um_mes, um_ano = prio["6:2026-11-13"], prio["6:2026-10-13"], prio["6:2025-11-14"]
-    assert um_mes < ontem < prio["6:2025-11-01"]          # fresca depois, histórico por último
-    assert um_ano < ontem
-    lote = pi.plano_comprasgov("c", ate=date(2026, 11, 13), desde=date(2026, 11, 13))
-    assert lote[0]["prioridade"] < ontem                    # o lote tem resultado: vem antes
+    ordem = sorted(tarefas, key=lambda t: t["prioridade"])
+    primeiras = [t["faixa"] for t in ordem[:140]]
+    assert primeiras.count("historico") >= 15            # orçamento mínimo do histórico
+    assert primeiras.count("atualizacao") >= 25          # e da publicação fresca
+    assert primeiras.count("recente") >= 60              # o ano da cotação domina
 
 
 def test_contratacao_toda_homologada_e_final():
@@ -494,8 +528,8 @@ def test_cli_plan_simulado_conta_as_particoes(capsys):
     assert pi.main(["plan", "--campanha", "c", "--desde", "2026-11-01", "--ate", "2026-11-10",
                     "--simular", "--fontes", "comprasgov_lote", "pncp_descoberta"]) == 0
     saida = json.loads(capsys.readouterr().out)
-    assert saida == {"tarefas": 10 + 10 * len(pi.MODALIDADES), "recentes": 150,
-                     "historicas": 0}
+    assert saida == {"tarefas": 10 + 10 * len(pi.MODALIDADES), "recentes": 10,
+                     "atualizacao": 140, "historicas": 0}
 
 
 
@@ -517,3 +551,249 @@ def test_dia_recente_lido_vazio_volta_amanha():
                        fila=fila) == "pendente"
     espera = fila.tarefas[0]["proxima_em"] - datetime.now(timezone.utc)
     assert timedelta(hours=23) < espera < timedelta(days=1, minutes=1)
+
+
+# ---------------------------------------------------------------------------
+# Ingestão medida (14/11/2026): gravar o lido, contar o que entrou, retomar
+# ---------------------------------------------------------------------------
+def test_gravacao_conta_inseridas_atualizadas_e_inalteradas():
+    armazem = pncp_indice.ArmazemEmMemoria()
+    _, lote = _cenario()
+    t1 = pi.importar_dia(lote, armazem, DIA)
+    assert (t1.inseridas, t1.atualizadas, t1.inalteradas) == (3, 0, 0)
+    _, lote = _cenario()
+    t2 = pi.importar_dia(lote, armazem, DIA)          # releitura: nada novo
+    assert (t2.inseridas, t2.atualizadas, t2.inalteradas) == (0, 0, 3)
+    fonte, lote = _cenario()
+    fonte.resultados[0]["valorUnitarioHomologado"] = 90.0   # correção na fonte
+    fonte.resultados[0]["valorTotalHomologado"] = 180.0
+    t3 = pi.importar_dia(lote, armazem, DIA)
+    assert (t3.inseridas, t3.atualizadas, t3.inalteradas) == (0, 1, 2)
+    assert armazem.resultados["11111111000111-1-000001/2026#1#1"]["valor_unitario"] \
+        .startswith("90")
+    assert len(armazem.resultados) == 3                  # nunca duplica
+
+
+def test_tempos_por_fase_e_recusas_por_motivo_ficam_nos_totais():
+    _, lote = _cenario()
+    r = pi.importar_dia(lote, pncp_indice.ArmazemEmMemoria(), DIA).registro()
+    assert set(r["tempos"]) == {"espera_s", "requisicao_s", "transformacao_s",
+                                "validacao_s", "gravacao_s"}
+    assert r["recebidos"] == 4 and r["declarados"] == 4 and r["chamadas"] == 6
+    assert r["recusadas"] == {pncp_indice.CRITERIO_MAIOR_DESCONTO: 1}
+
+
+def test_rede_cai_no_meio_do_dia_o_lido_fica_e_a_retomada_nao_repete():
+    fonte, lote = _cenario()
+    original = fonte.__call__
+    c2 = "22222222000122"
+    lote.http._abrir = lambda url: (503, {}, b"") if ("/2.1_" in url and c2 in url) \
+        else original(url)
+    armazem = pncp_indice.ArmazemEmMemoria()
+    fila = _fila_com([DIA])
+    tarefa = fila.reservar("w", ["comprasgov_lote"], 1, 60)[0]
+    assert pi.executar(tarefa, lote=lote, armazem=armazem, fila=fila) == "pendente"
+    gravada = fila.tarefas[0]
+    assert len(armazem.resultados) == 2                       # a 1ª contratação ficou
+    assert gravada["checkpoint"]["compra_feita_ate"].startswith("11111111000111")
+    assert gravada["totais"]["gravadas"] == 2 and "503" in gravada["erro"]
+    # avançou: volta logo (não espera a escada de tentativas)
+    assert gravada["proxima_em"] < datetime.now(timezone.utc) + timedelta(minutes=2)
+    gravada["proxima_em"] = datetime.now(timezone.utc)
+    _, lote2 = _cenario()
+    tarefa = fila.reservar("w", ["comprasgov_lote"], 1, 60)[0]
+    assert pi.executar(tarefa, lote=lote2, armazem=armazem, fila=fila) == "pendente"
+    final = fila.tarefas[0]
+    assert final["totais"]["puladas_por_retomada"] == 2       # não releu a 1ª
+    assert final["totais"]["inseridas"] == 1                  # a PF; o desconto é recusado
+    assert "compra_feita_ate" not in final["checkpoint"]      # a próxima leitura é completa
+    assert len(armazem.resultados) == 3
+
+
+class ArmazemQueRecusa(pncp_indice.ArmazemEmMemoria):
+    def gravar_resultados(self, linhas):
+        raise RuntimeError("new row violates check constraint")
+
+
+def test_falha_de_gravacao_nunca_e_ocultada():
+    _, lote = _cenario()
+    fila = _fila_com([DIA])
+    tarefa = fila.reservar("w", ["comprasgov_lote"], 1, 60)[0]
+    assert pi.executar(tarefa, lote=lote, armazem=ArmazemQueRecusa(), fila=fila) == "pendente"
+    t = fila.tarefas[0]
+    assert t["erro"].startswith("gravação: RuntimeError")
+    assert t["totais"]["falhas_gravacao"] == 3 and t["totais"]["gravadas"] == 0
+
+
+def test_dia_de_ontem_com_resultado_e_relido_amanha_mesmo_assim():
+    ontem = date.today() - timedelta(days=1)
+    _, lote = _cenario()
+    fila = _fila_com([ontem])
+    tarefa = fila.reservar("w", ["comprasgov_lote"], 1, 60)[0]
+    assert pi.executar(tarefa, lote=lote, armazem=pncp_indice.ArmazemEmMemoria(),
+                       fila=fila) == "pendente"
+    espera = fila.tarefas[0]["proxima_em"] - datetime.now(timezone.utc)
+    assert timedelta(hours=23) < espera < timedelta(days=1, minutes=1)
+    assert fila.tarefas[0]["totais"]["gravadas"] == 3
+
+
+def test_plano_do_dia_cria_o_dia_novo_e_a_atualizacao_sem_duplicar():
+    hoje = date(2026, 11, 14)
+    fila = pi.FilaEmMemoria()
+    s = pi.Servico(fila=fila, lote=None, armazem=None, campanha="c",
+                   fontes_da_pista=("comprasgov_lote",))
+    assert s.planejar(hoje) == 2 + 2 * len(pi.MODALIDADES)
+    assert s.planejar(hoje) == 0                                  # uma vez por dia
+    s._planejado_em = None
+    assert s.planejar(hoje) == 0                                  # e idempotente
+    particoes = {t["particao"] for t in fila.tarefas}
+    assert {"2026-11-13", "2026-11-12", "6:2026-11-13", "u:6:2026-11-13"} <= particoes
+    assert all(t["faixa"] == "urgente" and t["prioridade"] < 0 for t in fila.tarefas)
+
+
+def test_atualizacao_reagenda_contratacao_ja_lida():
+    controle = "17935388000115-1-000108/2026"
+    fila = pi.FilaEmMemoria()
+    fila.criar([{"campanha": "c", "fonte": "pncp_contratacao", "particao": controle},
+                {"campanha": "c", "fonte": "pncp_descoberta", "particao": "u:6:2026-11-13"}])
+    fila.tarefas[0].update(estado="concluida",
+                           proxima_em=datetime.now(timezone.utc) + timedelta(days=60))
+    tarefa = fila.reservar("w", ["pncp_descoberta"], 1, 60)[0]
+    portal = PortalPncp([_contr_pncp(controle)], [], {})
+    totais = pi.executar_descoberta(tarefa, pncp=_pncp(portal), fila=fila)
+    assert totais["reagendadas"] == 1 and totais["enfileiradas"] == 0
+    assert fila.tarefas[0]["estado"] == "pendente"
+    assert fila.tarefas[0]["proxima_em"] <= datetime.now(timezone.utc)
+    assert any("/contratacoes/atualizacao" in u for u in portal.urls)
+
+
+def _tarefa_careacu(fila, controle="17935388000115-1-000108/2026", **ck):
+    fila.criar([{"campanha": "c", "fonte": "pncp_contratacao", "particao": controle,
+                 "checkpoint": {"cabecalho": pncp_indice.resumo_da_contratacao(
+                     _contr_pncp(controle)), **ck}}])
+    return fila.reservar("w", ["pncp_contratacao"], 1, 60)[0]
+
+
+def test_429_no_meio_da_contratacao_grava_o_lido_e_retoma_do_item():
+    itens, resultados = _careacu()
+    item3 = {**itens[1], "numeroItem": 3, "descricao": "CENTRIFUGA"}
+    itens.append(item3)
+    resultados[3] = [{**resultados[2][0], "numeroItem": 3, "valorUnitarioHomologado": 900.0,
+                      "valorTotalHomologado": 900.0}]
+    portal = PortalPncp([], itens, resultados)
+    bloqueado = {"sim": True}
+
+    def abrir(url):
+        if bloqueado["sim"] and "/itens/3/resultados" in url:
+            return 429, {"Retry-After": "0"}, b""
+        return portal(url)
+    pncp = _pncp(abrir)
+    fila = pi.FilaEmMemoria()
+    armazem = pncp_indice.ArmazemEmMemoria()
+    tarefa = _tarefa_careacu(fila)
+    assert pi.executar(tarefa, lote=None, armazem=armazem, fila=fila, pncp=pncp) == "pendente"
+    t = fila.tarefas[0]
+    assert t["checkpoint"]["item_feito_ate"] == 2 and len(armazem.resultados) == 1
+    assert "429" in t["erro"]
+    bloqueado["sim"] = False
+    t["proxima_em"] = datetime.now(timezone.utc)
+    tarefa = fila.reservar("w", ["pncp_contratacao"], 1, 60)[0]
+    pi.executar(tarefa, lote=None, armazem=armazem, fila=fila, pncp=pncp)
+    assert len(armazem.resultados) == 2
+    assert sum("/itens/2/resultados" in u for u in portal.urls) == 1   # não releu o 2
+
+
+def test_releitura_completa_invalida_resultado_que_sumiu_da_fonte():
+    itens, resultados = _careacu()
+    fila = pi.FilaEmMemoria()
+    armazem = pncp_indice.ArmazemEmMemoria()
+    controle = "17935388000115-1-000108/2026"
+    linha, _ = pncp_indice.linha_do_resultado(
+        pncp_indice.resumo_da_contratacao(_contr_pncp(controle)), itens[1],
+        {**resultados[2][0], "sequencialResultado": 2})
+    armazem.gravar_resultados([linha])
+    tarefa = _tarefa_careacu(fila, leituras=1)
+    totais = pi.executar_contratacao(tarefa, pncp=_pncp(PortalPncp([], itens, resultados)),
+                                     armazem=armazem)
+    assert totais["invalidadas"] == 1
+    assert armazem.resultados[f"{controle}#2#2"]["vigente"] is False
+    assert armazem.resultados[f"{controle}#2#1"]["vigente"] is True
+
+
+def test_429_do_pncp_nao_para_a_pista_do_comprasgov():
+    # duas pistas, um limitador por host: a do PNCP dorme o Retry-After, a
+    # do Compras.gov termina o dia enquanto isso (relógio real)
+    import time as _t
+    lim = pi.Limitador(1000)
+    fonte, _ = _cenario()
+    lote = pi.ComprasGovLote(pi.ClienteHttp(lim, abrir=fonte))
+    pncp = pi.PncpItemAItem(pi.ClienteHttp(
+        lim, abrir=lambda url: (429, {"Retry-After": "1"}, b"")))
+    fila = pi.FilaEmMemoria()
+    fila.criar([{"campanha": "c", "fonte": "comprasgov_lote", "particao": DIA.isoformat()},
+                {"campanha": "c", "fonte": "pncp_descoberta", "particao": "6:2026-10-29"}])
+    fila.ajustar_controle(req_por_s=1000)
+    armazem = pncp_indice.ArmazemEmMemoria()
+    pista_pncp = pi.Servico(fila=fila, lote=None, pncp=pncp, armazem=armazem, dono="p",
+                            fontes_da_pista=("pncp_contratacao", "pncp_descoberta"))
+    pista_lote = pi.Servico(fila=fila, lote=lote, armazem=armazem, dono="p",
+                            fontes_da_pista=("comprasgov_lote",))
+    t = threading.Thread(target=pista_pncp.rodar, kwargs={"uma_vez": True})
+    t.start()
+    _t.sleep(0.1)                     # a pista do PNCP já está dormindo o 429
+    inicio = _t.monotonic()
+    assert pista_lote.passo() == 1
+    lote_s = _t.monotonic() - inicio
+    assert t.is_alive() and lote_s < 0.5          # não esperou o Retry-After do outro host
+    assert len(armazem.resultados) == 3
+    t.join()
+    assert lim.intervalo("pncp.gov.br") > lim.intervalo("dadosabertos.compras.gov.br")
+    assert fila.tarefas[1]["estado"] == "pendente" and "429" in fila.tarefas[1]["erro"]
+
+
+def test_excecao_inesperada_volta_a_tarefa_e_a_pista_segue(monkeypatch):
+    fila = _fila_com([DIA])
+    s = pi.Servico(fila=fila, lote=None, armazem=None, fontes_da_pista=("comprasgov_lote",))
+
+    def explode(*a, **k):
+        raise KeyError("campo novo na fonte")
+    monkeypatch.setattr(pi, "executar", explode)
+    assert s.passo() == 1
+    t = fila.tarefas[0]
+    assert t["estado"] == "pendente" and t["erro"].startswith("inesperado: KeyError")
+
+
+def test_ritmo_por_minuto_e_gargalo_medido():
+    linhas = [{"fonte": "comprasgov_lote", "estado": "pendente", "erro": "",
+               "totais": {"inseridas": 600, "atualizadas": 30, "inalteradas": 10,
+                          "tempos": {"espera_s": 50.0, "requisicao_s": 400.0,
+                                     "validacao_s": 5.0, "gravacao_s": 20.0}}},
+              {"fonte": "pncp_contratacao", "estado": "pendente", "erro": "http 429",
+               "totais": {"inseridas": 3, "tempos": {"espera_s": 90.0}}}]
+    r = pi.ritmo(linhas, 30)
+    assert r["fontes"]["comprasgov_lote"]["inseridas_por_min"] == 20.0
+    assert r["fontes"]["comprasgov_lote"]["gargalo"] == "requisicao_s"
+    assert r["fontes"]["pncp_contratacao"]["gargalo"] == "espera_s"
+    assert r["fontes"]["pncp_contratacao"]["erros"] == {"http 429": 1}
+
+
+def test_cliente_tenta_de_novo_o_429_antes_de_falhar_a_tarefa():
+    respostas = [(429, {"Retry-After": "0"}, b""), (200, {}, b'{"ok": 1}')]
+    http = pi.ClienteHttp(pi.Limitador(1000, dormir=lambda s: None),
+                          abrir=lambda url: respostas.pop(0))
+    assert http.json("https://pncp.gov.br/x") == {"ok": 1}
+    assert http.chamadas == 2 and http.falhas == {"429": 1}
+
+
+def test_cada_pista_tem_o_seu_ritmo_e_o_controle_so_mexe_no_pncp():
+    lim = pi.Limitador(1.0, dormir=lambda s: None)
+    fila = pi.FilaEmMemoria()
+    fila.ajustar_controle(req_por_s=0.5)
+    lote = pi.ComprasGovLote(pi.ClienteHttp(lim))
+    pncp = pi.PncpItemAItem(pi.ClienteHttp(lim))
+    pi.Servico(fila=fila, lote=lote, armazem=None, dono="p", req_por_s=2.0,
+               fontes_da_pista=("comprasgov_lote",)).passo()
+    pi.Servico(fila=fila, lote=None, pncp=pncp, armazem=None, dono="p",
+               fontes_da_pista=("pncp_contratacao", "pncp_descoberta")).passo()
+    assert lim.intervalo("dadosabertos.compras.gov.br") == 0.5    # 2 req/s, próprio
+    assert lim.intervalo("pncp.gov.br") == 2.0                    # 0,5 req/s, do controle

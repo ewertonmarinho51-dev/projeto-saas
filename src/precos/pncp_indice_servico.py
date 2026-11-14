@@ -70,14 +70,40 @@ class ArmazemSupabase:
                 .limit(limite).execute()).data or []
 
     def gravar_resultados(self, linhas):
+        """
+        Grava e CONTA: antes do upsert, uma leitura das chaves separa a
+        linha nova (inserida), a mesma chave com conteúdo ou vigência
+        diferente (atualizada — correção) e a que já estava igual
+        (inalterada, não é reescrita). Recusa do banco sobe como exceção.
+        """
         agora = self._agora()
-        # confirmado agora = vigente de novo, mesmo que uma revisita
-        # anterior o tenha invalidado (o upsert só toca as colunas enviadas)
-        self._c.table("precos_pncp_resultados").upsert(
-            [{**linha, "coletado_em": agora, "vigente": True,
-              "invalidado_em": None, "invalidado_motivo": ""}
-             for linha in linhas],
-            on_conflict="id_externo").execute()
+        por_id = {linha["id_externo"]: linha for linha in linhas}
+        existentes: dict[str, dict] = {}
+        ids = list(por_id)
+        for i in range(0, len(ids), 100):
+            for e in (self._c.table("precos_pncp_resultados")
+                      .select("id_externo,hash_linha,vigente")
+                      .in_("id_externo", ids[i:i + 100]).execute()).data or []:
+                existentes[e["id_externo"]] = e
+        contagem = {"inseridas": 0, "atualizadas": 0, "inalteradas": 0}
+        escrever = []
+        for id_externo, linha in por_id.items():
+            atual = existentes.get(id_externo)
+            if atual is None:
+                contagem["inseridas"] += 1
+            elif atual.get("hash_linha") == linha.get("hash_linha") and atual.get("vigente"):
+                contagem["inalteradas"] += 1
+                continue
+            else:
+                contagem["atualizadas"] += 1
+            # confirmado agora = vigente de novo, mesmo que uma revisita
+            # anterior o tenha invalidado (o upsert só toca as colunas enviadas)
+            escrever.append({**linha, "coletado_em": agora, "vigente": True,
+                             "invalidado_em": None, "invalidado_motivo": ""})
+        for i in range(0, len(escrever), 500):
+            self._c.table("precos_pncp_resultados").upsert(
+                escrever[i:i + 500], on_conflict="id_externo").execute()
+        return contagem
 
     def invalidar(self, numero_controle, *, manter, itens, motivo):
         linhas = (self._c.table("precos_pncp_resultados")

@@ -5,6 +5,8 @@
 #      sudo ./importador_pncp.sh subir              # imagem do worker no ar
 #      sudo ./importador_pncp.sh plano nacional-2026-11 2023-01-01
 #      sudo ./importador_pncp.sh status [campanha]
+#      sudo ./importador_pncp.sh ritmo [minutos]   # inseridas/min por fonte, gargalo
+#      sudo ./importador_pncp.sh logs [linhas]
 #      sudo ./importador_pncp.sh pausar "motivo"
 #      sudo ./importador_pncp.sh retomar
 #      sudo ./importador_pncp.sh reconciliar <campanha> <desde> <ate>
@@ -34,6 +36,7 @@ AMBIENTE_ENV="${AMBIENTE_ENV:-/etc/govdocs/indexador.env}"
 NOME="importador-pncp"
 ANTIGO="indexador-pncp"
 REQ_POR_S="${REQ_POR_S:-2}"
+CAMPANHA_PADRAO="${CAMPANHA:-nacional-2026-11}"   # o serviço cria o plano de cada dia novo nela
 
 imagem() {
   local img
@@ -60,7 +63,8 @@ case "${1:-}" in
     docker run -d --name "$NOME" --restart unless-stopped --env-file "$AMBIENTE_ENV" \
       --read-only --tmpfs /tmp:size=32m --memory 256m \
       --log-opt max-size=10m --log-opt max-file=3 \
-      "$IMG" python -m src.precos.pncp_integral run --req-por-s "$REQ_POR_S" >/dev/null
+      "$IMG" python -m src.precos.pncp_integral run --req-por-s "$REQ_POR_S" \
+      --campanha "$CAMPANHA_PADRAO" >/dev/null
     sleep 20
     docker ps -a --filter "name=^${NOME}$" --format '{{.Names}} | {{.Image}} | {{.Status}}'
     docker inspect -f 'restart={{.HostConfig.RestartPolicy.Name}} memoria={{.HostConfig.Memory}} somente_leitura={{.HostConfig.ReadonlyRootfs}}' "$NOME"
@@ -73,6 +77,12 @@ case "${1:-}" in
   status)
     if [ -n "${2:-}" ]; then uma_vez status --campanha "$2"; else uma_vez status; fi
     docker ps -a --filter "name=^${NOME}$" --format '{{.Names}} | {{.Image}} | {{.Status}}'
+    ;;
+  ritmo)       # o que a janela fez, por fonte: inseridas/min, recusas, tempos por fase
+    uma_vez ritmo --minutos "${2:-30}"
+    ;;
+  logs)        # uma linha JSON por tarefa (persiste enquanto o contêiner existir)
+    docker logs --tail "${2:-50}" "$NOME" 2>&1 | cut -c1-600
     ;;
   pausar)
     uma_vez pause --motivo "${2:?motivo}"

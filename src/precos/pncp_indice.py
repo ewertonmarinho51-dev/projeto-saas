@@ -368,11 +368,23 @@ class ArmazemEmMemoria:
         return fila[:limite]
 
     def gravar_resultados(self, linhas):
+        """Grava e conta: inseridas (chave nova), atualizadas (conteúdo ou
+        vigência mudou) e inalteradas (já estava igual — não reescreve)."""
         agora = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        contagem = {"inseridas": 0, "atualizadas": 0, "inalteradas": 0}
         for linha in linhas:
+            atual = self.resultados.get(linha["id_externo"])
+            if atual is None:
+                contagem["inseridas"] += 1
+            elif atual.get("hash_linha") == linha.get("hash_linha") and atual.get("vigente", True):
+                contagem["inalteradas"] += 1
+                continue
+            else:
+                contagem["atualizadas"] += 1
             self.resultados[linha["id_externo"]] = {
                 "coletado_em": agora, **linha, "vigente": True,
                 "invalidado_em": None, "invalidado_motivo": ""}
+        return contagem
 
     def invalidar(self, numero_controle, *, manter, itens, motivo):
         agora = datetime.now(timezone.utc).isoformat(timespec="seconds")
