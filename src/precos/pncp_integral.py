@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import socket
 import threading
 import time
@@ -41,7 +42,7 @@ from typing import Callable, Iterable, Protocol
 
 from . import pncp_indice
 
-VERSAO = "2026-11-14.pncp-integral.2"
+VERSAO = "2026-11-14.pncp-integral.3"
 FONTES = ("comprasgov_lote", "pncp_descoberta", "pncp_contratacao")
 ESTADOS_FINAIS = ("pendente", "concluida", "parcial", "falha", "quarentena")
 DADOS_ABERTOS = "https://dadosabertos.compras.gov.br/modulo-contratacoes"
@@ -257,38 +258,47 @@ class ComprasGovLote:
         self._contratacoes: dict[str, dict] = {}
         self._itens: dict[str, dict[int, dict]] = {}
 
-    def _uma_passada(self, dia: date) -> tuple[list[dict], int]:
-        linhas: list[dict] = []
-        pagina, total = 1, 0
-        while True:
-            dados = self.http.json(_url(
-                "3_consultarResultadoItensContratacoes_PNCP_14133", pagina=pagina,
-                tamanhoPagina=PAGINA_LOTE, dataResultadoPncpInicial=dia.isoformat(),
-                dataResultadoPncpFinal=dia.isoformat()))
-            resultado, declarado = _pagina_valida(dados)
-            total = max(total, declarado)
-            linhas.extend(resultado)
-            if not resultado or int(dados.get("paginasRestantes") or 0) <= 0:
-                return linhas, total
-            pagina += 1
+    def _pagina(self, dia: date, pagina: int) -> tuple[list[dict], int, int]:
+        dados = self.http.json(_url(
+            "3_consultarResultadoItensContratacoes_PNCP_14133", pagina=pagina,
+            tamanhoPagina=PAGINA_LOTE, dataResultadoPncpInicial=dia.isoformat(),
+            dataResultadoPncpFinal=dia.isoformat()))
+        resultado, declarado = _pagina_valida(dados)
+        return resultado, declarado, int(dados.get("paginasRestantes") or 0)
 
     def resultados_do_dia(self, dia: date) -> tuple[list[dict], int, int]:
         """
-        (resultados únicos, total declarado, linhas recebidas). Menos únicos
-        que o declarado depois de `PASSADAS_DO_DIA` passadas NÃO descarta o
-        lido: quem chama grava e registra a falta (`faltantes`).
+        (resultados únicos, total declarado, linhas recebidas). Lê TODAS as
+        páginas que o total declarado implica — página vazia no meio não
+        encerra a leitura (medido em 14/11/2026: em produção a leitura parava
+        na 1ª vazia e 13/11/2025 vinha com 11.329 de 12.811) — e relê só as
+        páginas curtas, até `PASSADAS_DO_DIA`. Linha repetida pela própria
+        fonte (145 idênticas em 13/11/2025) não é falta: `recebidas` conta
+        linhas, os únicos vêm à parte. Quem chama grava o que veio.
         """
-        unicas: dict[tuple, dict] = {}
-        recebidas, declarado = 0, 0
-        for _ in range(PASSADAS_DO_DIA):
-            linhas, total = self._uma_passada(dia)
-            recebidas += len(linhas)
-            declarado = max(declarado, total)
-            for r in linhas:
-                unicas.setdefault(_chave_lote(r), r)
-            if len(unicas) >= declarado:
+        primeira, declarado, restantes = self._pagina(dia, 1)
+        n = 1 + restantes if primeira else max(1, -(-declarado // PAGINA_LOTE))
+        paginas = {1: primeira}
+        for p in range(2, n + 1):
+            paginas[p] = self._pagina(dia, p)[0]
+        # o tamanho de página que a fonte pratica (pode cortar o pedido)
+        tamanho = max([len(paginas[p]) for p in paginas if p < n] or [declarado])
+
+        def esperado(p: int) -> int:
+            return tamanho if p < n else max(0, declarado - tamanho * (n - 1))
+        for _ in range(PASSADAS_DO_DIA - 1):
+            curtas = [p for p in paginas if len(paginas[p]) < esperado(p)]
+            if not curtas:
                 break
-        return list(unicas.values()), declarado, recebidas
+            for p in curtas:
+                nova = self._pagina(dia, p)[0]
+                if len(nova) > len(paginas[p]):
+                    paginas[p] = nova
+        linhas = [r for p in sorted(paginas) for r in paginas[p]]
+        unicas: dict[tuple, dict] = {}
+        for r in linhas:
+            unicas.setdefault(_chave_lote(r), r)
+        return list(unicas.values()), declarado, len(linhas)
 
     def contratacao(self, id_compra: str) -> dict:
         if id_compra not in self._contratacoes:
@@ -406,6 +416,7 @@ class Totais:
     invalidadas: int = 0
     falhas_gravacao: int = 0
     puladas_por_retomada: int = 0
+    repetidas_na_fonte: int = 0
     tempos: dict = field(default_factory=lambda: {
         "espera_s": 0.0, "requisicao_s": 0.0, "transformacao_s": 0.0,
         "validacao_s": 0.0, "gravacao_s": 0.0})
@@ -428,6 +439,7 @@ class Totais:
                 "inalteradas": self.inalteradas, "invalidadas": self.invalidadas,
                 "falhas_gravacao": self.falhas_gravacao,
                 "puladas_por_retomada": self.puladas_por_retomada,
+                "repetidas_na_fonte": self.repetidas_na_fonte,
                 "tempos": {k: round(v, 3) for k, v in self.tempos.items()}}
 
 
@@ -488,7 +500,8 @@ def importar_dia(lote: ComprasGovLote, armazem, dia: date, *,
         totais.rede(lote.http, antes)
     totais.recebidos, totais.declarados = recebidos, declarado
     totais.resultados = len(resultados)
-    totais.faltantes = max(0, declarado - len(resultados))
+    totais.faltantes = max(0, declarado - recebidos)
+    totais.repetidas_na_fonte = recebidos - len(resultados)
     por_compra: dict[str, list[dict]] = {}
     for r in resultados:
         por_compra.setdefault(_id_compra(r), []).append(r)
@@ -627,6 +640,22 @@ def _particao_descoberta(particao: str) -> tuple[str, int, date]:
     return rota, int(partes[-2]), date.fromisoformat(partes[-1])
 
 
+def _lugar_da_contratacao(c: dict, tarefa: dict) -> tuple[str, int]:
+    """
+    Faixa e prioridade pela idade da PUBLICAÇÃO — o lugar que a contratação
+    teria no plano. Medido em 14/11/2026: as alterações de um só dia trazem
+    milhares (6.025 só no pregão) e, herdando o `urgente` da descoberta,
+    passavam todas na frente com 0 resultado. A descoberta segue urgente
+    (é barata); o trabalho que ela gera entra na sua faixa.
+    """
+    try:
+        publicada = date.fromisoformat(str(c.get("dataPublicacaoPncp") or "")[:10])
+    except ValueError:
+        return tarefa["faixa"], tarefa["prioridade"]
+    return faixa_e_prioridade(max(0, (date.today() - publicada).days),
+                              fonte="pncp_descoberta")
+
+
 def executar_descoberta(tarefa: dict, *, pncp: PncpItemAItem, fila: "Fila",
                         lease_s: int = LEASE_S) -> dict:
     """
@@ -658,9 +687,9 @@ def executar_descoberta(tarefa: dict, *, pncp: PncpItemAItem, fila: "Fila",
             if str(c.get("usuarioNome") or "") == PLATAFORMA:
                 totais["comprasgov"] += 1   # vem em lote, pela outra fonte
                 continue
+            faixa, prioridade = _lugar_da_contratacao(c, tarefa)
             novas.append({"campanha": tarefa["campanha"], "fonte": "pncp_contratacao",
-                          "particao": controle, "faixa": tarefa["faixa"],
-                          "prioridade": tarefa["prioridade"],
+                          "particao": controle, "faixa": faixa, "prioridade": prioridade,
                           "checkpoint": {"cabecalho": pncp_indice.resumo_da_contratacao(c)}})
         totais["enfileiradas"] += fila.criar(novas)
         if rota == "atualizacao" and novas:
@@ -760,6 +789,7 @@ def executar_contratacao(tarefa: dict, *, pncp: PncpItemAItem, armazem,
 
 class Fila(Protocol):
     def liderar(self, dono: str, lease_s: int) -> bool: ...
+    def liberar(self, dono: str) -> bool: ...
     def reservar(self, dono: str, fontes: Iterable[str], limite: int, lease_s: int) -> list[dict]: ...
     def renovar(self, tarefa: dict, lease_s: int) -> bool: ...
     def concluir(self, tarefa: dict, estado: str, *, checkpoint=None, totais=None,
@@ -792,6 +822,13 @@ class FilaEmMemoria:
                 c["lider"], c["lider_ate"] = dono, _agora() + timedelta(seconds=lease_s)
                 return True
             return False
+
+    def liberar(self, dono):
+        with self._trava:
+            if self.ctl["lider"] != dono:
+                return False
+            self.ctl["lider_ate"] = _agora() - timedelta(seconds=1)   # já vencida
+            return True
 
     def reservar(self, dono, fontes, limite, lease_s):
         with self._trava:
@@ -899,6 +936,13 @@ class FilaSupabase:
     def liderar(self, dono, lease_s):
         return bool(self._c.rpc("precos_pncp_liderar",
                                 {"p_dono": dono, "p_lease_s": lease_s}).execute().data)
+
+    def liberar(self, dono):
+        """Só o próprio líder solta a liderança (parada limpa)."""
+        return bool((self._c.table("precos_pncp_controle")
+                     .update({"lider_ate": (_agora() - timedelta(seconds=1)).isoformat(),
+                              "atualizado_em": _agora().isoformat()})
+                     .eq("id", 1).eq("lider", dono).execute()).data)
 
     def reservar(self, dono, fontes, limite, lease_s):
         return self._c.rpc("precos_pncp_reservar", {
@@ -1297,6 +1341,23 @@ class Servico:
                 self.dormir(self.ocioso_s)
 
 
+def parar_limpo(fila: Fila, dono: str, sair: Callable[[int], None] = os._exit):
+    """
+    SIGTERM (`docker stop`): solta a liderança e sai. Medido na promoção de
+    14/11/2026: sem isso o contêiner novo esperou o lease do antigo (10 min)
+    parado. A tarefa em curso fica com o lease e volta pelo checkpoint — o
+    que foi gravado está gravado (upsert idempotente).
+    """
+    def tratar(_sinal=None, _quadro=None):
+        try:
+            liberada = fila.liberar(dono)
+        except Exception:  # noqa: BLE001 — saindo de qualquer jeito
+            liberada = False
+        _log({"evento": "parada", "dono": dono, "lideranca_liberada": liberada})
+        sair(0)
+    return tratar
+
+
 def rodar_pistas(servicos: list[Servico]) -> None:
     threads = [threading.Thread(target=s.rodar, name="+".join(s.fontes), daemon=True)
                for s in servicos]
@@ -1495,6 +1556,7 @@ def main(argv=None) -> int:
             for servico in servicos:
                 servico.rodar(uma_vez=True)
             return 0
+        signal.signal(signal.SIGTERM, parar_limpo(fila, dono))
         rodar_pistas(servicos)
         return 0
     if a.acao == "ritmo":
