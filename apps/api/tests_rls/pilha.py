@@ -322,7 +322,30 @@ def semear_precos(pilha: Pilha) -> dict:
             "values (%s,%s,'pncp','PNCP','sistema_oficial','ext-1','h1','Luva',2.3456,2.3456,"
             "'homologado','selected',%s)",
             (item, a1.tenant_id, Jsonb({"numeroControlePNCP": "12345678000190-1-000123/2025"})))
-    return {"pesquisa": pesquisa_a, "vazia": pesquisa_vazia, "item": item}
+        # P0 de 14/11/2026 (cesta que "perde" o clique): pesquisa própria com
+        # quatro referências FORA da cesta, para cliques rápidos seguidos —
+        # não mexe na "Luvas E2E" que as outras provas leem.
+        rapida = str(c.execute(
+            "insert into public.pesquisas_preco (tenant_id, secretaria_id, auth_user_id, "
+            "nome, estado, idempotency_key) values (%s,%s,%s,'Cesta rápida E2E','review',%s) "
+            "returning id",
+            (a1.tenant_id, a1.secretaria_id, a1.auth_user_id, uuid.uuid4().hex)).fetchone()[0])
+        item_rapido = str(c.execute(
+            "insert into public.pesquisa_preco_itens (pesquisa_id, tenant_id, numero, "
+            "descricao, unidade, quantidade, estado) values "
+            "(%s,%s,1,'Luva nitrílica','CX',10,'incomplete') returning id",
+            (rapida, a1.tenant_id)).fetchone()[0])
+        for n, valor in enumerate(("2.3000", "2.3500", "2.4000", "2.4500"), start=1):
+            c.execute(
+                "insert into public.pesquisa_preco_referencias (item_id, tenant_id, fonte_id, "
+                "fonte_nome, fonte_tipo, id_externo, raw_hash, descricao_original, "
+                "valor_unitario_original, valor_unitario_normalizado, natureza_valor, status, "
+                "bruto) values (%s,%s,'pncp','PNCP','sistema_oficial',%s,%s,'Luva nitrílica',"
+                "%s,%s,'homologado','candidate',%s)",
+                (item_rapido, a1.tenant_id, f"rapida-{n}", f"rapida-h{n}", valor, valor,
+                 Jsonb({"numeroControlePNCP": f"12345678000190-1-00020{n}/2025"})))
+    return {"pesquisa": pesquisa_a, "vazia": pesquisa_vazia, "item": item,
+            "rapida_pesquisa": rapida, "rapida_item": item_rapido}
 
 
 def semear_coleta(pilha: Pilha) -> str:

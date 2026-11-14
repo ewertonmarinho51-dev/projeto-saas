@@ -10,7 +10,7 @@ import { expect, test, type Page } from "@playwright/test";
  */
 const estado = JSON.parse(readFileSync(process.env.GOVCONECT_E2E_ESTADO ?? "", "utf8")) as {
   contas: Record<string, { email: string; senha: string }>;
-  precos: { pesquisa: string; item: string };
+  precos: { pesquisa: string; item: string; rapida_pesquisa: string; rapida_item: string };
 };
 
 async function entrar(page: Page, rotulo: string) {
@@ -106,6 +106,31 @@ test("cesta em um clique: tira, põe de volta, grava em segundo plano e persiste
   await page.reload();
   await expect(page.getByTestId("referencia").first()).toHaveAttribute("data-na-cesta", "1");
   await page.screenshot({ path: "e2e/resultados/telas/cesta-1440.png", fullPage: true });
+});
+
+test("P0: cliques rápidos em quatro referências — nenhuma some, tudo persiste e o item conclui", async ({ page }) => {
+  // 14/11/2026: com a revisão na `key` do provedor, o refresh do 1º clique
+  // recriava a cesta e o clique seguinte sumia (ou tomava 409).
+  await entrar(page, "a1");
+  await page.goto(`/app/precos/${estado.precos.rapida_pesquisa}/itens/${estado.precos.rapida_item}`);
+  const linhas = page.getByTestId("referencia");
+  await expect(linhas).toHaveCount(4);
+  for (let i = 0; i < 4; i++) {
+    await linhas.nth(i).getByRole("button", { name: "Incluir na cesta" }).click();
+  }
+  // nenhuma linha volta para fora enquanto a fila grava
+  for (let i = 0; i < 4; i++) await expect(linhas.nth(i)).toHaveAttribute("data-na-cesta", "1");
+  await expect(page.locator('[data-testid="controle-cesta"][aria-busy="true"]')).toHaveCount(0, { timeout: 30_000 });
+  // e depois que a fila esvazia e o refresh chega, continuam dentro
+  await page.waitForLoadState("networkidle");
+  for (let i = 0; i < 4; i++) await expect(linhas.nth(i)).toHaveAttribute("data-na-cesta", "1");
+  await expect(page.getByTestId("aviso-cesta")).toHaveCount(0);
+  await expect(page.getByTestId("contagem-cesta").first()).toHaveText("4");
+  await page.reload();
+  for (let i = 0; i < 4; i++) await expect(linhas.nth(i)).toHaveAttribute("data-na-cesta", "1");
+  // concluir usa a revisão confirmada: sem 409
+  await page.getByRole("button", { name: "Concluir item e avançar" }).click();
+  await expect(page).toHaveURL(new RegExp(`/app/precos/${estado.precos.rapida_pesquisa}\\?item=concluido`));
 });
 
 test("outro município não abre a pesquisa nem as referências", async ({ page }) => {

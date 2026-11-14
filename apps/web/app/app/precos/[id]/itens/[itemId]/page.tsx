@@ -90,8 +90,11 @@ export default async function Referencias({
 
   // O provedor da cesta envolve a página inteira: o preço do resumo, no
   // topo, também mostra o valor que o servidor confirmou a cada clique.
+  // `key` = o ITEM, nunca a revisão: a página nova do refresh entra pela
+  // reconciliação da fila (P0 de 14/11/2026 — com a revisão na key, cada
+  // gravação recriava a cesta e o clique seguinte sumia).
   return (
-    <CestaDoItem key={item.revisao} pesquisa={id} item={item.id} revisao={item.revisao} marcadas={marcadas}>
+    <CestaDoItem key={item.id} pesquisa={id} item={item.id} revisao={item.revisao} marcadas={marcadas}>
       <PageHead
         eyebrow={
           <span className="flex flex-wrap items-center gap-2">
