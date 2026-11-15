@@ -67,7 +67,7 @@ test("importar → cotação automática → revisar → aceitar → PDF", async
   // cai na mesma execução pela chave do plano — prova da API e da action).
   // com itens, a área de importação abre recolhida (UX-04): abre se preciso
   const area = page.getByTestId("area-importacao");
-  if (!(await area.evaluate((e) => (e as HTMLDetailsElement).open))) await area.locator("summary").click();
+  if (!(await area.evaluate((e) => (e as HTMLDetailsElement).open))) await area.locator(":scope > summary").click();
   await page.getByLabel("Planilha de itens (XLSX)").setInputFiles(estado.planilha_cotacao);
   await page.getByRole("button", { name: "Conferir planilha" }).click();
   await expect(page.getByText("A planilha é igual ao que a pesquisa já tem.")).toBeVisible();
