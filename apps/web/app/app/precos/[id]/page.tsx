@@ -7,7 +7,8 @@ import { PainelDeEmissao, ProgressoDoRelatorio } from "@/components/emissao";
 import { AplicarAoProcesso } from "@/components/aplicar-processo";
 import { DestinatarioDaPesquisa } from "@/components/destinatario";
 import { etapasDaPesquisa, SECAO } from "@/components/etapas-da-pesquisa";
-import { FechamentoDaPesquisa, GestaoDaPesquisa, NovoItem } from "@/components/gestao-cotacao";
+import { FechamentoDaPesquisa, GestaoDaPesquisa, NovaRevisao, NovoItem } from "@/components/gestao-cotacao";
+import { AreaRecolhivel } from "@/components/area-recolhivel";
 import { ImportarPlanilha } from "@/components/importar-planilha";
 import {
   dataCurta,
@@ -45,6 +46,9 @@ export const metadata: Metadata = { title: "Pesquisa de preços" };
 const UUID = /^[0-9a-f-]{36}$/i;
 
 const IMUTAVEIS = new Set(["applied", "archived"]);
+// Relatórios só com a cotação concluída (pacote de 14/11/2026, UX-08; a
+// API recusa o resto com 409 QUOTATION_NOT_COMPLETED).
+const EMITIVEIS = new Set(["completed", "applied"]);
 
 // Destino de etapa do fluxo: a barra do topo é fixa, e a seção não pode
 // parar embaixo dela ao rolar.
@@ -81,7 +85,7 @@ export default async function Pesquisa({
     p.estado === "completed" || p.estado === "applied"
       ? chamarApi<PreviaDaAplicacao>(`/precos/pesquisas/${id}/aplicacao`).then((r) => r.dados).catch(() => null)
       : null,
-    p.itens.length > 0
+    EMITIVEIS.has(p.estado) && p.itens.length > 0
       ? chamarApi<PreparoDaEmissao>(`/precos/pesquisas/${id}/emissao`).then((r) => r.dados).catch(() => null)
       : null,
     p.itens.length > 0
@@ -135,6 +139,14 @@ export default async function Pesquisa({
           </span>
         }
         title={<span data-testid="titulo-pesquisa">{p.nome}</span>}
+        actions={
+          // Ações da pesquisa no cabeçalho (UX-01/UX-02): Nova revisão só
+          // da concluída; Duplicar e Arquivar com os mesmos diálogos.
+          <div className="flex flex-wrap items-start gap-2" data-testid="acoes-da-pesquisa">
+            {EMITIVEIS.has(p.estado) && <NovaRevisao pesquisa={p.id} />}
+            <GestaoDaPesquisa pesquisa={p.id} editavel={!IMUTAVEIS.has(p.estado)} />
+          </div>
+        }
         desc={p.objeto || undefined}
       />
 
@@ -181,14 +193,6 @@ export default async function Pesquisa({
       </Card>
 
       {aviso && <Alert variant="success" title={aviso} />}
-      <GestaoDaPesquisa pesquisa={p.id} editavel={!IMUTAVEIS.has(p.estado)} />
-      <FechamentoDaPesquisa
-        pesquisa={p.id}
-        estado={p.estado}
-        itens={p.itens.length}
-        faltam={faltam - aptas}
-        aptas={aptas}
-      />
       {(jobId || !IMUTAVEIS.has(p.estado)) && (
         // Chave nova a cada renderização: um clique (ou o reenvio do
         // formulário) não põe duas coletas na fila — a API devolve o
@@ -218,15 +222,23 @@ export default async function Pesquisa({
             </div>
           </div>
           <div className="gc-card__body grid gap-3">
-            <ImportarPlanilha pesquisa={p.id} />
-            <details className="group border-t border-linha pt-3" data-testid="incluir-item">
-              <summary className="cursor-pointer text-[length:var(--gc-fs-sm)] font-[number:var(--weight-medium)] text-acento">
-                Ou inclua um item à mão
-              </summary>
-              <div className="mt-4">
-                <NovoItem pesquisa={p.id} />
-              </div>
-            </details>
+            {/* Recolhida depois que há itens (UX-04): a planilha já entrou;
+                abrir é para atualizar ou incluir um item à mão. */}
+            <AreaRecolhivel
+              aberta={p.itens.length === 0}
+              testId="area-importacao"
+              resumo={p.itens.length === 0 ? "Planilha de itens" : "Importar ou atualizar a planilha"}
+            >
+                <ImportarPlanilha pesquisa={p.id} />
+                <details className="group border-t border-linha pt-3" data-testid="incluir-item">
+                  <summary className="cursor-pointer text-[length:var(--gc-fs-sm)] font-[number:var(--weight-medium)] text-acento">
+                    Ou inclua um item à mão
+                  </summary>
+                  <div className="mt-4">
+                    <NovoItem pesquisa={p.id} />
+                  </div>
+                </details>
+            </AreaRecolhivel>
           </div>
         </section>
       )}
@@ -320,7 +332,16 @@ export default async function Pesquisa({
         </div>
       </section>
 
-      {p.itens.length > 0 && (
+      {/* Concluir cotação no RODAPÉ da pesquisa, depois dos itens (UX-02). */}
+      <FechamentoDaPesquisa
+        pesquisa={p.id}
+        estado={p.estado}
+        itens={p.itens.length}
+        faltam={faltam - aptas}
+        aptas={aptas}
+      />
+
+      {EMITIVEIS.has(p.estado) && p.itens.length > 0 && (
         <section id={SECAO.relatorios} aria-labelledby="titulo-emissao" className={`gc-card ${ALVO}`} data-testid="secao-emissao">
           <div className="gc-card__header gc-card__header--divided">
             <div className="gc-card__titles">
@@ -337,6 +358,12 @@ export default async function Pesquisa({
             </div>
           </div>
           <div className="gc-card__body grid gap-3">
+            <Alert variant="info" title="Cotação concluída">
+              <span data-testid="cotacao-concluida">
+                Os relatórios abaixo usam esta versão do resultado: Resumido (PDF e DOCX), Memória analítica (XLSX),
+                Analítico integral (PDF) e o pacote ZIP.
+              </span>
+            </Alert>
             <DestinatarioDaPesquisa
               pesquisa={p.id}
               orgaos={orgaos}

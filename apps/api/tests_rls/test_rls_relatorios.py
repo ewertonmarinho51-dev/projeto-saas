@@ -35,7 +35,8 @@ def pesquisa(pilha):
     import pilha as modulo_pilha
     from src import db
 
-    pid = modulo_pilha.semear_emissao(pilha)
+    # relatório só da cotação concluída (pacote de 14/11/2026, UX-08)
+    pid = modulo_pilha.semear_emissao(pilha, concluida=True)
     db._config_app_inteira.clear()      # flags recém-ligadas valem já
     return pid
 
@@ -91,7 +92,8 @@ def test_sem_ciencia_o_worker_recusa_e_com_ciencia_emite(pilha, pesquisa):
     api, a1 = _api(pilha), pilha.contas["a1"]
     preparo = api.get(f"/api/v1/precos/pesquisas/{pesquisa}/emissao", headers=_h(a1)).json()
     assert preparo["disponivel"] and preparo["requer_ciencia"], preparo
-    assert preparo["pendencias"] and preparo["ciencia"] is None
+    # concluída: a ciência vem do preço SINALIZADO da cesta, não de pendência
+    assert preparo["alertas"] and not preparo["pendencias"] and preparo["ciencia"] is None
     assert preparo["pode_registrar_ciencia"]
 
     recusado = _pedir(api, pesquisa, a1)
@@ -211,3 +213,20 @@ def test_celery_e_redis_de_verdade(pilha, pesquisa):
             worker.kill()
             saida, _ = worker.communicate()
         assert pilha.contas["a1"].token not in (saida or "")
+
+
+def test_cotacao_em_revisao_nao_emite_nem_no_banco_real(pilha):
+    """UX-08 (decisão de 15/11/2026): a pesquisa em revisão não emite —
+    o preparo diz por quê e o pedido é 409, sem job criado."""
+    import pilha as modulo_pilha
+    from src import db
+
+    pid = modulo_pilha.semear_emissao(pilha)            # em revisão
+    db._config_app_inteira.clear()
+    api, a1 = _api(pilha), pilha.contas["a1"]
+    preparo = api.get(f"/api/v1/precos/pesquisas/{pid}/emissao", headers=_h(a1)).json()
+    assert preparo["disponivel"] is False and "concluída" in preparo["motivo"]
+    r = api.post(f"/api/v1/precos/pesquisas/{pid}/relatorios", headers=_h(a1),
+                 json={"tipo": "cotacao", "formato": "docx"})
+    assert r.status_code == 409 and r.json()["code"] == "QUOTATION_NOT_COMPLETED"
+    assert api.app.state.fila.avisos == []

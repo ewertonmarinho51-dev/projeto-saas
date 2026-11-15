@@ -218,7 +218,7 @@ def test_orgaos_do_municipio_sem_timbrado_na_resposta(emissor):
 def test_worker_pede_o_timbrado_do_destinatario(monkeypatch):
     from src.precos import ciencia
 
-    pesquisa = {"id": P, "destinatario_externo": "Prefeitura de Ulianópolis"}
+    pesquisa = {"id": P, "destinatario_externo": "Prefeitura de Ulianópolis", "estado": "completed"}
     pedidos, marcas = [], []
     banco = PostgrestFalso()
     banco.responder("GET", "api_jobs", 200, [{

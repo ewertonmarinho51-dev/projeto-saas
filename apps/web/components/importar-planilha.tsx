@@ -4,7 +4,8 @@ import { FileXls } from "@phosphor-icons/react";
 import { startTransition, useActionState, useState } from "react";
 
 import { importarPlanilha, type EstadoDaImportacao } from "@/app/app/precos/acoes";
-import { botaoPrimario, botaoSecundario, rotulo } from "@/components/ui";
+import { botaoPrimario, botaoSecundario } from "@/components/ui";
+import { FileUpload } from "@/design-system";
 
 const ROTULO_ACAO: Record<string, string> = { novo: "Novo", atualizar: "Atualiza", igual: "Igual" };
 
@@ -35,20 +36,23 @@ export function ImportarPlanilha({ pesquisa }: { pesquisa: string }) {
 
   return (
     <div className="grid gap-4">
+      {/* Área de arrastar (pacote de 14/11/2026, UX-04): escolher o arquivo
+          não grava nada — só "Conferir" e depois "Confirmar". */}
       <div className="grid gap-2">
-        <label htmlFor="planilha-itens" className={rotulo}>
-          Planilha de itens (XLSX)
-        </label>
         <p className="text-sm text-secundario">
           Colunas reconhecidas: código, descrição, unidade, quantidade (UF e lote opcionais). Reimportar a mesma planilha
           não duplica itens.
         </p>
-        <input
-          id="planilha-itens"
-          type="file"
+        <FileUpload
+          title="Arraste a planilha aqui ou"
+          action="selecione no computador"
+          hint="XLSX do modelo — nada é gravado antes de conferir e confirmar"
           accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
-          className="text-sm file:mr-3 file:rounded-[var(--radius-ui)] file:border file:border-linha file:bg-superficie file:px-3 file:py-2 file:text-sm"
+          multiple={false}
+          inputLabel="Planilha de itens (XLSX)"
+          files={arquivo ? [{ name: arquivo.name, meta: `${Math.max(1, Math.round(arquivo.size / 1024))} KB`, icon: "microsoft-excel-logo" }] : []}
+          onFiles={(lista) => setArquivo(lista[0] ?? null)}
+          onRemove={() => setArquivo(null)}
         />
       </div>
       <button type="button" className={`${botaoSecundario} justify-self-start`} disabled={!arquivo || enviando} onClick={() => enviar(false)}>

@@ -125,16 +125,18 @@ function BotaoDeColeta({ pesquisa, chave, ocupado = false }: { pesquisa: string;
     <form action={acao} className="grid justify-items-start gap-2">
       <input type="hidden" name="pesquisa" value={pesquisa} />
       <input type="hidden" name="chave" value={chave} />
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" name="modo" value="manual" icon="arrows-clockwise" loading={carregando} disabled={carregando}>
+      {/* UMA entrada (pacote de 14/11/2026, UX-03): a coleta em lote é
+          sempre a cotação automática — a cesta é formada pela regra
+          determinística (até 5 preços, equivalência e CV ≤ 25%) e o revisor
+          confere e conclui depois; o aceito não é tocado. A busca manual é
+          por item, na tela do item. */}
+      <div className="grid gap-1">
+        <Button type="submit" name="modo" value="automatico" icon="arrows-clockwise" loading={carregando} disabled={carregando}>
           {enviando ? "Iniciando..." : ocupado ? "Coletando…" : "Coletar preços"}
         </Button>
-        {/* Automática: a cesta é formada pela regra determinística (teto,
-            equivalência e CV); o revisor confere e conclui depois. Volta
-            sozinha ao pendente com dado novo; o aceito não é tocado. */}
-        <Button type="submit" name="modo" value="automatico" variant="secondary" disabled={carregando}>
-          Cotação automática
-        </Button>
+        <span className="text-[length:var(--gc-fs-xs)] text-secundario">
+          Cotação automática: até 5 preços comparáveis por item; série com CV acima de 25% fica para revisão.
+        </span>
       </div>
       {estado.erro && (
         <Alert variant="error" compact>

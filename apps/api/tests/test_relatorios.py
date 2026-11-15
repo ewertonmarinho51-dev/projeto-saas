@@ -56,7 +56,9 @@ def dominio(monkeypatch, flags):
     estado = {"preparo": ciencia.Preparo(pesquisa_id=P, revisao="r1", assinatura=ASSINATURA),
               "registrada": None, "exigir": {"payload": {"assinatura": ASSINATURA}},
               "registros": [], "renderizados": [], "bloqueio": None}
-    pesquisa = {"id": P, "tenant_id": TENANT_A, "nome": "Pesquisa", "versao": 1}
+    pesquisa = {"id": P, "tenant_id": TENANT_A, "nome": "Pesquisa", "versao": 1,
+                "estado": "completed"}
+    estado["pesquisa"] = pesquisa
     monkeypatch.setattr(relatorios, "_carregar",
                         lambda pid, tenant: (pesquisa, [{"id": "i1", "numero": 1}], {"i1": []}))
     monkeypatch.setattr(relatorio, "identificador_da_versao", lambda *a: "id-decisorio")
@@ -95,7 +97,8 @@ def dominio(monkeypatch, flags):
 
 def _banco(dono=USUARIO_A):
     b = PostgrestFalso()
-    b.responder("GET", "pesquisas_preco", 200, [{"id": P, "auth_user_id": dono}])
+    b.responder("GET", "pesquisas_preco", 200, [{"id": P, "auth_user_id": dono,
+                                                 "estado": "completed"}])
     return b
 
 
@@ -407,3 +410,44 @@ def test_resultado_do_job_so_com_campos_conhecidos():
     job = coleta.job_do_banco(_job(resultado={"nome": "r.pdf", "tamanho": 10, "html": "<b>",
                                               "registrado": "sim", "tamanho_falso": True}))
     assert job.resultado == {"nome": "r.pdf", "tamanho": 10}
+
+
+# ---------------------------------------------------------------------------
+# Pacote de 14/11/2026 (UX-08): relatório só com a cotação CONCLUÍDA
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("estado", ["draft", "collecting", "review", "archived"])
+def test_pedido_de_cotacao_aberta_e_409_e_nao_cria_job(emissor, dominio, estado):
+    banco, fila = PostgrestFalso(), FilaFalsa()
+    banco.responder("GET", "pesquisas_preco", 200, [{"id": P, "auth_user_id": USUARIO_A,
+                                                     "estado": estado}])
+    r = _api(emissor, banco, fila).post(URL_REL, headers=_h(emissor, **{"Idempotency-Key": "rel-00099"}),
+                                        json={"tipo": "cotacao", "formato": "docx"})
+    assert r.status_code == 409 and r.json()["code"] == "QUOTATION_NOT_COMPLETED"
+    assert not [c for c in banco.chamadas if c.method == "POST"] and fila.avisos == []
+
+
+@pytest.mark.parametrize("estado", ["completed", "applied"])
+def test_cotacao_concluida_ou_aplicada_emite(emissor, dominio, estado):
+    banco, fila = PostgrestFalso(), FilaFalsa()
+    banco.responder("GET", "pesquisas_preco", 200, [{"id": P, "auth_user_id": USUARIO_A,
+                                                     "estado": estado}])
+    banco.responder("POST", "api_jobs", 201, [_job()])
+    r = _api(emissor, banco, fila).post(URL_REL, headers=_h(emissor, **{"Idempotency-Key": "rel-00098"}),
+                                        json={"tipo": "cotacao", "formato": "docx"})
+    assert r.status_code == 202, r.text
+
+
+def test_preparo_de_cotacao_aberta_diz_por_que_nao_emite(emissor, dominio):
+    dominio["pesquisa"]["estado"] = "review"
+    r = _api(emissor, _banco()).get(f"/api/v1/precos/pesquisas/{P}/emissao", headers=_h(emissor))
+    assert r.status_code == 200
+    assert r.json()["disponivel"] is False
+    assert r.json()["motivo"] == relatorios.COTACAO_ABERTA
+
+
+def test_worker_recusa_cotacao_reaberta_depois_do_pedido(dominio):
+    dominio["pesquisa"]["estado"] = "review"
+    estado, patches, _ = _processar(PostgrestFalso())
+    assert estado == "failed"
+    assert patches[-1]["erro_codigo"] == "QUOTATION_NOT_COMPLETED"
+    assert dominio["renderizados"] == [] and dominio["registros"] == []

@@ -270,7 +270,7 @@ export default async function Referencias({
               <PaginacaoDaTriagem base={base} filtros={filtros} total={totalFiltrado} />
             </>
           )}
-          {editavel && <EdicaoDoItem key={item.revisao} pesquisa={id} item={item} />}
+          {editavel && <EdicaoDoItem key={item.revisao} pesquisa={id} item={item} emCotacao={totalDoItem > 0} />}
         </div>
 
         <div className="grid min-w-0 gap-4 xl:sticky xl:top-[calc(var(--topbar-height)+var(--space-4))]">

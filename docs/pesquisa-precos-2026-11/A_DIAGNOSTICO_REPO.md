@@ -55,7 +55,13 @@ Reprodução determinística: `apps/web/tests/fila-da-cesta.test.ts`, caso "o mo
 | R-04 completo com rosca Top 5 + Demais e % por item | **feito no PR de relatórios** | `participacao()` em Decimal; `rosca_png()` (Pillow) |
 | R-05 memória analítica XLSX e trilha | preservadas (nada mudou em `relatorio.xlsx_analitico` nem no banco) | — |
 | Markdown legado (`relatorio.resumido`) | não alterado: é o caminho não visual do pacote ZIP antigo | `emissao.partes_do_pacote(visual=False)` |
-| UX-01…09 | a auditar no PR correspondente | — |
+| UX-01 Duplicar/Arquivar | **feito no PR de fluxo** (cabeçalho da pesquisa, mesmos diálogos); a lista de pesquisas ainda sem o menu | `acoes-da-pesquisa` |
+| UX-02 Nova revisão no topo / Concluir no rodapé | **feito no PR de fluxo** | `NovaRevisao` só da concluída; `FechamentoDaPesquisa` depois dos itens |
+| UX-03 uma entrada de coleta | **feito no PR de fluxo**: "Coletar preços" = cotação automática em lote; busca manual por item | `coleta.tsx` |
+| UX-04 importação com área de arrastar | **feito no PR de fluxo**: `FileUpload` + conferir/confirmar; recolhida depois que há itens | `importar-planilha.tsx` |
+| UX-05/09 item sem "Dados do item" na cotação | **feito no PR de fluxo**: com referências, unidade/quantidade em leitura com o motivo; retirar segue | `EdicaoDoItem emCotacao` |
+| UX-06 abas manual/automática no item | não feito (a busca do item e a cotação automática do item já existem; abas ficam para o P2) | — |
+| UX-08 relatórios só após concluir | **feito no PR de fluxo** (decisão do dono, 15/11/2026): tela, preparo, pedido (409 `QUOTATION_NOT_COMPLETED`) e worker | `relatorios.py::ESTADOS_EMITIVEIS` |
 
 ## Riscos
 

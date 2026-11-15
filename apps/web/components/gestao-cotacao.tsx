@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
 
-import { Alert, Button, Card, Dialog, Field, Input, Select, Textarea } from "@/design-system";
+import { Alert, Button, Card, Dialog, Field, Icon, Input, Select, Textarea } from "@/design-system";
 import {
   arquivarPesquisa,
   buscarItem,
@@ -136,17 +136,55 @@ export function NovoItem({ pesquisa }: { pesquisa: string }) {
 // ---------------------------------------------------------------------------
 // Item: editar e retirar
 // ---------------------------------------------------------------------------
-export function EdicaoDoItem({ pesquisa, item }: { pesquisa: string; item: ItemDePesquisa }) {
+export function EdicaoDoItem({
+  pesquisa,
+  item,
+  emCotacao = false,
+}: {
+  pesquisa: string;
+  item: ItemDePesquisa;
+  /**
+   * Já há referências coletadas (pacote de 14/11/2026, UX-05/UX-09): a
+   * descrição fica só no cabeçalho, unidade e quantidade em leitura, com o
+   * motivo — mudar invalidaria a cesta. Retirar o item continua possível.
+   */
+  emCotacao?: boolean;
+}) {
   const [estado, acao, enviando] = useActionState(editarItem.bind(null, pesquisa, item.id, item.revisao), INICIAL);
   const [retirar, setRetirar] = useState(false);
   const [motivo, setMotivo] = useState("");
   const ato = useAto();
+  const botaoRetirar = (
+    <Button type="button" variant="danger-subtle" icon="trash" onClick={() => setRetirar(true)}>
+      Retirar item
+    </Button>
+  );
   return (
     <Card
-      title="Dados do item"
-      subtitle="Mudar a descrição ou a unidade devolve o item à coleta: a cesta valia para o item antigo. Mudar só a quantidade refaz o total."
+      title={emCotacao ? "Item em cotação" : "Dados do item"}
+      subtitle={
+        emCotacao
+          ? undefined
+          : "Mudar a descrição ou a unidade devolve o item à coleta: a cesta valia para o item antigo. Mudar só a quantidade refaz o total."
+      }
       divided
     >
+      {emCotacao ? (
+        <div className="grid gap-3" data-testid="item-travado">
+          <p className="flex flex-wrap items-center gap-2 text-[length:var(--gc-fs-sm)]">
+            <Icon name="lock-simple" />
+            <span>
+              Unidade <b>{item.unidade}</b> · quantidade <b>{item.quantidade?.exibicao ?? "—"}</b>
+            </span>
+          </p>
+          <p className="text-[length:var(--gc-fs-sm)] text-secundario">
+            Travadas durante a cotação: mudar a unidade ou a descrição invalidaria a cesta formada para este item. Para
+            alterar, atualize a planilha da pesquisa ou crie uma nova revisão.
+          </p>
+          <Retorno estado={ato.estado} />
+          <div className="flex flex-wrap gap-2">{botaoRetirar}</div>
+        </div>
+      ) : (
       <form action={acao} className="grid gap-4 md:grid-cols-4" data-testid="edicao-item">
         <CamposDoItem prefixo="item" item={item} />
         <div className="grid gap-3 md:col-span-4">
@@ -156,12 +194,11 @@ export function EdicaoDoItem({ pesquisa, item }: { pesquisa: string; item: ItemD
             <Button type="submit" loading={enviando}>
               Salvar item
             </Button>
-            <Button type="button" variant="danger-subtle" icon="trash" onClick={() => setRetirar(true)}>
-              Retirar item
-            </Button>
+            {botaoRetirar}
           </div>
         </div>
       </form>
+      )}
       <Dialog
         open={retirar}
         onClose={() => setRetirar(false)}
@@ -291,41 +328,56 @@ export function FechamentoDaPesquisa({
   /** Propostas aptas pelo perfil: o mesmo clique as aceita, uma a uma, na trilha. */
   aptas?: number;
 }) {
-  const [revisar, setRevisar] = useState(false);
-  const [motivo, setMotivo] = useState("");
+  // Pacote de 14/11/2026 (UX-02): "Concluir cotação" no RODAPÉ da pesquisa;
+  // a "Nova revisão" foi para o cabeçalho (`NovaRevisao`).
   const ato = useAto();
   const podeConcluir = itens > 0 && !["completed", "applied", "archived"].includes(estado);
+  if (!podeConcluir) return null;
   return (
     <div className="grid gap-2" data-testid="fechamento-pesquisa">
-      <div className="flex flex-wrap items-center gap-2">
-        {podeConcluir && (
-          <Button
-            icon="check-circle"
-            disabled={faltam > 0}
-            loading={ato.ocupado}
-            onClick={() => ato.rodar(() => concluirPesquisa(pesquisa))}
-          >
-            Concluir cotação
-          </Button>
-        )}
-        {estado !== "archived" && (
-          <Button variant="ghost" icon="arrows-clockwise" onClick={() => setRevisar(true)}>
-            Nova revisão
-          </Button>
-        )}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          icon="check-circle"
+          disabled={faltam > 0}
+          loading={ato.ocupado}
+          onClick={() => ato.rodar(() => concluirPesquisa(pesquisa))}
+        >
+          Concluir cotação
+        </Button>
+        <span className="text-[length:var(--gc-fs-sm)] text-secundario">
+          Os relatórios ficam disponíveis depois de concluir.
+        </span>
       </div>
-      {podeConcluir && aptas > 0 && (
+      {aptas > 0 && (
         <p className="text-[length:var(--gc-fs-sm)] text-secundario" data-testid="aptas">
           {faltam > 0
             ? `${aptas} proposta(s) apta(s) serão aceitas ao concluir, quando os demais itens estiverem resolvidos.`
             : `Concluir aceita ${aptas} proposta(s) apta(s) pelo perfil do órgão — preço, CV e mínimo de referências conferidos.`}
         </p>
       )}
-      {podeConcluir && faltam > 0 && (
+      {faltam > 0 && (
         <p className="text-[length:var(--gc-fs-sm)] text-secundario">
           Para concluir, todos os itens precisam estar concluídos. Faltam {faltam}.
         </p>
       )}
+      <Retorno estado={ato.estado} />
+    </div>
+  );
+}
+
+/**
+ * Nova revisão (pacote de 14/11/2026, UX-02): no cabeçalho, só para a
+ * cotação concluída ou aplicada — a versão atual fica guardada como está.
+ */
+export function NovaRevisao({ pesquisa }: { pesquisa: string }) {
+  const [revisar, setRevisar] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const ato = useAto();
+  return (
+    <div className="grid gap-2">
+      <Button variant="secondary" icon="arrows-clockwise" onClick={() => setRevisar(true)}>
+        Nova revisão
+      </Button>
       <Retorno estado={ato.estado} />
       <Dialog
         open={revisar}
@@ -357,7 +409,6 @@ export function FechamentoDaPesquisa({
     </div>
   );
 }
-
 // ---------------------------------------------------------------------------
 // M10b: pesquisar preços de UM item (pelo worker)
 // ---------------------------------------------------------------------------

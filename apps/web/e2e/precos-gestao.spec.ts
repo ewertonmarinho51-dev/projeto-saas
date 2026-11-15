@@ -71,11 +71,11 @@ test("incluir, editar, pesquisar e retirar item; duplicar, revisar e arquivar", 
   await page.getByRole("button", { name: "Duplicar" }).click();
   await expect(page).toHaveURL(/\?duplicada=1$/);
   await expect(page.getByTestId("titulo-pesquisa")).toHaveText(`${nome} (cópia)`);
-  await page.getByRole("button", { name: "Nova revisão" }).click();
-  await page.getByRole("dialog").getByLabel("Motivo da revisão").fill("Conferência do E2E");
-  await page.getByRole("dialog").getByRole("button", { name: "Criar revisão" }).click();
-  await expect(page).toHaveURL(/\?revisao=1$/);
-  await expect(page.getByText("Revisão criada")).toBeVisible();
+  // Nova revisão só da cotação concluída (pacote 14/11/2026, UX-02); a
+  // criação da revisão é provada em cotacao-automatica.spec.ts.
+  await expect(page.getByRole("button", { name: "Nova revisão" })).toHaveCount(0);
+  // relatórios só com a cotação concluída (UX-08)
+  await expect(page.getByTestId("secao-emissao")).toHaveCount(0);
   await page.getByRole("button", { name: "Arquivar" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Arquivar", exact: true }).click();
   await expect(page).toHaveURL(/\?arquivada=1$/);
