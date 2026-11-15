@@ -130,6 +130,9 @@ test("importar → cotação automática → revisar → aceitar → PDF", async
   await expect(page.getByTestId("cotacao-concluida")).toBeVisible();
   await expect(page.getByTestId("acoes-da-pesquisa").getByRole("button", { name: "Nova revisão" })).toBeVisible();
   await expect(page.getByTestId("fechamento-pesquisa")).toHaveCount(0);
+  // concluída não coleta nem importa: muda por Nova revisão
+  await expect(page.getByRole("button", { name: "Coletar preços" })).toHaveCount(0);
+  await expect(page.getByTestId("area-importacao")).toHaveCount(0);
   // PDF do relatório de cotação.
   const secao = page.getByTestId("secao-emissao");
   await secao.getByRole("button", { name: "Relatório de Cotação (PDF)" }).click();

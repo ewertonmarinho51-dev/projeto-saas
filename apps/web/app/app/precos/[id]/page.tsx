@@ -46,6 +46,9 @@ export const metadata: Metadata = { title: "Pesquisa de preços" };
 const UUID = /^[0-9a-f-]{36}$/i;
 
 const IMUTAVEIS = new Set(["applied", "archived"]);
+// Coletar e importar só com a cotação ABERTA: a concluída muda por Nova
+// revisão (validação em produção, 15/11/2026 — a tela ainda oferecia as duas).
+const FECHADAS = new Set(["completed", "applied", "archived"]);
 // Relatórios só com a cotação concluída (pacote de 14/11/2026, UX-08; a
 // API recusa o resto com 409 QUOTATION_NOT_COMPLETED).
 const EMITIVEIS = new Set(["completed", "applied"]);
@@ -193,7 +196,7 @@ export default async function Pesquisa({
       </Card>
 
       {aviso && <Alert variant="success" title={aviso} />}
-      {(jobId || !IMUTAVEIS.has(p.estado)) && (
+      {(jobId || !FECHADAS.has(p.estado)) && (
         // Chave nova a cada renderização: um clique (ou o reenvio do
         // formulário) não põe duas coletas na fila — a API devolve o
         // mesmo job para a mesma chave. O lote acompanhado vem de `?job=`.
@@ -202,7 +205,7 @@ export default async function Pesquisa({
             pesquisa={p.id}
             chave={`web-coleta-${crypto.randomUUID()}`}
             jobId={jobId}
-            editavel={!IMUTAVEIS.has(p.estado)}
+            editavel={!FECHADAS.has(p.estado)}
             // Só o que o resumo lista: os itens sem referência compatível.
             itens={p.itens
               .filter((i) => i.pendencia === "sem_referencia_compativel")
@@ -211,7 +214,7 @@ export default async function Pesquisa({
         </div>
       )}
 
-      {!IMUTAVEIS.has(p.estado) && (
+      {!FECHADAS.has(p.estado) && (
         <section id={SECAO.importar} aria-labelledby="titulo-importar" className={`gc-card ${ALVO}`}>
           <div className="gc-card__header gc-card__header--divided">
             <div className="gc-card__titles">
