@@ -239,6 +239,94 @@
         "title": "Ack",
         "type": "object"
       },
+      "AgregadosDasReferencias": {
+        "properties": {
+          "base_geografica": {
+            "const": "uf_orgao",
+            "default": "uf_orgao",
+            "title": "Base Geografica",
+            "type": "string"
+          },
+          "em_atencao": {
+            "title": "Em Atencao",
+            "type": "integer"
+          },
+          "fontes": {
+            "items": {
+              "$ref": "#/components/schemas/ContagemPorFonte"
+            },
+            "title": "Fontes",
+            "type": "array"
+          },
+          "fora": {
+            "title": "Fora",
+            "type": "integer"
+          },
+          "metrica": {
+            "const": "quantidade",
+            "default": "quantidade",
+            "title": "Metrica",
+            "type": "string"
+          },
+          "na_cesta": {
+            "title": "Na Cesta",
+            "type": "integer"
+          },
+          "preco_max": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preco_min": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sem_uf": {
+            "title": "Sem Uf",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "truncado": {
+            "title": "Truncado",
+            "type": "boolean"
+          },
+          "ufs": {
+            "items": {
+              "$ref": "#/components/schemas/ContagemPorUf"
+            },
+            "title": "Ufs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "total",
+          "na_cesta",
+          "fora",
+          "em_atencao",
+          "fontes",
+          "ufs",
+          "sem_uf",
+          "preco_min",
+          "preco_max",
+          "truncado"
+        ],
+        "title": "AgregadosDasReferencias",
+        "type": "object"
+      },
       "AnaliseDaRevisao": {
         "properties": {
           "content_hash": {
@@ -933,6 +1021,47 @@
           "consulta"
         ],
         "title": "Consulta",
+        "type": "object"
+      },
+      "ContagemPorFonte": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "nome": {
+            "title": "Nome",
+            "type": "string"
+          },
+          "quantidade": {
+            "title": "Quantidade",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "nome",
+          "quantidade"
+        ],
+        "title": "ContagemPorFonte",
+        "type": "object"
+      },
+      "ContagemPorUf": {
+        "properties": {
+          "quantidade": {
+            "title": "Quantidade",
+            "type": "integer"
+          },
+          "uf": {
+            "title": "Uf",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uf",
+          "quantidade"
+        ],
+        "title": "ContagemPorUf",
         "type": "object"
       },
       "DadosDaPrefeitura": {
@@ -10336,7 +10465,255 @@
     },
     "/api/v1/precos/pesquisas/{pesquisa_id}/itens/{item_id}/referencias": {
       "get": {
+        "description": "Referências do item, filtradas e paginadas NO BANCO (pacote de\n14/11/2026, RF-06/RF-07): o filtro vem antes da paginação, a ordem\ndesempata pelo id e o total do conjunto filtrado sai em\n`X-Total-Count`. Sem `pagina`, a leitura antiga (até 500) continua\nigual para quem já a usa.",
         "operationId": "referencias_api_v1_precos_pesquisas__pesquisa_id__itens__item_id__referencias_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pagina",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100000,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pagina"
+            }
+          },
+          {
+            "in": "query",
+            "name": "por_pagina",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Por Pagina",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "situacao",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "cesta",
+                    "fora",
+                    "atencao"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Situacao"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fonte",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 60,
+                  "pattern": "^[A-Za-z0-9_.-]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fonte"
+            }
+          },
+          {
+            "in": "query",
+            "name": "uf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Uf"
+            }
+          },
+          {
+            "in": "query",
+            "name": "preco_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000000000000.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Preco Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "preco_max",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1000000000000.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Preco Max"
+            }
+          },
+          {
+            "in": "query",
+            "name": "desde",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Desde"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ate",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ate"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ordem",
+            "required": false,
+            "schema": {
+              "default": "valor_asc",
+              "enum": [
+                "valor_asc",
+                "valor_desc",
+                "data_desc"
+              ],
+              "title": "Ordem",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/govconect_api__precos__Referencia"
+                  },
+                  "title": "Response Referencias Api V1 Precos Pesquisas  Pesquisa Id  Itens  Item Id  Referencias Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Inexistente ou fora do seu acesso"
+          },
+          "422": {
+            "description": "Página, tamanho ou filtro inválido"
+          }
+        },
+        "summary": "Referencias",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/itens/{item_id}/referencias/agregados": {
+      "get": {
+        "description": "Contadores, opções de filtro e contagem por UF (o modo Mapa) de\nTODAS as referências do item — leitura enxuta (sem `bruto`), pelo\nJWT do usuário. A UF é a do ÓRGÃO COMPRADOR; sem UF conta à parte.",
+        "operationId": "agregados_api_v1_precos_pesquisas__pesquisa_id__itens__item_id__referencias_agregados_get",
         "parameters": [
           {
             "in": "path",
@@ -10364,11 +10741,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/govconect_api__precos__Referencia"
-                  },
-                  "title": "Response Referencias Api V1 Precos Pesquisas  Pesquisa Id  Itens  Item Id  Referencias Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/AgregadosDasReferencias"
                 }
               }
             },
@@ -10388,7 +10761,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Referencias",
+        "summary": "Agregados",
         "tags": [
           "v1",
           "precos"

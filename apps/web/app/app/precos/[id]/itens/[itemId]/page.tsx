@@ -9,11 +9,15 @@ import { CestaDoItem, ConcluirEAvancar, ContagemNaCesta, PrecoConfirmado } from 
 import { BuscaDoItem, DesfazerRetirada, EdicaoDoItem, ProgressoDaBusca } from "@/components/gestao-cotacao";
 import { situacaoDoItem } from "@/components/situacao";
 import { NavegadorDeItens, TriagemDoItem } from "@/components/triagem-item";
+import { FiltrosDaTriagem } from "@/components/filtros-da-triagem";
+import { MapaDasReferencias, ModoDaTriagem, PaginacaoDaTriagem } from "@/components/navegacao-da-triagem";
+import { lerFiltros, paraApi, paraUrl } from "@/components/triagem-url";
 import { Alert, Badge, Button, Card, DataList, PageHead, PriceBasket, PriceStats, StatusBadge } from "@/design-system";
 import {
   chamarApi,
   ErroDaApi,
   precosHabilitado,
+  type AgregadosDeReferencias,
   type AlertaDePreco,
   type EstatisticasDoItem,
   type PesquisaDePrecos,
@@ -42,18 +46,34 @@ export default async function Referencias({
 }) {
   if (!precosHabilitado()) notFound();
   const { id, itemId } = await params;
-  const { cesta, item: atoNoItem, ref, busca, aba, termo } = await searchParams;
+  const busca_ = await searchParams;
+  const { cesta, item: atoNoItem, ref, busca, aba, termo } = busca_;
   if (!UUID.test(id) || !UUID.test(itemId)) notFound();
+  // Página e filtros na URL; o servidor filtra antes de paginar (RF-06/07).
+  const filtros = lerFiltros(busca_);
+  const base = `/app/precos/${id}/itens/${itemId}`;
 
   let refs: ReferenciaDePreco[];
+  let totalFiltrado = 0;
+  let naCestaRefs: ReferenciaDePreco[];
+  let agregados: AgregadosDeReferencias | null;
+  let pagina: { dados: ReferenciaDePreco[]; cabecalhos: Headers };
   let pesquisa: PesquisaDePrecos;
   let alertas: AlertaDePreco[];
   let analise: EstatisticasDoItem | null;
   try {
     // Duas leituras em paralelo: as referências e o item (revisão e preço
     // atuais). A revisão é a que vai no If-Match de cada botão da cesta.
-    [refs, pesquisa, alertas, analise] = await Promise.all([
-      chamarApi<ReferenciaDePreco[]>(`/precos/pesquisas/${id}/itens/${itemId}/referencias`).then((r) => r.dados),
+    [pagina, naCestaRefs, agregados, pesquisa, alertas, analise] = await Promise.all([
+      chamarApi<ReferenciaDePreco[]>(`/precos/pesquisas/${id}/itens/${itemId}/referencias?${paraApi(filtros)}`),
+      // A cesta INTEIRA, independente da página: o cartão e as marcações.
+      chamarApi<ReferenciaDePreco[]>(`/precos/pesquisas/${id}/itens/${itemId}/referencias?situacao=cesta`).then(
+        (r) => r.dados,
+      ),
+      // Contadores, opções de filtro e mapa; sem eles, a lista segue.
+      chamarApi<AgregadosDeReferencias>(`/precos/pesquisas/${id}/itens/${itemId}/referencias/agregados`)
+        .then((r) => r.dados)
+        .catch(() => null),
       chamarApi<PesquisaDePrecos>(`/precos/pesquisas/${id}`).then((r) => r.dados),
       // Os alertas não derrubam a página: sem eles, a cesta segue igual.
       chamarApi<AlertaDePreco[]>(`/precos/pesquisas/${id}/itens/${itemId}/alertas`)
@@ -68,6 +88,8 @@ export default async function Referencias({
     if (e instanceof ErroDaApi && e.status === 404) notFound();
     throw e;
   }
+  refs = pagina.dados;
+  totalFiltrado = Number(pagina.cabecalhos.get("x-total-count") ?? refs.length) || refs.length;
   const item = pesquisa.itens.find((i) => i.id === itemId);
   if (!item) notFound();
   const editavel = !IMUTAVEIS.has(pesquisa.estado);
@@ -85,8 +107,11 @@ export default async function Referencias({
           ? "Item reaberto para revisão."
           : undefined;
 
-  const escolhidas = refs.filter(naCesta);
-  const marcadas = Object.fromEntries(refs.map((r) => [r.id, naCesta(r)]));
+  // Marcações por ID: as da página e as da cesta inteira (em qualquer página).
+  const escolhidas = naCestaRefs.filter(naCesta);
+  const marcadas = Object.fromEntries([...naCestaRefs, ...refs].map((r) => [r.id, naCesta(r)]));
+  const totalDoItem = agregados?.total ?? totalFiltrado;
+  const href = (situacao?: "cesta" | "fora" | "atencao") => paraUrl(base, { ...filtros, situacao: undefined }, { situacao });
 
   // O provedor da cesta envolve a página inteira: o preço do resumo, no
   // topo, também mostra o valor que o servidor confirmou a cada clique.
@@ -131,7 +156,7 @@ export default async function Referencias({
       {/* A análise pede a largura da página: fica fora da grade de três colunas. */}
       <AbasDoItem
         inicial={aba === "analise" ? "analise" : "triagem"}
-        referencias={refs.length}
+        referencias={totalDoItem}
         analise={
           analise ? (
             <AnaliseDoItem dados={analise} metodo={item.metodo} />
@@ -198,7 +223,53 @@ export default async function Referencias({
               <GraficoDaSerie dados={analise} />
             </Card>
           )}
-          <TriagemDoItem pesquisa={id} item={item} referencias={refs} alertas={alertas} editavel={editavel} />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <ModoDaTriagem base={base} filtros={filtros} />
+            <span className="text-[length:var(--gc-fs-sm)] text-secundario" data-testid="total-filtrado">
+              {totalFiltrado} de {totalDoItem} referência(s)
+            </span>
+          </div>
+          <FiltrosDaTriagem base={base} filtros={filtros} agregados={agregados} />
+          {filtros.modo === "mapa" && agregados ? (
+            <MapaDasReferencias base={base} filtros={filtros} agregados={agregados} />
+          ) : (
+            <>
+              <TriagemDoItem
+                pesquisa={id}
+                item={item}
+                referencias={refs}
+                alertas={alertas}
+                editavel={editavel}
+                servidor={
+                  agregados
+                    ? {
+                        contagem: {
+                          total: agregados.total,
+                          valid: agregados.na_cesta,
+                          excluded: agregados.fora,
+                          attention: agregados.em_atencao,
+                        },
+                        ativo:
+                          filtros.situacao === "cesta"
+                            ? "valid"
+                            : filtros.situacao === "fora"
+                              ? "excluded"
+                              : filtros.situacao === "atencao"
+                                ? "attention"
+                                : null,
+                        hrefs: {
+                          total: href(),
+                          valid: href("cesta"),
+                          excluded: href("fora"),
+                          attention: href("atencao"),
+                        },
+                      }
+                    : undefined
+                }
+              />
+              <PaginacaoDaTriagem base={base} filtros={filtros} total={totalFiltrado} />
+            </>
+          )}
           {editavel && <EdicaoDoItem key={item.revisao} pesquisa={id} item={item} />}
         </div>
 
@@ -236,7 +307,7 @@ export default async function Referencias({
                 value: item.preco_total?.exibicao ?? "—",
                 hint: `${item.quantidade?.exibicao ?? "—"} ${item.unidade}`,
               },
-              { label: "Na cesta", value: <ContagemNaCesta marcadas={marcadas} />, hint: `de ${refs.length} coletadas` },
+              { label: "Na cesta", value: <ContagemNaCesta marcadas={marcadas} />, hint: `de ${totalDoItem} coletadas` },
             ]}
           />
           {/* Concluir e seguir para o próximo item a concluir; item concluído

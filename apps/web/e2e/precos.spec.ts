@@ -130,6 +130,21 @@ test("cesta em um clique: tira, põe de volta, grava em segundo plano e persiste
   // concluir usa a revisão confirmada: sem 409
   await page.getByRole("button", { name: "Concluir item e avançar" }).click();
   await expect(page).toHaveURL(new RegExp(`/app/precos/${estado.precos.rapida_pesquisa}\\?item=concluido`));
+
+  // Paginação e filtros NO SERVIDOR (pacote 14/11/2026, RF-06/07/08): o
+  // filtro vai na URL, a contagem é do conjunto inteiro e a cesta não muda.
+  const item = `/app/precos/${estado.precos.rapida_pesquisa}/itens/${estado.precos.rapida_item}`;
+  await page.goto(`${item}?situacao=cesta&por_pagina=10`);
+  await expect(linhas).toHaveCount(4);
+  await expect(page.getByTestId("total-filtrado")).toHaveText("4 de 4 referência(s)");
+  await page.goto(`${item}?situacao=fora`);
+  await expect(linhas).toHaveCount(0);
+  await expect(page.getByText("Nenhuma referência neste filtro.")).toBeVisible();
+  await expect(page.getByTestId("contagem-cesta").first()).toHaveText("4");   // a cesta é a mesma
+  await page.goto(`${item}?q=inexistentexyz`);
+  await expect(page.getByTestId("total-filtrado")).toHaveText("0 de 4 referência(s)");
+  await page.goto(`${item}?modo=mapa`);
+  await expect(page.getByTestId("mapa-referencias")).toContainText("4 sem UF informada");
 });
 
 test("outro município não abre a pesquisa nem as referências", async ({ page }) => {

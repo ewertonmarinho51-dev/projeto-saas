@@ -47,8 +47,8 @@ Reprodução determinística: `apps/web/tests/fila-da-cesta.test.ts`, caso "o mo
 | P0-03 If-Match / 409 | já funciona na API; a tela agora não fabrica 409 | `cesta.py::_revisao`; casos de conflito na prova de unidade |
 | P0-04 automática até 5, CV > 25% não entra | já funciona | `tests/test_cotacoes_teto5_cv.py` (59 verdes com UX e ciência): 25,00% exatos passam, 25,004% não; teto 5; escolha de pessoa preservada |
 | PERF-01 clique sem consulta externa | já funciona | `_mudar_e_recalcular`: só a linha e o item, "nenhuma fonte externa, nenhum Jev" |
-| UX-10 paginação server-side 20 (10/20/50) | **não existe** | `apps/api/govconect_api/precos.py`: `LIMITE_REFERENCIAS = 500`, ordem `valor,id`; a triagem filtra no cliente |
-| UX-11 filtros server-side, Lista/Mapa | não existe (filtros só por situação, no cliente) | `triagem-item.tsx` |
+| UX-10 paginação server-side 20 (10/20/50) | **feito no PR de paginação** (antes: não existia) | `/referencias?pagina=&por_pagina=` (10/20/50, senão 422), `X-Total-Count`, desempate por id; antes: corte em 500 e filtro no cliente |
+| UX-11 filtros server-side, Lista/Mapa | **feito no PR de paginação** (antes: só situação, no cliente) | rota `/referencias` com filtros no PostgREST; `/referencias/agregados`; `UfTileMap` |
 | R-01 resumido sem Memória de cálculo | **feito no PR de relatórios** | `documento_cotacao._saidas_e_memoria` só no Integral; `tests/test_relatorios_pacote_1114.py` |
 | R-02 resumido sem exclusões e sem "Alertas e ressalvas" | **feito no PR de relatórios** | `relatorio_de_cotacao_docx` sem `_alertas`; ciência da emissão mantida em uma linha |
 | R-03 extrato + fontes efetivamente usadas | **feito no PR de relatórios** | `fontes_usadas(view)` deriva da `considerada_lista` (mesma cesta do cálculo) |

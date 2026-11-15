@@ -194,14 +194,26 @@ export function TriagemDoItem({
   referencias,
   alertas,
   editavel,
+  servidor,
 }: {
   pesquisa: string;
   item: Pick<ItemDePesquisa, "id" | "revisao" | "estado">;
   referencias: ReferenciaDePreco[];
   alertas: AlertaDePreco[];
   editavel: boolean;
+  /**
+   * Paginação no servidor (pacote de 14/11/2026, RF-06): os contadores são
+   * do conjunto INTEIRO e os filtros de situação viram URL — o servidor
+   * filtra antes de paginar. "Discrepante" segue filtrando a página.
+   */
+  servidor?: {
+    contagem: Partial<Record<ScreeningKey, number>>;
+    ativo: ScreeningKey | null;
+    hrefs: Partial<Record<ScreeningKey, string>>;
+  };
 }) {
   const fila = useCestaDoItem();
+  const router = useRouter();
   const [filtro, setFiltro] = useState<ScreeningKey | null>(null);
   // A API ordena por valor e id — marcar não muda a posição da linha.
   const ordenadas = referencias;
@@ -209,13 +221,24 @@ export function TriagemDoItem({
   const alertaDe = new Map(alertas.map((a) => [a.referencia_id, a]));
   const dentro = (r: ReferenciaDePreco) => (fila ? fila.marcado(r.id, naCesta(r)) : naCesta(r));
   const linhas = ordenadas.map((r) => ({ r, d: dentro(r), s: situacao(r, dentro(r), alertaDe.get(r.id)) }));
-  const contagem: Partial<Record<ScreeningKey, number>> = {
+  const contagemDaPagina: Partial<Record<ScreeningKey, number>> = {
     total: linhas.length,
     valid: linhas.filter(({ d }) => d).length,
     attention: linhas.filter(({ s }) => s === "attention").length,
     discrepant: linhas.filter(({ s }) => s === "discrepant").length,
     excluded: linhas.filter(({ d }) => !d).length,
   };
+  const contagem = servidor ? { ...contagemDaPagina, ...servidor.contagem } : contagemDaPagina;
+  const ativo = filtro ?? servidor?.ativo ?? null;
+  function filtrar(chave: ScreeningKey | null) {
+    const href = servidor && (chave === null ? servidor.hrefs.total : servidor.hrefs[chave]);
+    if (href) {
+      setFiltro(null);
+      router.push(href, { scroll: false });
+      return;
+    }
+    setFiltro(chave);
+  }
   const visiveis = linhas.filter(({ d, s }) => {
     if (!filtro || filtro === "total") return true;
     if (filtro === "valid") return d;
@@ -224,7 +247,7 @@ export function TriagemDoItem({
   });
   const concluido = item.estado === "complete";
 
-  if (referencias.length === 0) {
+  if (referencias.length === 0 && !((servidor?.contagem.total ?? 0) > 0)) {
     return (
       <p className="gc-card px-6 py-10 text-center text-[length:var(--gc-fs-sm)] text-secundario">
         Nenhuma referência coletada para este item.
@@ -234,7 +257,7 @@ export function TriagemDoItem({
 
   return (
     <div className="grid gap-4">
-      <ScreeningSummary counts={contagem} active={filtro} onFilter={setFiltro} />
+      <ScreeningSummary counts={contagem} active={ativo} onFilter={filtrar} />
       <AvisoDaCesta />
       <ul className="grid gap-3">
         {visiveis.map(({ r, d, s }) => (

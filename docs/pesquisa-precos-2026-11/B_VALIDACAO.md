@@ -27,3 +27,26 @@ Só entra aqui o que foi EXECUTADO. Nada de "deve passar".
 
 - homologação em produção com a conta do dono (depende da promoção);
 - latência p50/p95 do clique antes/depois (a correção não muda o caminho de rede: mesmo PATCH por clique, mesmo refresh ao esvaziar a fila).
+
+## Relatórios (PR #218)
+
+| Prova | Onde | Resultado |
+|---|---|---|
+| `tests/test_relatorios_pacote_1114.py` (11) | local + CI | verdes: fontes A/B/C com cesta A/C → só A e C; data ausente sem invenção; 50/30/10/5/3/2 → Top 5 + Demais = 2; até 5 sem Demais; desempate pelo número; total zero; 33,33% ×3 sem forçar 100; PNG válido; seções em cada documento |
+| `tests/test_revisao02_relatorio.py` atualizado | local + CI | retiradas e memória no Integral, ausentes no resumido |
+| Relatório/emissão/preços (1.147) | local | verdes |
+| PDF real com LibreOffice | local | resumido 3 páginas (extrato, fontes usadas); Integral com rosca e tabelas; geometria e paginação (`test_relatorio_cotacao.py`, 42) verdes |
+| CI do PR | GitHub Actions | 1ª: falha em `test_pdf_analitico_paisagem…` (premissa de que toda página do meio era da tabela); prova ajustada; 2ª: todos verdes |
+
+## Paginação, filtros e mapa (PR #219)
+
+| Prova | Onde | Resultado |
+|---|---|---|
+| `apps/api/tests/test_precos_rotas.py` (31, 15 novas) | local (`.venvs/govconect-api`) | verdes |
+| `apps/web/tests/triagem-url.test.ts` + design system | local (vitest 122) | verdes |
+| e2e filtro/contagem/mapa | CI `web-e2e` | ver PR #219 |
+
+### Não provado
+
+- Benchmark de 1.000 referências em produção (o caso real ainda não tem 1.000 por item); a API pagina no banco (`limit/offset` + `count=exact`), então o custo por página não cresce com o total.
+- Validação na tela de produção com a conta do dono: o navegador da sessão não tem login; depende do dono (Chrome).
