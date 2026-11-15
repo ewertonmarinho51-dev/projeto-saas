@@ -65,6 +65,8 @@ test("importar → cotação automática → revisar → aceitar → PDF", async
   // 2. Reimportar a mesma planilha: o plano diz que é igual, não há o que
   // confirmar, e nenhum item é duplicado (a repetição da MESMA confirmação
   // cai na mesma execução pela chave do plano — prova da API e da action).
+  // com itens, a área de importação fica recolhida (UX-04): abre para atualizar
+  await page.getByText("Importar ou atualizar a planilha").click();
   await page.getByLabel("Planilha de itens (XLSX)").setInputFiles(estado.planilha_cotacao);
   await page.getByRole("button", { name: "Conferir planilha" }).click();
   await expect(page.getByText("A planilha é igual ao que a pesquisa já tem.")).toBeVisible();
@@ -121,8 +123,13 @@ test("importar → cotação automática → revisar → aceitar → PDF", async
   await expect(page).toHaveURL(/\?concluida=1$/, { timeout: 30_000 });
   await expect(page.locator("section[aria-labelledby=titulo-itens] tbody")).not.toContainText("Em revisão");
 
-  // 7. PDF do relatório de cotação.
+  // 7. Concluída: faixa de conclusão, Nova revisão no cabeçalho, sem
+  // "Concluir" no rodapé (pacote 14/11/2026, UX-02/UX-08).
   await page.reload();
+  await expect(page.getByTestId("cotacao-concluida")).toBeVisible();
+  await expect(page.getByTestId("acoes-da-pesquisa").getByRole("button", { name: "Nova revisão" })).toBeVisible();
+  await expect(page.getByTestId("fechamento-pesquisa")).toHaveCount(0);
+  // PDF do relatório de cotação.
   const secao = page.getByTestId("secao-emissao");
   await secao.getByRole("button", { name: "Relatório de Cotação (PDF)" }).click();
   const aviso = page.getByRole("dialog", { name: "Preços que merecem conferência" });

@@ -384,10 +384,14 @@ def ligar_flags_da_emissao(pilha: Pilha) -> None:
                       "on conflict (chave) do update set valor = 'on'", (chave,))
 
 
-def semear_emissao(pilha: Pilha, dono: str = "a1") -> str:
+def semear_emissao(pilha: Pilha, dono: str = "a1", *, concluida: bool = False) -> str:
     """Pesquisa de `dono` com um item EM REVISÃO e uma referência na cesta:
     a pendência "preço não confirmado pelo revisor" faz a emissão pedir
     ciência — o caminho que importa provar.
+
+    `concluida=True` (pacote de 14/11/2026, UX-08: relatório só da cotação
+    concluída): pesquisa e item concluídos, e o preço da cesta SINALIZADO
+    (`warning`) — é o alerta da cesta que pede a ciência na emissão.
 
     O E2E usa outra conta (`admin_a`): o login do web limita 5 entradas
     por IP + e-mail a cada 15 min, e a `a1` já entra em vários specs."""
@@ -400,21 +404,23 @@ def semear_emissao(pilha: Pilha, dono: str = "a1") -> str:
         pid = str(c.execute(
             "insert into public.pesquisas_preco (tenant_id, secretaria_id, auth_user_id, nome, "
             "objeto, estado, valor_global, idempotency_key) values (%s,%s,%s,'Emissão E2E',"
-            "'Material de expediente','review',351.75,%s) returning id",
-            (a1.tenant_id, a1.secretaria_id, a1.auth_user_id, uuid.uuid4().hex)).fetchone()[0])
+            "'Material de expediente',%s,351.75,%s) returning id",
+            (a1.tenant_id, a1.secretaria_id, a1.auth_user_id,
+             "completed" if concluida else "review", uuid.uuid4().hex)).fetchone()[0])
         item = str(c.execute(
             "insert into public.pesquisa_preco_itens (pesquisa_id, tenant_id, numero, codigo, "
             "tipo_catalogo, descricao, unidade, quantidade, estado, metodo, preco_estimado, "
             "preco_total) values (%s,%s,1,'451234','CATMAT','Caneta esferográfica azul','UN',150,"
-            "'review','mediana',2.3450,351.7500) returning id",
-            (pid, a1.tenant_id)).fetchone()[0])
+            "%s,'mediana',2.3450,351.7500) returning id",
+            (pid, a1.tenant_id, "complete" if concluida else "review")).fetchone()[0])
         c.execute(
             "insert into public.pesquisa_preco_referencias (item_id, tenant_id, fonte_id, "
             "fonte_nome, fonte_tipo, id_externo, raw_hash, descricao_original, "
             "valor_unitario_original, valor_unitario_normalizado, natureza_valor, status, bruto) "
             "values (%s,%s,'pncp','PNCP','sistema_oficial','ext-e1','he1','Caneta azul',2.3450,"
-            "2.3450,'homologado','selected',%s)",
-            (item, a1.tenant_id, Jsonb({"numeroControlePNCP": "12345678000190-1-000124/2025"})))
+            "2.3450,'homologado',%s,%s)",
+            (item, a1.tenant_id, "warning" if concluida else "selected",
+             Jsonb({"numeroControlePNCP": "12345678000190-1-000124/2025"})))
     return pid
 
 
@@ -691,7 +697,7 @@ def principal() -> int:
         estado = {"url": pilha.url, "anon": pilha.anon,
                   "precos": semear_precos(pilha),
                   "coleta": semear_coleta(pilha),
-                  "emissao": semear_emissao(pilha, dono="admin_a"),
+                  "emissao": semear_emissao(pilha, dono="admin_a", concluida=True),
                   # P04e: pesquisa própria para concluir/reabrir (não mexe na
                   # da emissão) e uma planilha XLSX real para importar.
                   "escrita": semear_emissao(pilha, dono="admin_a"),

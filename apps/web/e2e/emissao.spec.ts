@@ -23,7 +23,10 @@ test("emitir pede ciência, gera no worker e baixa o arquivo", async ({ page }) 
 
   await page.goto(`/app/precos/${estado.emissao}`);
   const secao = page.getByTestId("secao-emissao");
-  await expect(secao.getByTestId("aviso-emissao")).toContainText("com pendência");
+  // Relatório só da cotação concluída (UX-08): a ciência agora vem do preço
+  // sinalizado da cesta, não de item em revisão.
+  await expect(page.getByTestId("cotacao-concluida")).toBeVisible();
+  await expect(secao.getByTestId("aviso-emissao")).toContainText("merecem conferência");
 
   // Voltar e revisar: nada é pedido.
   await secao.getByRole("button", { name: "Memória analítica (XLSX)" }).click();

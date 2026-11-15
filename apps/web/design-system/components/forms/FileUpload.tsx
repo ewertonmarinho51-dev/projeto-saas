@@ -22,6 +22,8 @@ export interface FileUploadProps {
   files?: UploadFile[];
   onFiles?: (arquivos: File[]) => void;
   onRemove?: (indice: number) => void;
+  /** Nome acessível do campo de arquivo (leitor de tela, `getByLabel`). */
+  inputLabel?: string;
 }
 
 /** Área de arrastar ou clicar, com a lista dos arquivos (progresso, status, remover). Opera pelo teclado. */
@@ -34,6 +36,7 @@ export function FileUpload({
   files = [],
   onFiles,
   onRemove,
+  inputLabel,
 }: FileUploadProps) {
   const [arrastando, setArrastando] = useState(false);
   const entrada = useRef<HTMLInputElement>(null);
@@ -70,7 +73,15 @@ export function FileUpload({
           {title} <b>{action}</b>
         </span>
         <span className="gc-upload__hint">{hint}</span>
-        <input ref={entrada} type="file" hidden accept={accept} multiple={multiple} onChange={(e) => escolher(e.target.files)} />
+        <input
+          ref={entrada}
+          type="file"
+          hidden
+          accept={accept}
+          multiple={multiple}
+          aria-label={inputLabel}
+          onChange={(e) => escolher(e.target.files)}
+        />
       </div>
       {files.length > 0 && (
         <div className="gc-filelist">

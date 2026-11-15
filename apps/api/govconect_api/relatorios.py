@@ -56,6 +56,13 @@ from .supabase_rest import ClienteRest
 _log = logging.getLogger("govconect_api")
 
 TIPO_DO_JOB = "relatorio_precos"
+# Pacote de 14/11/2026 (UX-08, decisão do dono em 15/11/2026): os
+# relatórios só existem depois da cotação CONCLUÍDA — na tela, no pedido e
+# de novo no worker. A ciência continua valendo para os alertas da cesta
+# concluída; a emissão preliminar (com item em revisão) deixou de existir.
+ESTADOS_EMITIVEIS = frozenset({"completed", "applied"})
+COTACAO_ABERTA = ("Os relatórios ficam disponíveis depois que a cotação é "
+                  "concluída.")
 _CHAVE = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
 _ASSINATURA = re.compile(r"^[0-9a-f]{64}$")
 
@@ -226,6 +233,11 @@ def processar_relatorio(*, job_id: str, token: str, tenant_id: str, auth_user_id
             if not com_ciencia:
                 return _falhar(rest, token, job_id, "EMISSION_UNAVAILABLE", SEM_CIENCIA)
             pesquisa, itens, referencias = _carregar(str(job["recurso_id"]), tenant_id)
+            # de novo no worker: a cotação pode ter sido reaberta (revisão)
+            # entre o pedido e a vez dele na fila
+            if str(pesquisa.get("estado") or "") not in ESTADOS_EMITIVEIS:
+                return _falhar(rest, token, job_id, "QUOTATION_NOT_COMPLETED",
+                               COTACAO_ABERTA)
             total = emissao.total_de_referencias(referencias)
             if (tipo, formato) not in {(t, f) for t, f, _ in opcoes(visual, total)}:
                 return _falhar(rest, token, job_id, "INVALID_REPORT")
@@ -300,7 +312,7 @@ def rotas() -> APIRouter:
 
     def _pesquisa_visivel(rest: ClienteRest, eu: Identidade, pesquisa_id: uuid.UUID) -> dict:
         resposta = rest.requisitar(eu.token, "GET", TABELA_PESQUISAS, params={
-            "select": "id,auth_user_id", "id": f"eq.{pesquisa_id}",
+            "select": "id,auth_user_id,estado", "id": f"eq.{pesquisa_id}",
             "tenant_id": f"eq.{eu.tenant_id}", "limit": "1"})
         if resposta.status != 200 or not resposta.dados:
             raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
@@ -342,8 +354,11 @@ def rotas() -> APIRouter:
         except (repo.SemSessao, db.ErroBanco) as exc:
             raise _traduzir(exc) from None
         carga = (registrada or {}).get("payload") or {}
+        concluida = str(pesquisa.get("estado") or "") in ESTADOS_EMITIVEIS
         return PreparoDaEmissao(
-            disponivel=com_ciencia, motivo="" if com_ciencia else SEM_CIENCIA,
+            disponivel=com_ciencia and concluida,
+            motivo=(SEM_CIENCIA if not com_ciencia else
+                    "" if concluida else COTACAO_ABERTA),
             identificador=identificador, bloqueio=bloqueio,
             requer_ciencia=preparo.requer_ciencia, assinatura=preparo.assinatura,
             alertas=[AlertaDePreco(numero=a.numero, descricao=a.descricao[:200],
@@ -419,7 +434,9 @@ def rotas() -> APIRouter:
         if not _CHAVE.fullmatch(idempotency_key):
             raise ErroApi(400, "INVALID_IDEMPOTENCY_KEY", "Idempotency-Key inválida")
         rest = _rest(request)
-        _pesquisa_visivel(rest, eu, pesquisa_id)
+        linha = _pesquisa_visivel(rest, eu, pesquisa_id)
+        if str(linha.get("estado") or "") not in ESTADOS_EMITIVEIS:
+            raise ErroApi(409, "QUOTATION_NOT_COMPLETED", COTACAO_ABERTA)
         try:
             with _sessao(eu):
                 com_ciencia, visual = _flags()
