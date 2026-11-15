@@ -65,8 +65,9 @@ test("importar → cotação automática → revisar → aceitar → PDF", async
   // 2. Reimportar a mesma planilha: o plano diz que é igual, não há o que
   // confirmar, e nenhum item é duplicado (a repetição da MESMA confirmação
   // cai na mesma execução pela chave do plano — prova da API e da action).
-  // com itens, a área de importação fica recolhida (UX-04): abre para atualizar
-  await page.getByText("Importar ou atualizar a planilha").click();
+  // com itens, a área de importação abre recolhida (UX-04): abre se preciso
+  const area = page.getByTestId("area-importacao");
+  if (!(await area.evaluate((e) => (e as HTMLDetailsElement).open))) await area.locator("summary").click();
   await page.getByLabel("Planilha de itens (XLSX)").setInputFiles(estado.planilha_cotacao);
   await page.getByRole("button", { name: "Conferir planilha" }).click();
   await expect(page.getByText("A planilha é igual ao que a pesquisa já tem.")).toBeVisible();

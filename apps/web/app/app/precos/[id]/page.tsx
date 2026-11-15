@@ -8,6 +8,7 @@ import { AplicarAoProcesso } from "@/components/aplicar-processo";
 import { DestinatarioDaPesquisa } from "@/components/destinatario";
 import { etapasDaPesquisa, SECAO } from "@/components/etapas-da-pesquisa";
 import { FechamentoDaPesquisa, GestaoDaPesquisa, NovaRevisao, NovoItem } from "@/components/gestao-cotacao";
+import { AreaRecolhivel } from "@/components/area-recolhivel";
 import { ImportarPlanilha } from "@/components/importar-planilha";
 import {
   dataCurta,
@@ -223,11 +224,11 @@ export default async function Pesquisa({
           <div className="gc-card__body grid gap-3">
             {/* Recolhida depois que há itens (UX-04): a planilha já entrou;
                 abrir é para atualizar ou incluir um item à mão. */}
-            <details open={p.itens.length === 0} className="group grid gap-3" data-testid="area-importacao">
-              <summary className="cursor-pointer text-[length:var(--gc-fs-sm)] font-[number:var(--weight-medium)] text-acento">
-                {p.itens.length === 0 ? "Planilha de itens" : "Importar ou atualizar a planilha"}
-              </summary>
-              <div className="mt-3 grid gap-3">
+            <AreaRecolhivel
+              aberta={p.itens.length === 0}
+              testId="area-importacao"
+              resumo={p.itens.length === 0 ? "Planilha de itens" : "Importar ou atualizar a planilha"}
+            >
                 <ImportarPlanilha pesquisa={p.id} />
                 <details className="group border-t border-linha pt-3" data-testid="incluir-item">
                   <summary className="cursor-pointer text-[length:var(--gc-fs-sm)] font-[number:var(--weight-medium)] text-acento">
@@ -237,8 +238,7 @@ export default async function Pesquisa({
                     <NovoItem pesquisa={p.id} />
                   </div>
                 </details>
-              </div>
-            </details>
+            </AreaRecolhivel>
           </div>
         </section>
       )}
