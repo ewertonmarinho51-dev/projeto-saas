@@ -58,6 +58,22 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 const INICIAL: Marcas = { a: false, b: false, c: false, d: false };
 
 describe("fila da cesta (P0: referência que entra e some)", () => {
+  it("mantém um único clique confirmado quando chega uma leitura anterior à gravação", async () => {
+    const srv = new ServidorFalso(INICIAL);
+    const antes = srv.pagina();
+    const fila = new FilaDaCesta(antes.revisao, antes.marcadas, srv.gravar);
+    fila.alternar("a", false);
+    expect(fila.estado()).toMatchObject({ desejado: { a: true }, confirmado: { a: false }, emVoo: "a" });
+    await srv.soltar();
+
+    expect(srv.chamadas).toEqual([{ ref: "a", incluir: true, ifMatch: 1, status: 200 }]);
+    expect(fila.receberDoServidor(antes.revisao, antes.marcadas)).toBe("ignorado_velho");
+    const atual = srv.pagina();
+    expect(fila.receberDoServidor(atual.revisao, atual.marcadas)).toBe("confirmado");
+    expect(fila.estado()).toMatchObject({ confirmado: { a: true }, revisao: 2, aviso: null });
+    expect(fila.marcado("a", false)).toBe(true);
+  });
+
   it("o modelo ANTIGO perde a seleção: provedor recriado com a página do 1º refresh", async () => {
     // reprodução do defeito: `key={item.revisao}` recriava o provedor com a
     // página que o refresh trouxe, enquanto o clique seguinte ainda gravava

@@ -9,12 +9,10 @@ import {
   Dialog,
   Icon,
   IconButton,
-  PriceItemNav,
   PriceReferenceRow,
   ScreeningSummary,
   TraceabilityPanel,
   type DataListItem,
-  type PriceItem,
   type ReferenceStatus,
   type ScreeningKey,
 } from "@/design-system";
@@ -116,7 +114,6 @@ function VerOrigem({ r }: { r: ReferenciaDePreco }) {
     </>
   );
 }
-
 /**
  * "Consultar registro original": o item exato e o resultado oficial que deram
  * origem ao preço, legíveis. O PNCP não tem página por item: mostra-se o
@@ -258,7 +255,7 @@ export function TriagemDoItem({
   return (
     <div className="grid gap-4">
       <ScreeningSummary counts={contagem} active={ativo} onFilter={filtrar} />
-      <AvisoDaCesta />
+      {!visiveis.some(({ r }) => r.id === fila?.referenciaDoAviso) && <AvisoDaCesta />}
       <ul className="grid gap-3">
         {visiveis.map(({ r, d, s }) => (
           <li key={r.id} className="grid gap-2" data-testid="referencia" data-na-cesta={d ? "1" : "0"}>
@@ -282,6 +279,7 @@ export function TriagemDoItem({
               <span data-testid="natureza">{rotuloNatureza(r.natureza_valor)}</span>
               <RegistroOriginal r={r} />
             </div>
+            {r.id === fila?.referenciaDoAviso && <AvisoDaCesta />}
             {alertaDe.has(r.id) && (
               <div className="px-4">
                 <AlertaDoPreco
@@ -301,31 +299,5 @@ export function TriagemDoItem({
         <p className="text-[length:var(--gc-fs-xs)] text-secundario">Item concluído: reabra para alterar a cesta.</p>
       )}
     </div>
-  );
-}
-
-/** Navegação entre os itens da pesquisa (PriceItemNav), por rota: cada item é uma página. */
-export function NavegadorDeItens({ pesquisa, itens, atual }: { pesquisa: string; itens: ItemDePesquisa[]; atual: string }) {
-  const router = useRouter();
-  const situacaoNav: Record<string, PriceItem["status"]> = {
-    complete: "done",
-    review: "review",
-    error: "blocked",
-    incomplete: "blocked",
-  };
-  return (
-    <PriceItemNav
-      scroll
-      activeId={atual}
-      onSelect={(id) => router.push(`/app/precos/${pesquisa}/itens/${id}`)}
-      items={itens.map((i) => ({
-        id: i.id,
-        n: String(i.numero).padStart(2, "0"),
-        title: i.descricao,
-        unit: i.unidade,
-        value: i.preco_estimado?.exibicao,
-        status: situacaoNav[i.estado] ?? "pending",
-      }))}
-    />
   );
 }

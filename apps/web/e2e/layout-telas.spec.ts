@@ -7,8 +7,8 @@ import { expect, test, type Page } from "@playwright/test";
  * que o dono usa (1920 × 1080 e 1366 × 768) mais o celular:
  *
  * - Pesquisa de Preços (página do item, semente `semear_larguras`, com um item
- *   de descrição sem espaço): Itens | busca e triagem | Cesta no desktop, em
- *   sequência no estreito; cada linha do navegador contida no cartão Itens;
+ *   de descrição sem espaço): busca e triagem | Cesta no desktop, em
+ *   sequência no estreito, com controles de navegação no topo;
  *   Termo, Período e UF alinhados pela base, e o seletor mostrando cada
  *   período por inteiro; sem o campo da contratação similar no PNCP (saiu em
  *   12/11/2026), com as ações abaixo dos campos; sem rolagem lateral.
@@ -56,29 +56,6 @@ async function semRolagemLateral(page: Page) {
   expect(r.main, "rolagem lateral do conteúdo").toBeLessThanOrEqual(1);
 }
 
-/** Navegador de itens: linha, ícone e texto dentro do cartão; item atual à vista. */
-async function itensContidos(page: Page) {
-  const m = await page.getByTestId("cartao-itens").evaluate((cartao) => {
-    const r = (e: Element) => e.getBoundingClientRect();
-    const limite = r(cartao);
-    const lista = cartao.querySelector("ul")!;
-    const botoes = [...cartao.querySelectorAll(".gc-itemnav__btn")];
-    const atual = cartao.querySelector('[aria-current="true"]')!;
-    return {
-      linhas: botoes.length,
-      linhasFora: botoes.filter((b) => r(b).right > limite.right + 0.5 || r(b).left < limite.left - 0.5).length,
-      iconesFora: botoes.filter((b) => r(b.querySelector(".gc-itemnav__status")!).right > r(b).right + 0.5).length,
-      textoFora: [...cartao.querySelectorAll(".gc-itemnav__title")].filter((t) => t.scrollWidth > t.clientWidth + 1).length,
-      atualVisivel: r(atual).top >= r(lista).top - 0.5 && r(atual).bottom <= r(lista).bottom + 0.5,
-    };
-  });
-  expect(m.linhas).toBeGreaterThan(1);
-  expect(m.linhasFora, "linha do navegador além do cartão Itens").toBe(0);
-  expect(m.iconesFora, "ícone de situação além da linha").toBe(0);
-  expect(m.textoFora, "descrição estourando a própria caixa").toBe(0);
-  expect(m.atualVisivel, "item atual fora da vista").toBe(true);
-}
-
 /** Cada período cabe inteiro no seletor ("Último ano" incluído). */
 async function periodoLegivel(page: Page) {
   const sobra = await page.locator("#busca-janela").evaluate((sel: HTMLSelectElement) => {
@@ -95,19 +72,17 @@ async function periodoLegivel(page: Page) {
 
 test.describe.configure({ mode: "serial" });
 
-test("Pesquisa de Preços: três colunas no desktop, linhas contidas, busca alinhada", async ({ page }) => {
+test("Pesquisa de Preços: duas colunas, cesta à direita e navegação no topo", async ({ page }) => {
   await entrar(page, estado.contas.admin_larguras);
-  for (const tela of DESKTOP) {
+  for (const tela of [...DESKTOP, { nome: "1440", width: 1440, height: 900 }]) {
     await page.setViewportSize({ width: tela.width, height: tela.height });
     await page.goto(ITEM);
     await expect(page.getByTestId("busca-item")).toBeVisible();
 
     const caixa = async (seletor: string) => (await page.locator(seletor).first().boundingBox())!;
-    const itens = await caixa('[data-testid="cartao-itens"]');
     const cartaoBusca = await caixa('section.gc-card:has([data-testid="busca-item"])');
     const busca = await caixa('[data-testid="busca-item"]');
     const cesta = await caixa('[data-testid="cartao-cesta"]');
-    expect(itens.x + itens.width, `${tela.nome}: Itens invade a busca`).toBeLessThanOrEqual(cartaoBusca.x);
     expect(cartaoBusca.x + cartaoBusca.width, `${tela.nome}: busca invade a Cesta`).toBeLessThanOrEqual(cesta.x);
     // A triagem vem logo abaixo da busca, na mesma coluna.
     const triagem = await caixa("h2#triagem");
@@ -138,29 +113,31 @@ test("Pesquisa de Preços: três colunas no desktop, linhas contidas, busca alin
     expect(acao.y, "ações abaixo dos campos").toBeGreaterThan(Math.max(...base.map((b) => b.fundo)));
 
     await periodoLegivel(page);
-    await itensContidos(page);
+    await expect(page.getByTestId("cartao-itens")).toHaveCount(0);
+    const nav = page.getByRole("navigation", { name: "Navegação entre itens" });
+    const anterior = nav.getByRole("link", { name: "Item anterior" });
+    const proximo = nav.getByRole("link", { name: "Próximo item" });
+    await expect(anterior.or(proximo).first()).toBeVisible();
     await semRolagemLateral(page);
     await page.screenshot({ path: `${PASTA}/precos-item-${tela.nome}.png` });
   }
 });
 
 test("Pesquisa de Preços no celular: blocos em sequência, seletor aberto", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 375, height: 812 });
   await entrar(page, estado.contas.admin_larguras);
   await page.goto(ITEM);
   await expect(page.getByTestId("busca-item")).toBeVisible();
 
   const topo = async (seletor: string) => (await page.locator(seletor).first().boundingBox())!;
-  const itens = await topo('[data-testid="cartao-itens"]');
   const busca = await topo('[data-testid="busca-item"]');
   const triagem = await topo("h2#triagem");
   const cesta = await topo('[data-testid="cartao-cesta"]');
-  expect(busca.y).toBeGreaterThan(itens.y + itens.height - 1);
   expect(triagem.y).toBeGreaterThan(busca.y);
   expect(cesta.y).toBeGreaterThan(triagem.y);
-  for (const b of [itens, busca, cesta]) expect(b.x + b.width).toBeLessThanOrEqual(390);
+  for (const b of [busca, cesta]) expect(b.x + b.width).toBeLessThanOrEqual(375);
 
-  await itensContidos(page);
+  await expect(page.getByTestId("cartao-itens")).toHaveCount(0);
   await semRolagemLateral(page);
   // Seletor aberto: o celular desenha a lista por cima; o campo não muda de lugar.
   const antes = await topo("#busca-janela");
@@ -171,9 +148,19 @@ test("Pesquisa de Preços no celular: blocos em sequência, seletor aberto", asy
   await semRolagemLateral(page);
   const depois = await topo("#busca-janela");
   expect(depois.width).toBe(antes.width);
-  await page.screenshot({ path: `${PASTA}/precos-item-390-seletor.png` });
+  await page.screenshot({ path: `${PASTA}/precos-item-375-seletor.png` });
   await page.keyboard.press("Escape");
-  await page.screenshot({ path: `${PASTA}/precos-item-390.png`, fullPage: true });
+  await page.screenshot({ path: `${PASTA}/precos-item-375.png`, fullPage: true });
+
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await expect(page.getByTestId("cartao-itens")).toHaveCount(0);
+  await expect(page.getByTestId("cartao-cesta")).toBeVisible();
+  await semRolagemLateral(page);
+  const destino = page.getByRole("navigation", { name: "Navegação entre itens" }).getByRole("link").first();
+  const href = await destino.getAttribute("href");
+  await destino.click();
+  await expect(page).toHaveURL((url) => url.pathname === href);
+  await expect(page.getByTestId("cartao-cesta")).toBeVisible();
 });
 
 test("WordCraft: faixa compacta, sem barra superior, documento com a altura da tela", async ({ page }) => {

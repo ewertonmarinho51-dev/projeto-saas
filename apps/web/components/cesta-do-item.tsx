@@ -14,10 +14,11 @@ import { proximoAConcluir } from "./precos";
  * A cesta do item em UM clique (13/11/2026; P0 de 14/11/2026).
  *
  * Cada referência tem a marcação DESEJADA (o último clique) e a CONFIRMADA
- * (o que o servidor gravou). A tela mostra a desejada na hora; uma fila única
+ * (o que o servidor gravou). A tela sinaliza a gravação pendente e só mostra
+ * a seleção confirmada; uma fila única
  * (`FilaDaCesta`) grava em segundo plano, uma referência por vez, cada uma
- * com a revisão que a anterior devolveu (If-Match). Se a gravação falha, só
- * a linha afetada volta ao que estava, com um aviso curto.
+ * com a revisão que a anterior devolveu (If-Match). Uma recusa mantém a
+ * seleção confirmada e exibe o motivo.
  *
  * Quem usa põe `key={id do item}` — NUNCA a revisão. A página que o refresh
  * traz entra pela reconciliação da fila (`receberDoServidor`): instantâneo
@@ -33,6 +34,7 @@ type Fila = {
   aguardar: () => Promise<{ revisao: number; falhou: boolean }>;
   preco: string | null;
   aviso: string | null;
+  referenciaDoAviso: string | null;
 };
 
 const ContextoDaCesta = createContext<Fila | null>(null);
@@ -92,12 +94,13 @@ export function CestaDoItem({
   }, [maquina, revisao, chave]);
 
   const fila: Fila = {
-    marcado: (id, padrao) => estado.desejado[id] ?? padrao,
+    marcado: (id, padrao) => estado.confirmado[id] ?? padrao,
     salvando: (id) => estado.emVoo === id || (id in estado.desejado && estado.desejado[id] !== estado.confirmado[id]),
     alternar: (id, atual) => maquina.alternar(id, atual),
     aguardar: () => maquina.aguardar(),
     preco: estado.preco,
     aviso: estado.aviso,
+    referenciaDoAviso: estado.referenciaDoAviso,
   };
 
   return <ContextoDaCesta.Provider value={fila}>{children}</ContextoDaCesta.Provider>;
@@ -108,13 +111,14 @@ export function ControleDaCesta({ referencia, naCesta }: { referencia: string; n
   const fila = useCestaDoItem();
   if (!fila) return null;
   const dentro = fila.marcado(referencia, naCesta);
+  const salvando = fila.salvando(referencia);
   return (
     <IconButton
-      icon={dentro ? "check-circle" : "arrow-right"}
-      label={dentro ? "Retirar da cesta" : "Incluir na cesta"}
+      icon={salvando ? "clock" : dentro ? "check-circle" : "arrow-right"}
+      label={salvando ? "Gravando alteração na cesta" : dentro ? "Retirar da cesta" : "Incluir na cesta"}
       variant={dentro ? "primary" : "secondary"}
       aria-pressed={dentro}
-      aria-busy={fila.salvando(referencia) || undefined}
+      aria-busy={salvando || undefined}
       data-testid="controle-cesta"
       data-na-cesta={dentro ? "1" : "0"}
       onClick={() => fila.alternar(referencia, naCesta)}
@@ -127,10 +131,8 @@ export function AvisoDaCesta() {
   const fila = useCestaDoItem();
   if (!fila?.aviso) return null;
   return (
-    <Alert variant="warning" compact>
-      <span role="status" data-testid="aviso-cesta">
-        {fila.aviso}
-      </span>
+    <Alert variant="warning" role="alert" compact>
+      <span data-testid="aviso-cesta">{fila.aviso}</span>
     </Alert>
   );
 }
@@ -145,7 +147,7 @@ export function PrecoConfirmado({ inicial, principal = true }: { inicial: string
   return <span data-testid={principal ? "preco-do-item" : undefined}>{fila?.preco ?? inicial}</span>;
 }
 
-/** Quantas estão na cesta pela marcação que a tela mostra (atualiza no clique). */
+/** Quantas referências têm inclusão confirmada. */
 export function ContagemNaCesta({ marcadas }: { marcadas: Marcas }) {
   const fila = useCestaDoItem();
   const n = Object.entries(marcadas).filter(([id, v]) => (fila ? fila.marcado(id, v) : v)).length;

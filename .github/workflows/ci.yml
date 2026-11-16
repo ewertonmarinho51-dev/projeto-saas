@@ -421,7 +421,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # A suíte navega em muitas telas com a mesma conta de teste, cada
+          # uma com várias leituras. O limite de produção tem teste próprio.
           APP_ENV=test SUPABASE_URL="$PILHA_URL" SUPABASE_KEY="$PILHA_ANON" PYTHONPATH=.:../.. \
+            GOVCONECT_LIMITE_POR_MINUTO=10000 \
             PRICE_RESEARCH_ENABLED=1 REDIS_URL=redis://127.0.0.1:6379/0 GOVCONECT_FONTES_COLETA=indice \
             GOVCONECT_GOVERNANCA_ESCRITA=1 GOVCONECT_GOVBOT=1 GOVCONECT_WORDCRAFT_WORKSPACE=1 \
             OPENAI_API_KEY=motor-falso-do-ci OPENAI_MODEL=modelo-falso \
@@ -464,7 +467,7 @@ jobs:
       - name: Logs dos serviços (falha)
         if: failure()
         shell: bash
-        run: tail -60 "$RUNNER_TEMP/pilha.log" "$RUNNER_TEMP/api.log" "$RUNNER_TEMP/worker.log" "$RUNNER_TEMP/web.log" || true
+        run: tail -n 60 "$RUNNER_TEMP/pilha.log" "$RUNNER_TEMP/api.log" "$RUNNER_TEMP/worker.log" "$RUNNER_TEMP/web.log" || true
       - name: Guardar capturas e relatório
         if: always()
         uses: actions/upload-artifact@v4

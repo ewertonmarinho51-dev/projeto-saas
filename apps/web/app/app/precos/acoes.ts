@@ -399,7 +399,12 @@ export async function gravarMarcacao(
       return { ok: false, erro: e.mensagem || "A regra da cesta recusou esta referência.", conflito: false };
     }
     if (e instanceof ErroDaApi) {
-      return { ok: false, erro: MENSAGENS[e.status] ?? "Não foi possível gravar agora.", conflito: e.status === 409 };
+      const motivo = ["ITEM_COMPLETE", "IMMUTABLE", "VERSION_CONFLICT"].includes(e.codigo) ? e.mensagem : "";
+      return {
+        ok: false,
+        erro: motivo || (MENSAGENS[e.status] ?? "Não foi possível gravar agora."),
+        conflito: e.status === 409,
+      };
     }
     return { ok: false, erro: "Não foi possível gravar agora.", conflito: false };
   }

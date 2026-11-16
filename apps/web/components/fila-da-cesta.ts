@@ -39,6 +39,7 @@ export type Estado = {
   emVoo: string | null;
   preco: string | null;
   aviso: string | null;
+  referenciaDoAviso: string | null;
   revisao: number;
 };
 
@@ -52,6 +53,7 @@ export class FilaDaCesta {
   private emVoo: string | null = null;
   private preco: string | null = null;
   private aviso: string | null = null;
+  private referenciaDoAviso: string | null = null;
   private rodando = false;
   private falhou = false;
   private esperando: ((r: { revisao: number; falhou: boolean }) => void)[] = [];
@@ -93,6 +95,7 @@ export class FilaDaCesta {
     if (!(id in this.confirmado)) this.confirmado[id] = atual;
     this.desejado[id] = !(this.desejado[id] ?? atual);
     this.aviso = null;
+    this.referenciaDoAviso = null;
     this.publicar();
     void this.processar();
   }
@@ -138,7 +141,10 @@ export class FilaDaCesta {
       if (this.emVoo !== id) this.confirmado[id] = v;
     }
     this.revisaoConfirmada = revisao;
-    if (descartou) this.aviso = AVISO_OUTRA_ABA;
+    if (descartou) {
+      this.aviso = AVISO_OUTRA_ABA;
+      this.referenciaDoAviso = null;
+    }
     this.publicar();
     return "adotado";
   }
@@ -155,6 +161,7 @@ export class FilaDaCesta {
       emVoo: this.emVoo,
       preco: this.preco,
       aviso: this.aviso,
+      referenciaDoAviso: this.referenciaDoAviso,
       revisao: this.revisaoConfirmada,
     };
   }
@@ -188,6 +195,7 @@ export class FilaDaCesta {
           this.falhou = true;
           this.desejado[id] = this.confirmado[id] ?? false;
           this.aviso = r.erro;
+          this.referenciaDoAviso = id;
           if (r.conflito) {
             // revisão vencida: descarta o que falta e espera a página nova
             this.desejado = { ...this.confirmado };
