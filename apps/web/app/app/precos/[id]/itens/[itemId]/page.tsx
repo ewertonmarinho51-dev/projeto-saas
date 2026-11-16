@@ -8,7 +8,7 @@ import { AtoNoItem } from "@/components/ato-item";
 import { CestaDoItem, ConcluirEAvancar, ContagemNaCesta, PrecoConfirmado } from "@/components/cesta-do-item";
 import { BuscaDoItem, DesfazerRetirada, EdicaoDoItem, ProgressoDaBusca } from "@/components/gestao-cotacao";
 import { situacaoDoItem } from "@/components/situacao";
-import { NavegadorDeItens, TriagemDoItem } from "@/components/triagem-item";
+import { TriagemDoItem } from "@/components/triagem-item";
 import { FiltrosDaTriagem } from "@/components/filtros-da-triagem";
 import { MapaDasReferencias, ModoDaTriagem, PaginacaoDaTriagem } from "@/components/navegacao-da-triagem";
 import { lerFiltros, paraApi, paraUrl } from "@/components/triagem-url";
@@ -90,8 +90,11 @@ export default async function Referencias({
   }
   refs = pagina.dados;
   totalFiltrado = Number(pagina.cabecalhos.get("x-total-count") ?? refs.length) || refs.length;
-  const item = pesquisa.itens.find((i) => i.id === itemId);
+  const indice = pesquisa.itens.findIndex((i) => i.id === itemId);
+  const item = pesquisa.itens[indice];
   if (!item) notFound();
+  const anterior = pesquisa.itens[indice - 1];
+  const proximo = pesquisa.itens[indice + 1];
   const editavel = !IMUTAVEIS.has(pesquisa.estado);
   const desfazivel = cesta === "retirada" && typeof ref === "string" && UUID.test(ref) && editavel ? ref : null;
   const aviso =
@@ -133,6 +136,21 @@ export default async function Referencias({
         desc="Cada valor com a origem que permite conferi-lo. Só aparece link para portal oficial."
       />
 
+      {(anterior || proximo) && (
+        <nav aria-label="Navegação entre itens" className="flex flex-wrap gap-2">
+          {anterior && (
+            <Button variant="secondary" size="sm" icon="caret-left" href={`/app/precos/${id}/itens/${anterior.id}`}>
+              Item anterior
+            </Button>
+          )}
+          {proximo && (
+            <Button variant="secondary" size="sm" iconRight="caret-right" href={`/app/precos/${id}/itens/${proximo.id}`}>
+              Próximo item
+            </Button>
+          )}
+        </nav>
+      )}
+
       <Card>
         <DataList
           stacked
@@ -153,7 +171,7 @@ export default async function Referencias({
       {desfazivel && <DesfazerRetirada pesquisa={id} item={itemId} referencia={desfazivel} revisao={item.revisao} />}
       {aviso && <Alert variant="success" title={aviso} />}
 
-      {/* A análise pede a largura da página: fica fora da grade de três colunas. */}
+      {/* A análise usa a largura da página. */}
       <AbasDoItem
         inicial={aba === "analise" ? "analise" : "triagem"}
         referencias={totalDoItem}
@@ -167,23 +185,7 @@ export default async function Referencias({
           )
         }
         triagem={
-          // Desktop (xl): Itens | busca e triagem | Cesta, as laterais presas
-          // ao rolar. Abaixo disso, os três blocos em sequência, na mesma
-          // ordem. A lista de itens rola dentro do cartão: com centenas de
-          // itens ela não empurra a busca para longe nem estica a página.
-          <div className="grid items-start gap-5 xl:grid-cols-[calc(var(--space-16)*4)_minmax(0,1fr)_calc(var(--space-16)*4.75)]">
-        <Card
-          title="Itens"
-          flush
-          actions={<Badge size="sm">{pesquisa.itens.length}</Badge>}
-          className="min-w-0 xl:sticky xl:top-[calc(var(--topbar-height)+var(--space-4))]"
-          data-testid="cartao-itens"
-        >
-          <div className="px-2 pb-3 [--gc-itemnav-max:calc(var(--space-16)*4)] xl:[--gc-itemnav-max:calc(100dvh-var(--topbar-height)-var(--space-16)*2)]">
-            <NavegadorDeItens pesquisa={id} itens={pesquisa.itens} atual={item.id} />
-          </div>
-        </Card>
-
+          <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_calc(var(--space-16)*4.75)]">
         <div className="grid min-w-0 gap-4">
           {/* A busca vem PRIMEIRO, como no Banco de Preços: o servidor escolhe
               o termo, pesquisa e só então tria o que voltou. Embaixo da

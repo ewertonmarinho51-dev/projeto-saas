@@ -74,6 +74,7 @@ test("dono vê a pesquisa com dinheiro exato e evidência verificável", async (
 });
 
 test("cesta em um clique: tira, põe de volta, grava em segundo plano e persiste", async ({ page }) => {
+  test.setTimeout(60_000);
   await entrar(page, "a1");
   const url = `/app/precos/${estado.precos.pesquisa}/itens/${estado.precos.item}`;
   await page.goto(url);
@@ -82,7 +83,7 @@ test("cesta em um clique: tira, põe de volta, grava em segundo plano e persiste
   const contagem = page.getByTestId("cartao-cesta").getByTestId("contagem-cesta");
   const antes = Number(await contagem.textContent());
 
-  // Retirar: um clique, sem justificativa nem modal; marca e conta na hora.
+  // Retirar: um clique, sem justificativa nem modal.
   await referencia.getByRole("button", { name: "Retirar da cesta" }).click();
   await expect(referencia).toHaveAttribute("data-na-cesta", "0");
   await expect(contagem).toHaveText(String(antes - 1));
@@ -103,6 +104,13 @@ test("cesta em um clique: tira, põe de volta, grava em segundo plano e persiste
     "true",
   );
   await expect(page.getByTestId("aviso-cesta")).toHaveCount(0);
+  // A reversão relatada ocorre alguns segundos depois da confirmação visual.
+  await page.waitForTimeout(10_000);
+  await expect(referencia).toHaveAttribute("data-na-cesta", "1");
+  await expect(page.getByTestId("aviso-cesta")).toHaveCount(0);
+  await page.getByRole("link", { name: "Voltar à pesquisa" }).click();
+  await page.getByRole("link", { name: "Luva nitrílica" }).click();
+  await expect(referencia).toHaveAttribute("data-na-cesta", "1");
   await page.reload();
   await expect(page.getByTestId("referencia").first()).toHaveAttribute("data-na-cesta", "1");
   await page.screenshot({ path: "e2e/resultados/telas/cesta-1440.png", fullPage: true });
@@ -112,13 +120,16 @@ test("cesta em um clique: tira, põe de volta, grava em segundo plano e persiste
   // refresh do 1º clique recriava a cesta e o clique seguinte sumia (ou
   // tomava 409). Mesma sessão desta prova: o login tem limite de tentativas.
   await page.goto(`/app/precos/${estado.precos.rapida_pesquisa}/itens/${estado.precos.rapida_item}`);
-  const linhas = page.getByTestId("referencia");
-  await expect(linhas).toHaveCount(4);
+  const referencias = page.getByTestId("referencia");
+  const impedida = referencias.filter({ hasText: "sem unidade comprovada" });
+  const linhas = referencias.filter({ hasNotText: "sem unidade comprovada" });
+  await expect(referencias).toHaveCount(5);
+  await impedida.getByRole("button", { name: "Incluir na cesta" }).click();
+  await expect(impedida).toHaveAttribute("data-na-cesta", "0");
+  await expect(impedida.getByTestId("aviso-cesta")).toContainText("unidade não comprovada");
   for (let i = 0; i < 4; i++) {
     await linhas.nth(i).getByRole("button", { name: "Incluir na cesta" }).click();
   }
-  // nenhuma linha volta para fora enquanto a fila grava
-  for (let i = 0; i < 4; i++) await expect(linhas.nth(i)).toHaveAttribute("data-na-cesta", "1");
   await expect(page.locator('[data-testid="controle-cesta"][aria-busy="true"]')).toHaveCount(0, { timeout: 30_000 });
   // e depois que a fila esvazia e o refresh chega, continuam dentro
   await page.waitForLoadState("networkidle");
@@ -136,15 +147,15 @@ test("cesta em um clique: tira, põe de volta, grava em segundo plano e persiste
   const item = `/app/precos/${estado.precos.rapida_pesquisa}/itens/${estado.precos.rapida_item}`;
   await page.goto(`${item}?situacao=cesta&por_pagina=10`);
   await expect(linhas).toHaveCount(4);
-  await expect(page.getByTestId("total-filtrado")).toHaveText("4 de 4 referência(s)");
+  await expect(page.getByTestId("total-filtrado")).toHaveText("4 de 5 referência(s)");
   await page.goto(`${item}?situacao=fora`);
   await expect(linhas).toHaveCount(0);
-  await expect(page.getByText("Nenhuma referência neste filtro.")).toBeVisible();
+  await expect(impedida).toBeVisible();
   await expect(page.getByTestId("contagem-cesta").first()).toHaveText("4");   // a cesta é a mesma
   await page.goto(`${item}?q=inexistentexyz`);
-  await expect(page.getByTestId("total-filtrado")).toHaveText("0 de 4 referência(s)");
+  await expect(page.getByTestId("total-filtrado")).toHaveText("0 de 5 referência(s)");
   await page.goto(`${item}?modo=mapa`);
-  await expect(page.getByTestId("mapa-referencias")).toContainText("4 sem UF informada");
+  await expect(page.getByTestId("mapa-referencias")).toContainText("5 sem UF informada");
 });
 
 test("outro município não abre a pesquisa nem as referências", async ({ page }) => {

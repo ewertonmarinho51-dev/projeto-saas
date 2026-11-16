@@ -100,7 +100,28 @@ def test_incluir_sem_motivo_grava_pelo_dono(api_precos, pilha, pesquisa):
                          json={"incluir": True})
     assert r.status_code == 200, r.text
     assert r.json()["revisao"] > tirou.json()["revisao"]
+    assert r.json()["revisao"] == _revisao(pilha, pesquisa["item"])
     assert _referencia(pilha, pesquisa["item"])[1] == "selected"
+
+
+def test_incluir_locacao_em_item_de_compra_explica_recusa_sem_gravar(api_precos, pilha, pesquisa):
+    import psycopg
+
+    ref, _ = _referencia(pilha, pesquisa["item"])
+    with psycopg.connect(pilha.dsn) as c:
+        c.execute("update public.pesquisa_preco_itens set descricao = 'Analisador bioquímico', "
+                  "unidade = 'UNIDADE' where id = %s", (pesquisa["item"],))
+        c.execute("update public.pesquisa_preco_referencias set status = 'candidate', "
+                  "descricao_original = 'Locação de analisador bioquímico', "
+                  "unidade_original = 'Mês' where id = %s", (ref,))
+    antes = _revisao(pilha, pesquisa["item"])
+    r = api_precos.patch(_url(pesquisa, ref), headers=_h(pilha.contas["a1"], antes),
+                         json={"incluir": True})
+    assert r.status_code == 422
+    assert r.json()["code"] == "DOMAIN_RULE"
+    assert "locação na fonte, compra no item" in r.json()["message"]
+    assert _referencia(pilha, pesquisa["item"])[1] == "candidate"
+    assert _revisao(pilha, pesquisa["item"]) == antes
 
 
 @pytest.mark.parametrize("rotulo", ["b1", "a2", "a1_colega"])

@@ -344,6 +344,13 @@ def semear_precos(pilha: Pilha) -> dict:
                 "%s,%s,'homologado','candidate',%s)",
                 (item_rapido, a1.tenant_id, f"rapida-{n}", f"rapida-h{n}", valor, valor,
                  Jsonb({"numeroControlePNCP": f"12345678000190-1-00020{n}/2025"})))
+        c.execute(
+            "insert into public.pesquisa_preco_referencias (item_id, tenant_id, fonte_id, "
+            "fonte_nome, fonte_tipo, id_externo, raw_hash, descricao_original, "
+            "valor_unitario_original, natureza_valor, status) values "
+            "(%s,%s,'pncp','PNCP','sistema_oficial','sem-unidade','h-sem-unidade',"
+            "'Luva nitrílica sem unidade comprovada',3,'homologado','candidate')",
+            (item_rapido, a1.tenant_id))
     return {"pesquisa": pesquisa_a, "vazia": pesquisa_vazia, "item": item,
             "rapida_pesquisa": rapida, "rapida_item": item_rapido}
 
