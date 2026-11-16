@@ -131,10 +131,8 @@ export function AvisoDaCesta() {
   const fila = useCestaDoItem();
   if (!fila?.aviso) return null;
   return (
-    <Alert variant="warning" compact>
-      <span role="status" data-testid="aviso-cesta">
-        {fila.aviso}
-      </span>
+    <Alert variant="warning" role="alert" compact>
+      <span data-testid="aviso-cesta">{fila.aviso}</span>
     </Alert>
   );
 }
