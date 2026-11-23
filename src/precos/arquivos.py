@@ -30,9 +30,12 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-HOSTS_PERMITIDOS = frozenset({"dados.tce.rs.gov.br", "s3.sa-east-1.amazonaws.com"})
+HOSTS_PERMITIDOS = frozenset({"dados.tce.rs.gov.br", "s3.sa-east-1.amazonaws.com",
+                              "www.caixa.gov.br"})
 # no S3, só o bucket do CKAN da Saúde
 PREFIXOS_S3 = ("/ckan.saude.gov.br/",)
+# na CAIXA, só a pasta dos relatórios mensais do SINAPI
+PREFIXOS_CAIXA = ("/Downloads/sinapi-relatorios-mensais/",)
 MAX_DOWNLOAD = 600_000_000            # o ZIP 2026 do TCE-RS tem 258 MB
 MAX_ENTRADAS = 50
 MAX_DESCOMPACTADO = 3_000_000_000
@@ -68,6 +71,8 @@ def url_permitida(url: str) -> bool:
         return False
     if host == "s3.sa-east-1.amazonaws.com":
         return partes.path.startswith(PREFIXOS_S3)
+    if host == "www.caixa.gov.br":
+        return partes.path.startswith(PREFIXOS_CAIXA) and not partes.query
     return True
 
 
@@ -129,7 +134,8 @@ def baixar(url: str, destino: Path, *, abrir=None, dormir=time.sleep,
     raise RuntimeError("inalcançável")
 
 
-def conferir_zip(caminho: Path) -> list[zipfile.ZipInfo]:
+def conferir_zip(caminho: Path, *, extensoes: frozenset = EXTENSOES
+                 ) -> list[zipfile.ZipInfo]:
     """As defesas, antes de ler qualquer byte de dentro."""
     with zipfile.ZipFile(caminho) as z:
         entradas = z.infolist()
@@ -147,7 +153,7 @@ def conferir_zip(caminho: Path) -> list[zipfile.ZipInfo]:
             raise ArquivoRecusado("entrada cifrada no ZIP")
         if info.is_dir():
             continue
-        if partes.suffix.lower() not in EXTENSOES:
+        if partes.suffix.lower() not in extensoes:
             raise ArquivoRecusado(f"extensão inesperada: {partes.name}")
         if info.file_size > MAX_POR_ARQUIVO:
             raise ArquivoRecusado(f"arquivo grande demais: {partes.name}")

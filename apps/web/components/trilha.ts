@@ -13,6 +13,7 @@ const TRECHOS: Record<string, string> = {
   precos: "Preços",
   govbot: "GovBot",
   nova: "Nova pesquisa",
+  referencias: "Custos de engenharia (SINAPI)",
   itens: "Itens",
   admin: "Administração",
   instituicao: "Instituição",

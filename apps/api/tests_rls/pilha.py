@@ -71,6 +71,8 @@ CONTAS = (
     ("admin_visual", "A", "A1", "admin", True),
     # Só da auditoria global de telas (auditoria.spec.ts), pelo mesmo limite.
     ("admin_auditoria", "A", "A1", "admin", True),
+    # Só da prova da consulta SINAPI (sinapi.spec.ts), pelo mesmo limite.
+    ("a1_sinapi", "A", "A1", "usuario", True),
     # Só da prova do tema claro em aparelho no escuro (tema.spec.ts), idem.
     ("admin_tema", "A", "A1", "admin", True),
     # Só do E2E do editor de documentos (editor-documento.spec.ts): o tenant A
@@ -531,6 +533,52 @@ def semear_indice_pncp(pilha: Pilha) -> int:
     return len(INDICE_E2E)
 
 
+# Valores REAIS do SINAPI 10/2026, Pará (`tests/fixtures/fontes_precos/
+# sinapi_2026_10_amostra.xlsx`): tipo, regime, código, descrição, unidade,
+# valor, aba e linha da planilha oficial.
+SINAPI_E2E = (
+    ("insumo", "sem_desoneracao", "1379", "CIMENTO PORTLAND COMPOSTO CP II-32", "KG",
+     "1.08", "ISD", 1169, "MATERIAL", "C", None),
+    ("insumo", "com_desoneracao", "1379", "CIMENTO PORTLAND COMPOSTO CP II-32", "KG",
+     "1.08", "ICD", 1169, "MATERIAL", "C", None),
+    ("composicao", "sem_desoneracao", "104658",
+     "PISO PODOTÁTIL DE ALERTA OU DIRECIONAL, DE CONCRETO, ASSENTADO SOBRE ARGAMASSA. "
+     "AF_03/2024", "M2", "189.32", "CSD", 11, "Acessibilidade", None, "0"),
+)
+
+
+def semear_sinapi(pilha: Pilha) -> int:
+    """Uma versão publicada da competência 10/2026 com três referências do
+    Pará, e a consulta ligada (`referencia_custos_sinapi`)."""
+    import psycopg
+
+    from src.precos import sinapi
+    from src.precos.pncp_indice import texto_de_busca
+
+    sha = "2e99cde7594353af311963d93c6defcc89bbd62de64d8282c2335c5e9a7c66d4"
+    url = sinapi.url_da_competencia("2026-10")
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        c.execute("insert into public.config_app (chave, valor) values "
+                  "('flag_referencia_custos_sinapi', 'on') "
+                  "on conflict (chave) do update set valor = 'on'")
+        c.execute("insert into public.precos_sinapi_versoes (competencia, sha256, estado, "
+                  "vigente, url, data_emissao, ufs, linhas, validas, versao_parser) values "
+                  "('2026-10', %s, 'publicado', true, %s, '2026-11-12', '{PA}', 3, 3, %s) "
+                  "on conflict do nothing", (sha, url, sinapi.VERSAO_PARSER))
+        for tipo, regime, codigo, descricao, unidade, valor, aba, linha, classe, origem, pas in SINAPI_E2E:
+            c.execute(
+                "insert into public.precos_sinapi_registros (registro_id, competencia, "
+                "arquivo_sha256, vigente, tipo, regime, codigo, descricao, descricao_busca, "
+                "unidade, uf, valor, classificacao, origem_preco, percentual_sp, aba, "
+                "linha_planilha, url_arquivo, hash_linha, versao_parser) values "
+                "(%s, '2026-10', %s, true, %s, %s, %s, %s, %s, %s, 'PA', %s, %s, %s, %s, %s, "
+                "%s, %s, 'e2e', %s) on conflict (registro_id) do nothing",
+                (sinapi.chave_da_linha("2026-10", tipo, codigo, "PA", regime), sha, tipo,
+                 regime, codigo, descricao, texto_de_busca(descricao), unidade, valor, classe, origem,
+                 pas, aba, linha, url, sinapi.VERSAO_PARSER))
+    return len(SINAPI_E2E)
+
+
 def gravar_planilha_cotacao_e2e(pasta: Path) -> Path:
     """A planilha da cotação automática de ponta a ponta: dois itens que o
     índice da pilha cobre (um pelo nome, outro por equivalente)."""
@@ -715,6 +763,7 @@ def principal() -> int:
                   "elaboracao": semear_elaboracao(pilha),
                   "larguras": semear_larguras(pilha),
                   "indice_pncp": semear_indice_pncp(pilha),
+                  "sinapi": semear_sinapi(pilha),
                   "planilha_cotacao": str(gravar_planilha_cotacao_e2e(args.estado.parent)),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}

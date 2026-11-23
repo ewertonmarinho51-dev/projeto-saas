@@ -1023,6 +1023,44 @@
         "title": "Consulta",
         "type": "object"
       },
+      "ConsultaDeCustos": {
+        "properties": {
+          "competencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competencia"
+          },
+          "fundamento": {
+            "title": "Fundamento",
+            "type": "string"
+          },
+          "pagina_oficial": {
+            "title": "Pagina Oficial",
+            "type": "string"
+          },
+          "referencias": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenciaDeCusto"
+            },
+            "title": "Referencias",
+            "type": "array"
+          }
+        },
+        "required": [
+          "competencia",
+          "referencias",
+          "fundamento",
+          "pagina_oficial"
+        ],
+        "title": "ConsultaDeCustos",
+        "type": "object"
+      },
       "ContagemPorFonte": {
         "properties": {
           "id": {
@@ -5295,6 +5333,140 @@
           "acima"
         ],
         "title": "RecorteCentral",
+        "type": "object"
+      },
+      "ReferenciaDeCusto": {
+        "properties": {
+          "aba": {
+            "title": "Aba",
+            "type": "string"
+          },
+          "arquivo_sha256": {
+            "title": "Arquivo Sha256",
+            "type": "string"
+          },
+          "classificacao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classificacao"
+          },
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "competencia": {
+            "title": "Competencia",
+            "type": "string"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "identificacao": {
+            "title": "Identificacao",
+            "type": "string"
+          },
+          "linha_planilha": {
+            "title": "Linha Planilha",
+            "type": "integer"
+          },
+          "natureza": {
+            "title": "Natureza",
+            "type": "string"
+          },
+          "origem_preco": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origem Preco"
+          },
+          "percentual_sp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentual Sp"
+          },
+          "planilha": {
+            "title": "Planilha",
+            "type": "string"
+          },
+          "regime": {
+            "title": "Regime",
+            "type": "string"
+          },
+          "registro_id": {
+            "title": "Registro Id",
+            "type": "string"
+          },
+          "rotulo_regime": {
+            "title": "Rotulo Regime",
+            "type": "string"
+          },
+          "tipo": {
+            "enum": [
+              "insumo",
+              "composicao"
+            ],
+            "title": "Tipo",
+            "type": "string"
+          },
+          "uf": {
+            "title": "Uf",
+            "type": "string"
+          },
+          "unidade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidade"
+          },
+          "valor": {
+            "$ref": "#/components/schemas/Valor"
+          }
+        },
+        "required": [
+          "registro_id",
+          "tipo",
+          "codigo",
+          "descricao",
+          "unidade",
+          "uf",
+          "competencia",
+          "regime",
+          "rotulo_regime",
+          "valor",
+          "natureza",
+          "classificacao",
+          "origem_preco",
+          "percentual_sp",
+          "identificacao",
+          "planilha",
+          "aba",
+          "linha_planilha",
+          "arquivo_sha256"
+        ],
+        "title": "ReferenciaDeCusto",
         "type": "object"
       },
       "ReferenciaExcluida": {
@@ -11229,6 +11401,139 @@
           }
         },
         "summary": "Revisar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/referencias/sinapi": {
+      "get": {
+        "operationId": "consultar_api_v1_precos_referencias_sinapi_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "termo",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 300,
+              "title": "Termo",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "codigo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{1,9}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Codigo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "uf",
+            "required": false,
+            "schema": {
+              "default": "PA",
+              "pattern": "^[A-Za-z]{2}$",
+              "title": "Uf",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competencia",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competencia"
+            }
+          },
+          {
+            "in": "query",
+            "name": "regime",
+            "required": false,
+            "schema": {
+              "default": "sem_desoneracao",
+              "enum": [
+                "sem_desoneracao",
+                "com_desoneracao",
+                "sem_encargos"
+              ],
+              "title": "Regime",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tipo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "insumo",
+                    "composicao"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tipo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limite",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limite",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaDeCustos"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Consulta desligada"
+          },
+          "422": {
+            "description": "Filtro fora da regra"
+          }
+        },
+        "summary": "Consultar",
         "tags": [
           "v1",
           "precos"

@@ -218,4 +218,11 @@ describe("canvas e casca", () => {
       { label: "Editar documento", href: "/app/processos/abc/documentos/def/editar" },
     ]);
   });
+
+  it("consulta do SINAPI tem nome próprio na trilha, não o de uma pesquisa", () => {
+    expect(trilha("/app/precos/referencias")).toEqual([
+      { label: "Preços", href: "/app/precos" },
+      { label: "Custos de engenharia (SINAPI)", href: "/app/precos/referencias" },
+    ]);
+  });
 });
