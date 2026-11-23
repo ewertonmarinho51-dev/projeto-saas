@@ -1549,7 +1549,10 @@ TABELAS_PRIVADAS = tabelas_do_inventario()
 # Mais as duas da 0045 (fila do importador nacional do PNCP), aplicada em
 # 13/11/2026 (registro 20261113234247): o catálogo passou de 54 para 56
 # tabelas em `public`, todas com RLS; este inventário sobe de 51 para 53.
-TABELAS_EM_PRODUCAO = 53
+# Mais as duas da 0046 (referência de custos SINAPI), aplicada em 23/11/2026
+# (registro 20261123204508): o catálogo passou de 56 para 58 tabelas em
+# `public`, todas com RLS; este inventário sobe de 53 para 55.
+TABELAS_EM_PRODUCAO = 55
 
 # As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
 # inclui, mas porque são as únicas cuja implantação esta suíte
@@ -1632,13 +1635,12 @@ TABELAS_DA_FILA_PNCP = frozenset({
     "precos_pncp_tarefas", "precos_pncp_controle",
 })
 
-# As duas da 0046 (referência de custos SINAPI), escritas e cobertas pelo
-# ensaio descartável (`tests/test_migracao_0046.py`), NÃO aplicadas em
-# produção: ficam fora do censo até a aplicação autorizada ser medida. A
+# As duas da 0046 (referência de custos SINAPI), aplicada em produção em
+# 23/11/2026 — já contam em TABELAS_EM_PRODUCAO. Ficam nomeadas porque a
 # matriz de RLS delas mora no arquivo da própria 0046 — dado público, sem
 # tenant: `authenticated` só lê as linhas vigentes dos registros; as versões
 # são da credencial de servidor.
-TABELAS_DA_REFERENCIA_SINAPI_NAO_IMPLANTADAS = frozenset({
+TABELAS_DA_REFERENCIA_SINAPI = frozenset({
     "precos_sinapi_versoes", "precos_sinapi_registros",
 })
 
@@ -1654,8 +1656,7 @@ def test_o_inventario_cobre_todas_as_tabelas():
     implantada fora da conta que a cobre; para mais, dando por
     implantado o que ainda não foi.
     """
-    nao_implantadas = (TABELAS_WORDCRAFT_NAO_IMPLANTADAS
-                       | TABELAS_DA_REFERENCIA_SINAPI_NAO_IMPLANTADAS)
+    nao_implantadas = TABELAS_WORDCRAFT_NAO_IMPLANTADAS
     assert nao_implantadas <= set(TABELAS_PRIVADAS)
     assert TABELAS_DA_API <= set(TABELAS_PRIVADAS)
     assert len(set(TABELAS_PRIVADAS) - nao_implantadas) == TABELAS_EM_PRODUCAO, \
@@ -2013,7 +2014,7 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
                 | TABELAS_DO_INDICE_PNCP
                 | TABELAS_DO_INDICE_BPS
                 | TABELAS_DA_FILA_PNCP
-                | TABELAS_DA_REFERENCIA_SINAPI_NAO_IMPLANTADAS)
+                | TABELAS_DA_REFERENCIA_SINAPI)
     for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 

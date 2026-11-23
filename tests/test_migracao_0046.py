@@ -37,7 +37,7 @@ requer_pg = pytest.mark.usefixtures("ensaio_sql")
 # ---------------------------------------------------------------------------
 def test_cabecalho_diz_o_estado():
     assert TEXTO.startswith("-- ## 0046 —")
-    assert "ESTADO: NÃO APLICADA EM PRODUÇÃO" in TEXTO
+    assert "ESTADO: APLICADA EM PRODUÇÃO em 23/11/2026" in TEXTO
     assert "O QUE ESTA MIGRAÇÃO NÃO RESOLVE" in TEXTO
     assert "CATEGORIA PRÓPRIA" in TEXTO
 
