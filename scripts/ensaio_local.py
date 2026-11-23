@@ -201,6 +201,10 @@ SEQUENCIA_EM_ENSAIO = (
     # A 0045 (fila do importador nacional) confere RLS, EXECUTE revogado de
     # PUBLIC e `service_role` sem DELETE: só vale depois da contenção.
     "0045_precos_pncp_fila.sql",
+    # A 0046 (índice do SINAPI) confere RLS, / fora do
+    # controle da importação e  sem DELETE/TRUNCATE: só vale
+    # depois da contenção (0019, 0024).
+    "0046_precos_sinapi_indice.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

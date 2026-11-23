@@ -107,6 +107,27 @@ REGISTRO: dict[str, RegistroFonte] = {r.id: r for r in (
         # 2026 importado (SHA-256 569921c9…6ebb, 10.755 registros vigentes;
         # 60 de 60 conferidos na API oficial no mesmo dia)
         pendencia="só ligar a flag price_source_bps"),
+    RegistroFonte(
+        # NÃO é fonte da cesta de compras: custo de referência de engenharia,
+        # com consulta própria (`sinapi.consultar`); a habilitação abre só a
+        # consulta. Ver `src/precos/sinapi.py`.
+        "sinapi", "SINAPI — CAIXA/IBGE (custos de engenharia)", Acesso.ZIP_CSV,
+        "https://www.caixa.gov.br/poder-publico/modernizacao-gestao/sinapi/"
+        "Paginas/default.aspx",
+        Licenca.NAO_AVALIADA,
+        "23/11/2026: publicação oficial obrigatória (Decreto 7.983/2013, art. "
+        "3º; Lei 14.133, art. 23, § 2º, I), baixada sem cadastro do site da "
+        "CAIXA. A página e o arquivo não declaram licença de reúso; o uso em "
+        "SaaS não foi avaliado",
+        # Leiaute conferido no arquivo oficial de 10/2026 (seis abas de preço,
+        # uma coluna por UF, código da composição dentro da fórmula); 100% da
+        # amostra do PA reproduzida célula a célula (`sinapi.confrontar`)
+        mapeamento_confirmado=True,
+        downloads=("https://www.caixa.gov.br/Downloads/sinapi-relatorios-"
+                   "mensais/SINAPI-2026-10-formato-xlsx.zip",),
+        pendencia="licença: o dono decide se a publicação oficial cobre a "
+                  "exibição em SaaS e registra em `prova_licenca`; aplicar a "
+                  "0046 e importar o PA"),
 )}
 
 

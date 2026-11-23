@@ -112,7 +112,10 @@ def test_plataformas_privadas_nao_tem_canal_direto_nem_trilha_de_licenca():
         assert portal.registro_externo == "" and portal.pendencia_direta == ""
         assert "12/11/2026" in portal.evidencia
         assert pid not in fontes_externas.REGISTRO
-    assert sorted(fontes_externas.REGISTRO) == ["bps", "tce_rs"]
+    # 23/11/2026: o SINAPI entrou — fonte oficial de custo de engenharia,
+    # com consulta própria, pedida no pacote da pesquisa de preços; não é
+    # plataforma de licitação
+    assert sorted(fontes_externas.REGISTRO) == ["bps", "sinapi", "tce_rs"]
     # todo `registro_externo` que sobrou aponta para entrada que existe
     for portal in portais.REGISTRO.values():
         assert not portal.registro_externo or \

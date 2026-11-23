@@ -1,0 +1,6714 @@
+{
+"_origem": {
+"url": "https://www.caixa.gov.br/Downloads/sinapi-relatorios-mensais/SINAPI-2026-10-formato-xlsx.zip",
+"sha256_zip": "2e99cde7594353af311963d93c6defcc89bbd62de64d8282c2335c5e9a7c66d4",
+"planilha": "SINAPI_Referência_2026_10.xlsx",
+"baixado_em": "2026-11-23",
+"nota": "linhas 1-10 de cada aba e linhas de dados escolhidas, com todas as colunas; números como texto do float lido do XML; a fórmula do código da composição preservada"
+},
+"abas": {
+"ISD": {
+"topo": [
+[
+"SINAPI - Sistema Nacional de Pesquisa de Custos e Índices da Construção Civil",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"RELATÓRIO DE PREÇOS DE INSUMOS - ENCARGOS SOCIAIS SEM DESONERAÇÃO",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Mês de Referência:",
+"10/2026",
+null,
+null,
+"Encargos sociais sobre a mão de obra:",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Data de emissão:",
+"12/11/2026",
+null,
+null,
+"(SEM DESONERAÇÃO)",
+"AC",
+"AL",
+"AM",
+"AP",
+"BA",
+"CE",
+"DF",
+"ES",
+"GO",
+"MA",
+"MG",
+"MS",
+"MT",
+"PA",
+"PB",
+"PE",
+"PI",
+"PR",
+"RJ",
+"RN",
+"RO",
+"RR",
+"RS",
+"SC",
+"SE",
+"SP",
+"TO"
+],
+[
+null,
+null,
+null,
+null,
+"Localidade",
+"RIO BRANCO",
+"MACEIO",
+"MANAUS",
+"MACAPA",
+"SALVADOR",
+"FORTALEZA",
+"BRASILIA",
+"VITORIA",
+"GOIANIA",
+"SAO LUIS",
+"BELO HORIZONTE",
+"CAMPO GRANDE",
+"CUIABA",
+"BELEM",
+"JOAO PESSOA",
+"RECIFE",
+"TERESINA",
+"CURITIBA",
+"RIO DE JANEIRO",
+"NATAL",
+"PORTO VELHO",
+"BOA VISTA",
+"PORTO ALEGRE",
+"FLORIANOPOLIS",
+"ARACAJU",
+"SAO PAULO",
+"PALMAS"
+],
+[
+"Origem de preço:",
+"C = COLETADO",
+"CR = COEFICIENTE DE REPRESENTATIVIDADE",
+null,
+"Horista",
+{
+"f": "1.1261"
+},
+{
+"f": "1.1612"
+},
+{
+"f": "1.1416"
+},
+{
+"f": "1.1518"
+},
+{
+"f": "1.1773"
+},
+{
+"f": "1.1561"
+},
+{
+"f": "1.1008"
+},
+{
+"f": "1.183"
+},
+{
+"f": "1.0772"
+},
+{
+"f": "1.1411"
+},
+{
+"f": "1.1623"
+},
+{
+"f": "1.1571"
+},
+{
+"f": "1.0533"
+},
+{
+"f": "1.1942"
+},
+{
+"f": "1.1819"
+},
+{
+"f": "1.1463"
+},
+{
+"f": "1.1378"
+},
+{
+"f": "1.1628"
+},
+{
+"f": "1.1249"
+},
+{
+"f": "1.1683"
+},
+{
+"f": "1.1571"
+},
+{
+"f": "1.1479"
+},
+{
+"f": "1.1195"
+},
+{
+"f": "1.1447"
+},
+{
+"f": "1.1151"
+},
+{
+"f": "1.1501"
+},
+{
+"f": "1.1523"
+}
+],
+[
+"Preço em branco para determinado estado significa que não houve coleta mínima de preços no mês de referência",
+null,
+null,
+null,
+"Mensalista",
+{
+"f": "0.6903"
+},
+{
+"f": "0.7125"
+},
+{
+"f": "0.708"
+},
+{
+"f": "0.7006"
+},
+{
+"f": "0.7285"
+},
+{
+"f": "0.7246"
+},
+{
+"f": "0.6994"
+},
+{
+"f": "0.7385"
+},
+{
+"f": "0.6928"
+},
+{
+"f": "0.713"
+},
+{
+"f": "0.7383"
+},
+{
+"f": "0.7157"
+},
+{
+"f": "0.6783"
+},
+{
+"f": "0.727"
+},
+{
+"f": "0.7266"
+},
+{
+"f": "0.7067"
+},
+{
+"f": "0.7159"
+},
+{
+"f": "0.7242"
+},
+{
+"f": "0.6966"
+},
+{
+"f": "0.7229"
+},
+{
+"f": "0.7065"
+},
+{
+"f": "0.7035"
+},
+{
+"f": "0.6929"
+},
+{
+"f": "0.7103"
+},
+{
+"f": "0.6972"
+},
+{
+"f": "0.7118"
+},
+{
+"f": "0.7198"
+}
+],
+[
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Acessar Fichas de Especificação Técnico dos Insumos",
+null,
+null,
+null,
+"Preços Medianos (R$):",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Classificação",
+"Código do\nInsumo",
+"Descrição do Insumo",
+"Unidade",
+"Origem de\nPreço",
+"AC",
+"AL",
+"AM",
+"AP",
+"BA",
+"CE",
+"DF",
+"ES",
+"GO",
+"MA",
+"MG",
+"MS",
+"MT",
+"PA",
+"PB",
+"PE",
+"PI",
+"PR",
+"RJ",
+"RN",
+"RO",
+"RR",
+"RS",
+"SC",
+"SE",
+"SP",
+"TO"
+]
+],
+"dados": [
+{
+"linha": 11,
+"celulas": [
+"SERVIÇOS",
+45333,
+"ABERTURA PARA ENCAIXE DE CUBA OU LAVATORIO EM BANCADA DE MARMORE/ GRANITO OU OUTRO TIPO DE PEDRA NATURAL",
+"UN",
+"CR",
+{
+"f": "302.08"
+},
+{
+"f": "195.46"
+},
+{
+"f": "209.68"
+},
+{
+"f": "233.67"
+},
+{
+"f": "113.72"
+},
+null,
+{
+"f": "139.41"
+},
+{
+"f": "72.85"
+},
+{
+"f": "170.29"
+},
+{
+"f": "258.65"
+},
+{
+"f": "118.93"
+},
+{
+"f": "183.02"
+},
+{
+"f": "166.14"
+},
+{
+"f": "177.69"
+},
+{
+"f": "201.2"
+},
+{
+"f": "213.23"
+},
+{
+"f": "189.99"
+},
+{
+"f": "152.82"
+},
+{
+"f": "168.81"
+},
+null,
+231,
+{
+"f": "159.92"
+},
+{
+"f": "217.5"
+},
+{
+"f": "213.23"
+},
+{
+"f": "118.46"
+},
+{
+"f": "194.46"
+},
+null
+]
+},
+{
+"linha": 12,
+"celulas": [
+"MATERIAL",
+11270,
+"ABRACADEIRA DE LATAO PARA FIXACAO DE CABO PARA-RAIO, DIMENSOES 32 X 24 X 24 MM",
+"UN",
+"CR",
+{
+"f": "2.22"
+},
+{
+"f": "2.14"
+},
+{
+"f": "2.4"
+},
+{
+"f": "3.48"
+},
+3,
+{
+"f": "3.63"
+},
+null,
+{
+"f": "2.4"
+},
+{
+"f": "2.37"
+},
+null,
+{
+"f": "3.12"
+},
+{
+"f": "2.7"
+},
+3,
+{
+"f": "3.21"
+},
+null,
+{
+"f": "3.31"
+},
+{
+"f": "2.28"
+},
+{
+"f": "2.34"
+},
+3,
+3,
+{
+"f": "2.66"
+},
+null,
+null,
+{
+"f": "3.14"
+},
+{
+"f": "2.32"
+},
+{
+"f": "2.4"
+},
+{
+"f": "2.55"
+}
+]
+},
+{
+"linha": 56,
+"celulas": [
+"MATERIAL",
+37600,
+"ACESSORIO DE LIGACAO NAO ELETRICO PARA CARGAS EXPLOSIVAS, TUBO DE 6 M",
+"UN",
+"CR",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+{
+"f": "123.17"
+},
+null
+],
+"branco": true
+},
+{
+"linha": 386,
+"celulas": [
+"MAO DE OBRA",
+6127,
+"AUXILIAR DE PEDREIRO (HORISTA)",
+"H",
+"CR",
+{
+"f": "19.04"
+},
+{
+"f": "17.37"
+},
+{
+"f": "18.63"
+},
+{
+"f": "18.44"
+},
+{
+"f": "17.24"
+},
+{
+"f": "17.44"
+},
+{
+"f": "17.58"
+},
+{
+"f": "20.3"
+},
+{
+"f": "15.97"
+},
+{
+"f": "17.02"
+},
+20,
+{
+"f": "17.38"
+},
+{
+"f": "19.17"
+},
+{
+"f": "17.66"
+},
+{
+"f": "18.15"
+},
+{
+"f": "18.73"
+},
+{
+"f": "16.69"
+},
+{
+"f": "23.61"
+},
+{
+"f": "23.96"
+},
+{
+"f": "18.14"
+},
+{
+"f": "21.46"
+},
+{
+"f": "18.53"
+},
+{
+"f": "20.26"
+},
+{
+"f": "24.92"
+},
+{
+"f": "15.71"
+},
+{
+"f": "25.07"
+},
+{
+"f": "19.6"
+}
+]
+},
+{
+"linha": 387,
+"celulas": [
+"MAO DE OBRA",
+41072,
+"AUXILIAR DE PEDREIRO (MENSALISTA)",
+"MES",
+"CR",
+{
+"f": "3332.44"
+},
+{
+"f": "3032.52"
+},
+{
+"f": "3270.61"
+},
+{
+"f": "3208.79"
+},
+{
+"f": "3012.89"
+},
+{
+"f": "3069.44"
+},
+{
+"f": "3129.29"
+},
+{
+"f": "3557.8"
+},
+{
+"f": "2865.8"
+},
+{
+"f": "2996.65"
+},
+{
+"f": "3538.57"
+},
+{
+"f": "3045.72"
+},
+{
+"f": "3451.37"
+},
+{
+"f": "3061.34"
+},
+{
+"f": "3164.13"
+},
+{
+"f": "3279.56"
+},
+{
+"f": "2951.29"
+},
+{
+"f": "4145.9"
+},
+{
+"f": "4210.99"
+},
+{
+"f": "3173.44"
+},
+{
+"f": "3736.27"
+},
+{
+"f": "3234.94"
+},
+{
+"f": "3562.26"
+},
+{
+"f": "4372.5"
+},
+{
+"f": "2777.7"
+},
+{
+"f": "4391.65"
+},
+{
+"f": "3449.35"
+}
+]
+},
+{
+"linha": 1169,
+"celulas": [
+"MATERIAL",
+1379,
+"CIMENTO PORTLAND COMPOSTO CP II-32",
+"KG",
+"C",
+{
+"f": "1.4"
+},
+{
+"f": "0.96"
+},
+{
+"f": "1.03"
+},
+{
+"f": "1.11"
+},
+{
+"f": "1.16"
+},
+{
+"f": "0.86"
+},
+{
+"f": "0.76"
+},
+{
+"f": "0.74"
+},
+{
+"f": "0.82"
+},
+{
+"f": "1.12"
+},
+{
+"f": "0.78"
+},
+{
+"f": "0.93"
+},
+{
+"f": "1.11"
+},
+{
+"f": "1.08"
+},
+{
+"f": "0.92"
+},
+{
+"f": "0.93"
+},
+{
+"f": "1.18"
+},
+{
+"f": "0.85"
+},
+{
+"f": "0.7"
+},
+{
+"f": "0.89"
+},
+{
+"f": "1.32"
+},
+{
+"f": "1.58"
+},
+{
+"f": "0.95"
+},
+{
+"f": "0.93"
+},
+{
+"f": "0.98"
+},
+{
+"f": "0.72"
+},
+{
+"f": "1.04"
+}
+]
+},
+{
+"linha": 1170,
+"celulas": [
+"MATERIAL",
+13284,
+"CIMENTO PORTLAND DE ALTO FORNO (AF) CP III-40",
+"KG",
+"CR",
+{
+"f": "1.26"
+},
+{
+"f": "0.86"
+},
+{
+"f": "0.93"
+},
+1,
+{
+"f": "1.05"
+},
+{
+"f": "0.77"
+},
+{
+"f": "0.68"
+},
+{
+"f": "0.67"
+},
+{
+"f": "0.74"
+},
+{
+"f": "1.01"
+},
+{
+"f": "0.7"
+},
+{
+"f": "0.84"
+},
+1,
+{
+"f": "0.97"
+},
+{
+"f": "0.83"
+},
+{
+"f": "0.84"
+},
+{
+"f": "1.06"
+},
+{
+"f": "0.76"
+},
+{
+"f": "0.63"
+},
+{
+"f": "0.8"
+},
+{
+"f": "1.19"
+},
+{
+"f": "1.43"
+},
+{
+"f": "0.86"
+},
+{
+"f": "0.84"
+},
+{
+"f": "0.88"
+},
+{
+"f": "0.65"
+},
+{
+"f": "0.94"
+}
+]
+}
+]
+},
+"ICD": {
+"topo": [
+[
+"SINAPI - Sistema Nacional de Pesquisa de Custos e Índices da Construção Civil",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"RELATÓRIO DE PREÇOS DE INSUMOS - ENCARGOS SOCIAIS COM DESONERAÇÃO",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Mês de Referência:",
+"10/2026",
+null,
+null,
+"Encargos sociais sobre a mão de obra:",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Data de emissão:",
+"12/11/2026",
+null,
+null,
+"(COM DESONERAÇÃO)",
+"AC",
+"AL",
+"AM",
+"AP",
+"BA",
+"CE",
+"DF",
+"ES",
+"GO",
+"MA",
+"MG",
+"MS",
+"MT",
+"PA",
+"PB",
+"PE",
+"PI",
+"PR",
+"RJ",
+"RN",
+"RO",
+"RR",
+"RS",
+"SC",
+"SE",
+"SP",
+"TO"
+],
+[
+null,
+null,
+null,
+null,
+"Localidade",
+"RIO BRANCO",
+"MACEIO",
+"MANAUS",
+"MACAPA",
+"SALVADOR",
+"FORTALEZA",
+"BRASILIA",
+"VITORIA",
+"GOIANIA",
+"SAO LUIS",
+"BELO HORIZONTE",
+"CAMPO GRANDE",
+"CUIABA",
+"BELEM",
+"JOAO PESSOA",
+"RECIFE",
+"TERESINA",
+"CURITIBA",
+"RIO DE JANEIRO",
+"NATAL",
+"PORTO VELHO",
+"BOA VISTA",
+"PORTO ALEGRE",
+"FLORIANOPOLIS",
+"ARACAJU",
+"SAO PAULO",
+"PALMAS"
+],
+[
+"Origem de preço:",
+"C = COLETADO",
+"CR = COEFICIENTE DE REPRESENTATIVIDADE",
+null,
+"Horista",
+{
+"f": "0.9688"
+},
+{
+"f": "1.0013"
+},
+{
+"f": "0.9835"
+},
+{
+"f": "0.9923"
+},
+{
+"f": "1.017"
+},
+{
+"f": "0.9971"
+},
+{
+"f": "0.9463"
+},
+{
+"f": "1.0222"
+},
+{
+"f": "0.9322"
+},
+{
+"f": "0.9831"
+},
+{
+"f": "1.0033"
+},
+{
+"f": "0.9956"
+},
+{
+"f": "0.9089"
+},
+{
+"f": "1.0326"
+},
+{
+"f": "1.0206"
+},
+{
+"f": "0.9883"
+},
+{
+"f": "0.9796"
+},
+{
+"f": "1.0025"
+},
+{
+"f": "0.9688"
+},
+{
+"f": "1.0077"
+},
+{
+"f": "0.9961"
+},
+{
+"f": "0.9885"
+},
+{
+"f": "0.9612"
+},
+{
+"f": "0.9838"
+},
+{
+"f": "0.9588"
+},
+{
+"f": "0.9909"
+},
+{
+"f": "0.9923"
+}
+],
+[
+"Preço em branco para determinado estado significa que não houve coleta mínima de preços no mês de referência",
+null,
+null,
+null,
+"Mensalista",
+{
+"f": "0.5653"
+},
+{
+"f": "0.5859"
+},
+{
+"f": "0.582"
+},
+{
+"f": "0.5746"
+},
+{
+"f": "0.6013"
+},
+{
+"f": "0.5974"
+},
+{
+"f": "0.5745"
+},
+{
+"f": "0.6106"
+},
+{
+"f": "0.5747"
+},
+{
+"f": "0.5866"
+},
+{
+"f": "0.6106"
+},
+{
+"f": "0.5874"
+},
+{
+"f": "0.5603"
+},
+{
+"f": "0.5998"
+},
+{
+"f": "0.5991"
+},
+{
+"f": "0.581"
+},
+{
+"f": "0.5891"
+},
+{
+"f": "0.5965"
+},
+{
+"f": "0.572"
+},
+{
+"f": "0.5955"
+},
+{
+"f": "0.5792"
+},
+{
+"f": "0.5772"
+},
+{
+"f": "0.5667"
+},
+{
+"f": "0.5822"
+},
+{
+"f": "0.5718"
+},
+{
+"f": "0.5851"
+},
+{
+"f": "0.592"
+}
+],
+[
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Acessar Fichas de Especificação Técnico dos Insumos",
+null,
+null,
+null,
+"Preços Medianos (R$):",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Classificação",
+"Código do\nInsumo",
+"Descrição do Insumo",
+"Unidade",
+"Origem de\nPreço",
+"AC",
+"AL",
+"AM",
+"AP",
+"BA",
+"CE",
+"DF",
+"ES",
+"GO",
+"MA",
+"MG",
+"MS",
+"MT",
+"PA",
+"PB",
+"PE",
+"PI",
+"PR",
+"RJ",
+"RN",
+"RO",
+"RR",
+"RS",
+"SC",
+"SE",
+"SP",
+"TO"
+]
+],
+"dados": [
+{
+"linha": 11,
+"celulas": [
+"SERVIÇOS",
+45333,
+"ABERTURA PARA ENCAIXE DE CUBA OU LAVATORIO EM BANCADA DE MARMORE/ GRANITO OU OUTRO TIPO DE PEDRA NATURAL",
+"UN",
+"CR",
+{
+"f": "302.08"
+},
+{
+"f": "195.46"
+},
+{
+"f": "209.68"
+},
+{
+"f": "233.67"
+},
+{
+"f": "113.72"
+},
+null,
+{
+"f": "139.41"
+},
+{
+"f": "72.85"
+},
+{
+"f": "170.29"
+},
+{
+"f": "258.65"
+},
+{
+"f": "118.93"
+},
+{
+"f": "183.02"
+},
+{
+"f": "166.14"
+},
+{
+"f": "177.69"
+},
+{
+"f": "201.2"
+},
+{
+"f": "213.23"
+},
+{
+"f": "189.99"
+},
+{
+"f": "152.82"
+},
+{
+"f": "168.81"
+},
+null,
+231,
+{
+"f": "159.92"
+},
+{
+"f": "217.5"
+},
+{
+"f": "213.23"
+},
+{
+"f": "118.46"
+},
+{
+"f": "194.46"
+},
+null
+]
+},
+{
+"linha": 12,
+"celulas": [
+"MATERIAL",
+11270,
+"ABRACADEIRA DE LATAO PARA FIXACAO DE CABO PARA-RAIO, DIMENSOES 32 X 24 X 24 MM",
+"UN",
+"CR",
+{
+"f": "2.22"
+},
+{
+"f": "2.14"
+},
+{
+"f": "2.4"
+},
+{
+"f": "3.48"
+},
+3,
+{
+"f": "3.63"
+},
+null,
+{
+"f": "2.4"
+},
+{
+"f": "2.37"
+},
+null,
+{
+"f": "3.12"
+},
+{
+"f": "2.7"
+},
+3,
+{
+"f": "3.21"
+},
+null,
+{
+"f": "3.31"
+},
+{
+"f": "2.28"
+},
+{
+"f": "2.34"
+},
+3,
+3,
+{
+"f": "2.66"
+},
+null,
+null,
+{
+"f": "3.14"
+},
+{
+"f": "2.32"
+},
+{
+"f": "2.4"
+},
+{
+"f": "2.55"
+}
+]
+},
+{
+"linha": 56,
+"celulas": [
+"MATERIAL",
+37600,
+"ACESSORIO DE LIGACAO NAO ELETRICO PARA CARGAS EXPLOSIVAS, TUBO DE 6 M",
+"UN",
+"CR",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+{
+"f": "123.17"
+},
+null
+],
+"branco": true
+},
+{
+"linha": 386,
+"celulas": [
+"MAO DE OBRA",
+6127,
+"AUXILIAR DE PEDREIRO (HORISTA)",
+"H",
+"CR",
+{
+"f": "17.64"
+},
+{
+"f": "16.09"
+},
+{
+"f": "17.25"
+},
+{
+"f": "17.07"
+},
+{
+"f": "15.97"
+},
+{
+"f": "16.15"
+},
+{
+"f": "16.29"
+},
+{
+"f": "18.8"
+},
+{
+"f": "14.85"
+},
+{
+"f": "15.76"
+},
+{
+"f": "18.53"
+},
+{
+"f": "16.08"
+},
+{
+"f": "17.82"
+},
+{
+"f": "16.36"
+},
+{
+"f": "16.81"
+},
+{
+"f": "17.35"
+},
+{
+"f": "15.46"
+},
+{
+"f": "21.86"
+},
+{
+"f": "22.2"
+},
+{
+"f": "16.8"
+},
+{
+"f": "19.86"
+},
+{
+"f": "17.16"
+},
+{
+"f": "18.74"
+},
+{
+"f": "23.05"
+},
+{
+"f": "14.55"
+},
+{
+"f": "23.21"
+},
+{
+"f": "18.14"
+}
+]
+},
+{
+"linha": 387,
+"celulas": [
+"MAO DE OBRA",
+41072,
+"AUXILIAR DE PEDREIRO (MENSALISTA)",
+"MES",
+"CR",
+3086,
+{
+"f": "2808.34"
+},
+{
+"f": "3029.34"
+},
+{
+"f": "2971.04"
+},
+{
+"f": "2791.17"
+},
+{
+"f": "2843.05"
+},
+{
+"f": "2899.3"
+},
+{
+"f": "3296.06"
+},
+{
+"f": "2665.87"
+},
+{
+"f": "2775.53"
+},
+{
+"f": "3278.61"
+},
+{
+"f": "2817.96"
+},
+{
+"f": "3208.71"
+},
+{
+"f": "2835.86"
+},
+{
+"f": "2930.47"
+},
+{
+"f": "3038.01"
+},
+{
+"f": "2733.2"
+},
+{
+"f": "3838.84"
+},
+{
+"f": "3901.73"
+},
+{
+"f": "2938.78"
+},
+{
+"f": "3457.56"
+},
+{
+"f": "2995.1"
+},
+{
+"f": "3296.71"
+},
+4045,
+{
+"f": "2572.47"
+},
+{
+"f": "4066.6"
+},
+{
+"f": "3193.02"
+}
+]
+},
+{
+"linha": 1169,
+"celulas": [
+"MATERIAL",
+1379,
+"CIMENTO PORTLAND COMPOSTO CP II-32",
+"KG",
+"C",
+{
+"f": "1.4"
+},
+{
+"f": "0.96"
+},
+{
+"f": "1.03"
+},
+{
+"f": "1.11"
+},
+{
+"f": "1.16"
+},
+{
+"f": "0.86"
+},
+{
+"f": "0.76"
+},
+{
+"f": "0.74"
+},
+{
+"f": "0.82"
+},
+{
+"f": "1.12"
+},
+{
+"f": "0.78"
+},
+{
+"f": "0.93"
+},
+{
+"f": "1.11"
+},
+{
+"f": "1.08"
+},
+{
+"f": "0.92"
+},
+{
+"f": "0.93"
+},
+{
+"f": "1.18"
+},
+{
+"f": "0.85"
+},
+{
+"f": "0.7"
+},
+{
+"f": "0.89"
+},
+{
+"f": "1.32"
+},
+{
+"f": "1.58"
+},
+{
+"f": "0.95"
+},
+{
+"f": "0.93"
+},
+{
+"f": "0.98"
+},
+{
+"f": "0.72"
+},
+{
+"f": "1.04"
+}
+]
+},
+{
+"linha": 1170,
+"celulas": [
+"MATERIAL",
+13284,
+"CIMENTO PORTLAND DE ALTO FORNO (AF) CP III-40",
+"KG",
+"CR",
+{
+"f": "1.26"
+},
+{
+"f": "0.86"
+},
+{
+"f": "0.93"
+},
+1,
+{
+"f": "1.05"
+},
+{
+"f": "0.77"
+},
+{
+"f": "0.68"
+},
+{
+"f": "0.67"
+},
+{
+"f": "0.74"
+},
+{
+"f": "1.01"
+},
+{
+"f": "0.7"
+},
+{
+"f": "0.84"
+},
+1,
+{
+"f": "0.97"
+},
+{
+"f": "0.83"
+},
+{
+"f": "0.84"
+},
+{
+"f": "1.06"
+},
+{
+"f": "0.76"
+},
+{
+"f": "0.63"
+},
+{
+"f": "0.8"
+},
+{
+"f": "1.19"
+},
+{
+"f": "1.43"
+},
+{
+"f": "0.86"
+},
+{
+"f": "0.84"
+},
+{
+"f": "0.88"
+},
+{
+"f": "0.65"
+},
+{
+"f": "0.94"
+}
+]
+}
+]
+},
+"ISE": {
+"topo": [
+[
+"SINAPI - Sistema Nacional de Pesquisa de Custos e Índices da Construção Civil",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"RELATÓRIO DE PREÇOS DE INSUMOS - SEM ENCARGOS SOCIAIS",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Mês de Referência:",
+"10/2026",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Data de emissão:",
+"12/11/2026",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Origem de preço:",
+"C = COLETADO",
+"CR = COEFICIENTE DE REPRESENTATIVIDADE",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Preço em branco para determinado estado significa que não houve coleta mínima de preços no mês de referência",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Acessar Fichas de Especificação Técnico dos Insumos",
+null,
+null,
+null,
+"Preços Medianos (R$):",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Classificação",
+"Código do\nInsumo",
+"Descrição do Insumo",
+"Unidade",
+"Origem de\nPreço",
+"AC",
+"AL",
+"AM",
+"AP",
+"BA",
+"CE",
+"DF",
+"ES",
+"GO",
+"MA",
+"MG",
+"MS",
+"MT",
+"PA",
+"PB",
+"PE",
+"PI",
+"PR",
+"RJ",
+"RN",
+"RO",
+"RR",
+"RS",
+"SC",
+"SE",
+"SP",
+"TO"
+]
+],
+"dados": [
+{
+"linha": 11,
+"celulas": [
+"SERVIÇOS",
+45333,
+"ABERTURA PARA ENCAIXE DE CUBA OU LAVATORIO EM BANCADA DE MARMORE/ GRANITO OU OUTRO TIPO DE PEDRA NATURAL",
+"UN",
+"CR",
+{
+"f": "302.08"
+},
+{
+"f": "195.46"
+},
+{
+"f": "209.68"
+},
+{
+"f": "233.67"
+},
+{
+"f": "113.72"
+},
+null,
+{
+"f": "139.41"
+},
+{
+"f": "72.85"
+},
+{
+"f": "170.29"
+},
+{
+"f": "258.65"
+},
+{
+"f": "118.93"
+},
+{
+"f": "183.02"
+},
+{
+"f": "166.14"
+},
+{
+"f": "177.69"
+},
+{
+"f": "201.2"
+},
+{
+"f": "213.23"
+},
+{
+"f": "189.99"
+},
+{
+"f": "152.82"
+},
+{
+"f": "168.81"
+},
+null,
+231,
+{
+"f": "159.92"
+},
+{
+"f": "217.5"
+},
+{
+"f": "213.23"
+},
+{
+"f": "118.46"
+},
+{
+"f": "194.46"
+},
+null
+]
+},
+{
+"linha": 12,
+"celulas": [
+"MATERIAL",
+11270,
+"ABRACADEIRA DE LATAO PARA FIXACAO DE CABO PARA-RAIO, DIMENSOES 32 X 24 X 24 MM",
+"UN",
+"CR",
+{
+"f": "2.22"
+},
+{
+"f": "2.14"
+},
+{
+"f": "2.4"
+},
+{
+"f": "3.48"
+},
+3,
+{
+"f": "3.63"
+},
+null,
+{
+"f": "2.4"
+},
+{
+"f": "2.37"
+},
+null,
+{
+"f": "3.12"
+},
+{
+"f": "2.7"
+},
+3,
+{
+"f": "3.21"
+},
+null,
+{
+"f": "3.31"
+},
+{
+"f": "2.28"
+},
+{
+"f": "2.34"
+},
+3,
+3,
+{
+"f": "2.66"
+},
+null,
+null,
+{
+"f": "3.14"
+},
+{
+"f": "2.32"
+},
+{
+"f": "2.4"
+},
+{
+"f": "2.55"
+}
+]
+},
+{
+"linha": 56,
+"celulas": [
+"MATERIAL",
+37600,
+"ACESSORIO DE LIGACAO NAO ELETRICO PARA CARGAS EXPLOSIVAS, TUBO DE 6 M",
+"UN",
+"CR",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+{
+"f": "123.17"
+},
+null
+],
+"branco": true
+},
+{
+"linha": 386,
+"celulas": [
+"MAO DE OBRA",
+6127,
+"AUXILIAR DE PEDREIRO (HORISTA)",
+"H",
+"CR",
+{
+"f": "8.96"
+},
+{
+"f": "8.04"
+},
+{
+"f": "8.7"
+},
+{
+"f": "8.57"
+},
+{
+"f": "7.92"
+},
+{
+"f": "8.09"
+},
+{
+"f": "8.37"
+},
+{
+"f": "9.3"
+},
+{
+"f": "7.69"
+},
+{
+"f": "7.95"
+},
+{
+"f": "9.25"
+},
+{
+"f": "8.06"
+},
+{
+"f": "9.34"
+},
+{
+"f": "8.05"
+},
+{
+"f": "8.32"
+},
+{
+"f": "8.73"
+},
+{
+"f": "7.81"
+},
+{
+"f": "10.92"
+},
+{
+"f": "11.28"
+},
+{
+"f": "8.37"
+},
+{
+"f": "9.95"
+},
+{
+"f": "8.63"
+},
+{
+"f": "9.56"
+},
+{
+"f": "11.62"
+},
+{
+"f": "7.43"
+},
+{
+"f": "11.66"
+},
+{
+"f": "9.11"
+}
+]
+},
+{
+"linha": 387,
+"celulas": [
+"MAO DE OBRA",
+41072,
+"AUXILIAR DE PEDREIRO (MENSALISTA)",
+"MES",
+"CR",
+{
+"f": "1971.51"
+},
+{
+"f": "1770.82"
+},
+{
+"f": "1914.88"
+},
+{
+"f": "1886.86"
+},
+{
+"f": "1743.07"
+},
+{
+"f": "1779.8"
+},
+{
+"f": "1841.41"
+},
+{
+"f": "2046.48"
+},
+{
+"f": "1692.94"
+},
+{
+"f": "1749.36"
+},
+{
+"f": "2035.65"
+},
+{
+"f": "1775.21"
+},
+{
+"f": "2056.47"
+},
+{
+"f": "1772.64"
+},
+{
+"f": "1832.58"
+},
+{
+"f": "1921.58"
+},
+{
+"f": "1719.97"
+},
+{
+"f": "2404.54"
+},
+{
+"f": "2482.02"
+},
+{
+"f": "1841.92"
+},
+{
+"f": "2189.44"
+},
+1899,
+{
+"f": "2104.24"
+},
+{
+"f": "2556.57"
+},
+{
+"f": "1636.64"
+},
+{
+"f": "2565.52"
+},
+{
+"f": "2005.67"
+}
+]
+},
+{
+"linha": 1169,
+"celulas": [
+"MATERIAL",
+1379,
+"CIMENTO PORTLAND COMPOSTO CP II-32",
+"KG",
+"C",
+{
+"f": "1.4"
+},
+{
+"f": "0.96"
+},
+{
+"f": "1.03"
+},
+{
+"f": "1.11"
+},
+{
+"f": "1.16"
+},
+{
+"f": "0.86"
+},
+{
+"f": "0.76"
+},
+{
+"f": "0.74"
+},
+{
+"f": "0.82"
+},
+{
+"f": "1.12"
+},
+{
+"f": "0.78"
+},
+{
+"f": "0.93"
+},
+{
+"f": "1.11"
+},
+{
+"f": "1.08"
+},
+{
+"f": "0.92"
+},
+{
+"f": "0.93"
+},
+{
+"f": "1.18"
+},
+{
+"f": "0.85"
+},
+{
+"f": "0.7"
+},
+{
+"f": "0.89"
+},
+{
+"f": "1.32"
+},
+{
+"f": "1.58"
+},
+{
+"f": "0.95"
+},
+{
+"f": "0.93"
+},
+{
+"f": "0.98"
+},
+{
+"f": "0.72"
+},
+{
+"f": "1.04"
+}
+]
+},
+{
+"linha": 1170,
+"celulas": [
+"MATERIAL",
+13284,
+"CIMENTO PORTLAND DE ALTO FORNO (AF) CP III-40",
+"KG",
+"CR",
+{
+"f": "1.26"
+},
+{
+"f": "0.86"
+},
+{
+"f": "0.93"
+},
+1,
+{
+"f": "1.05"
+},
+{
+"f": "0.77"
+},
+{
+"f": "0.68"
+},
+{
+"f": "0.67"
+},
+{
+"f": "0.74"
+},
+{
+"f": "1.01"
+},
+{
+"f": "0.7"
+},
+{
+"f": "0.84"
+},
+1,
+{
+"f": "0.97"
+},
+{
+"f": "0.83"
+},
+{
+"f": "0.84"
+},
+{
+"f": "1.06"
+},
+{
+"f": "0.76"
+},
+{
+"f": "0.63"
+},
+{
+"f": "0.8"
+},
+{
+"f": "1.19"
+},
+{
+"f": "1.43"
+},
+{
+"f": "0.86"
+},
+{
+"f": "0.84"
+},
+{
+"f": "0.88"
+},
+{
+"f": "0.65"
+},
+{
+"f": "0.94"
+}
+]
+}
+]
+},
+"CSD": {
+"topo": [
+[
+"SINAPI - Sistema Nacional de Pesquisa de Custos e Índices da Construção Civil",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"RELATÓRIO DE CUSTOS DE COMPOSIÇÕES - ENCARGOS SOCIAIS SEM DESONERAÇÃO",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Mês de Referência:",
+"10/2026",
+null,
+"Encargos sociais sobre a mão de obra:",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Data de emissão:",
+"12/11/2026",
+null,
+"(SEM DESONERAÇÃO)",
+"AC",
+null,
+"AL",
+null,
+"AM",
+null,
+"AP",
+null,
+"BA",
+null,
+"CE",
+null,
+"DF",
+null,
+"ES",
+null,
+"GO",
+null,
+"MA",
+null,
+"MG",
+null,
+"MS",
+null,
+"MT",
+null,
+"PA",
+null,
+"PB",
+null,
+"PE",
+null,
+"PI",
+null,
+"PR",
+null,
+"RJ",
+null,
+"RN",
+null,
+"RO",
+null,
+"RR",
+null,
+"RS",
+null,
+"SC",
+null,
+"SE",
+null,
+"SP",
+null,
+"TO",
+null
+],
+[
+null,
+null,
+null,
+"Localidade",
+"RIO BRANCO",
+null,
+"MACEIO",
+null,
+"MANAUS",
+null,
+"MACAPA",
+null,
+"SALVADOR",
+null,
+"FORTALEZA",
+null,
+"BRASILIA",
+null,
+"VITORIA",
+null,
+"GOIANIA",
+null,
+"SAO LUIS",
+null,
+"BELO HORIZONTE",
+null,
+"CAMPO GRANDE",
+null,
+"CUIABA",
+null,
+"BELEM",
+null,
+"JOAO PESSOA",
+null,
+"RECIFE",
+null,
+"TERESINA",
+null,
+"CURITIBA",
+null,
+"RIO DE JANEIRO",
+null,
+"NATAL",
+null,
+"PORTO VELHO",
+null,
+"BOA VISTA",
+null,
+"PORTO ALEGRE",
+null,
+"FLORIANOPOLIS",
+null,
+"ARACAJU",
+null,
+"SAO PAULO",
+null,
+"PALMAS",
+null
+],
+[
+"Observação:",
+"%AS (porcentagem Atribuído São Paulo) corresponde a porcentagem do custo total da",
+null,
+"Horista",
+{
+"f": "1.1261"
+},
+null,
+{
+"f": "1.1612"
+},
+null,
+{
+"f": "1.1416"
+},
+null,
+{
+"f": "1.1518"
+},
+null,
+{
+"f": "1.1773"
+},
+null,
+{
+"f": "1.1561"
+},
+null,
+{
+"f": "1.1008"
+},
+null,
+{
+"f": "1.183"
+},
+null,
+{
+"f": "1.0772"
+},
+null,
+{
+"f": "1.1411"
+},
+null,
+{
+"f": "1.1623"
+},
+null,
+{
+"f": "1.1571"
+},
+null,
+{
+"f": "1.0533"
+},
+null,
+{
+"f": "1.1942"
+},
+null,
+{
+"f": "1.1819"
+},
+null,
+{
+"f": "1.1463"
+},
+null,
+{
+"f": "1.1378"
+},
+null,
+{
+"f": "1.1628"
+},
+null,
+{
+"f": "1.1249"
+},
+null,
+{
+"f": "1.1683"
+},
+null,
+{
+"f": "1.1571"
+},
+null,
+{
+"f": "1.1479"
+},
+null,
+{
+"f": "1.1195"
+},
+null,
+{
+"f": "1.1447"
+},
+null,
+{
+"f": "1.1151"
+},
+null,
+{
+"f": "1.1501"
+},
+null,
+{
+"f": "1.1523"
+},
+null
+],
+[
+null,
+"composição que foi obtida utilizando preços de insumos de São Paulo por indisponibilidade",
+null,
+"Mensalista",
+{
+"f": "0.6903"
+},
+null,
+{
+"f": "0.7125"
+},
+null,
+{
+"f": "0.708"
+},
+null,
+{
+"f": "0.7006"
+},
+null,
+{
+"f": "0.7285"
+},
+null,
+{
+"f": "0.7246"
+},
+null,
+{
+"f": "0.6994"
+},
+null,
+{
+"f": "0.7385"
+},
+null,
+{
+"f": "0.6928"
+},
+null,
+{
+"f": "0.713"
+},
+null,
+{
+"f": "0.7383"
+},
+null,
+{
+"f": "0.7157"
+},
+null,
+{
+"f": "0.6783"
+},
+null,
+{
+"f": "0.727"
+},
+null,
+{
+"f": "0.7266"
+},
+null,
+{
+"f": "0.7067"
+},
+null,
+{
+"f": "0.7159"
+},
+null,
+{
+"f": "0.7242"
+},
+null,
+{
+"f": "0.6966"
+},
+null,
+{
+"f": "0.7229"
+},
+null,
+{
+"f": "0.7065"
+},
+null,
+{
+"f": "0.7035"
+},
+null,
+{
+"f": "0.6929"
+},
+null,
+{
+"f": "0.7103"
+},
+null,
+{
+"f": "0.6972"
+},
+null,
+{
+"f": "0.7118"
+},
+null,
+{
+"f": "0.7198"
+},
+null
+],
+[
+null,
+"dos preços de insumos necessários à composição no estado em questão. Custo zerado (hífen)",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+null,
+"indica que pelo menos um dos itens da composição não tem custo/preço.",
+null,
+null,
+"AC",
+null,
+"AL",
+null,
+"AM",
+null,
+"AP",
+null,
+"BA",
+null,
+"CE",
+null,
+"DF",
+null,
+"ES",
+null,
+"GO",
+null,
+"MA",
+null,
+"MG",
+null,
+"MS",
+null,
+"MT",
+null,
+"PA",
+null,
+"PB",
+null,
+"PE",
+null,
+"PI",
+null,
+"PR",
+null,
+"RJ",
+null,
+"RN",
+null,
+"RO",
+null,
+"RR",
+null,
+"RS",
+null,
+"SC",
+null,
+"SE",
+null,
+"SP",
+null,
+"TO",
+null
+],
+[
+"Grupo",
+"Código da\nComposição",
+"Descrição",
+"Unidade",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS"
+]
+],
+"dados": [
+{
+"linha": 11,
+"celulas": [
+"Acessibilidade",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(104658,Analítico!$B:$B,0)-1,3)),104658)",
+"PISO PODOTÁTIL DE ALERTA OU DIRECIONAL, DE CONCRETO, ASSENTADO SOBRE ARGAMASSA. AF_03/2024",
+"M2",
+{
+"f": "269.08"
+},
+0,
+{
+"f": "165.44"
+},
+0,
+{
+"f": "228.76"
+},
+0,
+{
+"f": "198.93"
+},
+0,
+{
+"f": "170.85"
+},
+0,
+{
+"f": "178.7"
+},
+0,
+{
+"f": "186.4"
+},
+0,
+{
+"f": "187.96"
+},
+0,
+{
+"f": "194.63"
+},
+0,
+{
+"f": "177.64"
+},
+0,
+{
+"f": "164.44"
+},
+0,
+{
+"f": "180.16"
+},
+0,
+{
+"f": "215.24"
+},
+0,
+{
+"f": "189.32"
+},
+0,
+{
+"f": "153.17"
+},
+0,
+{
+"f": "163.16"
+},
+0,
+{
+"f": "151.44"
+},
+0,
+{
+"f": "164.54"
+},
+0,
+{
+"f": "195.74"
+},
+0,
+180,
+0,
+{
+"f": "213.95"
+},
+0,
+{
+"f": "262.65"
+},
+0,
+{
+"f": "158.57"
+},
+0,
+{
+"f": "164.69"
+},
+0,
+{
+"f": "189.26"
+},
+0,
+208,
+0,
+{
+"f": "204.46"
+},
+0
+]
+},
+{
+"linha": 12,
+"celulas": [
+"Acessibilidade",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(105002,Analítico!$B:$B,0)-1,3)),105002)",
+"RAMPA DE ACESSIBILIDADE EM CONCRETO MOLDADO IN LOCO, EM CALÇADA NOVA COM LARGURA MAIOR OU IGUAL À 3,00 M, FCK 25MPA, COM PISO PODOTÁTIL. AF_03/2024",
+"UN",
+{
+"f": "1040.52"
+},
+0,
+{
+"f": "745.41"
+},
+0,
+{
+"f": "914.51"
+},
+{
+"f": "0.0016"
+},
+{
+"f": "885.29"
+},
+0,
+{
+"f": "870.98"
+},
+0,
+{
+"f": "774.27"
+},
+{
+"f": "0.0019"
+},
+{
+"f": "840.94"
+},
+0,
+{
+"f": "790.81"
+},
+0,
+{
+"f": "809.42"
+},
+0,
+{
+"f": "809.71"
+},
+0,
+{
+"f": "755.36"
+},
+0,
+{
+"f": "726.24"
+},
+0,
+{
+"f": "883.4"
+},
+0,
+{
+"f": "908.38"
+},
+0,
+{
+"f": "750.27"
+},
+{
+"f": "0.002"
+},
+{
+"f": "771.2"
+},
+0,
+{
+"f": "858.7"
+},
+0,
+{
+"f": "822.47"
+},
+0,
+{
+"f": "819.07"
+},
+0,
+{
+"f": "808.1"
+},
+0,
+{
+"f": "984.87"
+},
+0,
+{
+"f": "1013.46"
+},
+0,
+{
+"f": "744.25"
+},
+0,
+{
+"f": "828.33"
+},
+0,
+{
+"f": "778.55"
+},
+{
+"f": "0.0019"
+},
+{
+"f": "777.85"
+},
+0,
+{
+"f": "825.64"
+},
+0
+]
+},
+{
+"linha": 14,
+"celulas": [
+"Acessibilidade",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(105003,Analítico!$B:$B,0)-1,3)),105003)",
+"RAMPA DE ACESSIBILIDADE EM CONCRETO MOLDADO IN LOCO, EM CALÇADA PRÉ EXISTENTE COM LARGURA MAIOR OU IGUAL À 3,00 M, FCK 25MPA, COM PISO PODOTÁTIL. AF_03/2024",
+"UN",
+{
+"f": "1586.24"
+},
+{
+"f": "0.04"
+},
+{
+"f": "1184.38"
+},
+{
+"f": "0.0565"
+},
+{
+"f": "1509.87"
+},
+{
+"f": "0.043"
+},
+{
+"f": "1322.41"
+},
+{
+"f": "0.0479"
+},
+{
+"f": "1434.73"
+},
+{
+"f": "0.0442"
+},
+{
+"f": "1274.97"
+},
+{
+"f": "0.0509"
+},
+{
+"f": "1350.32"
+},
+{
+"f": "0.0496"
+},
+{
+"f": "1351.59"
+},
+{
+"f": "0.0469"
+},
+{
+"f": "1266.91"
+},
+{
+"f": "0.05"
+},
+{
+"f": "1311.14"
+},
+{
+"f": "0.0483"
+},
+{
+"f": "1243.91"
+},
+{
+"f": "0.051"
+},
+{
+"f": "1202.22"
+},
+{
+"f": "0.0527"
+},
+{
+"f": "1363.21"
+},
+{
+"f": "0.0465"
+},
+{
+"f": "1418.18"
+},
+{
+"f": "0.0472"
+},
+{
+"f": "1181.86"
+},
+{
+"f": "0.0549"
+},
+{
+"f": "1226.31"
+},
+{
+"f": "0.0546"
+},
+{
+"f": "1342.81"
+},
+{
+"f": "0.0472"
+},
+{
+"f": "1414.32"
+},
+{
+"f": "0.0448"
+},
+{
+"f": "1445.46"
+},
+{
+"f": "0.0438"
+},
+{
+"f": "1341.73"
+},
+{
+"f": "0.0499"
+},
+{
+"f": "1516.09"
+},
+{
+"f": "0.0418"
+},
+{
+"f": "1530.1"
+},
+{
+"f": "0.0414"
+},
+{
+"f": "1248.63"
+},
+{
+"f": "0.0508"
+},
+{
+"f": "1363.65"
+},
+{
+"f": "0.0465"
+},
+{
+"f": "1223.44"
+},
+{
+"f": "0.0559"
+},
+{
+"f": "1363.93"
+},
+0,
+{
+"f": "1273.93"
+},
+{
+"f": "0.0498"
+}
+]
+},
+{
+"linha": 16,
+"celulas": [
+"Acessibilidade",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(105006,Analítico!$B:$B,0)-1,3)),105006)",
+"RAMPA DE ACESSIBILIDADE EM CONCRETO PRÉ MOLDADO, EM CALÇADA NOVA COM LARGURA MAIOR OU IGUAL À 3,00 M, FCK 25MPA, COM PISO PODOTÁTIL. AF_03/2024",
+"UN",
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null
+]
+},
+{
+"linha": 8634,
+"celulas": [
+"Pisos",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(101094,Analítico!$B:$B,0)-1,3)),101094)",
+"PISO PODOTÁTIL DE ALERTA OU DIRECIONAL, DE BORRACHA, ASSENTADO SOBRE ARGAMASSA. AF_02/2026",
+"M",
+{
+"f": "216.25"
+},
+0,
+{
+"f": "220.99"
+},
+0,
+{
+"f": "218.84"
+},
+0,
+{
+"f": "217.21"
+},
+0,
+{
+"f": "246.04"
+},
+0,
+{
+"f": "205.66"
+},
+0,
+{
+"f": "214.35"
+},
+0,
+{
+"f": "190.57"
+},
+0,
+{
+"f": "196.86"
+},
+0,
+{
+"f": "208.5"
+},
+0,
+{
+"f": "214.74"
+},
+0,
+{
+"f": "181.38"
+},
+0,
+{
+"f": "200.91"
+},
+0,
+{
+"f": "224.22"
+},
+0,
+{
+"f": "254.8"
+},
+0,
+{
+"f": "258.41"
+},
+0,
+{
+"f": "284.35"
+},
+0,
+{
+"f": "213.52"
+},
+0,
+{
+"f": "214.91"
+},
+0,
+{
+"f": "212.39"
+},
+0,
+{
+"f": "182.68"
+},
+0,
+{
+"f": "220.65"
+},
+0,
+{
+"f": "195.41"
+},
+0,
+{
+"f": "179.51"
+},
+0,
+{
+"f": "208.84"
+},
+0,
+{
+"f": "202.52"
+},
+0,
+{
+"f": "208.42"
+},
+0
+]
+}
+]
+},
+"CCD": {
+"topo": [
+[
+"SINAPI - Sistema Nacional de Pesquisa de Custos e Índices da Construção Civil",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"RELATÓRIO DE CUSTOS DE COMPOSIÇÕES - ENCARGOS SOCIAIS COM DESONERAÇÃO",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Mês de Referência:",
+"10/2026",
+null,
+"Encargos sociais sobre a mão de obra:",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Data de emissão:",
+"12/11/2026",
+null,
+"(COM DESONERAÇÃO)",
+"AC",
+null,
+"AL",
+null,
+"AM",
+null,
+"AP",
+null,
+"BA",
+null,
+"CE",
+null,
+"DF",
+null,
+"ES",
+null,
+"GO",
+null,
+"MA",
+null,
+"MG",
+null,
+"MS",
+null,
+"MT",
+null,
+"PA",
+null,
+"PB",
+null,
+"PE",
+null,
+"PI",
+null,
+"PR",
+null,
+"RJ",
+null,
+"RN",
+null,
+"RO",
+null,
+"RR",
+null,
+"RS",
+null,
+"SC",
+null,
+"SE",
+null,
+"SP",
+null,
+"TO",
+null
+],
+[
+null,
+null,
+null,
+"Localidade",
+"RIO BRANCO",
+null,
+"MACEIO",
+null,
+"MANAUS",
+null,
+"MACAPA",
+null,
+"SALVADOR",
+null,
+"FORTALEZA",
+null,
+"BRASILIA",
+null,
+"VITORIA",
+null,
+"GOIANIA",
+null,
+"SAO LUIS",
+null,
+"BELO HORIZONTE",
+null,
+"CAMPO GRANDE",
+null,
+"CUIABA",
+null,
+"BELEM",
+null,
+"JOAO PESSOA",
+null,
+"RECIFE",
+null,
+"TERESINA",
+null,
+"CURITIBA",
+null,
+"RIO DE JANEIRO",
+null,
+"NATAL",
+null,
+"PORTO VELHO",
+null,
+"BOA VISTA",
+null,
+"PORTO ALEGRE",
+null,
+"FLORIANOPOLIS",
+null,
+"ARACAJU",
+null,
+"SAO PAULO",
+null,
+"PALMAS",
+null
+],
+[
+"Observação:",
+"%AS (porcentagem Atribuído São Paulo) corresponde a porcentagem do custo total da",
+null,
+"Horista",
+{
+"f": "0.9688"
+},
+null,
+{
+"f": "1.0013"
+},
+null,
+{
+"f": "0.9835"
+},
+null,
+{
+"f": "0.9923"
+},
+null,
+{
+"f": "1.017"
+},
+null,
+{
+"f": "0.9971"
+},
+null,
+{
+"f": "0.9463"
+},
+null,
+{
+"f": "1.0222"
+},
+null,
+{
+"f": "0.9322"
+},
+null,
+{
+"f": "0.9831"
+},
+null,
+{
+"f": "1.0033"
+},
+null,
+{
+"f": "0.9956"
+},
+null,
+{
+"f": "0.9089"
+},
+null,
+{
+"f": "1.0326"
+},
+null,
+{
+"f": "1.0206"
+},
+null,
+{
+"f": "0.9883"
+},
+null,
+{
+"f": "0.9796"
+},
+null,
+{
+"f": "1.0025"
+},
+null,
+{
+"f": "0.9688"
+},
+null,
+{
+"f": "1.0077"
+},
+null,
+{
+"f": "0.9961"
+},
+null,
+{
+"f": "0.9885"
+},
+null,
+{
+"f": "0.9612"
+},
+null,
+{
+"f": "0.9838"
+},
+null,
+{
+"f": "0.9588"
+},
+null,
+{
+"f": "0.9909"
+},
+null,
+{
+"f": "0.9923"
+},
+null
+],
+[
+null,
+"composição que foi obtida utilizando preços de insumos de São Paulo por indisponibilidade",
+null,
+"Mensalista",
+{
+"f": "0.5653"
+},
+null,
+{
+"f": "0.5859"
+},
+null,
+{
+"f": "0.582"
+},
+null,
+{
+"f": "0.5746"
+},
+null,
+{
+"f": "0.6013"
+},
+null,
+{
+"f": "0.5974"
+},
+null,
+{
+"f": "0.5745"
+},
+null,
+{
+"f": "0.6106"
+},
+null,
+{
+"f": "0.5747"
+},
+null,
+{
+"f": "0.5866"
+},
+null,
+{
+"f": "0.6106"
+},
+null,
+{
+"f": "0.5874"
+},
+null,
+{
+"f": "0.5603"
+},
+null,
+{
+"f": "0.5998"
+},
+null,
+{
+"f": "0.5991"
+},
+null,
+{
+"f": "0.581"
+},
+null,
+{
+"f": "0.5891"
+},
+null,
+{
+"f": "0.5965"
+},
+null,
+{
+"f": "0.572"
+},
+null,
+{
+"f": "0.5955"
+},
+null,
+{
+"f": "0.5792"
+},
+null,
+{
+"f": "0.5772"
+},
+null,
+{
+"f": "0.5667"
+},
+null,
+{
+"f": "0.5822"
+},
+null,
+{
+"f": "0.5718"
+},
+null,
+{
+"f": "0.5851"
+},
+null,
+{
+"f": "0.592"
+},
+null
+],
+[
+null,
+"dos preços de insumos necessários à composição no estado em questão. Custo zerado (hífen)",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+null,
+"indica que pelo menos um dos itens da composição não tem custo/preço.",
+null,
+null,
+"AC",
+null,
+"AL",
+null,
+"AM",
+null,
+"AP",
+null,
+"BA",
+null,
+"CE",
+null,
+"DF",
+null,
+"ES",
+null,
+"GO",
+null,
+"MA",
+null,
+"MG",
+null,
+"MS",
+null,
+"MT",
+null,
+"PA",
+null,
+"PB",
+null,
+"PE",
+null,
+"PI",
+null,
+"PR",
+null,
+"RJ",
+null,
+"RN",
+null,
+"RO",
+null,
+"RR",
+null,
+"RS",
+null,
+"SC",
+null,
+"SE",
+null,
+"SP",
+null,
+"TO",
+null
+],
+[
+"Grupo",
+"Código da\nComposição",
+"Descrição",
+"Unidade",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS"
+]
+],
+"dados": [
+{
+"linha": 11,
+"celulas": [
+"Acessibilidade",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(104658,Analítico!$B:$B,0)-1,3)),104658)",
+"PISO PODOTÁTIL DE ALERTA OU DIRECIONAL, DE CONCRETO, ASSENTADO SOBRE ARGAMASSA. AF_03/2024",
+"M2",
+{
+"f": "266.19"
+},
+0,
+{
+"f": "162.83"
+},
+0,
+{
+"f": "226.01"
+},
+0,
+{
+"f": "196.27"
+},
+0,
+{
+"f": "168.04"
+},
+0,
+176,
+0,
+{
+"f": "183.64"
+},
+0,
+{
+"f": "185.12"
+},
+0,
+{
+"f": "192.05"
+},
+0,
+175,
+0,
+{
+"f": "161.52"
+},
+0,
+{
+"f": "177.42"
+},
+0,
+{
+"f": "212.51"
+},
+0,
+{
+"f": "186.58"
+},
+0,
+{
+"f": "150.4"
+},
+0,
+{
+"f": "160.34"
+},
+0,
+{
+"f": "148.84"
+},
+0,
+{
+"f": "160.92"
+},
+0,
+{
+"f": "192.14"
+},
+0,
+{
+"f": "177.37"
+},
+0,
+{
+"f": "210.88"
+},
+0,
+{
+"f": "259.72"
+},
+0,
+{
+"f": "155.56"
+},
+0,
+{
+"f": "160.86"
+},
+0,
+{
+"f": "186.72"
+},
+0,
+{
+"f": "204.51"
+},
+0,
+{
+"f": "201.88"
+},
+0
+]
+},
+{
+"linha": 12,
+"celulas": [
+"Acessibilidade",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(105002,Analítico!$B:$B,0)-1,3)),105002)",
+"RAMPA DE ACESSIBILIDADE EM CONCRETO MOLDADO IN LOCO, EM CALÇADA NOVA COM LARGURA MAIOR OU IGUAL À 3,00 M, FCK 25MPA, COM PISO PODOTÁTIL. AF_03/2024",
+"UN",
+{
+"f": "1021.81"
+},
+0,
+{
+"f": "728.61"
+},
+0,
+{
+"f": "896.37"
+},
+{
+"f": "0.0016"
+},
+{
+"f": "868.18"
+},
+0,
+{
+"f": "852.11"
+},
+0,
+{
+"f": "756.65"
+},
+{
+"f": "0.0019"
+},
+{
+"f": "823.01"
+},
+0,
+{
+"f": "772.15"
+},
+0,
+{
+"f": "792.81"
+},
+0,
+{
+"f": "792.12"
+},
+0,
+{
+"f": "736.33"
+},
+0,
+{
+"f": "708.23"
+},
+0,
+{
+"f": "865.74"
+},
+0,
+{
+"f": "890.48"
+},
+0,
+{
+"f": "732.39"
+},
+{
+"f": "0.002"
+},
+{
+"f": "752.97"
+},
+0,
+{
+"f": "841.69"
+},
+0,
+{
+"f": "798.88"
+},
+0,
+{
+"f": "795.69"
+},
+0,
+{
+"f": "790.85"
+},
+0,
+{
+"f": "964.99"
+},
+0,
+{
+"f": "994.56"
+},
+0,
+{
+"f": "724.52"
+},
+0,
+{
+"f": "803.15"
+},
+0,
+{
+"f": "761.89"
+},
+{
+"f": "0.0019"
+},
+755,
+0,
+{
+"f": "809.04"
+},
+0
+]
+},
+{
+"linha": 14,
+"celulas": [
+"Acessibilidade",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(105003,Analítico!$B:$B,0)-1,3)),105003)",
+"RAMPA DE ACESSIBILIDADE EM CONCRETO MOLDADO IN LOCO, EM CALÇADA PRÉ EXISTENTE COM LARGURA MAIOR OU IGUAL À 3,00 M, FCK 25MPA, COM PISO PODOTÁTIL. AF_03/2024",
+"UN",
+{
+"f": "1545.72"
+},
+{
+"f": "0.041"
+},
+{
+"f": "1149.3"
+},
+{
+"f": "0.0583"
+},
+{
+"f": "1468.88"
+},
+{
+"f": "0.0441"
+},
+{
+"f": "1288.06"
+},
+{
+"f": "0.0492"
+},
+{
+"f": "1391.99"
+},
+{
+"f": "0.0455"
+},
+{
+"f": "1237.34"
+},
+{
+"f": "0.0524"
+},
+{
+"f": "1313.32"
+},
+{
+"f": "0.051"
+},
+{
+"f": "1312.35"
+},
+{
+"f": "0.0483"
+},
+{
+"f": "1233.35"
+},
+{
+"f": "0.0514"
+},
+{
+"f": "1270.28"
+},
+{
+"f": "0.0499"
+},
+{
+"f": "1203.86"
+},
+{
+"f": "0.0526"
+},
+{
+"f": "1162.86"
+},
+{
+"f": "0.0545"
+},
+{
+"f": "1327.35"
+},
+{
+"f": "0.0477"
+},
+{
+"f": "1382.85"
+},
+{
+"f": "0.0484"
+},
+{
+"f": "1146.11"
+},
+{
+"f": "0.0566"
+},
+{
+"f": "1189.27"
+},
+{
+"f": "0.0563"
+},
+{
+"f": "1307.1"
+},
+{
+"f": "0.0485"
+},
+{
+"f": "1365.03"
+},
+{
+"f": "0.0464"
+},
+{
+"f": "1394.44"
+},
+{
+"f": "0.0455"
+},
+{
+"f": "1302.67"
+},
+{
+"f": "0.0514"
+},
+{
+"f": "1474.17"
+},
+{
+"f": "0.043"
+},
+{
+"f": "1491.16"
+},
+{
+"f": "0.0425"
+},
+{
+"f": "1205.49"
+},
+{
+"f": "0.0526"
+},
+{
+"f": "1311.13"
+},
+{
+"f": "0.0483"
+},
+{
+"f": "1188.88"
+},
+{
+"f": "0.0575"
+},
+{
+"f": "1314.49"
+},
+0,
+{
+"f": "1239.67"
+},
+{
+"f": "0.0511"
+}
+]
+},
+{
+"linha": 16,
+"celulas": [
+"Acessibilidade",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(105006,Analítico!$B:$B,0)-1,3)),105006)",
+"RAMPA DE ACESSIBILIDADE EM CONCRETO PRÉ MOLDADO, EM CALÇADA NOVA COM LARGURA MAIOR OU IGUAL À 3,00 M, FCK 25MPA, COM PISO PODOTÁTIL. AF_03/2024",
+"UN",
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null
+]
+},
+{
+"linha": 8634,
+"celulas": [
+"Pisos",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(101094,Analítico!$B:$B,0)-1,3)),101094)",
+"PISO PODOTÁTIL DE ALERTA OU DIRECIONAL, DE BORRACHA, ASSENTADO SOBRE ARGAMASSA. AF_02/2026",
+"M",
+{
+"f": "213.31"
+},
+0,
+{
+"f": "218.46"
+},
+0,
+{
+"f": "216.13"
+},
+0,
+{
+"f": "214.57"
+},
+0,
+{
+"f": "243.13"
+},
+0,
+{
+"f": "202.94"
+},
+0,
+{
+"f": "211.56"
+},
+0,
+{
+"f": "187.76"
+},
+0,
+{
+"f": "194.15"
+},
+0,
+{
+"f": "205.87"
+},
+0,
+{
+"f": "211.77"
+},
+0,
+{
+"f": "178.69"
+},
+0,
+{
+"f": "198.23"
+},
+0,
+{
+"f": "221.5"
+},
+0,
+{
+"f": "252.07"
+},
+0,
+{
+"f": "255.64"
+},
+0,
+{
+"f": "281.77"
+},
+0,
+{
+"f": "209.89"
+},
+0,
+{
+"f": "211.39"
+},
+0,
+{
+"f": "209.84"
+},
+0,
+{
+"f": "179.75"
+},
+0,
+{
+"f": "217.57"
+},
+0,
+{
+"f": "192.5"
+},
+0,
+{
+"f": "175.67"
+},
+0,
+{
+"f": "206.3"
+},
+0,
+{
+"f": "199.17"
+},
+0,
+{
+"f": "205.89"
+},
+0
+]
+}
+]
+},
+"CSE": {
+"topo": [
+[
+"SINAPI - Sistema Nacional de Pesquisa de Custos e Índices da Construção Civil",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"RELATÓRIO DE CUSTOS DE COMPOSIÇÕES - SEM ENCARGOS SOCIAIS",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Mês de Referência:",
+"10/2026",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Data de emissão:",
+"12/11/2026",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+"Observação:",
+"%AS (porcentagem Atribuído São Paulo) corresponde a porcentagem do custo total da",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+null,
+"composição que foi obtida utilizando preços de insumos de São Paulo por indisponibilidade",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+null,
+"dos preços de insumos necessários à composição no estado em questão. Custo zerado (hífen)",
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null,
+null
+],
+[
+null,
+"indica que pelo menos um dos itens da composição não tem custo/preço.",
+null,
+null,
+"AC",
+null,
+"AL",
+null,
+"AM",
+null,
+"AP",
+null,
+"BA",
+null,
+"CE",
+null,
+"DF",
+null,
+"ES",
+null,
+"GO",
+null,
+"MA",
+null,
+"MG",
+null,
+"MS",
+null,
+"MT",
+null,
+"PA",
+null,
+"PB",
+null,
+"PE",
+null,
+"PI",
+null,
+"PR",
+null,
+"RJ",
+null,
+"RN",
+null,
+"RO",
+null,
+"RR",
+null,
+"RS",
+null,
+"SC",
+null,
+"SE",
+null,
+"SP",
+null,
+"TO",
+null
+],
+[
+"Grupo",
+"Código da\nComposição",
+"Descrição",
+"Unidade",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS",
+"Custo (R$)",
+"%AS"
+]
+],
+"dados": [
+{
+"linha": 11,
+"celulas": [
+"Acessibilidade",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(104658,Analítico!$B:$B,0)-1,3)),104658)",
+"PISO PODOTÁTIL DE ALERTA OU DIRECIONAL, DE CONCRETO, ASSENTADO SOBRE ARGAMASSA. AF_03/2024",
+"M2",
+{
+"f": "248.31"
+},
+0,
+{
+"f": "146.64"
+},
+0,
+{
+"f": "208.86"
+},
+0,
+{
+"f": "179.79"
+},
+0,
+{
+"f": "150.21"
+},
+0,
+{
+"f": "159.24"
+},
+0,
+{
+"f": "166.77"
+},
+0,
+{
+"f": "166.92"
+},
+0,
+{
+"f": "175.43"
+},
+0,
+{
+"f": "158.64"
+},
+0,
+{
+"f": "143.19"
+},
+0,
+{
+"f": "160.57"
+},
+0,
+{
+"f": "195.39"
+},
+0,
+169,
+0,
+{
+"f": "132.86"
+},
+0,
+{
+"f": "142.67"
+},
+0,
+{
+"f": "132.78"
+},
+0,
+{
+"f": "138.41"
+},
+0,
+{
+"f": "169.78"
+},
+0,
+{
+"f": "160.88"
+},
+0,
+{
+"f": "191.86"
+},
+0,
+{
+"f": "241.48"
+},
+0,
+{
+"f": "137.31"
+},
+0,
+{
+"f": "137.56"
+},
+0,
+{
+"f": "171.08"
+},
+0,
+{
+"f": "182.72"
+},
+0,
+{
+"f": "185.92"
+},
+0
+]
+},
+{
+"linha": 12,
+"celulas": [
+"Acessibilidade",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(105002,Analítico!$B:$B,0)-1,3)),105002)",
+"RAMPA DE ACESSIBILIDADE EM CONCRETO MOLDADO IN LOCO, EM CALÇADA NOVA COM LARGURA MAIOR OU IGUAL À 3,00 M, FCK 25MPA, COM PISO PODOTÁTIL. AF_03/2024",
+"UN",
+{
+"f": "906.58"
+},
+0,
+{
+"f": "624.23"
+},
+0,
+{
+"f": "783.38"
+},
+{
+"f": "0.0019"
+},
+{
+"f": "762.11"
+},
+0,
+{
+"f": "732.26"
+},
+0,
+{
+"f": "646.84"
+},
+{
+"f": "0.0023"
+},
+{
+"f": "713.41"
+},
+0,
+{
+"f": "652.86"
+},
+0,
+{
+"f": "686.18"
+},
+0,
+{
+"f": "683.09"
+},
+0,
+{
+"f": "616.48"
+},
+0,
+{
+"f": "597.39"
+},
+0,
+{
+"f": "755.08"
+},
+0,
+{
+"f": "776.11"
+},
+0,
+{
+"f": "619.36"
+},
+{
+"f": "0.0024"
+},
+{
+"f": "638.95"
+},
+0,
+{
+"f": "736.19"
+},
+0,
+652,
+0,
+{
+"f": "650.72"
+},
+0,
+{
+"f": "682.86"
+},
+0,
+{
+"f": "841.69"
+},
+0,
+{
+"f": "877.13"
+},
+0,
+{
+"f": "604.73"
+},
+0,
+{
+"f": "649.64"
+},
+0,
+{
+"f": "659.71"
+},
+{
+"f": "0.0022"
+},
+{
+"f": "613.05"
+},
+0,
+{
+"f": "705.93"
+},
+0
+]
+},
+{
+"linha": 14,
+"celulas": [
+"Acessibilidade",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(105003,Analítico!$B:$B,0)-1,3)),105003)",
+"RAMPA DE ACESSIBILIDADE EM CONCRETO MOLDADO IN LOCO, EM CALÇADA PRÉ EXISTENTE COM LARGURA MAIOR OU IGUAL À 3,00 M, FCK 25MPA, COM PISO PODOTÁTIL. AF_03/2024",
+"UN",
+{
+"f": "1295.84"
+},
+{
+"f": "0.0489"
+},
+{
+"f": "931.39"
+},
+{
+"f": "0.0719"
+},
+{
+"f": "1213.89"
+},
+{
+"f": "0.0534"
+},
+{
+"f": "1074.97"
+},
+{
+"f": "0.059"
+},
+{
+"f": "1120.26"
+},
+{
+"f": "0.0566"
+},
+{
+"f": "1002.54"
+},
+{
+"f": "0.0647"
+},
+{
+"f": "1087.18"
+},
+{
+"f": "0.0616"
+},
+{
+"f": "1061.49"
+},
+{
+"f": "0.0597"
+},
+{
+"f": "1018.23"
+},
+{
+"f": "0.0622"
+},
+{
+"f": "1016.98"
+},
+{
+"f": "0.0623"
+},
+{
+"f": "951.11"
+},
+{
+"f": "0.0666"
+},
+{
+"f": "920.72"
+},
+{
+"f": "0.0688"
+},
+{
+"f": "1102.86"
+},
+{
+"f": "0.0575"
+},
+{
+"f": "1157.11"
+},
+{
+"f": "0.0579"
+},
+{
+"f": "920.06"
+},
+{
+"f": "0.0705"
+},
+{
+"f": "957.8"
+},
+{
+"f": "0.0699"
+},
+{
+"f": "1085.34"
+},
+{
+"f": "0.0584"
+},
+1058,
+{
+"f": "0.0599"
+},
+{
+"f": "1077.81"
+},
+{
+"f": "0.0588"
+},
+{
+"f": "1058.29"
+},
+{
+"f": "0.0633"
+},
+{
+"f": "1214.28"
+},
+{
+"f": "0.0522"
+},
+{
+"f": "1249.39"
+},
+{
+"f": "0.0507"
+},
+{
+"f": "943.55"
+},
+{
+"f": "0.0672"
+},
+{
+"f": "991.34"
+},
+{
+"f": "0.0639"
+},
+{
+"f": "977.56"
+},
+{
+"f": "0.07"
+},
+{
+"f": "1006.89"
+},
+0,
+{
+"f": "1026.83"
+},
+{
+"f": "0.0617"
+}
+]
+},
+{
+"linha": 16,
+"celulas": [
+"Acessibilidade",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(105006,Analítico!$B:$B,0)-1,3)),105006)",
+"RAMPA DE ACESSIBILIDADE EM CONCRETO PRÉ MOLDADO, EM CALÇADA NOVA COM LARGURA MAIOR OU IGUAL À 3,00 M, FCK 25MPA, COM PISO PODOTÁTIL. AF_03/2024",
+"UN",
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null,
+0,
+null
+]
+},
+{
+"linha": 8634,
+"celulas": [
+"Pisos",
+"=HYPERLINK(\"#\"&CELL(\"address\",OFFSET(Analítico!$B$1,MATCH(101094,Analítico!$B:$B,0)-1,3)),101094)",
+"PISO PODOTÁTIL DE ALERTA OU DIRECIONAL, DE BORRACHA, ASSENTADO SOBRE ARGAMASSA. AF_02/2026",
+"M",
+{
+"f": "195.23"
+},
+0,
+{
+"f": "202.65"
+},
+0,
+{
+"f": "199.19"
+},
+0,
+{
+"f": "198.18"
+},
+0,
+{
+"f": "224.64"
+},
+0,
+186,
+0,
+{
+"f": "194.48"
+},
+0,
+{
+"f": "169.86"
+},
+0,
+{
+"f": "176.72"
+},
+0,
+{
+"f": "189.58"
+},
+0,
+{
+"f": "193.08"
+},
+0,
+{
+"f": "162.09"
+},
+0,
+{
+"f": "181.35"
+},
+0,
+{
+"f": "204.12"
+},
+0,
+{
+"f": "234.78"
+},
+0,
+{
+"f": "238.28"
+},
+0,
+{
+"f": "265.86"
+},
+0,
+{
+"f": "187.33"
+},
+0,
+{
+"f": "189.58"
+},
+0,
+{
+"f": "193.83"
+},
+0,
+{
+"f": "161.54"
+},
+0,
+{
+"f": "198.54"
+},
+0,
+{
+"f": "174.83"
+},
+0,
+{
+"f": "152.24"
+},
+0,
+{
+"f": "190.72"
+},
+0,
+{
+"f": "178.39"
+},
+0,
+{
+"f": "190.15"
+},
+0
+]
+}
+]
+}
+}
+}

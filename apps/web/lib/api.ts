@@ -128,6 +128,39 @@ export const minhaIdentidade = cache(async (): Promise<Identidade> => (await cha
 // ---------------------------------------------------------------------------
 export type Valor = { valor: string; exibicao: string };
 
+/**
+ * Custo de referência do SINAPI (CAIXA/IBGE). Não é preço de compra e não
+ * entra na cesta: vem da consulta própria `/precos/referencias/sinapi`.
+ */
+export type CustoSinapi = {
+  codigo: string;
+  descricao: string;
+  unidade: string;
+  valor: Valor;
+  tipo: "insumo" | "composicao";
+  rotulo_tipo: string;
+  regime: "sem_desoneracao" | "com_desoneracao" | "sem_encargos";
+  rotulo_regime: string;
+  uf: string;
+  competencia: string;
+  competencia_exibicao: string;
+  classificacao: string | null;
+  origem_preco: string | null;
+  rotulo_origem: string;
+  percentual_sp: string | null;
+  natureza: "custo_referencia_engenharia";
+  rotulo_natureza: string;
+  fonte: string;
+  url_fonte: string;
+  url_verificacao: string;
+  aba: string;
+  linha_planilha: number;
+  arquivo_sha256: string;
+  chave_linha: string;
+};
+
+export type ConsultaSinapi = { itens: CustoSinapi[]; aviso: string };
+
 export type ResumoPesquisa = {
   id: string;
   nome: string;

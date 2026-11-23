@@ -435,6 +435,24 @@ def buscar_indice_pncp(termos: list[str], *, uf: str | None = None,
     return resposta.data
 
 
+def buscar_indice_sinapi(termos: list[str], *, codigo: str | None = None,
+                         uf: str = "PA", competencia: str | None = None,
+                         tipo: str | None = None, regime: str | None = None,
+                         limite: int = 50) -> list[dict]:
+    """
+    Custos de referência do SINAPI no índice (0046), por código ou termos.
+    Lê com o JWT do usuário, pela RPC `precos_sinapi_buscar` — nenhuma
+    chamada externa. Os filtros chegam conferidos por `sinapi.consultar`.
+    """
+    resposta = _cliente().rpc("precos_sinapi_buscar", {
+        "p_termos": [str(t) for t in termos],
+        "p_codigo": str(codigo) if codigo else None,
+        "p_uf": str(uf).upper(), "p_competencia": competencia,
+        "p_tipo": tipo, "p_regime": regime,
+        "p_limite": int(limite)}).execute()
+    return resposta.data
+
+
 def buscar_indice_bps(termos: list[str], *, catmat: str | None = None,
                       uf: str | None = None, desde=None, ate=None,
                       limite: int = 50) -> list[dict]:

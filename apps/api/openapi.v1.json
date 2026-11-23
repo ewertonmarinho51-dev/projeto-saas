@@ -1023,6 +1023,27 @@
         "title": "Consulta",
         "type": "object"
       },
+      "ConsultaSinapi": {
+        "properties": {
+          "aviso": {
+            "title": "Aviso",
+            "type": "string"
+          },
+          "itens": {
+            "items": {
+              "$ref": "#/components/schemas/CustoSinapi"
+            },
+            "title": "Itens",
+            "type": "array"
+          }
+        },
+        "required": [
+          "itens",
+          "aviso"
+        ],
+        "title": "ConsultaSinapi",
+        "type": "object"
+      },
       "ContagemPorFonte": {
         "properties": {
           "id": {
@@ -1062,6 +1083,165 @@
           "quantidade"
         ],
         "title": "ContagemPorUf",
+        "type": "object"
+      },
+      "CustoSinapi": {
+        "description": "Uma linha publicada pela CAIXA, com a origem que permite conferi-la.",
+        "properties": {
+          "aba": {
+            "title": "Aba",
+            "type": "string"
+          },
+          "arquivo_sha256": {
+            "title": "Arquivo Sha256",
+            "type": "string"
+          },
+          "chave_linha": {
+            "title": "Chave Linha",
+            "type": "string"
+          },
+          "classificacao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classificacao"
+          },
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "competencia": {
+            "title": "Competencia",
+            "type": "string"
+          },
+          "competencia_exibicao": {
+            "title": "Competencia Exibicao",
+            "type": "string"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "fonte": {
+            "title": "Fonte",
+            "type": "string"
+          },
+          "linha_planilha": {
+            "title": "Linha Planilha",
+            "type": "integer"
+          },
+          "natureza": {
+            "const": "custo_referencia_engenharia",
+            "title": "Natureza",
+            "type": "string"
+          },
+          "origem_preco": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origem Preco"
+          },
+          "percentual_sp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentual Sp"
+          },
+          "regime": {
+            "enum": [
+              "sem_desoneracao",
+              "com_desoneracao",
+              "sem_encargos"
+            ],
+            "title": "Regime",
+            "type": "string"
+          },
+          "rotulo_natureza": {
+            "title": "Rotulo Natureza",
+            "type": "string"
+          },
+          "rotulo_origem": {
+            "title": "Rotulo Origem",
+            "type": "string"
+          },
+          "rotulo_regime": {
+            "title": "Rotulo Regime",
+            "type": "string"
+          },
+          "rotulo_tipo": {
+            "title": "Rotulo Tipo",
+            "type": "string"
+          },
+          "tipo": {
+            "enum": [
+              "insumo",
+              "composicao"
+            ],
+            "title": "Tipo",
+            "type": "string"
+          },
+          "uf": {
+            "title": "Uf",
+            "type": "string"
+          },
+          "unidade": {
+            "title": "Unidade",
+            "type": "string"
+          },
+          "url_fonte": {
+            "title": "Url Fonte",
+            "type": "string"
+          },
+          "url_verificacao": {
+            "title": "Url Verificacao",
+            "type": "string"
+          },
+          "valor": {
+            "$ref": "#/components/schemas/Valor"
+          }
+        },
+        "required": [
+          "codigo",
+          "descricao",
+          "unidade",
+          "valor",
+          "tipo",
+          "rotulo_tipo",
+          "regime",
+          "rotulo_regime",
+          "uf",
+          "competencia",
+          "competencia_exibicao",
+          "classificacao",
+          "origem_preco",
+          "rotulo_origem",
+          "percentual_sp",
+          "natureza",
+          "rotulo_natureza",
+          "fonte",
+          "url_fonte",
+          "url_verificacao",
+          "aba",
+          "linha_planilha",
+          "arquivo_sha256",
+          "chave_linha"
+        ],
+        "title": "CustoSinapi",
         "type": "object"
       },
       "DadosDaPrefeitura": {
@@ -11229,6 +11409,124 @@
           }
         },
         "summary": "Revisar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/referencias/sinapi": {
+      "get": {
+        "operationId": "consultar_api_v1_precos_referencias_sinapi_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "termo",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 200,
+              "title": "Termo",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "codigo",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 12,
+              "pattern": "^\\d*$",
+              "title": "Codigo",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "uf",
+            "required": false,
+            "schema": {
+              "default": "PA",
+              "maxLength": 2,
+              "minLength": 2,
+              "title": "Uf",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competencia",
+            "required": false,
+            "schema": {
+              "default": "",
+              "pattern": "^(\\d{4}-(0[1-9]|1[0-2]))?$",
+              "title": "Competencia",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tipo",
+            "required": false,
+            "schema": {
+              "default": "",
+              "enum": [
+                "",
+                "insumo",
+                "composicao"
+              ],
+              "title": "Tipo",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "regime",
+            "required": false,
+            "schema": {
+              "default": "sem_desoneracao",
+              "enum": [
+                "sem_desoneracao",
+                "com_desoneracao",
+                "sem_encargos"
+              ],
+              "title": "Regime",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limite",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limite",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaSinapi"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Consulta não habilitada"
+          },
+          "422": {
+            "description": "Filtro fora da regra"
+          }
+        },
+        "summary": "Consultar",
         "tags": [
           "v1",
           "precos"
