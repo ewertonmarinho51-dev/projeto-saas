@@ -34,9 +34,14 @@ export default async function Pesquisas({
         title="Pesquisas de preços"
         desc="As pesquisas do seu órgão, com fonte verificável para cada preço."
         actions={
-          <Button icon="plus" href="/app/precos/nova">
-            Nova pesquisa
-          </Button>
+          <>
+            <Button variant="secondary" icon="book-open" href="/app/precos/referencias">
+              Custos de engenharia (SINAPI)
+            </Button>
+            <Button icon="plus" href="/app/precos/nova">
+              Nova pesquisa
+            </Button>
+          </>
         }
       />
 

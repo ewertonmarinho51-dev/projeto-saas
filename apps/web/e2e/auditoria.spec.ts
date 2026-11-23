@@ -23,6 +23,7 @@ const ROTAS = [
   ["processos", "/app/processos"],
   ["precos", "/app/precos"],
   ["precos-nova", "/app/precos/nova"],
+  ["precos-sinapi", "/app/precos/referencias?termo=cimento"],
   ["govbot", "/app/govbot"],
   ["instituicao", "/app/admin/instituicao"],
   ["usuarios", "/app/admin/usuarios"],

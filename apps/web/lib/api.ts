@@ -128,6 +128,36 @@ export const minhaIdentidade = cache(async (): Promise<Identidade> => (await cha
 // ---------------------------------------------------------------------------
 export type Valor = { valor: string; exibicao: string };
 
+/** Custo referencial do SINAPI (`/precos/referencias/sinapi`): não é preço de compra. */
+export type ReferenciaDeCusto = {
+  registro_id: string;
+  tipo: "insumo" | "composicao";
+  codigo: string;
+  descricao: string;
+  unidade: string | null;
+  uf: string;
+  competencia: string;
+  regime: string;
+  rotulo_regime: string;
+  valor: Valor;
+  natureza: string;
+  classificacao: string | null;
+  origem_preco: string | null;
+  percentual_sp: string | null;
+  identificacao: string;
+  planilha: string;
+  aba: string;
+  linha_planilha: number;
+  arquivo_sha256: string;
+};
+
+export type ConsultaDeCustos = {
+  competencia: string | null;
+  referencias: ReferenciaDeCusto[];
+  fundamento: string;
+  pagina_oficial: string;
+};
+
 export type ResumoPesquisa = {
   id: string;
   nome: string;

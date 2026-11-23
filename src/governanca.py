@@ -384,6 +384,13 @@ FLAG_PNCP_NACIONAL = "price_source_pncp_nacional"
 # Nasce DESLIGADA; falha de leitura = sem IA.
 FLAG_PRECOS_IA_TERMOS = "precos_ia_termos"
 
+# Referência de custos de engenharia SINAPI (CAIXA/IBGE), em consulta
+# PRÓPRIA — não é fonte da cesta de compras (Lei 14.133, art. 23, § 2º, I).
+# Lê o índice da 0046, importado fora do clique por
+# `python -m src.precos.sinapi_servico`. Nasce DESLIGADA; falha na leitura
+# da flag não liga a consulta.
+FLAG_REFERENCIA_SINAPI = "referencia_custos_sinapi"
+
 # Saneamento pré-cesta (pacote Jev de 17/10/2026): antes da cesta
 # automática, cada item passa pela triagem de `precos.saneamento` —
 # invalidação objetiva e suspeita estatística corroborada; o Jev entra

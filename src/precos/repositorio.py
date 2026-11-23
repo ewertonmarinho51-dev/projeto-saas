@@ -454,6 +454,25 @@ def buscar_indice_bps(termos: list[str], *, catmat: str | None = None,
     return resposta.data
 
 
+def buscar_sinapi(termos: list[str], *, codigo: str | None = None,
+                  uf: str | None = None, competencia: str | None = None,
+                  regime: str | None = None, tipo: str | None = None,
+                  limite: int = 50) -> list[dict]:
+    """
+    Custos referenciais do SINAPI no índice (0046), por código ou termos.
+    Lê com o JWT do usuário, pela RPC `precos_sinapi_buscar` — nenhuma
+    chamada externa. Erro sobe: quem o traduz é `sinapi.ConsultaSINAPI`.
+    """
+    resposta = _cliente().rpc("precos_sinapi_buscar", {
+        "p_termos": [str(t) for t in termos],
+        "p_codigo": str(codigo) if codigo else None,
+        "p_uf": (uf or None) and str(uf).upper(),
+        "p_competencia": competencia or None,
+        "p_regime": regime or None, "p_tipo": tipo or None,
+        "p_limite": int(limite)}).execute()
+    return resposta.data
+
+
 def historico(pesquisa_id: str) -> list[dict]:
     """
     Todas as revisões da mesma pesquisa lógica, da primeira à vigente.
