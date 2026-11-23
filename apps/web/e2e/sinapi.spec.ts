@@ -24,7 +24,7 @@ test("servidor consulta custo de insumo e de composição do SINAPI, com a orige
   await page.goto("/app/precos");
   await page.getByRole("link", { name: "Custos de engenharia (SINAPI)" }).click();
   await expect(page).toHaveURL(/\/app\/precos\/referencias$/);
-  await expect(page.getByText("não é preço de compra")).toBeVisible();
+  await expect(page.getByText("não preço de compra: não entra na cesta")).toBeVisible();
 
   const busca = page.getByTestId("busca-sinapi");
   await busca.getByLabel("Descrição").fill("cimento portland");
