@@ -158,6 +158,43 @@ export type ConsultaDeCustos = {
   pagina_oficial: string;
 };
 
+/** Remuneração da Tabela Unificada do SUS (`/precos/referencias/sigtap`): não é preço de compra. */
+export type ProcedimentoSigtap = {
+  registro_id: string;
+  codigo: string;
+  codigo_formatado: string;
+  nome: string;
+  competencia: string;
+  competencia_exibicao: string;
+  modalidades: string[];
+  complexidade: string | null;
+  sexo: string | null;
+  financiamento: string | null;
+  rubrica: string | null;
+  grupo: string | null;
+  subgrupo: string | null;
+  forma_organizacao: string | null;
+  valor_sa: Valor;
+  valor_sh: Valor;
+  valor_sp: Valor;
+  total_ambulatorial: Valor;
+  total_hospitalar: Valor;
+  sem_valor: boolean;
+  natureza: string;
+  rotulo_natureza: string;
+  arquivo: string;
+  arquivo_url: string;
+  arquivo_sha256: string;
+  linha_arquivo: number;
+};
+
+export type ConsultaSigtap = {
+  competencia: string | null;
+  procedimentos: ProcedimentoSigtap[];
+  fundamento: string;
+  pagina_oficial: string;
+};
+
 export type ResumoPesquisa = {
   id: string;
   nome: string;
