@@ -225,4 +225,11 @@ describe("canvas e casca", () => {
       { label: "Custos de engenharia (SINAPI)", href: "/app/precos/referencias" },
     ]);
   });
+
+  it("consulta da CMED tem nome próprio na trilha, não o de uma pesquisa", () => {
+    expect(trilha("/app/precos/cmed")).toEqual([
+      { label: "Preços", href: "/app/precos" },
+      { label: "Teto de medicamentos (CMED)", href: "/app/precos/cmed" },
+    ]);
+  });
 });

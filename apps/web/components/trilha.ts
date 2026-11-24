@@ -14,6 +14,7 @@ const TRECHOS: Record<string, string> = {
   govbot: "GovBot",
   nova: "Nova pesquisa",
   referencias: "Custos de engenharia (SINAPI)",
+  cmed: "Teto de medicamentos (CMED)",
   itens: "Itens",
   admin: "Administração",
   instituicao: "Instituição",

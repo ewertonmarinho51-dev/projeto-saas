@@ -1023,6 +1023,49 @@
         "title": "Consulta",
         "type": "object"
       },
+      "ConsultaCmed": {
+        "properties": {
+          "aliquota": {
+            "title": "Aliquota",
+            "type": "string"
+          },
+          "fundamento": {
+            "title": "Fundamento",
+            "type": "string"
+          },
+          "pagina_oficial": {
+            "title": "Pagina Oficial",
+            "type": "string"
+          },
+          "publicada_em": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publicada Em"
+          },
+          "tetos": {
+            "items": {
+              "$ref": "#/components/schemas/TetoCmed"
+            },
+            "title": "Tetos",
+            "type": "array"
+          }
+        },
+        "required": [
+          "publicada_em",
+          "aliquota",
+          "tetos",
+          "fundamento",
+          "pagina_oficial"
+        ],
+        "title": "ConsultaCmed",
+        "type": "object"
+      },
       "ConsultaDeCustos": {
         "properties": {
           "competencia": {
@@ -6149,6 +6192,203 @@
           "status"
         ],
         "title": "SituacaoDaPortaria",
+        "type": "object"
+      },
+      "TetoCmed": {
+        "properties": {
+          "aliquota": {
+            "title": "Aliquota",
+            "type": "string"
+          },
+          "analise_recursal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analise Recursal"
+          },
+          "apresentacao": {
+            "title": "Apresentacao",
+            "type": "string"
+          },
+          "arquivo": {
+            "title": "Arquivo",
+            "type": "string"
+          },
+          "arquivo_sha256": {
+            "title": "Arquivo Sha256",
+            "type": "string"
+          },
+          "arquivo_url": {
+            "title": "Arquivo Url",
+            "type": "string"
+          },
+          "base_do_teto": {
+            "title": "Base Do Teto",
+            "type": "string"
+          },
+          "cap": {
+            "title": "Cap",
+            "type": "boolean"
+          },
+          "confaz87": {
+            "title": "Confaz87",
+            "type": "boolean"
+          },
+          "eans": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Eans",
+            "type": "array"
+          },
+          "ggrem": {
+            "title": "Ggrem",
+            "type": "string"
+          },
+          "icms_0": {
+            "title": "Icms 0",
+            "type": "boolean"
+          },
+          "isento_icms": {
+            "title": "Isento Icms",
+            "type": "boolean"
+          },
+          "laboratorio": {
+            "title": "Laboratorio",
+            "type": "string"
+          },
+          "linha_planilha": {
+            "title": "Linha Planilha",
+            "type": "integer"
+          },
+          "natureza": {
+            "title": "Natureza",
+            "type": "string"
+          },
+          "pf": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "pmvg": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "produto": {
+            "title": "Produto",
+            "type": "string"
+          },
+          "publicada_em": {
+            "title": "Publicada Em",
+            "type": "string"
+          },
+          "regime_preco": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regime Preco"
+          },
+          "registro": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registro"
+          },
+          "registro_id": {
+            "title": "Registro Id",
+            "type": "string"
+          },
+          "restricao_hospitalar": {
+            "title": "Restricao Hospitalar",
+            "type": "boolean"
+          },
+          "rotulo_aliquota": {
+            "title": "Rotulo Aliquota",
+            "type": "string"
+          },
+          "rotulo_natureza": {
+            "title": "Rotulo Natureza",
+            "type": "string"
+          },
+          "substancia": {
+            "title": "Substancia",
+            "type": "string"
+          },
+          "tarja": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tarja"
+          },
+          "teto_governo": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "teto_governo_isento": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "tipo_produto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tipo Produto"
+          }
+        },
+        "required": [
+          "registro_id",
+          "ggrem",
+          "registro",
+          "eans",
+          "substancia",
+          "laboratorio",
+          "produto",
+          "apresentacao",
+          "tipo_produto",
+          "regime_preco",
+          "tarja",
+          "aliquota",
+          "rotulo_aliquota",
+          "pf",
+          "pmvg",
+          "teto_governo",
+          "base_do_teto",
+          "cap",
+          "isento_icms",
+          "confaz87",
+          "icms_0",
+          "teto_governo_isento",
+          "restricao_hospitalar",
+          "analise_recursal",
+          "natureza",
+          "rotulo_natureza",
+          "publicada_em",
+          "arquivo",
+          "arquivo_url",
+          "arquivo_sha256",
+          "linha_planilha"
+        ],
+        "title": "TetoCmed",
         "type": "object"
       },
       "Timbrado": {
@@ -11401,6 +11641,114 @@
           }
         },
         "summary": "Revisar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/referencias/cmed": {
+      "get": {
+        "operationId": "consultar_api_v1_precos_referencias_cmed_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "termo",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 300,
+              "title": "Termo",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "codigo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{8,15}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Codigo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aliquota",
+            "required": false,
+            "schema": {
+              "default": "18",
+              "enum": [
+                "sem_impostos",
+                "0",
+                "12",
+                "12_alc",
+                "17",
+                "17_alc",
+                "17.5",
+                "17.5_alc",
+                "18",
+                "18_alc",
+                "19",
+                "19_alc",
+                "19.5",
+                "19.5_alc",
+                "20",
+                "20_alc",
+                "20.5",
+                "20.5_alc",
+                "21",
+                "21_alc",
+                "22",
+                "22_alc",
+                "22.5",
+                "22.5_alc",
+                "23",
+                "23_alc"
+              ],
+              "title": "Aliquota",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limite",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limite",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaCmed"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Consulta desligada"
+          },
+          "422": {
+            "description": "Filtro fora da regra"
+          }
+        },
+        "summary": "Consultar",
         "tags": [
           "v1",
           "precos"
