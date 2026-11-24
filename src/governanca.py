@@ -391,6 +391,13 @@ FLAG_PRECOS_IA_TERMOS = "precos_ia_termos"
 # da flag não liga a consulta.
 FLAG_REFERENCIA_SINAPI = "referencia_custos_sinapi"
 
+# Referência de custos de engenharia da SEOP-PA (Planilha Padrão do Estado do
+# Pará), em consulta PRÓPRIA como o SINAPI — não é fonte da cesta. Lê o
+# índice da 0047, importado de PDF fora do clique e PUBLICADO só depois da
+# aprovação de uma pessoa (`python -m src.precos.seop_servico aprovar`).
+# Nasce DESLIGADA; falha na leitura da flag não liga a consulta.
+FLAG_REFERENCIA_SEOP_PA = "referencia_custos_seop_pa"
+
 # Saneamento pré-cesta (pacote Jev de 17/10/2026): antes da cesta
 # automática, cada item passa pela triagem de `precos.saneamento` —
 # invalidação objetiva e suspeita estatística corroborada; o Jev entra

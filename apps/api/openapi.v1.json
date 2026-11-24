@@ -1061,6 +1061,32 @@
         "title": "ConsultaDeCustos",
         "type": "object"
       },
+      "ConsultaSeop": {
+        "properties": {
+          "fundamento": {
+            "title": "Fundamento",
+            "type": "string"
+          },
+          "pagina_oficial": {
+            "title": "Pagina Oficial",
+            "type": "string"
+          },
+          "referencias": {
+            "items": {
+              "$ref": "#/components/schemas/CustoSeop"
+            },
+            "title": "Referencias",
+            "type": "array"
+          }
+        },
+        "required": [
+          "referencias",
+          "fundamento",
+          "pagina_oficial"
+        ],
+        "title": "ConsultaSeop",
+        "type": "object"
+      },
       "ContagemPorFonte": {
         "properties": {
           "id": {
@@ -1100,6 +1126,106 @@
           "quantidade"
         ],
         "title": "ContagemPorUf",
+        "type": "object"
+      },
+      "CustoSeop": {
+        "description": "Uma linha da Planilha Padrão, com a página do PDF oficial.",
+        "properties": {
+          "arquivo_sha256": {
+            "title": "Arquivo Sha256",
+            "type": "string"
+          },
+          "bdi": {
+            "title": "Bdi",
+            "type": "string"
+          },
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "competencia": {
+            "title": "Competencia",
+            "type": "string"
+          },
+          "competencia_exibicao": {
+            "title": "Competencia Exibicao",
+            "type": "string"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "desoneracao": {
+            "title": "Desoneracao",
+            "type": "string"
+          },
+          "grupo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grupo"
+          },
+          "item": {
+            "title": "Item",
+            "type": "string"
+          },
+          "natureza": {
+            "title": "Natureza",
+            "type": "string"
+          },
+          "pagina": {
+            "title": "Pagina",
+            "type": "integer"
+          },
+          "pdf": {
+            "title": "Pdf",
+            "type": "string"
+          },
+          "registro_id": {
+            "title": "Registro Id",
+            "type": "string"
+          },
+          "rotulo_natureza": {
+            "title": "Rotulo Natureza",
+            "type": "string"
+          },
+          "unidade": {
+            "title": "Unidade",
+            "type": "string"
+          },
+          "url_verificacao": {
+            "title": "Url Verificacao",
+            "type": "string"
+          },
+          "valor": {
+            "$ref": "#/components/schemas/Valor"
+          }
+        },
+        "required": [
+          "registro_id",
+          "codigo",
+          "item",
+          "descricao",
+          "unidade",
+          "valor",
+          "grupo",
+          "competencia",
+          "competencia_exibicao",
+          "bdi",
+          "desoneracao",
+          "natureza",
+          "rotulo_natureza",
+          "pagina",
+          "pdf",
+          "url_verificacao",
+          "arquivo_sha256"
+        ],
+        "title": "CustoSeop",
         "type": "object"
       },
       "DadosDaPrefeitura": {
@@ -11401,6 +11527,93 @@
           }
         },
         "summary": "Revisar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/referencias/seop": {
+      "get": {
+        "operationId": "consultar_seop_api_v1_precos_referencias_seop_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "termo",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 300,
+              "title": "Termo",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "codigo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{6}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Codigo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competencia",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competencia"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limite",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limite",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaSeop"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Consulta desligada"
+          },
+          "422": {
+            "description": "Filtro fora da regra"
+          }
+        },
+        "summary": "Consultar Seop",
         "tags": [
           "v1",
           "precos"

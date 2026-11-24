@@ -73,6 +73,8 @@ CONTAS = (
     ("admin_auditoria", "A", "A1", "admin", True),
     # Só da prova da consulta SINAPI (sinapi.spec.ts), pelo mesmo limite.
     ("a1_sinapi", "A", "A1", "usuario", True),
+    # Só da prova da consulta SEOP-PA (seop.spec.ts), pelo mesmo limite.
+    ("a1_seop", "A", "A1", "usuario", True),
     # Só da prova do tema claro em aparelho no escuro (tema.spec.ts), idem.
     ("admin_tema", "A", "A1", "admin", True),
     # Só do E2E do editor de documentos (editor-documento.spec.ts): o tenant A

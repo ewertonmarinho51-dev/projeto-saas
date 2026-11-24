@@ -225,4 +225,12 @@ describe("canvas e casca", () => {
       { label: "Custos de engenharia (SINAPI)", href: "/app/precos/referencias" },
     ]);
   });
+
+  it("consulta da SEOP-PA fica abaixo da do SINAPI na trilha", () => {
+    expect(trilha("/app/precos/referencias/seop")).toEqual([
+      { label: "Preços", href: "/app/precos" },
+      { label: "Custos de engenharia (SINAPI)", href: "/app/precos/referencias" },
+      { label: "SEOP-PA", href: "/app/precos/referencias/seop" },
+    ]);
+  });
 });
