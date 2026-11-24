@@ -14,6 +14,7 @@ const TRECHOS: Record<string, string> = {
   govbot: "GovBot",
   nova: "Nova pesquisa",
   referencias: "Custos de engenharia (SINAPI)",
+  sicro: "Custos de transportes (SICRO)",
   itens: "Itens",
   admin: "Administração",
   instituicao: "Instituição",

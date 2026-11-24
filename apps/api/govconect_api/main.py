@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from . import (analise_documental, artefatos, base_conhecimento, cadastro_institucional, cesta, coleta, demandas,
                documentos_nativos, elaboracao, erros, formulario, govbot, governanca_central, instituicao,
-               precos, precos_escrita, precos_estatisticas, precos_gestao, precos_referencias,
+               precos, precos_escrita, precos_estatisticas, precos_gestao, precos_referencias, precos_sicro,
                processos, relatorios,
                usuarios_admin)
 from .admin_auth import AdminDoAuth
@@ -128,6 +128,7 @@ def _rotas_v1() -> APIRouter:
     rotas.include_router(precos_gestao.rotas())
     rotas.include_router(precos_estatisticas.rotas())
     rotas.include_router(precos_referencias.rotas())
+    rotas.include_router(precos_sicro.rotas())
     rotas.include_router(coleta.rotas())
     rotas.include_router(relatorios.rotas())
     rotas.include_router(govbot.rotas())
