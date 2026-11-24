@@ -391,6 +391,13 @@ FLAG_PRECOS_IA_TERMOS = "precos_ia_termos"
 # da flag não liga a consulta.
 FLAG_REFERENCIA_SINAPI = "referencia_custos_sinapi"
 
+# Remuneração da Tabela Unificada do SUS (SIGTAP/DATASUS), em consulta
+# PRÓPRIA — não é preço de compra nem custo de obra, não entra na cesta.
+# Lê o índice da 0048, importado fora do clique por
+# `python -m src.precos.sigtap_servico`. Nasce DESLIGADA; falha na leitura
+# da flag não liga a consulta.
+FLAG_REFERENCIA_SIGTAP = "referencia_sus_sigtap"
+
 # Saneamento pré-cesta (pacote Jev de 17/10/2026): antes da cesta
 # automática, cada item passa pela triagem de `precos.saneamento` —
 # invalidação objetiva e suspeita estatística corroborada; o Jev entra
