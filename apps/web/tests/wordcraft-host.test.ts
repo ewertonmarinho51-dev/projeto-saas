@@ -240,4 +240,11 @@ describe("canvas e casca", () => {
       { label: "Remuneração SUS (SIGTAP)", href: "/app/precos/sigtap" },
     ]);
   });
+
+  it("consulta do SICRO tem nome próprio na trilha, não o de uma pesquisa", () => {
+    expect(trilha("/app/precos/sicro")).toEqual([
+      { label: "Preços", href: "/app/precos" },
+      { label: "Custos de transportes (SICRO)", href: "/app/precos/sicro" },
+    ]);
+  });
 });

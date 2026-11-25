@@ -41,6 +41,9 @@ export default async function Pesquisas({
             <Button variant="secondary" icon="book-open" href="/app/precos/sigtap">
               Remuneração SUS (SIGTAP)
             </Button>
+            <Button variant="secondary" icon="book-open" href="/app/precos/sicro">
+              Custos de transportes (SICRO)
+            </Button>
             <Button icon="plus" href="/app/precos/nova">
               Nova pesquisa
             </Button>

@@ -404,6 +404,13 @@ FLAG_REFERENCIA_SEOP_PA = "referencia_custos_seop_pa"
 # da flag não liga a consulta.
 FLAG_REFERENCIA_SIGTAP = "referencia_sus_sigtap"
 
+# Referência de custos SICRO (DNIT), obras de infraestrutura de transportes,
+# em consulta PRÓPRIA — mesmo fundamento do SINAPI, fora da cesta. Lê o
+# índice da 0049, importado fora do clique por
+# `python -m src.precos.sicro_servico`. Nasce DESLIGADA; falha na leitura
+# da flag não liga a consulta.
+FLAG_REFERENCIA_SICRO = "referencia_custos_sicro"
+
 # Saneamento pré-cesta (pacote Jev de 17/10/2026): antes da cesta
 # automática, cada item passa pela triagem de `precos.saneamento` —
 # invalidação objetiva e suspeita estatística corroborada; o Jev entra

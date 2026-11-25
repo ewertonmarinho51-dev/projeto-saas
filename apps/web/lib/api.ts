@@ -181,6 +181,38 @@ export type ConsultaDeCustos = {
   pagina_oficial: string;
 };
 
+/** Custo referencial do SICRO/DNIT (`/precos/referencias/sicro`): não é preço de compra. */
+export type ReferenciaSicro = {
+  registro_id: string;
+  tipo: "composicao" | "material" | "mao_de_obra" | "equipamento";
+  rotulo_tipo: string;
+  codigo: string;
+  descricao: string;
+  unidade: string | null;
+  uf: string;
+  competencia: string;
+  regime: string;
+  rotulo_regime: string;
+  valor: Valor;
+  valor_improdutivo: Valor | null;
+  natureza: string;
+  origem_preco: string | null;
+  rotulo_origem: string | null;
+  identificacao: string;
+  arquivo: string;
+  arquivo_url: string;
+  arquivo_sha256: string;
+  planilha: string;
+  linha_planilha: number;
+};
+
+export type ConsultaSicro = {
+  competencia: string | null;
+  referencias: ReferenciaSicro[];
+  fundamento: string;
+  pagina_oficial: string;
+};
+
 /** Remuneração da Tabela Unificada do SUS (`/precos/referencias/sigtap`): não é preço de compra. */
 export type ProcedimentoSigtap = {
   registro_id: string;

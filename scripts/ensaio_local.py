@@ -212,6 +212,9 @@ SEQUENCIA_EM_ENSAIO = (
     # A 0048 (remuneração SUS, SIGTAP) confere o mesmo que a 0046: só vale
     # depois das migrações de contenção.
     "0048_precos_sigtap_referencia.sql",
+    # A 0049 (referência SICRO) confere o mesmo que a 0046: só vale depois
+    # das migrações de contenção.
+    "0049_precos_sicro_referencia.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

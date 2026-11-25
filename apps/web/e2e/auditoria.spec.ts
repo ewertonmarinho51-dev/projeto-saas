@@ -26,6 +26,7 @@ const ROTAS = [
   ["precos-sinapi", "/app/precos/referencias?termo=cimento"],
   ["precos-seop", "/app/precos/referencias/seop?termo=andaime"],
   ["precos-sigtap", "/app/precos/sigtap?termo=cesariana"],
+  ["precos-sicro", "/app/precos/sicro?termo=concreto"],
   ["govbot", "/app/govbot"],
   ["instituicao", "/app/admin/instituicao"],
   ["usuarios", "/app/admin/usuarios"],
