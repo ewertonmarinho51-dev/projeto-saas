@@ -316,7 +316,7 @@ MUTACOES = [
 def test_a_conferencia_morde(banco, cenario, mutacao, denuncia):
     import psycopg
 
-    conferencia = TEXTO[TEXTO.index("do $$"):]
+    conferencia = TEXTO[TEXTO.rindex("do $$"):]
     with pytest.raises(psycopg.errors.RaiseException, match=denuncia):
         with banco.transaction(force_rollback=True), banco.cursor() as c:
             voltar_a_ser_servidor(c)
@@ -328,4 +328,4 @@ def test_a_conferencia_morde(banco, cenario, mutacao, denuncia):
 def test_a_conferencia_passa_no_estado_certo(banco, cenario):
     with banco.transaction(force_rollback=True), banco.cursor() as c:
         voltar_a_ser_servidor(c)
-        c.execute(TEXTO[TEXTO.index("do $$"):])
+        c.execute(TEXTO[TEXTO.rindex("do $$"):])

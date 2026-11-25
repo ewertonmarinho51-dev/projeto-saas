@@ -1549,12 +1549,13 @@ TABELAS_PRIVADAS = tabelas_do_inventario()
 # Mais as duas da 0045 (fila do importador nacional do PNCP), aplicada em
 # 13/11/2026 (registro 20261113234247): o catálogo passou de 54 para 56
 # tabelas em `public`, todas com RLS; este inventário sobe de 51 para 53.
-# Mais as duas da 0046 (SINAPI), aplicada em 23/11/2026 (registro
-# 20261123204508): o catálogo passou de 56 para 58; este inventário, de 53
-# para 55. E as oito da 0047 (SEOP-PA), 0048 (SIGTAP), 0049 (SICRO) e 0050
-# (CMED), aplicadas em 25/11/2026 (registros 20261125021111, …021219,
-# …021304 e …022112): o catálogo passou de 58 para 66 tabelas em `public`,
-# todas com RLS; este inventário sobe de 55 para 63.
+# Mais as duas da 0046 (referência de custos SINAPI), aplicada em 23/11/2026
+# (registro 20261123204508): o catálogo passou de 56 para 58 tabelas em
+# `public`, todas com RLS; este inventário sobe de 53 para 55.
+# Mais as oito da 0047 (SEOP-PA), 0048 (SIGTAP), 0049 (SICRO) e 0050 (CMED),
+# aplicadas em 25/11/2026 (registros 20261125021111, …021219, …021304 e
+# …022112): o catálogo passou de 58 para 66 tabelas em `public`, todas com
+# RLS; este inventário sobe de 55 para 63.
 TABELAS_EM_PRODUCAO = 63
 
 # As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
@@ -1638,9 +1639,8 @@ TABELAS_DA_FILA_PNCP = frozenset({
     "precos_pncp_tarefas", "precos_pncp_controle",
 })
 
-# As duas da 0046 (referência de custos SINAPI), escritas e cobertas pelo
-# ensaio descartável (`tests/test_migracao_0046.py`), NÃO aplicadas em
-# produção: ficam fora do censo até a aplicação autorizada ser medida. A
+# As duas da 0046 (referência de custos SINAPI), aplicada em produção em
+# 23/11/2026 — já contam em TABELAS_EM_PRODUCAO. Ficam nomeadas porque a
 # matriz de RLS delas mora no arquivo da própria 0046 — dado público, sem
 # tenant: `authenticated` só lê as linhas vigentes dos registros; as versões
 # são da credencial de servidor.
