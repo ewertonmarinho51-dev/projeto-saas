@@ -233,4 +233,11 @@ describe("canvas e casca", () => {
       { label: "SEOP-PA", href: "/app/precos/referencias/seop" },
     ]);
   });
+
+  it("consulta do SIGTAP tem nome próprio na trilha, não o de uma pesquisa", () => {
+    expect(trilha("/app/precos/sigtap")).toEqual([
+      { label: "Preços", href: "/app/precos" },
+      { label: "Remuneração SUS (SIGTAP)", href: "/app/precos/sigtap" },
+    ]);
+  });
 });

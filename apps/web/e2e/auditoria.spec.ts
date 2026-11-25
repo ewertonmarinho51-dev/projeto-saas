@@ -25,6 +25,7 @@ const ROTAS = [
   ["precos-nova", "/app/precos/nova"],
   ["precos-sinapi", "/app/precos/referencias?termo=cimento"],
   ["precos-seop", "/app/precos/referencias/seop?termo=andaime"],
+  ["precos-sigtap", "/app/precos/sigtap?termo=cesariana"],
   ["govbot", "/app/govbot"],
   ["instituicao", "/app/admin/instituicao"],
   ["usuarios", "/app/admin/usuarios"],

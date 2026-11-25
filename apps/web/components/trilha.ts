@@ -15,6 +15,7 @@ const TRECHOS: Record<string, string> = {
   nova: "Nova pesquisa",
   referencias: "Custos de engenharia (SINAPI)",
   seop: "SEOP-PA",
+  sigtap: "Remuneração SUS (SIGTAP)",
   itens: "Itens",
   admin: "Administração",
   instituicao: "Instituição",
