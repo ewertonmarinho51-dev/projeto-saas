@@ -15,7 +15,7 @@
 --   * COMPORTAMENTO: como `anon`, SELECT recusado (42501) nas tabelas novas e
 --     EXECUTE recusado nas cinco funções `precos_*_buscar`; como
 --     `authenticated`, as buscas devolvem só o vigente;
---   * conferência final (`do $$`) passou na aplicação.
+--   * o bloco de conferência do fim do arquivo passou na aplicação.
 --
 -- O PROBLEMA (23/11/2026)
 --   O pacote pede a tabela de custos de obras do próprio Estado do Pará
