@@ -73,8 +73,12 @@ CONTAS = (
     ("admin_auditoria", "A", "A1", "admin", True),
     # Só da prova da consulta SINAPI (sinapi.spec.ts), pelo mesmo limite.
     ("a1_sinapi", "A", "A1", "usuario", True),
+    # Só da prova da consulta SEOP-PA (seop.spec.ts), pelo mesmo limite.
+    ("a1_seop", "A", "A1", "usuario", True),
     # Só da prova da consulta SIGTAP (sigtap.spec.ts), pelo mesmo limite.
     ("a1_sigtap", "A", "A1", "usuario", True),
+    # Só da prova da consulta SICRO (sicro.spec.ts), pelo mesmo limite.
+    ("a1_sicro", "A", "A1", "usuario", True),
     # Só da prova da consulta CMED (cmed.spec.ts), pelo mesmo limite.
     ("a1_cmed", "A", "A1", "usuario", True),
     # Só da prova do tema claro em aparelho no escuro (tema.spec.ts), idem.
@@ -637,6 +641,60 @@ def semear_sigtap(pilha: Pilha) -> int:
     return len(SIGTAP_E2E)
 
 
+# Cinco referências REAIS do Pará, julho/2026, como `sicro.ler` as leu do
+# `pa-07-2026.7z` do DNIT (sha256 3a545a7d…2592de5): tipo, regime, código,
+# descrição, unidade, custo, improdutivo, origem do preço, planilha e linha.
+SICRO_URL = ("https://www.gov.br/dnit/pt-br/assuntos/planejamento-e-pesquisa/custos-referenciais/"
+             "sistemas-de-custos/sicro/relatorios/relatorios-sicro/norte/para/2026/julho/"
+             "pa-07-2026.7z")
+SICRO_SHA = "3a545a7d0a71d20dc5c72cb02bd9d921639922b18af2b1ae6b2a71cab2592de5"
+SICRO_E2E = (
+    ("composicao", "sem_desoneracao", "1106050",
+     "Lançamento livre de concreto usinado por meio de caminhão betoneira - confecção em "
+     "central dosadora de 30 m³/h", "m³", "65.12", None, None, "Composições de Custos", 1693),
+    ("material", "nao_se_aplica", "M0004", "Aço CA 50", "kg", "6.5605", None, "PCT",
+     "Materiais", 3),
+    ("mao_de_obra", "sem_desoneracao", "P9801", "Ajudante", "h", "24.8197", None, "SDP",
+     "Mão de Obra", 2),
+    ("mao_de_obra", "com_desoneracao", "P9801", "Ajudante", "h", "23.6691", None, "SDP",
+     "Mão de Obra - com desoneração", 2),
+    ("equipamento", "sem_desoneracao", "E9009", "Embarcação rebocadora - 268 kW", "h",
+     "489.8398", "149.9339", "PRE", "Equipamentos", 10),
+)
+
+
+def semear_sicro(pilha: Pilha) -> int:
+    """Uma versão publicada do Pará, julho/2026, com cinco referências reais,
+    e a consulta ligada (`referencia_custos_sicro`)."""
+    import psycopg
+
+    from src.precos import sicro
+    from src.precos.pncp_indice import texto_de_busca
+
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        c.execute("insert into public.config_app (chave, valor) values "
+                  "('flag_referencia_custos_sicro', 'on') "
+                  "on conflict (chave) do update set valor = 'on'")
+        c.execute("insert into public.precos_sicro_versoes (competencia, uf, sha256, estado, "
+                  "vigente, arquivo, url, linhas, validas, versao_parser) values "
+                  "('2026-07', 'PA', %s, 'publicado', true, 'pa-07-2026.7z', %s, 5, 5, %s) "
+                  "on conflict do nothing", (SICRO_SHA, SICRO_URL, sicro.VERSAO_PARSER))
+        for tipo, regime, codigo, descricao, unidade, valor, ocioso, origem, rel, linha in SICRO_E2E:
+            chave = sicro.chave_da_linha("2026-07", "PA", tipo, regime, codigo)
+            c.execute(
+                "insert into public.precos_sicro_registros (registro_id, chave_linha, "
+                "competencia, uf, arquivo_sha256, vigente, tipo, regime, codigo, descricao, "
+                "descricao_busca, unidade, valor, valor_improdutivo, origem_preco, planilha, "
+                "linha_planilha, url_arquivo, arquivo, hash_linha, versao_parser) values "
+                "(%s, %s, '2026-07', 'PA', %s, true, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
+                "%s, %s, 'pa-07-2026.7z', 'e2e', %s) on conflict (registro_id) do nothing",
+                (f"e2e-sicro-{regime}-{codigo}", chave, SICRO_SHA, tipo, regime, codigo,
+                 descricao, texto_de_busca(f"{codigo} {descricao}"), unidade, valor, ocioso,
+                 origem, f"PA 07-2026 Relatório Sintético de {rel}.xlsx", linha, SICRO_URL,
+                 sicro.VERSAO_PARSER))
+    return len(SICRO_E2E)
+
+
 CMED_URL = ("https://www.gov.br/anvisa/pt-br/assuntos/medicamentos/cmed/precos/arquivos/"
             "lista_pmvg_20261109_111901662.xlsx/@@download/file")
 CMED_SHA = "5a18ae40416fd00cb98299cfcf3fb1a174a23b12ac763a01c442e987b9478dae"
@@ -863,6 +921,7 @@ def principal() -> int:
                   "indice_pncp": semear_indice_pncp(pilha),
                   "sinapi": semear_sinapi(pilha),
                   "sigtap": semear_sigtap(pilha),
+                  "sicro": semear_sicro(pilha),
                   "cmed": semear_cmed(pilha),
                   "planilha_cotacao": str(gravar_planilha_cotacao_e2e(args.estado.parent)),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}

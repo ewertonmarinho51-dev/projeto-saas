@@ -77,6 +77,11 @@ export default async function ReferenciasDeCusto({
         }
         title="Custos de engenharia (SINAPI)"
         desc="Preço de insumo e custo de composição da CAIXA/IBGE, por UF e mês de referência. É custo referencial de obra e serviço de engenharia, não preço de compra: não entra na cesta da pesquisa."
+        actions={
+          <Button variant="secondary" icon="book-open" href="/app/precos/referencias/seop">
+            Planilha da SEOP-PA
+          </Button>
+        }
       />
 
       <Card divided title="Consultar o SINAPI">

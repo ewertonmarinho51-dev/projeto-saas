@@ -473,6 +473,21 @@ def buscar_sinapi(termos: list[str], *, codigo: str | None = None,
     return resposta.data
 
 
+def buscar_seop(termos: list[str], *, codigo: str | None = None,
+                competencia: str | None = None, limite: int = 50) -> list[dict]:
+    """
+    Custos de referência da SEOP-PA no índice (0047), por código ou termos.
+    Lê com o JWT do usuário, pela RPC `precos_seop_buscar` — nenhuma chamada
+    externa; só o que foi aprovado e publicado é vigente.
+    """
+    resposta = _cliente().rpc("precos_seop_buscar", {
+        "p_termos": [str(t) for t in termos],
+        "p_codigo": str(codigo) if codigo else None,
+        "p_competencia": competencia or None,
+        "p_limite": int(limite)}).execute()
+    return resposta.data
+
+
 def buscar_sigtap(termos: list[str], *, codigo: str | None = None,
                   competencia: str | None = None, modalidade: str | None = None,
                   limite: int = 50) -> list[dict]:
@@ -486,6 +501,25 @@ def buscar_sigtap(termos: list[str], *, codigo: str | None = None,
         "p_codigo": str(codigo) if codigo else None,
         "p_competencia": competencia or None,
         "p_modalidade": modalidade or None,
+        "p_limite": int(limite)}).execute()
+    return resposta.data
+
+
+def buscar_sicro(termos: list[str], *, codigo: str | None = None,
+                 uf: str | None = None, competencia: str | None = None,
+                 regime: str | None = None, tipo: str | None = None,
+                 limite: int = 50) -> list[dict]:
+    """
+    Custos referenciais do SICRO no índice (0049), por código ou termos.
+    Lê com o JWT do usuário, pela RPC `precos_sicro_buscar` — nenhuma
+    chamada externa. Erro sobe: quem o traduz é a rota.
+    """
+    resposta = _cliente().rpc("precos_sicro_buscar", {
+        "p_termos": [str(t) for t in termos],
+        "p_codigo": str(codigo).upper() if codigo else None,
+        "p_uf": (uf or None) and str(uf).upper(),
+        "p_competencia": competencia or None,
+        "p_regime": regime or None, "p_tipo": tipo or None,
         "p_limite": int(limite)}).execute()
     return resposta.data
 

@@ -151,9 +151,64 @@ export type ReferenciaDeCusto = {
   arquivo_sha256: string;
 };
 
+/** Uma linha da Planilha Padrão da SEOP-PA, com a página do PDF oficial. */
+export type CustoSeop = {
+  registro_id: string;
+  codigo: string;
+  item: string;
+  descricao: string;
+  unidade: string;
+  valor: Valor;
+  grupo: string | null;
+  competencia: string;
+  competencia_exibicao: string;
+  bdi: string;
+  desoneracao: string;
+  natureza: string;
+  rotulo_natureza: string;
+  pagina: number;
+  pdf: string;
+  url_verificacao: string;
+  arquivo_sha256: string;
+};
+
+export type ConsultaSeop = { referencias: CustoSeop[]; fundamento: string; pagina_oficial: string };
+
 export type ConsultaDeCustos = {
   competencia: string | null;
   referencias: ReferenciaDeCusto[];
+  fundamento: string;
+  pagina_oficial: string;
+};
+
+/** Custo referencial do SICRO/DNIT (`/precos/referencias/sicro`): não é preço de compra. */
+export type ReferenciaSicro = {
+  registro_id: string;
+  tipo: "composicao" | "material" | "mao_de_obra" | "equipamento";
+  rotulo_tipo: string;
+  codigo: string;
+  descricao: string;
+  unidade: string | null;
+  uf: string;
+  competencia: string;
+  regime: string;
+  rotulo_regime: string;
+  valor: Valor;
+  valor_improdutivo: Valor | null;
+  natureza: string;
+  origem_preco: string | null;
+  rotulo_origem: string | null;
+  identificacao: string;
+  arquivo: string;
+  arquivo_url: string;
+  arquivo_sha256: string;
+  planilha: string;
+  linha_planilha: number;
+};
+
+export type ConsultaSicro = {
+  competencia: string | null;
+  referencias: ReferenciaSicro[];
   fundamento: string;
   pagina_oficial: string;
 };

@@ -226,10 +226,25 @@ describe("canvas e casca", () => {
     ]);
   });
 
+  it("consulta da SEOP-PA fica abaixo da do SINAPI na trilha", () => {
+    expect(trilha("/app/precos/referencias/seop")).toEqual([
+      { label: "Preços", href: "/app/precos" },
+      { label: "Custos de engenharia (SINAPI)", href: "/app/precos/referencias" },
+      { label: "SEOP-PA", href: "/app/precos/referencias/seop" },
+    ]);
+  });
+
   it("consulta do SIGTAP tem nome próprio na trilha, não o de uma pesquisa", () => {
     expect(trilha("/app/precos/sigtap")).toEqual([
       { label: "Preços", href: "/app/precos" },
       { label: "Remuneração SUS (SIGTAP)", href: "/app/precos/sigtap" },
+    ]);
+  });
+
+  it("consulta do SICRO tem nome próprio na trilha, não o de uma pesquisa", () => {
+    expect(trilha("/app/precos/sicro")).toEqual([
+      { label: "Preços", href: "/app/precos" },
+      { label: "Custos de transportes (SICRO)", href: "/app/precos/sicro" },
     ]);
   });
 

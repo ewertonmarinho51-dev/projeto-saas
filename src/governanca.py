@@ -391,12 +391,25 @@ FLAG_PRECOS_IA_TERMOS = "precos_ia_termos"
 # da flag não liga a consulta.
 FLAG_REFERENCIA_SINAPI = "referencia_custos_sinapi"
 
+# Referência de custos de engenharia da SEOP-PA (Planilha Padrão do Estado do
+# Pará), em consulta PRÓPRIA como o SINAPI — não é fonte da cesta. Lê o
+# índice da 0047, importado de PDF fora do clique e PUBLICADO só depois da
+# aprovação de uma pessoa (`python -m src.precos.seop_servico aprovar`).
+# Nasce DESLIGADA; falha na leitura da flag não liga a consulta.
+FLAG_REFERENCIA_SEOP_PA = "referencia_custos_seop_pa"
 # Remuneração da Tabela Unificada do SUS (SIGTAP/DATASUS), em consulta
 # PRÓPRIA — não é preço de compra nem custo de obra, não entra na cesta.
 # Lê o índice da 0048, importado fora do clique por
 # `python -m src.precos.sigtap_servico`. Nasce DESLIGADA; falha na leitura
 # da flag não liga a consulta.
 FLAG_REFERENCIA_SIGTAP = "referencia_sus_sigtap"
+
+# Referência de custos SICRO (DNIT), obras de infraestrutura de transportes,
+# em consulta PRÓPRIA — mesmo fundamento do SINAPI, fora da cesta. Lê o
+# índice da 0049, importado fora do clique por
+# `python -m src.precos.sicro_servico`. Nasce DESLIGADA; falha na leitura
+# da flag não liga a consulta.
+FLAG_REFERENCIA_SICRO = "referencia_custos_sicro"
 
 # Teto CMED de medicamentos (PF e PMVG por alíquota de ICMS), em consulta
 # PRÓPRIA — preço máximo regulado, não preço de compra; o praticado segue

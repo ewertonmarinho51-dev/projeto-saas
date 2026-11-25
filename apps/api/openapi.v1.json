@@ -1104,6 +1104,70 @@
         "title": "ConsultaDeCustos",
         "type": "object"
       },
+      "ConsultaSeop": {
+        "properties": {
+          "fundamento": {
+            "title": "Fundamento",
+            "type": "string"
+          },
+          "pagina_oficial": {
+            "title": "Pagina Oficial",
+            "type": "string"
+          },
+          "referencias": {
+            "items": {
+              "$ref": "#/components/schemas/CustoSeop"
+            },
+            "title": "Referencias",
+            "type": "array"
+          }
+        },
+        "required": [
+          "referencias",
+          "fundamento",
+          "pagina_oficial"
+        ],
+        "title": "ConsultaSeop",
+        "type": "object"
+      },
+      "ConsultaSicro": {
+        "properties": {
+          "competencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competencia"
+          },
+          "fundamento": {
+            "title": "Fundamento",
+            "type": "string"
+          },
+          "pagina_oficial": {
+            "title": "Pagina Oficial",
+            "type": "string"
+          },
+          "referencias": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenciaSicro"
+            },
+            "title": "Referencias",
+            "type": "array"
+          }
+        },
+        "required": [
+          "competencia",
+          "referencias",
+          "fundamento",
+          "pagina_oficial"
+        ],
+        "title": "ConsultaSicro",
+        "type": "object"
+      },
       "ConsultaSigtap": {
         "properties": {
           "competencia": {
@@ -1181,6 +1245,106 @@
           "quantidade"
         ],
         "title": "ContagemPorUf",
+        "type": "object"
+      },
+      "CustoSeop": {
+        "description": "Uma linha da Planilha Padrão, com a página do PDF oficial.",
+        "properties": {
+          "arquivo_sha256": {
+            "title": "Arquivo Sha256",
+            "type": "string"
+          },
+          "bdi": {
+            "title": "Bdi",
+            "type": "string"
+          },
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "competencia": {
+            "title": "Competencia",
+            "type": "string"
+          },
+          "competencia_exibicao": {
+            "title": "Competencia Exibicao",
+            "type": "string"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "desoneracao": {
+            "title": "Desoneracao",
+            "type": "string"
+          },
+          "grupo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grupo"
+          },
+          "item": {
+            "title": "Item",
+            "type": "string"
+          },
+          "natureza": {
+            "title": "Natureza",
+            "type": "string"
+          },
+          "pagina": {
+            "title": "Pagina",
+            "type": "integer"
+          },
+          "pdf": {
+            "title": "Pdf",
+            "type": "string"
+          },
+          "registro_id": {
+            "title": "Registro Id",
+            "type": "string"
+          },
+          "rotulo_natureza": {
+            "title": "Rotulo Natureza",
+            "type": "string"
+          },
+          "unidade": {
+            "title": "Unidade",
+            "type": "string"
+          },
+          "url_verificacao": {
+            "title": "Url Verificacao",
+            "type": "string"
+          },
+          "valor": {
+            "$ref": "#/components/schemas/Valor"
+          }
+        },
+        "required": [
+          "registro_id",
+          "codigo",
+          "item",
+          "descricao",
+          "unidade",
+          "valor",
+          "grupo",
+          "competencia",
+          "competencia_exibicao",
+          "bdi",
+          "desoneracao",
+          "natureza",
+          "rotulo_natureza",
+          "pagina",
+          "pdf",
+          "url_verificacao",
+          "arquivo_sha256"
+        ],
+        "title": "CustoSeop",
         "type": "object"
       },
       "DadosDaPrefeitura": {
@@ -5774,6 +5938,151 @@
           "pendente_de_vetor"
         ],
         "title": "ReferenciaIndexada",
+        "type": "object"
+      },
+      "ReferenciaSicro": {
+        "properties": {
+          "arquivo": {
+            "title": "Arquivo",
+            "type": "string"
+          },
+          "arquivo_sha256": {
+            "title": "Arquivo Sha256",
+            "type": "string"
+          },
+          "arquivo_url": {
+            "title": "Arquivo Url",
+            "type": "string"
+          },
+          "codigo": {
+            "title": "Codigo",
+            "type": "string"
+          },
+          "competencia": {
+            "title": "Competencia",
+            "type": "string"
+          },
+          "descricao": {
+            "title": "Descricao",
+            "type": "string"
+          },
+          "identificacao": {
+            "title": "Identificacao",
+            "type": "string"
+          },
+          "linha_planilha": {
+            "title": "Linha Planilha",
+            "type": "integer"
+          },
+          "natureza": {
+            "title": "Natureza",
+            "type": "string"
+          },
+          "origem_preco": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origem Preco"
+          },
+          "planilha": {
+            "title": "Planilha",
+            "type": "string"
+          },
+          "regime": {
+            "title": "Regime",
+            "type": "string"
+          },
+          "registro_id": {
+            "title": "Registro Id",
+            "type": "string"
+          },
+          "rotulo_origem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rotulo Origem"
+          },
+          "rotulo_regime": {
+            "title": "Rotulo Regime",
+            "type": "string"
+          },
+          "rotulo_tipo": {
+            "title": "Rotulo Tipo",
+            "type": "string"
+          },
+          "tipo": {
+            "enum": [
+              "composicao",
+              "material",
+              "mao_de_obra",
+              "equipamento"
+            ],
+            "title": "Tipo",
+            "type": "string"
+          },
+          "uf": {
+            "title": "Uf",
+            "type": "string"
+          },
+          "unidade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unidade"
+          },
+          "valor": {
+            "$ref": "#/components/schemas/Valor"
+          },
+          "valor_improdutivo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Valor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "registro_id",
+          "tipo",
+          "rotulo_tipo",
+          "codigo",
+          "descricao",
+          "unidade",
+          "uf",
+          "competencia",
+          "regime",
+          "rotulo_regime",
+          "valor",
+          "valor_improdutivo",
+          "natureza",
+          "origem_preco",
+          "rotulo_origem",
+          "identificacao",
+          "arquivo",
+          "arquivo_url",
+          "arquivo_sha256",
+          "planilha",
+          "linha_planilha"
+        ],
+        "title": "ReferenciaSicro",
         "type": "object"
       },
       "RegistroDeDecisoes": {
@@ -11959,6 +12268,227 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ConsultaCmed"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Consulta desligada"
+          },
+          "422": {
+            "description": "Filtro fora da regra"
+          }
+        },
+        "summary": "Consultar",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/referencias/seop": {
+      "get": {
+        "operationId": "consultar_seop_api_v1_precos_referencias_seop_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "termo",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 300,
+              "title": "Termo",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "codigo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{6}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Codigo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competencia",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competencia"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limite",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limite",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaSeop"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Consulta desligada"
+          },
+          "422": {
+            "description": "Filtro fora da regra"
+          }
+        },
+        "summary": "Consultar Seop",
+        "tags": [
+          "v1",
+          "precos"
+        ]
+      }
+    },
+    "/api/v1/precos/referencias/sicro": {
+      "get": {
+        "operationId": "consultar_api_v1_precos_referencias_sicro_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "termo",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 300,
+              "title": "Termo",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "codigo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(\\d{7}|[MPEAmpea]\\d{4})$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Codigo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "uf",
+            "required": false,
+            "schema": {
+              "default": "PA",
+              "pattern": "^[A-Za-z]{2}$",
+              "title": "Uf",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "competencia",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competencia"
+            }
+          },
+          {
+            "in": "query",
+            "name": "regime",
+            "required": false,
+            "schema": {
+              "default": "sem_desoneracao",
+              "enum": [
+                "sem_desoneracao",
+                "com_desoneracao"
+              ],
+              "title": "Regime",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tipo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "composicao",
+                    "material",
+                    "mao_de_obra",
+                    "equipamento"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tipo"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limite",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limite",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaSicro"
                 }
               }
             },
