@@ -391,6 +391,13 @@ FLAG_PRECOS_IA_TERMOS = "precos_ia_termos"
 # da flag não liga a consulta.
 FLAG_REFERENCIA_SINAPI = "referencia_custos_sinapi"
 
+# Remuneração da Tabela Unificada do SUS (SIGTAP/DATASUS), em consulta
+# PRÓPRIA — não é preço de compra nem custo de obra, não entra na cesta.
+# Lê o índice da 0048, importado fora do clique por
+# `python -m src.precos.sigtap_servico`. Nasce DESLIGADA; falha na leitura
+# da flag não liga a consulta.
+FLAG_REFERENCIA_SIGTAP = "referencia_sus_sigtap"
+
 # Referência de custos SICRO (DNIT), obras de infraestrutura de transportes,
 # em consulta PRÓPRIA — mesmo fundamento do SINAPI, fora da cesta. Lê o
 # índice da 0049, importado fora do clique por

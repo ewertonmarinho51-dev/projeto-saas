@@ -142,12 +142,13 @@ def baixar(url: str, destino: Path, *, abrir=None, dormir=time.sleep,
     raise RuntimeError("inalcançável")
 
 
-def conferir_zip(caminho: Path, *, extensoes: frozenset = EXTENSOES
-                 ) -> list[zipfile.ZipInfo]:
-    """As defesas, antes de ler qualquer byte de dentro."""
+def conferir_zip(caminho: Path, *, extensoes: frozenset = EXTENSOES,
+                 max_entradas: int = MAX_ENTRADAS) -> list[zipfile.ZipInfo]:
+    """As defesas, antes de ler qualquer byte de dentro. `max_entradas` só
+    sobe para publicação conhecida (a Tabela Unificada do SUS tem 87)."""
     with zipfile.ZipFile(caminho) as z:
         entradas = z.infolist()
-    if len(entradas) > MAX_ENTRADAS:
+    if len(entradas) > max_entradas:
         raise ArquivoRecusado("entradas demais no ZIP")
     total = 0
     for info in entradas:

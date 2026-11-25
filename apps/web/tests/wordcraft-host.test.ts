@@ -226,6 +226,13 @@ describe("canvas e casca", () => {
     ]);
   });
 
+  it("consulta do SIGTAP tem nome próprio na trilha, não o de uma pesquisa", () => {
+    expect(trilha("/app/precos/sigtap")).toEqual([
+      { label: "Preços", href: "/app/precos" },
+      { label: "Remuneração SUS (SIGTAP)", href: "/app/precos/sigtap" },
+    ]);
+  });
+
   it("consulta do SICRO tem nome próprio na trilha, não o de uma pesquisa", () => {
     expect(trilha("/app/precos/sicro")).toEqual([
       { label: "Preços", href: "/app/precos" },

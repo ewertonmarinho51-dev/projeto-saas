@@ -206,6 +206,9 @@ SEQUENCIA_EM_ENSAIO = (
     # alcançam o controle da importação e que `service_role` nasce sem
     # DELETE/TRUNCATE: só vale depois das migrações de contenção.
     "0046_precos_sinapi_referencia.sql",
+    # A 0048 (remuneração SUS, SIGTAP) confere o mesmo que a 0046: só vale
+    # depois das migrações de contenção.
+    "0048_precos_sigtap_referencia.sql",
     # A 0049 (referência SICRO) confere o mesmo que a 0046: só vale depois
     # das migrações de contenção.
     "0049_precos_sicro_referencia.sql",

@@ -399,3 +399,77 @@ def test_repositorio_le_pela_rpc_com_o_token_do_usuario(monkeypatch):
                           "p_uf": "PA", "p_competencia": None,
                           "p_regime": "sem_desoneracao", "p_tipo": "insumo",
                           "p_limite": 20}
+
+
+# ---------------------------------------------------------------------------
+# Download: o laço de 302 da CAIXA (medido em 23/11/2026) é passageiro
+# ---------------------------------------------------------------------------
+class _Resposta(io.BytesIO):
+    def __init__(self, dados, url):
+        super().__init__(dados)
+        self.headers = {"Content-Length": str(len(dados)), "Last-Modified": "hoje"}
+        self._url = url
+
+    def geturl(self):
+        return self._url
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+
+def test_laco_de_redirecionamento_da_caixa_e_tentado_de_novo(tmp_path, arquivo):
+    import urllib.error
+
+    from src.precos import sinapi_servico
+
+    url = sinapi.url_da_competencia("2026-10")
+    tentativas = []
+    dados = arquivo.read_bytes()
+
+    def abrir(requisicao):
+        tentativas.append(requisicao.full_url)
+        if len(tentativas) == 1:
+            raise urllib.error.HTTPError(requisicao.full_url, 302, "laço", {}, None)
+        return _Resposta(dados, requisicao.full_url)
+
+    caminho = sinapi_servico._baixar(url, tmp_path, "s.zip", abrir=abrir,
+                                     dormir=lambda s: None)
+    assert tentativas == [url, url]
+    assert caminho.read_bytes() == dados
+
+
+def test_outro_erro_http_nao_e_repetido(tmp_path):
+    import urllib.error
+
+    from src.precos import sinapi_servico
+
+    tentativas = []
+
+    def abrir(requisicao):
+        tentativas.append(1)
+        raise urllib.error.HTTPError(requisicao.full_url, 404, "não há", {}, None)
+
+    with pytest.raises(urllib.error.HTTPError):
+        sinapi_servico._baixar(sinapi.url_da_competencia("2030-01"), tmp_path, "s.zip",
+                               abrir=abrir, dormir=lambda s: None)
+    assert tentativas == [1]
+
+
+def test_laco_que_nao_passa_desiste_na_terceira(tmp_path):
+    import urllib.error
+
+    from src.precos import sinapi_servico
+
+    tentativas = []
+
+    def abrir(requisicao):
+        tentativas.append(1)
+        raise urllib.error.HTTPError(requisicao.full_url, 302, "laço", {}, None)
+
+    with pytest.raises(urllib.error.HTTPError):
+        sinapi_servico._baixar(sinapi.url_da_competencia("2026-10"), tmp_path, "s.zip",
+                               abrir=abrir, dormir=lambda s: None)
+    assert len(tentativas) == 3
