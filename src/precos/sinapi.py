@@ -84,7 +84,10 @@ SEM_CODIGO = "SEM_CODIGO"
 VALOR_ILEGIVEL = "VALOR_ILEGIVEL"
 
 PISO_DE_REDUCAO = Decimal("0.5")
-LOTE = 1000
+# Medido em produção (24/11/2026): 1.000 e 250 linhas por upsert passaram dos
+# 8 s de `statement_timeout` do PostgREST; 250 linhas sintéticas levaram 2,7 s
+# (~10 ms por linha, com tsvector gerado e índice GIN). 50 cabe com folga.
+LOTE = 50
 IMPORTANDO, PUBLICADO, RECUSADO = "importando", "publicado", "recusado"
 
 _CODIGO_NA_FORMULA = re.compile(r",\s*(\d{1,9})\s*\)\s*$")
