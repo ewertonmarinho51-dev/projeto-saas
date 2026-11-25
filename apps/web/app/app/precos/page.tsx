@@ -44,6 +44,9 @@ export default async function Pesquisas({
             <Button variant="secondary" icon="book-open" href="/app/precos/sicro">
               Custos de transportes (SICRO)
             </Button>
+            <Button variant="secondary" icon="book-open" href="/app/precos/cmed">
+              Teto de medicamentos (CMED)
+            </Button>
             <Button icon="plus" href="/app/precos/nova">
               Nova pesquisa
             </Button>

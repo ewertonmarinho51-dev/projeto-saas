@@ -17,6 +17,7 @@ const TRECHOS: Record<string, string> = {
   seop: "SEOP-PA",
   sigtap: "Remuneração SUS (SIGTAP)",
   sicro: "Custos de transportes (SICRO)",
+  cmed: "Teto de medicamentos (CMED)",
   itens: "Itens",
   admin: "Administração",
   instituicao: "Instituição",

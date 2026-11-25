@@ -213,6 +213,49 @@ export type ConsultaSicro = {
   pagina_oficial: string;
 };
 
+/** Teto CMED de medicamento (`/precos/referencias/cmed`): preço máximo regulado, não preço de compra. */
+export type TetoCmed = {
+  registro_id: string;
+  ggrem: string;
+  registro: string | null;
+  eans: string[];
+  substancia: string;
+  laboratorio: string;
+  produto: string;
+  apresentacao: string;
+  tipo_produto: string | null;
+  regime_preco: string | null;
+  tarja: string | null;
+  aliquota: string;
+  rotulo_aliquota: string;
+  pf: Valor;
+  pmvg: Valor;
+  teto_governo: Valor;
+  base_do_teto: string;
+  cap: boolean;
+  isento_icms: boolean;
+  confaz87: boolean;
+  icms_0: boolean;
+  teto_governo_isento: Valor;
+  restricao_hospitalar: boolean;
+  analise_recursal: string | null;
+  natureza: string;
+  rotulo_natureza: string;
+  publicada_em: string;
+  arquivo: string;
+  arquivo_url: string;
+  arquivo_sha256: string;
+  linha_planilha: number;
+};
+
+export type ConsultaCmed = {
+  publicada_em: string | null;
+  aliquota: string;
+  tetos: TetoCmed[];
+  fundamento: string;
+  pagina_oficial: string;
+};
+
 /** Remuneração da Tabela Unificada do SUS (`/precos/referencias/sigtap`): não é preço de compra. */
 export type ProcedimentoSigtap = {
   registro_id: string;

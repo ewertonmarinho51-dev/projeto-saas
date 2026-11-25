@@ -524,6 +524,20 @@ def buscar_sicro(termos: list[str], *, codigo: str | None = None,
     return resposta.data
 
 
+def buscar_cmed(termos: list[str], *, codigo: str | None = None,
+                limite: int = 50) -> list[dict]:
+    """
+    Teto CMED da lista vigente (0050), por código (GGREM, registro ou EAN)
+    ou termos. Lê com o JWT do usuário, pela RPC `precos_cmed_buscar` —
+    nenhuma chamada externa. Erro sobe: quem o traduz é a rota.
+    """
+    resposta = _cliente().rpc("precos_cmed_buscar", {
+        "p_termos": [str(t) for t in termos],
+        "p_codigo": str(codigo) if codigo else None,
+        "p_limite": int(limite)}).execute()
+    return resposta.data
+
+
 def historico(pesquisa_id: str) -> list[dict]:
     """
     Todas as revisões da mesma pesquisa lógica, da primeira à vigente.

@@ -40,7 +40,9 @@ PREFIXOS_CAIXA = ("/Downloads/sinapi-relatorios-mensais/",)
 PREFIXOS_SEOP = ("/sites/default/files/",)
 # no gov.br, só a árvore de relatórios do SICRO no portal do DNIT
 PREFIXOS_GOVBR = ("/dnit/pt-br/assuntos/planejamento-e-pesquisa/custos-referenciais/"
-                  "sistemas-de-custos/sicro/relatorios/",)
+                  "sistemas-de-custos/sicro/relatorios/",
+                  # e a página de preços da CMED, com a pasta das listas dela
+                  "/anvisa/pt-br/assuntos/medicamentos/cmed/precos",)
 MAX_DOWNLOAD = 600_000_000            # o ZIP 2026 do TCE-RS tem 258 MB
 MAX_ENTRADAS = 50
 MAX_DESCOMPACTADO = 3_000_000_000
@@ -83,7 +85,9 @@ def url_permitida(url: str) -> bool:
                 and partes.path.lower().endswith(".pdf"))
     if host == "www.gov.br":
         # sem `..` nem nada codificado (`%2e%2e`): o portal normalizaria
-        return (partes.path.startswith(PREFIXOS_GOVBR) and not partes.query
+        caminho = partes.path.rstrip("/") + "/"
+        return (any(caminho.startswith(p.rstrip("/") + "/") for p in PREFIXOS_GOVBR)
+                and not partes.query
                 and ".." not in partes.path and "%" not in partes.path
                 and "\\" not in partes.path)
     return True

@@ -411,6 +411,13 @@ FLAG_REFERENCIA_SIGTAP = "referencia_sus_sigtap"
 # da flag não liga a consulta.
 FLAG_REFERENCIA_SICRO = "referencia_custos_sicro"
 
+# Teto CMED de medicamentos (PF e PMVG por alíquota de ICMS), em consulta
+# PRÓPRIA — preço máximo regulado, não preço de compra; o praticado segue
+# sendo o do BPS. Lê o índice da 0050, importado fora do clique por
+# `python -m src.precos.cmed_servico`. Nasce DESLIGADA; falha na leitura da
+# flag não liga a consulta.
+FLAG_REFERENCIA_CMED = "referencia_teto_cmed"
+
 # Saneamento pré-cesta (pacote Jev de 17/10/2026): antes da cesta
 # automática, cada item passa pela triagem de `precos.saneamento` —
 # invalidação objetiva e suspeita estatística corroborada; o Jev entra

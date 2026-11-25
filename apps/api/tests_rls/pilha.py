@@ -79,6 +79,8 @@ CONTAS = (
     ("a1_sigtap", "A", "A1", "usuario", True),
     # Só da prova da consulta SICRO (sicro.spec.ts), pelo mesmo limite.
     ("a1_sicro", "A", "A1", "usuario", True),
+    # Só da prova da consulta CMED (cmed.spec.ts), pelo mesmo limite.
+    ("a1_cmed", "A", "A1", "usuario", True),
     # Só da prova do tema claro em aparelho no escuro (tema.spec.ts), idem.
     ("admin_tema", "A", "A1", "admin", True),
     # Só do E2E do editor de documentos (editor-documento.spec.ts): o tenant A
@@ -693,6 +695,46 @@ def semear_sicro(pilha: Pilha) -> int:
     return len(SICRO_E2E)
 
 
+CMED_URL = ("https://www.gov.br/anvisa/pt-br/assuntos/medicamentos/cmed/precos/arquivos/"
+            "lista_pmvg_20261109_111901662.xlsx/@@download/file")
+CMED_SHA = "5a18ae40416fd00cb98299cfcf3fb1a174a23b12ac763a01c442e987b9478dae"
+
+
+def semear_cmed(pilha: Pilha) -> int:
+    """A lista PMVG de 09/11/2026 vigente, com as onze apresentações REAIS da
+    amostra das provas (`tests/fixtures/fontes_precos/cmed_2026_11_09`), lidas
+    pelo próprio `cmed.ler`, e a consulta ligada (`referencia_teto_cmed`)."""
+    import psycopg
+    from psycopg.types.json import Jsonb
+
+    from src.precos import cmed
+
+    raiz = Path(__file__).resolve().parents[3]
+    amostra = (raiz / "tests" / "fixtures" / "fontes_precos" / "cmed_2026_11_09"
+               / "lista_pmvg_20261109_111901662.xlsx")
+    leitura = cmed.Leitura()
+    linhas = [cmed.linha_do_indice(b, publicada_em=leitura.publicada_em or
+                                   "2026-11-09T17:30:00-03:00", sha256=CMED_SHA,
+                                   url=CMED_URL, arquivo=amostra.name)
+              for b in list(cmed.ler(amostra, leitura=leitura))]
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        c.execute("insert into public.config_app (chave, valor) values "
+                  "('flag_referencia_teto_cmed', 'on') "
+                  "on conflict (chave) do update set valor = 'on'")
+        c.execute("insert into public.precos_cmed_versoes (sha256, estado, vigente, "
+                  "publicada_em, arquivo, url, linhas, validas, versao_parser) values "
+                  "(%s, 'publicado', true, %s, %s, %s, %s, %s, %s) on conflict do nothing",
+                  (CMED_SHA, leitura.publicada_em, amostra.name, CMED_URL, len(linhas),
+                   len(linhas), cmed.VERSAO_PARSER))
+        for l in linhas:
+            colunas = [k for k in l if k != "vigente"]
+            valores = [Jsonb(l[k]) if k in ("pf", "pmvg") else l[k] for k in colunas]
+            c.execute(f"insert into public.precos_cmed_registros ({', '.join(colunas)}, "
+                      f"vigente) values ({', '.join(['%s'] * len(colunas))}, true) "
+                      "on conflict (registro_id) do nothing", valores)
+    return len(linhas)
+
+
 def gravar_planilha_cotacao_e2e(pasta: Path) -> Path:
     """A planilha da cotação automática de ponta a ponta: dois itens que o
     índice da pilha cobre (um pelo nome, outro por equivalente)."""
@@ -880,6 +922,7 @@ def principal() -> int:
                   "sinapi": semear_sinapi(pilha),
                   "sigtap": semear_sigtap(pilha),
                   "sicro": semear_sicro(pilha),
+                  "cmed": semear_cmed(pilha),
                   "planilha_cotacao": str(gravar_planilha_cotacao_e2e(args.estado.parent)),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}
                              for r, c in pilha.contas.items()}}
