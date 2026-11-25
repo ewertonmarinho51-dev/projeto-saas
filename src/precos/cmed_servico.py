@@ -40,6 +40,10 @@ _LINK = re.compile(r"^/anvisa/pt-br/assuntos/medicamentos/cmed/precos/arquivos/"
                    re.IGNORECASE)
 
 
+# GGREM tem 15 dígitos: os dois primeiros repartem a lista (~270 linhas cada)
+PREFIXOS_GGREM = tuple(f"{n:02d}" for n in range(100))
+
+
 class ArmazemSupabase:
     """O contrato de `cmed.Armazem`, nas tabelas da 0050."""
 
@@ -66,12 +70,18 @@ class ArmazemSupabase:
             linhas, on_conflict="registro_id").execute()
 
     def publicar(self, sha256, **campos):
-        registros = self._c.table("precos_cmed_registros")
+        registros = self._c.table
         versoes = self._c.table("precos_cmed_versoes")
-        # 1) a lista nova aparece; 2) a anterior some (fica gravada)
-        registros.update({"vigente": True}).eq("arquivo_sha256", sha256).execute()
-        registros.update({"vigente": False}).eq("vigente", True).neq(
-            "arquivo_sha256", sha256).execute()
+        # 1) a lista nova aparece; 2) a anterior some (fica gravada). Em LOTES
+        # pelo prefixo do GGREM: um UPDATE só nas ~26,7 mil linhas (com dois
+        # índices GIN parciais em `vigente`) estourou o statement timeout do
+        # PostgREST na primeira importação de produção (25/11/2026)
+        for prefixo in PREFIXOS_GGREM:
+            registros("precos_cmed_registros").update({"vigente": True}).eq(
+                "arquivo_sha256", sha256).like("ggrem", f"{prefixo}%").execute()
+            registros("precos_cmed_registros").update({"vigente": False}).eq(
+                "vigente", True).neq("arquivo_sha256", sha256).like(
+                    "ggrem", f"{prefixo}%").execute()
         # uma vigente no total (índice único parcial): tira a antiga
         versoes.update({"vigente": False}).eq("vigente", True).neq(
             "sha256", sha256).execute()

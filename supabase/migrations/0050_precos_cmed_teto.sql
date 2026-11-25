@@ -1,9 +1,23 @@
 -- ## 0050 — Teto CMED de medicamentos (Anvisa), em consulta própria
--- ## ESTADO: NÃO APLICADA EM PRODUÇÃO. Aplicável; aguarda o ensaio nos dois
--- ##   níveis (o do CI roda em `tests/test_migracao_0050.py`), a revisão do
--- ##   `revisor-de-banco-e-seguranca` e a autorização do dono.
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 25/11/2026 como `m0050_precos_cmed_teto`
+-- ##   (registro 20261125022112), a pedido expresso do dono; duas tentativas caíram por conexão (o projeto estava em RESIZING) sem deixar nada, a terceira entrou.
+-- ##   lista PMVG de 09/11/2026 importada em 25/11/2026: 26.694 vigentes (a publicação pelo PostgREST estourou o statement timeout e foi concluída pelos mesmos quatro passos numa transação SQL; o importador passou a publicar em lotes).
 -- ##   Numerada depois da 0047 (SEOP-PA, #229), 0048 (SIGTAP, #230) e 0049
 -- ##   (SICRO, #231), que não dependem dela nem ela delas.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (25/11/2026):
+--   * ANTES (25/11, antes da 0047): 58 tabelas em `public`; a `authenticated`,
+--     SELECT em 48, INSERT em 32, UPDATE em 15, DELETE em 3; a `service_role`,
+--     DELETE em 23, REFERENCES e TRIGGER em 43;
+--   * DEPOIS (25/11, com 0047–0050): 66 tabelas, todas as novas com RLS;
+--     `authenticated` só ganhou SELECT nas quatro tabelas de registros
+--     (48 → 52), nenhuma escrita; `service_role` seguiu com DELETE em 23 e
+--     REFERENCES/TRIGGER em 43 (nenhum nas tabelas novas); `precos_bps_registros`
+--     seguiu com 10.755 linhas;
+--   * COMPORTAMENTO: como `anon`, SELECT recusado (42501) nas tabelas novas e
+--     EXECUTE recusado nas cinco funções `precos_*_buscar`; como
+--     `authenticated`, as buscas devolvem só o vigente;
+--   * o bloco de conferência do fim do arquivo passou na aplicação.
 --
 -- O PROBLEMA (24/11/2026)
 --   Medicamento tem preço máximo regulado: a CMED fixa o Preço Fábrica (PF)

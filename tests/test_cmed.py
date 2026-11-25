@@ -425,3 +425,48 @@ def test_armazem_do_banco_exige_credencial_do_ambiente(monkeypatch):
     monkeypatch.delenv("SUPABASE_SERVICE_KEY", raising=False)
     with pytest.raises(SystemExit, match="SUPABASE_SERVICE_KEY"):
         cmed_servico.armazem_do_banco()
+
+
+class _ClienteGravador:
+    """Imita a cadeia do cliente Supabase e grava cada UPDATE com seus filtros."""
+
+    def __init__(self):
+        self.updates = []
+
+    def table(self, nome):
+        cliente = self
+
+        class _Consulta:
+            def __init__(self):
+                self.filtros = []
+
+            def update(self, dados):
+                self.dados = dados
+                return self
+
+            def __getattr__(self, metodo):          # eq, neq, like…
+                def filtro(*args):
+                    self.filtros.append((metodo, *args))
+                    return self
+                return filtro
+
+            def execute(self):
+                cliente.updates.append((nome, self.dados, self.filtros))
+                return self
+
+        return _Consulta()
+
+
+def test_publicacao_no_banco_vai_em_lotes_pelo_prefixo_do_ggrem():
+    """Um UPDATE só nas ~26,7 mil linhas estourou o statement timeout do
+    PostgREST na importação de produção (25/11/2026)."""
+    cliente = _ClienteGravador()
+    cmed_servico.ArmazemSupabase(cliente).publicar("a" * 64, publicado_em="agora")
+    nos_registros = [u for u in cliente.updates if u[0] == "precos_cmed_registros"]
+    assert len(nos_registros) == 2 * 100
+    assert all(any(f[0] == "like" and f[1] == "ggrem" for f in u[2]) for u in nos_registros)
+    prefixos = {f[2] for u in nos_registros for f in u[2] if f[0] == "like"}
+    assert prefixos == {f"{n:02d}%" for n in range(100)}
+    # as versões: tira a antiga e publica a nova, cada uma num UPDATE
+    nas_versoes = [u for u in cliente.updates if u[0] == "precos_cmed_versoes"]
+    assert [u[1].get("vigente") for u in nas_versoes] == [False, True]
