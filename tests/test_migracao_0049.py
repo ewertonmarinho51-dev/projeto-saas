@@ -273,9 +273,9 @@ def test_servidor_importa_e_publica_a_versao(banco, cenario):
      f"where sha256 = '{SHA_A}'", "23514"),
     (f"update public.precos_sicro_registros set url_arquivo = '{BASE}../../x.7z' "
      "where registro_id = 's-1'", "23514"),
-    (f"update public.precos_sicro_registros set url_arquivo = '{BASE}%2e%2e/x.7z' "
+    (f"update public.precos_sicro_registros set url_arquivo = '{BASE}%%2e%%2e/x.7z' "
      "where registro_id = 's-1'", "23514"),
-    (f"update public.precos_sicro_versoes set url = '{BASE}%2E%2E/pa-07-2026.7z' "
+    (f"update public.precos_sicro_versoes set url = '{BASE}%%2E%%2E/pa-07-2026.7z' "
      f"where sha256 = '{SHA_A}'", "23514"),
     ("update public.precos_sicro_versoes set arquivo = 'x.zip' "
      f"where sha256 = '{SHA_A}'", "23514"),
