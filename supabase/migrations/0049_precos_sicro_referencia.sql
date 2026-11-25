@@ -1,9 +1,23 @@
 -- ## 0049 — Referência de custos SICRO (DNIT), em consulta própria
--- ## ESTADO: NÃO APLICADA EM PRODUÇÃO. Aplicável; aguarda o ensaio nos dois
--- ##   níveis (o do CI roda em `tests/test_migracao_0049.py`), a revisão do
--- ##   `revisor-de-banco-e-seguranca` e a autorização do dono.
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 25/11/2026 como `m0049_precos_sicro_referencia`
+-- ##   (registro 20261125021304), a pedido expresso do dono ("aplique as migrações e importe as fontes").
+-- ##   SICRO PA 07/2026 importado e publicado em 25/11/2026: 9.639 vigentes.
 -- ##   Numerada depois da 0047 (SEOP-PA, #229) e da 0048 (SIGTAP, #230), que
 -- ##   não dependem dela nem ela delas: só a ordem do ensaio.
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (25/11/2026):
+--   * ANTES (25/11, antes da 0047): 58 tabelas em `public`; a `authenticated`,
+--     SELECT em 48, INSERT em 32, UPDATE em 15, DELETE em 3; a `service_role`,
+--     DELETE em 23, REFERENCES e TRIGGER em 43;
+--   * DEPOIS (25/11, com 0047–0050): 66 tabelas, todas as novas com RLS;
+--     `authenticated` só ganhou SELECT nas quatro tabelas de registros
+--     (48 → 52), nenhuma escrita; `service_role` seguiu com DELETE em 23 e
+--     REFERENCES/TRIGGER em 43 (nenhum nas tabelas novas); `precos_bps_registros`
+--     seguiu com 10.755 linhas;
+--   * COMPORTAMENTO: como `anon`, SELECT recusado (42501) nas tabelas novas e
+--     EXECUTE recusado nas cinco funções `precos_*_buscar`; como
+--     `authenticated`, as buscas devolvem só o vigente;
+--   * conferência final (`do $$`) passou na aplicação.
 --
 -- O PROBLEMA (24/11/2026)
 --   Obra de infraestrutura de transportes (estrada, ponte, drenagem, obra

@@ -1,7 +1,7 @@
 -- ## 0046 — Referência de custos SINAPI (CAIXA/IBGE), em consulta própria
--- ## ESTADO: NÃO APLICADA EM PRODUÇÃO. Aplicável; aguarda o ensaio nos dois
--- ##   níveis (o do CI roda em `tests/test_migracao_0046.py`), a revisão do
--- ##   `revisor-de-banco-e-seguranca` e a autorização do dono.
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 23/11/2026 como `m0046_precos_sinapi_referencia`
+-- ##   (registro 20261123204508), aplicada por outra sessão; o cabeçalho ficou dizendo "não aplicada" e foi corrigido em 25/11/2026.
+-- ##   SINAPI 10/2026 PA importado e publicado em 25/11/2026: 37.920 vigentes.
 --
 -- O PROBLEMA (23/11/2026)
 --   Obra e serviço de engenharia não se orçam com preço de compra: a Lei

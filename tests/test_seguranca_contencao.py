@@ -1549,7 +1549,13 @@ TABELAS_PRIVADAS = tabelas_do_inventario()
 # Mais as duas da 0045 (fila do importador nacional do PNCP), aplicada em
 # 13/11/2026 (registro 20261113234247): o catálogo passou de 54 para 56
 # tabelas em `public`, todas com RLS; este inventário sobe de 51 para 53.
-TABELAS_EM_PRODUCAO = 53
+# Mais as duas da 0046 (SINAPI), aplicada em 23/11/2026 (registro
+# 20261123204508): o catálogo passou de 56 para 58; este inventário, de 53
+# para 55. E as oito da 0047 (SEOP-PA), 0048 (SIGTAP), 0049 (SICRO) e 0050
+# (CMED), aplicadas em 25/11/2026 (registros 20261125021111, …021219,
+# …021304 e …022112): o catálogo passou de 58 para 66 tabelas em `public`,
+# todas com RLS; este inventário sobe de 55 para 63.
+TABELAS_EM_PRODUCAO = 63
 
 # As quatro da 0021. Continuam nomeadas — não pela contagem, que já as
 # inclui, mas porque são as únicas cuja implantação esta suíte
@@ -1638,7 +1644,7 @@ TABELAS_DA_FILA_PNCP = frozenset({
 # matriz de RLS delas mora no arquivo da própria 0046 — dado público, sem
 # tenant: `authenticated` só lê as linhas vigentes dos registros; as versões
 # são da credencial de servidor.
-TABELAS_DA_REFERENCIA_SINAPI_NAO_IMPLANTADAS = frozenset({
+TABELAS_DA_REFERENCIA_SINAPI = frozenset({
     "precos_sinapi_versoes", "precos_sinapi_registros",
 })
 
@@ -1647,28 +1653,28 @@ TABELAS_DA_REFERENCIA_SINAPI_NAO_IMPLANTADAS = frozenset({
 # NÃO aplicadas em produção. Matriz de RLS no arquivo da própria 0047, como a
 # da 0046: `authenticated` só lê os registros vigentes; as versões (com quem
 # aprovou) são da credencial de servidor.
-TABELAS_DA_REFERENCIA_SEOP_NAO_IMPLANTADAS = frozenset({
+TABELAS_DA_REFERENCIA_SEOP = frozenset({
     "precos_seop_versoes", "precos_seop_registros",
 })
 
 # As duas da 0048 (remuneração da Tabela Unificada do SUS, SIGTAP), pela
 # mesma regra: cobertas por `tests/test_migracao_0048.py`, NÃO aplicadas.
 # Dado público, sem tenant; `authenticated` só lê os procedimentos vigentes.
-TABELAS_DA_REFERENCIA_SIGTAP_NAO_IMPLANTADAS = frozenset({
+TABELAS_DA_REFERENCIA_SIGTAP = frozenset({
     "precos_sigtap_versoes", "precos_sigtap_procedimentos",
 })
 
 # As duas da 0049 (referência de custos SICRO), pela mesma regra: cobertas
 # por `tests/test_migracao_0049.py`, NÃO aplicadas. Dado público, sem
 # tenant; `authenticated` só lê as linhas vigentes dos registros.
-TABELAS_DA_REFERENCIA_SICRO_NAO_IMPLANTADAS = frozenset({
+TABELAS_DA_REFERENCIA_SICRO = frozenset({
     "precos_sicro_versoes", "precos_sicro_registros",
 })
 
 # As duas da 0050 (teto CMED de medicamentos), pela mesma regra: cobertas
 # por `tests/test_migracao_0050.py`, NÃO aplicadas. Dado público, sem
 # tenant; `authenticated` só lê a lista vigente.
-TABELAS_DO_TETO_CMED_NAO_IMPLANTADAS = frozenset({
+TABELAS_DO_TETO_CMED = frozenset({
     "precos_cmed_versoes", "precos_cmed_registros",
 })
 
@@ -1684,12 +1690,7 @@ def test_o_inventario_cobre_todas_as_tabelas():
     implantada fora da conta que a cobre; para mais, dando por
     implantado o que ainda não foi.
     """
-    nao_implantadas = (TABELAS_WORDCRAFT_NAO_IMPLANTADAS
-                       | TABELAS_DA_REFERENCIA_SINAPI_NAO_IMPLANTADAS
-                       | TABELAS_DA_REFERENCIA_SEOP_NAO_IMPLANTADAS
-                       | TABELAS_DA_REFERENCIA_SIGTAP_NAO_IMPLANTADAS
-                       | TABELAS_DA_REFERENCIA_SICRO_NAO_IMPLANTADAS
-                       | TABELAS_DO_TETO_CMED_NAO_IMPLANTADAS)
+    nao_implantadas = TABELAS_WORDCRAFT_NAO_IMPLANTADAS
     assert nao_implantadas <= set(TABELAS_PRIVADAS)
     assert TABELAS_DA_API <= set(TABELAS_PRIVADAS)
     assert len(set(TABELAS_PRIVADAS) - nao_implantadas) == TABELAS_EM_PRODUCAO, \
@@ -2055,11 +2056,11 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
                 | TABELAS_DO_INDICE_PNCP
                 | TABELAS_DO_INDICE_BPS
                 | TABELAS_DA_FILA_PNCP
-                | TABELAS_DA_REFERENCIA_SINAPI_NAO_IMPLANTADAS
-                | TABELAS_DA_REFERENCIA_SEOP_NAO_IMPLANTADAS
-                | TABELAS_DA_REFERENCIA_SIGTAP_NAO_IMPLANTADAS
-                | TABELAS_DA_REFERENCIA_SICRO_NAO_IMPLANTADAS
-                | TABELAS_DO_TETO_CMED_NAO_IMPLANTADAS)
+                | TABELAS_DA_REFERENCIA_SINAPI
+                | TABELAS_DA_REFERENCIA_SEOP
+                | TABELAS_DA_REFERENCIA_SIGTAP
+                | TABELAS_DA_REFERENCIA_SICRO
+                | TABELAS_DO_TETO_CMED)
     for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 
