@@ -73,6 +73,8 @@ CONTAS = (
     ("admin_auditoria", "A", "A1", "admin", True),
     # Só da prova da consulta SINAPI (sinapi.spec.ts), pelo mesmo limite.
     ("a1_sinapi", "A", "A1", "usuario", True),
+    # Só da prova da consulta SIGTAP (sigtap.spec.ts), pelo mesmo limite.
+    ("a1_sigtap", "A", "A1", "usuario", True),
     # Só da prova da consulta CMED (cmed.spec.ts), pelo mesmo limite.
     ("a1_cmed", "A", "A1", "usuario", True),
     # Só da prova do tema claro em aparelho no escuro (tema.spec.ts), idem.
@@ -581,6 +583,60 @@ def semear_sinapi(pilha: Pilha) -> int:
     return len(SINAPI_E2E)
 
 
+# Quatro procedimentos REAIS da competência 11/2026, como `sigtap.ler` os leu
+# de `TabelaUnificada_202611_v2611051737.zip` (DATASUS): código, nome, SA,
+# SH, SP, modalidades, grupo/subgrupo/forma, financiamento e a linha de
+# `tb_procedimento.txt`. A atividade educativa é a de valor zero.
+SIGTAP_ARQUIVO = "TabelaUnificada_202611_v2611051737.zip"
+SIGTAP_SHA = "06c074c360b0d3cdb814f19a3cdb169d9456946ba691a117982fb495505dad45"
+SIGTAP_E2E = (
+    ("0411010034", "OPERAÇÃO CESARIANA", "0.00", "395.68", "150.05", ["Hospitalar"],
+     "Procedimentos cirúrgicos", "Cirurgia obstétrica", "Parto", 3526),
+    ("0202010473", "DOSAGEM DE GLICOSE", "1.85", "0.00", "0.00",
+     ["Ambulatorial", "Hospital Dia", "Hospitalar"],
+     "Procedimentos com finalidade diagnóstica", "Diagnóstico em laboratório clínico",
+     "Exames bioquimicos", 264),
+    ("0301010072", "CONSULTA MEDICA EM ATENÇÃO ESPECIALIZADA", "10.00", "0.00", "0.00",
+     ["Ambulatorial"], "Procedimentos clínicos",
+     "Consultas / Atendimentos / Acompanhamentos",
+     "Consultas médicas/outros profissionais de nivel superior", 1266),
+    ("0101010010", "ATIVIDADE EDUCATIVA / ORIENTAÇÃO EM GRUPO NA ATENÇÃO PRIMÁRIA",
+     "0.00", "0.00", "0.00", ["Ambulatorial"], "Ações de promoção e prevenção em saúde",
+     "Ações coletivas/individuais em saúde", "Educação em saúde", 1),
+)
+
+
+def semear_sigtap(pilha: Pilha) -> int:
+    """Uma versão publicada da competência 11/2026 com quatro procedimentos
+    reais, e a consulta ligada (`referencia_sus_sigtap`)."""
+    import psycopg
+
+    from src.precos import sigtap
+    from src.precos.pncp_indice import texto_de_busca
+
+    with psycopg.connect(pilha.dsn, autocommit=True) as c:
+        c.execute("insert into public.config_app (chave, valor) values "
+                  "('flag_referencia_sus_sigtap', 'on') "
+                  "on conflict (chave) do update set valor = 'on'")
+        c.execute("insert into public.precos_sigtap_versoes (competencia, sha256, estado, "
+                  "vigente, arquivo, versao_arquivo, linhas, validos, versao_parser) values "
+                  "('2026-11', %s, 'publicado', true, %s, '2611051737', 4, 4, %s) "
+                  "on conflict do nothing", (SIGTAP_SHA, SIGTAP_ARQUIVO, sigtap.VERSAO_PARSER))
+        for codigo, nome, sa, sh, sp, modalidades, grupo, subgrupo, forma, linha in SIGTAP_E2E:
+            c.execute(
+                "insert into public.precos_sigtap_procedimentos (registro_id, chave_linha, "
+                "competencia, arquivo_sha256, vigente, codigo, nome, nome_busca, complexidade, "
+                "sexo, valor_sa, valor_sh, valor_sp, financiamento, modalidades, grupo, "
+                "subgrupo, forma_organizacao, linha_arquivo, arquivo, hash_linha, "
+                "versao_parser) values (%s, %s, '2026-11', %s, true, %s, %s, %s, '2', 'I', "
+                "%s, %s, %s, 'Média e Alta Complexidade (MAC)', %s, %s, %s, %s, %s, %s, "
+                "'e2e', %s) on conflict (registro_id) do nothing",
+                (f"e2e-sigtap-{codigo}", f"2026-11:{codigo}", SIGTAP_SHA, codigo, nome,
+                 texto_de_busca(nome), sa, sh, sp, modalidades, grupo, subgrupo, forma,
+                 linha, SIGTAP_ARQUIVO, sigtap.VERSAO_PARSER))
+    return len(SIGTAP_E2E)
+
+
 CMED_URL = ("https://www.gov.br/anvisa/pt-br/assuntos/medicamentos/cmed/precos/arquivos/"
             "lista_pmvg_20261109_111901662.xlsx/@@download/file")
 CMED_SHA = "5a18ae40416fd00cb98299cfcf3fb1a174a23b12ac763a01c442e987b9478dae"
@@ -806,6 +862,7 @@ def principal() -> int:
                   "larguras": semear_larguras(pilha),
                   "indice_pncp": semear_indice_pncp(pilha),
                   "sinapi": semear_sinapi(pilha),
+                  "sigtap": semear_sigtap(pilha),
                   "cmed": semear_cmed(pilha),
                   "planilha_cotacao": str(gravar_planilha_cotacao_e2e(args.estado.parent)),
                   "contas": {r: {k: v for k, v in asdict(c).items() if k != "token"}

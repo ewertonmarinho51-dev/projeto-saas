@@ -38,6 +38,9 @@ export default async function Pesquisas({
             <Button variant="secondary" icon="book-open" href="/app/precos/referencias">
               Custos de engenharia (SINAPI)
             </Button>
+            <Button variant="secondary" icon="book-open" href="/app/precos/sigtap">
+              Remuneração SUS (SIGTAP)
+            </Button>
             <Button variant="secondary" icon="book-open" href="/app/precos/cmed">
               Teto de medicamentos (CMED)
             </Button>

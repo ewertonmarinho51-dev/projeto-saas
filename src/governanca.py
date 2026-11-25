@@ -391,6 +391,13 @@ FLAG_PRECOS_IA_TERMOS = "precos_ia_termos"
 # da flag não liga a consulta.
 FLAG_REFERENCIA_SINAPI = "referencia_custos_sinapi"
 
+# Remuneração da Tabela Unificada do SUS (SIGTAP/DATASUS), em consulta
+# PRÓPRIA — não é preço de compra nem custo de obra, não entra na cesta.
+# Lê o índice da 0048, importado fora do clique por
+# `python -m src.precos.sigtap_servico`. Nasce DESLIGADA; falha na leitura
+# da flag não liga a consulta.
+FLAG_REFERENCIA_SIGTAP = "referencia_sus_sigtap"
+
 # Teto CMED de medicamentos (PF e PMVG por alíquota de ICMS), em consulta
 # PRÓPRIA — preço máximo regulado, não preço de compra; o praticado segue
 # sendo o do BPS. Lê o índice da 0050, importado fora do clique por

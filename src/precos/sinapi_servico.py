@@ -22,10 +22,14 @@ a consulta: isso é a flag `referencia_custos_sinapi`.
 from __future__ import annotations
 
 import argparse
+import http.cookiejar
 import json
 import os
 import random
 import tempfile
+import time
+import urllib.error
+import urllib.request
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -146,8 +150,34 @@ def conferir(xlsx: Path, pdf: Path, *, competencia: str, ufs,
     return relato
 
 
-def _baixar(url: str, pasta: Path, nome: str) -> Path:
-    return arquivos.baixar(url, pasta / nome).caminho
+def _abrir_com_cookies():
+    """Abridor com pote de cookies só desta sessão de download (nada é
+    persistido): o site da CAIXA põe cookie e redireciona."""
+    abridor = urllib.request.build_opener(
+        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    return lambda requisicao: abridor.open(requisicao, timeout=arquivos.TIMEOUT_S)
+
+
+def _baixar(url: str, pasta: Path, nome: str, *, abrir=None,
+            dormir=time.sleep) -> Path:
+    """
+    Em 23/11/2026 a primeira tentativa de baixar o relatório mensal caiu num
+    laço de 302 do balanceador da CAIXA ("redirect error that would lead to an
+    infinite loop"); as três seguintes, com os mesmos cabeçalhos, responderam
+    200. `arquivos.baixar` só repete 429/5xx, então o laço é tratado aqui como
+    falha passageira: nova tentativa com pote de cookies novo, até 3 vezes.
+    Qualquer outro erro HTTP sobe como veio.
+    """
+    for tentativa in range(1, 4):
+        try:
+            return arquivos.baixar(url, pasta / nome,
+                                   abrir=abrir or _abrir_com_cookies(),
+                                   dormir=dormir).caminho
+        except urllib.error.HTTPError as erro:
+            if erro.code not in (301, 302, 303, 307, 308) or tentativa == 3:
+                raise
+            dormir(2.0 * tentativa)
+    raise RuntimeError("inalcançável")
 
 
 def main(argv=None) -> int:
