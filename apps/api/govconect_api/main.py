@@ -128,6 +128,7 @@ def _rotas_v1() -> APIRouter:
     rotas.include_router(precos_gestao.rotas())
     rotas.include_router(precos_estatisticas.rotas())
     rotas.include_router(precos_referencias.rotas())
+    rotas.include_router(precos_referencias.rotas_seop())
     rotas.include_router(precos_sigtap.rotas())
     rotas.include_router(coleta.rotas())
     rotas.include_router(relatorios.rotas())
