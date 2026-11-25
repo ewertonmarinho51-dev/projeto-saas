@@ -31,11 +31,13 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 HOSTS_PERMITIDOS = frozenset({"dados.tce.rs.gov.br", "s3.sa-east-1.amazonaws.com",
-                              "www.caixa.gov.br"})
+                              "www.caixa.gov.br", "seop.pa.gov.br"})
 # no S3, só o bucket do CKAN da Saúde
 PREFIXOS_S3 = ("/ckan.saude.gov.br/",)
 # na CAIXA, só a pasta dos relatórios mensais do SINAPI
 PREFIXOS_CAIXA = ("/Downloads/sinapi-relatorios-mensais/",)
+# na SEOP-PA, só os PDFs da pasta de arquivos (Planilha Padrão e composições)
+PREFIXOS_SEOP = ("/sites/default/files/",)
 MAX_DOWNLOAD = 600_000_000            # o ZIP 2026 do TCE-RS tem 258 MB
 MAX_ENTRADAS = 50
 MAX_DESCOMPACTADO = 3_000_000_000
@@ -73,6 +75,9 @@ def url_permitida(url: str) -> bool:
         return partes.path.startswith(PREFIXOS_S3)
     if host == "www.caixa.gov.br":
         return partes.path.startswith(PREFIXOS_CAIXA) and not partes.query
+    if host == "seop.pa.gov.br":
+        return (partes.path.startswith(PREFIXOS_SEOP) and not partes.query
+                and partes.path.lower().endswith(".pdf"))
     return True
 
 
@@ -134,12 +139,13 @@ def baixar(url: str, destino: Path, *, abrir=None, dormir=time.sleep,
     raise RuntimeError("inalcançável")
 
 
-def conferir_zip(caminho: Path, *, extensoes: frozenset = EXTENSOES
-                 ) -> list[zipfile.ZipInfo]:
-    """As defesas, antes de ler qualquer byte de dentro."""
+def conferir_zip(caminho: Path, *, extensoes: frozenset = EXTENSOES,
+                 max_entradas: int = MAX_ENTRADAS) -> list[zipfile.ZipInfo]:
+    """As defesas, antes de ler qualquer byte de dentro. `max_entradas` só
+    sobe para publicação conhecida (a Tabela Unificada do SUS tem 87)."""
     with zipfile.ZipFile(caminho) as z:
         entradas = z.infolist()
-    if len(entradas) > MAX_ENTRADAS:
+    if len(entradas) > max_entradas:
         raise ArquivoRecusado("entradas demais no ZIP")
     total = 0
     for info in entradas:

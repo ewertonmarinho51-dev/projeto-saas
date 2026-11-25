@@ -206,6 +206,12 @@ SEQUENCIA_EM_ENSAIO = (
     # alcançam o controle da importação e que `service_role` nasce sem
     # DELETE/TRUNCATE: só vale depois das migrações de contenção.
     "0046_precos_sinapi_referencia.sql",
+    # A 0047 (referência SEOP-PA) confere o mesmo que a 0046 e o check que
+    # impede publicar sem aprovação: só vale depois da contenção.
+    "0047_precos_seop_referencia.sql",
+    # A 0048 (remuneração SUS, SIGTAP) confere o mesmo que a 0046: só vale
+    # depois das migrações de contenção.
+    "0048_precos_sigtap_referencia.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 

@@ -1644,6 +1644,22 @@ TABELAS_DA_REFERENCIA_SINAPI = frozenset({
     "precos_sinapi_versoes", "precos_sinapi_registros",
 })
 
+# As duas da 0047 (referência de custos da SEOP-PA, importação supervisionada),
+# escritas e cobertas pelo ensaio descartável (`tests/test_migracao_0047.py`),
+# NÃO aplicadas em produção. Matriz de RLS no arquivo da própria 0047, como a
+# da 0046: `authenticated` só lê os registros vigentes; as versões (com quem
+# aprovou) são da credencial de servidor.
+TABELAS_DA_REFERENCIA_SEOP_NAO_IMPLANTADAS = frozenset({
+    "precos_seop_versoes", "precos_seop_registros",
+})
+
+# As duas da 0048 (remuneração da Tabela Unificada do SUS, SIGTAP), pela
+# mesma regra: cobertas por `tests/test_migracao_0048.py`, NÃO aplicadas.
+# Dado público, sem tenant; `authenticated` só lê os procedimentos vigentes.
+TABELAS_DA_REFERENCIA_SIGTAP_NAO_IMPLANTADAS = frozenset({
+    "precos_sigtap_versoes", "precos_sigtap_procedimentos",
+})
+
 
 def test_o_inventario_cobre_todas_as_tabelas():
     """
@@ -1656,7 +1672,9 @@ def test_o_inventario_cobre_todas_as_tabelas():
     implantada fora da conta que a cobre; para mais, dando por
     implantado o que ainda não foi.
     """
-    nao_implantadas = TABELAS_WORDCRAFT_NAO_IMPLANTADAS
+    nao_implantadas = (TABELAS_WORDCRAFT_NAO_IMPLANTADAS
+                       | TABELAS_DA_REFERENCIA_SEOP_NAO_IMPLANTADAS
+                       | TABELAS_DA_REFERENCIA_SIGTAP_NAO_IMPLANTADAS)
     assert nao_implantadas <= set(TABELAS_PRIVADAS)
     assert TABELAS_DA_API <= set(TABELAS_PRIVADAS)
     assert len(set(TABELAS_PRIVADAS) - nao_implantadas) == TABELAS_EM_PRODUCAO, \
@@ -2001,7 +2019,11 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
                + (Path(__file__).resolve().parent.parent / "supabase/migrations"
                   / "0045_precos_pncp_fila.sql").read_text(encoding="utf-8")
                + (Path(__file__).resolve().parent.parent / "supabase/migrations"
-                  / "0046_precos_sinapi_referencia.sql").read_text(encoding="utf-8"))
+                  / "0046_precos_sinapi_referencia.sql").read_text(encoding="utf-8")
+               + (Path(__file__).resolve().parent.parent / "supabase/migrations"
+                  / "0047_precos_seop_referencia.sql").read_text(encoding="utf-8")
+               + (Path(__file__).resolve().parent.parent / "supabase/migrations"
+                  / "0048_precos_sigtap_referencia.sql").read_text(encoding="utf-8"))
     faltando = [t for t in TABELAS_PRIVADAS if t not in coberto]
     assert not faltando, f"sem matriz de RLS escrita: {faltando}"
 
@@ -2014,7 +2036,9 @@ def test_toda_tabela_privada_tem_matriz_de_rls_escrita():
                 | TABELAS_DO_INDICE_PNCP
                 | TABELAS_DO_INDICE_BPS
                 | TABELAS_DA_FILA_PNCP
-                | TABELAS_DA_REFERENCIA_SINAPI)
+                | TABELAS_DA_REFERENCIA_SINAPI
+                | TABELAS_DA_REFERENCIA_SEOP_NAO_IMPLANTADAS
+                | TABELAS_DA_REFERENCIA_SIGTAP_NAO_IMPLANTADAS)
     for tabela in sorted(set(TABELAS_PRIVADAS) - proprias):
         assert tabela in sql_0020, f"{tabela} saiu da matriz da 0020"
 
