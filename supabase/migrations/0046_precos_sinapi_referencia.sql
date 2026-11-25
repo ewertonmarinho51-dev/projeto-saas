@@ -11,7 +11,7 @@
 --   DEPOIS  58 tabelas; authenticated SELECT 48 (+1, os registros);
 --           service_role INSERT 55, UPDATE 52, DELETE 23 (inalterado),
 --           REFERENCES e TRIGGER 43 (inalterados); BPS com 10.755 vigentes.
---   A conferência `do $$` passou na aplicação.
+--   A conferência do fim do arquivo passou na aplicação.
 --   PENDENTE apontado pela revisão: numa retificação da CAIXA (mesma
 --   competência, SHA novo) o upsert por `registro_id` troca o valor de linha
 --   já vigente antes da publicação. Não afeta a primeira carga; vale também
