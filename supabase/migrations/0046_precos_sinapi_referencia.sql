@@ -1,7 +1,21 @@
 -- ## 0046 — Referência de custos SINAPI (CAIXA/IBGE), em consulta própria
--- ## ESTADO: NÃO APLICADA EM PRODUÇÃO. Aplicável; aguarda o ensaio nos dois
--- ##   níveis (o do CI roda em `tests/test_migracao_0046.py`), a revisão do
--- ##   `revisor-de-banco-e-seguranca` e a autorização do dono.
+-- ## ESTADO: APLICADA EM PRODUÇÃO em 23/11/2026 como
+-- ##   `m0046_precos_sinapi_referencia` (registro 20261123204508), a pedido
+-- ##   expresso do dono ("Sim, ativar SINAPI"), depois do ensaio com
+-- ##   PostgreSQL no CI (`tests/test_migracao_0046.py`, 24 mutações) e da
+-- ##   revisão do `revisor-de-banco-e-seguranca` (aprovada).
+--
+-- REGISTRO DA APLICAÇÃO EM PRODUÇÃO (23/11/2026):
+--   ANTES   56 tabelas em `public`; authenticated SELECT 47; service_role
+--           INSERT 53, UPDATE 50, DELETE 23; BPS com 10.755 vigentes.
+--   DEPOIS  58 tabelas; authenticated SELECT 48 (+1, os registros);
+--           service_role INSERT 55, UPDATE 52, DELETE 23 (inalterado),
+--           REFERENCES e TRIGGER 43 (inalterados); BPS com 10.755 vigentes.
+--   A conferência do fim do arquivo passou na aplicação.
+--   PENDENTE apontado pela revisão: numa retificação da CAIXA (mesma
+--   competência, SHA novo) o upsert por `registro_id` troca o valor de linha
+--   já vigente antes da publicação. Não afeta a primeira carga; vale também
+--   para o BPS (0044).
 --
 -- O PROBLEMA (23/11/2026)
 --   Obra e serviço de engenharia não se orçam com preço de compra: a Lei

@@ -37,7 +37,7 @@ requer_pg = pytest.mark.usefixtures("ensaio_sql")
 # ---------------------------------------------------------------------------
 def test_cabecalho_diz_o_estado():
     assert TEXTO.startswith("-- ## 0046 —")
-    assert "ESTADO: NÃO APLICADA EM PRODUÇÃO" in TEXTO
+    assert "ESTADO: APLICADA EM PRODUÇÃO em 23/11/2026" in TEXTO
     assert "O QUE ESTA MIGRAÇÃO NÃO RESOLVE" in TEXTO
     assert "CATEGORIA PRÓPRIA" in TEXTO
 
@@ -316,7 +316,7 @@ MUTACOES = [
 def test_a_conferencia_morde(banco, cenario, mutacao, denuncia):
     import psycopg
 
-    conferencia = TEXTO[TEXTO.index("do $$"):]
+    conferencia = TEXTO[TEXTO.rindex("do $$"):]
     with pytest.raises(psycopg.errors.RaiseException, match=denuncia):
         with banco.transaction(force_rollback=True), banco.cursor() as c:
             voltar_a_ser_servidor(c)
@@ -328,4 +328,4 @@ def test_a_conferencia_morde(banco, cenario, mutacao, denuncia):
 def test_a_conferencia_passa_no_estado_certo(banco, cenario):
     with banco.transaction(force_rollback=True), banco.cursor() as c:
         voltar_a_ser_servidor(c)
-        c.execute(TEXTO[TEXTO.index("do $$"):])
+        c.execute(TEXTO[TEXTO.rindex("do $$"):])
