@@ -473,6 +473,21 @@ def buscar_sinapi(termos: list[str], *, codigo: str | None = None,
     return resposta.data
 
 
+def buscar_seop(termos: list[str], *, codigo: str | None = None,
+                competencia: str | None = None, limite: int = 50) -> list[dict]:
+    """
+    Custos de referência da SEOP-PA no índice (0047), por código ou termos.
+    Lê com o JWT do usuário, pela RPC `precos_seop_buscar` — nenhuma chamada
+    externa; só o que foi aprovado e publicado é vigente.
+    """
+    resposta = _cliente().rpc("precos_seop_buscar", {
+        "p_termos": [str(t) for t in termos],
+        "p_codigo": str(codigo) if codigo else None,
+        "p_competencia": competencia or None,
+        "p_limite": int(limite)}).execute()
+    return resposta.data
+
+
 def buscar_sigtap(termos: list[str], *, codigo: str | None = None,
                   competencia: str | None = None, modalidade: str | None = None,
                   limite: int = 50) -> list[dict]:

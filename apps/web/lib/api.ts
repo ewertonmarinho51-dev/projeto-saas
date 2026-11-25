@@ -151,6 +151,29 @@ export type ReferenciaDeCusto = {
   arquivo_sha256: string;
 };
 
+/** Uma linha da Planilha Padrão da SEOP-PA, com a página do PDF oficial. */
+export type CustoSeop = {
+  registro_id: string;
+  codigo: string;
+  item: string;
+  descricao: string;
+  unidade: string;
+  valor: Valor;
+  grupo: string | null;
+  competencia: string;
+  competencia_exibicao: string;
+  bdi: string;
+  desoneracao: string;
+  natureza: string;
+  rotulo_natureza: string;
+  pagina: number;
+  pdf: string;
+  url_verificacao: string;
+  arquivo_sha256: string;
+};
+
+export type ConsultaSeop = { referencias: CustoSeop[]; fundamento: string; pagina_oficial: string };
+
 export type ConsultaDeCustos = {
   competencia: string | null;
   referencias: ReferenciaDeCusto[];

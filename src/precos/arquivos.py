@@ -31,11 +31,13 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 HOSTS_PERMITIDOS = frozenset({"dados.tce.rs.gov.br", "s3.sa-east-1.amazonaws.com",
-                              "www.caixa.gov.br", "www.gov.br"})
+                              "www.caixa.gov.br", "seop.pa.gov.br", "www.gov.br"})
 # no S3, só o bucket do CKAN da Saúde
 PREFIXOS_S3 = ("/ckan.saude.gov.br/",)
 # na CAIXA, só a pasta dos relatórios mensais do SINAPI
 PREFIXOS_CAIXA = ("/Downloads/sinapi-relatorios-mensais/",)
+# na SEOP-PA, só os PDFs da pasta de arquivos (Planilha Padrão e composições)
+PREFIXOS_SEOP = ("/sites/default/files/",)
 # no gov.br, só a árvore de relatórios do SICRO no portal do DNIT
 PREFIXOS_GOVBR = ("/dnit/pt-br/assuntos/planejamento-e-pesquisa/custos-referenciais/"
                   "sistemas-de-custos/sicro/relatorios/",)
@@ -76,6 +78,9 @@ def url_permitida(url: str) -> bool:
         return partes.path.startswith(PREFIXOS_S3)
     if host == "www.caixa.gov.br":
         return partes.path.startswith(PREFIXOS_CAIXA) and not partes.query
+    if host == "seop.pa.gov.br":
+        return (partes.path.startswith(PREFIXOS_SEOP) and not partes.query
+                and partes.path.lower().endswith(".pdf"))
     if host == "www.gov.br":
         # sem `..` nem nada codificado (`%2e%2e`): o portal normalizaria
         return (partes.path.startswith(PREFIXOS_GOVBR) and not partes.query

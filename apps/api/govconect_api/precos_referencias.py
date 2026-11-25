@@ -121,3 +121,96 @@ def rotas() -> APIRouter:
             fundamento=FUNDAMENTO, pagina_oficial=sinapi.URL_PAGINA)
 
     return r
+
+
+# ---------------------------------------------------------------------------
+# SEOP-PA — Planilha Padrão do Estado do Pará (0047)
+# ---------------------------------------------------------------------------
+FUNDAMENTO_SEOP = (
+    "Lei 14.133/2021, art. 23, § 3º: nas obras e serviços de engenharia, o ente "
+    "pode adotar outro sistema de custos, nas condições ali previstas — a "
+    "escolha é do orçamentista e fica registrada no processo. Planilha Padrão "
+    "da SEOP-PA publicada em PDF e importada sob conferência humana; valores "
+    "sem BDI e no regime de encargos que a própria publicação declara.")
+
+
+class CustoSeop(BaseModel):
+    """Uma linha da Planilha Padrão, com a página do PDF oficial."""
+
+    registro_id: str
+    codigo: str
+    item: str
+    descricao: str
+    unidade: str
+    valor: Valor
+    grupo: str | None
+    competencia: str              # AAAA-MM
+    competencia_exibicao: str     # "outubro/2026"
+    bdi: str                      # como a publicação diz: "SEM BDI"
+    desoneracao: str              # "SEM DESONERAÇÃO"
+    natureza: str                 # "custo_referencia_engenharia"
+    rotulo_natureza: str
+    pagina: int
+    pdf: str                      # endereço oficial do PDF
+    url_verificacao: str          # o PDF aberto na página da linha
+    arquivo_sha256: str
+
+
+class ConsultaSeop(BaseModel):
+    referencias: list[CustoSeop]
+    fundamento: str
+    pagina_oficial: str
+
+
+def _custo_seop(x: dict) -> CustoSeop | None:
+    valor = valor_monetario(x["valor"])
+    if valor is None:
+        return None
+    return CustoSeop(
+        registro_id=x["registro_id"], codigo=x["codigo"], item=x["item"],
+        descricao=x["descricao"], unidade=x["unidade"], valor=valor,
+        grupo=x.get("grupo"), competencia=x["competencia"],
+        competencia_exibicao=x["competencia_exibicao"], bdi=x.get("bdi") or "",
+        desoneracao=x.get("desoneracao") or "", natureza=x["natureza"],
+        rotulo_natureza=x["rotulo_natureza"], pagina=int(x["pagina"]),
+        pdf=x["url_arquivo"], url_verificacao=x["url_verificacao"],
+        arquivo_sha256=x["arquivo_sha256"])
+
+
+def rotas_seop() -> APIRouter:
+    r = APIRouter(prefix="/precos", tags=["precos"],
+                  dependencies=[Depends(exigir_precos_habilitado)])
+
+    @r.get("/referencias/seop", response_model=ConsultaSeop,
+           responses={404: {"description": "Consulta desligada"},
+                      422: {"description": "Filtro fora da regra"}})
+    def consultar_seop(
+            termo: str = Query(default="", max_length=300),
+            codigo: str | None = Query(default=None, pattern=r"^\d{6}$"),
+            competencia: str | None = Query(default=None,
+                                            pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+            limite: int = Query(default=50, ge=1, le=200),
+            eu: Identidade = Depends(exigir_identidade)) -> ConsultaSeop:
+        from src.precos import seop
+
+        try:
+            with sessao_da_requisicao(eu.token, eu.tenant_id):
+                try:
+                    ligada = db.flag_ativa(governanca.FLAG_REFERENCIA_SEOP_PA)
+                except Exception:  # noqa: BLE001 — flag ilegível não liga
+                    ligada = False
+                if not ligada:
+                    raise ErroApi(404, "MODULE_UNAVAILABLE",
+                                  "Consulta à SEOP-PA desligada")
+                achados = seop.consultar(repo.buscar_seop, termo=termo,
+                                         codigo=codigo, competencia=competencia,
+                                         limite=limite)
+        except ValueError as erro:
+            raise ErroApi(422, "VALIDATION_ERROR", str(erro)[:300]) from None
+        except db.ErroBanco as erro:
+            raise ErroApi(503, "DATABASE_UNAVAILABLE", str(erro)[:300]) from None
+        return ConsultaSeop(
+            referencias=[c for c in map(_custo_seop, achados) if c is not None],
+            fundamento=FUNDAMENTO_SEOP, pagina_oficial=seop.URL_PAGINA)
+
+    return r
