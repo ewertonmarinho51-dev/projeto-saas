@@ -139,7 +139,7 @@ def cenario(banco):
                 ("2026-09", SHA_C, "publicado", True, URL_09, "Ana Souza")):
             c.execute("insert into public.precos_seop_versoes (competencia, sha256, estado, "
                       "vigente, url, aprovado_por, aprovado_em) values (%s, %s, %s, %s, %s, %s, "
-                      "case when %s is null then null else now() end) on conflict do nothing",
+                      "case when %s::text is null then null else now() end) on conflict do nothing",
                       (comp, sha, estado, vigente, url, por, por))
         for ident, comp, sha, vigente, item, codigo, descricao, valor, pagina, url in LINHAS:
             c.execute(INSERIR, (ident, f"{comp}:{codigo}", comp, sha, vigente, item, codigo,
