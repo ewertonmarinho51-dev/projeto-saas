@@ -255,8 +255,8 @@ def test_servidor_importa_e_publica_a_lista_nova(banco, cenario):
      f"where sha256 = '{SHA_A}'", "23514"),
     # endereço e nome fora da publicação
     (f"update public.precos_cmed_versoes set url = 'https://exemplo.com/x' "
-    # `%%`: a consulta vai com parâmetros (vazios), e o psycopg lê `%` como marcador
      f"where sha256 = '{SHA_A}'", "23514"),
+    # `%%`: a consulta vai com parâmetros (vazios), e o psycopg lê `%` como marcador
     (f"update public.precos_cmed_registros set url_arquivo = '{PASTA}%%2e%%2e/x' "
      "where registro_id = 'c-1'", "23514"),
     (f"update public.precos_cmed_registros set url_arquivo = '{PASTA}../x' "
