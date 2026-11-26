@@ -208,12 +208,20 @@ def test_serie_de_tamanhos_misturados_vira_cesta_so_do_tamanho_pedido(monkeypatc
     ("ÁGUA MINERAL GARRAFÃO 20 LITROS (RECARGA)",
      "ÁGUA MINERAL NATURAL – ACONDICIONADA EM EMBALAGEM RETORNÁVEL (GARRAFÃO) DE 20 LITROS, "
      "COM LACRE DE SEGURANÇA PERSONALIZADO PELO FABRICANTE", "equivalente"),
+    # martelo de bola não é martelo de unha (auditoria do lote B)
+    ("MARTELO UNHA 27MM COM CABO DE MADEIRA",
+     "Martelo material: aço forjado, material cabo: madeira, tipo: bola", "incompativel"),
+    ("MARTELO UNHA 27MM COM CABO DE MADEIRA",
+     "Martelo material: ferro, material cabo: madeira, tamanho: 27, tipo: unha", None),
     # caneta indicador laser não é caneta esferográfica
     ("CANETA ESFEROGRÁFICA AZUL", "Caneta - Indicador material: alumínio, tipo indicador: laser",
      "incompativel"),
 ])
 def test_rodada_2_especificacoes_do_lote_real(item, fonte, classe):
     r = equivalencia.classificar(item, fonte, semelhanca=Decimal("0.5"))
+    if classe is None:          # sem atributo a comprovar: decide a redação
+        assert r is None or r.classe != "incompativel", r and r.explicacao
+        return
     assert r is not None and r.classe == classe, r and r.explicacao
 
 

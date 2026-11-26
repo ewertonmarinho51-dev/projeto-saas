@@ -1,0 +1,1479 @@
+{
+ "lote": "Lote B — reservado para validação (26/11/2026)",
+ "data_corte": "2026-11-26",
+ "perfil": "lei_14133",
+ "versoes": {
+  "barreira_cv": "2026-11-26.cv-abaixo-de-25",
+  "equivalencia": "2026-11-26.equivalencia.3"
+ },
+ "medido_em": "2026-11-26T03:55:01+00:00",
+ "itens": 20,
+ "processados": 20,
+ "prontos": 4,
+ "taxa": 0.2,
+ "desfechos": {
+  "revisar_cv": 8,
+  "pronto_para_revisao": 4,
+  "revisar_similaridade": 4,
+  "revisar_atipico": 1,
+  "amostra_insuficiente": 2,
+  "sem_referencia_compativel": 1
+ },
+ "primeira_proposta_s": 0.2,
+ "duracao_s": 2.5,
+ "chamadas_rede": {
+  "compras_gov_itens": 0,
+  "pncp": 0
+ },
+ "recorte": {
+  "da_rede": 0,
+  "do_recorte": 56
+ },
+ "por_item": [
+  {
+   "numero": 1,
+   "descricao": "ARGAMASSA COLANTE TIPO AC 3, SACO DE 20KG",
+   "unidade": "SACO",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 6,
+   "brutas": 120,
+   "cv": "44,33%",
+   "segundos": 0.1,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos quimicos, cor: branca, tipo: ",
+     "status": "manual_review",
+     "valor": "67.6",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos, aplicação: assentamento de c",
+     "status": "manual_review",
+     "valor": "46.12",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos quimicos, cor: branca, tipo: ",
+     "status": "manual_review",
+     "valor": "24.0",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos quimicos, cor: branca, tipo: ",
+     "status": "manual_review",
+     "valor": "23.9",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa Argamassa, Composição:Cimento, Agregados Minerais E Aditivos, Aplicação:Assentam",
+     "status": "manual_review",
+     "valor": "43.3",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos quimicos, cor: branca, tipo: ",
+     "status": "candidate",
+     "valor": "17.83",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregado natural e aditivos, cor: branca, tipo: rejunte ",
+     "status": "manual_review",
+     "valor": "7.5",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 7,50 contra mediana de R$"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregado natural e aditivos, cor: bege, tipo: rejunte ",
+     "status": "manual_review",
+     "valor": "6.62",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 6,62 contra mediana de R$"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, calcário e aditivos, características adicionais: antifungos",
+     "status": "manual_review",
+     "valor": "9.58",
+     "motivo": "similar para revisão — a fonte não comprova: massa 20 kg — disponível para inclusão manual, com o comparativo"
+    },
+    {
+     "descricao": "Argamassa composição: cimento portland, areia de quartzo e aditivos espe, cor: cinza, tipo",
+     "status": "manual_review",
+     "valor": "94.63",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 94,63 contra mediana de R"
+    }
+   ]
+  },
+  {
+   "numero": 2,
+   "descricao": "BUCHA DE NYLON SEM ABA S10, COM PARAFUSO",
+   "unidade": "UNIDADE",
+   "desfecho": "pronto_para_revisao",
+   "pronto": true,
+   "preco": "0.83",
+   "na_cesta": 4,
+   "elegiveis": 4,
+   "brutas": 212,
+   "cv": "19,04%",
+   "segundos": 0.1,
+   "cesta": [
+    {
+     "fonte": "pncp",
+     "id": "02321891000103-1-000180/2026#247#1",
+     "descricao": "BUCHA DE NYLON SEM ABA S10, COM PARAFUSO DE 6,10 X 65 MM EM ACO ZINCADO COM ROSCA SOBERBA, CABECA CHATA E FENDA PHILLIPS",
+     "unidade": "UN",
+     "valor": "0.89",
+     "link": "02321891000103-1-000180/2026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "18025973000140-1-000070/2026#49#1",
+     "descricao": "BUCHA DE NYLON SEM ABA S10, COM PARAFUSO DE 6,10 X 65 MM EM AÇO ZINCADO, CABEÇA CHATA, FENDA PHILLIPS - Conjunto compost",
+     "unidade": "Unidade",
+     "valor": "0.83",
+     "link": "18025973000140-1-000070/2026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "25107525000151-1-000202/2026#38#1",
+     "descricao": "BUCHA DE NYLON SEM ABA S10, COM PARAFUSO DE 6,10 X 65 MM EM ACO ZINCADO COM ROSCA SOBERBA, CABECA CHATA E FENDA PHILLIPS",
+     "unidade": "Unidade",
+     "valor": "0.98",
+     "link": "25107525000151-1-000202/2026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "12671814000137-1-000099/2025#55#1",
+     "descricao": "BUCHA de nylon sem aba S10, com parafuso de 6,10 x 65 mm em aço zincado com rosca soberba, cabeça chata e fenda Philips ",
+     "unidade": "Un",
+     "valor": "0.61",
+     "link": "12671814000137-1-000099/2025"
+    }
+   ],
+   "fora": [
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA S10",
+     "status": "manual_review",
+     "valor": "0.19",
+     "motivo": "requer revisão (triagem pré-cesta): variação relevante a conferir; preço de R$ 0,19 contra mediana de R$ 0,72 entre 11 preço(s) comparável(is) do item; razão 0,"
+    },
+    {
+     "descricao": "Bucha Parafuso Bucha Parafuso, Material:Pvc, Tamanho:S-10 Bucha S10 com anel. Bucha de Nyl",
+     "status": "rejected",
+     "valor": "6.82",
+     "motivo": "desconsiderada pelo Jev antes da cesta: preço extremo frente a 7 referências comparáveis de 6 origens independentes que corroboram a faixa; preço de R$ 6,82 con"
+    },
+    {
+     "descricao": "BUCHA PARAFUSO, MATERIAL NÁILON, COMPRIMENTO 5 CM, ESPESSURA 8 MM",
+     "status": "manual_review",
+     "valor": "0.1251",
+     "motivo": "preço convertido de CAIXA para UNIDADE pelo fator 100.0 informado pela fonte"
+    },
+    {
+     "descricao": "Bucha Parafuso material: náilon, tamanho: 8, características adicionais: dimensões 35 x 11",
+     "status": "manual_review",
+     "valor": "0.28",
+     "motivo": "preço convertido de CAIXA para UNIDADE pelo fator 100.0 informado pela fonte"
+    },
+    {
+     "descricao": "Bucha Parafuso material: náilon, tamanho: s-8 ",
+     "status": "manual_review",
+     "valor": "0.0251",
+     "motivo": "preço convertido de CAIXA para UNIDADE pelo fator 100.0 informado pela fonte"
+    }
+   ]
+  },
+  {
+   "numero": 3,
+   "descricao": "CABO FLEXÍVEL PVC 750 V, 3 CONDUTORES DE 1,5 MM2",
+   "unidade": "METRO",
+   "desfecho": "revisar_similaridade",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 0,
+   "brutas": 206,
+   "cv": null,
+   "segundos": 0.3,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "Cabo Elétrico Flexível tipo: tripolar chato, cor da cobertura: preta, tensão isolamento: 7",
+     "status": "manual_review",
+     "valor": "79.99",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 79,99 contra mediana de R"
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível aplicação: instalação elétrica, classe encordoamento: 4, cor da cob",
+     "status": "manual_review",
+     "valor": "3.99",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (instalação); preço de R$ 3,99 contra mediana de R$ 13,00 entre 30 preço(s) "
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível tipo: unipolar, cor da cobertura: preto, branco, vermelho, azul cla",
+     "status": "manual_review",
+     "valor": "1.49",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 1,49 contra mediana de R$ 13,00 entre 30 preço(s) c"
+    },
+    {
+     "descricao": "CABO ELÉTRICO FLEXÍVEL COR DA COBERTURA: BRANCA, MATERIAL DO CONDUTOR: COBRE ELETROLÍTICO,",
+     "status": "manual_review",
+     "valor": "1.2",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 1,20 contra mediana de R$"
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível cor da cobertura: verde, material do condutor: cobre eletrolítico, ",
+     "status": "manual_review",
+     "valor": "2.18",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 2,18 contra mediana de R$"
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível cor da cobertura: vermelha, material do condutor: cobre eletrolític",
+     "status": "rejected",
+     "valor": "3.99",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:7953200600053202600005 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "CABO ELÉTRICO FLEXÍVEL CLASSE ENCORDOAMENTO: 5, COR DA ISOLAÇÃO: PRETA, MATERIAL DO CONDUT",
+     "status": "rejected",
+     "valor": "15.0",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:7953200600052202600001 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível tipo: anti-chama, aplicação: instalação elétrica, têmpera condutor:",
+     "status": "rejected",
+     "valor": "4.9",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:9893110500006202600073 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "CABO ELÉTRICO FLEXÍVEL APLICAÇÃO: MANUTENÇÃO ELÉTRICA, CARACTERÍSTICAS ADICIONAIS: CERTIFI",
+     "status": "rejected",
+     "valor": "3.99",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:7953200600053202600005 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível aplicação: instalação elétrica, bitola: 2,5, cor da cobertura: pret",
+     "status": "rejected",
+     "valor": "2.18",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:7953200600053202600004 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível tipo: anti-chama, aplicação: instalação elétrica, têmpera condutor:",
+     "status": "manual_review",
+     "valor": "2.37",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (instalação); preço de R$ 2,37 contra mediana de R$ 13,00 entre 30 preço(s) "
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível aplicação: instalação elétrica, têmpera condutor: mole, cor da cobe",
+     "status": "rejected",
+     "valor": "25.95",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:3802090600100202600012 — contada uma vez na estatística; registro "
+    }
+   ]
+  },
+  {
+   "numero": 4,
+   "descricao": "CAIXA D'AGUA EM POLIETILENO 1000 LITROS, COM TAMPA",
+   "unidade": "UNIDADE",
+   "desfecho": "pronto_para_revisao",
+   "pronto": true,
+   "preco": "424.73",
+   "na_cesta": 4,
+   "elegiveis": 4,
+   "brutas": 204,
+   "cv": "3,55%",
+   "segundos": 0.1,
+   "cesta": [
+    {
+     "fonte": "compras_gov_precos",
+     "id": "9867130500121202600057",
+     "descricao": "Caixa D'Água material: polietileno, tipo: redondo, capacidade: 1.000, características adicionais: com tampa e trava de s",
+     "unidade": "UN",
+     "valor": "443.46",
+     "link": "98671305001212026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "1580090500313202600024",
+     "descricao": "Caixa D'Água material: polietileno, tipo: redondo, capacidade: 1.000, características adicionais: com tampa CAIXA D'ÁGUA",
+     "unidade": "UN",
+     "valor": "430.0",
+     "link": "15800905003132026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "13107180000157-1-000093/2026#19#1",
+     "descricao": "caixa dagua de polietileno. Especificação: caixa dagua de polietileno, capacidade 1000 litros com tampas",
+     "unidade": "UND",
+     "valor": "410.0",
+     "link": "13107180000157-1-000093/2026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "9860010501456202600022",
+     "descricao": "Caixa D'Água capacidade: 1.000, características adicionais: tampa torneira de boia ½”, 4 filtros de tratamento, material",
+     "unidade": "UN",
+     "valor": "415.46",
+     "link": "98600105014562026"
+    }
+   ],
+   "fora": [
+    {
+     "descricao": "Caixa Caixa Material: Aço Inoxidável, Comprimento: 28CM, Largura: 14CM, Altura: 6CM, Carac",
+     "status": "rejected",
+     "valor": null,
+     "motivo": "unidade da referência não consta do dicionário de unidades — conversão não tentada"
+    }
+   ]
+  },
+  {
+   "numero": 5,
+   "descricao": "COLHER DE PEDREIRO 8 POL. COM CANTO OVAL",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 19,
+   "brutas": 209,
+   "cv": "32,06%",
+   "segundos": 0.1,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "COLHER PEDREIRO, MATERIAL AÇO TEMPERADO E REVENIDO, TAMANHO 8 POL, MATERIALCABO MADEIRA NO",
+     "status": "manual_review",
+     "valor": "22.97",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "Colher Pedreiro material: aço carbono, tamanho: 8, material cabo: madeira envernizada, car",
+     "status": "manual_review",
+     "valor": "15.97",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "COLHER PEDREIRO, MATERIAL AÇO CARBONO, TAMANHO 8 POL, MATERIAL CABO MADEIRAENVERNIZADA, CA",
+     "status": "manual_review",
+     "valor": "6.8",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 32,06%, não abaixo de 25%"
+    },
+    {
+     "descricao": "COLHER PEDREIRO, MATERIAL AÇO CARBONO, TAMANHO 8 POL, MATERIAL CABO MADEIRAENVERNIZADA, CA",
+     "status": "manual_review",
+     "valor": "9.48",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 32,06%, não abaixo de 25%"
+    },
+    {
+     "descricao": "COLHER PEDREIRO, MATERIAL AÇO CARBONO, TAMANHO 8 POL, MATERIAL CABO MADEIRAENVERNIZADA, CA",
+     "status": "manual_review",
+     "valor": "8.24",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 32,06%, não abaixo de 25%"
+    },
+    {
+     "descricao": "Colher Pedreiro Colher Pedreiro, Material:Aço Carbono, Tamanho:8 POL, Material Cabo:Madeir",
+     "status": "manual_review",
+     "valor": "15.2",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Colher Pedreiro características adicionais: canto arredondado, material: aço carbono, mate",
+     "status": "candidate",
+     "valor": "12.42",
+     "motivo": "comparabilidade 36% abaixo do piso automático — disponível para inclusão manual"
+    },
+    {
+     "descricao": "COLHER PEDREIRO, MATERIAL AÇO SAE 1010, TAMANHO 8 POL, MATERIAL CABO MADEIRA,CARACTERÍSTIC",
+     "status": "candidate",
+     "valor": "7.56",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Colher Pedreiro Colher Pedreiro, Material:Aço Carbono, Tamanho:8 POL, Material Cabo:Madeir",
+     "status": "candidate",
+     "valor": "8.27",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Colher Pedreiro características adicionais: reta - inteiriça, material: aço carbono, mater",
+     "status": "candidate",
+     "valor": "28.67",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Colher Pedreiro material: aço sae 1010, tamanho: 8, material cabo: madeira, característica",
+     "status": "candidate",
+     "valor": "10.56",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Colher Pedreiro material: aço carbono, tamanho: 8, material cabo: madeira, características",
+     "status": "candidate",
+     "valor": "11.48",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    }
+   ]
+  },
+  {
+   "numero": 6,
+   "descricao": "MARTELO UNHA 27MM COM CABO DE MADEIRA",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_atipico",
+   "pronto": false,
+   "preco": "28.44",
+   "na_cesta": 5,
+   "elegiveis": 40,
+   "brutas": 111,
+   "cv": "18,64%",
+   "segundos": 0.0,
+   "cesta": [
+    {
+     "fonte": "compras_gov_precos",
+     "id": "4636240500059202600001",
+     "descricao": "Martelo material: aço forjado, material cabo: madeira marfim, peso: 576, tipo: unha, tamanho: 27 MARTELO UNHA 27MM. Cara",
+     "unidade": "UN",
+     "valor": "36.5",
+     "link": "46362405000592026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "08085318000124-1-000145/2026#5418#1",
+     "descricao": "MARTELO UNHA 27MM. ",
+     "unidade": "un",
+     "valor": "23.65",
+     "link": "08085318000124-1-000145/2026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "82925025000160-1-000107/2026#494#1",
+     "descricao": "MARTELO UNHA 27MM CABO FIBRA",
+     "unidade": "UNIDADE",
+     "valor": "31.03",
+     "link": "82925025000160-1-000107/2026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "9269820500005202600075",
+     "descricao": "Martelo material: ferro, material cabo: madeira, tamanho: 25, tipo: unha Martelo - Tipo: unha; Tamanho: 25 mm; Cabo:\nmad",
+     "unidade": "UN",
+     "valor": "26.0",
+     "link": "92698205000052026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "9269820500005202600187",
+     "descricao": "Martelo material: ferro, material cabo: madeira, tipo: unha, tamanho: 25 Martelo - Tipo: unha; Tamanho: 25 mm; Cabo:\nmad",
+     "unidade": "UN",
+     "valor": "25.0",
+     "link": "92698205000052026"
+    }
+   ],
+   "fora": [
+    {
+     "descricao": "MARTELO, MATERIAL AÇO CARBONO, MATERIAL CABO MADEIRA, TIPO FERRADOR",
+     "status": "manual_review",
+     "valor": "120.0",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 120,00 contra mediana de "
+    },
+    {
+     "descricao": "Martelo Unha 27mm Cabo em Polímero",
+     "status": "manual_review",
+     "valor": "57.84",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "Martelo material: aço carbono, material cabo: madeira, tipo: ferrador ",
+     "status": "manual_review",
+     "valor": "108.49",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 108,49 contra mediana de "
+    },
+    {
+     "descricao": "Martelo material: aço carbono, material cabo: madeira, tipo: ferrador ",
+     "status": "manual_review",
+     "valor": "650.0",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 650,00 contra mediana de "
+    },
+    {
+     "descricao": "MARTELO UNHA 27MM EM AÇO COM CABO EMBORRACHADO. ",
+     "status": "candidate",
+     "valor": "27.59",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Martelo material: ferro, material cabo: madeira, tamanho: 25, tipo: unha ",
+     "status": "candidate",
+     "valor": "21.91",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Martelo de unha, 27mm cromado Cabo de madeira Aço SAE 1045/1050 forjado e temperado",
+     "status": "candidate",
+     "valor": "23.0",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "MARTELO, MATERIAL AÇO FORJADO, MATERIAL CABO MADEIRA MARFIM, TIPO UNHA,TAMANHO 29 MM",
+     "status": "candidate",
+     "valor": "22.61",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "MARTELO, MATERIAL AÇO FORJADO, MATERIAL CABO MADEIRA MARFIM, TIPO UNHA,TAMANHO 29 MM",
+     "status": "candidate",
+     "valor": "18.32",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "MARTELO, MATERIAL AÇO CARBONO, MATERIAL CABO MADEIRA, TIPO UNHA, TAMANHO 20 MM",
+     "status": "candidate",
+     "valor": "13.94",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Martelo Martelo, Material:Ferro, Material Cabo:Madeira, Peso:300 G, Tipo:Unha, Tamanho:18 ",
+     "status": "candidate",
+     "valor": "27.4",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Martelo material: aço forjado, material cabo: madeira marfim, tipo: unha, tamanho: 29 ",
+     "status": "candidate",
+     "valor": "54.15",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    }
+   ]
+  },
+  {
+   "numero": 7,
+   "descricao": "TUBO PVC SOLDÁVEL 25MM ÁGUA FRIA, BARRA 6 M",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 47,
+   "brutas": 117,
+   "cv": "37,86%",
+   "segundos": 0.1,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "Tubo PVC soldável DN 20 mm: Barra de 6 m.",
+     "status": "manual_review",
+     "valor": "14.0",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — poucos preços e muito distantes entre si —"
+    },
+    {
+     "descricao": "Tubo PVC soldável DN 25 mm: Barra de 6 m.",
+     "status": "manual_review",
+     "valor": "20.0",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — poucos preços e muito distantes entre si —"
+    },
+    {
+     "descricao": "Tubo Pvc Soldável Tubo Pvc Soldável, Aplicação:Hidráulica, Cor:Marrom, Diâmetro Nominal:75",
+     "status": "manual_review",
+     "valor": "139.12",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 139,12 contra mediana de "
+    },
+    {
+     "descricao": "Tubo Pvc Soldável aplicação: instalações prediais água fria, características adicionais: p",
+     "status": "manual_review",
+     "valor": "44.6",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 37,86% acima de 25%"
+    },
+    {
+     "descricao": "Tubo Pvc Soldável aplicação: instalações prediais água fria, características adicionais: p",
+     "status": "manual_review",
+     "valor": "28.95",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 37,86% acima de 25%"
+    },
+    {
+     "descricao": "Tubo Pvc Soldável aplicação: instalações prediais água fria, características adicionais: p",
+     "status": "manual_review",
+     "valor": "57.9",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 37,86% acima de 25%"
+    },
+    {
+     "descricao": "Tubo Pvc Soldável aplicação: instalações prediais água fria, características adicionais: p",
+     "status": "manual_review",
+     "valor": "14.38",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — poucos preços e muito distantes entre si —"
+    },
+    {
+     "descricao": "Tubo Pvc Soldável Tubo Pvc Soldável, Aplicação:Hidráulica, Cor:Marrom, Diâmetro Nominal:60",
+     "status": "manual_review",
+     "valor": "87.65",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — poucos preços e muito distantes entre si —"
+    },
+    {
+     "descricao": "Tubo Pvc Soldável aplicação: hidráulica, cor: marrom, diâmetro nominal: 110, comprimento: ",
+     "status": "manual_review",
+     "valor": "383.71",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 383,71 contra mediana de "
+    },
+    {
+     "descricao": "Tubo Pvc Soldável aplicação: instalações prediais água fria, cor: marrom, diâmetro nominal",
+     "status": "manual_review",
+     "valor": "37.99",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 37,86% acima de 25%"
+    },
+    {
+     "descricao": "Tubo Pvc Soldável Tubo Pvc Soldável, Aplicação:Instalações Prediais Água Fria, Diâmetro No",
+     "status": "manual_review",
+     "valor": "20.51",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 37,86% acima de 25%"
+    },
+    {
+     "descricao": "Tubo Pvc Soldável aplicação: instalações prediais água fria, diâmetro nominal: 110, compri",
+     "status": "manual_review",
+     "valor": "718.03",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (instalação); preço de R$ 718,03 contra mediana de R$ 35,71 entre 47 preço(s"
+    }
+   ]
+  },
+  {
+   "numero": 8,
+   "descricao": "DISCO DE CORTE PARA METAL 7 POL",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 6,
+   "brutas": 204,
+   "cv": "42,68%",
+   "segundos": 0.1,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "DISCO DE CORTE ACO 7\" X 1/8\" X 7/8\" DUAS TELAS.\r\nDISCO DE CORTE ACO 7\" X 1/8\" X 7/8\" DUAS ",
+     "status": "manual_review",
+     "valor": "8.55",
+     "motivo": "comparabilidade 31% abaixo do piso automático — disponível para inclusão manual"
+    },
+    {
+     "descricao": "DISCO CORTE, MATERIAL ÓXIDO DE ALUMÍNIO E FIBRA DE VIDRO, DIÂMETRO 7 POL,DIÂMETRO FURO 7/8",
+     "status": "manual_review",
+     "valor": "6.05",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 49,10% acima de 25%"
+    },
+    {
+     "descricao": "Disco Corte Disco Corte, Material:Óxido Alumínio, Diâmetro:4-1/2 POL, Diâmetro Furo:7/8 PO",
+     "status": "manual_review",
+     "valor": "3.3",
+     "motivo": "comparabilidade 42% abaixo do piso automático — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Disco Corte material: óxido alumínio, diâmetro: 180, diâmetro furo: 22,20, aplicação: cort",
+     "status": "manual_review",
+     "valor": "3.19",
+     "motivo": "comparabilidade 27% abaixo do piso automático — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Disco Corte material: aço/acero - inox, especificação: cortes rápidos e precisos em outros",
+     "status": "manual_review",
+     "valor": "4.9",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 49,10% acima de 25%"
+    },
+    {
+     "descricao": "Disco Corte referência: l/021-145, aplicação: máquina de encher ampola, marzocchi, modelo ",
+     "status": "candidate",
+     "valor": "3.48",
+     "motivo": "comparabilidade 25% abaixo do piso automático — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Disco Corte aplicação: corte de ferro, características adicionais: corte a seco, diâmetro:",
+     "status": "manual_review",
+     "valor": "13.73",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — poucos preços e muito distantes entre si —"
+    }
+   ]
+  },
+  {
+   "numero": 9,
+   "descricao": "LÁPIS PRETO Nº 2",
+   "unidade": "UNIDADE",
+   "desfecho": "pronto_para_revisao",
+   "pronto": true,
+   "preco": "0.30",
+   "na_cesta": 5,
+   "elegiveis": 95,
+   "brutas": 200,
+   "cv": "15,95%",
+   "segundos": 0.1,
+   "cesta": [
+    {
+     "fonte": "compras_gov_precos",
+     "id": "3641020500111202600020",
+     "descricao": "LÁPIS PRETO DUREZA CARGA: 2, FORMATO CORPO: SEXTAVADO, MATERIAL CARGA: GRAFITE PRETO Nº2, MATERIAL CORPO: MADEIRA LÁPIS ",
+     "unidade": "UN",
+     "valor": "0.26",
+     "link": "36410205001112026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "1586580590024202500011",
+     "descricao": "LÁPIS PRETO, MATERIAL CORPO RESINA TERMOPLÁSTICA, DIÂMETRO CARGA 2 MM, DUREZACARGA 2B",
+     "unidade": "UN",
+     "valor": "0.34",
+     "link": "15865805900242025"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "1581240600807202600020",
+     "descricao": "Lápis Preto material corpo: madeira, diâmetro carga: 2, dureza carga: hb, formato corpo: cilíndrico, material carga: gra",
+     "unidade": "UN",
+     "valor": "0.25",
+     "link": "15812406008072026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "9266410500032202600030",
+     "descricao": "Lápis Preto dureza carga: hb, material carga: grafite nº 2, material corpo: poliestireno reciclado Em caso de discordânc",
+     "unidade": "UN",
+     "valor": "0.3",
+     "link": "92664105000322026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "1559100500031202600043",
+     "descricao": "Lápis Preto material corpo: madeira, dureza carga: hb, formato corpo: sextavado, características adicionais: envernizado",
+     "unidade": "UN",
+     "valor": "0.36",
+     "link": "15591005000312026"
+    }
+   ],
+   "fora": [
+    {
+     "descricao": "Lápis Preto material corpo: madeira, diâmetro carga: 2, dureza carga: hb, formato corpo: s",
+     "status": "manual_review",
+     "valor": "0.19",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 0,19 contra mediana de R$"
+    },
+    {
+     "descricao": "LÁPIS PRETO, MATERIAL CORPO MADEIRA, DUREZA CARGA HB, CARACTERÍSTICASADICIONAIS Nº 2, MATE",
+     "status": "manual_review",
+     "valor": "0.96",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "Lápis Preto material corpo: madeira, diâmetro carga: 2, dureza carga: 4b, características ",
+     "status": "manual_review",
+     "valor": "0.15",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 0,15 contra mediana de R$ 0,60 entre 86 preço(s) co"
+    },
+    {
+     "descricao": "Lápis Preto material corpo: madeira de manejo sustentável, diâmetro carga: 2, dureza carga",
+     "status": "manual_review",
+     "valor": "1.4",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "Lápis Preto material corpo: madeira, diâmetro carga: 2, dureza carga: hb, formato corpo: c",
+     "status": "manual_review",
+     "valor": "0.18",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 0,18 contra mediana de R$ 0,60 entre 86 preço(s) co"
+    },
+    {
+     "descricao": "LÁPIS PRETO, MATERIAL CORPO MADEIRA, DIÂMETRO CARGA 2 MM, DUREZA CARGA 2B,CARACTERÍSTICAS ",
+     "status": "candidate",
+     "valor": "0.22",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Lápis Preto material corpo: madeira, dureza carga: hb, características adicionais: nº 2, m",
+     "status": "candidate",
+     "valor": "0.32",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Lápis Preto material corpo: madeira, diâmetro carga: 2, dureza carga: hb, formato corpo: c",
+     "status": "candidate",
+     "valor": "0.98",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Lápis Preto material corpo: madeira de manejo sustentável, diâmetro carga: 2, dureza carga",
+     "status": "candidate",
+     "valor": "0.5",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Lápis Preto material corpo: madeira, diâmetro carga: 2, dureza carga: 6b, características ",
+     "status": "manual_review",
+     "valor": "19.12",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 19,12 contra mediana de R$ 0,60 entre 86 preço(s) c"
+    },
+    {
+     "descricao": "Lápis Preto material corpo: madeira, dureza carga: 2, formato corpo: sextavado, material c",
+     "status": "candidate",
+     "valor": "0.97",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Lápis Preto características adicionais: com borracha apagadora, diâmetro carga: 2, dureza ",
+     "status": "candidate",
+     "valor": "0.22",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    }
+   ]
+  },
+  {
+   "numero": 10,
+   "descricao": "BORRACHA BRANCA ESCOLAR",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 16,
+   "brutas": 50,
+   "cv": "27,74%",
+   "segundos": 0.0,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "BORRACHA BRANCA   PLÁSTICA FORMATO RETANGULAR MEDINDO 43X22X12MM NO MÍNIMO, CAIXA COM 40 U",
+     "status": "manual_review",
+     "valor": "11.0",
+     "motivo": "comparabilidade 41% abaixo do piso automático — disponível para inclusão manual"
+    },
+    {
+     "descricao": "75.10.00.00185576-0\n\n\"BORRACHA, para apagar escrita a lápis, cor branca, macia, dimensão m",
+     "status": "manual_review",
+     "valor": "0.73",
+     "motivo": "comparabilidade 15% abaixo do piso automático — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Borracha Amortecedor aplicação: fiat cronnos ano 2022/2023, referência fabricante: gp33266",
+     "status": "manual_review",
+     "valor": "239.0",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 27,74% acima de 25%"
+    },
+    {
+     "descricao": "BORRACHA AMORTECEDOR, APLICAÇÃO VEÍCULO VW/GOL AP 1.6/ANO 1996, USO SUSPENSÃODIANTEIRA, TI",
+     "status": "manual_review",
+     "valor": "25.0",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 25,00 contra mediana de R"
+    },
+    {
+     "descricao": "BORRACHA AMORTECEDOR, REFERÊNCIA FABRICANTE CXC04130, APLICAÇÃO GM/SPIN LT 1.88V 2016/2016",
+     "status": "manual_review",
+     "valor": "375.18",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "BORRACHA AMORTECEDOR, REFERÊNCIA FABRICANTE CXC04130, APLICAÇÃO GM/SPIN LT 1.88V 2016/2016",
+     "status": "manual_review",
+     "valor": "45.01",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 45,01 contra mediana de R"
+    },
+    {
+     "descricao": "BORRACHA AMORTECEDOR, REFERÊNCIA FABRICANTE CXC04130, APLICAÇÃO GM/SPIN LT 1.88V 2016/2016",
+     "status": "manual_review",
+     "valor": "223.0",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 27,74% acima de 25%"
+    },
+    {
+     "descricao": "Borracha Amortecedor aplicação: fiat cronnos ano 2022/2023, referência fabricante: gp33266",
+     "status": "manual_review",
+     "valor": "265.0",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 27,74% acima de 25%"
+    },
+    {
+     "descricao": "Borracha Amortecedor aplicação: fiat cronnos ano 2022/2023, referência fabricante: gp33266",
+     "status": "manual_review",
+     "valor": "15.3",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 15,30 contra mediana de R"
+    },
+    {
+     "descricao": "Borracha Amortecedor referência fabricante: 0441130, aplicação: veículo cruze ano 2017, us",
+     "status": "manual_review",
+     "valor": "1030.0",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 1.030,00 contra mediana d"
+    },
+    {
+     "descricao": "Borracha Amortecedor referência fabricante: 334534mm 55837x, aplicação: renault kwid 1.0 2",
+     "status": "manual_review",
+     "valor": "80.4",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "BORRACHA AMORTECEDOR, REFERÊNCIA FABRICANTE CXC04130, APLICAÇÃO GM/SPIN LT 1.88V 2016/2016",
+     "status": "manual_review",
+     "valor": "139.0",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 27,74% acima de 25%"
+    }
+   ]
+  },
+  {
+   "numero": 11,
+   "descricao": "PASTA SUSPENSA MARMORIZADA",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 37,
+   "brutas": 212,
+   "cv": "32,34%",
+   "segundos": 0.1,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "PASTA SUSPENSA C/ ETIQUETA + VISOR PLÁSTICO     (MARMORIZADA)",
+     "status": "manual_review",
+     "valor": "2.09",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 2,09 contra mediana de R$"
+    },
+    {
+     "descricao": "PASTA SUSPENSA MARMORIZADA PLÁSTICO, COM VISOR PLÁSTICO COM ETIQUETA. PARA ARQUIVAR OU ORG",
+     "status": "manual_review",
+     "valor": "1.96",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 1,96 contra mediana de R$"
+    },
+    {
+     "descricao": "PASTA SUSPENSA MARMORIZADA PLASTIFICADA. LARGURA 360 MM, ALTURA 285, COM VISOR, CAPA. PAPE",
+     "status": "manual_review",
+     "valor": "74.88",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 32,34% acima de 25%"
+    },
+    {
+     "descricao": "PASTA SUSPENSA,MARMORIZADA PLASTIFICADA QUALLTY HASTE DE METAL, VISOR PLASTICO COM ETIQUET",
+     "status": "manual_review",
+     "valor": "2.94",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 2,94 contra mediana de R$"
+    },
+    {
+     "descricao": "Pasta Abrasiva tamanho grão: 10 a 20 micron, aplicação: polimento resina composta, caracte",
+     "status": "manual_review",
+     "valor": "10.0",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "Pasta Abrasiva Pasta Abrasiva, Apresentação:Grãos, Tamanho Grão:1 A 2 Microns, Aplicação:P",
+     "status": "manual_review",
+     "valor": "60.39",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 32,34% acima de 25%"
+    },
+    {
+     "descricao": "Pasta Abrasiva Pasta Abrasiva, Apresentação:Grãos, Tamanho Grão:3 A 6 Microns, Aplicação:P",
+     "status": "manual_review",
+     "valor": "57.0",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 32,34% acima de 25%"
+    },
+    {
+     "descricao": "Pasta Abrasiva apresentação: grãos, tamanho grão: 2 a 4 microns, aplicação: polimento fina",
+     "status": "manual_review",
+     "valor": "6.72",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 6,72 contra mediana de R$"
+    },
+    {
+     "descricao": "Pasta Abrasiva apresentação: seringa, tamanho grão: cerca de 1/2 micra, aplicação: polimen",
+     "status": "manual_review",
+     "valor": "12.46",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "Pasta Abrasiva apresentação: seringa, tamanho grão: cerca de 1/2 micra, aplicação: polimen",
+     "status": "manual_review",
+     "valor": "10.59",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "Pasta Abrasiva composição: ácido clorídrico a 6%, carbeto de silício ",
+     "status": "manual_review",
+     "valor": "43.13",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 32,34% acima de 25%"
+    },
+    {
+     "descricao": "Pasta Abrasiva apresentação: grãos, tamanho grão: 1 a 6 micra, aplicação: polimento final ",
+     "status": "manual_review",
+     "valor": "29.95",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 32,34% acima de 25%"
+    }
+   ]
+  },
+  {
+   "numero": 12,
+   "descricao": "CLIPS NIQUELADO 2/0, CAIXA COM 100",
+   "unidade": "CAIXA",
+   "desfecho": "amostra_insuficiente",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 2,
+   "brutas": 12,
+   "cv": null,
+   "segundos": 0.0,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "CLIPS METÁLICO NIQUELADO Nº 2/0. CAIXA COM 100",
+     "status": "manual_review",
+     "valor": "9.65",
+     "motivo": "atributo essencial não informado (numeração): a fonte não informa a numeração do clipe; o item pede 2/0; requer conferência [barreira por atributo]"
+    },
+    {
+     "descricao": "CLIPS METÁLICO NIQUELADO Nº 01. CAIXA COM 100",
+     "status": "manual_review",
+     "valor": "3.1",
+     "motivo": "atributo essencial não informado (numeração): a fonte não informa a numeração do clipe; o item pede 2/0; requer conferência [barreira por atributo]"
+    },
+    {
+     "descricao": "CLIPS NIQUELADO Nº6 C/50",
+     "status": "manual_review",
+     "valor": "1.94",
+     "motivo": "atributo essencial não informado (numeração): a fonte não informa a numeração do clipe; o item pede 2/0; requer conferência [barreira por atributo]"
+    },
+    {
+     "descricao": "CLIPS Nº 4/0 NIQUELADO MEDIOCLIPS Nº 4/0 NIQUELADO MEDIO CX 400 UN",
+     "status": "manual_review",
+     "valor": "9.21",
+     "motivo": "atributo essencial não informado (numeração): a fonte não informa a numeração do clipe; o item pede 2/0; requer conferência [barreira por atributo]"
+    },
+    {
+     "descricao": "CLIPS N 6/0 NIQUELADO GRANDECLIPS N 6/0 NIQUELADO GRANDE CX COM 220UND",
+     "status": "manual_review",
+     "valor": "9.21",
+     "motivo": "atributo essencial não informado (numeração): a fonte não informa a numeração do clipe; o item pede 2/0; requer conferência [barreira por atributo]"
+    },
+    {
+     "descricao": "CLIPS NIQUELADO BORBOLETA N° 10 (35mm, CX C/ 50)\r\n",
+     "status": "manual_review",
+     "valor": "21.5",
+     "motivo": "atributo essencial não informado (numeração): a fonte não informa a numeração do clipe; o item pede 2/0; requer conferência [barreira por atributo]"
+    },
+    {
+     "descricao": "CLIPS NIQUELADO BORBOLETA N° 10 (35mm, CX C/ 50)\r\n",
+     "status": "manual_review",
+     "valor": "21.82",
+     "motivo": "atributo essencial não informado (numeração): a fonte não informa a numeração do clipe; o item pede 2/0; requer conferência [barreira por atributo]"
+    },
+    {
+     "descricao": "Clips n: 2/0 de aço, paralelo, niquelado, pcte 500grs.",
+     "status": "manual_review",
+     "valor": "7.6",
+     "motivo": "atributo essencial não informado (numeração): a fonte não informa a numeração do clipe; o item pede 2/0; requer conferência [barreira por atributo]"
+    },
+    {
+     "descricao": "Clips n: 4/0 de aço, paralelo, niquelado, pcte 500grs.",
+     "status": "manual_review",
+     "valor": "7.6",
+     "motivo": "atributo essencial não informado (numeração): a fonte não informa a numeração do clipe; o item pede 2/0; requer conferência [barreira por atributo]"
+    },
+    {
+     "descricao": "75.10.00.00180460-0\n\n\"CLIPS, para papel, em aço niquelado, numero 2/0 (dois).\n\nEMBALAGEM: ",
+     "status": "manual_review",
+     "valor": "4.42",
+     "motivo": "atributo essencial não informado (numeração): a fonte não informa a numeração do clipe; o item pede 2/0; requer conferência [barreira por atributo]"
+    },
+    {
+     "descricao": "CLIPS NIQUELADO Nº8 C/50",
+     "status": "manual_review",
+     "valor": null,
+     "motivo": "unidade da referência é embalagem e a fonte não informou quantos itens ela contém — preço não convertido para a unidade do processo"
+    },
+    {
+     "descricao": "75.10.00.00180459-6\n\n\"CLIPS, para papel, em aço niquelado, numero 8/0 (oito).\n\nEMBALAGEM: ",
+     "status": "manual_review",
+     "valor": "4.29",
+     "motivo": "atributo essencial não informado (numeração): a fonte não informa a numeração do clipe; o item pede 2/0; requer conferência [barreira por atributo]"
+    }
+   ]
+  },
+  {
+   "numero": 13,
+   "descricao": "DESINFETANTE LÍQUIDO 2 LITROS",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_similaridade",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 0,
+   "brutas": 108,
+   "cv": null,
+   "segundos": 0.2,
+   "cesta": [],
+   "fora": []
+  },
+  {
+   "numero": 14,
+   "descricao": "PAPEL TOALHA INTERFOLHADO 2 DOBRAS, PACOTE 1000 FOLHAS",
+   "unidade": "PACOTE",
+   "desfecho": "pronto_para_revisao",
+   "pronto": true,
+   "preco": "10.86",
+   "na_cesta": 3,
+   "elegiveis": 3,
+   "brutas": 116,
+   "cv": "23,97%",
+   "segundos": 0.1,
+   "cesta": [
+    {
+     "fonte": "compras_gov_precos",
+     "id": "1350390500019202600022",
+     "descricao": "Toalha De Papel aplicação: higiene pessoal, comprimento: 200, cor: branca, largura: 20, material: 100% celulose virgem, ",
+     "unidade": "PCT",
+     "valor": "11.89",
+     "link": "13503905000192026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "1531190600055202600003",
+     "descricao": "Toalha De Papel material: fibras virgens de celulose, tipo folha: 2 dobras, comprimento: 22, largura: 22, cor: branca, c",
+     "unidade": "PCT",
+     "valor": "7.9",
+     "link": "15311906000552026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "08761140000194-1-000132/2026#30#1",
+     "descricao": "PAPEL toalha interfolhado, não reciclado, 100% celulose, alta absorção, na cor branca, 02 (duas) dobras, largura de 21 c",
+     "unidade": "Pct",
+     "valor": "12.79",
+     "link": "08761140000194-1-000132/2026"
+    }
+   ],
+   "fora": [
+    {
+     "descricao": "Toalha De Papel material: 100% fibra celulose virgem, tipo folha: interfolha, 2 dobras, co",
+     "status": "manual_review",
+     "valor": "50.8",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 50,80 contra mediana de R$ 12,14 entre 18 preço(s) "
+    },
+    {
+     "descricao": "Toalha De Papel material: 100% fibras celulósicas, tipo folha: 2 dobras, comprimento: 23, ",
+     "status": "manual_review",
+     "valor": "85.9",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 85,90 contra mediana de R$ 12,14 entre 18 preço(s) "
+    },
+    {
+     "descricao": "Toalha De Papel material: 100% celulose virgem, tipo folha: 2 dobras, comprimento: 20, lar",
+     "status": "rejected",
+     "valor": "16.4",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:2401060500386202600013 — contada uma vez na estatística; registro "
+    }
+   ]
+  },
+  {
+   "numero": 15,
+   "descricao": "SABONETE LÍQUIDO 5 LITROS",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_similaridade",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 2,
+   "brutas": 212,
+   "cv": null,
+   "segundos": 0.3,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "SABONETE LIQUIDO C/5 LITROS",
+     "status": "manual_review",
+     "valor": "16.25",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 16,25 contra mediana de R"
+    },
+    {
+     "descricao": "SABONETE LIQUIDO - Especificação: fragrância diversas, 5 litros",
+     "status": "manual_review",
+     "valor": "29.0",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 29,00 contra mediana de R"
+    },
+    {
+     "descricao": "Sabonete Líquido aspecto físico: cremoso, acidez: ph neutro, aplicação: banho de neonatos,",
+     "status": "manual_review",
+     "valor": "18.52",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 18,52 contra mediana de R$ 3,98 entre 27 preço(s) c"
+    },
+    {
+     "descricao": "SABONETE LÍQUIDO, ASPECTO FÍSICO LÍQUIDO PERFUMADO, APLICAÇÃO SABONETEIRA PARASABONETES LÍ",
+     "status": "manual_review",
+     "valor": "66.0",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 66,00 contra mediana de R$ 3,98 entre 27 preço(s) c"
+    },
+    {
+     "descricao": "Sabonete Líquido aspecto físico: líquido viscoso, acidez: 5,5 a 6,0, aplicação: assepsia d",
+     "status": "manual_review",
+     "valor": "0.02608",
+     "motivo": "preço convertido de FRASCO para UNIDADE pelo fator 500.0 informado pela fonte"
+    },
+    {
+     "descricao": "Sabonete Líquido acidez: ph neutro, aplicação: lavagem de mãos, aroma: fragrância suave, a",
+     "status": "manual_review",
+     "valor": "16.9",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 16,90 contra mediana de R$ 3,98 entre 27 preço(s) c"
+    },
+    {
+     "descricao": "Sabonete Líquido acidez: ph neutro, aplicação: banho de neonatos, aspecto físico: cremoso,",
+     "status": "manual_review",
+     "valor": "0.03012",
+     "motivo": "preço convertido de FRASCO para UNIDADE pelo fator 250.0 informado pela fonte"
+    },
+    {
+     "descricao": "Sabonete Líquido aplicação: p/higienização e hidratação da pele, aroma: erva-doce, aspecto",
+     "status": "manual_review",
+     "valor": "0.02028",
+     "motivo": "preço convertido de FRASCO para UNIDADE pelo fator 500.0 informado pela fonte"
+    },
+    {
+     "descricao": "SABONETE LÍQUIDO, ASPECTO FÍSICO LÍQUIDO PERFUMADO, ACIDEZ PH NEUTRO,APLICAÇÃO ASSEPSIA DA",
+     "status": "manual_review",
+     "valor": "0.2875",
+     "motivo": "preço convertido de CAIXA para UNIDADE pelo fator 12.0 informado pela fonte"
+    },
+    {
+     "descricao": "SABONETE LÍQUIDO, ASPECTO FÍSICO LÍQUIDO PERFUMADO, ACIDEZ PH NEUTRO,APLICAÇÃO ASSEPSIA DA",
+     "status": "manual_review",
+     "valor": "0.2875",
+     "motivo": "preço convertido de CAIXA para UNIDADE pelo fator 12.0 informado pela fonte"
+    },
+    {
+     "descricao": "Sabonete Líquido aspecto físico: líquido perfumado, acidez: ph neutro, aplicação: assepsia",
+     "status": "manual_review",
+     "valor": "0.0084",
+     "motivo": "preço convertido de FRASCO para UNIDADE pelo fator 1000.0 informado pela fonte"
+    },
+    {
+     "descricao": "Sabonete Líquido acidez: neutro, aroma: erva-doce, aspecto físico: líquido viscoso, compos",
+     "status": "manual_review",
+     "valor": "0.00748",
+     "motivo": "preço convertido de FRASCO para UNIDADE pelo fator 250.0 informado pela fonte"
+    }
+   ]
+  },
+  {
+   "numero": 16,
+   "descricao": "PAPEL HIGIÊNICO ROLÃO 300 M",
+   "unidade": "ROLO",
+   "desfecho": "amostra_insuficiente",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 1,
+   "brutas": 114,
+   "cv": null,
+   "segundos": 0.1,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "PAPEL HIGIÊNICO ROLÃO 300 METROS -",
+     "status": "manual_review",
+     "valor": "55.0",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação indisponível (menos de 2 preços na série proposta)"
+    }
+   ]
+  },
+  {
+   "numero": 17,
+   "descricao": "FITA ADESIVA TRANSPARENTE 45MM X 45M",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_similaridade",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 0,
+   "brutas": 100,
+   "cv": null,
+   "segundos": 0.1,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "FITA ADESIVA, MATERIAL POLIPROPILENO, TIPO DUREX, LARGURA 12 MM, COMPRIMENTO30 M, COR TRAN",
+     "status": "manual_review",
+     "valor": "1.9",
+     "motivo": "preço convertido de PACOTE para UNIDADE pelo fator 10.0 informado pela fonte"
+    },
+    {
+     "descricao": "FITA ADESIVA APLICAÇÃO: MULTIUSO, COMPRIMENTO: 45, COR: INCOLOR, LARGURA: 50, MATERIAL: CE",
+     "status": "manual_review",
+     "valor": "1.07",
+     "motivo": "preço convertido de PACOTE para UNIDADE pelo fator 10.0 informado pela fonte"
+    }
+   ]
+  },
+  {
+   "numero": 18,
+   "descricao": "CAIXA DE PAPELÃO PARA ARQUIVO MORTO",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 135,
+   "brutas": 200,
+   "cv": "34,80%",
+   "segundos": 0.1,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "CAIXA ARQUIVO, MATERIAL PAPELÃO ONDULADO, DIMENSÃO (C X L X A) 41,0 X 18,0 X30,0 CM, COR P",
+     "status": "manual_review",
+     "valor": "10.24",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — poucos preços e muito distantes entre si —"
+    },
+    {
+     "descricao": "Caixa Arquivo material: papelão, onda simples., dimensão (c x l x a): 140 x 240 x 360 mm.,",
+     "status": "manual_review",
+     "valor": "3.35",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 34,80% acima de 25%"
+    },
+    {
+     "descricao": "Caixa Arquivo características adicionais: papel kraft, cor: palha, dimensão (c x l x a): 3",
+     "status": "manual_review",
+     "valor": "4.8",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 34,80% acima de 25%"
+    },
+    {
+     "descricao": "Caixa Arquivo material: papelão ondulado, dimensão (c x l x a): 35,0 x 14,0 x 25,0, cor: p",
+     "status": "manual_review",
+     "valor": "2.84",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 34,80% acima de 25%"
+    },
+    {
+     "descricao": "Caixa Arquivo material: polipropileno, dimensão (c x l x a): 350 x 130 x 250 mm., cor: azu",
+     "status": "manual_review",
+     "valor": "6.22",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 34,80% acima de 25%"
+    },
+    {
+     "descricao": "Caixa Arquivo cor: pardo, dimensão (c x l x a): 35,0 x 14,0 x 25,0, impressão: sem impress",
+     "status": "manual_review",
+     "valor": "3.15",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 34,80% acima de 25%"
+    },
+    {
+     "descricao": "Caixa Arquivo material: papelão ondulado, dimensão (c x l x a): 41,0 x 18,0 x 30,0, cor: p",
+     "status": "candidate",
+     "valor": "6.84",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Caixa Arquivo características adicionais: com tampa, solda nos fundos, laterais e tampa, c",
+     "status": "candidate",
+     "valor": "4.5",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "CAIXA ARQUIVO, MATERIAL PAPELÃO ONDULADO, DIMENSÃO (C X L X A) 36,0 X 14,0 X25,0 CM, COR B",
+     "status": "candidate",
+     "valor": "5.22",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Caixa Arquivo características adicionais: apresentação em unidade, cor: pardo, dimensão (c",
+     "status": "candidate",
+     "valor": "2.5",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "CAIXA ARQUIVO, MATERIAL PAPELÃO ONDULADO, DIMENSÃO (C X L X A) 36,0 X 13,0 X25,0 CM, COR P",
+     "status": "candidate",
+     "valor": "5.7",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Caixa Arquivo características adicionais: papel kraft, cor: palha, dimensão (c x l x a): 3",
+     "status": "manual_review",
+     "valor": "31.5",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 31,50 contra mediana de R$ 6,22 entre 131 preço(s) "
+    }
+   ]
+  },
+  {
+   "numero": 19,
+   "descricao": "CAFÉ TORRADO E MOÍDO 500 G",
+   "unidade": "PACOTE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 5,
+   "brutas": 112,
+   "cv": "27,43%",
+   "segundos": 0.1,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "CAFÉ, TORRADO E MOÍDO - TIPO TRADICIONAL - PACOTE DE 500 GR",
+     "status": "manual_review",
+     "valor": "16.45",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 27,43% acima de 25%"
+    },
+    {
+     "descricao": "Café apresentação: torrado moído, intensidade: média, tipo: superior, empacotamento: vácuo",
+     "status": "manual_review",
+     "valor": "15.5",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 27,43% acima de 25%"
+    },
+    {
+     "descricao": "Café apresentação: torrado moído, característica adicional: grãos café arábica, empacotame",
+     "status": "manual_review",
+     "valor": "14.99",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 27,43% acima de 25%"
+    },
+    {
+     "descricao": "Café apresentação: torrado moído, intensidade: média, tipo: superior TIPO SUPERIOR / PREMI",
+     "status": "manual_review",
+     "valor": "16.38",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 27,43% acima de 25%"
+    },
+    {
+     "descricao": "Café apresentação: torrado moído, característica adicional: grãos café arábica, intensidad",
+     "status": "manual_review",
+     "valor": "26.8",
+     "motivo": "sinalizada para conferência (triagem): amostra pequena: sinal estatístico não basta para descartar; preço de R$ 26,80 contra mediana de R$ 16,38 entre 5 preço(s"
+    },
+    {
+     "descricao": "Café apresentação: torrado em grão, intensidade: média, tipo: tradicional, característica ",
+     "status": "manual_review",
+     "valor": "59.99",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 59,99 contra mediana de R$ 17,99 entre 39 preço(s) "
+    },
+    {
+     "descricao": "Café apresentação: torrado em grão, intensidade: média, tipo: tradicional, característica ",
+     "status": "manual_review",
+     "valor": "83.0",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 83,00 contra mediana de R$ 17,99 entre 39 preço(s) "
+    },
+    {
+     "descricao": "Café apresentação: torrado em grão, característica adicional: grãos café arábica, intensid",
+     "status": "manual_review",
+     "valor": "77.0",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 77,00 contra mediana de R$ 17,99 entre 39 preço(s) "
+    },
+    {
+     "descricao": "Café apresentação: torrado em grão, característica adicional: grãos café arábica, intensid",
+     "status": "manual_review",
+     "valor": "95.0",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 95,00 contra mediana de R$ 17,99 entre 39 preço(s) "
+    },
+    {
+     "descricao": "CAFÉ APRESENTAÇÃO: TORRADO EM GRÃO, CARACTERÍSTICA ADICIONAL: GRÃOS CAFÉ ARÁBICA, INTENSID",
+     "status": "manual_review",
+     "valor": "76.53",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 76,53 contra mediana de R$ 17,99 entre 39 preço(s) "
+    }
+   ]
+  },
+  {
+   "numero": 20,
+   "descricao": "SERVIÇO DE LIMPEZA DE CAIXA D'ÁGUA",
+   "unidade": "UNIDADE",
+   "desfecho": "sem_referencia_compativel",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 0,
+   "brutas": 1,
+   "cv": null,
+   "segundos": 0.0,
+   "cesta": [],
+   "fora": []
+  }
+ ]
+}

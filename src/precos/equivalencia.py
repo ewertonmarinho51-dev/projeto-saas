@@ -127,6 +127,10 @@ _PRODUTO_PELO_QUALIFICADOR = {
     "CANETA": frozenset({"ESFEROGRAFICA", "INDICADOR", "LASER", "MARCADORA",
                          "MARCA", "HIDROGRAFICA", "CORRETIVA", "NANQUIM",
                          "TINTEIRO", "MARCADOR", "TOUCH", "STYLUS"}),
+    # achado na auditoria do lote B (reservado): martelo de bola na cesta
+    # do martelo de unha
+    "MARTELO": frozenset({"UNHA", "BOLA", "BORRACHA", "PENA", "PICADOR",
+                          "SOLDADOR", "MARRETA", "MACETA", "NYLON"}),
 }
 
 _POLEGADA = re.compile(
