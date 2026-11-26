@@ -668,3 +668,24 @@ def test_itens_que_chegam_com_o_lote_rodando_entram_no_fim(banco, dominio):
     assert dominio["item_ids"] == ["i3"]
     final = _patches(banco)[-1]
     assert final["estado"] == "succeeded" and final["feitos"] == 3
+
+
+def test_lote_abandonado_sem_sinal_de_vida_nao_volta_para_a_tela(emissor, banco):
+    """Achado da revisão do #234: um lote parado em "na fila" travaria o
+    botão de coletar de quem volta sem `?job=`."""
+    parado = _job(estado="queued", atualizado_em="2026-11-16T14:35:10+00:00",
+                  parametros={"modo": "automatico"})
+    concluido = _job(id="efefefef-0000-4000-8000-000000000001", estado="succeeded",
+                     concluido_em="2026-11-16T13:00:00+00:00", parametros={"modo": "automatico"})
+    banco.responder("GET", "api_jobs", 200, [parado, concluido])
+    r = _api(emissor, banco, FilaFalsa()).get(
+        f"/api/v1/precos/pesquisas/{P}/coleta/atual", headers=_h(emissor))
+    assert r.status_code == 200 and r.json()["id"] == "efefefef-0000-4000-8000-000000000001"
+
+
+def test_so_lote_abandonado_e_404(emissor, banco):
+    banco.responder("GET", "api_jobs", 200, [_job(estado="running", atualizado_em="2026-11-16T14:35:10+00:00",
+                                                  parametros={"modo": "automatico"})])
+    r = _api(emissor, banco, FilaFalsa()).get(
+        f"/api/v1/precos/pesquisas/{P}/coleta/atual", headers=_h(emissor))
+    assert r.status_code == 404

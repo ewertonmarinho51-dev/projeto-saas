@@ -581,7 +581,16 @@ def rotas() -> APIRouter:
             raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
         agora = time.time()
         vivo = next((l for l in lotes if lote_vivo(l, agora)), None)
-        return job_do_banco(vivo or lotes[0])
+        if vivo is not None:
+            return job_do_banco(vivo)
+        # Lote "na fila" ou "rodando" SEM sinal de vida foi abandonado (worker
+        # caiu, aviso perdido): não volta para a tela, senão o botão de
+        # coletar ficaria travado num job que não anda. Vale o último que
+        # terminou; o pedido novo não é segurado por ele (`lote_vivo`).
+        terminado = next((l for l in lotes if str(l.get("estado")) in ESTADOS_FINAIS), None)
+        if terminado is None:
+            raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
+        return job_do_banco(terminado)
 
     @r.get("/jobs/{job_id}", response_model=Job,
            responses={404: {"description": "Inexistente ou de outra pessoa"}})
