@@ -44,6 +44,11 @@ test("coletar preços acompanha o job até o fim, inclusive após recarregar", a
   await expect(page.locator("tbody")).not.toContainText("Pendente");
   await page.screenshot({ path: "e2e/resultados/telas/coleta-1440.png", fullPage: true });
 
+  // Sair e voltar SEM o `?job=`: a cotação mostra o lote mais recente.
+  await page.goto(`/app/precos/${estado.coleta}`);
+  await expect(progresso).toHaveAttribute("data-job", "succeeded");
+  await expect(progresso).toContainText("2 de 2 itens processados");
+
   // Lote que esta conta não enxerga (404): não trava a coleta nem fica em
   // "Preparando" para sempre.
   await page.goto(`/app/precos/${estado.coleta}?job=00000000-0000-4000-8000-000000000000`);

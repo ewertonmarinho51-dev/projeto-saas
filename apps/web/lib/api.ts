@@ -581,6 +581,7 @@ export type DesfechoDoLote =
   | "pronto_para_revisao"
   | "revisar_similaridade"
   | "revisar_cv"
+  | "revisar_atipico"
   | "amostra_insuficiente"
   | "sem_referencia_compativel"
   | "consulta_parcial"

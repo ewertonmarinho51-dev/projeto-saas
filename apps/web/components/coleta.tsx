@@ -3,9 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef, type RefObject } from "react";
 
-import { iniciarColeta, type EstadoDaColeta } from "@/app/app/precos/acoes";
+import { iniciarColeta, retomarColeta, type EstadoDaColeta } from "@/app/app/precos/acoes";
 import { useJob } from "@/components/acompanhar-job";
-import { DESFECHOS_DO_LOTE } from "@/components/precos";
+import { DESFECHOS_DO_LOTE, RETOMAVEIS } from "@/components/precos";
 import { Alert, Badge, Button, Card, DataList, JobProgress } from "@/design-system";
 import type { ItemDePesquisa, Job } from "@/lib/api";
 
@@ -29,7 +29,9 @@ type ItemResumido = Pick<ItemDePesquisa, "id" | "numero" | "descricao" | "unidad
  * carregamento ("Coletando…", desabilitado) enquanto o lote anda — o painel
  * não tem botão próprio: retomar é o mesmo "Coletar preços".
  *
- * O lote vem da URL: recarregar a página retoma o MESMO lote.
+ * O lote vem da URL ou, sem ela, é o mais recente da cotação: recarregar
+ * ou sair e voltar encontra o MESMO lote. Lote que parou por motivo
+ * transitório (sessão vencida, banco fora) é retomado sozinho.
  */
 export function ColetaDaPesquisa({
   pesquisa,
@@ -64,6 +66,27 @@ function ColetaAcompanhada({
   const router = useRouter();
   const { job, erro, inacessivel } = useJob(jobId, () => router.refresh());
   const painel = useRef<HTMLElement>(null);
+  const retomada = useRef<string | null>(null);
+  const feitosVistos = useRef<number | null>(null);
+  const retomar = editavel && job?.estado === "failed" && RETOMAVEIS.has(job.erro_codigo);
+
+  // As propostas aparecem nos itens enquanto o lote anda, não só no fim.
+  const feitos = job?.estado === "running" ? job.feitos : null;
+  useEffect(() => {
+    if (feitos === null) return;
+    if (feitosVistos.current !== null && feitos > feitosVistos.current) router.refresh();
+    feitosVistos.current = feitos;
+  }, [feitos, router]);
+
+  // Sessão vencida no meio do lote: pede a continuação com a sessão de
+  // agora. A chave é a do lote que parou — duas abas caem na mesma.
+  useEffect(() => {
+    if (!retomar || !job || retomada.current === job.id) return;
+    retomada.current = job.id;
+    retomarColeta(pesquisa, job.id).then((novo) => {
+      if (novo && novo !== job.id) router.replace(`/app/precos/${pesquisa}?job=${novo}`);
+    });
+  }, [retomar, job, pesquisa, router]);
   // Só um lote que se sabe ativo trava os botões: sem resposta do servidor
   // ou com o lote inacessível (404), a coleta continua possível.
   const ocupado = job ? job.estado === "queued" || job.estado === "running" : !erro && !inacessivel;
@@ -112,7 +135,7 @@ function ColetaAcompanhada({
           </Alert>
         </div>
       ) : (
-        <PainelDoLote job={job} erro={erro} itens={itens} painel={painel} />
+        <PainelDoLote job={job} erro={erro} itens={itens} painel={painel} retomando={retomar} />
       )}
     </>
   );
@@ -127,7 +150,7 @@ function BotaoDeColeta({ pesquisa, chave, ocupado = false }: { pesquisa: string;
       <input type="hidden" name="chave" value={chave} />
       {/* UMA entrada (pacote de 14/11/2026, UX-03): a coleta em lote é
           sempre a cotação automática — a cesta é formada pela regra
-          determinística (até 5 preços, equivalência e CV ≤ 25%) e o revisor
+          determinística (até 5 preços, equivalência e CV abaixo de 25%) e o revisor
           confere e conclui depois; o aceito não é tocado. A busca manual é
           por item, na tela do item. */}
       <div className="grid gap-1">
@@ -135,7 +158,7 @@ function BotaoDeColeta({ pesquisa, chave, ocupado = false }: { pesquisa: string;
           {enviando ? "Iniciando..." : ocupado ? "Coletando…" : "Coletar preços"}
         </Button>
         <span className="text-[length:var(--gc-fs-xs)] text-secundario">
-          Cotação automática: até 5 preços comparáveis por item; série com CV acima de 25% fica para revisão.
+          Cotação automática: até 5 preços comparáveis por item; série com CV de 25% ou mais fica para revisão.
         </span>
       </div>
       {estado.erro && (
@@ -152,11 +175,13 @@ function PainelDoLote({
   erro,
   itens,
   painel,
+  retomando = false,
 }: {
   job: Job | null;
   erro: string | null;
   itens: ItemResumido[];
   painel: RefObject<HTMLElement | null>;
+  retomando?: boolean;
 }) {
   const comum = { ref: painel, tabIndex: -1, "data-testid": "progresso-coleta", className: ALVO } as const;
   const semReferencia = job?.resultado?.resumo?.[SEM_REFERENCIA] ?? 0;
@@ -202,6 +227,21 @@ function PainelDoLote({
       <div ref={painel as RefObject<HTMLDivElement | null>} tabIndex={-1} data-testid="progresso-coleta" data-job="succeeded" className={`grid gap-4 outline-none ${ALVO}`}>
         <ResumoDaColeta job={job} itens={itens} />
       </div>
+    );
+  }
+  if (retomando) {
+    return (
+      <JobProgress
+        {...comum}
+        state="prep"
+        data-job="retomando"
+        title="Retomando a pesquisa"
+        description={`${FALHAS[job.erro_codigo] ?? "A coleta parou."} Ela continua de onde parou; os itens já processados foram mantidos.`}
+        done={job.feitos}
+        total={job.total}
+        meta={<>Parou após <b>{job.feitos}</b> de {job.total} itens</>}
+        barLabel="Itens processados"
+      />
     );
   }
   // failed (e cancelled, que a coleta não usa mas a API conhece).

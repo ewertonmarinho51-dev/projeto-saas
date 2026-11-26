@@ -89,6 +89,7 @@ def test_pedido_grava_o_job_poe_na_fila_e_responde_202(emissor, banco):
 
 
 def test_mesma_chave_devolve_o_mesmo_job_sem_nova_fila(emissor, banco):
+    banco.responder("GET", "api_jobs", 200, [])          # nenhum lote vivo
     banco.responder("POST", "api_jobs", 409, {"code": "23505"})
     banco.responder("GET", "api_jobs", 200, [_job(estado="running", feitos=1)])
     fila = FilaFalsa()
@@ -186,8 +187,16 @@ def dominio(monkeypatch):
                 estado["restantes"].pop(0))
 
     monkeypatch.setattr(cotacoes, "pesquisar_em_lote", passo)
-    monkeypatch.setattr(cotacoes, "recorte_do_lote",
-                        lambda pesquisa_id, *, modo, **opcoes: list(estado["recorte"]))
+    # a 1ª chamada fixa o recorte; as seguintes são a rodada do fim do
+    # lote, que só acha o que `estado["chegaram"]` disser
+    estado["chegaram"] = []
+    estado["recortes"] = 0
+
+    def recorte(pesquisa_id, *, modo, **opcoes):
+        estado["recortes"] += 1
+        return list(estado["recorte"] if estado["recortes"] == 1 else estado["chegaram"])
+
+    monkeypatch.setattr(cotacoes, "recorte_do_lote", recorte)
     monkeypatch.setattr(repo, "obter_pesquisa", lambda pid: {"id": pid, "estado": "review"})
     return estado
 
@@ -445,6 +454,7 @@ def test_lote_grava_o_desfecho_de_cada_item_e_o_resumo(banco, dominio):
 
 def test_reentrega_retoma_sem_refazer_o_que_tem_desfecho(banco, dominio):
     dominio["restantes"] = [0]
+    dominio["recortes"] = 1          # recorte já fixado no job
     banco.responder("GET", "api_jobs", 200, [_job(estado="running", feitos=2, parametros={
         "modo": "automatico", "item_ids": ["a", "b", "i1"]},
         resultado={"itens": {"a": "pronto_para_revisao", "b": "amostra_insuficiente",
@@ -460,6 +470,7 @@ def test_reentrega_retoma_sem_refazer_o_que_tem_desfecho(banco, dominio):
 
 def test_item_do_recorte_resolvido_no_meio_conta_uma_vez(banco, dominio):
     dominio["restantes"] = [0]
+    dominio["recortes"] = 1          # recorte já fixado no job
     banco.responder("GET", "api_jobs", 200, [_job(parametros={
         "modo": "automatico", "item_ids": ["i1", "aceito"]})])
     assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
@@ -589,3 +600,71 @@ def test_flag_do_jev_ilegivel_nao_liga_o_seletor(banco, dominio, monkeypatch):
     banco.responder("GET", "api_jobs", 200, [_job()])
     assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
     assert "seletor" not in dominio["opcoes"]
+
+
+# ---------------------------------------------------------------------------
+# Lote único por cotação e itens que chegam com o lote rodando (26/11/2026)
+# ---------------------------------------------------------------------------
+def _vivo(**extra):
+    from datetime import datetime, timezone
+    agora = datetime.now(timezone.utc).isoformat()
+    return _job(estado="running", feitos=2, total=10, atualizado_em=agora,
+                parametros={"modo": "automatico"}, **extra)
+
+
+def test_pedir_de_novo_com_lote_vivo_devolve_o_mesmo_sem_fila(emissor, banco):
+    banco.responder("GET", "api_jobs", 200, [_vivo()])
+    fila = FilaFalsa()
+    r = _api(emissor, banco, fila).post(URL, headers=_h(emissor, "outra-chave-01"),
+                                       json={"modo": "automatico"})
+    assert r.status_code == 200 and r.headers["coleta-em-andamento"] == "true"
+    assert r.json()["id"] == JOB and fila.avisos == []
+    assert not [c for c in banco.chamadas if c.method == "POST"]
+
+
+def test_lote_parado_ha_mais_de_15_min_nao_segura_a_cotacao(emissor, banco):
+    velho = _job(estado="queued", atualizado_em="2026-11-16T14:35:10+00:00",
+                 parametros={"modo": "automatico"})
+    banco.responder("GET", "api_jobs", 200, [velho])
+    banco.responder("POST", "api_jobs", 201, [_job(id="cdcdcdcd-0000-4000-8000-000000000001")])
+    fila = FilaFalsa()
+    r = _api(emissor, banco, fila).post(URL, headers=_h(emissor), json={"modo": "automatico"})
+    assert r.status_code == 202 and len(fila.avisos) == 1
+
+
+def test_item_avulso_vivo_nao_conta_como_lote():
+    from datetime import datetime, timezone
+    agora = datetime.now(timezone.utc).isoformat()
+    avulso = _job(estado="running", atualizado_em=agora,
+                  parametros={"modo": "manual", "item_id": "i1"})
+    assert not coleta.lote_vivo(avulso, time.time())
+    assert coleta.lote_vivo(_vivo(), time.time())
+
+
+def test_lote_atual_da_cotacao_para_quem_volta_sem_job_na_url(emissor, banco):
+    banco.responder("GET", "api_jobs", 200, [
+        _job(estado="failed", erro_codigo="SESSION_EXPIRED", parametros={"modo": "automatico"})])
+    r = _api(emissor, banco, FilaFalsa()).get(
+        f"/api/v1/precos/pesquisas/{P}/coleta/atual", headers=_h(emissor))
+    assert r.status_code == 200 and r.json()["erro_codigo"] == "SESSION_EXPIRED"
+    consulta = [c for c in banco.chamadas if c.method == "GET" and "api_jobs" in c.url.path][-1]
+    assert "parametros-%3E%3Eitem_id=is.null" in str(consulta.url)
+
+
+def test_sem_lote_na_cotacao_e_404(emissor, banco):
+    r = _api(emissor, banco, FilaFalsa()).get(
+        f"/api/v1/precos/pesquisas/{P}/coleta/atual", headers=_h(emissor))
+    assert r.status_code == 404
+
+
+def test_itens_que_chegam_com_o_lote_rodando_entram_no_fim(banco, dominio):
+    dominio["recorte"] = ["i1", "i2"]
+    dominio["restantes"] = [1, 0, 0]
+    dominio["chegaram"] = ["i1", "i3"]    # i1 já foi feito; i3 é novo
+    banco.responder("GET", "api_jobs", 200, [_job(parametros={"modo": "automatico"})])
+    assert _processar(banco, _token(time.time() + 3600), fontes=[]) == "succeeded"
+    ampliado = [c for c in _patches(banco) if c.get("parametros", {}).get("item_ids") == ["i1", "i2", "i3"]]
+    assert ampliado and ampliado[0]["total"] == 3
+    assert dominio["item_ids"] == ["i3"]
+    final = _patches(banco)[-1]
+    assert final["estado"] == "succeeded" and final["feitos"] == 3

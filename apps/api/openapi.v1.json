@@ -10709,6 +10709,54 @@
         ]
       }
     },
+    "/api/v1/precos/pesquisas/{pesquisa_id}/coleta/atual": {
+      "get": {
+        "description": "O lote mais recente da cotação: quem sai e volta encontra o\nprogresso (ou o resumo) sem precisar do `?job=` na URL.",
+        "operationId": "atual_api_v1_precos_pesquisas__pesquisa_id__coleta_atual_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pesquisa_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pesquisa Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Sem lote nesta cotação (ou fora do seu acesso)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Atual",
+        "tags": [
+          "v1",
+          "jobs"
+        ]
+      }
+    },
     "/api/v1/precos/pesquisas/{pesquisa_id}/conclusao": {
       "post": {
         "description": "Todos os itens concluídos → cotação CONCLUÍDA. É ato humano: o sistema nunca a declara sozinho.\nO mesmo ato aceita as propostas APTAS pelo perfil (`cotacoes.proposta_apta`): em revisão,\ncom preço, CV aprovado e sem pendência de análise crítica — cada uma com o seu evento.",

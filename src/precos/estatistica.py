@@ -428,14 +428,16 @@ POLITICA_AUTOMATICA = PoliticaAmostraAutomatica()
 #
 # A automação só põe referência na cesta se a série que RESULTARIA dela
 # (escolhas de pessoa preservadas + novas elegíveis, já normalizadas,
-# deduplicadas, triadas e sob o teto) tiver CV ≤ `CV_DISPERSAO`. O CV é o
-# de `calcular` — desvio-padrão AMOSTRAL em `Decimal` — comparado antes de
-# qualquer arredondamento: 25% exatos passam (75, 100 e 125 → 25/100).
+# deduplicadas, triadas e sob o teto) tiver CV ESTRITAMENTE abaixo de
+# `CV_DISPERSAO`. O CV é o de `calcular` — desvio-padrão AMOSTRAL em
+# `Decimal` — comparado antes de qualquer arredondamento: 25% exatos
+# REPROVAM (75, 100 e 125 → 25/100 vai para revisão; 26/11/2026 — antes
+# passavam).
 # Reprovada, nada some: as novas ficam candidatas, gravadas com o motivo,
 # o CV e a quantidade, e o item fica pendente de revisão. Série proposta
 # com menos de dois preços não tem CV — também vai para revisão.
 # ---------------------------------------------------------------------------
-VERSAO_BARREIRA_CV = "2026-11-10.cv-25"
+VERSAO_BARREIRA_CV = "2026-11-26.cv-abaixo-de-25"
 CV_ACIMA_DO_LIMITE = "cv_acima_do_limite"
 CV_INDISPONIVEL = "cv_indisponivel"
 
@@ -458,7 +460,7 @@ class BarreiraCV:
         if self.motivo == CV_ACIMA_DO_LIMITE:
             return (f"{self.novas} referência(s) sugerida(s) pela cotação "
                     "automática aguardam revisão: coeficiente de variação "
-                    f"da série proposta {pct(self.cv)} acima de "
+                    f"da série proposta {pct(self.cv)}, não abaixo de "
                     f"{pct(CV_DISPERSAO, 0)} ({self.quantidade} preços)")
         return ""
 
@@ -471,6 +473,11 @@ class BarreiraCV:
                 "quantidade": self.quantidade,
                 "preservadas": self.preservadas, "novas": self.novas,
                 "texto": self.texto()}
+
+
+def cv_aceito(cv: Decimal | None) -> bool:
+    """A regra única do CV: estritamente abaixo do limite, valor exato."""
+    return cv is not None and cv < CV_DISPERSAO
 
 
 def avaliar_barreira_cv(preservados: list[Decimal],
@@ -486,7 +493,7 @@ def avaliar_barreira_cv(preservados: list[Decimal],
         return BarreiraCV(aprovada=True, motivo="", **base)
     if cv is None:
         return BarreiraCV(aprovada=False, motivo=CV_INDISPONIVEL, **base)
-    if cv > CV_DISPERSAO:
+    if not cv_aceito(cv):
         return BarreiraCV(aprovada=False, motivo=CV_ACIMA_DO_LIMITE, **base)
     return BarreiraCV(aprovada=True, motivo="", **base)
 
@@ -511,7 +518,7 @@ def aplicar_barreira_cv(cesta: "Cesta",
             + ("coeficiente de variação indisponível (menos de 2 preços "
                "na série proposta)" if barreira.motivo == CV_INDISPONIVEL
                else f"coeficiente de variação da série proposta "
-                    f"{pct(barreira.cv)} acima de {pct(CV_DISPERSAO, 0)}"))
+                    f"{pct(barreira.cv)}, não abaixo de {pct(CV_DISPERSAO, 0)}"))
     cesta.em_revisao_cv = list(cesta.selecionadas)
     cesta.selecionadas = []
     cesta.motivos.append(barreira.texto())
@@ -1100,10 +1107,10 @@ def estimar(cesta: Cesta, *, perfil: PerfilNormativo = PADRAO,
             pendencias.append(
                 f"{len(pendentes)} preço(s) atípico(s) aguardam decisão: "
                 "remover da cesta ou manter o preço")
-        if estatisticas.coeficiente_variacao > CV_DISPERSAO:
+        if not cv_aceito(estatisticas.coeficiente_variacao):
             pendencias.append(
                 f"dispersão elevada (coeficiente de variação "
-                f"{pct(estatisticas.coeficiente_variacao)} > "
+                f"{pct(estatisticas.coeficiente_variacao)} ≥ "
                 f"{pct(CV_DISPERSAO, 0)}): a média pode não representar o "
                 "mercado; examine a cesta antes de concluir")
 

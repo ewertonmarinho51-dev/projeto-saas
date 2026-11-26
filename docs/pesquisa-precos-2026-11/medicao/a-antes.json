@@ -1,0 +1,1659 @@
+{
+ "lote": "Lote A — medição (26/11/2026)",
+ "data_corte": "2026-11-26",
+ "perfil": "lei_14133",
+ "versoes": {
+  "barreira_cv": "2026-11-10.cv-25",
+  "equivalencia": "2026-11-13.equivalencia.2"
+ },
+ "medido_em": "2026-11-26T03:34:28+00:00",
+ "itens": 20,
+ "processados": 20,
+ "prontos": 2,
+ "taxa": 0.1,
+ "desfechos": {
+  "revisar_cv": 12,
+  "pronto_para_revisao": 5,
+  "revisar_similaridade": 2,
+  "sem_referencia_compativel": 1
+ },
+ "primeira_proposta_s": 97.3,
+ "duracao_s": 610.2,
+ "chamadas_rede": {
+  "compras_gov_itens": 26,
+  "pncp": 26
+ },
+ "recorte": {
+  "da_rede": 52,
+  "do_recorte": 0
+ },
+ "por_item": [
+  {
+   "numero": 1,
+   "descricao": "ARGAMASSA COLANTE AC 2, SACO DE 20KG",
+   "unidade": "SACO",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 12,
+   "brutas": 120,
+   "cv": "29,29%",
+   "segundos": 44.5,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "ARGAMASSA COLANTE AC-I, SACO COM 20KG",
+     "status": "manual_review",
+     "valor": "13.39",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 29,29% acima de 25%"
+    },
+    {
+     "descricao": "ARGAMASSA COLANTE AC-II, SACO COM 20KG.",
+     "status": "manual_review",
+     "valor": "27.4",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 29,29% acima de 25%"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos quimicos, cor: branca, tipo: ",
+     "status": "manual_review",
+     "valor": "67.6",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "Argamassa características adicionais: colante de uso interno, composição: cimento, calcári",
+     "status": "manual_review",
+     "valor": "23.41",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 29,29% acima de 25%"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, calcário e aditivos, cor: cinza, aplicação: rejunte de plac",
+     "status": "manual_review",
+     "valor": "19.5",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 29,29% acima de 25%"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos, aplicação: assentamento de c",
+     "status": "manual_review",
+     "valor": "30.4",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 29,29% acima de 25%"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos, aplicação: assentamento de c",
+     "status": "candidate",
+     "valor": "46.12",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos quimicos, cor: branca, tipo: ",
+     "status": "candidate",
+     "valor": "23.9",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos quimicos, cor: branca, tipo: ",
+     "status": "candidate",
+     "valor": "24.0",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa Argamassa, Composição:Cimento, Agregados Minerais E Aditivos, Aplicação:Assentam",
+     "status": "candidate",
+     "valor": "23.9",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa Argamassa, Composição:Cimento, Agregados Minerais E Aditivos, Aplicação:Assentam",
+     "status": "candidate",
+     "valor": "43.3",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos quimicos, cor: branca, tipo: ",
+     "status": "candidate",
+     "valor": "17.83",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    }
+   ]
+  },
+  {
+   "numero": 2,
+   "descricao": "ARGAMASSA COLANTE AC 1 PARA CERÂMICAS, SACO DE 20KG",
+   "unidade": "SACO",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 12,
+   "brutas": 120,
+   "cv": "29,29%",
+   "segundos": 21.2,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "ARGAMASSA COLANTE AC-I, SACO COM 20KG",
+     "status": "manual_review",
+     "valor": "13.39",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 29,29% acima de 25%"
+    },
+    {
+     "descricao": "ARGAMASSA COLANTE AC-II, SACO COM 20KG.",
+     "status": "manual_review",
+     "valor": "27.4",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 29,29% acima de 25%"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos quimicos, cor: branca, tipo: ",
+     "status": "manual_review",
+     "valor": "67.6",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "Argamassa características adicionais: colante de uso interno, composição: cimento, calcári",
+     "status": "manual_review",
+     "valor": "23.41",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 29,29% acima de 25%"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, calcário e aditivos, cor: cinza, aplicação: rejunte de plac",
+     "status": "manual_review",
+     "valor": "19.5",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 29,29% acima de 25%"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos, aplicação: assentamento de c",
+     "status": "manual_review",
+     "valor": "30.4",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 29,29% acima de 25%"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos, aplicação: assentamento de c",
+     "status": "candidate",
+     "valor": "46.12",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos quimicos, cor: branca, tipo: ",
+     "status": "candidate",
+     "valor": "23.9",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos quimicos, cor: branca, tipo: ",
+     "status": "candidate",
+     "valor": "24.0",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa Argamassa, Composição:Cimento, Agregados Minerais E Aditivos, Aplicação:Assentam",
+     "status": "candidate",
+     "valor": "23.9",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa Argamassa, Composição:Cimento, Agregados Minerais E Aditivos, Aplicação:Assentam",
+     "status": "candidate",
+     "valor": "43.3",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Argamassa composição: cimento, agregados minerais e aditivos quimicos, cor: branca, tipo: ",
+     "status": "candidate",
+     "valor": "17.83",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    }
+   ]
+  },
+  {
+   "numero": 3,
+   "descricao": "BUCHA DE NYLON SEM ABA S6",
+   "unidade": "UNIDADE",
+   "desfecho": "pronto_para_revisao",
+   "pronto": true,
+   "preco": "0.71",
+   "na_cesta": 5,
+   "elegiveis": 10,
+   "brutas": 140,
+   "cv": "22,56%",
+   "segundos": 31.6,
+   "cesta": [
+    {
+     "fonte": "pncp",
+     "id": "02321891000103-1-000180/2026#246#1",
+     "descricao": "BUCHA DE NYLON SEM ABA S10",
+     "unidade": "UN",
+     "valor": "0.54",
+     "link": "02321891000103-1-000180/2026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "01799683000151-1-000327/2026#98#1",
+     "descricao": "BUCHA DE NYLON SEM ABA S10",
+     "unidade": "UN",
+     "valor": "0.715",
+     "link": "01799683000151-1-000327/2026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "02321891000103-1-000180/2026#247#1",
+     "descricao": "BUCHA DE NYLON SEM ABA S10, COM PARAFUSO DE 6,10 X 65 MM EM ACO ZINCADO COM ROSCA SOBERBA, CABECA CHATA E FENDA PHILLIPS",
+     "unidade": "UN",
+     "valor": "0.89",
+     "link": "02321891000103-1-000180/2026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "18025973000140-1-000070/2026#48#1",
+     "descricao": "BUCHA DE NYLON SEM ABA S10 - Bucha de fixação em nylon, modelo S10, sem aba, indicada para fixação em alvenaria, concret",
+     "unidade": "Unidade",
+     "valor": "0.55",
+     "link": "18025973000140-1-000070/2026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "18025973000140-1-000070/2026#49#1",
+     "descricao": "BUCHA DE NYLON SEM ABA S10, COM PARAFUSO DE 6,10 X 65 MM EM AÇO ZINCADO, CABEÇA CHATA, FENDA PHILLIPS - Conjunto compost",
+     "unidade": "Unidade",
+     "valor": "0.83",
+     "link": "18025973000140-1-000070/2026"
+    }
+   ],
+   "fora": [
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA S6",
+     "status": "manual_review",
+     "valor": "0.1",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 0,10 contra mediana de R$"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA S6",
+     "status": "manual_review",
+     "valor": "0.05",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 0,05 contra mediana de R$"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA, TAMANHO S4\r",
+     "status": "manual_review",
+     "valor": "0.02",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 0,02 contra mediana de R$"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA S10",
+     "status": "manual_review",
+     "valor": "0.19",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — poucos preços e muito distantes entre si —"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA, TAMANHO S10\r",
+     "status": "manual_review",
+     "valor": "0.07",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 0,07 contra mediana de R$"
+    }
+   ]
+  },
+  {
+   "numero": 4,
+   "descricao": "BUCHA DE NYLON SEM ABA S8",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 10,
+   "brutas": 139,
+   "cv": "80,43%",
+   "segundos": 33.1,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA S6",
+     "status": "manual_review",
+     "valor": "0.1",
+     "motivo": "sinalizada para conferência (triagem): poucos preços e muito distantes entre si — a série não permite apontar qual está fora; preço de R$ 0,10 contra mediana de"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA S5",
+     "status": "manual_review",
+     "valor": "0.08",
+     "motivo": "sinalizada para conferência (triagem): poucos preços e muito distantes entre si — a série não permite apontar qual está fora; preço de R$ 0,08 contra mediana de"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA S10",
+     "status": "manual_review",
+     "valor": "0.54",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — poucos preços e muito distantes entre si —"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA, TAMANHO S4\r",
+     "status": "manual_review",
+     "valor": "0.02",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 0,02 contra mediana de R$"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA S10",
+     "status": "manual_review",
+     "valor": "0.26",
+     "motivo": "sinalizada para conferência (triagem): poucos preços e muito distantes entre si — a série não permite apontar qual está fora; preço de R$ 0,26 contra mediana de"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA S10",
+     "status": "manual_review",
+     "valor": "0.19",
+     "motivo": "sinalizada para conferência (triagem): poucos preços e muito distantes entre si — a série não permite apontar qual está fora; preço de R$ 0,19 contra mediana de"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA, TAMANHO S10\r",
+     "status": "manual_review",
+     "valor": "0.07",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 0,07 contra mediana de R$"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA S10, COM PARAFUSO DE 6,10 X 65 MM EM ACO ZINCADO COM ROSCA SOBERBA,",
+     "status": "manual_review",
+     "valor": "0.89",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 0,89 contra mediana de R$"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA S10 - Bucha de fixação em nylon, modelo S10, sem aba, indicada para",
+     "status": "manual_review",
+     "valor": "0.55",
+     "motivo": "sinalizada para conferência (triagem): poucos preços e muito distantes entre si — a série não permite apontar qual está fora; preço de R$ 0,55 contra mediana de"
+    },
+    {
+     "descricao": "BUCHA DE NYLON SEM ABA S10, COM PARAFUSO DE 6,10 X 65 MM EM AÇO ZINCADO, CABEÇA CHATA, FEN",
+     "status": "manual_review",
+     "valor": "0.83",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 0,83 contra mediana de R$"
+    }
+   ]
+  },
+  {
+   "numero": 5,
+   "descricao": "ALICATE DE CORTE DIAGONAL 6” COM ISOLAMENTO",
+   "unidade": "UNIDADE",
+   "desfecho": "pronto_para_revisao",
+   "pronto": false,
+   "preco": "31.25",
+   "na_cesta": 4,
+   "elegiveis": 4,
+   "brutas": 146,
+   "cv": "17,59%",
+   "segundos": 30.4,
+   "cesta": [
+    {
+     "fonte": "pncp",
+     "id": "25105255000140-1-000052/2026#9#1",
+     "descricao": "ALICATE DE CORTE DIAGONAL 6.",
+     "unidade": "UN",
+     "valor": "27.68",
+     "link": "25105255000140-1-000052/2026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "21417423000181-1-000201/2026#6#1",
+     "descricao": "Alicate Corte Diagonal 5. 1/2",
+     "unidade": "UN",
+     "valor": "39.35",
+     "link": "21417423000181-1-000201/2026"
+    },
+    {
+     "fonte": "pncp",
+     "id": "05119854000105-1-000027/2026#31#1",
+     "descricao": "ALICATE CORTE DIAGONAL 6”",
+     "unidade": "UND",
+     "valor": "29.95",
+     "link": "05119854000105-1-000027/2026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "1501820500006202600002",
+     "descricao": "Alicate De Corte Alicate De Corte, Material:Aço Cromo Vanádio, Tipo Corte:Diagonal, Material Cabo:Plástico, Tipo Cabo:Is",
+     "unidade": "UN",
+     "valor": "28.0",
+     "link": "15018205000062026"
+    }
+   ],
+   "fora": []
+  },
+  {
+   "numero": 6,
+   "descricao": "CABO FLEXÍVEL PVC 750 V, 2 CONDUTORES DE 4,0 MM2",
+   "unidade": "METRO",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 6,
+   "brutas": 206,
+   "cv": "88,36%",
+   "segundos": 24.4,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "Cabo Elétrico Flexível tipo: unipolar, cor da cobertura: preto, branco, vermelho, azul cla",
+     "status": "manual_review",
+     "valor": "25.86",
+     "motivo": "sinalizada para conferência (triagem): amostra pequena: sinal estatístico não basta para descartar; preço de R$ 25,86 contra mediana de R$ 7,80 entre 3 preço(s)"
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível tipo: unipolar, cor da cobertura: preto, branco, vermelho, azul cla",
+     "status": "manual_review",
+     "valor": "1.49",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 1,49 contra mediana de R$ 13,00 entre 30 preço(s) c"
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível aplicação: instalação elétrica, bitola: 2,5, cor da cobertura: pret",
+     "status": "manual_review",
+     "valor": "143.0",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (instalação); preço de R$ 143,00 contra mediana de R$ 13,00 entre 30 preço(s"
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível tipo: tripolar chato, cor da cobertura: preta, tensão isolamento: 7",
+     "status": "manual_review",
+     "valor": "79.99",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 79,99 contra mediana de R"
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível aplicação: instalação elétrica, classe encordoamento: 4, cor da cob",
+     "status": "manual_review",
+     "valor": "3.99",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (instalação); preço de R$ 3,99 contra mediana de R$ 13,00 entre 30 preço(s) "
+    },
+    {
+     "descricao": "CABO ELÉTRICO FLEXÍVEL COR DA COBERTURA: BRANCA, MATERIAL DO CONDUTOR: COBRE ELETROLÍTICO,",
+     "status": "manual_review",
+     "valor": "1.2",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 1,20 contra mediana de R$"
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível cor da cobertura: verde, material do condutor: cobre eletrolítico, ",
+     "status": "manual_review",
+     "valor": "2.18",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 2,18 contra mediana de R$"
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível cor da cobertura: vermelha, material do condutor: cobre eletrolític",
+     "status": "rejected",
+     "valor": "3.99",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:7953200600053202600005 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível tipo: unipolar, cor da cobertura: preta, tensão isolamento: 450/750",
+     "status": "rejected",
+     "valor": "1.49",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:9294010600008202600003 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível aplicação: instalação elétrica, bitola: 2,5, cor da cobertura: pret",
+     "status": "manual_review",
+     "valor": "4.9",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 88,36% acima de 25%"
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível tipo: anti-chama, aplicação: instalação elétrica, têmpera condutor:",
+     "status": "rejected",
+     "valor": "4.9",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:9893110500006202600073 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Cabo Elétrico Flexível aplicação: instalação elétrica, bitola: 1,5, cor da cobertura: azul",
+     "status": "manual_review",
+     "valor": "7.8",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 88,36% acima de 25%"
+    }
+   ]
+  },
+  {
+   "numero": 7,
+   "descricao": "CIMENTO PORTLAND COMPOSTO CPIIE32 - SACO C/50KG",
+   "unidade": "SACO",
+   "desfecho": "pronto_para_revisao",
+   "pronto": false,
+   "preco": "41.12",
+   "na_cesta": 5,
+   "elegiveis": 6,
+   "brutas": 142,
+   "cv": "18,68%",
+   "segundos": 8.7,
+   "cesta": [
+    {
+     "fonte": "compras_gov_precos",
+     "id": "1530790600692202600005",
+     "descricao": "Cimento Portland material: clinker, tipo: cp ii - f 32 Cimento Portland ensacado, tipo CP II, preferencialmente CP II-F-",
+     "unidade": "SC",
+     "valor": "34.9",
+     "link": "15307906006922026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "3801350600085202600002",
+     "descricao": "Cimento Portland material: clinker, tipo: cp ii - f 32 saco 50 kg",
+     "unidade": "SC",
+     "valor": "39.4",
+     "link": "38013506000852026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "9860010501572202600001",
+     "descricao": "Cimento Portland material: clinker, tipo: cp ii - e 32 Cimento Portland Composto CP II-E 32 (Cimento Portland composto c",
+     "unidade": "SC",
+     "valor": "37.8",
+     "link": "98600105015722026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "9860010501572202600002",
+     "descricao": "Cimento Portland material: clinker, tipo: cp ii - e 32 Cimento Portland Composto CP II-E 32 (Cimento Portland composto c",
+     "unidade": "SC",
+     "valor": "39.02",
+     "link": "98600105015722026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "9835390500003202600002",
+     "descricao": "Cimento Portland material: pozolânico, tipo: cpii - z32 Cimento cinza, CPII-Z-32 - saco com 50 kg, para construção em ge",
+     "unidade": "SC",
+     "valor": "54.5",
+     "link": "98353905000032026"
+    }
+   ],
+   "fora": [
+    {
+     "descricao": "Cimento Branco Cimento Branco, Tipo Cimento:Portland, Cor:Branca Cimento CP II F-32 50kg",
+     "status": "candidate",
+     "valor": "47.0",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Cimento Branco tipo cimento: portland, cor: branca ",
+     "status": "rejected",
+     "valor": "5.66",
+     "motivo": "desconsiderada pelo Jev antes da cesta: preço extremo frente a 36 referências comparáveis de 33 origens independentes que corroboram a faixa; preço de R$ 5,66 c"
+    },
+    {
+     "descricao": "CIMENTO BRANCO, TIPO CIMENTO PORTLAND, COR BRANCA",
+     "status": "rejected",
+     "valor": "7.25",
+     "motivo": "desconsiderada pelo Jev antes da cesta: preço extremo frente a 36 referências comparáveis de 33 origens independentes que corroboram a faixa; preço de R$ 7,25 c"
+    },
+    {
+     "descricao": "CIMENTO BRANCO, TIPO CIMENTO PORTLAND, COR BRANCA",
+     "status": "rejected",
+     "valor": "5.14",
+     "motivo": "desconsiderada pelo Jev antes da cesta: preço extremo frente a 36 referências comparáveis de 33 origens independentes que corroboram a faixa; preço de R$ 5,14 c"
+    },
+    {
+     "descricao": "CIMENTO BRANCO, TIPO CIMENTO PORTLAND, COR BRANCA",
+     "status": "manual_review",
+     "valor": "71.99",
+     "motivo": "requer revisão (triagem pré-cesta): variação relevante a conferir; preço de R$ 71,99 contra mediana de R$ 42,55 entre 42 preço(s) comparável(is) do item; razão "
+    },
+    {
+     "descricao": "CIMENTO BRANCO, TIPO CIMENTO PORTLAND, COR BRANCA",
+     "status": "rejected",
+     "valor": "5.5",
+     "motivo": "desconsiderada pelo Jev antes da cesta: preço extremo frente a 36 referências comparáveis de 33 origens independentes que corroboram a faixa; preço de R$ 5,50 c"
+    },
+    {
+     "descricao": "Cimento Branco tipo cimento: portland, cor: branca",
+     "status": "manual_review",
+     "valor": "17.12",
+     "motivo": "requer revisão (triagem pré-cesta): variação relevante a conferir; preço de R$ 17,12 contra mediana de R$ 42,55 entre 42 preço(s) comparável(is) do item; razão "
+    }
+   ]
+  },
+  {
+   "numero": 8,
+   "descricao": "FITA CREPE ROLO DE 25 MM X 50 M",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 113,
+   "brutas": 213,
+   "cv": "30,79%",
+   "segundos": 19.5,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "FITA CREPE 24 X 50",
+     "status": "manual_review",
+     "valor": "4.29",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 30,79% acima de 25%"
+    },
+    {
+     "descricao": "FITA CREPE - 48 X 50",
+     "status": "manual_review",
+     "valor": "8.89",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 30,79% acima de 25%"
+    },
+    {
+     "descricao": "Fita Crepe Adesiva - Uso Hospitalar cor: c/ cor, dimensão ( l x c ): cerca de 19 mm x 50 m",
+     "status": "manual_review",
+     "valor": "7.96",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 30,79% acima de 25%"
+    },
+    {
+     "descricao": "Fita Crepe Adesiva - Uso Hospitalar material dorso: papel crepado, tipo de adesivo: c/ lát",
+     "status": "manual_review",
+     "valor": "4.99",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 30,79% acima de 25%"
+    },
+    {
+     "descricao": "FITA CREPE ADESIVA - USO HOSPITALAR, MATERIAL DORSO PAPEL CREPADO, TIPO DEADESIVO C/ LÁTEX",
+     "status": "candidate",
+     "valor": "6.95",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "FITA CREPE ADESIVA - USO HOSPITALAR, MATERIAL DORSO PAPEL CREPADO, TIPO DEADESIVO C/ LÁTEX",
+     "status": "candidate",
+     "valor": "3.57",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Fita Crepe Adesiva - Uso Hospitalar material dorso: papel crepado, tipo de adesivo: c/ lát",
+     "status": "candidate",
+     "valor": "6.8",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Fita Crepe Adesiva - Uso Hospitalar material dorso: papel crepado, tipo de adesivo: c/ lát",
+     "status": "candidate",
+     "valor": "8.0",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "FITA CREPE ADESIVA - USO HOSPITALAR, MATERIAL DORSO PAPEL CREPADO, TIPO DEADESIVO C/ LÁTEX",
+     "status": "candidate",
+     "valor": "6.85",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Fita Crepe Adesiva - Uso Hospitalar cor: c/ cor, dimensão ( l x c ): cerca de 19 mm x 50 m",
+     "status": "candidate",
+     "valor": "4.42",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Fita Crepe Adesiva - Uso Hospitalar material dorso: papel crepado, tipo de adesivo: c/ lát",
+     "status": "candidate",
+     "valor": "7.82",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Fita Crepe Adesiva - Uso Hospitalar material dorso: papel crepado, tipo de adesivo: c/ lát",
+     "status": "candidate",
+     "valor": "7.0",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    }
+   ]
+  },
+  {
+   "numero": 9,
+   "descricao": "LUVA LÁTEX MULTIUSO AMARELA (PAR)",
+   "unidade": "PAR",
+   "desfecho": "pronto_para_revisao",
+   "pronto": false,
+   "preco": "2.32",
+   "na_cesta": 5,
+   "elegiveis": 125,
+   "brutas": 216,
+   "cv": "15,97%",
+   "segundos": 41.8,
+   "cesta": [
+    {
+     "fonte": "compras_gov_precos",
+     "id": "0802880600010202600003",
+     "descricao": "Luva Borracha material: látex natural, tamanho: médio, cor: amarela, características adicionais: palma antiderrapante, i",
+     "unidade": "PAR",
+     "valor": "2.45",
+     "link": "8028806000102026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "1023210590001202600027",
+     "descricao": "LUVA BORRACHA, MATERIAL LÁTEX NATURAL, TAMANHO MÉDIO, COR AMARELA,CARACTERÍSTICAS ADICIONAIS AVELUDADA INTERNAMENTE E AN",
+     "unidade": "PAR",
+     "valor": "1.67",
+     "link": "10232105900012026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "7916090600078202600003",
+     "descricao": "Luva Borracha material: látex natural, tamanho: sob medida, cor: amarela, características adicionais: aveludada internam",
+     "unidade": "PAR",
+     "valor": "2.38",
+     "link": "79160906000782026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "9301110500001202600044",
+     "descricao": "Luva Borracha características adicionais: aveludada internamente, antiderrapante e bordas aj, cor: amarela, material: lá",
+     "unidade": "PAR",
+     "valor": "2.5",
+     "link": "93011105000012026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "1023050600063202600009",
+     "descricao": "Luva Borracha material: látex natural, tamanho: grande, cor: amarela, características adicionais: antederrapante com for",
+     "unidade": "PAR",
+     "valor": "2.59",
+     "link": "10230506000632026"
+    }
+   ],
+   "fora": [
+    {
+     "descricao": "LUVA BORRACHA, MATERIAL LÁTEX NATURAL, TAMANHO GRANDE, COR AMARELA,CARACTERÍSTICAS ADICION",
+     "status": "rejected",
+     "valor": "1.67",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:1023210590001202600027 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Luva Borracha material: látex natural, tamanho: sob medida, cor: amarela, características ",
+     "status": "manual_review",
+     "valor": "5.0",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "Luva Cirúrgica material: borracha mista - látex c/ revestimento sintético, superfície: sup",
+     "status": "rejected",
+     "valor": "2.83",
+     "motivo": "produto diferente do item (finalidade): produto de uso cirúrgico, que o item não pede [barreira por atributo]"
+    },
+    {
+     "descricao": "LUVA CIRÚRGICA, MATERIAL BORRACHA NATURAL- LÁTEX, SUPERFÍCIE SUPERFÍCIETEXTURIZADA, FORMAT",
+     "status": "rejected",
+     "valor": "1.53",
+     "motivo": "produto diferente do item (finalidade): produto de uso cirúrgico, que o item não pede [barreira por atributo]"
+    },
+    {
+     "descricao": "LUVA CIRÚRGICA, MATERIAL BORRACHA NATURAL- LÁTEX, SUPERFÍCIE SUPERFÍCIETEXTURIZADA, FORMAT",
+     "status": "rejected",
+     "valor": "1.15",
+     "motivo": "produto diferente do item (finalidade): produto de uso cirúrgico, que o item não pede [barreira por atributo]"
+    },
+    {
+     "descricao": "LUVA CIRÚRGICA, MATERIAL BORRACHA NATURAL- LÁTEX, SUPERFÍCIE SUPERFÍCIETEXTURIZADA, FORMAT",
+     "status": "rejected",
+     "valor": "1.09",
+     "motivo": "produto diferente do item (finalidade): produto de uso cirúrgico, que o item não pede [barreira por atributo]"
+    },
+    {
+     "descricao": "LUVA CIRÚRGICA, MATERIAL BORRACHA NATURAL- LÁTEX, SUPERFÍCIE SUPERFÍCIETEXTURIZADA, FORMAT",
+     "status": "rejected",
+     "valor": "1.74",
+     "motivo": "produto diferente do item (finalidade): produto de uso cirúrgico, que o item não pede [barreira por atributo]"
+    },
+    {
+     "descricao": "LUVA CIRÚRGICA, MATERIAL BORRACHA NATURAL- LÁTEX, SUPERFÍCIE SUPERFÍCIETEXTURIZADA, FORMAT",
+     "status": "rejected",
+     "valor": "1.5",
+     "motivo": "produto diferente do item (finalidade): produto de uso cirúrgico, que o item não pede [barreira por atributo]"
+    },
+    {
+     "descricao": "LUVA CIRÚRGICA, MATERIAL BORRACHA NATURAL- LÁTEX, SUPERFÍCIE SUPERFÍCIETEXTURIZADA, FORMAT",
+     "status": "rejected",
+     "valor": "1.5",
+     "motivo": "produto diferente do item (finalidade): produto de uso cirúrgico, que o item não pede [barreira por atributo]"
+    },
+    {
+     "descricao": "LUVA CIRÚRGICA, MATERIAL BORRACHA MISTA- LÁTEX C/ REVESTIMENTO SINTÉTICO,SUPERFÍCIE SUPERF",
+     "status": "rejected",
+     "valor": "1.24",
+     "motivo": "produto diferente do item (finalidade): produto de uso cirúrgico, que o item não pede [barreira por atributo]"
+    },
+    {
+     "descricao": "Luva Borracha material: látex natural, tamanho: grande, uso: multiuso ",
+     "status": "candidate",
+     "valor": "1.82",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Luva Cirúrgica apresentação: em par, cor: c/ cor, embalagem: embalagem individual, esteril",
+     "status": "rejected",
+     "valor": "2.99",
+     "motivo": "produto diferente do item (finalidade): produto de uso cirúrgico, que o item não pede [barreira por atributo]"
+    }
+   ]
+  },
+  {
+   "numero": 10,
+   "descricao": "TINTA LÁTEX ACRÍLICA, COR BRANCA (BALDE COM 18L)",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_similaridade",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 0,
+   "brutas": 204,
+   "cv": null,
+   "segundos": 41.5,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "Tinta Acrílica aspecto físico: líquido viscoso, características adicionais: aplicação inte",
+     "status": "rejected",
+     "valor": "155.0",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:7700000600164202600006 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Tinta Acrílica componentes: latex, água, resina e pigmentos, aspecto físico: líquido visco",
+     "status": "rejected",
+     "valor": "125.99",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:7873100600090202600005 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Tinta aplicação: pincel atômico, componente básico: álcool, cor: vermelha ",
+     "status": "rejected",
+     "valor": "297.0",
+     "motivo": "desconsiderada pelo Jev antes da cesta: preço extremo frente a 9 referências comparáveis de 7 origens independentes que corroboram a faixa; preço de R$ 297,00 c"
+    },
+    {
+     "descricao": "Tinta aplicação: pincel marcador, componente básico: corante e aglutinante, cor: azul ",
+     "status": "rejected",
+     "valor": "232.0",
+     "motivo": "desconsiderada pelo Jev antes da cesta: preço extremo frente a 9 referências comparáveis de 7 origens independentes que corroboram a faixa; preço de R$ 232,00 c"
+    },
+    {
+     "descricao": "Tinta aplicação: pincel marcador, componente básico: corante e aglutinante, cor: preta ",
+     "status": "rejected",
+     "valor": "53.5",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:9292630500003202600071 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Tinta componente básico: álcool, cor: preta, aplicação: pincel atômico ",
+     "status": "manual_review",
+     "valor": "7.0",
+     "motivo": "requer revisão (triagem pré-cesta): variação relevante a conferir; preço de R$ 7,00 contra mediana de R$ 56,88 entre 18 preço(s) comparável(is) do item; razão 0"
+    },
+    {
+     "descricao": "Tinta Tinta, Componente Básico:Corante E Aglutinante, Cor:Verde, Aplicação:Pincel Marcador",
+     "status": "manual_review",
+     "valor": "14.4",
+     "motivo": "requer revisão (triagem pré-cesta): variação relevante a conferir; preço de R$ 14,40 contra mediana de R$ 56,88 entre 18 preço(s) comparável(is) do item; razão "
+    },
+    {
+     "descricao": "Tinta Tinta, Componente Básico:Corante E Aglutinante, Cor:Vermelha, Aplicação:Pincel Marca",
+     "status": "manual_review",
+     "valor": "7.29",
+     "motivo": "requer revisão (triagem pré-cesta): variação relevante a conferir; preço de R$ 7,29 contra mediana de R$ 56,88 entre 18 preço(s) comparável(is) do item; razão 0"
+    },
+    {
+     "descricao": "Tinta componente básico: corante e aglutinante, cor: preta, aplicação: pincel marcador ",
+     "status": "rejected",
+     "valor": "57.0",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:1581390600436202600006 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Tinta componente básico: corante e aglutinante, cor: preta, aplicação: pincel marcador ",
+     "status": "rejected",
+     "valor": "57.0",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:1581390600436202600006 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Tinta aplicação: numerador / datador, componente básico: água, corantes orgânicos, glicol ",
+     "status": "manual_review",
+     "valor": "9.47",
+     "motivo": "requer revisão (triagem pré-cesta): variação relevante a conferir; preço de R$ 9,47 contra mediana de R$ 56,88 entre 18 preço(s) comparável(is) do item; razão 0"
+    },
+    {
+     "descricao": "Tinta aplicação: numerador / datador, componente básico: água, corantes orgânicos, glicol ",
+     "status": "manual_review",
+     "valor": "4.99",
+     "motivo": "requer revisão (triagem pré-cesta): variação relevante a conferir; preço de R$ 4,99 contra mediana de R$ 56,88 entre 18 preço(s) comparável(is) do item; razão 0"
+    }
+   ]
+  },
+  {
+   "numero": 11,
+   "descricao": "VASSOURA TIPO GARI, DE PIAÇAVA 40 CM COM CABO",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 34,
+   "brutas": 214,
+   "cv": "35,16%",
+   "segundos": 21.8,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "Vassoura material cerdas: piaçava, material cabo: madeira, material cepa: madeira, comprim",
+     "status": "manual_review",
+     "valor": "26.67",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 35,16% acima de 25%"
+    },
+    {
+     "descricao": "Vassoura material cerdas: piaçava, material cabo: madeira, material cepa: madeira, comprim",
+     "status": "manual_review",
+     "valor": "17.72",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 35,16% acima de 25%"
+    },
+    {
+     "descricao": "Vassoura material cerdas: piaçava, material cabo: madeira, material cepa: madeira, comprim",
+     "status": "manual_review",
+     "valor": "9.5",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 35,16% acima de 25%"
+    },
+    {
+     "descricao": "Vassoura material cerdas: piaçava, material cabo: madeira, material cepa: madeira, comprim",
+     "status": "candidate",
+     "valor": "14.34",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Vassoura material cerdas: piaçava, material cabo: madeira, material cepa: madeira, comprim",
+     "status": "candidate",
+     "valor": "22.42",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Vassoura Vassoura, Material Cerdas:Piaçava, Comprimento Cepa:40 CM, Características Adicio",
+     "status": "candidate",
+     "valor": "13.135",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Vassoura material cerdas: piaçava, comprimento cepa: 40, características adicionais: cabo ",
+     "status": "candidate",
+     "valor": "19.42",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Vassoura material cerdas: piaçava, material cabo: madeira, material cepa: madeira, comprim",
+     "status": "candidate",
+     "valor": "15.0",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "VASSOURA GARI",
+     "status": "manual_review",
+     "valor": "15.45",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 35,16% acima de 25%"
+    },
+    {
+     "descricao": "Vassoura de gari, 40 cm;",
+     "status": "manual_review",
+     "valor": "19.92",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 35,16% acima de 25%"
+    },
+    {
+     "descricao": "Vassoura material cerdas: piaçava, material cabo: madeira, material cepa: madeira, comprim",
+     "status": "candidate",
+     "valor": "18.0",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "VASSOURÃO TIPO GARI - Vassoura de piaçava, tipo gari, cepa de madeira com 40 cm,  com cabo",
+     "status": "candidate",
+     "valor": "14.03",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    }
+   ]
+  },
+  {
+   "numero": 12,
+   "descricao": "CANETA ESFEROGRÁFICA AZUL",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 100,
+   "brutas": 200,
+   "cv": "42,22%",
+   "segundos": 14.9,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "Caneta Esferográfica material: plástico, quantidade cargas: 1, material ponta: aço inoxidá",
+     "status": "manual_review",
+     "valor": "0.57",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 0,57 contra mediana de R$"
+    },
+    {
+     "descricao": "Caneta Esferográfica cor tinta: azul, material: plástico, material ponta: aço inoxidável c",
+     "status": "manual_review",
+     "valor": "0.46",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 0,46 contra mediana de R$"
+    },
+    {
+     "descricao": "Caneta Esferográfica material: plástico, material ponta: cobre com esfera de tungstênio, t",
+     "status": "manual_review",
+     "valor": "0.5",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 0,50 contra mediana de R$ 5,22 entre 59 preço(s) co"
+    },
+    {
+     "descricao": "Caneta Esferográfica Caneta Esferográfica, Material:Metal, Quantidade Cargas:1 UN, Materia",
+     "status": "manual_review",
+     "valor": "4.81",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 42,22% acima de 25%"
+    },
+    {
+     "descricao": "CANETA ESFEROGRÁFICA CARACTERÍSTICAS ADICIONAIS: SEXTAVADO, TRANSPARENTE, CÁPSULA SUSTENTA",
+     "status": "manual_review",
+     "valor": "0.48",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 0,48 contra mediana de R$ 5,22 entre 59 preço(s) co"
+    },
+    {
+     "descricao": "Caneta Esferográfica características adicionais: retrátil, 1.0 mm, personalizada, cor tint",
+     "status": "manual_review",
+     "valor": "5.22",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 42,22% acima de 25%"
+    },
+    {
+     "descricao": "Caneta Esferográfica características adicionais: personalizada conforme modelo, cor tinta:",
+     "status": "manual_review",
+     "valor": "2.49",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 42,22% acima de 25%"
+    },
+    {
+     "descricao": "Caneta Esferográfica características adicionais: personalizada conforme modelo, cor tinta:",
+     "status": "manual_review",
+     "valor": "2.47",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 42,22% acima de 25%"
+    },
+    {
+     "descricao": "Caneta Esferográfica Caneta Esferográfica, Material:Papel Reciclado, Material Ponta:Plásti",
+     "status": "manual_review",
+     "valor": "0.71",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 0,71 contra mediana de R$ 5,22 entre 59 preço(s) co"
+    },
+    {
+     "descricao": "Caneta Esferográfica características adicionais: acionar e retrátil, cor tinta: azul, mate",
+     "status": "manual_review",
+     "valor": "2.2",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 42,22% acima de 25%"
+    },
+    {
+     "descricao": "Caneta Esferográfica Caneta Esferográfica, Material:Bambú, Material Ponta:Plástico Com Esf",
+     "status": "candidate",
+     "valor": "2.07",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "CANETA ESFEROGRÁFICA CARACTERÍSTICAS ADICIONAIS: RETRÁTIL, 1.0 MM, PERSONALIZADA, COR TINT",
+     "status": "candidate",
+     "valor": "2.88",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    }
+   ]
+  },
+  {
+   "numero": 13,
+   "descricao": "PAPEL SULFITE A4 75 G/M², RESMA COM 500 FOLHAS",
+   "unidade": "RESMA",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 2,
+   "brutas": 10,
+   "cv": null,
+   "segundos": 75.0,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "PAPEL SULFITE A4  AMARELA PAPEL SULFITE A4 COLORIDO COR AMARELA GRAMATURA 75GM2 MEDINDO 29",
+     "status": "manual_review",
+     "valor": "29.8",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação indisponível (menos de 2 preços na série proposta)"
+    },
+    {
+     "descricao": "PAPEL SULFITE A4  AZUL PAPEL SULFITE A4 COLORIDO COR AZUL GRAMATURA 75GM2 MEDINDO 297 X 21",
+     "status": "rejected",
+     "valor": "29.8",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que pncp:44563575000198-1-000081/2026#60#1 — contada uma vez na estatística; registro pre"
+    }
+   ]
+  },
+  {
+   "numero": 14,
+   "descricao": "GRAMPEADOR DE MESA 26/6",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 86,
+   "brutas": 208,
+   "cv": "34,94%",
+   "segundos": 17.9,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "Grampeador material: metal, tipo: mesa, tamanho grampo: 26/6 e 26/8 Observar o descritivo ",
+     "status": "manual_review",
+     "valor": "40.0",
+     "motivo": "requer revisão (triagem pré-cesta): fora do padrão da cesta formada, e havia outra referência elegível para o lugar — amostra pequena: sinal estatístico não bas"
+    },
+    {
+     "descricao": "Grampeador material: metal, tipo: mesa, capacidade: 25, tamanho grampo: 26/6, característi",
+     "status": "manual_review",
+     "valor": "7.0",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 34,94% acima de 25%"
+    },
+    {
+     "descricao": "Grampeador material: metal, tipo: mesa, tamanho grampo: 26/6 e 26/8 ",
+     "status": "manual_review",
+     "valor": "58.66",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 58,66 contra mediana de R"
+    },
+    {
+     "descricao": "Grampeador de mesa 266",
+     "status": "manual_review",
+     "valor": "15.0",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 34,94% acima de 25%"
+    },
+    {
+     "descricao": "Grampeador material: metal / borracha, tipo: mesa, capacidade: 15, tamanho grampo: 26/6",
+     "status": "manual_review",
+     "valor": "10.26",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 34,94% acima de 25%"
+    },
+    {
+     "descricao": "Grampeador Grampeador, Material:Metal, Tipo:Mesa, Tamanho Grampo:26/6 E 26/8 Material de E",
+     "status": "candidate",
+     "valor": "17.91",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Grampeador tratamento superficial: niquelado, material: metal, tipo: mesa, capacidade: 20,",
+     "status": "candidate",
+     "valor": "34.28",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Grampeador material: metal, tipo: mesa, capacidade: 25, tamanho grampo: 26/6, característi",
+     "status": "candidate",
+     "valor": "11.23",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Grampeador material: metal, tipo: mesa, tamanho grampo: 26/6 e 26/8 ",
+     "status": "candidate",
+     "valor": "36.51",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Grampeador material: ferro, tipo: mesa, capacidade: mínima de 50, tamanho grampo: 26/6, ca",
+     "status": "candidate",
+     "valor": "29.32",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "Grampeador tratamento superficial: pintura eletrostática, material: metal, tipo: mesa, cap",
+     "status": "candidate",
+     "valor": "35.0",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "GRAMPEADOR DE MESA MÉDIO",
+     "status": "manual_review",
+     "valor": "7.75",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 34,94% acima de 25%"
+    }
+   ]
+  },
+  {
+   "numero": 15,
+   "descricao": "ÁGUA SANITÁRIA 1 LITRO",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 2,
+   "brutas": 404,
+   "cv": "56,14%",
+   "segundos": 41.1,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "Água Coco material: água côco verde, prazo validade: 3 (aberto), características adicionai",
+     "status": "manual_review",
+     "valor": "10.1",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 56,14% acima de 25%"
+    },
+    {
+     "descricao": "Água Sanitária composição química: hipoclorito de sódio, hidróxido de sódio, cloreto, teor",
+     "status": "manual_review",
+     "valor": "0.0082",
+     "motivo": "preço convertido de FRASCO para UNIDADE pelo fator 500.0 informado pela fonte"
+    },
+    {
+     "descricao": "Água Coco características adicionais: embalagem tipo longa vida, prazo validade: 120 (cong",
+     "status": "manual_review",
+     "valor": "23.3986",
+     "motivo": "sinalizada para conferência (triagem): amostra pequena: sinal estatístico não basta para descartar; preço de R$ 23,40 contra mediana de R$ 7,05 entre 4 preço(s)"
+    },
+    {
+     "descricao": "ÁGUA SANITÁRIA, COMPOSIÇÃO QUÍMICA HIPOCLORITO DE SÓDIO, HIDRÓXIDO DE SÓDIO,CLORETO, TEOR ",
+     "status": "manual_review",
+     "valor": "0.9875",
+     "motivo": "preço convertido de CAIXA para UNIDADE pelo fator 12.0 informado pela fonte"
+    },
+    {
+     "descricao": "ÁGUA SANITÁRIA, COMPOSIÇÃO QUÍMICA HIPOCLORITO DE SÓDIO, HIDRÓXIDO DE SÓDIO,CLORETO, TEOR ",
+     "status": "manual_review",
+     "valor": "0.9875",
+     "motivo": "preço convertido de CAIXA para UNIDADE pelo fator 12.0 informado pela fonte"
+    },
+    {
+     "descricao": "ÁGUA SANITÁRIA, COMPOSIÇÃO QUÍMICA HIPOCLORITO DE SÓDIO, HIDRÓXIDO DE SÓDIO,CLORETO, TEOR ",
+     "status": "manual_review",
+     "valor": "0.00209",
+     "motivo": "preço convertido de FRASCO para UNIDADE pelo fator 1000.0 informado pela fonte"
+    },
+    {
+     "descricao": "ÁGUA SANITÁRIA, COMPOSIÇÃO QUÍMICA HIPOCLORITO DE SÓDIO, HIDRÓXIDO DE SÓDIO,CLORETO, TEOR ",
+     "status": "manual_review",
+     "valor": "0.00222",
+     "motivo": "preço convertido de FRASCO para UNIDADE pelo fator 1000.0 informado pela fonte"
+    },
+    {
+     "descricao": "Água Sanitária composição química: hipoclorito de sódio, hidróxido de sódio, cloreto, teor",
+     "status": "manual_review",
+     "valor": "1.98",
+     "motivo": "preço convertido de CAIXA para UNIDADE pelo fator 12.0 informado pela fonte"
+    },
+    {
+     "descricao": "ÁGUA COCO, MATERIAL ÁGUA CÔCO VERDE, PRAZO VALIDADE 3 (ABERTO) DIAS",
+     "status": "manual_review",
+     "valor": "0.0115",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 200.0 informado pela fonte"
+    },
+    {
+     "descricao": "Água Coco material: água côco verde, prazo validade: 3 (aberto), características adicionai",
+     "status": "manual_review",
+     "valor": "0.013",
+     "motivo": "preço convertido de CAIXA para UNIDADE pelo fator 200.0 informado pela fonte"
+    },
+    {
+     "descricao": "Água Coco material: água côco verde, prazo validade: 120 (congelado), características adic",
+     "status": "manual_review",
+     "valor": "0.01215",
+     "motivo": "preço convertido de CAIXA para UNIDADE pelo fator 200.0 informado pela fonte"
+    },
+    {
+     "descricao": "ÁGUA COCO, MATERIAL ÁGUA CÔCO VERDE, PRAZO VALIDADE 3 (ABERTO) DIAS",
+     "status": "manual_review",
+     "valor": "0.038",
+     "motivo": "preço convertido de CAIXA para UNIDADE pelo fator 200.0 informado pela fonte"
+    }
+   ]
+  },
+  {
+   "numero": 16,
+   "descricao": "DETERGENTE LÍQUIDO NEUTRO 500 ML",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_similaridade",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 1,
+   "brutas": 228,
+   "cv": null,
+   "segundos": 40.4,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "DETERGENTE, lava louca, liquido, concentrado, biodegradavel, com no minimo 11% (onze por c",
+     "status": "manual_review",
+     "valor": "2.0",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 2,00 contra mediana de R$"
+    },
+    {
+     "descricao": "DETERGENTE, COMPOSIÇÃO DETERGENTE LÍQUIDO, CLORO ATIVO, SEQUESTRANTE E A L,APLICAÇÃO REMOÇ",
+     "status": "manual_review",
+     "valor": "3.6",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 5.0 informado pela fonte"
+    },
+    {
+     "descricao": "Detergente composição: alquilbenzeno sulfonato de sódio, aplicação: limpeza em geral, arom",
+     "status": "manual_review",
+     "valor": "5.3",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 5.0 informado pela fonte"
+    },
+    {
+     "descricao": "Detergente composição: alquil benzeno sulfato sódio, lauril, éter, neutro, características",
+     "status": "manual_review",
+     "valor": "0.00398",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 500.0 informado pela fonte"
+    },
+    {
+     "descricao": "Detergente composição: alquilbenzeno sulfonato de sódio, aplicação: limpeza em geral, arom",
+     "status": "manual_review",
+     "valor": "0.00276",
+     "motivo": "preço convertido de FRASCO para UNIDADE pelo fator 500.0 informado pela fonte"
+    },
+    {
+     "descricao": "Detergente composição: alquilbenzeno sulfonato de sódio, aplicação: limpeza em geral, arom",
+     "status": "manual_review",
+     "valor": "1.470833333333333333333333333",
+     "motivo": "preço convertido de CAIXA para UNIDADE pelo fator 24.0 informado pela fonte"
+    },
+    {
+     "descricao": "DETERGENTE - INDUSTRIAL, ASPECTO FÍSICO LÍQUIDO, COMPONENTES HIDRÓXIDO DESÓDIO, POLÍMERO C",
+     "status": "manual_review",
+     "valor": "7.4",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 7,40 contra mediana de R$"
+    },
+    {
+     "descricao": "Detergente composição: tensoativos aniônicos biodegradáveis, aplicação: remoção gordura e ",
+     "status": "manual_review",
+     "valor": "0.006",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 500.0 informado pela fonte"
+    },
+    {
+     "descricao": "DETERGENTE - INDUSTRIAL, ASPECTO FÍSICO LÍQUIDO, COMPONENTES ÁLCOOIS GRAXOSETOXILADOS",
+     "status": "manual_review",
+     "valor": "0.9",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 0,90 contra mediana de R$"
+    },
+    {
+     "descricao": "Detergente aplicação: remoção gordura e sujeira em geral., aroma: neutro, aspecto físico: ",
+     "status": "manual_review",
+     "valor": "0.00422",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 500.0 informado pela fonte"
+    },
+    {
+     "descricao": "DETERGENTE - INDUSTRIAL, ASPECTO FÍSICO LÍQUIDO, COMPONENTES ÁLCOOIS GRAXOSETOXILADOS",
+     "status": "manual_review",
+     "valor": "3.96",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 5.0 informado pela fonte"
+    },
+    {
+     "descricao": "Detergente - Industrial aspecto físico: líquido, componentes: sais de sódio, alcalino, car",
+     "status": "manual_review",
+     "valor": "118.96",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 118,96 contra mediana de "
+    }
+   ]
+  },
+  {
+   "numero": 17,
+   "descricao": "SACO PARA LIXO 100 LITROS PRETO, PACOTE COM 100 UNIDADES",
+   "unidade": "PACOTE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 6,
+   "brutas": 206,
+   "cv": "41,01%",
+   "segundos": 25.5,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "Saco Plástico Lixo capacidade: 100, cor: branca, características adicionais: reforçado, ap",
+     "status": "manual_review",
+     "valor": "36.53",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 41,01% acima de 25%"
+    },
+    {
+     "descricao": "Saco Plástico Lixo capacidade: 100, largura: 75, altura: 50, espessura: 0,012 micra, cor: ",
+     "status": "manual_review",
+     "valor": "20.6",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 41,01% acima de 25%"
+    },
+    {
+     "descricao": "Saco Plástico Lixo capacidade: 100, largura: não aplicável, altura: não aplicável, cor: pr",
+     "status": "manual_review",
+     "valor": "42.99",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 41,01% acima de 25%"
+    },
+    {
+     "descricao": "Saco Plástico Lixo altura: 95, capacidade: 100, características adicionais: infectante lei",
+     "status": "manual_review",
+     "valor": "60.25",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 41,01% acima de 25%"
+    },
+    {
+     "descricao": "SACO PLÁSTICO LIXO, CAPACIDADE 100 L, COR BRANCA, CARACTERÍSTICAS ADICIONAISREFORÇADO, APL",
+     "status": "candidate",
+     "valor": "25.55",
+     "motivo": "elegível, fora da cesta automática pelo teto de referências da cotação automática — disponível para inclusão manual"
+    },
+    {
+     "descricao": "SACO DE LIXO 100LTS PRETO PC C/100 UNID",
+     "status": "manual_review",
+     "valor": "27.0",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 41,01% acima de 25%"
+    },
+    {
+     "descricao": "Saco Plástico Lixo material: polietileno, capacidade: 100, cor: preta, aplicação: coleta d",
+     "status": "manual_review",
+     "valor": "3.85",
+     "motivo": "requer revisão (triagem pré-cesta): as demais referências não formam grupo independente e homogêneo que corrobore a faixa; preço de R$ 3,85 contra mediana de R$"
+    },
+    {
+     "descricao": "Saco Saco, Material:Polietileno, Altura:14 CM, Largura:20 CM, Transmitância:Transparente, ",
+     "status": "manual_review",
+     "valor": "101.4",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 101,40 contra mediana de R$ 27,75 entre 24 preço(s)"
+    },
+    {
+     "descricao": "Saco Saco, Material:Polietileno, Altura:14 CM, Largura:8,5 CM, Transmitância:Transparente,",
+     "status": "manual_review",
+     "valor": "115.0",
+     "motivo": "requer revisão (triagem pré-cesta): há condição comercial que pode explicar o preço (adicional); preço de R$ 115,00 contra mediana de R$ 27,75 entre 24 preço(s)"
+    },
+    {
+     "descricao": "Saco Plástico Lixo capacidade: 100, largura: 75, altura: 105, espessura: 0,10 micra, cor: ",
+     "status": "manual_review",
+     "valor": "126.3",
+     "motivo": "preço convertido de PACOTE para PACOTE pelo fator 0.5 informado pela fonte"
+    },
+    {
+     "descricao": "Saco altura: 80, cor: transparente, espessura: 0,10, largura: 60, material: polietileno, t",
+     "status": "manual_review",
+     "valor": "362.5",
+     "motivo": "preço convertido de PACOTE para PACOTE pelo fator 0.08 informado pela fonte"
+    },
+    {
+     "descricao": "Saco características adicionais 1: fundo reto, sem furos, dobras ou pregas, comprimento: 8",
+     "status": "manual_review",
+     "valor": "0.78",
+     "motivo": "preço convertido de CAIXA para PACOTE pelo fator 50.0 informado pela fonte"
+    }
+   ]
+  },
+  {
+   "numero": 18,
+   "descricao": "COPO DESCARTÁVEL 200 ML, PACOTE COM 100 UNIDADES",
+   "unidade": "PACOTE",
+   "desfecho": "pronto_para_revisao",
+   "pronto": true,
+   "preco": "3.72",
+   "na_cesta": 3,
+   "elegiveis": 3,
+   "brutas": 210,
+   "cv": "1,09%",
+   "segundos": 14.1,
+   "cesta": [
+    {
+     "fonte": "compras_gov_precos",
+     "id": "1350390500019202600013",
+     "descricao": "Copo Descartável aplicação: líquidos frios e quentes, capacidade: 200, características adicionais: atóxico, de acordo c/",
+     "unidade": "PCT",
+     "valor": "3.77",
+     "link": "13503905000192026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "9860010501316202600019",
+     "descricao": "Copo Descartável material: plástico, capacidade: 200, aplicação: água, características adicionais: transparente Copo des",
+     "unidade": "PCT",
+     "valor": "3.7",
+     "link": "98600105013162026"
+    },
+    {
+     "fonte": "compras_gov_precos",
+     "id": "1531670500107202600101",
+     "descricao": "Copo Descartável Copo Descartável, Material:Polipropileno, Capacidade:200 ML, Aplicação:Líquidos Frios E Quentes, Caract",
+     "unidade": "PCT",
+     "valor": "3.7",
+     "link": "15316705001072026"
+    }
+   ],
+   "fora": [
+    {
+     "descricao": "Copo Descartável material: poliestireno, capacidade: 200, cor: incolor ",
+     "status": "rejected",
+     "valor": "5.32",
+     "motivo": "preço convertido de CAIXA para PACOTE pelo fator 25.0 informado pela fonte"
+    },
+    {
+     "descricao": "Copo Descartável material: polipropileno, capacidade: 200, aplicação: líquidos frios e que",
+     "status": "rejected",
+     "valor": "3.99",
+     "motivo": "desconsiderada pelo Jev antes da cesta: mesma linha do mesmo documento que compras_gov_precos:9858670500047202600079 — contada uma vez na estatística; registro "
+    },
+    {
+     "descricao": "Copo Descartável aplicação: líquidos frios e quentes, capacidade: 200, características adi",
+     "status": "manual_review",
+     "valor": "396",
+     "motivo": "preço convertido de CAIXA para PACOTE pelo fator 0.25 informado pela fonte"
+    },
+    {
+     "descricao": "Copo Descartável aplicação: líquidos frios e quentes, capacidade: 200, características adi",
+     "status": "manual_review",
+     "valor": "539.96",
+     "motivo": "preço convertido de CAIXA para PACOTE pelo fator 0.25 informado pela fonte"
+    },
+    {
+     "descricao": "Copo Descartável material: plástico, capacidade: 200, aplicação: água/suco e refrigerente",
+     "status": "manual_review",
+     "valor": "594",
+     "motivo": "preço convertido de CAIXA para PACOTE pelo fator 0.25 informado pela fonte"
+    },
+    {
+     "descricao": "Copo capacidade: 300, características adicionais: liso, incolor, transparente e cilíndrico",
+     "status": "manual_review",
+     "valor": "497.8333333333333333333333333",
+     "motivo": "preço convertido de CAIXA para PACOTE pelo fator 0.06 informado pela fonte"
+    },
+    {
+     "descricao": "Copo material: vidro, capacidade: 320, características adicionais: incolor JOGO DE COPO CO",
+     "status": "manual_review",
+     "valor": "450",
+     "motivo": "preço convertido de CAIXA para PACOTE pelo fator 0.06 informado pela fonte"
+    },
+    {
+     "descricao": "COPO, MATERIAL VIDRO, CAPACIDADE 320 ML, CARACTERÍSTICAS ADICIONAIS INCOLOR",
+     "status": "manual_review",
+     "valor": "366.6666666666666666666666667",
+     "motivo": "preço convertido de CAIXA para PACOTE pelo fator 0.06 informado pela fonte"
+    }
+   ]
+  },
+  {
+   "numero": 19,
+   "descricao": "ÁGUA MINERAL GARRAFÃO 20 LITROS (RECARGA)",
+   "unidade": "UNIDADE",
+   "desfecho": "revisar_cv",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 5,
+   "brutas": 215,
+   "cv": "53,11%",
+   "segundos": 29.0,
+   "cesta": [],
+   "fora": [
+    {
+     "descricao": "ÁGUA MINERAL POTÁVEL NATURAL EM GARRAFÃO DE 20 LITROS",
+     "status": "manual_review",
+     "valor": "5.5",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 53,11% acima de 25%"
+    },
+    {
+     "descricao": "ÁGUA MINERAL NATURAL, GALÃO DE 20 LITROS RETORNÁVEL (RECARGA)",
+     "status": "manual_review",
+     "valor": "11.91",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 53,11% acima de 25%"
+    },
+    {
+     "descricao": "AGUA MINERAL NATURAL GARRAFAO 20L",
+     "status": "manual_review",
+     "valor": "24.99",
+     "motivo": "sinalizada para conferência (triagem): amostra pequena: sinal estatístico não basta para descartar; preço de R$ 24,99 contra mediana de R$ 11,91 entre 5 preço(s"
+    },
+    {
+     "descricao": "ÁGUA 20L (Recarga) - Água mineral potável sem gás, envasada em garrafão PET de 20 litros, ",
+     "status": "manual_review",
+     "valor": "14.0",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 53,11% acima de 25%"
+    },
+    {
+     "descricao": "ÁGUA MINERAL NATURAL – ACONDICIONADA EM EMBALAGEM RETORNÁVEL (GARRAFÃO) DE 20 LITROS, EM P",
+     "status": "manual_review",
+     "valor": "11.0",
+     "motivo": "sugerida pela cotação automática, fora da cesta até revisão: coeficiente de variação da série proposta 53,11% acima de 25%"
+    },
+    {
+     "descricao": "ÁGUA MINERAL NATURAL, TIPO SEM GÁS, MATERIAL EMBALAGEM PLÁSTICO, TIPOEMBALAGEM DESCARTÁVEL",
+     "status": "manual_review",
+     "valor": "0.8491666666666666666666666667",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 12.0 informado pela fonte"
+    },
+    {
+     "descricao": "Água Mineral Natural material embalagem: plástico, tipo: sem gás, tipo embalagem: sistema ",
+     "status": "manual_review",
+     "valor": "0.01921568627450980392156862745",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 510.0 informado pela fonte"
+    },
+    {
+     "descricao": "ÁGUA MINERAL NATURAL, TIPO SEM GÁS, MATERIAL EMBALAGEM PLÁSTICO, TIPOEMBALAGEM DESCARTÁVEL",
+     "status": "manual_review",
+     "valor": "0.12",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 12.0 informado pela fonte"
+    },
+    {
+     "descricao": "ÁGUA MINERAL NATURAL, TIPO SEM GÁS, MATERIAL EMBALAGEM PLÁSTICO, TIPOEMBALAGEM RETORNÁVEL",
+     "status": "manual_review",
+     "valor": "0.1225",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 12.0 informado pela fonte"
+    },
+    {
+     "descricao": "ÁGUA MINERAL NATURAL, TIPO SEM GÁS, MATERIAL EMBALAGEM PLÁSTICO, TIPOEMBALAGEM RETORNÁVEL",
+     "status": "manual_review",
+     "valor": "0.1241666666666666666666666667",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 12.0 informado pela fonte"
+    },
+    {
+     "descricao": "ÁGUA MINERAL NATURAL, TIPO SEM GÁS, MATERIAL EMBALAGEM PLÁSTICO, TIPOEMBALAGEM DESCARTÁVEL",
+     "status": "manual_review",
+     "valor": "0.12",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 12.0 informado pela fonte"
+    },
+    {
+     "descricao": "ÁGUA MINERAL NATURAL, TIPO SEM GÁS, MATERIAL EMBALAGEM PLÁSTICO, TIPOEMBALAGEM DESCARTÁVEL",
+     "status": "manual_review",
+     "valor": "0.05",
+     "motivo": "preço convertido de EMBALAGEM para UNIDADE pelo fator 12.0 informado pela fonte"
+    }
+   ]
+  },
+  {
+   "numero": 20,
+   "descricao": "SERVIÇO DE RECARGA DE EXTINTOR DE INCÊNDIO PQS 4 KG",
+   "unidade": "UNIDADE",
+   "desfecho": "sem_referencia_compativel",
+   "pronto": false,
+   "preco": null,
+   "na_cesta": 0,
+   "elegiveis": 0,
+   "brutas": 11,
+   "cv": null,
+   "segundos": 33.7,
+   "cesta": [],
+   "fora": []
+  }
+ ]
+}

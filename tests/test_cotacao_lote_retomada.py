@@ -48,7 +48,15 @@ def test_desfechos_distinguiveis():
     assert _r(diagnostico="zero_resultados").desfecho == "sem_referencia_compativel"
     assert _r(diagnostico="sem_comparaveis").desfecho == "sem_referencia_compativel"
     assert _r(diagnostico="amostra_insuficiente").desfecho == "amostra_insuficiente"
-    assert _r(barreira_cv={"aprovada": False}).desfecho == "revisar_cv"
+    assert _r(barreira_cv={"aprovada": False, "quantidade": 3}).desfecho == "revisar_cv"
+    # série proposta abaixo do mínimo: amostra curta, não dispersão
+    assert _r(barreira_cv={"aprovada": False, "motivo": "cv_indisponivel",
+                           "quantidade": 1}).desfecho == "amostra_insuficiente"
+    assert _r(barreira_cv={"aprovada": False, "quantidade": 2}).desfecho == "amostra_insuficiente"
+    # CV aprovado com preço atípico à espera de decisão: não conta como pronto
+    from types import SimpleNamespace
+    assert _r(estimativa=SimpleNamespace(pendencias=["1 preço(s) atípico(s) aguardam decisão"])
+              ).desfecho == "revisar_atipico"
     # há candidato similar à espera do servidor: a ação é revisar similaridade
     assert _r(diagnostico="sem_comparaveis",
               equivalencias={"similar": 2}).desfecho == "revisar_similaridade"

@@ -192,7 +192,7 @@ def test_cv_acima_do_limite_vai_para_conferencia_com_motivo(monkeypatch):
     revisao = [l for l in _por_id(iid).values() if l["status"] == "manual_review"]
     assert {l["id_externo"] for l in revisao} >= {"bio-1", "bio-3"}
     for linha in revisao:
-        assert any("coeficiente de variação" in m and "acima de 25%" in m
+        assert any("coeficiente de variação" in m and "não abaixo de 25%" in m
                    for m in linha["motivos"])
     assert repo.obter_item(iid)["preco_estimado"] is None
 

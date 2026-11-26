@@ -637,12 +637,19 @@ DESFECHOS = {
     "pronto_para_revisao": "Pronto para revisão",
     "revisar_similaridade": "Revisar similaridade",
     "revisar_cv": "Revisar CV",
+    # cesta com CV aprovado, mas com preço atípico (ou sinalizado pelo
+    # critério percentual) aguardando decisão do servidor: nada é retirado
+    # sozinho, e o item não conta como pronto (26/11/2026)
+    "revisar_atipico": "Revisar preço atípico",
     "amostra_insuficiente": "Amostra insuficiente",
     "sem_referencia_compativel": "Sem referência compatível",
     "consulta_parcial": "Consulta parcial",
     "falha_tecnica": "Falha técnica",
 }
 PENDENTES = frozenset(DESFECHOS) - {"pronto_para_revisao"}
+# Série proposta com menos preços que isto é amostra curta, não dispersão:
+# o mínimo dos dois perfis padrão (`perfil.LEI_14133`, `perfil.IN_65_2021`).
+MINIMO_PARA_CV = 3
 
 
 def desfecho_do_resultado(r: "ResultadoPesquisa") -> tuple[str, list[str]]:
@@ -654,13 +661,22 @@ def desfecho_do_resultado(r: "ResultadoPesquisa") -> tuple[str, list[str]]:
                         for d in (r.desfechos or {}).values())
     if r.diagnostico == "fonte_indisponivel":
         return "falha_tecnica", []
-    if r.barreira_cv and not r.barreira_cv.get("aprovada", True):
+    barreira = r.barreira_cv or {}
+    curta = (barreira.get("motivo") == estatistica.CV_INDISPONIVEL
+             or int(barreira.get("quantidade") or 0) < MINIMO_PARA_CV)
+    if barreira and not barreira.get("aprovada", True) and curta:
+        # série proposta abaixo do mínimo: o problema é a AMOSTRA, não a
+        # dispersão — a ação é ampliar a busca ou cotar direto (26/11/2026)
+        principal = "revisar_similaridade" if similares else "amostra_insuficiente"
+    elif barreira and not barreira.get("aprovada", True):
         principal = "revisar_cv"
     elif r.diagnostico in ("zero_resultados", "sem_comparaveis"):
         principal = ("revisar_similaridade" if similares
                      else "sem_referencia_compativel")
     elif r.diagnostico == "amostra_insuficiente":
         principal = "revisar_similaridade" if similares else "amostra_insuficiente"
+    elif r.estimativa is not None and getattr(r.estimativa, "pendencias", None):
+        principal = "revisar_atipico"
     else:
         principal = "pronto_para_revisao"
     extras = []
@@ -1209,11 +1225,46 @@ def _registrar_busca(ctx, cotacao_id, item_id, resultado: ResultadoPesquisa,
                      timespec="seconds")})
 
 
-def _preparar_lote(cotacao_id: str, modo: str, item_ids, opcoes: dict):
+# Consultas ao índice do PNCP em paralelo ao fixar o recorte: cada uma leva
+# ~1,4 s em produção (pg_stat_statements, 26/11/2026), e uma cotação com 84
+# pendentes já buscados gastava ~2 min só para decidir quem volta.
+NOVIDADE_EM_PARALELO = 6
+
+
+def _novidades_em_paralelo(pares: list[tuple[dict, dict | None]], fontes) -> set[str]:
+    """Ids dos itens cujo índice ganhou referência pertinente — as consultas
+    correm em paralelo, cada uma no CONTEXTO da requisição (o JWT do usuário
+    vive num `contextvar`, que a thread nova não herda sozinha)."""
+    import contextvars
+    from concurrent.futures import ThreadPoolExecutor
+
+    if not pares:
+        return set()
+
+    def checar(par):
+        item, ultima = par
+        return str(item["id"]) if novidade_no_indice(item, ultima, fontes) else None
+
+    with ThreadPoolExecutor(max_workers=min(NOVIDADE_EM_PARALELO, len(pares))) as ex:
+        futuros = [ex.submit(contextvars.copy_context().run, checar, par) for par in pares]
+        return {f.result() for f in futuros} - {None}
+
+
+def _preparar_lote(cotacao_id: str, modo: str, item_ids, opcoes: dict, *,
+                   recorte_fixo: bool = False):
     """Os itens que a rodada pega (na ordem da planilha) e a cotação. O
-    MESMO critério para o passo do lote e para o recorte do job."""
+    MESMO critério para o passo do lote e para o recorte do job.
+
+    `recorte_fixo`: o recorte JÁ foi decidido na largada do job (`item_ids`
+    gravado). O passo só precisa saber se o item ainda pede trabalho — se o
+    servidor não o concluiu ou não montou a cesta à mão no meio —, sem
+    refazer a pergunta cara de "há dado novo?" para cada pendente. Antes,
+    cada passo de UM item consultava o índice do PNCP para todos os
+    pendentes já buscados: 2 min por item na cotação de 383 itens
+    (produção, 26/11/2026), e o token vencia com 25 itens feitos."""
     from .execucao import (modo_da_ultima_busca, precisa_de_busca,
-                           reavaliar_pendencia, ultima_busca_por_item)
+                           precisa_de_reprocesso, reavaliar_pendencia,
+                           ultima_busca_por_item)
 
     itens = ativos(repo.listar_itens(cotacao_id))
     if item_ids is not None:
@@ -1236,31 +1287,39 @@ def _preparar_lote(cotacao_id: str, modo: str, item_ids, opcoes: dict):
     # as fontes uma vez por passo (a flag do índice não é relida por item)
     if opcoes.get("fontes") is None:
         opcoes["fontes"] = _fontes_padrao()
+    cotacao = repo.obter_pesquisa(cotacao_id)
+    if recorte_fixo:
+        def ainda_pede(item: dict) -> bool:
+            if precisa_de_busca(item, modo, ultimas.get(str(item["id"]))):
+                return True
+            return modo == "automatico" and precisa_de_reprocesso(item)
+
+        return [i for i in itens if ainda_pede(i)], cotacao
     politica = politica_automatica() if modo == "automatico" else None
     por_item = ultima_busca_por_item(buscas) if modo == "automatico" else {}
-    cotacao = repo.obter_pesquisa(cotacao_id)
     # as MESMAS fontes que `pesquisar_item` usará (filtro da pesquisa)
     escolhidas = set(((cotacao or {}).get("filtros") or {}).get("fontes") or ())
     fontes_da_assinatura = [f for f in opcoes["fontes"] if not escolhidas
                             or getattr(getattr(f, "fonte", None), "id", "") in escolhidas]
 
-    def entra(item: dict) -> bool:
+    entram: set[str] = set()
+    a_conferir: list[tuple[dict, dict | None]] = []
+    for item in itens:
         if precisa_de_busca(item, modo, ultimas.get(str(item["id"]))):
-            return True
+            entram.add(str(item["id"]))
+            continue
         if modo != "automatico":
-            return False
+            continue
         ultima = por_item.get(str(item["id"]))
         if reavaliar_pendencia(item, ultima, assinatura_de_dados(
                 item, fontes_da_assinatura, politica.versao if politica else "")):
-            return True
-        # o índice do PNCP ganhou referência pertinente depois da última
-        # busca: o pendente volta, uma vez por atualização (13/11/2026)
-        from .execucao import precisa_de_reprocesso
-
-        return precisa_de_reprocesso(item) and novidade_no_indice(
-            item, ultima, fontes_da_assinatura)
-
-    return [i for i in itens if entra(i)], cotacao
+            entram.add(str(item["id"]))
+        elif precisa_de_reprocesso(item):
+            # o índice do PNCP ganhou referência pertinente depois da última
+            # busca: o pendente volta, uma vez por atualização (13/11/2026)
+            a_conferir.append((item, ultima))
+    entram |= _novidades_em_paralelo(a_conferir, fontes_da_assinatura)
+    return [i for i in itens if str(i["id"]) in entram], cotacao
 
 
 def recorte_do_lote(cotacao_id: str, *, modo: str, item_ids=None,
@@ -1291,7 +1350,9 @@ def pesquisar_em_lote(ctx: Contexto, cotacao_id: str, *, modo: str,
     (`busca_falhou`, desfecho `falha_tecnica`), com o motivo.
     """
     ja_tentados = ja_tentados if ja_tentados is not None else set()
-    candidatos, cotacao = _preparar_lote(cotacao_id, modo, item_ids, opcoes)
+    # com `item_ids`, o recorte é o que o worker fixou na largada
+    candidatos, cotacao = _preparar_lote(cotacao_id, modo, item_ids, opcoes,
+                                         recorte_fixo=item_ids is not None)
     fila = [i for i in candidatos if str(i["id"]) not in ja_tentados]
     resultados = []
     for item in fila[:max(1, tamanho)]:
