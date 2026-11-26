@@ -637,12 +637,19 @@ DESFECHOS = {
     "pronto_para_revisao": "Pronto para revisão",
     "revisar_similaridade": "Revisar similaridade",
     "revisar_cv": "Revisar CV",
+    # cesta com CV aprovado, mas com preço atípico (ou sinalizado pelo
+    # critério percentual) aguardando decisão do servidor: nada é retirado
+    # sozinho, e o item não conta como pronto (26/11/2026)
+    "revisar_atipico": "Revisar preço atípico",
     "amostra_insuficiente": "Amostra insuficiente",
     "sem_referencia_compativel": "Sem referência compatível",
     "consulta_parcial": "Consulta parcial",
     "falha_tecnica": "Falha técnica",
 }
 PENDENTES = frozenset(DESFECHOS) - {"pronto_para_revisao"}
+# Série proposta com menos preços que isto é amostra curta, não dispersão:
+# o mínimo dos dois perfis padrão (`perfil.LEI_14133`, `perfil.IN_65_2021`).
+MINIMO_PARA_CV = 3
 
 
 def desfecho_do_resultado(r: "ResultadoPesquisa") -> tuple[str, list[str]]:
@@ -654,13 +661,22 @@ def desfecho_do_resultado(r: "ResultadoPesquisa") -> tuple[str, list[str]]:
                         for d in (r.desfechos or {}).values())
     if r.diagnostico == "fonte_indisponivel":
         return "falha_tecnica", []
-    if r.barreira_cv and not r.barreira_cv.get("aprovada", True):
+    barreira = r.barreira_cv or {}
+    curta = (barreira.get("motivo") == estatistica.CV_INDISPONIVEL
+             or int(barreira.get("quantidade") or 0) < MINIMO_PARA_CV)
+    if barreira and not barreira.get("aprovada", True) and curta:
+        # série proposta abaixo do mínimo: o problema é a AMOSTRA, não a
+        # dispersão — a ação é ampliar a busca ou cotar direto (26/11/2026)
+        principal = "revisar_similaridade" if similares else "amostra_insuficiente"
+    elif barreira and not barreira.get("aprovada", True):
         principal = "revisar_cv"
     elif r.diagnostico in ("zero_resultados", "sem_comparaveis"):
         principal = ("revisar_similaridade" if similares
                      else "sem_referencia_compativel")
     elif r.diagnostico == "amostra_insuficiente":
         principal = "revisar_similaridade" if similares else "amostra_insuficiente"
+    elif r.estimativa is not None and getattr(r.estimativa, "pendencias", None):
+        principal = "revisar_atipico"
     else:
         principal = "pronto_para_revisao"
     extras = []

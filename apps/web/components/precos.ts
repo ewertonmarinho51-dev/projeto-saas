@@ -96,7 +96,6 @@ export function varianteDaEquivalencia(rotulo: string | undefined): "success" | 
   return "neutral";
 }
 
-/** Rótulos do desfecho do lote (`cotacoes.DESFECHOS`), na ordem do resumo. */
 /**
  * Falhas do lote que se resolvem pedindo de novo, sem mudar nada: a sessão
  * que venceu no meio (o token do usuário dura 1 h) e o banco que não
@@ -105,10 +104,12 @@ export function varianteDaEquivalencia(rotulo: string | undefined): "success" | 
  */
 export const RETOMAVEIS = new Set(["SESSION_EXPIRED", "DATABASE_UNAVAILABLE"]);
 
+/** Rótulos do desfecho do lote (`cotacoes.DESFECHOS`), na ordem do resumo. */
 export const DESFECHOS_DO_LOTE: [DesfechoDoLote, string][] = [
   ["pronto_para_revisao", "Pronto para revisão"],
   ["revisar_similaridade", "Revisar similaridade"],
   ["revisar_cv", "Revisar CV"],
+  ["revisar_atipico", "Revisar preço atípico"],
   ["amostra_insuficiente", "Amostra insuficiente"],
   ["sem_referencia_compativel", "Sem referência compatível"],
   ["consulta_parcial", "Consulta parcial"],
@@ -127,6 +128,7 @@ const PESO_DA_PENDENCIA: Record<string, number> = {
   sem_referencia_compativel: 2,
   amostra_insuficiente: 3,
   revisar_cv: 4,
+  revisar_atipico: 4,
   revisar_similaridade: 5,
 };
 

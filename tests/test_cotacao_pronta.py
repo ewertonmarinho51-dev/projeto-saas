@@ -170,3 +170,68 @@ def test_serie_de_tamanhos_misturados_vira_cesta_so_do_tamanho_pedido(monkeypatc
     assert na_cesta and all("S6" in d for d in na_cesta)
     item = repo.obter_item(iid)
     assert cotacoes.proposta_apta(item)
+
+
+# ---------------------------------------------------------------------------
+# Rodada 2 sobre o lote A com fontes reais (26/11/2026)
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("item,fonte,classe", [
+    # água: o qualificador é o produto
+    ("ÁGUA SANITÁRIA 1 LITRO", "Água Coco material: água côco verde, 1 litro", "incompativel"),
+    ("ÁGUA SANITÁRIA 1 LITRO", "ÁGUA SANITÁRIA, HIPOCLORITO DE SÓDIO, 1 LITRO", "equivalente"),
+    # recarga × vasilhame (o exemplo do pedido)
+    ("ÁGUA MINERAL GARRAFÃO 20 LITROS (RECARGA)",
+     "ÁGUA MINERAL NATURAL, GALÃO DE 20 LITROS RETORNÁVEL (RECARGA)", "equivalente"),
+    ("ÁGUA MINERAL GARRAFÃO 20 LITROS (RECARGA)", "AGUA MINERAL NATURAL GARRAFAO 20L", "similar"),
+    ("ÁGUA MINERAL GARRAFÃO 20 LITROS (RECARGA)", "ÁGUA MINERAL 20 L COM VASILHAME", "incompativel"),
+    # bucha em conjunto com parafuso não é a bucha
+    ("BUCHA DE NYLON SEM ABA S6", "BUCHA DE NYLON TIPO S6 COM PARAFUSO PHILIPS", "incompativel"),
+    # cimento: tipo, adição e classe
+    ("CIMENTO PORTLAND COMPOSTO CPIIE32 - SACO C/50KG",
+     "CIMENTO BRANCO, TIPO CIMENTO PORTLAND, COR BRANCA 50KG", "incompativel"),
+    ("CIMENTO PORTLAND COMPOSTO CPIIE32 - SACO C/50KG", "CIMENTO PORTLAND CP II-E-32 SACO 50 KG", "equivalente"),
+    ("CIMENTO PORTLAND COMPOSTO CPIIE32 - SACO C/50KG", "CIMENTO CP II F 32 50KG", "incompativel"),
+    ("CIMENTO PORTLAND COMPOSTO CPIIE32 - SACO C/50KG", "CIMENTO PORTLAND 50KG", "similar"),
+    # fita: medida nominal com folga, largura diferente sai
+    ("FITA CREPE ROLO DE 25 MM X 50 M", "FITA CREPE 24 X 50", "equivalente"),
+    ("FITA CREPE ROLO DE 25 MM X 50 M", "FITA CREPE - 48 X 50", "incompativel"),
+    # cor: só a divergência declarada pesa
+    ("SACO PARA LIXO 100 LITROS PRETO", "Saco Plástico Lixo capacidade: 100 L, cor: branca", "incompativel"),
+    ("SACO PARA LIXO 100 LITROS PRETO", "SACO DE LIXO 100LTS PRETO PC C/100 UNID", "equivalente"),
+    ("CANETA ESFEROGRÁFICA AZUL", "Caneta Esferográfica cor tinta: preta", "incompativel"),
+    ("CANETA ESFEROGRÁFICA AZUL", "Caneta Esferográfica cor tinta: azul, material: plástico", "equivalente"),
+    ("CANETA ESFEROGRÁFICA AZUL", "Caneta Esferográfica personalizada conforme modelo, cor tinta: azul",
+     "incompativel"),
+    ("CANETA ESFEROGRÁFICA AZUL", "Caneta Esferográfica retrátil, 1.0 mm, personalizada, cor tinta: azul",
+     "incompativel"),
+    # o lacre personalizado do garrafão não é produto personalizado
+    ("ÁGUA MINERAL GARRAFÃO 20 LITROS (RECARGA)",
+     "ÁGUA MINERAL NATURAL – ACONDICIONADA EM EMBALAGEM RETORNÁVEL (GARRAFÃO) DE 20 LITROS, "
+     "COM LACRE DE SEGURANÇA PERSONALIZADO PELO FABRICANTE", "equivalente"),
+    # caneta indicador laser não é caneta esferográfica
+    ("CANETA ESFEROGRÁFICA AZUL", "Caneta - Indicador material: alumínio, tipo indicador: laser",
+     "incompativel"),
+])
+def test_rodada_2_especificacoes_do_lote_real(item, fonte, classe):
+    r = equivalencia.classificar(item, fonte, semelhanca=Decimal("0.5"))
+    assert r is not None and r.classe == classe, r and r.explicacao
+
+
+def test_cor_calada_na_fonte_nao_tira_a_elegibilidade():
+    # o catálogo omite a cor em muita descrição: sem divergência, nada muda
+    assert equivalencia.classificar("CANETA ESFEROGRÁFICA AZUL",
+                                    "Caneta Esferográfica material: plástico, 1 carga",
+                                    semelhanca=Decimal("0.5")) is None
+
+
+def test_desfecho_do_lote_e_honesto(monkeypatch):
+    """Preço atípico à espera de decisão não conta como pronto, e série
+    abaixo do mínimo é amostra curta, não dispersão."""
+    from types import SimpleNamespace
+    base = dict(item_id="i", modo="automatico", diagnostico="ok")
+    atipico = cotacoes.ResultadoPesquisa(**base, estimativa=SimpleNamespace(
+        pendencias=["1 preço(s) atípico(s) aguardam decisão"]))
+    assert atipico.desfecho == "revisar_atipico" and "revisar_atipico" in cotacoes.PENDENTES
+    curta = cotacoes.ResultadoPesquisa(**base, barreira_cv={
+        "aprovada": False, "motivo": estatistica.CV_INDISPONIVEL, "quantidade": 1})
+    assert curta.desfecho == "amostra_insuficiente"

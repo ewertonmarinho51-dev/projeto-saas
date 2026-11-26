@@ -91,6 +91,44 @@ _RESMA = re.compile(r"(?<![\w])RESMAS?(?![\w])")
 _CLASSE_AC = re.compile(r"(?<![A-Z0-9])AC[\s-]?(III|II|I|[123])(?![IVX0-9])")
 _ROMANO = {"I": "1", "II": "2", "III": "3"}
 _TAMANHO_BUCHA = re.compile(r"(?<![A-Z0-9])S[\s-]?(\d{1,2})(?!\d)")
+# Água: a recarga do garrafão não é o fornecimento com vasilhame novo.
+_RECARGA = re.compile(r"(?<![A-Z])(RECARGA|RETORNAVE(?:L|IS))(?![A-Z])")
+_VASILHAME = re.compile(r"(?<![A-Z])(COM VASILHAME|VASILHAME INCLUSO|INCLUINDO VASILHAME|"
+                        r"GARRAFAO NOVO|VASILHAME NOVO)(?![A-Z])")
+# Bucha vendida em CONJUNTO com o parafuso: outro objeto que a bucha sozinha.
+_COM_PARAFUSO = re.compile(r"(?<![A-Z])(COM|C/|E|\+)\s*PARAFUSOS?(?![A-Z])")
+# O PRODUTO personalizado (gravação, logotipo): "personalizada conforme
+# modelo", "personalizada com brasão", ", personalizada,". Não confunde com
+# "lacre personalizado pelo fabricante" (medido no lote A, 26/11/2026).
+_PERSONALIZADO = re.compile(
+    r"PERSONALIZAD[OA]S?\s+(?:CONFORME|MEDIANTE|COM\s+(?:A\s+|O\s+)?(?:LOGO|BRAS|NOME|IMPRESS|GRAVA|ARTE))"
+    r"|[,:;]\s*PERSONALIZAD[OA]S?\s*(?:[,;.]|$)")
+# Cimento: tipo (CP I…CP V), adição (E/F/Z) e classe de resistência (25/32/40).
+_CIMENTO_CP = re.compile(r"(?<![A-Z])CP\s*-?\s*(III|II|IV|V|I)\s*-?\s*([EFZ])?"
+                         r"\s*-?\s*(25|32|40)?(?![A-Z0-9])")
+# Fita: largura e comprimento ("25 MM X 50 M", "48X50"), com folga de medida.
+_FITA_MEDIDA = re.compile(r"(?<![\d,.])(\d{2})\s*(?:MM)?\s*X\s*(\d{2,3})(?:\s*M(?:TS|ETROS)?)?(?![\dX])")
+# Cor declarada. Só DIVERGÊNCIA conta: a fonte que não diz a cor não perde
+# a elegibilidade por isso (o catálogo omite a cor em muita descrição).
+_CORES = {"BRANC": "branco", "PRET": "preto", "AZUL": "azul", "VERMELH": "vermelho",
+          "VERDE": "verde", "AMAREL": "amarelo", "CINZ": "cinza", "MARRO": "marrom",
+          "LARANJ": "laranja", "ROX": "roxo", "ROSA": "rosa", "INCOLOR": "incolor"}
+_SORTIDAS = re.compile(r"(?<![A-Z])(SORTID|VARIAD|DIVERSAS CORES|CORES DIVERSAS|COLORID)")
+# dimensões que NÃO exigem prova na fonte — só a divergência declarada vale
+_SO_DIVERGENCIA = frozenset({"cor"})
+# dimensões que valem também AO CONTRÁRIO: a fonte tem, o item não pediu
+_REVERSAS = frozenset({"conjunto"})
+# folga relativa na comparação (medida nominal: fita "24 X 50" é a de 25 mm)
+_FOLGA = {"largura": Decimal("0.05"), "comprimento": Decimal("0.1")}
+# Produto definido pelo QUALIFICADOR: "água sanitária" não é "água de coco".
+_PRODUTO_PELO_QUALIFICADOR = {
+    "AGUA": frozenset({"SANITARIA", "MINERAL", "COCO", "DESTILADA", "OXIGENADA",
+                       "DEIONIZADA", "DESMINERALIZADA", "TONICA", "SANITARIO"}),
+    "CANETA": frozenset({"ESFEROGRAFICA", "INDICADOR", "LASER", "MARCADORA",
+                         "MARCA", "HIDROGRAFICA", "CORRETIVA", "NANQUIM",
+                         "TINTEIRO", "MARCADOR", "TOUCH", "STYLUS"}),
+}
+
 _POLEGADA = re.compile(
     r"(?<![\d/.,])(?:(\d{1,2})(?:[.,\s-]+(\d{1,2})/(\d{1,2}))?|(\d{1,2})/(\d{1,2}))"
     r"\s*(?:\"|”|“|''|POLEGADAS?(?![A-Z])|POL(?![A-Z]))")
@@ -193,6 +231,13 @@ def conflito_de_objeto(descricao_item, descricao_fonte, *, unidade_item="",
         return f"objeto diferente: {da_fonte} na fonte, {do_item} no item"
     nome_item, qual_item = _nome_e_qualificador(descricao_item)
     nome_fonte, qual_fonte = _nome_e_qualificador(descricao_fonte)
+    exclusivos = _PRODUTO_PELO_QUALIFICADOR.get(nome_item or "")
+    if exclusivos and nome_fonte == nome_item and qual_item in exclusivos:
+        da_fonte = set(_sequencia(descricao_fonte)) & exclusivos
+        if da_fonte and qual_item not in da_fonte:
+            outro = sorted(da_fonte)[0].lower()
+            return (f"produto diferente: {nome_item.lower()} {outro} na fonte, "
+                    f"{nome_item.lower()} {qual_item.lower()} no item")
     if not (nome_item and nome_fonte and qual_item and qual_fonte):
         return ""
     if not _mesma(nome_item, nome_fonte) or _mesma(qual_item, qual_fonte):
@@ -254,6 +299,34 @@ def atributos(*textos) -> dict[str, frozenset]:
         if "BUCHA" in limpo:
             for tamanho in _TAMANHO_BUCHA.findall(limpo):
                 saida.setdefault("tamanho", set()).add(f"S{int(tamanho)}")
+        if "AGUA" in limpo:
+            if _VASILHAME.search(limpo):
+                saida.setdefault("fornecimento", set()).add("com vasilhame")
+            elif _RECARGA.search(limpo):
+                saida.setdefault("fornecimento", set()).add("recarga")
+        if _PERSONALIZADO.search(limpo):
+            # personalização (gravação, logotipo) é serviço agregado ao produto
+            saida.setdefault("conjunto", set()).add("personalizado")
+        if "BUCHA" in limpo and _COM_PARAFUSO.search(limpo):
+            saida.setdefault("conjunto", set()).add("com parafuso")
+        if "CIMENTO" in limpo:
+            for tipo, adicao, classe in _CIMENTO_CP.findall(limpo):
+                saida.setdefault("cimento_tipo", set()).add(f"CP {tipo}")
+                if adicao:
+                    saida.setdefault("cimento_adicao", set()).add(adicao)
+                if classe:
+                    saida.setdefault("cimento_classe", set()).add(classe)
+            if re.search(r"CIMENTO\s+(?:PORTLAND\s+)?BRANCO", limpo):
+                saida.setdefault("cimento_tipo", set()).add("branco")
+        if "FITA" in limpo:
+            for largura, comprimento in _FITA_MEDIDA.findall(limpo):
+                saida.setdefault("largura", set()).add(Decimal(largura))
+                saida.setdefault("comprimento", set()).add(Decimal(comprimento))
+        if not _SORTIDAS.search(limpo):
+            for palavra in re.findall(r"[A-Z]+", limpo):
+                for raiz, cor in _CORES.items():
+                    if palavra.startswith(raiz) and len(palavra) <= len(raiz) + 2:
+                        saida.setdefault("cor", set()).add(cor)
         for inteiro, num, den, num_so, den_so in _POLEGADA.findall(limpo):
             valor = _fracao(inteiro, num, den, num_so, den_so)
             if valor is not None:
@@ -278,7 +351,11 @@ _NOME = {"gramatura": "gramatura", "massa": "massa", "volume": "volume",
          "concentracao": "concentração", "potencia": "potência",
          "tensao": "tensão", "percentual": "percentual", "folhas": "folhas",
          "doses": "doses", "formato": "formato", "classe": "classe",
-         "tamanho": "tamanho", "polegadas": "bitola", "secao": "seção"}
+         "tamanho": "tamanho", "polegadas": "bitola", "secao": "seção",
+         "fornecimento": "fornecimento", "conjunto": "conjunto",
+         "cimento_tipo": "tipo de cimento", "cimento_adicao": "adição do cimento",
+         "cimento_classe": "classe do cimento", "largura": "largura",
+         "comprimento": "comprimento", "cor": "cor"}
 
 
 def _texto(valor: Decimal) -> str:
@@ -295,7 +372,8 @@ def _um(dimensao: str, valor) -> str:
     unidade = {"gramatura": " g/m²", "massa": " g", "volume": " ml",
                "concentracao": " mg/ml", "potencia": " W", "tensao": " V",
                "percentual": "%", "folhas": " folhas", "doses": " un",
-               "polegadas": "\"", "secao": " mm²"
+               "polegadas": "\"", "secao": " mm²", "largura": " mm",
+               "comprimento": " m"
                }.get(dimensao, "")
     return f"{_texto(valor)}{unidade}"
 
@@ -349,6 +427,11 @@ def _cruzar(dimensao: str, do_item: frozenset, da_fonte: dict) -> tuple:
     return None, None
 
 
+def _perto(valores, achados, folga: Decimal) -> bool:
+    """Algum valor do item a até `folga` (relativa) de algum da fonte."""
+    return any(abs(a - b) <= folga * b for a in achados for b in valores if b)
+
+
 def classificar(descricao_item: str, descricao_fonte: str, *,
                 unidade_item: str = "", unidade_fonte: str = "",
                 mesmo_codigo: bool = False,
@@ -393,6 +476,22 @@ def classificar(descricao_item: str, descricao_fonte: str, *,
             else:
                 faltam.append(f"{nome} {_exibir(dimensao, valores)}")
             continue
+        if dimensao in _SO_DIVERGENCIA:
+            if achados is None:
+                continue                       # a fonte não diz: não pesa
+            if valores & achados:
+                conferidos.append(f"{nome} {_exibir(dimensao, valores & achados)}")
+            else:
+                divergem.append(f"{nome} {_exibir(dimensao, achados)} na fonte, "
+                                f"{_exibir(dimensao, valores)} no item")
+            continue
+        if dimensao in _FOLGA and achados is not None:
+            if _perto(valores, achados, _FOLGA[dimensao]):
+                conferidos.append(f"{nome} {_exibir(dimensao, valores)}")
+            else:
+                divergem.append(f"{nome} {_exibir(dimensao, achados)} na fonte, "
+                                f"{_exibir(dimensao, valores)} no item")
+            continue
         if achados is None:
             faltam.append(f"{nome} {_exibir(dimensao, valores)}")
         elif valores <= achados:
@@ -403,6 +502,11 @@ def classificar(descricao_item: str, descricao_fonte: str, *,
         else:
             divergem.append(f"{nome} {_exibir(dimensao, achados)} na fonte, "
                             f"{_exibir(dimensao, valores)} no item")
+    for dimensao in sorted(_REVERSAS & set(da_fonte) - set(do_item)):
+        divergem.append(f"{_NOME[dimensao]} {_exibir(dimensao, da_fonte[dimensao])} "
+                        "na fonte, não pedido no item")
+    if not (conferidos or faltam or divergem):
+        return None                    # só atributo brando, e a fonte calada
     # A medida só fala do PRODUTO que a descrição nomeia: "PRODUTO
     # DIFERENTE 76X76" não é o bloco autoadesivo do item por ter a mesma
     # medida. Sem o núcleo do item na fonte e com redação pouco semelhante,
