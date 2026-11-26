@@ -216,7 +216,7 @@ def resumir(valores: list[Decimal]) -> ResumoDaSerie | None:
         return None
     if e.quantidade < 2:
         dispersao = "insuficiente"
-    elif e.coeficiente_variacao > estatistica.CV_DISPERSAO:
+    elif not estatistica.cv_aceito(e.coeficiente_variacao):
         dispersao = "dispersa"
     else:
         dispersao = "homogenea"

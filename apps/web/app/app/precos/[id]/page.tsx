@@ -13,6 +13,7 @@ import { ImportarPlanilha } from "@/components/importar-planilha";
 import {
   dataCurta,
   ordenarPorAtencao,
+  RETOMAVEIS,
   rotuloDaPendencia,
   rotuloEstadoItem,
   rotuloEstadoPesquisa,
@@ -35,6 +36,7 @@ import {
   chamarApi,
   ErroDaApi,
   precosHabilitado,
+  type Job,
   type OrgaoDoMunicipio,
   type PesquisaDePrecos,
   type PreparoDaEmissao,
@@ -57,6 +59,23 @@ const EMITIVEIS = new Set(["completed", "applied"]);
 // parar embaixo dela ao rolar.
 const ALVO = "scroll-mt-[calc(var(--topbar-height)+var(--space-4))]";
 
+// Resumo de um lote terminado aparece ao voltar por até 12 h; depois a
+// cotação mostra só os itens (que já dizem a pendência de cada um).
+const RESUMO_RECENTE_MS = 12 * 60 * 60 * 1000;
+
+async function loteParaAcompanhar(pesquisa: string): Promise<string | null> {
+  try {
+    const { dados } = await chamarApi<Job>(`/precos/pesquisas/${pesquisa}/coleta/atual`);
+    if (!UUID.test(dados.id)) return null;
+    if (dados.estado === "queued" || dados.estado === "running") return dados.id;
+    if (dados.estado === "failed" && RETOMAVEIS.has(dados.erro_codigo)) return dados.id;
+    const fim = Date.parse(dados.concluido_em ?? "");
+    return Number.isFinite(fim) && Date.now() - fim < RESUMO_RECENTE_MS ? dados.id : null;
+  } catch {
+    return null; // sem lote (404) ou API fora: a página segue sem o painel
+  }
+}
+
 export default async function Pesquisa({
   params,
   searchParams,
@@ -68,7 +87,7 @@ export default async function Pesquisa({
   const { id } = await params;
   const { job, relatorio, criada, importada, aplicada, duplicada, arquivada, item_retirado, concluida, revisao, item } =
     await searchParams;
-  const jobId = typeof job === "string" && UUID.test(job) ? job : null;
+  const jobDaUrl = typeof job === "string" && UUID.test(job) ? job : null;
   const relatorioId = typeof relatorio === "string" && UUID.test(relatorio) ? relatorio : null;
   if (!UUID.test(id)) notFound();
 
@@ -79,6 +98,9 @@ export default async function Pesquisa({
     if (e instanceof ErroDaApi && e.status === 404) notFound();
     throw e;
   }
+  // Sem `?job=`, o lote mais recente da cotação: quem saiu e voltou encontra
+  // o progresso, o resumo recente ou a retomada da sessão que venceu.
+  const jobId = jobDaUrl ?? (FECHADAS.has(p.estado) ? null : await loteParaAcompanhar(id));
   // Primeiro o que exige atenção, depois as propostas aptas, por último o concluído.
   const listados = ordenarPorAtencao(p.itens);
   // Aplicar ao processo: a prévia só faz sentido com a pesquisa concluída

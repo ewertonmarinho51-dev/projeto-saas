@@ -6,9 +6,10 @@ O que estas provas guardam:
 
 * toda seleção automática nova — item, lote, reexecução e rota legada —
   põe no máximo 5 referências, contando as que uma PESSOA já escolheu;
-* a cesta que resultaria (de pessoa + novas) só é gravada com CV ≤ 25%,
-  pelo desvio-padrão amostral em `Decimal`, comparado sem arredondar:
-  75, 100 e 125 dão 25% exatos e PASSAM;
+* a cesta que resultaria (de pessoa + novas) só é gravada com CV
+  ESTRITAMENTE abaixo de 25%, pelo desvio-padrão amostral em `Decimal`,
+  comparado sem arredondar: 75, 100 e 125 dão 25% exatos e vão para
+  REVISÃO (26/11/2026; antes passavam);
 * reprovada, nada some: as novas ficam candidatas, com o motivo, o CV e a
   quantidade na referência, no item e na trilha; cesta vazia = preço
   pendente (não zero);
@@ -87,10 +88,19 @@ def test_politica_versionada_com_teto_5():
     assert POL.teto_de_emissao == 15 and POL.reserva == 10
 
 
-def test_25_por_cento_exatos_passam_e_um_centavo_alem_nao():
+def test_25_por_cento_exatos_vao_para_revisao_e_um_pouco_abaixo_passa():
     exato = estatistica.avaliar_barreira_cv(
         [], [Decimal("75"), Decimal("100"), Decimal("125")])
-    assert exato.cv == Decimal("0.25") and exato.aprovada
+    assert exato.cv == Decimal("0.25") and not exato.aprovada
+    assert exato.motivo == estatistica.CV_ACIMA_DO_LIMITE
+    assert "25,00%, não abaixo de 25%" in exato.texto()
+    # um pouco abaixo (24,99…%) passa: o corte é no valor exato
+    abaixo = estatistica.avaliar_barreira_cv(
+        [], [Decimal("75.01"), Decimal("100"), Decimal("124.99")])
+    assert abaixo.cv < Decimal("0.25") and abaixo.aprovada
+    assert estatistica.cv_aceito(abaixo.cv)
+    assert not estatistica.cv_aceito(None)
+    assert estatistica.VERSAO_BARREIRA_CV == "2026-11-26.cv-abaixo-de-25"
     alem = estatistica.avaliar_barreira_cv(
         [], [Decimal("74.99"), Decimal("100"), Decimal("125.01")])
     assert alem.cv > Decimal("0.25") and not alem.aprovada
@@ -135,10 +145,20 @@ def test_mais_de_cinco_elegiveis_viram_cinco_e_reserva(monkeypatch):
     assert "barreira_cv" not in repo.obter_item(iid)["estatisticas"]
 
 
-def test_cv_de_25_exatos_grava_a_cesta(monkeypatch):
+def test_cv_de_25_exatos_vai_para_revisao_no_item(monkeypatch):
     cid, iid = _nova(monkeypatch)
     r = _auto(cid, iid, ["75", "100", "125"])
-    assert r.consideradas == 3 and r.barreira_cv["cv"] == "0.25"
+    assert r.consideradas == 0 and r.barreira_cv["cv"] == "0.25"
+    assert r.barreira_cv["aprovada"] is False and r.desfecho == "revisar_cv"
+    item = repo.obter_item(iid)
+    assert item["preco_estimado"] is None
+    assert not cotacoes.proposta_apta(item)
+
+
+def test_cv_logo_abaixo_de_25_grava_a_cesta(monkeypatch):
+    cid, iid = _nova(monkeypatch)
+    r = _auto(cid, iid, ["75.01", "100", "124.99"])
+    assert r.consideradas == 3 and r.barreira_cv["aprovada"] is True
     item = repo.obter_item(iid)
     assert Decimal(str(item["preco_estimado"])) == Decimal("100.00")
     assert item["estado"] == "review"
@@ -207,10 +227,10 @@ def test_escolha_de_pessoa_conta_na_vaga_e_no_cv(monkeypatch):
                             fontes=[_fonte(["100"], prefixo="m")])
     [manual] = repo.listar_referencias(iid)
     _incluir(cid, iid, manual)
-    # 100 (de pessoa) + 75 e 125 novas = 25% exatos: entra
+    # 100 (de pessoa) + 80 e 120 novas = 20%: entra
     r = cotacoes.pesquisar_item(
         CTX, cid, iid, modo="automatico",
-        fontes=[_fonte(["100"], prefixo="m"), _fonte(["75", "125"])])
+        fontes=[_fonte(["100"], prefixo="m"), _fonte(["80", "120"])])
     assert r.preservadas == 1 and r.consideradas == 3
     assert (r.barreira_cv["preservadas"], r.barreira_cv["novas"]) == (1, 2)
 
@@ -368,7 +388,8 @@ def test_cesta_de_6_a_15_da_politica_anterior_segue_emitivel():
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("valores,na_cesta,motivo", [
     ([str(100 + i) for i in range(9)], 5, ""),
-    (["75", "100", "125"], 3, ""),
+    (["75.01", "100", "124.99"], 3, ""),
+    (["75", "100", "125"], 0, estatistica.CV_ACIMA_DO_LIMITE),
     (["70", "100", "130"], 0, estatistica.CV_ACIMA_DO_LIMITE),
     (["50"], 0, estatistica.CV_INDISPONIVEL),
 ])

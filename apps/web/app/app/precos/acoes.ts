@@ -80,6 +80,25 @@ export async function iniciarColeta(_: EstadoDaColeta, form: FormData): Promise<
   redirect(`/app/precos/${pesquisa}?job=${jobId}`);
 }
 
+/**
+ * Retoma o lote que parou por motivo transitório (sessão vencida, banco
+ * fora). A chave é a do lote anterior: a tela pode pedir quantas vezes
+ * quiser (recarga, duas abas) e cai sempre na MESMA retomada.
+ */
+export async function retomarColeta(pesquisa: string, loteAnterior: string): Promise<string | null> {
+  if (!UUID.test(pesquisa) || !UUID.test(loteAnterior)) return null;
+  try {
+    const { dados } = await chamarApi<{ id: string }>(`/precos/pesquisas/${pesquisa}/coleta`, {
+      metodo: "POST",
+      corpo: { modo: "automatico" },
+      cabecalhos: { "Idempotency-Key": `retomada:${loteAnterior}` },
+    });
+    return UUID.test(dados.id) ? dados.id : null;
+  } catch {
+    return null; // a tela mantém o aviso e o botão Coletar preços
+  }
+}
+
 export type EstadoDaEmissao = { erro: string | null };
 
 const ERROS_DA_EMISSAO: Record<string, string> = {

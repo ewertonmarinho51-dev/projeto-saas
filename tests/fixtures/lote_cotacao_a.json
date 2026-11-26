@@ -1,0 +1,109 @@
+{
+ "nome": "Lote A — medição (26/11/2026)",
+ "data_corte": "2026-11-26",
+ "perfil": "lei_14133",
+ "filtros": {},
+ "origem": "descrições de cotações reais da plataforma (materiais de construção, expediente) e itens típicos de limpeza, consumo, embalagem e serviço; sem dado de órgão ou servidor",
+ "itens": [
+  {
+   "descricao": "ARGAMASSA COLANTE AC 2, SACO DE 20KG",
+   "unidade": "SACO",
+   "quantidade": "40"
+  },
+  {
+   "descricao": "ARGAMASSA COLANTE AC 1 PARA CERÂMICAS, SACO DE 20KG",
+   "unidade": "SACO",
+   "quantidade": "40"
+  },
+  {
+   "descricao": "BUCHA DE NYLON SEM ABA S6",
+   "unidade": "UNIDADE",
+   "quantidade": "500"
+  },
+  {
+   "descricao": "BUCHA DE NYLON SEM ABA S8",
+   "unidade": "UNIDADE",
+   "quantidade": "500"
+  },
+  {
+   "descricao": "ALICATE DE CORTE DIAGONAL 6” COM ISOLAMENTO",
+   "unidade": "UNIDADE",
+   "quantidade": "5"
+  },
+  {
+   "descricao": "CABO FLEXÍVEL PVC 750 V, 2 CONDUTORES DE 4,0 MM2",
+   "unidade": "METRO",
+   "quantidade": "200"
+  },
+  {
+   "descricao": "CIMENTO PORTLAND COMPOSTO CPIIE32 - SACO C/50KG",
+   "unidade": "SACO",
+   "quantidade": "100"
+  },
+  {
+   "descricao": "FITA CREPE ROLO DE 25 MM X 50 M",
+   "unidade": "UNIDADE",
+   "quantidade": "50"
+  },
+  {
+   "descricao": "LUVA LÁTEX MULTIUSO AMARELA (PAR)",
+   "unidade": "PAR",
+   "quantidade": "100"
+  },
+  {
+   "descricao": "TINTA LÁTEX ACRÍLICA, COR BRANCA (BALDE COM 18L)",
+   "unidade": "UNIDADE",
+   "quantidade": "20"
+  },
+  {
+   "descricao": "VASSOURA TIPO GARI, DE PIAÇAVA 40 CM COM CABO",
+   "unidade": "UNIDADE",
+   "quantidade": "20"
+  },
+  {
+   "descricao": "CANETA ESFEROGRÁFICA AZUL",
+   "unidade": "UNIDADE",
+   "quantidade": "500"
+  },
+  {
+   "descricao": "PAPEL SULFITE A4 75 G/M², RESMA COM 500 FOLHAS",
+   "unidade": "RESMA",
+   "quantidade": "200"
+  },
+  {
+   "descricao": "GRAMPEADOR DE MESA 26/6",
+   "unidade": "UNIDADE",
+   "quantidade": "20"
+  },
+  {
+   "descricao": "ÁGUA SANITÁRIA 1 LITRO",
+   "unidade": "UNIDADE",
+   "quantidade": "200"
+  },
+  {
+   "descricao": "DETERGENTE LÍQUIDO NEUTRO 500 ML",
+   "unidade": "UNIDADE",
+   "quantidade": "300"
+  },
+  {
+   "descricao": "SACO PARA LIXO 100 LITROS PRETO, PACOTE COM 100 UNIDADES",
+   "unidade": "PACOTE",
+   "quantidade": "50"
+  },
+  {
+   "descricao": "COPO DESCARTÁVEL 200 ML, PACOTE COM 100 UNIDADES",
+   "unidade": "PACOTE",
+   "quantidade": "200"
+  },
+  {
+   "descricao": "ÁGUA MINERAL GARRAFÃO 20 LITROS (RECARGA)",
+   "unidade": "UNIDADE",
+   "quantidade": "300"
+  },
+  {
+   "descricao": "SERVIÇO DE RECARGA DE EXTINTOR DE INCÊNDIO PQS 4 KG",
+   "unidade": "UNIDADE",
+   "quantidade": "30"
+  }
+ ]
+}

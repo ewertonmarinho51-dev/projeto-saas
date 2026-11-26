@@ -31,7 +31,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 
-VERSAO = "2026-11-13.equivalencia.2"
+VERSAO = "2026-11-26.equivalencia.3"
 
 MESMO_ITEM = "mesmo_item"
 EQUIVALENTE = "equivalente"
@@ -63,6 +63,7 @@ _UNIDADES: dict[str, tuple[str, Decimal]] = {
     "VOLTS": ("tensao", Decimal(1)), "%": ("percentual", Decimal(1)),
     "FOLHAS": ("folhas", Decimal(1)), "FLS": ("folhas", Decimal(1)),
     "FL": ("folhas", Decimal(1)), "FOLHA": ("folhas", Decimal(1)),
+    "MM2": ("secao", Decimal(1)),
     "COMPRIMIDOS": ("doses", Decimal(1)), "CPR": ("doses", Decimal(1)),
     "CAPSULAS": ("doses", Decimal(1)), "CAPS": ("doses", Decimal(1)),
 }
@@ -76,6 +77,23 @@ _QUANTIFICADO = re.compile(
 _FORMATO = re.compile(r"(?<![\w])(A[3-6])(?![\w])")
 # resma sem contagem declarada é, por convenção do mercado, 500 folhas
 _RESMA = re.compile(r"(?<![\w])RESMAS?(?![\w])")
+
+# Designações que SÃO especificação (26/11/2026). Medido na cotação real de
+# materiais de construção: "ARGAMASSA COLANTE AC 2" recebia AC-I e AC-III, e
+# "BUCHA DE NYLON SEM ABA S6" recebia S4, S5, S8 e S10 — séries de produtos
+# diferentes, CV acima de 30% e o item preso em revisão. A lista é curta e
+# fechada de propósito: cada família tem sentido técnico conhecido.
+#
+# * classe da argamassa colante (NBR 14081): AC-I/AC-II/AC-III, AC1/AC 2…;
+# * tamanho da bucha de fixação: S4, S6, S8, S10… (só em texto de BUCHA);
+# * bitola em polegadas: 6", 1/2", 1.1/2", 3/4 POL (alicate, tubo, conexão);
+# * seção do condutor elétrico: 2,5 mm², 4 mm².
+_CLASSE_AC = re.compile(r"(?<![A-Z0-9])AC[\s-]?(III|II|I|[123])(?![IVX0-9])")
+_ROMANO = {"I": "1", "II": "2", "III": "3"}
+_TAMANHO_BUCHA = re.compile(r"(?<![A-Z0-9])S[\s-]?(\d{1,2})(?!\d)")
+_POLEGADA = re.compile(
+    r"(?<![\d/.,])(?:(\d{1,2})(?:[.,\s-]+(\d{1,2})/(\d{1,2}))?|(\d{1,2})/(\d{1,2}))"
+    r"\s*(?:\"|”|“|''|POLEGADAS?(?![A-Z])|POL(?![A-Z]))")
 
 
 _RUIDO = {"DE", "DA", "DO", "DAS", "DOS", "PARA", "COM", "SEM", "EM", "E",
@@ -231,13 +249,36 @@ def atributos(*textos) -> dict[str, frozenset]:
             saida.setdefault("formato", set()).add(formato)
         if _RESMA.search(limpo) and "folhas" not in saida:
             saida.setdefault("folhas", set()).add(Decimal(500))
+        for classe in _CLASSE_AC.findall(limpo):
+            saida.setdefault("classe", set()).add("AC-" + _ROMANO.get(classe, classe))
+        if "BUCHA" in limpo:
+            for tamanho in _TAMANHO_BUCHA.findall(limpo):
+                saida.setdefault("tamanho", set()).add(f"S{int(tamanho)}")
+        for inteiro, num, den, num_so, den_so in _POLEGADA.findall(limpo):
+            valor = _fracao(inteiro, num, den, num_so, den_so)
+            if valor is not None:
+                saida.setdefault("polegadas", set()).add(valor)
     return {k: frozenset(v) for k, v in saida.items()}
+
+
+def _fracao(inteiro: str, num: str, den: str, num_so: str, den_so: str) -> Decimal | None:
+    """6 → 6; 1.1/2 → 1,5; 3/4 → 0,75. Denominador zero não é medida."""
+    try:
+        if num_so:
+            return (Decimal(num_so) / Decimal(den_so)).normalize()
+        base = Decimal(inteiro)
+        if num:
+            base += Decimal(num) / Decimal(den)
+        return base.normalize() if base > 0 else None
+    except (InvalidOperation, ZeroDivisionError):
+        return None
 
 
 _NOME = {"gramatura": "gramatura", "massa": "massa", "volume": "volume",
          "concentracao": "concentração", "potencia": "potência",
          "tensao": "tensão", "percentual": "percentual", "folhas": "folhas",
-         "doses": "doses", "formato": "formato"}
+         "doses": "doses", "formato": "formato", "classe": "classe",
+         "tamanho": "tamanho", "polegadas": "bitola", "secao": "seção"}
 
 
 def _texto(valor: Decimal) -> str:
@@ -253,7 +294,8 @@ def _um(dimensao: str, valor) -> str:
         return f"{_texto(valor / 1000)} kg"
     unidade = {"gramatura": " g/m²", "massa": " g", "volume": " ml",
                "concentracao": " mg/ml", "potencia": " W", "tensao": " V",
-               "percentual": "%", "folhas": " folhas", "doses": " un"
+               "percentual": "%", "folhas": " folhas", "doses": " un",
+               "polegadas": "\"", "secao": " mm²"
                }.get(dimensao, "")
     return f"{_texto(valor)}{unidade}"
 

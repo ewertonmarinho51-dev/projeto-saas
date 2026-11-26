@@ -175,6 +175,8 @@ DESFECHOS_DO_LOTE = frozenset(cotacoes.DESFECHOS) | {JA_RESOLVIDO}
 # "falha técnica" e a próxima cotação automática volta a ele sozinha.
 TENTATIVAS_POR_ITEM = 3
 ESPERA_ENTRE_TENTATIVAS_S = (5, 20)
+# Rodadas no fim do lote para itens que chegaram com ele rodando.
+RODADAS_EXTRAS = 2
 
 
 def registro_do_lote(desfechos: dict[str, str],
@@ -372,6 +374,21 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
                 dormir(espera)
                 if rodar(falhos, set()) == "failed":
                     return "failed"
+            # Itens que ENTRARAM com o lote rodando (planilha importada no
+            # meio: o pedido devolve o lote vivo em vez de abrir outro). A
+            # mesma execução os pega no fim, sem refazer o que já fez.
+            for _ in range(RODADAS_EXTRAS if modo == "automatico" else 0):
+                ja = set(item_ids) | set(desfechos)
+                novos = [i for i in cotacoes.recorte_do_lote(pesquisa_id, modo=modo, **opcoes)
+                         if i not in ja]
+                if not novos:
+                    break
+                item_ids = [*item_ids, *novos]
+                total = len(item_ids)
+                atualizar_job(rest, token, job_id, total=total,
+                              parametros={**parametros, "item_ids": item_ids})
+                if rodar(novos, tentados) == "failed":
+                    return "failed"
             # item do recorte que já não precisava de busca quando a vez dele
             # chegou (concluído pelo servidor no meio do lote): conta uma vez
             for item_id in item_ids or []:
@@ -390,6 +407,49 @@ def processar_job(*, job_id: str, token: str, tenant_id: str, auth_user_id: str,
                   feitos=total if total else len(tentados),
                   resultado=registro_do_lote(desfechos, tentativas))
     return "succeeded"
+
+
+# ---------------------------------------------------------------------------
+# Lote ativo: um por cotação (26/11/2026)
+#
+# Produção tinha, na mesma cotação, um lote "na fila" desde 16/11 que nunca
+# começou e outro rodando em 26/11 — duplo clique ou botão de novo com outra
+# chave criava um job novo. O lote da cotação é UM: pedir de novo enquanto
+# há um VIVO devolve o mesmo. Vivo = na fila ou rodando, com sinal de vida
+# recente (o worker grava a cada item). Parado há mais tempo que isso não
+# segura a cotação: o servidor pode recomeçar, e o recorte novo não refaz o
+# que já foi feito.
+# ---------------------------------------------------------------------------
+SINAL_DE_VIDA_S = 15 * 60
+
+
+def _instante(valor) -> float | None:
+    try:
+        return datetime.fromisoformat(str(valor).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def lote_vivo(linha: dict, agora: float) -> bool:
+    """O job é um LOTE (não o item avulso) ativo e com sinal de vida?"""
+    if str(linha.get("estado")) not in ("queued", "running"):
+        return False
+    if (linha.get("parametros") or {}).get("item_id"):
+        return False
+    visto = _instante(linha.get("atualizado_em") or linha.get("criado_em"))
+    return visto is not None and agora - visto <= SINAL_DE_VIDA_S
+
+
+def lotes_da_cotacao(rest: ClienteRest, token: str, tenant_id: str,
+                     pesquisa_id: str) -> list[dict]:
+    """Os jobs de coleta da cotação, do mais novo ao mais velho (só lote)."""
+    r = rest.requisitar(token, "GET", TABELA_JOBS, params={
+        "select": "*", "tipo": "eq.coleta_precos", "recurso_id": f"eq.{pesquisa_id}",
+        "tenant_id": f"eq.{tenant_id}", "parametros->>item_id": "is.null",
+        "order": "criado_em.desc", "limit": "5"})
+    if r.status != 200:
+        return []
+    return [l for l in (r.dados or []) if not (l.get("parametros") or {}).get("item_id")]
 
 
 # ---------------------------------------------------------------------------
@@ -462,6 +522,12 @@ def rotas() -> APIRouter:
                     "select": "item_id,criado_em,modo:payload->>modo", "pesquisa_id": f"eq.{pesquisa_id}",
                     "tipo": "in.(busca_concluida,busca_falhou)", "order": "criado_em.desc", "limit": "5000"})
                 ultimas = modo_da_ultima_busca(buscas.dados or []) if buscas.status == 200 else {}
+            # Lote vivo na mesma cotação: o mesmo job, sem fila nova.
+            for existente in lotes_da_cotacao(rest, eu.token, eu.tenant_id, str(pesquisa_id)):
+                if lote_vivo(existente, time.time()):
+                    response.status_code = 200
+                    response.headers["Coleta-Em-Andamento"] = "true"
+                    return job_do_banco(existente)
             # ESTIMATIVA para a barra não dizer "0 de 0": o recorte final (que
             # inclui o pendente com dado novo) é fixado pelo worker na largada.
             total = (sum(1 for i in itens.dados or []
@@ -502,6 +568,20 @@ def rotas() -> APIRouter:
                           "Coleta indisponível no momento. Tente de novo em instantes.") from None
         response.headers["Location"] = f"/api/v1/jobs/{linha['id']}"
         return job_do_banco(linha)
+
+    @r.get("/precos/pesquisas/{pesquisa_id}/coleta/atual", response_model=Job,
+           dependencies=[Depends(exigir_precos_habilitado)],
+           responses={404: {"description": "Sem lote nesta cotação (ou fora do seu acesso)"}})
+    def atual(pesquisa_id: uuid.UUID, request: Request,
+              eu: Identidade = Depends(exigir_identidade)) -> Job:
+        """O lote mais recente da cotação: quem sai e volta encontra o
+        progresso (ou o resumo) sem precisar do `?job=` na URL."""
+        lotes = lotes_da_cotacao(_rest(request), eu.token, eu.tenant_id, str(pesquisa_id))
+        if not lotes:
+            raise ErroApi(404, "NOT_FOUND", "Recurso não encontrado")
+        agora = time.time()
+        vivo = next((l for l in lotes if lote_vivo(l, agora)), None)
+        return job_do_banco(vivo or lotes[0])
 
     @r.get("/jobs/{job_id}", response_model=Job,
            responses={404: {"description": "Inexistente ou de outra pessoa"}})

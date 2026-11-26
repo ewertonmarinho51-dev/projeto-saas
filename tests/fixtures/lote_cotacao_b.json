@@ -1,0 +1,109 @@
+{
+ "nome": "Lote B — reservado para validação (26/11/2026)",
+ "data_corte": "2026-11-26",
+ "perfil": "lei_14133",
+ "filtros": {},
+ "origem": "descrições de cotações reais da plataforma (materiais de construção, expediente) e itens típicos de limpeza, consumo, embalagem e serviço; sem dado de órgão ou servidor",
+ "itens": [
+  {
+   "descricao": "ARGAMASSA COLANTE TIPO AC 3, SACO DE 20KG",
+   "unidade": "SACO",
+   "quantidade": "30"
+  },
+  {
+   "descricao": "BUCHA DE NYLON SEM ABA S10, COM PARAFUSO",
+   "unidade": "UNIDADE",
+   "quantidade": "300"
+  },
+  {
+   "descricao": "CABO FLEXÍVEL PVC 750 V, 3 CONDUTORES DE 1,5 MM2",
+   "unidade": "METRO",
+   "quantidade": "300"
+  },
+  {
+   "descricao": "CAIXA D'AGUA EM POLIETILENO 1000 LITROS, COM TAMPA",
+   "unidade": "UNIDADE",
+   "quantidade": "5"
+  },
+  {
+   "descricao": "COLHER DE PEDREIRO 8 POL. COM CANTO OVAL",
+   "unidade": "UNIDADE",
+   "quantidade": "10"
+  },
+  {
+   "descricao": "MARTELO UNHA 27MM COM CABO DE MADEIRA",
+   "unidade": "UNIDADE",
+   "quantidade": "10"
+  },
+  {
+   "descricao": "TUBO PVC SOLDÁVEL 25MM ÁGUA FRIA, BARRA 6 M",
+   "unidade": "UNIDADE",
+   "quantidade": "50"
+  },
+  {
+   "descricao": "DISCO DE CORTE PARA METAL 7 POL",
+   "unidade": "UNIDADE",
+   "quantidade": "50"
+  },
+  {
+   "descricao": "LÁPIS PRETO Nº 2",
+   "unidade": "UNIDADE",
+   "quantidade": "500"
+  },
+  {
+   "descricao": "BORRACHA BRANCA ESCOLAR",
+   "unidade": "UNIDADE",
+   "quantidade": "300"
+  },
+  {
+   "descricao": "PASTA SUSPENSA MARMORIZADA",
+   "unidade": "UNIDADE",
+   "quantidade": "200"
+  },
+  {
+   "descricao": "CLIPS NIQUELADO 2/0, CAIXA COM 100",
+   "unidade": "CAIXA",
+   "quantidade": "50"
+  },
+  {
+   "descricao": "DESINFETANTE LÍQUIDO 2 LITROS",
+   "unidade": "UNIDADE",
+   "quantidade": "200"
+  },
+  {
+   "descricao": "PAPEL TOALHA INTERFOLHADO 2 DOBRAS, PACOTE 1000 FOLHAS",
+   "unidade": "PACOTE",
+   "quantidade": "100"
+  },
+  {
+   "descricao": "SABONETE LÍQUIDO 5 LITROS",
+   "unidade": "UNIDADE",
+   "quantidade": "40"
+  },
+  {
+   "descricao": "PAPEL HIGIÊNICO ROLÃO 300 M",
+   "unidade": "ROLO",
+   "quantidade": "200"
+  },
+  {
+   "descricao": "FITA ADESIVA TRANSPARENTE 45MM X 45M",
+   "unidade": "UNIDADE",
+   "quantidade": "100"
+  },
+  {
+   "descricao": "CAIXA DE PAPELÃO PARA ARQUIVO MORTO",
+   "unidade": "UNIDADE",
+   "quantidade": "200"
+  },
+  {
+   "descricao": "CAFÉ TORRADO E MOÍDO 500 G",
+   "unidade": "PACOTE",
+   "quantidade": "100"
+  },
+  {
+   "descricao": "SERVIÇO DE LIMPEZA DE CAIXA D'ÁGUA",
+   "unidade": "UNIDADE",
+   "quantidade": "4"
+  }
+ ]
+}
