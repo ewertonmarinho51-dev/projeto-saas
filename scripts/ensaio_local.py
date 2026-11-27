@@ -218,6 +218,11 @@ SEQUENCIA_EM_ENSAIO = (
     # A 0050 (teto CMED) confere o mesmo que a 0046: só vale depois
     # das migrações de contenção.
     "0050_precos_cmed_teto.sql",
+    # A 0051 tira de `authenticated` a resolução de escopo de aprovação
+    # (SECURITY DEFINER com tenant em argumento). As provas da trilha de
+    # governança sobre `aprovacao` passam a rodar DEPOIS dela: é o que
+    # mostra que a chamadora interna segue funcionando.
+    "0051_escopo_de_aprovacao_so_por_dentro.sql",
     "0027_service_role_sem_delete_na_trilha.sql",
 )
 
